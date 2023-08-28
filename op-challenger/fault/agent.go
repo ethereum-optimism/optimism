@@ -13,26 +13,32 @@ import (
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
-	CanResolve(ctx context.Context) bool
+	CallResolve(ctx context.Context) (types.GameStatus, error)
 	Resolve(ctx context.Context) error
 	Respond(ctx context.Context, response types.Claim) error
 	Step(ctx context.Context, stepData types.StepCallData) error
 }
 
+type ClaimLoader interface {
+	FetchClaims(ctx context.Context) ([]types.Claim, error)
+}
+
 type Agent struct {
 	solver                  *solver.Solver
-	loader                  Loader
+	loader                  ClaimLoader
 	responder               Responder
+	updater                 types.OracleUpdater
 	maxDepth                int
 	agreeWithProposedOutput bool
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader ClaimLoader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,
 		responder:               responder,
+		updater:                 updater,
 		maxDepth:                maxDepth,
 		agreeWithProposedOutput: agreeWithProposedOutput,
 		log:                     log,
@@ -63,10 +69,27 @@ func (a *Agent) Act(ctx context.Context) error {
 	return nil
 }
 
+// shouldResolve returns true if the agent should resolve the game.
+// This method will return false if the game is still in progress.
+func (a *Agent) shouldResolve(ctx context.Context, status types.GameStatus) bool {
+	expected := types.GameStatusDefenderWon
+	if a.agreeWithProposedOutput {
+		expected = types.GameStatusChallengerWon
+	}
+	if expected != status {
+		a.log.Warn("Game will be lost", "expected", expected, "actual", status)
+	}
+	return expected == status
+}
+
 // tryResolve resolves the game if it is in a terminal state
 // and returns true if the game resolves successfully.
 func (a *Agent) tryResolve(ctx context.Context) bool {
-	if !a.responder.CanResolve(ctx) {
+	status, err := a.responder.CallResolve(ctx)
+	if err != nil {
+		return false
+	}
+	if !a.shouldResolve(ctx, status) {
 		return false
 	}
 	a.log.Info("Resolving game")
@@ -95,7 +118,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 
 // move determines & executes the next move given a claim
 func (a *Agent) move(ctx context.Context, claim types.Claim, game types.Game) error {
-	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
+	nextMove, err := a.solver.NextMove(ctx, claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		return fmt.Errorf("execute next move: %w", err)
 	}
@@ -133,9 +156,16 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 	}
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
-	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)
+	step, err := a.solver.AttemptStep(ctx, claim, agreeWithClaimLevel)
 	if err != nil {
 		return fmt.Errorf("attempt step: %w", err)
+	}
+
+	if step.OracleData != nil {
+		a.log.Info("Updating oracle data", "oracleKey", step.OracleData.OracleKey, "oracleData", step.OracleData.OracleData)
+		if err := a.updater.UpdateOracle(ctx, step.OracleData); err != nil {
+			return fmt.Errorf("failed to load oracle data: %w", err)
+		}
 	}
 
 	a.log.Info("Performing step", "is_attack", step.IsAttack,

@@ -1,5 +1,5 @@
 
-CREATE DOMAIN UINT256 AS NUMERIC NOT NULL
+CREATE DOMAIN UINT256 AS NUMERIC
     CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
 
 /**
@@ -7,107 +7,194 @@ CREATE DOMAIN UINT256 AS NUMERIC NOT NULL
  */
 
 CREATE TABLE IF NOT EXISTS l1_block_headers (
-	hash        VARCHAR NOT NULL PRIMARY KEY,
-	parent_hash VARCHAR NOT NULL,
-	number      UINT256,
-	timestamp   INTEGER NOT NULL CHECK (timestamp > 0)
+    -- Searchable fields
+    hash        VARCHAR PRIMARY KEY,
+    parent_hash VARCHAR NOT NULL UNIQUE,
+    number      UINT256 NOT NULL UNIQUE,
+    timestamp   INTEGER NOT NULL UNIQUE CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS l2_block_headers (
-    -- Block header
-	hash                     VARCHAR NOT NULL PRIMARY KEY,
-	parent_hash              VARCHAR NOT NULL,
-	number                   UINT256,
-	timestamp                INTEGER NOT NULL CHECK (timestamp > 0)
+    -- Searchable fields
+    hash        VARCHAR PRIMARY KEY,
+    parent_hash VARCHAR NOT NULL UNIQUE,
+    number      UINT256 NOT NULL UNIQUE,
+    timestamp   INTEGER NOT NULL UNIQUE CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
-/** 
+/**
  * EVENT DATA
  */
 
 CREATE TABLE IF NOT EXISTS l1_contract_events (
-    guid             VARCHAR NOT NULL PRIMARY KEY,
-	block_hash       VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
+    -- Searchable fields
+    guid             VARCHAR PRIMARY KEY,
+    block_hash       VARCHAR NOT NULL REFERENCES l1_block_headers(hash) ON DELETE CASCADE,
+    contract_address VARCHAR NOT NULL,
     transaction_hash VARCHAR NOT NULL,
-    event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+    event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
-    guid             VARCHAR NOT NULL PRIMARY KEY,
-	block_hash       VARCHAR NOT NULL REFERENCES l2_block_headers(hash),
+    -- Searchable fields
+    guid             VARCHAR PRIMARY KEY,
+    block_hash       VARCHAR NOT NULL REFERENCES l2_block_headers(hash) ON DELETE CASCADE,
+    contract_address VARCHAR NOT NULL,
     transaction_hash VARCHAR NOT NULL,
-    event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+    event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 -- Tables that index finalization markers for L2 blocks.
 
 CREATE TABLE IF NOT EXISTS legacy_state_batches (
-	index         INTEGER NOT NULL PRIMARY KEY,
-	root          VARCHAR NOT NULL,
-	size          INTEGER NOT NULL,
-	prev_total    INTEGER NOT NULL,
+    index      INTEGER PRIMARY KEY,
+    root       VARCHAR NOT NULL UNIQUE,
+    size       INTEGER NOT NULL,
+    prev_total INTEGER NOT NULL,
 
-    l1_contract_event_guid VARCHAR REFERENCES l1_contract_events(guid)
+    state_batch_appended_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS output_proposals (
-    output_root     VARCHAR NOT NULL PRIMARY KEY,
+    output_root     VARCHAR PRIMARY KEY,
+    l2_output_index UINT256 NOT NULL UNIQUE,
+    l2_block_number UINT256 NOT NULL UNIQUE,
 
-    l2_output_index UINT256,
-    l2_block_number UINT256,
-
-    l1_contract_event_guid VARCHAR REFERENCES l1_contract_events(guid)
+    output_proposed_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
 );
 
 /**
  * BRIDGING DATA
  */
 
-CREATE TABLE IF NOT EXISTS deposits (
-	guid                 VARCHAR PRIMARY KEY NOT NULL,
+-- Bridged L1/L2 Tokens
+CREATE TABLE IF NOT EXISTS l1_bridged_tokens (
+    address        VARCHAR PRIMARY KEY,
+    bridge_address VARCHAR NOT NULL,
 
-    -- Event causing the deposit
-    initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
-    sent_message_nonce      UINT256 UNIQUE,
+    name     VARCHAR NOT NULL,
+    symbol   VARCHAR NOT NULL,
+    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
+);
+CREATE TABLE IF NOT EXISTS l2_bridged_tokens (
+    address        VARCHAR PRIMARY KEY,
+    bridge_address VARCHAR NOT NULL,
 
-    -- Finalization marker for the deposit
-    finalized_l2_event_guid VARCHAR REFERENCES l2_contract_events(guid),
+    -- L1-L2 relationship is 1 to many so this is not necessarily unique
+    l1_token_address VARCHAR REFERENCES l1_bridged_tokens(address) ON DELETE CASCADE,
 
-    -- Deposit information (do we need indexes on from/to?)
-	from_address     VARCHAR NOT NULL,
-
-	to_address       VARCHAR NOT NULL,
-	l1_token_address VARCHAR NOT NULL,
-	l2_token_address VARCHAR NOT NULL,
-	amount           UINT256,
-	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+    name     VARCHAR NOT NULL,
+    symbol   VARCHAR NOT NULL,
+    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
 );
 
-CREATE TABLE IF NOT EXISTS withdrawals (
-	guid                VARCHAR PRIMARY KEY NOT NULL,
+-- OptimismPortal/L2ToL1MessagePasser
+CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
+    source_hash             VARCHAR PRIMARY KEY,
+    l2_transaction_hash     VARCHAR NOT NULL UNIQUE,
+    initiated_l1_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
 
-    -- Event causing this withdrawal
-    initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
-    sent_message_nonce      UINT256 UNIQUE,
+    -- transaction data
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256 NOT NULL,
+    gas_limit    UINT256 NOT NULL,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
+    withdrawal_hash         VARCHAR PRIMARY KEY,
+    nonce                   UINT256 NOT NULL UNIQUE,
+    initiated_l2_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
 
     -- Multistep (bedrock) process of a withdrawal
-    withdrawal_hash      VARCHAR NOT NULL,
-    proven_l1_event_guid VARCHAR REFERENCES l1_contract_events(guid),
+    proven_l1_event_guid    VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    finalized_l1_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    succeeded               BOOLEAN,
 
-    -- Finalization marker (legacy & bedrock)
-    finalized_l1_event_guid VARCHAR REFERENCES l1_contract_events(guid),
+    -- transaction data
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256 NOT NULL,
+    gas_limit    UINT256 NOT NULL,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
 
-    -- Withdrawal information (do we need indexes on from/to?)
-	from_address     VARCHAR NOT NULL,
-	to_address       VARCHAR NOT NULL,
-	l1_token_address VARCHAR NOT NULL,
-	l2_token_address VARCHAR NOT NULL,
-	amount           UINT256,
-	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+-- CrossDomainMessenger
+CREATE TABLE IF NOT EXISTS l1_bridge_messages(
+    message_hash            VARCHAR PRIMARY KEY,
+    nonce                   UINT256 NOT NULL UNIQUE,
+    transaction_source_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_transaction_deposits(source_hash) ON DELETE CASCADE,
+
+    sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
+
+    -- sent message
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256 NOT NULL,
+    gas_limit    UINT256 NOT NULL,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+CREATE TABLE IF NOT EXISTS l2_bridge_messages(
+    message_hash                VARCHAR PRIMARY KEY,
+    nonce                       UINT256 NOT NULL UNIQUE,
+    transaction_withdrawal_hash VARCHAR NOT NULL UNIQUE REFERENCES l2_transaction_withdrawals(withdrawal_hash) ON DELETE CASCADE,
+
+    sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid) ON DELETE CASCADE,
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
+
+    -- sent message
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256 NOT NULL,
+    gas_limit    UINT256 NOT NULL,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+
+-- StandardBridge
+CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
+    transaction_source_hash   VARCHAR PRIMARY KEY REFERENCES l1_transaction_deposits(source_hash) ON DELETE CASCADE,
+    cross_domain_message_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_bridge_messages(message_hash) ON DELETE CASCADE,
+
+    -- Deposit information
+    from_address         VARCHAR NOT NULL,
+    to_address           VARCHAR NOT NULL,
+    local_token_address  VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
+    remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
+    amount               UINT256 NOT NULL,
+    data                 VARCHAR NOT NULL,
+    timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
+);
+CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
+    transaction_withdrawal_hash VARCHAR PRIMARY KEY REFERENCES l2_transaction_withdrawals(withdrawal_hash) ON DELETE CASCADE,
+    cross_domain_message_hash   VARCHAR NOT NULL UNIQUE REFERENCES l2_bridge_messages(message_hash) ON DELETE CASCADE,
+
+    -- Withdrawal information
+    from_address         VARCHAR NOT NULL,
+    to_address           VARCHAR NOT NULL,
+    local_token_address  VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
+    remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
+    amount               UINT256 NOT NULL,
+    data                 VARCHAR NOT NULL,
+    timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
 );

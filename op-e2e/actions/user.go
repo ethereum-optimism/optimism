@@ -3,6 +3,7 @@ package actions
 import (
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"math/big"
 	"math/rand"
 
@@ -18,7 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 )
@@ -30,11 +31,11 @@ type L1Bindings struct {
 	L2OutputOracle *bindings.L2OutputOracle
 }
 
-func NewL1Bindings(t Testing, l1Cl *ethclient.Client, deployments *e2eutils.DeploymentsL1) *L1Bindings {
-	optimismPortal, err := bindings.NewOptimismPortal(deployments.OptimismPortalProxy, l1Cl)
+func NewL1Bindings(t Testing, l1Cl *ethclient.Client) *L1Bindings {
+	optimismPortal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Cl)
 	require.NoError(t, err)
 
-	l2OutputOracle, err := bindings.NewL2OutputOracle(deployments.L2OutputOracleProxy, l1Cl)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(config.L1Deployments.L2OutputOracleProxy, l1Cl)
 	require.NoError(t, err)
 
 	return &L1Bindings{
@@ -318,7 +319,7 @@ func (s *CrossLayerUser) ActDeposit(t Testing) {
 		// estimate gas used by deposit
 		gas, err := s.L2.env.EthCl.EstimateGas(t.Ctx(), ethereum.CallMsg{
 			From:       s.L2.address,
-			To:         s.L2.txToAddr,
+			To:         &toAddr,
 			Value:      depositTransferValue, // TODO: estimate gas does not support minting yet
 			Data:       s.L2.txCallData,
 			AccessList: nil,
@@ -327,9 +328,21 @@ func (s *CrossLayerUser) ActDeposit(t Testing) {
 		depositGas = gas
 	}
 
+	// Finally send TX
+	s.L1.txOpts.GasLimit = 0
 	tx, err := s.L1.env.Bindings.OptimismPortal.DepositTransaction(&s.L1.txOpts, toAddr, depositTransferValue, depositGas, isCreation, s.L2.txCallData)
+	require.Nil(t, err, "with deposit tx")
+
+	// Add 10% padding for the L1 gas limit because the estimation process can be affected by the 1559 style cost scale
+	// for buying L2 gas in the portal contracts.
+	s.L1.txOpts.GasLimit = tx.Gas() + (tx.Gas() / 10)
+
+	tx, err = s.L1.env.Bindings.OptimismPortal.DepositTransaction(&s.L1.txOpts, toAddr, depositTransferValue, depositGas, isCreation, s.L2.txCallData)
 	require.NoError(t, err, "failed to create deposit tx")
 
+	s.L1.txOpts.GasLimit = 0
+
+	fmt.Printf("Gas limit: %v\n", tx.Gas())
 	// Send the actual tx (since tx opts don't send by default)
 	err = s.L1.env.EthCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "must send tx")
@@ -471,7 +484,7 @@ func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash) com
 	// Check if the withdrawal may be completed yet
 	if l2OutputBlock.Time()+finalizationPeriod.Uint64() >= l1Head.Time {
 		t.InvalidAction("withdrawal tx %s was included in L2 block %d (time %d) but L1 only knows of L2 proposal %d (time %d) at head %d (time %d) which has not reached output confirmation yet (period is %d)",
-			l2TxHash, l2WithdrawalBlock.NumberU64(), l2WithdrawalBlock.Time(), l2OutputBlock.NumberU64(), l2OutputBlock.Time(), finalizationPeriod.Uint64(), l1Head.Number.Uint64(), l1Head.Time)
+			l2TxHash, l2WithdrawalBlock.NumberU64(), l2WithdrawalBlock.Time(), l2OutputBlock.NumberU64(), l2OutputBlock.Time(), l1Head.Number.Uint64(), l1Head.Time, finalizationPeriod.Uint64())
 		return common.Hash{}
 	}
 

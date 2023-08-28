@@ -149,7 +149,7 @@ The deposit transaction is processed exactly like a type-3 (EIP-1559) transactio
 - No fee fields are verified: the deposit does not have any, as it pays for gas on L1.
 - No `nonce` field is verified: the deposit does not have any, it's uniquely identified by its `sourceHash`.
 - No access-list is processed: the deposit has no access-list, and it is thus processed as if the access-list is empty.
-- No check if `from` is an Externally Owner Account (EOA): the deposit is ensured not to be an EAO through L1 address
+- No check if `from` is an Externally Owner Account (EOA): the deposit is ensured not to be an EOA through L1 address
   masking, this may change in future L1 contract-deployments to e.g. enable an account-abstraction like mechanism.
 - Before the Regolith upgrade:
   - The execution output states a non-standard gas usage:
@@ -306,7 +306,7 @@ The contract has the following solidity interface, and can be interacted with ac
 
 A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
-[L1Block.sol]: ../packages/contracts-bedrock/contracts/L2/L1Block.sol
+[L1Block.sol]: ../packages/contracts-bedrock/src/L2/L1Block.sol
 
 After running `pnpm build` in the `packages/contracts` directory, the bytecode to add to the genesis
 file will be located in the `deployedBytecode` field of the build artifacts file at
@@ -367,4 +367,4 @@ it possible for users to interact with contracts on L2 even when the Sequencer i
 
 A reference implementation of the deposit contract can be found in [OptimismPortal.sol].
 
-[OptimismPortal.sol]: ../packages/contracts-bedrock/contracts/L1/OptimismPortal.sol
+[OptimismPortal.sol]: ../packages/contracts-bedrock/src/L1/OptimismPortal.sol

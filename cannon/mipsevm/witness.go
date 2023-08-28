@@ -26,13 +26,21 @@ func uint32ToBytes32(v uint32) []byte {
 }
 
 func (wit *StepWitness) EncodeStepInput() []byte {
+	abiStateLen := len(wit.State)
+	if abiStateLen%32 != 0 {
+		abiStateLen += 32 - (abiStateLen % 32)
+	}
+	// pad state to 32 byte multiple per ABI
+	abiState := make([]byte, abiStateLen)
+	copy(abiState, wit.State)
+
 	var input []byte
 	input = append(input, StepBytes4...)
-	input = append(input, uint32ToBytes32(32*2)...)                           // state data offset in bytes
-	input = append(input, uint32ToBytes32(32*2+32+uint32(len(wit.State)))...) // proof data offset in bytes
+	input = append(input, uint32ToBytes32(32*2)...)                          // state data offset in bytes
+	input = append(input, uint32ToBytes32(32*2+32+uint32(len(abiState)))...) // proof data offset in bytes
 
 	input = append(input, uint32ToBytes32(uint32(len(wit.State)))...) // state data length in bytes
-	input = append(input, wit.State[:]...)
+	input = append(input, abiState[:]...)
 	input = append(input, uint32ToBytes32(uint32(len(wit.MemProof)))...) // proof data length in bytes
 	input = append(input, wit.MemProof[:]...)
 	return input
@@ -49,18 +57,19 @@ func (wit *StepWitness) EncodePreimageOracleInput() ([]byte, error) {
 
 	switch preimage.KeyType(wit.PreimageKey[0]) {
 	case preimage.LocalKeyType:
-		// We have no on-chain form of preparing the bootstrap pre-images onchain yet.
-		// So instead we cheat them in.
-		// In production usage there should be an on-chain contract that exposes this,
-		// rather than going through the global keccak256 oracle.
+		if len(wit.PreimageValue) > 32+8 {
+			return nil, fmt.Errorf("local pre-image exceeds maximum size of 32 bytes with key 0x%x", wit.PreimageKey)
+		}
 		var input []byte
-		input = append(input, CheatBytes4...)
-		input = append(input, uint32ToBytes32(wit.PreimageOffset)...)
+		input = append(input, LoadLocalDataBytes4...)
 		input = append(input, wit.PreimageKey[:]...)
+
+		preimagePart := wit.PreimageValue[8:]
 		var tmp [32]byte
-		copy(tmp[:], wit.PreimageValue[wit.PreimageOffset:])
+		copy(tmp[:], preimagePart)
 		input = append(input, tmp[:]...)
-		input = append(input, uint32ToBytes32(uint32(len(wit.PreimageValue))-8)...)
+		input = append(input, uint32ToBytes32(uint32(len(wit.PreimageValue)-8))...)
+		input = append(input, uint32ToBytes32(wit.PreimageOffset)...)
 		// Note: we can pad calldata to 32 byte multiple, but don't strictly have to
 		return input, nil
 	case preimage.Keccak256KeyType:

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -46,7 +47,7 @@ func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
-	if externalL2Nodes != "" {
+	if config.ExternalL2Nodes != "" {
 		t.Skip("debug_dbGet is a custom geth RPC which is not generally suported by other eth clients")
 	}
 	InitParallel(t)
@@ -89,7 +90,10 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	require.NoError(t, waitForSafeHead(ctx, receipt.BlockNumber.Uint64(), rollupClient))
 
 	t.Logf("Capture current L2 head as agreed starting point. l2Head=%x l2BlockNumber=%v", receipt.BlockHash, receipt.BlockNumber)
-	l2Head := receipt.BlockHash
+	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, receipt.BlockNumber.Uint64())
+	require.NoError(t, err, "could not retrieve l2 agreed block")
+	l2Head := agreedL2Output.BlockRef.Hash
+	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("=====Stopping batch submitter=====")
 	err = sys.BatchSubmitter.Stop(ctx)
@@ -139,6 +143,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	testFaultProofProgramScenario(t, ctx, sys, &FaultProofProgramTestScenario{
 		L1Head:             l1Head,
 		L2Head:             l2Head,
+		L2OutputRoot:       common.Hash(l2OutputRoot),
 		L2Claim:            common.Hash(l2Claim),
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		Detached:           detached,
@@ -146,7 +151,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool) {
-	if externalL2Nodes != "" {
+	if config.ExternalL2Nodes != "" {
 		t.Skip("debug_dbGet is a custom geth RPC which is not generally supported by other clients")
 	}
 	InitParallel(t)
@@ -187,9 +192,12 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	})
 
 	t.Log("Capture current L2 head as agreed starting point")
-	l2AgreedBlock, err := l2Seq.BlockByNumber(ctx, nil)
+	latestBlock, err := l2Seq.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+	agreedL2Output, err := rollupClient.OutputAtBlock(ctx, latestBlock.NumberU64())
 	require.NoError(t, err, "could not retrieve l2 agreed block")
-	l2Head := l2AgreedBlock.Hash()
+	l2Head := agreedL2Output.BlockRef.Hash
+	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("Sending transactions to modify existing state, within challenged period")
 	SendDepositTx(t, cfg, l1Client, l2Seq, opts, func(l2Opts *DepositTxOpts) {
@@ -220,6 +228,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	testFaultProofProgramScenario(t, ctx, sys, &FaultProofProgramTestScenario{
 		L1Head:             l1Head,
 		L2Head:             l2Head,
+		L2OutputRoot:       common.Hash(l2OutputRoot),
 		L2Claim:            common.Hash(l2Claim),
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		Detached:           detached,
@@ -229,6 +238,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 type FaultProofProgramTestScenario struct {
 	L1Head             common.Hash
 	L2Head             common.Hash
+	L2OutputRoot       common.Hash
 	L2Claim            common.Hash
 	L2ClaimBlockNumber uint64
 	Detached           bool
@@ -237,7 +247,7 @@ type FaultProofProgramTestScenario struct {
 // testFaultProofProgramScenario runs the fault proof program in several contexts, given a test scenario.
 func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *System, s *FaultProofProgramTestScenario) {
 	preimageDir := t.TempDir()
-	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)
+	fppConfig := oppconf.NewConfig(sys.RollupConfig, sys.L2GenesisCfg.Config, s.L1Head, s.L2Head, s.L2OutputRoot, common.Hash(s.L2Claim), s.L2ClaimBlockNumber)
 	fppConfig.L1URL = sys.NodeEndpoint("l1")
 	fppConfig.L2URL = sys.NodeEndpoint("sequencer")
 	fppConfig.DataDir = preimageDir

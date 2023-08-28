@@ -159,8 +159,9 @@ func main() {
 		lowerName := strings.ToLower(name)
 		outFile := path.Join(cwd, f.Package, lowerName+".go")
 
-		cmd := exec.Command("abigen", "--abi", abiFile, "--bin", bytecodeFile, "--pkg", f.Package, "--type", name, "--out", outFile)
+		cmd := exec.Command("go", "run", "github.com/ledgerwatch/erigon/cmd/abigen", "--abi", abiFile, "--bin", bytecodeFile, "--pkg", f.Package, "--type", name, "--out", outFile)
 		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
 			log.Fatalf("error running abigen: %v\n", err)

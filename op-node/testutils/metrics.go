@@ -1,7 +1,7 @@
 package testutils
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // TestDerivationMetrics implements the metrics used in the derivation pipeline as no-op operations.
@@ -42,6 +42,15 @@ func (t *TestDerivationMetrics) RecordChannelInputBytes(inputCompressedBytes int
 	if t.FnRecordChannelInputBytes != nil {
 		t.FnRecordChannelInputBytes(inputCompressedBytes)
 	}
+}
+
+func (t *TestDerivationMetrics) RecordHeadChannelOpened() {
+}
+
+func (t *TestDerivationMetrics) RecordChannelTimedOut() {
+}
+
+func (t *TestDerivationMetrics) RecordFrame() {
 }
 
 type TestRPCMetrics struct{}

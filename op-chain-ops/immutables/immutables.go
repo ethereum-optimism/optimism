@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -130,7 +131,6 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "L2ERC721Bridge",
 			Args: []interface{}{
-				predeploys.L2CrossDomainMessengerAddr,
 				immutable["L2ERC721Bridge"]["otherBridge"],
 			},
 		},
@@ -158,6 +158,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
 func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
+	log.Info("Creating L2 state")
 	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
 	if err != nil {
 		return nil, err
@@ -215,7 +216,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		}
 		_, tx, _, err = bindings.DeployL1FeeVault(opts, backend, recipient, minimumWithdrawalAmount, withdrawalNetwork)
 	case "OptimismMintableERC20Factory":
-		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend)
 	case "DeployerWhitelist":
 		_, tx, _, err = bindings.DeployDeployerWhitelist(opts, backend)
 	case "LegacyMessagePasser":
@@ -223,16 +224,11 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "L1BlockNumber":
 		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
 	case "L2ERC721Bridge":
-		// TODO(tynes): messenger should be hardcoded in the contract
-		messenger, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for messenger")
-		}
-		otherBridge, ok := deployment.Args[1].(common.Address)
+		otherBridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
 			return nil, fmt.Errorf("invalid type for otherBridge")
 		}
-		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, messenger, otherBridge)
+		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, otherBridge)
 	case "OptimismMintableERC721Factory":
 		bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {

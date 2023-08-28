@@ -60,7 +60,7 @@ func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameS
 	}
 }
 
-// AgreeWithLevel returns if the game state agrees with the provided claim level.
+// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
 func (g *gameState) AgreeWithClaimLevel(claim Claim) bool {
 	isOddLevel := claim.Depth()%2 == 1
 	// If we agree with the proposed output, we agree with odd levels

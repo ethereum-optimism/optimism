@@ -2,7 +2,6 @@ package op_e2e
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/big"
 	"os"
@@ -16,25 +15,24 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/node"
-
-	//"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-
-	//"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -42,39 +40,38 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 func TestMain(m *testing.M) {
-	flag.BoolVar(&verboseEthNodes, "ethlogs", true, "Enable debug logs on Ethereum nodes")
-	flag.StringVar(&externalL2Nodes, "externalL2", "", "Enable tests with external L2")
-	flag.Parse()
-
-	if externalL2Nodes != "" {
-		fmt.Println("Running tests with external L2 process adapter at ", externalL2Nodes)
-		shimPath, err := filepath.Abs(externalL2Nodes)
+	if config.ExternalL2Nodes != "" {
+		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Nodes)
+		shimPath, err := filepath.Abs(config.ExternalL2Nodes)
 		if err != nil {
 			fmt.Printf("Could not compute abs of externalL2Nodes shim: %s\n", err)
 			os.Exit(2)
 		}
 		// We convert the passed in path to an absolute path, as it simplifies
 		// the path handling logic for the rest of the testing
-		externalL2Nodes = shimPath
+		config.ExternalL2Nodes = shimPath
 
-		_, err = os.Stat(externalL2Nodes)
+		// A small hack to ensure that the resulting binary is always rebuilt.
+		cmd := exec.Command("make")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Dir = filepath.Dir(shimPath)
+		err = cmd.Run()
+		if err != nil {
+			fmt.Printf("Failed to compute externalL2Nodes dir: %s\n", err)
+			os.Exit(5)
+		}
+
+		_, err = os.Stat(config.ExternalL2Nodes)
 		if err != nil {
 			fmt.Printf("Failed to stat externalL2Nodes path: %s\n", err)
 			os.Exit(3)
-		}
-
-		cmd := exec.Command(externalL2Nodes, "--init")
-		cmd.Dir = filepath.Dir(shimPath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Could not initialize external L2 node command: %s\n", err)
-			os.Exit(4)
 		}
 
 		// As these are integration tests which launch many other processes, the
@@ -107,7 +104,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 
 	//  OutputOracle is already deployed
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(cfg.L1Deployments.L2OutputOracleProxy, l1Client)
 	require.Nil(t, err)
 
 	initialOutputBlockNumber, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{})
@@ -594,7 +591,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// poll to see if the verifier node is connected & meshed on gossip.
 	// Without this verifier, we shouldn't start sending blocks around, or we'll miss them and fail the test.
-	backOffStrategy := backoff.Exponential()
+	backOffStrategy := retry.Exponential()
 	for i := 0; i < 10; i++ {
 		if check() {
 			break
@@ -1041,24 +1038,6 @@ func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee
 	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
 }
 
-// calcL1GasUsed returns the gas used to include the transaction data in
-// the calldata on L1
-func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
-	var zeroes, ones uint64
-	for _, byt := range data {
-		if byt == 0 {
-			zeroes++
-		} else {
-			ones++
-		}
-	}
-
-	zeroesGas := zeroes * 4     // params.TxDataZeroGas
-	onesGas := (ones + 68) * 16 // params.TxDataNonZeroGasEIP2028
-	l1Gas := new(big.Int).SetUint64(zeroesGas + onesGas)
-	return new(big.Int).Add(l1Gas, overhead)
-}
-
 // TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
@@ -1162,15 +1141,30 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, withdrawAmount, diff)
 }
 
+type stateGetterAdapter struct {
+	ctx      context.Context
+	t        *testing.T
+	client   *ethclient.Client
+	blockNum *big.Int
+}
+
+func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) common.Hash {
+	sga.t.Helper()
+	val, err := sga.client.StorageAt(sga.ctx, addr, key, sga.blockNum)
+	require.NoError(sga.t, err)
+	var res common.Hash
+	copy(res[:], val)
+	return res
+}
+
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	// TODO: after we have the system config contract and new op-geth L1 cost utils,
-	// we can pull in l1 costs into every e2e test and account for it in assertions easily etc.
-	cfg.DeployConfig.GasPriceOracleOverhead = 2100
-	cfg.DeployConfig.GasPriceOracleScalar = 1000_000
+	// This test only works with these config values modified
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = nil
+	cfg.DeployConfig.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(big.NewInt(7))
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1178,10 +1172,30 @@ func TestFees(t *testing.T) {
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
+	l1 := sys.Clients["l1"]
+
+	config := &params.ChainConfig{
+		Optimism: &params.OptimismConfig{
+			EIP1559Elasticity:  cfg.DeployConfig.EIP1559Elasticity,
+			EIP1559Denominator: cfg.DeployConfig.EIP1559Denominator,
+		},
+		BedrockBlock: big.NewInt(0),
+	}
+
+	sga := &stateGetterAdapter{
+		ctx:    context.Background(),
+		t:      t,
+		client: l2Seq,
+	}
+
+	l1CostFn := types.NewL1CostFunc(config, sga)
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
+
+	require.NotEqual(t, cfg.DeployConfig.L2OutputOracleProposer, fromAddr)
+	require.NotEqual(t, cfg.DeployConfig.BatchSenderAddress, fromAddr)
 
 	// Find gaspriceoracle contract
 	gpoContract, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, l2Seq)
@@ -1194,29 +1208,33 @@ func TestFees(t *testing.T) {
 	scalar, err := gpoContract.Scalar(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo scalar")
 
-	require.Equal(t, overhead.Uint64(), uint64(2100), "wrong gpo overhead")
+	require.Equal(t, overhead.Uint64(), cfg.DeployConfig.GasPriceOracleOverhead, "wrong gpo overhead")
 	require.Equal(t, decimals.Uint64(), uint64(6), "wrong gpo decimals")
-	require.Equal(t, scalar.Uint64(), uint64(1_000_000), "wrong gpo scalar")
+	require.Equal(t, scalar.Uint64(), cfg.DeployConfig.GasPriceOracleScalar, "wrong gpo scalar")
 
 	// BaseFee Recipient
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, nil)
+	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	require.Nil(t, err)
 
 	// L1Fee Recipient
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, predeploys.L1FeeVaultAddr, nil)
+	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.L1FeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	require.Nil(t, err)
+
+	sequencerFeeVaultStartBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.SequencerFeeVaultAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	require.Nil(t, err)
+
+	genesisBlock, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	require.NoError(t, err)
+
+	coinbaseStartBalance, err := l2Seq.BalanceAt(context.Background(), genesisBlock.Coinbase(), big.NewInt(rpc.EarliestBlockNumber.Int64()))
+	require.NoError(t, err)
 
 	// Simple transfer from signer to random account
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	startBalance, err := l2Seq.BalanceAt(context.Background(), fromAddr, big.NewInt(rpc.EarliestBlockNumber.Int64()))
 	require.Nil(t, err)
+	require.Greater(t, startBalance.Uint64(), big.NewInt(params.Ether).Uint64())
 
-	transferAmount := big.NewInt(1_000_000_000)
+	transferAmount := big.NewInt(params.Ether)
 	gasTip := big.NewInt(10)
 	receipt := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
 		opts.ToAddr = &common.Address{0xff, 0xff}
@@ -1227,69 +1245,57 @@ func TestFees(t *testing.T) {
 		opts.VerifyOnClients(l2Verif)
 	})
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	header, err := l2Seq.HeaderByNumber(ctx, receipt.BlockNumber)
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+
+	header, err := l2Seq.HeaderByNumber(context.Background(), receipt.BlockNumber)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	coinbaseStartBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, safeAddBig(header.Number, big.NewInt(-1)))
+	coinbaseEndBalance, err := l2Seq.BalanceAt(context.Background(), header.Coinbase, header.Number)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	coinbaseEndBalance, err := l2Seq.BalanceAt(ctx, header.Coinbase, header.Number)
+	endBalance, err := l2Seq.BalanceAt(context.Background(), fromAddr, header.Number)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	endBalance, err := l2Seq.BalanceAt(ctx, fromAddr, header.Number)
+	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.BaseFeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, header.Number)
+	l1Header, err := l1.HeaderByNumber(context.Background(), nil)
 	require.Nil(t, err)
 
-	l1Header, err := sys.Clients["l1"].HeaderByNumber(ctx, nil)
+	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.L1FeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, predeploys.L1FeeVaultAddr, header.Number)
+	sequencerFeeVaultEndBalance, err := l2Seq.BalanceAt(context.Background(), predeploys.SequencerFeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
 	// Diff fee recipient + coinbase balances
 	baseFeeRecipientDiff := new(big.Int).Sub(baseFeeRecipientEndBalance, baseFeeRecipientStartBalance)
 	l1FeeRecipientDiff := new(big.Int).Sub(l1FeeRecipientEndBalance, l1FeeRecipientStartBalance)
+	sequencerFeeVaultDiff := new(big.Int).Sub(sequencerFeeVaultEndBalance, sequencerFeeVaultStartBalance)
 	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
 
 	// Tally L2 Fee
 	l2Fee := gasTip.Mul(gasTip, new(big.Int).SetUint64(receipt.GasUsed))
+	require.Equal(t, sequencerFeeVaultDiff, coinbaseDiff, "coinbase is always sequencer fee vault")
 	require.Equal(t, l2Fee, coinbaseDiff, "l2 fee mismatch")
+	require.Equal(t, l2Fee, sequencerFeeVaultDiff)
 
 	// Tally BaseFee
 	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))
 	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee fee mismatch")
 
 	// Tally L1 Fee
-	tx, _, err := l2Seq.TransactionByHash(ctx, receipt.TxHash)
+	tx, _, err := l2Seq.TransactionByHash(context.Background(), receipt.TxHash)
 	require.NoError(t, err, "Should be able to get transaction")
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
-	l1GasUsed := calcL1GasUsed(bytes, overhead)
-	divisor := new(big.Int).Exp(big.NewInt(10), decimals, nil)
-	l1Fee := new(big.Int).Mul(l1GasUsed, l1Header.BaseFee)
-	l1Fee = l1Fee.Mul(l1Fee, scalar)
-	l1Fee = l1Fee.Div(l1Fee, divisor)
 
-	require.Equal(t, l1Fee, l1FeeRecipientDiff, "l1 fee mismatch")
+	l1Fee := l1CostFn(receipt.BlockNumber.Uint64(), header.Time, tx.RollupDataGas(), tx.IsSystemTx())
+	require.Equalf(t, l1Fee, l1FeeRecipientDiff, "L1 fee mismatch: start balance %v, end balance %v", l1FeeRecipientStartBalance, l1FeeRecipientEndBalance)
 
-	// Tally L1 fee against GasPriceOracle
 	gpoL1Fee, err := gpoContract.GetL1Fee(&bind.CallOpts{}, bytes)
 	require.Nil(t, err)
-	require.Equal(t, l1Fee, gpoL1Fee, "l1 fee mismatch")
+	require.Equal(t, l1Fee, gpoL1Fee, "GPO reports L1 fee mismatch")
 
 	require.Equal(t, receipt.L1Fee, l1Fee, "l1 fee in receipt is correct")
 	require.Equal(t,
@@ -1428,10 +1434,6 @@ func TestBatcherMultiTx(t *testing.T) {
 	}
 
 	t.Fatal("Expected at least 10 transactions from the batcher")
-}
-
-func safeAddBig(a *big.Int, b *big.Int) *big.Int {
-	return new(big.Int).Add(a, b)
 }
 
 func latestBlock(t *testing.T, client *ethclient.Client) uint64 {

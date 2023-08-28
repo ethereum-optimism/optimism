@@ -4,13 +4,16 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 )
 
-// ClaimFetcher is a minimal interface around [bindings.FaultDisputeGameCaller].
+// MinimalFaultDisputeGameCaller is a minimal interface around [bindings.FaultDisputeGameCaller].
 // This needs to be updated if the [bindings.FaultDisputeGameCaller] interface changes.
-type ClaimFetcher interface {
+type MinimalFaultDisputeGameCaller interface {
 	ClaimData(opts *bind.CallOpts, arg0 *big.Int) (struct {
 		ParentIndex uint32
 		Countered   bool
@@ -18,24 +21,60 @@ type ClaimFetcher interface {
 		Position    *big.Int
 		Clock       *big.Int
 	}, error)
+	Status(opts *bind.CallOpts) (uint8, error)
 	ClaimDataLen(opts *bind.CallOpts) (*big.Int, error)
-}
-
-// Loader is a minimal interface for loading onchain [Claim] data.
-type Loader interface {
-	FetchClaims(ctx context.Context) ([]types.Claim, error)
+	MAXGAMEDEPTH(opts *bind.CallOpts) (*big.Int, error)
+	ABSOLUTEPRESTATE(opts *bind.CallOpts) ([32]byte, error)
 }
 
 // loader pulls in fault dispute game claim data periodically and over subscriptions.
 type loader struct {
-	claimFetcher ClaimFetcher
+	caller MinimalFaultDisputeGameCaller
 }
 
 // NewLoader creates a new [loader].
-func NewLoader(claimFetcher ClaimFetcher) *loader {
+func NewLoader(caller MinimalFaultDisputeGameCaller) *loader {
 	return &loader{
-		claimFetcher: claimFetcher,
+		caller: caller,
 	}
+}
+
+// NewLoaderFromBindings creates a new [loader] from a [bindings.FaultDisputeGameCaller].
+func NewLoaderFromBindings(fdgAddr common.Address, client bind.ContractCaller) (*loader, error) {
+	caller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
+	if err != nil {
+		return nil, err
+	}
+	return NewLoader(caller), nil
+}
+
+// GetGameStatus returns the current game status.
+func (l *loader) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
+	status, err := l.caller.Status(&bind.CallOpts{Context: ctx})
+	return types.GameStatus(status), err
+}
+
+// GetClaimCount returns the number of claims in the game.
+func (l *loader) GetClaimCount(ctx context.Context) (uint64, error) {
+	count, err := l.caller.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		return 0, err
+	}
+	return count.Uint64(), nil
+}
+
+// FetchGameDepth fetches the game depth from the fault dispute game.
+func (l *loader) FetchGameDepth(ctx context.Context) (uint64, error) {
+	callOpts := bind.CallOpts{
+		Context: ctx,
+	}
+
+	gameDepth, err := l.caller.MAXGAMEDEPTH(&callOpts)
+	if err != nil {
+		return 0, err
+	}
+
+	return gameDepth.Uint64(), nil
 }
 
 // fetchClaim fetches a single [Claim] with a hydrated parent.
@@ -44,7 +83,7 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, 
 		Context: ctx,
 	}
 
-	fetchedClaim, err := l.claimFetcher.ClaimData(&callOpts, new(big.Int).SetUint64(arrIndex))
+	fetchedClaim, err := l.caller.ClaimData(&callOpts, new(big.Int).SetUint64(arrIndex))
 	if err != nil {
 		return types.Claim{}, err
 	}
@@ -62,7 +101,7 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, 
 
 	if !claim.IsRootPosition() {
 		parentIndex := uint64(fetchedClaim.ParentIndex)
-		parentClaim, err := l.claimFetcher.ClaimData(&callOpts, new(big.Int).SetUint64(parentIndex))
+		parentClaim, err := l.caller.ClaimData(&callOpts, new(big.Int).SetUint64(parentIndex))
 		if err != nil {
 			return types.Claim{}, err
 		}
@@ -78,7 +117,7 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, 
 // FetchClaims fetches all claims from the fault dispute game.
 func (l *loader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 	// Get the current claim count.
-	claimCount, err := l.claimFetcher.ClaimDataLen(&bind.CallOpts{
+	claimCount, err := l.caller.ClaimDataLen(&bind.CallOpts{
 		Context: ctx,
 	})
 	if err != nil {
@@ -96,4 +135,19 @@ func (l *loader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 	}
 
 	return claimList, nil
+}
+
+// FetchAbsolutePrestateHash fetches the hashed absolute prestate from the fault dispute game.
+func (l *loader) FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error) {
+	callOpts := bind.CallOpts{
+		Context: ctx,
+	}
+
+	absolutePrestate, err := l.caller.ABSOLUTEPRESTATE(&callOpts)
+	if err != nil {
+		return nil, err
+	}
+	returnValue := absolutePrestate[:]
+
+	return returnValue, nil
 }

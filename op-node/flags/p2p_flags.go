@@ -30,6 +30,7 @@ var (
 		Name:     "p2p.scoring",
 		Usage:    "Sets the peer scoring strategy for the P2P stack. Can be one of: none or light.",
 		Required: false,
+		Value:    "light",
 		EnvVars:  p2pEnv("PEER_SCORING"),
 	}
 	PeerScoring = &cli.StringFlag{
@@ -49,7 +50,8 @@ var (
 	// Banning Flag - whether or not we want to act on the scoring
 	Banning = &cli.BoolFlag{
 		Name:     "p2p.ban.peers",
-		Usage:    "Enables peer banning. This should ONLY be enabled once certain peer scoring is working correctly.",
+		Usage:    "Enables peer banning.",
+		Value:    true,
 		Required: false,
 		EnvVars:  p2pEnv("PEER_BANNING"),
 	}

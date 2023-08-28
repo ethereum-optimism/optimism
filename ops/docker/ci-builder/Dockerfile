@@ -11,10 +11,11 @@ RUN apt-get update && \
   chmod +x ./rustup.sh && \
   ./rustup.sh -y
 
-COPY ./.foundryrc ./.foundryrc
+COPY ./.abigenrc ./.abigenrc
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
+COPY ./.foundryrc ./.foundryrc
 RUN git clone https://github.com/foundry-rs/foundry.git ./foundry \
   && cd foundry && git checkout $(cat ../.foundryrc)
 
@@ -39,22 +40,24 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=foundry-build /opt/foundry/target/release/forge /usr/local/bin/forge
 COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
 COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
-COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 RUN apt-get update && \
   apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
   curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
-  curl -sL https://go.dev/dl/go1.19.linux-amd64.tar.gz -o go1.19.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.19.linux-amd64.tar.gz && \
+  curl -sL https://go.dev/dl/go1.20.linux-amd64.tar.gz -o go1.20.linux-amd64.tar.gz && \
+  tar -C /usr/local/ -xzvf go1.20.linux-amd64.tar.gz && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.3 && \
   go install gotest.tools/gotestsum@latest && \
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
+
+# Install the specific version of abigen from .abigenrc
+RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
 
 # We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
 # it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules

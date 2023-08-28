@@ -1,0 +1,36 @@
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: "/ops-bedrock"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - M-dependabot
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - M-dependabot
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: daily
+      time: "16:30"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 10
+    versioning-strategy: auto
+    labels:
+      - M-dependabot
+
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - M-dependabot

@@ -11,19 +11,17 @@ import (
 	"strconv"
 	"time"
 
-	e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/external"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
 func main() {
-	var init bool
 	var configPath string
-	flag.BoolVar(&init, "init", false, "Do one time setup for all executions")
 	flag.StringVar(&configPath, "config", "", "Execute based on the config in this file")
 	flag.Parse()
-	err := run(init, configPath)
+	err := run(configPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -31,45 +29,13 @@ func main() {
 	os.Exit(0)
 }
 
-func build() error {
-	outFile, err := filepath.Abs("op-erigon")
-	if err != nil {
-		return err
-	}
-	workDir, err := filepath.Abs(filepath.Join("..", "..", "op-erigon"))
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("go", "build", "-o", outFile, "github.com/ledgerwatch/erigon/cmd/erigon")
-	cmd.Dir = workDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	fmt.Printf("Running build in %s to create %s\n", cmd.Dir, outFile)
-	return cmd.Run()
-}
-
-func run(init bool, configPath string) error {
-	if !init && configPath == "" {
-		return fmt.Errorf("must supply a '--config <path>' or '--init' flag")
-	}
-
-	if init {
-		if err := build(); err != nil {
-			return fmt.Errorf("could not build op-erigon: %w", err)
-		}
-		fmt.Printf("Successfully built op-erigon!\n")
-
-		if configPath == "" {
-			return nil
-		}
-	}
-
+func run(configPath string) error {
 	configFile, err := os.Open(configPath)
 	if err != nil {
 		return fmt.Errorf("could not open config: %w", err)
 	}
 
-	var config e2e.ExternalConfig
+	var config external.Config
 	if err := json.NewDecoder(configFile).Decode(&config); err != nil {
 		return fmt.Errorf("could not decode config file: %w", err)
 	}
@@ -95,7 +61,7 @@ func run(init bool, configPath string) error {
 	defer sess.Close()
 
 	fmt.Printf("==================    op-erigon shim encoding ready-file   ==========================\n")
-	if err := e2e.AtomicEncode(config.EndpointsReadyPath, sess.endpoints); err != nil {
+	if err := external.AtomicEncode(config.EndpointsReadyPath, sess.endpoints); err != nil {
 		return fmt.Errorf("could not encode endpoints")
 	}
 
@@ -108,7 +74,7 @@ func run(init bool, configPath string) error {
 	}
 }
 
-func initialize(binPath string, config e2e.ExternalConfig) error {
+func initialize(binPath string, config external.Config) error {
 	cmd := exec.Command(
 		binPath,
 		"--datadir", config.DataDir,
@@ -119,7 +85,7 @@ func initialize(binPath string, config e2e.ExternalConfig) error {
 
 type erigonSession struct {
 	session   *gexec.Session
-	endpoints *e2e.ExternalEndpoints
+	endpoints *external.Endpoints
 }
 
 func (es *erigonSession) Close() {
@@ -131,7 +97,7 @@ func (es *erigonSession) Close() {
 	}
 }
 
-func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) {
+func execute(binPath string, config external.Config) (*erigonSession, error) {
 	if config.Verbosity < 3 {
 		// Note, we could manually filter the logging further, if this is
 		// really problematic.
@@ -183,7 +149,7 @@ func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) 
 
 	return &erigonSession{
 		session: sess,
-		endpoints: &e2e.ExternalEndpoints{
+		endpoints: &external.Endpoints{
 			HTTPEndpoint:     fmt.Sprintf("http://127.0.0.1:%d/", httpPort),
 			WSEndpoint:       fmt.Sprintf("ws://127.0.0.1:%d/", httpPort),
 			HTTPAuthEndpoint: fmt.Sprintf("http://127.0.0.1:%d/", enginePort),

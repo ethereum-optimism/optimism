@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/golang/snappy"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -20,8 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 const (
@@ -242,7 +242,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
-	blockHeightLRU, err := lru.New(1000)
+	blockHeightLRU, err := lru.New[uint64, *seenBlocks](1000)
 	if err != nil {
 		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}
@@ -315,7 +315,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 			blockHeightLRU.Add(uint64(payload.BlockNumber), seen)
 		}
 
-		if count, hasSeen := seen.(*seenBlocks).hasSeen(payload.BlockHash); count > 5 {
+		if count, hasSeen := seen.hasSeen(payload.BlockHash); count > 5 {
 			// [REJECT] if more than 5 blocks have been seen with the same block height
 			log.Warn("seen too many different blocks at same height", "height", payload.BlockNumber)
 			return pubsub.ValidationReject
@@ -327,7 +327,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 		// mark it as seen. (note: with concurrent validation more than 5 blocks may be marked as seen still,
 		// but validator concurrency is limited anyway)
-		seen.(*seenBlocks).markSeen(payload.BlockHash)
+		seen.markSeen(payload.BlockHash)
 
 		// remember the decoded payload for later usage in topic subscriber.
 		message.ValidatorData = &payload

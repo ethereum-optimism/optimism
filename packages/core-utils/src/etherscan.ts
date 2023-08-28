@@ -70,7 +70,7 @@ export class Etherscan {
     url.searchParams.append('apikey', this.apiKey)
     const response = await fetch(url)
     const result = await response.json()
-    return result.result[0]
+    return (result as { result: number[] }).result[0]
   }
 
   public async getContractABI(address: string): Promise<any> {

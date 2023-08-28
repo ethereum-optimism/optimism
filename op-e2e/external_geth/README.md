@@ -20,35 +20,26 @@ make test-external-<your-client>
 
 and the execution should happen as well.
 
-*NOTE:* The `Makefile` will generally _not_ rebuild this shim code unless the
-corresponding go files have been modified, but it _will_ trigger rebuilding of
-`op-geth` with every invocation of the test suite.  This is intentional as the
-overhead of building the binary is relatively low, it's difficult to determine
-if changes have occurred, and while iterating for development picking up
-changes quickly and reliably is important.
+*NOTE:* Attempting to iterate for development requires explicit rebuilding of
+the binary being shimmed.  Most likely to accomplish this, you may want to add
+initialization code to the TestMain of the e2e to build your binary, or use
+some other technique like custom build scripts or IDE integrations which cause
+the binary to be rebuilt before executing the tests.
 
 ## Arguments
 
-*--init* The init argument is passed which triggers the creation of an
-`op-geth` binary in this directory.  It is built using the dependencies
-specified in the top level `go.mod` file.  The `--init` call is made once per
-execution of the e2e test suite (if this shim is passed in as a command line
-flag).
-
-*--config <path>* The config path is specified as an option for normal test
-invocations.  This points to a JSON file which contains details of the L2
-environment to bring up (including the `genesis.json` path, the chain ID, the
-JWT path, and a ready file path).  See the data structures in `external.go`
-for more details.
+*--config <path>* The config path is a required argument, it points to a JSON
+file which contains details of the L2 environment to bring up (including the
+`genesis.json` path, the chain ID, the JWT path, and a ready file path).  See
+the data structures in `op-e2e/external/config.go` for more details.
 
 ## Operation
 
-When passed the `--config` flag, this shim will first execute a process to
-initialize the op-geth database.  Then, it will start the op-geth process
-itself.  It watches the output of the process and looks for the lines
-indicating that the HTTP server and Auth HTTP server have started up.  It then
-reads the ports which were allocated (because the requested ports were
-passed in as ephemeral via the CLI arguments).
+This shim will first execute a process to initialize the op-geth database.
+Then, it will start the op-geth process itself.  It watches the output of the
+process and looks for the lines indicating that the HTTP server and Auth HTTP
+server have started up.  It then reads the ports which were allocated (because
+the requested ports were passed in as ephemeral via the CLI arguments).
 
 ## Generalization
 

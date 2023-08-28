@@ -66,22 +66,17 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 		}
 	}
 
+	// All of the precompile addresses should be funded with a single wei
+	for i := 0; i < genesis.PrecompileCount; i++ {
+		addr := common.BytesToAddress([]byte{byte(i)})
+		require.Equal(t, common.Big1, gen.Alloc[addr].Balance)
+	}
+
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
 		_ = os.WriteFile("genesis.json", file, 0644)
 	}
 	return gen
-}
-
-func TestBuildL2DeveloperGenesis(t *testing.T) {
-	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
-	require.Nil(t, err)
-	config.EnableGovernance = false
-	config.FundDevAccounts = true
-	err = config.InitDeveloperDeployedAddresses()
-	require.NoError(t, err)
-	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2344, len(gen.Alloc))
 }
 
 func TestBuildL2MainnetGenesis(t *testing.T) {
@@ -90,7 +85,7 @@ func TestBuildL2MainnetGenesis(t *testing.T) {
 	config.EnableGovernance = true
 	config.FundDevAccounts = false
 	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2066, len(gen.Alloc))
+	require.Equal(t, 2322, len(gen.Alloc))
 }
 
 func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
@@ -99,5 +94,5 @@ func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
 	config.EnableGovernance = false
 	config.FundDevAccounts = false
 	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2066, len(gen.Alloc))
+	require.Equal(t, 2322, len(gen.Alloc))
 }

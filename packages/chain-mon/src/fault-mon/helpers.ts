@@ -31,22 +31,22 @@ export const findOutputForIndex = async (
 }
 
 /**
- * Finds the first state batch index that has not yet passed the fault proof window.
+ * Finds the first L2 output index that has not yet passed the fault proof window.
  *
  * @param oracle Output oracle contract.
- * @returns Starting state root batch index.
+ * @returns Starting L2 output index.
  */
-export const findFirstUnfinalizedStateBatchIndex = async (
+export const findFirstUnfinalizedOutputIndex = async (
   oracle: Contract,
   fpw: number,
   logger?: Logger
 ): Promise<number> => {
   const latestBlock = await oracle.provider.getBlock('latest')
-  const totalBatches = (await oracle.nextOutputIndex()).toNumber()
+  const totalOutputs = (await oracle.nextOutputIndex()).toNumber()
 
   // Perform a binary search to find the next batch that will pass the challenge period.
   let lo = 0
-  let hi = totalBatches
+  let hi = totalOutputs
   while (lo !== hi) {
     const mid = Math.floor((lo + hi) / 2)
     const outputData = await findOutputForIndex(oracle, mid, logger)
@@ -60,7 +60,7 @@ export const findFirstUnfinalizedStateBatchIndex = async (
 
   // Result will be zero if the chain is less than FPW seconds old. Only returns undefined in the
   // case that no batches have been submitted for an entire challenge period.
-  if (lo === totalBatches) {
+  if (lo === totalOutputs) {
     return undefined
   } else {
     return lo

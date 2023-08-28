@@ -10,6 +10,7 @@ import (
 	"time"
 
 	e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,13 +22,18 @@ func TestShim(t *testing.T) {
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	require.NoError(t, err)
+	require.FileExists(t, "shim")
 
-	cmd = exec.Command(shimPath, "--init")
+	opGethPath, err := filepath.Abs("op-geth")
+	require.NoError(t, err)
+	cmd = exec.Command("go", "build", "-o", opGethPath, "github.com/ethereum/go-ethereum/cmd/geth")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()
 	require.NoError(t, err)
 	require.FileExists(t, "op-geth")
+
+	config.EthNodeVerbosity = 4
 
 	ec := (&e2e.ExternalRunner{
 		Name:    "TestShim",

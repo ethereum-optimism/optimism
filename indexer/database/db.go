@@ -2,6 +2,11 @@
 package database
 
 import (
+	"fmt"
+
+	"github.com/ethereum-optimism/optimism/indexer/config"
+	_ "github.com/ethereum-optimism/optimism/indexer/database/serializers"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -10,12 +15,21 @@ import (
 type DB struct {
 	gorm *gorm.DB
 
-	Blocks         BlocksDB
-	ContractEvents ContractEventsDB
-	Bridge         BridgeDB
+	Blocks             BlocksDB
+	ContractEvents     ContractEventsDB
+	BridgeTransfers    BridgeTransfersDB
+	BridgeMessages     BridgeMessagesDB
+	BridgeTransactions BridgeTransactionsDB
 }
 
-func NewDB(dsn string) (*DB, error) {
+func NewDB(dbConfig config.DBConfig) (*DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+	if dbConfig.User != "" {
+		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
+	}
+	if dbConfig.Password != "" {
+		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
+	}
 	gorm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		// The indexer will explicitly manage the transaction
 		// flow processing blocks
@@ -31,10 +45,12 @@ func NewDB(dsn string) (*DB, error) {
 	}
 
 	db := &DB{
-		gorm:           gorm,
-		Blocks:         newBlocksDB(gorm),
-		ContractEvents: newContractEventsDB(gorm),
-		Bridge:         newBridgeDB(gorm),
+		gorm:               gorm,
+		Blocks:             newBlocksDB(gorm),
+		ContractEvents:     newContractEventsDB(gorm),
+		BridgeTransfers:    newBridgeTransfersDB(gorm),
+		BridgeMessages:     newBridgeMessagesDB(gorm),
+		BridgeTransactions: newBridgeTransactionsDB(gorm),
 	}
 
 	return db, nil
@@ -59,9 +75,11 @@ func (db *DB) Close() error {
 
 func dbFromGormTx(tx *gorm.DB) *DB {
 	return &DB{
-		gorm:           tx,
-		Blocks:         newBlocksDB(tx),
-		ContractEvents: newContractEventsDB(tx),
-		Bridge:         newBridgeDB(tx),
+		gorm:               tx,
+		Blocks:             newBlocksDB(tx),
+		ContractEvents:     newContractEventsDB(tx),
+		BridgeTransfers:    newBridgeTransfersDB(tx),
+		BridgeMessages:     newBridgeMessagesDB(tx),
+		BridgeTransactions: newBridgeTransactionsDB(tx),
 	}
 }

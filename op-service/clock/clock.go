@@ -1,10 +1,14 @@
 // Package clock provides an abstraction for time to enable testing of functionality that uses time as an input.
 package clock
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Clock represents time in a way that can be provided by varying implementations.
-// Methods are designed to be direct replacements for methods in the time package.
+// Methods are designed to be direct replacements for methods in the time package,
+// with some new additions to make common patterns simple.
 type Clock interface {
 	// Now provides the current local time. Equivalent to time.Now
 	Now() time.Time
@@ -26,6 +30,10 @@ type Clock interface {
 	// NewTimer creates a new Timer that will send
 	// the current time on its channel after at least duration d.
 	NewTimer(d time.Duration) Timer
+
+	// SleepCtx sleeps until either ctx is done or the specified duration has elapsed.
+	// Returns the ctx.Err if it returns because the context is done.
+	SleepCtx(ctx context.Context, d time.Duration) error
 }
 
 // A Ticker holds a channel that delivers "ticks" of a clock at intervals
@@ -103,4 +111,15 @@ func (t *SystemTimer) Ch() <-chan time.Time {
 
 func (s systemClock) AfterFunc(d time.Duration, f func()) Timer {
 	return &SystemTimer{time.AfterFunc(d, f)}
+}
+
+func (s systemClock) SleepCtx(ctx context.Context, d time.Duration) error {
+	timer := s.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.Ch():
+		return nil
+	}
 }

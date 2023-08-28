@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "./Executables.sol";
+import { Chains } from "./Chains.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -14,7 +15,6 @@ contract DeployConfig is Script {
     string internal _json;
 
     address public finalSystemOwner;
-    address public controller;
     address public portalGuardian;
     uint256 public l1ChainID;
     uint256 public l2ChainID;
@@ -47,6 +47,7 @@ contract DeployConfig is Script {
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameMaxDepth;
     uint256 public faultGameMaxDuration;
+    uint256 public systemConfigStartBlock;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -58,7 +59,6 @@ contract DeployConfig is Script {
         }
 
         finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
-        controller = stdJson.readAddress(_json, "$.controller");
         portalGuardian = stdJson.readAddress(_json, "$.portalGuardian");
         l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
         l2ChainID = stdJson.readUint(_json, "$.l2ChainID");
@@ -88,8 +88,9 @@ contract DeployConfig is Script {
         gasPriceOracleScalar = stdJson.readUint(_json, "$.gasPriceOracleScalar");
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
+        systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
 
-        if (block.chainid == 900) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
             faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
@@ -105,7 +106,7 @@ contract DeployConfig is Script {
             } catch {
                 try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag) {
                     return _getBlockByTag(vm.toString(tag));
-                } catch {}
+                } catch { }
             }
         }
         revert("l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag");

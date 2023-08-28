@@ -68,6 +68,7 @@ You'll need the following:
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Go](https://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
+* [go-ethereum](https://github.com/ethereum/go-ethereum)
 
 ### Setup
 
@@ -80,7 +81,7 @@ cd optimism
 
 ### Install the Correct Version of NodeJS
 
-Install node v16.16.0 with [nvm](https://github.com/nvm-sh/nvm)
+Install the correct node version with [nvm](https://github.com/nvm-sh/nvm)
 
 ```bash
 nvm use
@@ -112,22 +113,23 @@ Use the above commands to recompile the packages.
 ### Building the rest of the system
 
 If you want to run an Optimism node OR **if you want to run the integration tests**, you'll need to build the rest of the system.
+Note that these environment variables significantly speed up build time.
 
 ```bash
-cd ops
-export COMPOSE_DOCKER_CLI_BUILD=1 # these environment variables significantly speed up build time
+cd ops-bedrock
+export COMPOSE_DOCKER_CLI_BUILD=1
 export DOCKER_BUILDKIT=1
-docker-compose build
+docker compose build
 ```
 
 Source code changes can have an impact on more than one container.
 **If you're unsure about which containers to rebuild, just rebuild them all**:
 
 ```bash
-cd ops
-docker-compose down
-docker-compose build
-docker-compose up
+cd ops-bedrock
+docker compose down
+docker compose build
+docker compose up
 ```
 
 **If a node process exits with exit code: 137** you may need to increase the default memory limit of docker containers
@@ -139,18 +141,18 @@ cd optimism
 pnpm clean
 pnpm build
 cd ops
-docker-compose down -v
-docker-compose build
-docker-compose up
+docker compose down -v
+docker compose build
+docker compose up
 ```
 
 #### Viewing docker container logs
 
-By default, the `docker-compose up` command will show logs from all services, and that
+By default, the `docker compose up` command will show logs from all services, and that
 can be hard to filter through. In order to view the logs from a specific service, you can run:
 
 ```bash
-docker-compose logs --follow <service name>
+docker compose logs --follow <service name>
 ```
 
 ### Running tests
@@ -183,3 +185,44 @@ cd packages/contracts
 pip3 install slither-analyzer
 pnpm test:slither
 ```
+
+## Labels
+
+Labels are divided into categories with their descriptions annotated as `<Category Name>: <description>`.
+
+The following are a comprehensive list of label categories.
+
+- **Area labels** ([`A-`][area]): Denote the general area for the related issue or PR changes.
+- **Category labels** ([`C-`][category]): Contextualize the type of issue or change.
+- **Meta labels** ([`M-`][meta]): These add context to the issues or prs themselves primarily relating to process.
+- **Difficulty labels** ([`D-`][difficulty]): Describe the associated implementation's difficulty level.
+- **Status labels** ([`S-`][status]): Specify the status of an issue or pr.
+
+Labels also provide a versatile filter for finding tickets that need help or are open for assignment.
+This makes them a great tool for contributors!
+
+[area]: https://github.com/ethereum-optimism/optimism/labels?q=a-
+[category]: https://github.com/ethereum-optimism/optimism/labels?q=c-
+[meta]: https://github.com/ethereum-optimism/optimism/labels?q=m-
+[difficulty]: https://github.com/ethereum-optimism/optimism/labels?q=d-
+[status]: https://github.com/ethereum-optimism/optimism/labels?q=s-
+
+#### Filtering for Work
+
+To find tickets available for external contribution, take a look at the https://github.com/ethereum-optimism/optimism/labels/M-community label.
+
+You can filter by the https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue
+label to find issues that are intended to be easy to implement or fix.
+
+Also, all labels can be seen by visiting the [labels page][labels]
+
+[labels]: https://github.com/ethereum-optimism/optimism/labels
+
+#### Modifying Labels
+
+When altering label names or deleting labels there are a few things you must be aware of.
+
+- This may affect the mergify bot's use of labels. See the [mergify config](.github/mergify.yml).
+- If the https://github.com/ethereum-optimism/labels/S-stale label is altered, the [close-stale](.github/workflows/close-stale.yml) workflow should be updated.
+- If the https://github.com/ethereum-optimism/labels/M-dependabot label is altered, the [dependabot config](.github/dependabot.yml) file should be adjusted.
+- Saved label filters for project boards will not automatically update. These should be updated if label names change.

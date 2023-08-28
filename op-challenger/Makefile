@@ -17,10 +17,25 @@ test:
 	go test -v ./...
 
 lint:
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+
+visualize:
+	./scripts/visualize.sh
+
+alphabet:
+	./scripts/alphabet/init_game.sh
+	make alphabet-actors
+
+alphabet-actors:
+	@./scripts/parallel.sh \
+	./scripts/alphabet/mallory.sh 'mallory' \
+	./scripts/alphabet/charlie.sh 'charlie'
 
 .PHONY: \
 	clean \
 	op-challenger \
 	test \
-	lint
+	lint \
+	visualize \
+	alphabet \
+	alphabet-actors

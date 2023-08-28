@@ -5,10 +5,10 @@ import { Deployer } from "./Deployer.sol";
 import { DeployConfig } from "./DeployConfig.s.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { EAS } from "../contracts/EAS/EAS.sol";
-import { SchemaRegistry } from "../contracts/EAS/SchemaRegistry.sol";
-import { ISchemaRegistry } from "../contracts/EAS/ISchemaRegistry.sol";
-import { Predeploys } from "../contracts/libraries/Predeploys.sol";
+import { EAS } from "../src/EAS/EAS.sol";
+import { SchemaRegistry } from "../src/EAS/SchemaRegistry.sol";
+import { ISchemaRegistry } from "../src/EAS/ISchemaRegistry.sol";
+import { Predeploys } from "../src/libraries/Predeploys.sol";
 
 /// @title DeployL2
 /// @notice Script used to deploy predeploy implementations to L2.
@@ -39,7 +39,7 @@ contract DeployL2 is Deployer {
     }
 
     /// @notice Deploy the EAS implementation.
-    function deployEAS() broadcast() public returns (address) {
+    function deployEAS() public broadcast returns (address) {
         EAS eas = new EAS();
 
         ISchemaRegistry registry = eas.getSchemaRegistry();
@@ -55,7 +55,7 @@ contract DeployL2 is Deployer {
     }
 
     /// @notice Deploy the SchemaManager implementation.
-    function deploySchemaRegistry() broadcast() public returns (address) {
+    function deploySchemaRegistry() public broadcast returns (address) {
         SchemaRegistry registry = new SchemaRegistry();
 
         save("SchemaRegistry", address(registry));
@@ -67,4 +67,3 @@ contract DeployL2 is Deployer {
         return address(registry);
     }
 }
-

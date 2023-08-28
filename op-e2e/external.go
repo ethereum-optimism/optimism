@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/external"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/require"
 )
@@ -24,45 +25,9 @@ type ExternalRunner struct {
 	JWTPath string
 }
 
-type ExternalConfig struct {
-	DataDir     string `json:"data_dir"`
-	JWTPath     string `json:"jwt_path"`
-	ChainID     uint64 `json:"chain_id"`
-	GasCeil     uint64 `json:"gas_ceil"`
-	GenesisPath string `json:"genesis_path"`
-	Verbosity   uint64 `json:"verbosity"`
-
-	// EndpointsReadyPath is the location to write the endpoint configuration file.
-	// Note, this should be written atomically by writing the JSON, then moving
-	// it to this path to avoid races.  A helper AtomicEncode is provided for
-	// golang clients.
-	EndpointsReadyPath string `json:"endpoints_ready_path"`
-}
-
-// AtomicEncode json encodes val to path+".atomic" then moves the path+".atomic"
-// file to path
-func AtomicEncode(path string, val any) error {
-	atomicPath := path + ".atomic"
-	atomicFile, err := os.Create(atomicPath)
-	if err != nil {
-		return err
-	}
-	if err = json.NewEncoder(atomicFile).Encode(val); err != nil {
-		return err
-	}
-	return os.Rename(atomicPath, path)
-}
-
-type ExternalEndpoints struct {
-	HTTPEndpoint     string `json:"http_endpoint"`
-	WSEndpoint       string `json:"ws_endpoint"`
-	HTTPAuthEndpoint string `json:"http_auth_endpoint"`
-	WSAuthEndpoint   string `json:"ws_auth_endpoint"`
-}
-
 type ExternalEthClient struct {
 	Session   *gexec.Session
-	Endpoints ExternalEndpoints
+	Endpoints external.Endpoints
 }
 
 func (eec *ExternalEthClient) HTTPEndpoint() string {
@@ -104,24 +69,20 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 			Alloc: core.GenesisAlloc{
 				common.Address{1}: core.GenesisAccount{Balance: big.NewInt(1)},
 			},
-			Config:     &params.ChainConfig{ChainID: big.NewInt(901)},
+			Config:     params.OptimismTestConfig,
 			Difficulty: big.NewInt(0),
 		}
 	}
 
 	workDir := t.TempDir()
 
-	config := ExternalConfig{
+	config := external.Config{
 		DataDir:            filepath.Join(workDir, "datadir"),
 		JWTPath:            er.JWTPath,
 		ChainID:            er.Genesis.Config.ChainID.Uint64(),
 		GenesisPath:        filepath.Join(workDir, "genesis.json"),
 		EndpointsReadyPath: filepath.Join(workDir, "endpoints.json"),
-		Verbosity:          3, // INFO
-	}
-
-	if verboseEthNodes {
-		config.Verbosity = 4 // DEBUG
+		Verbosity:          uint64(config.EthNodeVerbosity),
 	}
 
 	err := os.Mkdir(config.DataDir, 0o700)
@@ -138,7 +99,6 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 	err = json.NewEncoder(configFile).Encode(config)
 	require.NoError(t, err)
 
-	gt := gomega.NewWithT(t)
 	cmd := exec.Command(er.BinPath, "--config", configPath)
 	cmd.Dir = filepath.Dir(er.BinPath)
 	sess, err := gexec.Start(
@@ -146,18 +106,28 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 		gexec.NewPrefixedWriter("[extout:"+er.Name+"]", os.Stdout),
 		gexec.NewPrefixedWriter("[exterr:"+er.Name+"]", os.Stderr),
 	)
-	gt.Expect(err).NotTo(gomega.HaveOccurred())
+	require.NoError(t, err)
 
 	// 2 minutes may seem like a long timeout, and, it definitely is.  That
 	// being said, when running these tests with high parallelism turned on, the
 	// node startup time can be substantial (remember, this usually is a
 	// multi-step process initializing the database and then starting the
 	// client).
-	gt.Eventually(config.EndpointsReadyPath, 2*time.Minute).Should(gomega.BeARegularFile(), "external runner did not create ready file at %s within timeout", config.EndpointsReadyPath)
+	require.Eventually(
+		t,
+		func() bool {
+			_, err := os.Stat(config.EndpointsReadyPath)
+			return err == nil
+		},
+		2*time.Minute,
+		10*time.Millisecond,
+		"external runner did not create ready file at %s within timeout",
+		config.EndpointsReadyPath,
+	)
 
 	readyFile, err := os.Open(config.EndpointsReadyPath)
 	require.NoError(t, err)
-	var endpoints ExternalEndpoints
+	var endpoints external.Endpoints
 	err = json.NewDecoder(readyFile).Decode(&endpoints)
 	require.NoError(t, err)
 

@@ -8,7 +8,7 @@ import { LibSort } from "../libraries/LibSort.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { EnhancedScript } from "../universal/EnhancedScript.sol";
 import { GlobalConstants } from "../universal/GlobalConstants.sol";
-import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
+import { ProxyAdmin } from "../../src/universal/ProxyAdmin.sol";
 
 /// @title SafeBuilder
 /// @notice Builds SafeTransactions
@@ -21,11 +21,9 @@ import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 ///         for the most simple user experience when using automation and no indexer.
 ///         Run the command without the `--broadcast` flag and it will print a tenderly URL.
 abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
-
     ////////////////////////////////////////////////////////////////
     //                           State                            //
     ////////////////////////////////////////////////////////////////
-
 
     /// @notice Interface for multicall3.
     IMulticall3 internal constant multicall = IMulticall3(MULTICALL3_ADDRESS);
@@ -38,10 +36,10 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Follow up assertions to ensure that the script ran to completion.
-    function _postCheck() internal virtual view;
+    function _postCheck() internal view virtual;
 
     /// @notice Creates the calldata
-    function buildCalldata(address _proxyAdmin) internal virtual view returns (bytes memory);
+    function buildCalldata(address _proxyAdmin) internal view virtual returns (bytes memory);
 
     /// @notice Internal helper function to compute the safe transaction hash.
     function computeSafeTransactionHash(address _safe, address _proxyAdmin) public virtual returns (bytes32) {
@@ -58,7 +56,11 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         if (block.chainid == OP_GOERLI) {
             safe = 0xE534ccA2753aCFbcDBCeB2291F596fc60495257e;
             proxyAdmin = 0x4200000000000000000000000000000000000018;
+        } else if (block.chainid == GOERLI) {
+            safe = 0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f;
+            proxyAdmin = 0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d;
         }
+        console.log("ChainID: %s", block.chainid);
         return run(safe, proxyAdmin);
     }
 
@@ -119,11 +121,7 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         // Send a transaction to approve the hash
         safe.approveHash(hash);
 
-        logSimulationLink({
-            _to: address(safe),
-            _from: msg.sender,
-            _data: abi.encodeCall(safe.approveHash, (hash))
-        });
+        logSimulationLink({ _to: address(safe), _from: msg.sender, _data: abi.encodeCall(safe.approveHash, (hash)) });
 
         uint256 threshold = safe.getThreshold();
         address[] memory owners = safe.getOwners();
@@ -169,7 +167,7 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
                         payable(address(0)),
                         signatures
                     )
-                )
+                    )
             });
 
             require(success, "call not successful");
@@ -206,4 +204,3 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         return signatures;
     }
 }
-

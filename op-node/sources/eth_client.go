@@ -22,8 +22,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type EthClientConfig struct {
@@ -106,19 +106,19 @@ type EthClient struct {
 	// cache receipts in bundles per block hash
 	// We cache the receipts fetching job to not lose progress when we have to retry the `Fetch` call
 	// common.Hash -> *receiptsFetchingJob
-	receiptsCache *caching.LRUCache
+	receiptsCache *caching.LRUCache[common.Hash, *receiptsFetchingJob]
 
 	// cache transactions in bundles per block hash
 	// common.Hash -> types.Transactions
-	transactionsCache *caching.LRUCache
+	transactionsCache *caching.LRUCache[common.Hash, types.Transactions]
 
 	// cache block headers of blocks by hash
 	// common.Hash -> *HeaderInfo
-	headersCache *caching.LRUCache
+	headersCache *caching.LRUCache[common.Hash, eth.BlockInfo]
 
 	// cache payloads by hash
 	// common.Hash -> *eth.ExecutionPayload
-	payloadsCache *caching.LRUCache
+	payloadsCache *caching.LRUCache[common.Hash, *eth.ExecutionPayload]
 
 	// availableReceiptMethods tracks which receipt methods can be used for fetching receipts
 	// This may be modified concurrently, but we don't lock since it's a single
@@ -172,10 +172,10 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		mustBePostMerge:         config.MustBePostMerge,
 		provKind:                config.RPCProviderKind,
 		log:                     log,
-		receiptsCache:           caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
-		transactionsCache:       caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
-		headersCache:            caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
-		payloadsCache:           caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
+		receiptsCache:           caching.NewLRUCache[common.Hash, *receiptsFetchingJob](metrics, "receipts", config.ReceiptsCacheSize),
+		transactionsCache:       caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", config.TransactionsCacheSize),
+		headersCache:            caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", config.HeadersCacheSize),
+		payloadsCache:           caching.NewLRUCache[common.Hash, *eth.ExecutionPayload](metrics, "payloads", config.PayloadsCacheSize),
 		availableReceiptMethods: AvailableReceiptsFetchingMethods(config.RPCProviderKind),
 		lastMethodsReset:        time.Now(),
 		methodResetDuration:     config.MethodResetDuration,
@@ -292,7 +292,7 @@ func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
 
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
-		return header.(eth.BlockInfo), nil
+		return header, nil
 	}
 	return s.headerCall(ctx, "eth_getBlockByHash", hashID(hash))
 }
@@ -310,7 +310,7 @@ func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.
 func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		if txs, ok := s.transactionsCache.Get(hash); ok {
-			return header.(eth.BlockInfo), txs.(types.Transactions), nil
+			return header, txs, nil
 		}
 	}
 	return s.blockCall(ctx, "eth_getBlockByHash", hashID(hash))
@@ -328,7 +328,7 @@ func (s *EthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel)
 
 func (s *EthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
 	if payload, ok := s.payloadsCache.Get(hash); ok {
-		return payload.(*eth.ExecutionPayload), nil
+		return payload, nil
 	}
 	return s.payloadCall(ctx, "eth_getBlockByHash", hashID(hash))
 }
@@ -354,7 +354,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	// The underlying fetcher uses the receipts hash to verify receipt integrity.
 	var job *receiptsFetchingJob
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		job = v.(*receiptsFetchingJob)
+		job = v
 	} else {
 		txHashes := eth.TransactionsToHashes(txs)
 		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)

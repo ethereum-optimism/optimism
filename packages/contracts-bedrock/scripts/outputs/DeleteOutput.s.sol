@@ -8,10 +8,10 @@ import { LibSort } from "../libraries/LibSort.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { SafeBuilder } from "../universal/SafeBuilder.sol";
 
-import { Types } from "../../contracts/libraries/Types.sol";
-import { FeeVault } from "../../contracts/universal/FeeVault.sol";
-import { L2OutputOracle } from "../../contracts/L1/L2OutputOracle.sol";
-import { Predeploys } from "../../contracts/libraries/Predeploys.sol";
+import { Types } from "../../src/libraries/Types.sol";
+import { FeeVault } from "../../src/universal/FeeVault.sol";
+import { L2OutputOracle } from "../../src/L1/L2OutputOracle.sol";
+import { Predeploys } from "../../src/libraries/Predeploys.sol";
 
 /// @title DeleteOutput
 /// @notice Deletes an output root from the L2OutputOracle.
@@ -68,7 +68,7 @@ contract DeleteOutput is SafeBuilder {
     }
 
     /// @notice Test coverage of the script.
-    function test_script_succeeds() skipWhenNotForking external {
+    function test_script_succeeds() external skipWhenNotForking {
         uint256 _index = getLatestIndex();
         require(_index != 0, "DeleteOutput: No outputs to delete.");
 
@@ -97,16 +97,13 @@ contract DeleteOutput is SafeBuilder {
         _postCheck();
     }
 
-    function buildCalldata(address _proxyAdmin) internal view override returns (bytes memory) {
+    function buildCalldata(address) internal view override returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](1);
 
         calls[0] = IMulticall3.Call3({
             target: oracle,
             allowFailure: false,
-            callData: abi.encodeCall(
-                L2OutputOracle.deleteL2Outputs,
-                (index)
-            )
+            callData: abi.encodeCall(L2OutputOracle.deleteL2Outputs, (index))
         });
 
         return abi.encodeCall(IMulticall3.aggregate3, (calls));

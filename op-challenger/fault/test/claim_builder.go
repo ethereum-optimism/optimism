@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
@@ -32,23 +33,29 @@ func (c *ClaimBuilder) CorrectTraceProvider() types.TraceProvider {
 
 // CorrectClaim returns the canonical claim at a specified trace index
 func (c *ClaimBuilder) CorrectClaim(idx uint64) common.Hash {
-	value, err := c.correct.Get(idx)
+	value, err := c.correct.Get(context.Background(), idx)
 	c.require.NoError(err)
 	return value
 }
 
-// CorrectPreState returns the pre-image of the canonical claim at the specified trace index
+// CorrectPreState returns the pre-state (not hashed) required to execute the valid step at the specified trace index
 func (c *ClaimBuilder) CorrectPreState(idx uint64) []byte {
-	preimage, _, err := c.correct.GetPreimage(idx)
+	preimage, _, _, err := c.correct.GetStepData(context.Background(), idx)
 	c.require.NoError(err)
 	return preimage
 }
 
-// CorrectProofData returns the proof-data for the canonical claim at the specified trace index
+// CorrectProofData returns the proof-data required to execute the valid step at the specified trace index
 func (c *ClaimBuilder) CorrectProofData(idx uint64) []byte {
-	_, proof, err := c.correct.GetPreimage(idx)
+	_, proof, _, err := c.correct.GetStepData(context.Background(), idx)
 	c.require.NoError(err)
 	return proof
+}
+
+func (c *ClaimBuilder) CorrectOracleData(idx uint64) *types.PreimageOracleData {
+	_, _, data, err := c.correct.GetStepData(context.Background(), idx)
+	c.require.NoError(err)
+	return data
 }
 
 func (c *ClaimBuilder) incorrectClaim(idx uint64) common.Hash {

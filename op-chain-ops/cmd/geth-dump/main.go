@@ -4,16 +4,35 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/db"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 )
+
+func dbOpen(path string, cache int, handles int) (ethdb.Database, error) {
+	chaindataPath := filepath.Join(path, "geth", "chaindata")
+	ancientPath := filepath.Join(chaindataPath, "ancient")
+	ldb, err := rawdb.Open(rawdb.OpenOptions{
+		Type:              "leveldb",
+		Directory:         chaindataPath,
+		AncientsDirectory: ancientPath,
+		Namespace:         "",
+		Cache:             cache,
+		Handles:           handles,
+		ReadOnly:          false,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return ldb, nil
+}
 
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
@@ -53,7 +72,7 @@ func main() {
 			outputPath := ctx.String("output-path")
 			hardforkBlock := ctx.Int64("hardfork-block")
 
-			db, err := db.Open(dbPath, dbCache, dbHandles)
+			db, err := dbOpen(dbPath, dbCache, dbHandles)
 			if err != nil {
 				return fmt.Errorf("error opening db: %w", err)
 			}

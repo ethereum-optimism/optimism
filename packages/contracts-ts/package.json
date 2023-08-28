@@ -10,8 +10,8 @@
   },
   "homepage": "https://optimism.io",
   "type": "module",
-  "main": "dist/constants.js",
-  "module": "dist/constants.mjs",
+  "main": "dist/constants.cjs",
+  "module": "dist/constants.js",
   "types": "src/constants.ts",
   "exports": {
     ".": {
@@ -48,10 +48,10 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-bedrock": "workspace:*",
-    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/jest-dom": "^6.0.1",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
-    "@vitest/coverage-istanbul": "^0.33.0",
+    "@vitest/coverage-istanbul": "^0.34.1",
     "@wagmi/cli": "^1.3.0",
     "@wagmi/core": "^1.3.8",
     "abitype": "^0.9.3",
@@ -62,7 +62,7 @@
     "tsup": "^7.1.0",
     "typescript": "^5.1.6",
     "vite": "^4.4.6",
-    "vitest": "^0.33.0"
+    "vitest": "^0.34.2"
   },
   "peerDependencies": {
     "@wagmi/core": ">1.0.0",

@@ -2,22 +2,22 @@ package sources
 
 import (
 	"context"
+	crand "crypto/rand"
 	"math/big"
-	"math/rand"
 	"testing"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type mockRPC struct {
@@ -56,7 +56,7 @@ var testEthClientConfig = &EthClientConfig{
 }
 
 func randHash() (out common.Hash) {
-	rand.Read(out[:])
+	_, _ = crand.Read(out[:])
 	return out
 }
 

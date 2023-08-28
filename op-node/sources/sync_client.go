@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -130,10 +130,10 @@ func (s *SyncClient) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("Starting sync client event loop")
 
-	backoffStrategy := &backoff.ExponentialStrategy{
-		Min:       1000,
-		Max:       20_000,
-		MaxJitter: 250,
+	backoffStrategy := &retry.ExponentialStrategy{
+		Min:       1000 * time.Millisecond,
+		Max:       20_000 * time.Millisecond,
+		MaxJitter: 250 * time.Millisecond,
 	}
 
 	for {
@@ -142,12 +142,12 @@ func (s *SyncClient) eventLoop() {
 			s.log.Debug("Shutting down RPC sync worker")
 			return
 		case reqNum := <-s.requests:
-			err := backoff.DoCtx(s.resCtx, 5, backoffStrategy, func() error {
+			_, err := retry.Do(s.resCtx, 5, backoffStrategy, func() (interface{}, error) {
 				// Limit the maximum time for fetching payloads
 				ctx, cancel := context.WithTimeout(s.resCtx, time.Second*10)
 				defer cancel()
 				// We are only fetching one block at a time here.
-				return s.fetchUnsafeBlockFromRpc(ctx, reqNum)
+				return nil, s.fetchUnsafeBlockFromRpc(ctx, reqNum)
 			})
 			if err != nil {
 				if err == s.resCtx.Err() {

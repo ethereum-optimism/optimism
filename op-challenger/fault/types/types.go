@@ -1,7 +1,10 @@
 package types
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -18,6 +21,62 @@ const (
 	GameStatusDefenderWon
 )
 
+// String returns the string representation of the game status.
+func (s GameStatus) String() string {
+	switch s {
+	case GameStatusInProgress:
+		return "In Progress"
+	case GameStatusChallengerWon:
+		return "Challenger Won"
+	case GameStatusDefenderWon:
+		return "Defender Won"
+	default:
+		return "Unknown"
+	}
+}
+
+// GameStatusFromUint8 returns a game status from the uint8 representation.
+func GameStatusFromUint8(i uint8) (GameStatus, error) {
+	if i > 2 {
+		return GameStatus(i), fmt.Errorf("invalid game status: %d", i)
+	}
+	return GameStatus(i), nil
+}
+
+// PreimageOracleData encapsulates the preimage oracle data
+// to load into the onchain oracle.
+type PreimageOracleData struct {
+	IsLocal      bool
+	OracleKey    []byte
+	OracleData   []byte
+	OracleOffset uint32
+}
+
+// GetType returns the type for the preimage oracle data.
+func (p *PreimageOracleData) GetType() *big.Int {
+	return big.NewInt(int64(p.OracleKey[0]))
+}
+
+// GetIdent returns the ident for the preimage oracle data.
+func (p *PreimageOracleData) GetIdent() *big.Int {
+	return big.NewInt(0).SetBytes(p.OracleKey[1:])
+}
+
+// GetPreimageWithoutSize returns the preimage for the preimage oracle data.
+func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
+	return p.OracleData[8:]
+}
+
+// NewPreimageOracleData creates a new [PreimageOracleData] instance.
+func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
+	return &PreimageOracleData{
+		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		OracleKey:    key,
+		OracleData:   data,
+		OracleOffset: offset,
+	}
+}
+
 // StepCallData encapsulates the data needed to perform a step.
 type StepCallData struct {
 	ClaimIndex uint64
@@ -26,18 +85,26 @@ type StepCallData struct {
 	Proof      []byte
 }
 
+// OracleUpdater is a generic interface for updating oracles.
+type OracleUpdater interface {
+	// UpdateOracle updates the oracle with the given data.
+	UpdateOracle(ctx context.Context, data *PreimageOracleData) error
+}
+
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.
 type TraceProvider interface {
 	// Get returns the claim value at the requested index.
 	// Get(i) = Keccak256(GetPreimage(i))
-	Get(i uint64) (common.Hash, error)
+	Get(ctx context.Context, i uint64) (common.Hash, error)
 
-	// GetPreimage returns the pre-image for a claim at the specified trace index, along
-	// with any associated proof data to assist in its verification.
-	GetPreimage(i uint64) (preimage []byte, proofData []byte, err error)
+	// GetStepData returns the data required to execute the step at the specified trace index.
+	// This includes the pre-state of the step (not hashed), the proof data required during step execution
+	// and any pre-image data that needs to be loaded into the oracle prior to execution (may be nil)
+	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
+	GetStepData(ctx context.Context, i uint64) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
-	AbsolutePreState() []byte
+	AbsolutePreState(ctx context.Context) (preimage []byte, err error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.

@@ -31,6 +31,9 @@ clean-contracts:
 	cd $(contracts-dir) && \
 		pnpm clean
 
+lint:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+
 clean:
 	rm -rf $(pkg)
 

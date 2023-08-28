@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -16,7 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
@@ -44,7 +47,7 @@ func TestMissingGasLimit(t *testing.T) {
 // TestTxGasSameAsBlockGasLimit tests that op-geth rejects transactions that attempt to use the full block gas limit.
 // The L1 Info deposit always takes gas so the effective gas limit is lower than the full block gas limit.
 func TestTxGasSameAsBlockGasLimit(t *testing.T) {
-	if externalL2Nodes != "" {
+	if config.ExternalL2Nodes != "" {
 		// Some clients, such as Erigon will not discard txes that exceed the
 		// block gas limit, and instead retains them to re-evaluate with the
 		// next block whose gas limit may have increased.  We should enable this

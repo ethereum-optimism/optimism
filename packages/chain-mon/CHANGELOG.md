@@ -1,5 +1,30 @@
 # @eth-optimism/drippie-mon
 
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`9c3a03855`](https://github.com/ethereum-optimism/optimism/commit/9c3a03855dc982f0b4e1d664e83271883536632b), [`33eb63b10`](https://github.com/ethereum-optimism/optimism/commit/33eb63b10559a2267c814eda8129447c72940839)]:
+  - @eth-optimism/sdk@3.1.2
+  - @eth-optimism/common-ts@0.8.5
+
+## 0.4.3
+
+### Patch Changes
+
+- [#6796](https://github.com/ethereum-optimism/optimism/pull/6796) [`a196c63ad`](https://github.com/ethereum-optimism/optimism/commit/a196c63ad67de04c4143e0ccd6fe4dc27fb2833b) Thanks [@roninjin10](https://github.com/roninjin10)! - Upgraded npm dependencies to latest
+
+- Updated dependencies [[`dfa309e34`](https://github.com/ethereum-optimism/optimism/commit/dfa309e3430ebc8790b932554dde120aafc4161e)]:
+  - @eth-optimism/core-utils@0.12.3
+  - @eth-optimism/common-ts@0.8.4
+  - @eth-optimism/sdk@3.1.1
+
+## 0.4.2
+
+### Patch Changes
+
+- [#6469](https://github.com/ethereum-optimism/optimism/pull/6469) [`0c769680e`](https://github.com/ethereum-optimism/optimism/commit/0c769680e44208c086deef2f9c03c37da2b536fe) Thanks [@maurelian](https://github.com/maurelian)! - Update language in fault-mon from batches to outputs
+
 ## 0.4.1
 
 ### Patch Changes

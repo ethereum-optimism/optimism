@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const AddressManagerStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/legacy/AddressManager.sol:AddressManager\",\"label\":\"_owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/legacy/AddressManager.sol:AddressManager\",\"label\":\"addresses\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_mapping(t_bytes32,t_address)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bytes32\":{\"encoding\":\"inplace\",\"label\":\"bytes32\",\"numberOfBytes\":\"32\"},\"t_mapping(t_bytes32,t_address)\":{\"encoding\":\"mapping\",\"label\":\"mapping(bytes32 =\u003e address)\",\"numberOfBytes\":\"32\",\"key\":\"t_bytes32\",\"value\":\"t_address\"}}}"
+const AddressManagerStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"src/legacy/AddressManager.sol:AddressManager\",\"label\":\"_owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"src/legacy/AddressManager.sol:AddressManager\",\"label\":\"addresses\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_mapping(t_bytes32,t_address)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bytes32\":{\"encoding\":\"inplace\",\"label\":\"bytes32\",\"numberOfBytes\":\"32\"},\"t_mapping(t_bytes32,t_address)\":{\"encoding\":\"mapping\",\"label\":\"mapping(bytes32 =\u003e address)\",\"numberOfBytes\":\"32\",\"key\":\"t_bytes32\",\"value\":\"t_address\"}}}"
 
 var AddressManagerStorageLayout = new(solc.StorageLayout)
 

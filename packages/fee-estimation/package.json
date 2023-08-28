@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/fee-estimation",
-  "version": "0.15.0",
+  "version": "0.15.2",
   "description": "Lightweight library for doing OP-Chain gas estimation",
   "license": "MIT",
   "repository": {
@@ -10,8 +10,16 @@
   },
   "homepage": "https://optimism.io",
   "type": "module",
-  "main": "dist/estimateFees.js",
-  "module": "dist/estimateFees.mjs",
+  "main": "dist/estimateFees.cjs",
+  "module": "dist/estimateFees.js",
+  "exports": {
+    ".": {
+      "import": "./dist/estimateFees.js",
+      "require": "./dist/estimateFees.cjs",
+      "default": "./dist/estimateFees.js",
+      "types": "./src/estimateFees.ts"
+    }
+  },
   "types": "src/estimateFees.ts",
   "files": [
     "dist/",
@@ -27,9 +35,9 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-ts": "workspace:^",
-    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/jest-dom": "^6.0.1",
     "@testing-library/react-hooks": "^8.0.1",
-    "@vitest/coverage-istanbul": "^0.33.0",
+    "@vitest/coverage-istanbul": "^0.34.1",
     "abitype": "^0.9.3",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
@@ -38,7 +46,7 @@
     "typescript": "^5.1.6",
     "viem": "^1.3.1",
     "vite": "^4.4.6",
-    "vitest": "^0.33.0"
+    "vitest": "^0.34.2"
   },
   "peerDependencies": {
     "viem": "^0.3.30"

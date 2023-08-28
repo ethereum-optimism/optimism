@@ -3,10 +3,12 @@ package client
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -101,23 +103,43 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
-	bOff := backoff.Exponential()
-	var ret *rpc.Client
-	err := backoff.DoCtx(ctx, attempts, bOff, func() error {
+	bOff := retry.Exponential()
+	return retry.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
+		if !IsURLAvailable(addr) {
+			log.Warn("failed to dial address, but may connect later", "addr", addr)
+			return nil, fmt.Errorf("address unavailable (%s)", addr)
+		}
 		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
-			if client == nil {
-				return fmt.Errorf("failed to dial address (%s): %w", addr, err)
-			}
-			log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
+			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 		}
-		ret = client
-		return nil
+		return client, nil
 	})
+}
+
+func IsURLAvailable(address string) bool {
+	u, err := url.Parse(address)
 	if err != nil {
-		return nil, err
+		return false
 	}
-	return ret, nil
+	addr := u.Host
+	if u.Port() == "" {
+		switch u.Scheme {
+		case "http", "ws":
+			addr += ":80"
+		case "https", "wss":
+			addr += ":443"
+		default:
+			// Fail open if we can't figure out what the port should be
+			return true
+		}
+	}
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // BaseRPCClient is a wrapper around a concrete *rpc.Client instance to make it compliant

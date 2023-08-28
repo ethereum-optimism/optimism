@@ -17,14 +17,14 @@ import (
 	"sync"
 	"time"
 
-	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
+
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 )
 
 const (
@@ -138,6 +138,7 @@ type Backend struct {
 	proxydIP             string
 
 	skipPeerCountCheck bool
+	forcedCandidate    bool
 
 	maxDegradedLatencyThreshold time.Duration
 	maxLatencyThreshold         time.Duration
@@ -217,6 +218,12 @@ func WithProxydIP(ip string) BackendOpt {
 func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 	return func(b *Backend) {
 		b.skipPeerCountCheck = skipPeerCountCheck
+	}
+}
+
+func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
+	return func(b *Backend) {
+		b.forcedCandidate = forcedCandidate
 	}
 }
 
@@ -675,9 +682,10 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 
 		// We also rewrite block tags to enforce compliance with consensus
 		rctx := RewriteContext{
-			latest:    bg.Consensus.GetLatestBlockNumber(),
-			safe:      bg.Consensus.GetSafeBlockNumber(),
-			finalized: bg.Consensus.GetFinalizedBlockNumber(),
+			latest:        bg.Consensus.GetLatestBlockNumber(),
+			safe:          bg.Consensus.GetSafeBlockNumber(),
+			finalized:     bg.Consensus.GetFinalizedBlockNumber(),
+			maxBlockRange: bg.Consensus.maxBlockRange,
 		}
 
 		for i, req := range rpcReqs {
@@ -692,6 +700,10 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 				})
 				if errors.Is(err, ErrRewriteBlockOutOfRange) {
 					res.Error = ErrBlockOutOfRange
+				} else if errors.Is(err, ErrRewriteRangeTooLarge) {
+					res.Error = ErrInvalidParams(
+						fmt.Sprintf("block range greater than %d max", rctx.maxBlockRange),
+					)
 				} else {
 					res.Error = ErrParseErr
 				}
@@ -854,9 +866,12 @@ func calcBackoff(i int) time.Duration {
 type WSProxier struct {
 	backend         *Backend
 	clientConn      *websocket.Conn
-	backendConn     *websocket.Conn
-	methodWhitelist *StringSet
 	clientConnMu    sync.Mutex
+	backendConn     *websocket.Conn
+	backendConnMu   sync.Mutex
+	methodWhitelist *StringSet
+	readTimeout     time.Duration
+	writeTimeout    time.Duration
 }
 
 func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, methodWhitelist *StringSet) *WSProxier {
@@ -865,6 +880,8 @@ func NewWSProxier(backend *Backend, clientConn, backendConn *websocket.Conn, met
 		clientConn:      clientConn,
 		backendConn:     backendConn,
 		methodWhitelist: methodWhitelist,
+		readTimeout:     defaultWSReadTimeout,
+		writeTimeout:    defaultWSWriteTimeout,
 	}
 }
 
@@ -882,11 +899,11 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		// Block until we get a message.
 		msgType, msg, err := w.clientConn.ReadMessage()
 		if err != nil {
-			errC <- err
-			if err := w.backendConn.WriteMessage(websocket.CloseMessage, formatWSError(err)); err != nil {
+			if err := w.writeBackendConn(websocket.CloseMessage, formatWSError(err)); err != nil {
 				log.Error("error writing backendConn message", "err", err)
+				errC <- err
+				return
 			}
-			return
 		}
 
 		RecordWSMessage(ctx, w.backend.Name, SourceClient)
@@ -894,7 +911,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 		// Route control messages to the backend. These don't
 		// count towards the total RPC requests count.
 		if msgType != websocket.TextMessage && msgType != websocket.BinaryMessage {
-			err := w.backendConn.WriteMessage(msgType, msg)
+			err := w.writeBackendConn(msgType, msg)
 			if err != nil {
 				errC <- err
 				return
@@ -952,7 +969,7 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 			"req_id", GetReqID(ctx),
 		)
 
-		err = w.backendConn.WriteMessage(msgType, msg)
+		err = w.writeBackendConn(msgType, msg)
 		if err != nil {
 			errC <- err
 			return
@@ -965,11 +982,11 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 		// Block until we get a message.
 		msgType, msg, err := w.backendConn.ReadMessage()
 		if err != nil {
-			errC <- err
 			if err := w.writeClientConn(websocket.CloseMessage, formatWSError(err)); err != nil {
 				log.Error("error writing clientConn message", "err", err)
+				errC <- err
+				return
 			}
-			return
 		}
 
 		RecordWSMessage(ctx, w.backend.Name, SourceBackend)
@@ -1050,8 +1067,23 @@ func (w *WSProxier) parseBackendMsg(msg []byte) (*RPCRes, error) {
 
 func (w *WSProxier) writeClientConn(msgType int, msg []byte) error {
 	w.clientConnMu.Lock()
+	defer w.clientConnMu.Unlock()
+	if err := w.clientConn.SetWriteDeadline(time.Now().Add(w.writeTimeout)); err != nil {
+		log.Error("ws client write timeout", "err", err)
+		return err
+	}
 	err := w.clientConn.WriteMessage(msgType, msg)
-	w.clientConnMu.Unlock()
+	return err
+}
+
+func (w *WSProxier) writeBackendConn(msgType int, msg []byte) error {
+	w.backendConnMu.Lock()
+	defer w.backendConnMu.Unlock()
+	if err := w.backendConn.SetWriteDeadline(time.Now().Add(w.writeTimeout)); err != nil {
+		log.Error("ws backend write timeout", "err", err)
+		return err
+	}
+	err := w.backendConn.WriteMessage(msgType, msg)
 	return err
 }
 

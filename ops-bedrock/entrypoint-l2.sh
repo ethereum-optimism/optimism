@@ -40,6 +40,7 @@ exec geth \
 	--nodiscover \
 	--maxpeers=0 \
 	--networkid=$CHAIN_ID \
+	--rpc.allow-unprotected-txs \
 	--authrpc.addr="0.0.0.0" \
 	--authrpc.port="8551" \
 	--authrpc.vhosts="*" \

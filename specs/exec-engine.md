@@ -242,7 +242,7 @@ as the engine implementation can sync state faster through methods like [snap-sy
 ### Happy-path sync
 
 1. The rollup node informs the engine of the L2 chain head, unconditionally (part of regular node operation):
-   - [`engine_newPayloadV1`][engine_newPayloadV1] is called with latest L2 block derived from L1.
+   - [`engine_newPayloadV1`][engine_newPayloadV1] is called with latest L2 block received from P2P.
    - [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1] is called with the current
      `unsafe`/`safe`/`finalized` L2 block hashes.
 2. The engine requests headers from peers, in reverse till the parent hash matches the local chain

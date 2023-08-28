@@ -6,6 +6,16 @@ import (
 	"io"
 )
 
+const (
+	sysMmap      = 4090
+	sysBrk       = 4045
+	sysClone     = 4120
+	sysExitGroup = 4246
+	sysRead      = 4003
+	sysWrite     = 4004
+	sysFcntl     = 4055
+)
+
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := m.lastPreimage
 	if key != m.lastPreimageKey {
@@ -43,7 +53,7 @@ func (m *InstrumentedState) handleSyscall() error {
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
-	case 4090: // mmap
+	case sysMmap:
 		sz := a1
 		if sz&PageAddrMask != 0 { // adjust size to align with page size
 			sz += PageSize - (sz & PageAddrMask)
@@ -56,15 +66,15 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = a0
 			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
 		}
-	case 4045: // brk
+	case sysBrk:
 		v0 = 0x40000000
-	case 4120: // clone (not supported)
+	case sysClone: // clone (not supported)
 		v0 = 1
-	case 4246: // exit_group
+	case sysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
 		return nil
-	case 4003: // read
+	case sysRead:
 		// args: a0 = fd, a1 = addr, a2 = count
 		// returns: v0 = read, v1 = err code
 		switch a0 {
@@ -98,7 +108,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0xFFffFFff
 			v1 = MipsEBADF
 		}
-	case 4004: // write
+	case sysWrite:
 		// args: a0 = fd, a1 = addr, a2 = count
 		// returns: v0 = written, v1 = err code
 		switch a0 {
@@ -144,7 +154,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0xFFffFFff
 			v1 = MipsEBADF
 		}
-	case 4055: // fcntl
+	case sysFcntl:
 		// args: a0 = fd, a1 = cmd
 		if a1 == 3 { // F_GETFL: get file descriptor flags
 			switch a0 {
@@ -170,6 +180,10 @@ func (m *InstrumentedState) handleSyscall() error {
 }
 
 func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+	if m.state.NextPC != m.state.PC+4 {
+		panic("branch in delay slot")
+	}
+
 	shouldBranch := false
 	if opcode == 4 || opcode == 5 { // beq/bne
 		rt := m.state.Registers[rtReg]
@@ -236,6 +250,9 @@ func (m *InstrumentedState) handleHiLo(fun uint32, rs uint32, rt uint32, storeRe
 }
 
 func (m *InstrumentedState) handleJump(linkReg uint32, dest uint32) error {
+	if m.state.NextPC != m.state.PC+4 {
+		panic("jump in delay slot")
+	}
 	prevPC := m.state.PC
 	m.state.PC = m.state.NextPC
 	m.state.NextPC = dest
@@ -268,13 +285,13 @@ func (m *InstrumentedState) mipsStep() error {
 
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
-		// TODO likely bug in original code: MIPS spec says this should be in the "current" region;
-		// a 256 MB aligned region (i.e. use top 4 bits of branch delay slot (pc+4))
 		linkReg := uint32(0)
 		if opcode == 3 {
 			linkReg = 31
 		}
-		return m.handleJump(linkReg, SE(insn&0x03FFFFFF, 26)<<2)
+		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		return m.handleJump(linkReg, target)
 	}
 
 	// register fetch
@@ -378,88 +395,110 @@ func (m *InstrumentedState) mipsStep() error {
 
 func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 	opcode := insn >> 26 // 6-bits
-	fun := insn & 0x3f   // 6-bits
-	// TODO(CLI-4136): deref the immed into a register
 
-	if opcode < 0x20 {
-		// transform ArithLogI
-		// TODO(CLI-4136): replace with table
-		if opcode >= 8 && opcode < 0xF {
-			switch opcode {
-			case 8:
-				fun = 0x20 // addi
-			case 9:
-				fun = 0x21 // addiu
-			case 0xA:
-				fun = 0x2A // slti
-			case 0xB:
-				fun = 0x2B // sltiu
-			case 0xC:
-				fun = 0x24 // andi
-			case 0xD:
-				fun = 0x25 // ori
-			case 0xE:
-				fun = 0x26 // xori
-			}
-			opcode = 0
+	if opcode == 0 || (opcode >= 8 && opcode < 0xF) {
+		fun := insn & 0x3f // 6-bits
+		// transform ArithLogI to SPECIAL
+		switch opcode {
+		case 8:
+			fun = 0x20 // addi
+		case 9:
+			fun = 0x21 // addiu
+		case 0xA:
+			fun = 0x2A // slti
+		case 0xB:
+			fun = 0x2B // sltiu
+		case 0xC:
+			fun = 0x24 // andi
+		case 0xD:
+			fun = 0x25 // ori
+		case 0xE:
+			fun = 0x26 // xori
 		}
 
-		// 0 is opcode SPECIAL
-		if opcode == 0 {
+		switch fun {
+		case 0x00: // sll
+			return rt << ((insn >> 6) & 0x1F)
+		case 0x02: // srl
+			return rt >> ((insn >> 6) & 0x1F)
+		case 0x03: // sra
 			shamt := (insn >> 6) & 0x1F
-			if fun < 0x20 {
-				switch {
-				case fun >= 0x08:
-					return rs // jr/jalr/div + others
-				case fun == 0x00:
-					return rt << shamt // sll
-				case fun == 0x02:
-					return rt >> shamt // srl
-				case fun == 0x03:
-					return SE(rt>>shamt, 32-shamt) // sra
-				case fun == 0x04:
-					return rt << (rs & 0x1F) // sllv
-				case fun == 0x06:
-					return rt >> (rs & 0x1F) // srlv
-				case fun == 0x07:
-					return SE(rt>>rs, 32-rs) // srav
-				}
+			return SE(rt>>shamt, 32-shamt)
+		case 0x04: // sllv
+			return rt << (rs & 0x1F)
+		case 0x06: // srlv
+			return rt >> (rs & 0x1F)
+		case 0x07: // srav
+			return SE(rt>>rs, 32-rs)
+		// functs in range [0x8, 0x1b] are handled specially by other functions
+		case 0x08: // jr
+			return rs
+		case 0x09: // jalr
+			return rs
+		case 0x0a: // movz
+			return rs
+		case 0x0b: // movn
+			return rs
+		case 0x0c: // syscall
+			return rs
+		// 0x0d - break not supported
+		case 0x0f: // sync
+			return rs
+		case 0x10: // mfhi
+			return rs
+		case 0x11: // mthi
+			return rs
+		case 0x12: // mflo
+			return rs
+		case 0x13: // mtlo
+			return rs
+		case 0x18: // mult
+			return rs
+		case 0x19: // multu
+			return rs
+		case 0x1a: // div
+			return rs
+		case 0x1b: // divu
+			return rs
+		// The rest includes transformed R-type arith imm instructions
+		case 0x20: // add
+			return rs + rt
+		case 0x21: // addu
+			return rs + rt
+		case 0x22: // sub
+			return rs - rt
+		case 0x23: // subu
+			return rs - rt
+		case 0x24: // and
+			return rs & rt
+		case 0x25: // or
+			return rs | rt
+		case 0x26: // xor
+			return rs ^ rt
+		case 0x27: // nor
+			return ^(rs | rt)
+		case 0x2a: // slti
+			if int32(rs) < int32(rt) {
+				return 1
 			}
-			// 0x10-0x13 = mfhi, mthi, mflo, mtlo
-			// R-type (ArithLog)
+			return 0
+		case 0x2b: // sltiu
+			if rs < rt {
+				return 1
+			}
+			return 0
+		default:
+			panic("invalid instruction")
+		}
+	} else {
+		switch opcode {
+		// SPECIAL2
+		case 0x1C:
+			fun := insn & 0x3f // 6-bits
 			switch fun {
-			case 0x20, 0x21:
-				return rs + rt // add or addu
-			case 0x22, 0x23:
-				return rs - rt // sub or subu
-			case 0x24:
-				return rs & rt // and
-			case 0x25:
-				return rs | rt // or
-			case 0x26:
-				return rs ^ rt // xor
-			case 0x27:
-				return ^(rs | rt) // nor
-			case 0x2A:
-				if int32(rs) < int32(rt) {
-					return 1 // slt
-				} else {
-					return 0
-				}
-			case 0x2B:
-				if rs < rt {
-					return 1 // sltu
-				} else {
-					return 0
-				}
-			}
-		} else if opcode == 0xF {
-			return rt << 16 // lui
-		} else if opcode == 0x1C { // SPECIAL2
-			if fun == 2 { // mul
+			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
-			}
-			if fun == 0x20 || fun == 0x21 { // clo
+			case 0x20, 0x21: // clo
 				if fun == 0x20 {
 					rs = ^rs
 				}
@@ -469,9 +508,8 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 				}
 				return i
 			}
-		}
-	} else if opcode < 0x28 {
-		switch opcode {
+		case 0x0F: // lui
+			return rt << 16
 		case 0x20: // lb
 			return SE((mem>>(24-(rs&3)*8))&0xFF, 8)
 		case 0x21: // lh
@@ -484,37 +522,38 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 			return mem
 		case 0x24: // lbu
 			return (mem >> (24 - (rs&3)*8)) & 0xFF
-		case 0x25: // lhu
+		case 0x25: //  lhu
 			return (mem >> (16 - (rs&2)*8)) & 0xFFFF
-		case 0x26: // lwr
+		case 0x26: //  lwr
 			val := mem >> (24 - (rs&3)*8)
 			mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
 			return (rt & ^mask) | val
+		case 0x28: //  sb
+			val := (rt & 0xFF) << (24 - (rs&3)*8)
+			mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
+			return (mem & mask) | val
+		case 0x29: //  sh
+			val := (rt & 0xFFFF) << (16 - (rs&2)*8)
+			mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
+			return (mem & mask) | val
+		case 0x2a: //  swl
+			val := rt >> ((rs & 3) * 8)
+			mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
+			return (mem & ^mask) | val
+		case 0x2b: //  sw
+			return rt
+		case 0x2e: //  swr
+			val := rt << (24 - (rs&3)*8)
+			mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
+			return (mem & ^mask) | val
+		case 0x30: //  ll
+			return mem
+		case 0x38: //  sc
+			return rt
+		default:
+			panic("invalid instruction")
 		}
-	} else if opcode == 0x28 { // sb
-		val := (rt & 0xFF) << (24 - (rs&3)*8)
-		mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
-		return (mem & mask) | val
-	} else if opcode == 0x29 { // sh
-		val := (rt & 0xFFFF) << (16 - (rs&2)*8)
-		mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
-		return (mem & mask) | val
-	} else if opcode == 0x2a { // swl
-		val := rt >> ((rs & 3) * 8)
-		mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
-		return (mem & ^mask) | val
-	} else if opcode == 0x2b { // sw
-		return rt
-	} else if opcode == 0x2e { // swr
-		val := rt << (24 - (rs&3)*8)
-		mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
-		return (mem & ^mask) | val
-	} else if opcode == 0x30 {
-		return mem // ll
-	} else if opcode == 0x38 {
-		return rt // sc
 	}
-
 	panic("invalid instruction")
 }
 

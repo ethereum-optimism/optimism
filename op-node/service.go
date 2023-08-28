@@ -22,6 +22,7 @@ import (
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -58,6 +59,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
 
+	syncConfig := NewSyncConfig(ctx)
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -88,6 +91,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
 		ConfigPersistence: configPersistence,
+		Sync:              *syncConfig,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -178,12 +182,16 @@ Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
 `, "network", network, "rollup_config", rollupConfigPath)
 		}
+		// check that the network is available
+		if !chaincfg.IsAvailableNetwork(network, ctx.Bool(flags.BetaExtraNetworks.Name)) {
+			return nil, fmt.Errorf("unavailable network: %q", network)
+		}
 		config, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
 		}
 
-		return &config, nil
+		return config, nil
 	}
 
 	file, err := os.Open(rollupConfigPath)
@@ -213,4 +221,11 @@ func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger, nil
+}
+
+func NewSyncConfig(ctx *cli.Context) *sync.Config {
+	return &sync.Config{
+		EngineSync:         ctx.Bool(flags.L2EngineSyncEnabled.Name),
+		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
+	}
 }

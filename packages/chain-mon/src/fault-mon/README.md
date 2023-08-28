@@ -48,7 +48,7 @@ Check the list of available metrics via `pnpm start --help`:
 
 ```sh
 > pnpm start --help
-$ ts-node ./src/service.ts --help
+$ tsx ./src/service.ts --help
 Usage: service [options]
 
 Options:
@@ -56,7 +56,7 @@ Options:
   --l2rpcprovider    Provider for interacting with L2 (env: FAULT_DETECTOR__L2_RPC_PROVIDER)
   --startbatchindex  Batch index to start checking from. Setting it to -1 will cause the fault detector to find the first state batch index that has not yet passed the fault proof window (env: FAULT_DETECTOR__START_BATCH_INDEX, default value: -1)
   --loopintervalms   Loop interval in milliseconds (env: FAULT_DETECTOR__LOOP_INTERVAL_MS)
-  --optimismportaladdress        [Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification  (env: FAULT_DETECTOR__OPTIMISM_PORTAL_ADDRESS, default 0x0)
+  --optimismportaladdress        [Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for output verification  (env: FAULT_DETECTOR__OPTIMISM_PORTAL_ADDRESS, default 0x0)
 
   --port             Port for the app server (env: FAULT_DETECTOR__PORT)
   --hostname         Hostname for the app server (env: FAULT_DETECTOR__HOSTNAME)

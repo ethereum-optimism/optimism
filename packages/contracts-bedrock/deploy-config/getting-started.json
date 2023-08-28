@@ -1,15 +1,13 @@
 {
-  "numDeployConfirmations": 1,
-
   "finalSystemOwner": "ADMIN",
   "portalGuardian": "ADMIN",
-  "controller": "ADMIN",
 
   "l1StartingBlockTag": "BLOCKHASH",
 
   "l1ChainID": 5,
   "l2ChainID": 42069,
   "l2BlockTime": 2,
+  "l1BlockTime": 12,
 
   "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
@@ -53,5 +51,7 @@
   "l2GenesisRegolithTimeOffset": "0x0",
 
   "eip1559Denominator": 50,
-  "eip1559Elasticity": 10
+  "eip1559Elasticity": 10,
+
+  "systemConfigStartBlock": 0
 }

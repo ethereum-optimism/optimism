@@ -27,6 +27,7 @@ var (
 	StepBytes4                      = crypto.Keccak256([]byte("step(bytes,bytes)"))[:4]
 	CheatBytes4                     = crypto.Keccak256([]byte("cheat(uint256,bytes32,bytes32,uint256)"))[:4]
 	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
+	LoadLocalDataBytes4             = crypto.Keccak256([]byte("loadLocalData(uint256,bytes32,uint256,uint256)"))[:4]
 )
 
 // LoadContracts loads the Cannon contracts, from op-bindings package
@@ -111,9 +112,17 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-	env.StateDB.SetCode(addrs.MIPS, contracts.MIPS.DeployedBytecode.Object)
 	env.StateDB.SetCode(addrs.Oracle, contracts.Oracle.DeployedBytecode.Object)
-	env.StateDB.SetState(addrs.MIPS, common.Hash{}, addrs.Oracle.Hash())
+
+	var mipsCtorArgs [32]byte
+	copy(mipsCtorArgs[12:], addrs.Oracle[:])
+	mipsDeploy := append(hexutil.MustDecode(bindings.MIPSMetaData.Bin), mipsCtorArgs[:]...)
+	startingGas := uint64(30_000_000)
+	_, deployedMipsAddr, leftOverGas, err := env.Create(vm.AccountRef(addrs.Sender), mipsDeploy, startingGas, big.NewInt(0))
+	if err != nil {
+		panic(fmt.Errorf("failed to deploy MIPS contract: %w. took %d gas", err, startingGas-leftOverGas))
+	}
+	addrs.MIPS = deployedMipsAddr
 
 	rules := env.ChainConfig().Rules(header.Number, true, header.Time)
 	env.StateDB.Prepare(rules, addrs.Sender, addrs.FeeRecipient, &addrs.MIPS, vm.ActivePrecompiles(rules), nil)

@@ -164,19 +164,30 @@ services:
       AWS_ACCESS_KEY_ID: "1"
       AWS_SECRET_ACCESS_KEY: "1"
 
-#  stateviz:
-#   build:
-#      context: ../
-#      dockerfile: ./ops-bedrock/Dockerfile.stateviz
-#    command:
-#      - stateviz
-#      - -addr=0.0.0.0:8080
-#      - -snapshot=/op_log/snapshot.log
-#      - -refresh=10s
-#    ports:
-#      - "9090:8080"
-#    volumes:
-#      - op_log:/op_log:ro
+  artifact-server:
+    depends_on:
+      - l1
+    image: nginx:1.25-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
+    security_opt:
+      - "no-new-privileges:true"
+
+  stateviz:
+    build:
+      context: ../
+      dockerfile: ./ops-bedrock/Dockerfile.stateviz
+    command:
+      - stateviz
+      - -addr=0.0.0.0:8080
+      - -snapshot=/op_log/snapshot.log
+      - -refresh=10s
+    ports:
+      - "9090:8080"
+    volumes:
+      - op_log:/op_log:ro
 
   #in no way should this be running in production
   kms:
