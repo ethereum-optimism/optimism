@@ -59,7 +59,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
-
 		DB: config.DBConfig{
 			Host: "127.0.0.1",
 			Port: 5432,
@@ -80,11 +79,15 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 			},
 		},
+		Metrics: config.MetricsConfig{
+			Host: "127.0.0.1",
+			Port: 0,
+		},
 	}
 
 	db, err := database.NewDB(indexerCfg.DB)
 	require.NoError(t, err)
-	indexer, err := indexer.NewIndexer(logger, indexerCfg.Chain, indexerCfg.RPCs, db)
+	indexer, err := indexer.NewIndexer(logger, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.Metrics)
 	require.NoError(t, err)
 
 	indexerStoppedCh := make(chan interface{}, 1)

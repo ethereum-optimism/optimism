@@ -15,8 +15,8 @@ import (
 )
 
 type Config struct {
-	LoopInterval     time.Duration
-	HeaderBufferSize uint64
+	LoopIntervalMsec uint
+	HeaderBufferSize uint
 	StartHeight      *big.Int
 }
 
