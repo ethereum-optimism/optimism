@@ -3,6 +3,7 @@ package etl
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -20,7 +21,7 @@ type L1ETL struct {
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
 // depending on the state of the database and the supplied start height.
-func NewL1ETL(cfg *Config, log log.Logger, db *database.DB, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
+func NewL1ETL(cfg Config, log log.Logger, db *database.DB, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
 	latestHeader, err := db.Blocks.L1LatestBlockHeader()
@@ -56,8 +57,8 @@ func NewL1ETL(cfg *Config, log log.Logger, db *database.DB, client node.EthClien
 	// will be able to keep up with the rate of incoming batches
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{
-		loopInterval:     cfg.LoopInterval,
-		headerBufferSize: cfg.HeaderBufferSize,
+		loopInterval:     time.Duration(cfg.LoopIntervalMsec) * time.Millisecond,
+		headerBufferSize: uint64(cfg.HeaderBufferSize),
 
 		log:             log,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),

@@ -2,6 +2,7 @@ package etl
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -18,7 +19,7 @@ type L2ETL struct {
 	db *database.DB
 }
 
-func NewL2ETL(cfg *Config, log log.Logger, db *database.DB, client node.EthClient) (*L2ETL, error) {
+func NewL2ETL(cfg Config, log log.Logger, db *database.DB, client node.EthClient) (*L2ETL, error) {
 	log = log.New("etl", "l2")
 
 	// allow predeploys to be overridable
@@ -43,8 +44,8 @@ func NewL2ETL(cfg *Config, log log.Logger, db *database.DB, client node.EthClien
 
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{
-		loopInterval:     cfg.LoopInterval,
-		headerBufferSize: cfg.HeaderBufferSize,
+		loopInterval:     time.Duration(cfg.LoopIntervalMsec) * time.Millisecond,
+		headerBufferSize: uint64(cfg.HeaderBufferSize),
 
 		log:             log,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),

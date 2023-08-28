@@ -37,7 +37,7 @@ func runIndexer(ctx *cli.Context) error {
 		return err
 	}
 
-	indexer, err := indexer.NewIndexer(log, cfg.Chain, cfg.RPCs, db)
+	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.Metrics)
 	if err != nil {
 		log.Error("failed to create indexer", "err", err)
 		return err
