@@ -11,6 +11,12 @@ import (
 	geth_log "github.com/ethereum/go-ethereum/log"
 )
 
+const (
+	// default to 5 seconds
+	defaultLoopInterval     = 5000
+	defaultHeaderBufferSize = 500
+)
+
 // in future presets can just be onchain config and fetched on initialization
 
 // Config represents the `indexer.toml` file used to configure the indexer
@@ -59,13 +65,19 @@ func (c *L1Contracts) AsSlice() ([]common.Address, error) {
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	// NOTE - This currently performs no lookups to extract known L1 contracts by l2 chain id
 	Preset      int
 	L1Contracts L1Contracts `toml:"l1-contracts"`
 	// L1StartingHeight is the block height to start indexing from
 	L1StartingHeight uint `toml:"l1-starting-height"`
+
+	L1PollingInterval uint `toml:"l1-polling-interval"`
+	L2PollingInterval uint `toml:"l2-polling-interval"`
+
+	L1HeaderBufferSize uint `toml:"l1-header-buffer-size"`
+	L2HeaderBufferSize uint `toml:"l2-header-buffer-size"`
 }
 
+// L1StartHeight returns the block height to start indexing from
 func (cc *ChainConfig) L1StartHeight() *big.Int {
 	return big.NewInt(int64(cc.L1StartingHeight))
 }
@@ -121,6 +133,27 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 		} else {
 			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
 		}
+	}
+
+	// Set polling defaults if not set
+	if conf.Chain.L1PollingInterval == 0 {
+		logger.Info("setting default L1 polling interval", "interval", defaultLoopInterval)
+		conf.Chain.L1PollingInterval = defaultLoopInterval
+	}
+
+	if conf.Chain.L2PollingInterval == 0 {
+		logger.Info("setting default L2 polling interval", "interval", defaultLoopInterval)
+		conf.Chain.L2PollingInterval = defaultLoopInterval
+	}
+
+	if conf.Chain.L1HeaderBufferSize == 0 {
+		logger.Info("setting default L1 header buffer", "size", defaultHeaderBufferSize)
+		conf.Chain.L1HeaderBufferSize = defaultHeaderBufferSize
+	}
+
+	if conf.Chain.L2HeaderBufferSize == 0 {
+		logger.Info("setting default L2 header buffer", "size", defaultHeaderBufferSize)
+		conf.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
 	}
 
 	logger.Info("loaded config")

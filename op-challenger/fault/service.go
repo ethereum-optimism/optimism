@@ -20,9 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// TODO(CLI-4342): Make this a cli option
-const maxConcurrency = 4
-
 type Loader interface {
 	FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error)
 }
@@ -79,7 +76,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 	sched := scheduler.NewScheduler(
 		logger,
 		disk,
-		maxConcurrency,
+		cfg.MaxConcurrency,
 		func(addr common.Address, dir string) (scheduler.GamePlayer, error) {
 			return NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
 		})

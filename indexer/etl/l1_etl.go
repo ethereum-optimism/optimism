@@ -3,7 +3,6 @@ package etl
 import (
 	"context"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -21,8 +20,7 @@ type L1ETL struct {
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
 // depending on the state of the database and the supplied start height.
-func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, startHeight *big.Int,
-	contracts config.L1Contracts) (*L1ETL, error) {
+func NewL1ETL(cfg *Config, log log.Logger, db *database.DB, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
 	latestHeader, err := db.Blocks.L1LatestBlockHeader()
@@ -41,9 +39,9 @@ func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, startHeigh
 		log.Info("detected last indexed block", "number", latestHeader.Number, "hash", latestHeader.Hash)
 		fromHeader = latestHeader.RLPHeader.Header()
 
-	} else if startHeight.BitLen() > 0 {
-		log.Info("no indexed state in storage, starting from supplied L1 height", "height", startHeight.String())
-		header, err := client.BlockHeaderByNumber(startHeight)
+	} else if cfg.StartHeight.BitLen() > 0 {
+		log.Info("no indexed state in storage, starting from supplied L1 height", "height", cfg.StartHeight.String())
+		header, err := client.BlockHeaderByNumber(cfg.StartHeight)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
 		}
@@ -58,6 +56,9 @@ func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, startHeigh
 	// will be able to keep up with the rate of incoming batches
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{
+		loopInterval:     cfg.LoopInterval,
+		headerBufferSize: cfg.HeaderBufferSize,
+
 		log:             log,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),
 		ethClient:       client.GethEthClient(),
