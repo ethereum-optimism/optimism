@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -120,18 +119,16 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 }
 
 func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
-	txmgrCfg := txmgr.NewCLIConfig(l1Endpoint)
-	txmgrCfg.NumConfirmations = 1
-	txmgrCfg.ReceiptQueryInterval = 1 * time.Second
-	cfg := &config.Config{
-		L1EthRpc:                l1Endpoint,
-		AlphabetTrace:           "",
-		AgreeWithProposedOutput: true,
-		TxMgrConfig:             txmgrCfg,
-		Datadir:                 t.TempDir(),
+	// Use the NewConfig method to ensure we pick up any defaults that are set.
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, config.TraceTypeAlphabet, true, t.TempDir())
+	cfg.TxMgrConfig.NumConfirmations = 1
+	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
+	if cfg.MaxConcurrency > 4 {
+		// Limit concurrency to something more reasonable when there are also multiple tests executing in parallel
+		cfg.MaxConcurrency = 4
 	}
 	for _, option := range options {
-		option(cfg)
+		option(&cfg)
 	}
 	require.NotEmpty(t, cfg.TxMgrConfig.PrivateKey, "Missing private key for TxMgrConfig")
 	require.NoError(t, cfg.Check(), "op-challenger config should be valid")
@@ -148,7 +145,7 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
 		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
 	}
-	return cfg
+	return &cfg
 }
 
 func (h *Helper) Close() error {

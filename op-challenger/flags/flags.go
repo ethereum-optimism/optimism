@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -63,6 +64,12 @@ var (
 		EnvVars: prefixEnvVars("DATADIR"),
 	}
 	// Optional Flags
+	MaxConcurrencyFlag = &cli.UintFlag{
+		Name:    "max-concurrency",
+		Usage:   "Maximum number of threads to use when progressing games",
+		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
+		Value:   uint(runtime.NumCPU()),
+	}
 	AlphabetFlag = &cli.StringFlag{
 		Name:    "alphabet",
 		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
@@ -128,6 +135,7 @@ var requiredFlags = []cli.Flag{
 
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
+	MaxConcurrencyFlag,
 	AlphabetFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
@@ -220,6 +228,10 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 
 	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 
+	maxConcurrency := ctx.Uint(MaxConcurrencyFlag.Name)
+	if maxConcurrency == 0 {
+		return nil, fmt.Errorf("%v must not be 0", MaxConcurrencyFlag.Name)
+	}
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
@@ -227,6 +239,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		GameFactoryAddress:      gameFactoryAddress,
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
+		MaxConcurrency:          maxConcurrency,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
