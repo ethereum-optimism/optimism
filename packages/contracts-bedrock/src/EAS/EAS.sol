@@ -558,6 +558,10 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
                 revert NotPayable();
             }
 
+            if (last) {
+                _refund(availableValue);
+            }
+
             return 0;
         }
 
@@ -622,6 +626,10 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
                 if (values[i] != 0) {
                     revert NotPayable();
                 }
+            }
+
+            if (last) {
+                _refund(availableValue);
             }
 
             return 0;
