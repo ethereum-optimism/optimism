@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,6 +17,7 @@ import (
 var (
 	ErrMissingTraceType              = errors.New("missing trace type")
 	ErrMissingDatadir                = errors.New("missing datadir")
+	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
 	ErrMissingCannonL2               = errors.New("missing cannon L2")
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
 	ErrMissingCannonServer           = errors.New("missing cannon server")
@@ -93,6 +95,7 @@ type Config struct {
 	GameWindow              time.Duration    // Maximum time duration to look for games to progress
 	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
 	Datadir                 string           // Data Directory
+	MaxConcurrency          uint             // Maximum number of threads to use when progressing games
 
 	TraceType TraceType // Type of trace
 
@@ -124,6 +127,7 @@ func NewConfig(
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		GameFactoryAddress: gameFactoryAddress,
+		MaxConcurrency:     uint(runtime.NumCPU()),
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 
@@ -152,6 +156,9 @@ func (c Config) Check() error {
 	}
 	if c.Datadir == "" {
 		return ErrMissingDatadir
+	}
+	if c.MaxConcurrency == 0 {
+		return ErrMaxConcurrencyZero
 	}
 	if c.TraceType == TraceTypeCannon {
 		if c.CannonBin == "" {

@@ -14,7 +14,7 @@ var ErrBusy = errors.New("busy scheduling previous update")
 type Scheduler struct {
 	logger         log.Logger
 	coordinator    *coordinator
-	maxConcurrency int
+	maxConcurrency uint
 	scheduleQueue  chan []common.Address
 	jobQueue       chan job
 	resultQueue    chan job
@@ -22,7 +22,7 @@ type Scheduler struct {
 	cancel         func()
 }
 
-func NewScheduler(logger log.Logger, disk DiskManager, maxConcurrency int, createPlayer PlayerCreator) *Scheduler {
+func NewScheduler(logger log.Logger, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator) *Scheduler {
 	// Size job and results queues to be fairly small so backpressure is applied early
 	// but with enough capacity to keep the workers busy
 	jobQueue := make(chan job, maxConcurrency*2)
@@ -46,7 +46,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
-	for i := 0; i < s.maxConcurrency; i++ {
+	for i := uint(0); i < s.maxConcurrency; i++ {
 		s.wg.Add(1)
 		go progressGames(ctx, s.jobQueue, s.resultQueue, &s.wg)
 	}
