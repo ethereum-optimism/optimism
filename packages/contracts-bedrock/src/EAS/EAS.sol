@@ -622,12 +622,13 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         }
 
         uint256 totalUsedValue = 0;
+        bool isResolverPayable = resolver.isPayable();
 
         for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             uint256 value = values[i];
 
             // Ensure that we don't accept payments which can't be forwarded to the resolver.
-            if (value != 0 && !resolver.isPayable()) {
+            if (value != 0 && !isResolverPayable) {
                 revert NotPayable();
             }
 
