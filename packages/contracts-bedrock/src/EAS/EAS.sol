@@ -136,6 +136,12 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
             // Process the current batch of attestations.
             MultiAttestationRequest calldata multiRequest = multiRequests[i];
+
+            // Ensure that data isn't empty.
+            if (multiRequest.data.length == 0) {
+                revert InvalidLength();
+            }
+
             AttestationsResult memory res =
                 _attest(multiRequest.schema, multiRequest.data, msg.sender, availableValue, last);
 
