@@ -8,7 +8,7 @@ import (
 )
 
 // FilePoller is a ReadWriteCloser that polls the underlying file channel for reads and writes
-// until its context is done. This is useful in detecting when the other end of a
+// until its context is done. This is useful to detect when the other end of a
 // blocking pre-image channel is no longer available.
 type FilePoller struct {
 	File        FileChannel
@@ -27,7 +27,7 @@ func (f *FilePoller) Read(b []byte) (int, error) {
 	var read int
 	for {
 		if err := f.File.Reader().SetReadDeadline(time.Now().Add(f.pollTimeout)); err != nil {
-			panic(err)
+			return 0, err
 		}
 		n, err := f.File.Read(b[read:])
 		if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -47,7 +47,7 @@ func (f *FilePoller) Write(b []byte) (int, error) {
 	var written int
 	for {
 		if err := f.File.Writer().SetWriteDeadline(time.Now().Add(f.pollTimeout)); err != nil {
-			panic(err)
+			return 0, err
 		}
 		n, err := f.File.Write(b[written:])
 		if errors.Is(err, os.ErrDeadlineExceeded) {

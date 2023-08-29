@@ -188,15 +188,6 @@ func (p *ProcessPreimageOracle) Close() error {
 	if p.cmd == nil {
 		return nil
 	}
-	// We first check if the process has already exited before signaling.
-	// Note: This is a teeny bit racy since the process could exit after the check
-	// above and another process is assigned the same pid.
-	select {
-	case err := <-p.waitErr:
-		return err
-	case <-time.After(time.Second * 1):
-		// give the wait goroutine time to reap process
-	}
 	_ = p.cmd.Process.Signal(os.Interrupt)
 	return <-p.waitErr
 }
