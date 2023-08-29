@@ -87,15 +87,15 @@ interface IEAS {
     /// @param recipient The recipient of the attestation.
     /// @param attester The attesting account.
     /// @param uid The UID the revoked attestation.
-    /// @param schema The UID of the schema.
-    event Attested(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schema);
+    /// @param schemaUID The UID of the schema.
+    event Attested(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schemaUID);
 
     /// @dev Emitted when an attestation has been revoked.
     /// @param recipient The recipient of the attestation.
     /// @param attester The attesting account.
-    /// @param schema The UID of the schema.
+    /// @param schemaUID The UID of the schema.
     /// @param uid The UID the revoked attestation.
-    event Revoked(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schema);
+    event Revoked(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schemaUID);
 
     /// @dev Emitted when a data has been timestamped.
     /// @param data The data.
