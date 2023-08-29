@@ -134,13 +134,6 @@ func runAll(ctx *cli.Context) error {
 			log.Error("indexer process non-zero exit", "err", err)
 		}
 	}()
-	go func() {
-		defer wg.Done()
-		err := runApiMetrics(ctx)
-		if err != nil {
-			log.Error("indexer process non-zero exit", "err", err)
-		}
-	}()
 
 	// We purposefully return no error since the indexer and api
 	// have no inter-dependencies. We simply rely on the logs to
@@ -161,7 +154,7 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Name:        "api",
 				Flags:       flags,
 				Description: "Runs the api service",
-				Action:      runApiAndMetrics,
+				Action:      runApi,
 			},
 			{
 				Name:        "index",
