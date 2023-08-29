@@ -59,10 +59,12 @@ func (c *client) FinalizedBlockHeight() (*big.Int, error) {
 
 	// **NOTE** Local devnet is having issues with the "finalized" block tag. Temp switch
 	// to "latest" to iterate faster locally but this needs to be updated
-	header := new(types.Header)
-	err := c.rpc.CallContext(ctxwt, header, "eth_getBlockByNumber", "latest", false)
+	var header *types.Header
+	err := c.rpc.CallContext(ctxwt, &header, "eth_getBlockByNumber", "latest", false)
 	if err != nil {
 		return nil, err
+	} else if header == nil {
+		return nil, ethereum.NotFound
 	}
 
 	return header.Number, nil
@@ -73,10 +75,12 @@ func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
-	header := new(types.Header)
-	err := c.rpc.CallContext(ctxwt, header, "eth_getBlockByHash", hash, false)
+	var header *types.Header
+	err := c.rpc.CallContext(ctxwt, &header, "eth_getBlockByHash", hash, false)
 	if err != nil {
 		return nil, err
+	} else if header == nil {
+		return nil, ethereum.NotFound
 	}
 
 	// sanity check on the data returned
@@ -92,10 +96,12 @@ func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
-	header := new(types.Header)
-	err := c.rpc.CallContext(ctxwt, header, "eth_getBlockByNumber", toBlockNumArg(number), false)
+	var header *types.Header
+	err := c.rpc.CallContext(ctxwt, &header, "eth_getBlockByNumber", toBlockNumArg(number), false)
 	if err != nil {
 		return nil, err
+	} else if header == nil {
+		return nil, ethereum.NotFound
 	}
 
 	return header, nil
@@ -105,6 +111,15 @@ func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 // are placed on the range such as blocks in the "latest", "safe" or "finalized" states. If the specified
 // range is too large, `endHeight > latest`, the resulting list is truncated to the available headers
 func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Header, error) {
+	// avoid the batch call if there's no range
+	if startHeight.Cmp(endHeight) == 0 {
+		header, err := c.BlockHeaderByNumber(startHeight)
+		if err != nil {
+			return nil, err
+		}
+		return []types.Header{*header}, nil
+	}
+
 	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
 	batchElems := make([]rpc.BatchElem, count)
 	for i := uint64(0); i < count; i++ {
@@ -191,7 +206,7 @@ type RPC interface {
 }
 
 type rpcClient struct {
-	client  *rpc.Client
+	rpc     *rpc.Client
 	metrics Metricer
 }
 
@@ -200,19 +215,19 @@ func newRPC(client *rpc.Client, metrics Metricer) RPC {
 }
 
 func (c *rpcClient) Close() {
-	c.client.Close()
+	c.rpc.Close()
 }
 
 func (c *rpcClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	record := c.metrics.RecordRPCClientRequest(method)
-	err := c.client.CallContext(ctx, result, method, args)
+	err := c.rpc.CallContext(ctx, result, method, args...)
 	record(err)
 	return err
 }
 
 func (c *rpcClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
 	record := c.metrics.RecordRPCClientBatchRequest(b)
-	err := c.client.BatchCallContext(ctx, b)
+	err := c.rpc.BatchCallContext(ctx, b)
 	record(err)
 	return err
 }
