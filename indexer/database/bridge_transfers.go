@@ -190,7 +190,7 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
 	if len(deposits) > limit {
 		hasNextPage = true
 		deposits = deposits[:limit]
-		nextCursor = deposits[limit].L1TransactionHash.String()
+		nextCursor = deposits[limit].L1BridgeDeposit.TransactionSourceHash.String()
 	}
 
 	response := &L1BridgeDepositsResponse{
@@ -312,7 +312,7 @@ l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address,
 	if len(withdrawals) > limit {
 		hasNextPage = true
 		withdrawals = withdrawals[:limit]
-		nextCursor = withdrawals[limit].L2TransactionHash.String()
+		nextCursor = withdrawals[limit].L2BridgeWithdrawal.TransactionWithdrawalHash.String()
 	}
 
 	if result.Error != nil {
