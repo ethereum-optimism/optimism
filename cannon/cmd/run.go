@@ -188,6 +188,8 @@ func (p *ProcessPreimageOracle) Close() error {
 	if p.cmd == nil {
 		return nil
 	}
+	// Give the pre-image server time to exit cleanly before killing it.
+	time.Sleep(time.Second * 1)
 	_ = p.cmd.Process.Signal(os.Interrupt)
 	return <-p.waitErr
 }
