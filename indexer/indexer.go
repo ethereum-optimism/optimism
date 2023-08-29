@@ -133,8 +133,3 @@ func (i *Indexer) Run(ctx context.Context) error {
 
 	return err
 }
-
-// Cleanup releases any resources that might be currently held by the indexer
-func (i *Indexer) Cleanup() {
-	i.db.Close()
-}

@@ -52,6 +52,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	opCfg.DeployConfig.FinalizationPeriodSeconds = 2
 	opSys, err := opCfg.Start(t)
 	require.NoError(t, err)
+	t.Cleanup(func() { opSys.Close() })
 
 	// E2E tests can run on the order of magnitude of minutes. Once
 	// the system is running, mark this test for Parallel execution
@@ -87,25 +88,17 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	db, err := database.NewDB(indexerCfg.DB)
 	require.NoError(t, err)
+	t.Cleanup(func() { db.Close() })
+
 	indexer, err := indexer.NewIndexer(logger, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.Metrics)
 	require.NoError(t, err)
 
-	indexerStoppedCh := make(chan interface{}, 1)
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
+	t.Cleanup(func() { indexerStop() })
 	go func() {
 		err := indexer.Run(indexerCtx)
 		require.NoError(t, err)
-		indexerStoppedCh <- nil
 	}()
-
-	t.Cleanup(func() {
-		indexerStop()
-		<-indexerStoppedCh
-
-		indexer.Cleanup()
-		db.Close()
-		opSys.Close()
-	})
 
 	return E2ETestSuite{
 		t:        t,
