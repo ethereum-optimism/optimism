@@ -526,7 +526,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
             attestations[i] = attestation;
             values[i] = request.value;
 
-            emit Revoked(attestation.recipient, revoker, request.uid, attestation.schema);
+            emit Revoked(attestations[i].recipient, revoker, request.uid, schema);
         }
 
         return _resolveAttestations(schemaRecord, attestations, values, true, availableValue, last);
