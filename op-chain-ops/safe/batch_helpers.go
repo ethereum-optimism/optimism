@@ -141,7 +141,6 @@ func createContractInput(input abi.Argument, inputs []ContractInput) ([]Contract
 		return nil, err
 	}
 
-	// TODO: could probably do better than string comparison?
 	internalType := input.Type.String()
 	if inputType == "tuple" {
 		internalType = input.Type.TupleRawName
