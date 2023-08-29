@@ -18,7 +18,7 @@ import (
 )
 
 func Test_L1ETL_Construction(t *testing.T) {
-	etlMetrics := NewMetrics(metrics.NewRegistry())
+	etlMetrics := NewMetrics(metrics.NewRegistry(), "l1")
 
 	type testSuite struct {
 		db        *database.MockDB
