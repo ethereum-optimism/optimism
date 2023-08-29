@@ -116,6 +116,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
+        uint256 length = multiRequests.length;
         bytes32[][] memory totalUids = new bytes32[][](multiRequests.length);
         uint256 totalUidsCount = 0;
 
@@ -125,13 +126,13 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiRequests.length; i = uncheckedInc(i)) {
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiRequests.length - 1;
+                last = i == length - 1;
             }
 
             // Process the current batch of attestations.
@@ -167,7 +168,8 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
-        bytes32[][] memory totalUids = new bytes32[][](multiDelegatedRequests.length);
+        uint256 length = multiDelegatedRequests.length;
+        bytes32[][] memory totalUids = new bytes32[][](length);
         uint256 totalUidsCount = 0;
 
         // We are keeping track of the total available ETH amount that can be sent to resolvers and will keep deducting
@@ -176,25 +178,26 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiDelegatedRequests.length; i = uncheckedInc(i)) {
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiDelegatedRequests.length - 1;
+                last = i == length - 1;
             }
 
             MultiDelegatedAttestationRequest calldata multiDelegatedRequest = multiDelegatedRequests[i];
             AttestationRequestData[] calldata data = multiDelegatedRequest.data;
 
             // Ensure that no inputs are missing.
-            if (data.length == 0 || data.length != multiDelegatedRequest.signatures.length) {
+            uint256 dataLength = data.length;
+            if (dataLength == 0 || dataLength != multiDelegatedRequest.signatures.length) {
                 revert InvalidLength();
             }
 
             // Verify signatures. Please note that the signatures are assumed to be signed with increasing nonces.
-            for (uint256 j = 0; j < data.length; j = uncheckedInc(j)) {
+            for (uint256 j = 0; j < dataLength; j = uncheckedInc(j)) {
                 _verifyAttest(
                     DelegatedAttestationRequest({
                         schema: multiDelegatedRequest.schema,
@@ -249,13 +252,14 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiRequests.length; i = uncheckedInc(i)) {
+        uint256 length = multiRequests.length;
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiRequests.length - 1;
+                last = i == length - 1;
             }
 
             MultiRevocationRequest calldata multiRequest = multiRequests[i];
@@ -276,25 +280,27 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiDelegatedRequests.length; i = uncheckedInc(i)) {
+        uint256 length = multiDelegatedRequests.length;
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiDelegatedRequests.length - 1;
+                last = i == length - 1;
             }
 
             MultiDelegatedRevocationRequest memory multiDelegatedRequest = multiDelegatedRequests[i];
             RevocationRequestData[] memory data = multiDelegatedRequest.data;
 
             // Ensure that no inputs are missing.
-            if (data.length == 0 || data.length != multiDelegatedRequest.signatures.length) {
+            uint256 dataLength = data.length;
+            if (dataLength == 0 || dataLength != multiDelegatedRequest.signatures.length) {
                 revert InvalidLength();
             }
 
             // Verify signatures. Please note that the signatures are assumed to be signed with increasing nonces.
-            for (uint256 j = 0; j < data.length; j = uncheckedInc(j)) {
+            for (uint256 j = 0; j < dataLength; j = uncheckedInc(j)) {
                 _verifyRevoke(
                     DelegatedRevocationRequest({
                         schema: multiDelegatedRequest.schema,
@@ -747,9 +753,11 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         bytes32[] memory uids = new bytes32[](uidsCount);
 
         uint256 currentIndex = 0;
-        for (uint256 i = 0; i < uidLists.length; i = uncheckedInc(i)) {
+        uint256 uidListLength = uidLists.length;
+        for (uint256 i = 0; i < uidListLength; i = uncheckedInc(i)) {
             bytes32[] memory currentUids = uidLists[i];
-            for (uint256 j = 0; j < currentUids.length; j = uncheckedInc(j)) {
+            uint256 currentUidsLength = currentUids.length;
+            for (uint256 j = 0; j < currentUidsLength; j = uncheckedInc(j)) {
                 uids[currentIndex] = currentUids[j];
 
                 unchecked {
