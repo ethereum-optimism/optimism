@@ -1224,6 +1224,7 @@ workflows:
           target: test-external-geth
       - bedrock-go-tests:
           requires:
+            - cannon-go-lint-and-test
             - op-batcher-lint
             - op-bootnode-lint
             - op-bindings-lint
