@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -124,14 +125,14 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		// If the requested index is after the last step in the actual trace, extend the final no-op step
 		return p.lastProof, nil
 	}
-	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json", i))
-	file, err := os.Open(path)
+	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
+	file, err := ioutil.OpenDecompressed(path)
 	if errors.Is(err, os.ErrNotExist) {
 		if err := p.generator.GenerateProof(ctx, p.dir, i); err != nil {
 			return nil, fmt.Errorf("generate cannon trace with proof at %v: %w", i, err)
 		}
 		// Try opening the file again now and it should exist.
-		file, err = os.Open(path)
+		file, err = ioutil.OpenDecompressed(path)
 		if errors.Is(err, os.ErrNotExist) {
 			// Expected proof wasn't generated, check if we reached the end of execution
 			state, err := parseState(filepath.Join(p.dir, finalState))
