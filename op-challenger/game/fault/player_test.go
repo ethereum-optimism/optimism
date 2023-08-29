@@ -157,7 +157,7 @@ func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.C
 	logger.SetHandler(handler)
 	gameState := &stubGameState{claimCount: 1}
 	game := &GamePlayer{
-		agent:                   gameState,
+		act:                     gameState.Act,
 		agreeWithProposedOutput: agreeWithProposedRoot,
 		loader:                  gameState,
 		logger:                  logger,
