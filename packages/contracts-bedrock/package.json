@@ -12,6 +12,7 @@
   "scripts": {
     "prebuild": "./scripts/checks/check-foundry-install.sh",
     "build": "forge build",
+    "build:linkedLibraries": "forge build --libraries src/celo/common/linkedlists/AddressSortedLinkedListWithMedian.sol:AddressSortedLinkedListWithMedian:0xED477A99035d0c1e11369F1D7A4e587893cc002B",
     "build:go-ffi": "(cd scripts/go-ffi && go build)",
     "autogen:invariant-docs": "npx tsx scripts/autogen/generate-invariant-docs.ts",
     "test": "pnpm build:go-ffi && forge test",
