@@ -572,18 +572,20 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         }
 
         // Ensure that we don't accept payments which can't be forwarded to the resolver.
-        if (value != 0 && !resolver.isPayable()) {
-            revert NotPayable();
-        }
+        if (value != 0) {
+            if (!resolver.isPayable()) {
+                revert NotPayable();
+            }
 
-        // Ensure that the attester/revoker doesn't try to spend more than available.
-        if (value > availableValue) {
-            revert InsufficientValue();
-        }
+            // Ensure that the attester/revoker doesn't try to spend more than available.
+            if (value > availableValue) {
+                revert InsufficientValue();
+            }
 
-        // Ensure to deduct the sent value explicitly.
-        unchecked {
-            availableValue -= value;
+            // Ensure to deduct the sent value explicitly.
+            unchecked {
+                availableValue -= value;
+            }
         }
 
         if (isRevocation) {
@@ -648,7 +650,11 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
             uint256 value = values[i];
 
             // Ensure that we don't accept payments which can't be forwarded to the resolver.
-            if (value != 0 && !isResolverPayable) {
+            if (value == 0) {
+                continue;
+            }
+
+            if (!isResolverPayable) {
                 revert NotPayable();
             }
 
