@@ -97,7 +97,7 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 
 	cfg := discover.Config{
 		PrivateKey:   priv,
-		NetRestrict:  nil,
+		NetRestrict:  conf.NetRestrict,
 		Bootnodes:    conf.Bootnodes,
 		Unhandled:    nil, // Not used in dv5
 		Log:          log,

@@ -26,7 +26,6 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		return err
 	}
 
-	ethDeposits := []database.L1BridgeDeposit{}
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
@@ -39,26 +38,12 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 			GasLimit:             depositTx.GasLimit,
 			Tx:                   depositTx.Tx,
 		}
-
-		// catch ETH transfers to the portal contract.
-		if len(depositTx.DepositTx.Data) == 0 && depositTx.DepositTx.Value.BitLen() > 0 {
-			ethDeposits = append(ethDeposits, database.L1BridgeDeposit{
-				TransactionSourceHash: depositTx.DepositTx.SourceHash,
-				BridgeTransfer:        database.BridgeTransfer{Tx: transactionDeposits[i].Tx, TokenPair: database.ETHTokenPair},
-			})
-		}
 	}
 
 	if len(transactionDeposits) > 0 {
 		log.Info("detected transaction deposits", "size", len(transactionDeposits))
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
-		}
-		if len(ethDeposits) > 0 {
-			log.Info("detected portal ETH transfers", "size", len(ethDeposits))
-			if err := db.BridgeTransfers.StoreL1BridgeDeposits(ethDeposits); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -151,7 +136,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
-			log.Crit("missing indexed withdrawal on prove event!", "withdrawal_hash", proven.WithdrawalHash, "tx_hash", proven.Event.TransactionHash)
+			log.Error("missing indexed withdrawal on prove event!", "withdrawal_hash", proven.WithdrawalHash, "tx_hash", proven.Event.TransactionHash)
 			return errors.New("missing indexed withdrawal")
 		}
 
@@ -176,7 +161,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
-			log.Crit("missing indexed withdrawal on finalization event!", "withdrawal_hash", finalized.WithdrawalHash, "tx_hash", finalized.Event.TransactionHash)
+			log.Error("missing indexed withdrawal on finalization event!", "withdrawal_hash", finalized.WithdrawalHash, "tx_hash", finalized.Event.TransactionHash)
 			return errors.New("missing indexed withdrawal")
 		}
 
@@ -203,7 +188,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		if err != nil {
 			return err
 		} else if message == nil {
-			log.Crit("missing indexed L2CrossDomainMessenger message", "message_hash", relayed.MessageHash, "tx_hash", relayed.Event.TransactionHash)
+			log.Error("missing indexed L2CrossDomainMessenger message", "message_hash", relayed.MessageHash, "tx_hash", relayed.Event.TransactionHash)
 			return fmt.Errorf("missing indexed L2CrossDomainMessager message")
 		}
 
@@ -240,7 +225,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
-			log.Crit("missing L2StandardBridge withdrawal on L1 finalization", "tx_hash", finalizedBridge.Event.TransactionHash)
+			log.Error("missing L2StandardBridge withdrawal on L1 finalization", "tx_hash", finalizedBridge.Event.TransactionHash)
 			return errors.New("missing L2StandardBridge withdrawal on L1 finalization")
 		}
 	}

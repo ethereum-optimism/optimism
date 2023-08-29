@@ -7,24 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model l1_tokens {
+model l1_bridged_tokens {
   address          String      @id @db.VarChar
   bridge_address   String      @db.VarChar
   l2_token_address String      @db.VarChar
   name             String      @db.VarChar
   symbol           String      @db.VarChar
   decimals         Int
-  l2_tokens        l2_tokens[]
+  l2_bridged_tokens        l2_bridged_tokens[]
 }
 
-model l2_tokens {
+model l2_bridged_tokens {
   address          String     @id @db.VarChar
   bridge_address   String     @db.VarChar
   l1_token_address String?    @db.VarChar
   name             String     @db.VarChar
   symbol           String     @db.VarChar
   decimals         Int
-  l1_tokens        l1_tokens? @relation(fields: [l1_token_address], references: [address], onDelete: NoAction, onUpdate: NoAction)
+  l1_bridged_tokens        l1_bridged_tokens? @relation(fields: [l1_token_address], references: [address], onDelete: NoAction, onUpdate: NoAction)
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.

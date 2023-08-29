@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -17,8 +18,8 @@ import (
 type Transaction struct {
 	FromAddress common.Address `gorm:"serializer:bytes"`
 	ToAddress   common.Address `gorm:"serializer:bytes"`
-	Amount      U256
-	Data        Bytes `gorm:"serializer:bytes"`
+	Amount      *big.Int       `gorm:"serializer:u256"`
+	Data        Bytes          `gorm:"serializer:bytes"`
 	Timestamp   uint64
 }
 
@@ -28,12 +29,12 @@ type L1TransactionDeposit struct {
 	InitiatedL1EventGUID uuid.UUID
 
 	Tx       Transaction `gorm:"embedded"`
-	GasLimit U256
+	GasLimit *big.Int    `gorm:"serializer:u256"`
 }
 
 type L2TransactionWithdrawal struct {
 	WithdrawalHash       common.Hash `gorm:"serializer:bytes;primaryKey"`
-	Nonce                U256
+	Nonce                *big.Int    `gorm:"serializer:u256"`
 	InitiatedL2EventGUID uuid.UUID
 
 	ProvenL1EventGUID    *uuid.UUID
@@ -41,7 +42,7 @@ type L2TransactionWithdrawal struct {
 	Succeeded            *bool
 
 	Tx       Transaction `gorm:"embedded"`
-	GasLimit U256
+	GasLimit *big.Int    `gorm:"serializer:u256"`
 }
 
 type BridgeTransactionsView interface {

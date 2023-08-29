@@ -2,6 +2,7 @@ package etl
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -18,7 +19,7 @@ type L2ETL struct {
 	db *database.DB
 }
 
-func NewL2ETL(log log.Logger, db *database.DB, client node.EthClient) (*L2ETL, error) {
+func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metrics, client node.EthClient) (*L2ETL, error) {
 	log = log.New("etl", "l2")
 
 	// allow predeploys to be overridable
@@ -35,7 +36,7 @@ func NewL2ETL(log log.Logger, db *database.DB, client node.EthClient) (*L2ETL, e
 
 	var fromHeader *types.Header
 	if latestHeader != nil {
-		log.Info("detected last indexed block", "number", latestHeader.Number.Int, "hash", latestHeader.Hash)
+		log.Info("detected last indexed block", "number", latestHeader.Number, "hash", latestHeader.Hash)
 		fromHeader = latestHeader.RLPHeader.Header()
 	} else {
 		log.Info("no indexed state, starting from genesis")
@@ -43,7 +44,11 @@ func NewL2ETL(log log.Logger, db *database.DB, client node.EthClient) (*L2ETL, e
 
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{
+		loopInterval:     time.Duration(cfg.LoopIntervalMsec) * time.Millisecond,
+		headerBufferSize: uint64(cfg.HeaderBufferSize),
+
 		log:             log,
+		metrics:         metrics.newMetricer("l2"),
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),
 		ethClient:       client.GethEthClient(),
 		contracts:       l2Contracts,
@@ -64,9 +69,8 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 		case err := <-errCh:
 			return err
 
-		// Index incoming batches
+		// Index incoming batches (all L2 Blocks)
 		case batch := <-l2Etl.etlBatches:
-			// We're indexing every L2 block.
 			l2BlockHeaders := make([]database.L2BlockHeader, len(batch.Headers))
 			for i := range batch.Headers {
 				l2BlockHeaders[i] = database.L2BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])}
@@ -78,10 +82,10 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 				l2ContractEvents[i] = database.L2ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
 			}
 
-			// Continually try to persist this batch. If it fails after 5 attempts, we simply error out
+			// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
 			retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
-			_, err := retry.Do[interface{}](ctx, 10, retryStrategy, func() (interface{}, error) {
-				err := l2Etl.db.Transaction(func(tx *database.DB) error {
+			if _, err := retry.Do[interface{}](ctx, 10, retryStrategy, func() (interface{}, error) {
+				if err := l2Etl.db.Transaction(func(tx *database.DB) error {
 					if err := tx.Blocks.StoreL2BlockHeaders(l2BlockHeaders); err != nil {
 						return err
 					}
@@ -91,18 +95,20 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 						}
 					}
 					return nil
-				})
-
-				if err != nil {
+				}); err != nil {
 					batch.Logger.Error("unable to persist batch", "err", err)
 					return nil, err
 				}
 
-				// a-ok! Can merge with the above block but being explicit
-				return nil, nil
-			})
+				l2Etl.ETL.metrics.RecordIndexedHeaders(len(l2BlockHeaders))
+				l2Etl.ETL.metrics.RecordIndexedLatestHeight(l2BlockHeaders[len(l2BlockHeaders)-1].Number)
+				if len(l2ContractEvents) > 0 {
+					l2Etl.ETL.metrics.RecordIndexedLogs(len(l2ContractEvents))
+				}
 
-			if err != nil {
+				// a-ok!
+				return nil, nil
+			}); err != nil {
 				return err
 			}
 

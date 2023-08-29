@@ -2,8 +2,8 @@ package sources
 
 import (
 	"context"
+	crand "crypto/rand"
 	"math/big"
-	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -56,7 +56,7 @@ var testEthClientConfig = &EthClientConfig{
 }
 
 func randHash() (out common.Hash) {
-	rand.Read(out[:])
+	_, _ = crand.Read(out[:])
 	return out
 }
 

@@ -26,7 +26,6 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		return err
 	}
 
-	ethWithdrawals := []database.L2BridgeWithdrawal{}
 	messagesPassed := make(map[logKey]*contracts.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
@@ -39,25 +38,12 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 			GasLimit:             messagePassed.GasLimit,
 			Tx:                   messagePassed.Tx,
 		}
-
-		if len(messagePassed.Tx.Data) == 0 && messagePassed.Tx.Amount.Int.BitLen() > 0 {
-			ethWithdrawals = append(ethWithdrawals, database.L2BridgeWithdrawal{
-				TransactionWithdrawalHash: messagePassed.WithdrawalHash,
-				BridgeTransfer:            database.BridgeTransfer{Tx: transactionWithdrawals[i].Tx, TokenPair: database.ETHTokenPair},
-			})
-		}
 	}
 
 	if len(messagesPassed) > 0 {
 		log.Info("detected transaction withdrawals", "size", len(transactionWithdrawals))
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
-		}
-		if len(ethWithdrawals) > 0 {
-			log.Info("detected L2ToL1MessagePasser ETH transfers", "size", len(ethWithdrawals))
-			if err := db.BridgeTransfers.StoreL2BridgeWithdrawals(ethWithdrawals); err != nil {
-				return err
-			}
 		}
 	}
 
@@ -151,7 +137,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		if err != nil {
 			return err
 		} else if message == nil {
-			log.Crit("missing indexed L1CrossDomainMessenger message", "message_hash", relayed.MessageHash, "tx_hash", relayed.Event.TransactionHash)
+			log.Error("missing indexed L1CrossDomainMessenger message", "message_hash", relayed.MessageHash, "tx_hash", relayed.Event.TransactionHash)
 			return fmt.Errorf("missing indexed L1CrossDomainMessager message")
 		}
 
@@ -188,7 +174,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		if err != nil {
 			return err
 		} else if deposit == nil {
-			log.Crit("missing L1StandardBridge deposit on L2 finalization", "tx_hash", finalizedBridge.Event.TransactionHash)
+			log.Error("missing L1StandardBridge deposit on L2 finalization", "tx_hash", finalizedBridge.Event.TransactionHash)
 			return errors.New("missing L1StandardBridge deposit on L2 finalization")
 		}
 	}

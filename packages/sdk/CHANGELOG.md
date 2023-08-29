@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.1.2
+
+### Patch Changes
+
+- [#6886](https://github.com/ethereum-optimism/optimism/pull/6886) [`9c3a03855`](https://github.com/ethereum-optimism/optimism/commit/9c3a03855dc982f0b4e1d664e83271883536632b) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated npm dependencies to latest
+
 ## 3.1.1
 
 ### Patch Changes

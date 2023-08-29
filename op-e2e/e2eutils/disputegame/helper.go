@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -175,7 +175,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2Claim:       challengedOutput.OutputRoot,
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
-	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, "correct", inputs)
+	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, inputs, cfg.Datadir)
 	rootClaim, err := provider.Get(ctx, math.MaxUint64)
 	h.require.NoError(err, "Compute correct root hash")
 

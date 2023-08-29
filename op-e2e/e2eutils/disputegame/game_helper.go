@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,6 +24,10 @@ type FaultGameHelper struct {
 	game        *bindings.FaultDisputeGame
 	factoryAddr common.Address
 	addr        common.Address
+}
+
+func (g *FaultGameHelper) Addr() common.Address {
+	return g.addr
 }
 
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {

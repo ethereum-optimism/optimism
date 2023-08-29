@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/mock"
@@ -17,6 +18,8 @@ import (
 )
 
 func Test_L1ETL_Construction(t *testing.T) {
+	etlMetrics := NewMetrics(metrics.NewRegistry())
+
 	type testSuite struct {
 		db        *database.MockDB
 		client    *node.MockEthClient
@@ -98,8 +101,9 @@ func Test_L1ETL_Construction(t *testing.T) {
 			ts := test.construction()
 
 			logger := log.NewLogger(log.DefaultCLIConfig())
+			cfg := Config{StartHeight: ts.start}
 
-			etl, err := NewL1ETL(logger, ts.db.DB, ts.client, ts.start, ts.contracts)
+			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts)
 			test.assertion(etl, err)
 		})
 	}
