@@ -57,8 +57,8 @@ func (c *client) FinalizedBlockHeight() (*big.Int, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
-	// Local devnet is having issues with the "finalized" block tag. Switch to "latest"
-	// to iterate faster locally but this needs to be updated
+	// **NOTE** Local devnet is having issues with the "finalized" block tag. Temp switch
+	// to "latest" to iterate faster locally but this needs to be updated
 	header := new(types.Header)
 	err := c.rpc.CallContext(ctxwt, header, "eth_getBlockByNumber", "latest", false)
 	if err != nil {
@@ -222,18 +222,12 @@ func (c *rpcClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) err
 func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"
-	} else if number.Sign() >= 0 {
+	}
+	if number.Sign() >= 0 {
 		return hexutil.EncodeBig(number)
 	}
-
 	// It's negative.
-	if number.IsInt64() {
-		tag, _ := rpc.BlockNumber(number.Int64()).MarshalText()
-		return string(tag)
-	}
-
-	// It's negative and large, which is invalid.
-	return fmt.Sprintf("<invalid %d>", number)
+	return rpc.BlockNumber(number.Int64()).String()
 }
 
 func toFilterArg(q ethereum.FilterQuery) (interface{}, error) {
