@@ -37,7 +37,7 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 	metricsRegistry := metrics.NewRegistry()
 
 	// L1
-	l1EthClient, err := node.DialEthClient(rpcsConfig.L1RPC)
+	l1EthClient, err := node.DialEthClient(rpcsConfig.L1RPC, node.NewMetrics(metricsRegistry, "l1"))
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 	}
 
 	// L2 (defaults to predeploy contracts)
-	l2EthClient, err := node.DialEthClient(rpcsConfig.L2RPC)
+	l2EthClient, err := node.DialEthClient(rpcsConfig.L2RPC, node.NewMetrics(metricsRegistry, "l2"))
 	if err != nil {
 		return nil, err
 	}
