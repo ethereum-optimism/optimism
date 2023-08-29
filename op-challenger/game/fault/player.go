@@ -18,9 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Actor interface {
-	Act(ctx context.Context) error
-}
+type actor func(ctx context.Context) error
 
 type GameInfo interface {
 	GetGameStatus(context.Context) (types.GameStatus, error)
@@ -28,7 +26,7 @@ type GameInfo interface {
 }
 
 type GamePlayer struct {
-	agent                   Actor
+	act                     actor
 	agreeWithProposedOutput bool
 	loader                  GameInfo
 	logger                  log.Logger
@@ -52,6 +50,25 @@ func NewGamePlayer(
 	}
 
 	loader := NewLoader(contract)
+
+	status, err := loader.GetGameStatus(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch game status: %w", err)
+	}
+	if status != types.GameStatusInProgress {
+		logger.Info("Game already resolved", "status", status)
+		// Game is already complete so skip creating the trace provider, loading game inputs etc.
+		return &GamePlayer{
+			logger:                  logger,
+			loader:                  loader,
+			agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
+			completed:               true,
+			// Act function does nothing because the game is already complete
+			act: func(ctx context.Context) error {
+				return nil
+			},
+		}, nil
+	}
 
 	gameDepth, err := loader.FetchGameDepth(ctx)
 	if err != nil {
@@ -88,10 +105,11 @@ func NewGamePlayer(
 	}
 
 	return &GamePlayer{
-		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger),
+		act:                     NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
+		completed:               status != types.GameStatusInProgress,
 	}, nil
 }
 
@@ -102,7 +120,7 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
 		return true
 	}
 	g.logger.Trace("Checking if actions are required")
-	if err := g.agent.Act(ctx); err != nil {
+	if err := g.act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
 	}
 	if status, err := g.loader.GetGameStatus(ctx); err != nil {

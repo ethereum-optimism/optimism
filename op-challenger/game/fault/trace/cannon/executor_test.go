@@ -88,8 +88,8 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
 		require.Equal(t, cfg.CannonL2, args["--l2"])
 		require.Equal(t, filepath.Join(dir, preimagesDir), args["--datadir"])
-		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json"), args["--proof-fmt"])
-		require.Equal(t, filepath.Join(dir, snapsDir, "%d.json"), args["--snapshot-fmt"])
+		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json.gz"), args["--proof-fmt"])
+		require.Equal(t, filepath.Join(dir, snapsDir, "%d.json.gz"), args["--snapshot-fmt"])
 		require.Equal(t, cfg.CannonNetwork, args["--network"])
 		require.NotContains(t, args, "--rollup.config")
 		require.NotContains(t, args, "--l2.genesis")
@@ -174,37 +174,37 @@ func TestFindStartingSnapshot(t *testing.T) {
 	})
 
 	t.Run("UseClosestAvailableSnapshot", func(t *testing.T) {
-		dir := withSnapshots(t, "100.json", "123.json", "250.json")
+		dir := withSnapshots(t, "100.json.gz", "123.json.gz", "250.json.gz")
 
 		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 101)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 
 		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 123)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 
 		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 124)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "123.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "123.json.gz"), snapshot)
 
 		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 256)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "250.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "250.json.gz"), snapshot)
 	})
 
 	t.Run("IgnoreDirectories", func(t *testing.T) {
-		dir := withSnapshots(t, "100.json")
-		require.NoError(t, os.Mkdir(filepath.Join(dir, "120.json"), 0o777))
+		dir := withSnapshots(t, "100.json.gz")
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "120.json.gz"), 0o777))
 		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})
 
 	t.Run("IgnoreUnexpectedFiles", func(t *testing.T) {
-		dir := withSnapshots(t, ".file", "100.json", "foo", "bar.json")
+		dir := withSnapshots(t, ".file", "100.json.gz", "foo", "bar.json.gz")
 		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})
 }
