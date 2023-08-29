@@ -147,7 +147,7 @@ TODO: the connection gater does currently not gate by IP address on the dial Acc
 
 #### Transport security
 
-[Libp2p-noise][libp2p-noise], `XX` handshake, with the the `secp256k1` P2P identity, as popularized in Eth2.
+[Libp2p-noise][libp2p-noise], `XX` handshake, with the `secp256k1` P2P identity, as popularized in Eth2.
 The TLS option is available as well, but `noise` should be prioritized in negotiation.
 
 #### Protocol negotiation
