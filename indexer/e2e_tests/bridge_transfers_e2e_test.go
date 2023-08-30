@@ -202,6 +202,7 @@ func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
 	require.True(t, aliceDeposits.HasNextPage)
 
 	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, aliceDeposits.Cursor, 2)
+	require.NoError(t, err)
 	require.NotNil(t, aliceDeposits)
 	require.Len(t, aliceDeposits.Deposits, 1)
 	require.False(t, aliceDeposits.HasNextPage)
