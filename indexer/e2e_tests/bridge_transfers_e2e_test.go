@@ -165,14 +165,10 @@ func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
 		var depositTx *types.Transaction
 		l1Opts.Value = big.NewInt(int64((i + 1)) * params.Ether)
 		if i != 1 {
-			depositTx, err = transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-				return l1StandardBridge.Receive(opts)
-			})
+			depositTx, err = transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return l1StandardBridge.Receive(opts) })
 			require.NoError(t, err)
 		} else {
-			depositTx, err = transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-				return optimismPortal.Receive(opts)
-			})
+			depositTx, err = transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return optimismPortal.Receive(opts) })
 			require.NoError(t, err)
 		}
 
@@ -390,33 +386,17 @@ func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
 	l2Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L2ChainIDBig())
 	require.NoError(t, err)
 
-	// Ensure L1 has enough funds for the withdrawal by depositing an equal amount into the OptimismPortal
-	func() {
-		optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
-		require.NoError(t, err)
-		l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
-		require.NoError(t, err)
-		l1Opts.Value = big.NewInt(6 * params.Ether)
-		depositTx, err := optimismPortal.Receive(l1Opts)
-		require.NoError(t, err)
-		_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
-		require.NoError(t, err)
-	}()
-
-	// Withdraw 1/2/3 ETH (second deposit via the l2ToL1MP)
+	// Withdraw 1/2/3 ETH (second deposit via the l2ToL1MP). We dont ever finalize these withdrawals on
+	// L1 so we dont have to worry about funding the OptimismPortal contract with ETH
 	var withdrawReceipts [3]*types.Receipt
 	for i := 0; i < 3; i++ {
 		var withdrawTx *types.Transaction
 		l2Opts.Value = big.NewInt(int64((i + 1)) * params.Ether)
 		if i != 1 {
-			withdrawTx, err = transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-				return l2StandardBridge.Receive(opts)
-			})
+			withdrawTx, err = transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return l2StandardBridge.Receive(opts) })
 			require.NoError(t, err)
 		} else {
-			withdrawTx, err = transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-				return l2ToL1MP.Receive(opts)
-			})
+			withdrawTx, err = transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return l2ToL1MP.Receive(opts) })
 			require.NoError(t, err)
 		}
 
