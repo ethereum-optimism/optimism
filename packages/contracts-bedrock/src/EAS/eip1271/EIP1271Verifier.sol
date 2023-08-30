@@ -19,6 +19,8 @@ import { DeadlineExpired, NO_EXPIRATION_TIME, Signature, InvalidSignature, MAX_G
 abstract contract EIP1271Verifier is EIP712 {
     using Address for address;
 
+    error InvalidNonce();
+
     // The hash of the data type used to relay calls to the attest function. It's the value of
     // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 nonce,uint64 deadline)").
     bytes32 private constant ATTEST_TYPEHASH = 0xa844e26fb609de229540148ae87fb5e0cd0b309056dd2a39248f5424cc616130;
@@ -71,6 +73,16 @@ abstract contract EIP1271Verifier is EIP712 {
     /// @return The EIP712 name.
     function getName() external view returns (string memory) {
         return bytes32ToString(_name);
+    }
+
+    /// @notice Provides users an option to invalidate nonces by increasing their nonces to (higher) new values.
+    /// @param newNonce The (higher) new value.
+    function increaseNonce(uint256 newNonce) external {
+        if (newNonce <= _nonces[msg.sender]) {
+            revert InvalidNonce();
+        }
+
+        _nonces[msg.sender] = newNonce;
     }
 
     /// @notice Verifies delegated attestation request.
