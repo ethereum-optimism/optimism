@@ -58,14 +58,18 @@ func (p *Prefetcher) Hint(hint string) error {
 func (p *Prefetcher) GetPreimage(ctx context.Context, key common.Hash) ([]byte, error) {
 	p.logger.Trace("Pre-image requested", "key", key)
 	pre, err := p.kvStore.Get(key)
-	if errors.Is(err, kvstore.ErrNotFound) && p.lastHint != "" {
+	// Use a loop to keep retrying the prefetch as long as the key is not found
+	// This handles the case where the prefetch downloads a preimage, but it is then deleted unexpectedly
+	// before we get to read it.
+	for errors.Is(err, kvstore.ErrNotFound) && p.lastHint != "" {
 		hint := p.lastHint
-		p.lastHint = ""
 		if err := p.prefetch(ctx, hint); err != nil {
 			return nil, fmt.Errorf("prefetch failed: %w", err)
 		}
-		// Should now be available
-		return p.kvStore.Get(key)
+		pre, err = p.kvStore.Get(key)
+		if err != nil {
+			p.logger.Error("Fetched pre-images for last hint but did not find required key", "hint", hint, "key", key)
+		}
 	}
 	return pre, err
 }
