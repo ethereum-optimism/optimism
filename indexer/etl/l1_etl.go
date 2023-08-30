@@ -148,7 +148,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 	}
 }
 
-// Notify returns a channel that'll recieve a value every time new data has
+// Notify returns a channel that'll receive a value every time new data has
 // been persisted by the L1ETL
 func (l1Etl *L1ETL) Notify() <-chan interface{} {
 	receiver := make(chan interface{})
