@@ -59,7 +59,7 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 	}
 
 	// Bridge
-	bridgeProcessor, err := processors.NewBridgeProcessor(logger, db, chainConfig)
+	bridgeProcessor, err := processors.NewBridgeProcessor(logger, db, l1Etl, chainConfig)
 	if err != nil {
 		return nil, err
 	}
