@@ -22,12 +22,12 @@ abstract contract EIP1271Verifier is EIP712 {
     error InvalidNonce();
 
     // The hash of the data type used to relay calls to the attest function. It's the value of
-    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 nonce,uint64 deadline)").
-    bytes32 private constant ATTEST_TYPEHASH = 0xa844e26fb609de229540148ae87fb5e0cd0b309056dd2a39248f5424cc616130;
+    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 value,uint256 nonce,uint64 deadline)").
+    bytes32 private constant ATTEST_TYPEHASH = 0xf83bb2b0ede93a840239f7e701a54d9bc35f03701f51ae153d601c6947ff3d3f;
 
     // The hash of the data type used to relay calls to the revoke function. It's the value of
-    // keccak256("Revoke(bytes32 schema,bytes32 uid,uint256 nonce,uint64 deadline)").
-    bytes32 private constant REVOKE_TYPEHASH = 0xd7d31bf579dcd70fe9512d13cdbcc97168141dc4413ce3dc8f4b9a072baef988;
+    // keccak256("Revoke(bytes32 schema,bytes32 uid,uint256 value,uint256 nonce,uint64 deadline)").
+    bytes32 private constant REVOKE_TYPEHASH = 0x2d4116d8c9824e4c316453e5c2843a1885580374159ce8768603c49085ef424c;
 
     // The user readable name of the signing domain.
     bytes32 private immutable _name;
@@ -110,6 +110,7 @@ abstract contract EIP1271Verifier is EIP712 {
                     data.revocable,
                     data.refUID,
                     keccak256(data.data),
+                    data.value,
                     nonce,
                     request.deadline
                 )
@@ -139,7 +140,7 @@ abstract contract EIP1271Verifier is EIP712 {
             nonce = _nonces[request.revoker]++;
         }
 
-        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce, request.deadline)));
+        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, data.value, nonce, request.deadline)));
         if (
             !SignatureChecker.isValidSignatureNow(
                 request.revoker, hash, abi.encodePacked(signature.r, signature.s, signature.v)
