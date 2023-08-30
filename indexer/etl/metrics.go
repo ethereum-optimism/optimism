@@ -10,13 +10,7 @@ import (
 
 var (
 	MetricsNamespace string = "etl"
-
-	_ Metricer = &metricer{}
 )
-
-type Metrics interface {
-	newMetricer(etl string) Metricer
-}
 
 type Metricer interface {
 	RecordInterval() (done func(err error))
@@ -34,109 +28,84 @@ type Metricer interface {
 }
 
 type etlMetrics struct {
-	intervalTick     *prometheus.CounterVec
-	intervalDuration *prometheus.HistogramVec
+	intervalTick     prometheus.Counter
+	intervalDuration prometheus.Histogram
 
-	batchFailures     *prometheus.CounterVec
-	batchLatestHeight *prometheus.GaugeVec
-	batchHeaders      *prometheus.CounterVec
+	batchFailures     prometheus.Counter
+	batchLatestHeight prometheus.Gauge
+	batchHeaders      prometheus.Counter
 	batchLogs         *prometheus.CounterVec
 
-	indexedLatestHeight *prometheus.GaugeVec
-	indexedHeaders      *prometheus.CounterVec
-	indexedLogs         *prometheus.CounterVec
+	indexedLatestHeight prometheus.Gauge
+	indexedHeaders      prometheus.Counter
+	indexedLogs         prometheus.Counter
 }
 
-type metricerFactory struct {
-	metrics *etlMetrics
-}
-
-type metricer struct {
-	etl     string
-	metrics *etlMetrics
-}
-
-func NewMetrics(registry *prometheus.Registry) Metrics {
-	return &metricerFactory{metrics: newMetrics(registry)}
-}
-
-func (factory *metricerFactory) newMetricer(etl string) Metricer {
-	return &metricer{etl, factory.metrics}
-}
-
-func newMetrics(registry *prometheus.Registry) *etlMetrics {
+func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 	factory := metrics.With(registry)
 	return &etlMetrics{
-		intervalTick: factory.NewCounterVec(prometheus.CounterOpts{
+		intervalTick: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "intervals_total",
 			Help:      "number of times the etl has run its extraction loop",
-		}, []string{
-			"etl",
 		}),
-		intervalDuration: factory.NewHistogramVec(prometheus.HistogramOpts{
+		intervalDuration: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "interval_seconds",
 			Help:      "duration elapsed for during the processing loop",
-		}, []string{
-			"etl",
 		}),
-		batchFailures: factory.NewCounterVec(prometheus.CounterOpts{
+		batchFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "failures_total",
 			Help:      "number of times the etl encountered a failure to extract a batch",
-		}, []string{
-			"etl",
 		}),
-		batchLatestHeight: factory.NewGaugeVec(prometheus.GaugeOpts{
+		batchLatestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "height",
 			Help:      "the latest block height observed by an etl interval",
-		}, []string{
-			"etl",
 		}),
-		batchHeaders: factory.NewCounterVec(prometheus.CounterOpts{
+		batchHeaders: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "headers_total",
 			Help:      "number of headers observed by the etl",
-		}, []string{
-			"etl",
 		}),
 		batchLogs: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "logs_total",
 			Help:      "number of logs observed by the etl",
 		}, []string{
-			"etl",
 			"contract",
 		}),
-		indexedLatestHeight: factory.NewGaugeVec(prometheus.GaugeOpts{
+		indexedLatestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "indexed_height",
 			Help:      "the latest block height indexed into the database",
-		}, []string{
-			"etl",
 		}),
-		indexedHeaders: factory.NewCounterVec(prometheus.CounterOpts{
+		indexedHeaders: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "indexed_headers_total",
 			Help:      "number of headers indexed by the etl",
-		}, []string{
-			"etl",
 		}),
-		indexedLogs: factory.NewCounterVec(prometheus.CounterOpts{
+		indexedLogs: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
 			Name:      "indexed_logs_total",
 			Help:      "number of logs indexed by the etl",
-		}, []string{
-			"etl",
 		}),
 	}
 }
 
-func (m *metricer) RecordInterval() func(error) {
-	m.metrics.intervalTick.WithLabelValues(m.etl).Inc()
-	timer := prometheus.NewTimer(m.metrics.intervalDuration.WithLabelValues(m.etl))
+func (m *etlMetrics) RecordInterval() func(error) {
+	m.intervalTick.Inc()
+	timer := prometheus.NewTimer(m.intervalDuration)
 	return func(err error) {
 		if err != nil {
 			m.RecordBatchFailure()
@@ -146,30 +115,30 @@ func (m *metricer) RecordInterval() func(error) {
 	}
 }
 
-func (m *metricer) RecordBatchFailure() {
-	m.metrics.batchFailures.WithLabelValues(m.etl).Inc()
+func (m *etlMetrics) RecordBatchFailure() {
+	m.batchFailures.Inc()
 }
 
-func (m *metricer) RecordBatchLatestHeight(height *big.Int) {
-	m.metrics.batchLatestHeight.WithLabelValues(m.etl).Set(float64(height.Uint64()))
+func (m *etlMetrics) RecordBatchLatestHeight(height *big.Int) {
+	m.batchLatestHeight.Set(float64(height.Uint64()))
 }
 
-func (m *metricer) RecordBatchHeaders(size int) {
-	m.metrics.batchHeaders.WithLabelValues(m.etl).Add(float64(size))
+func (m *etlMetrics) RecordBatchHeaders(size int) {
+	m.batchHeaders.Add(float64(size))
 }
 
-func (m *metricer) RecordBatchLog(contractAddress common.Address) {
-	m.metrics.batchLogs.WithLabelValues(m.etl, contractAddress.String()).Inc()
+func (m *etlMetrics) RecordBatchLog(contractAddress common.Address) {
+	m.batchLogs.WithLabelValues(contractAddress.String()).Inc()
 }
 
-func (m *metricer) RecordIndexedLatestHeight(height *big.Int) {
-	m.metrics.indexedLatestHeight.WithLabelValues(m.etl).Set(float64(height.Uint64()))
+func (m *etlMetrics) RecordIndexedLatestHeight(height *big.Int) {
+	m.indexedLatestHeight.Set(float64(height.Uint64()))
 }
 
-func (m *metricer) RecordIndexedHeaders(size int) {
-	m.metrics.indexedHeaders.WithLabelValues(m.etl).Add(float64(size))
+func (m *etlMetrics) RecordIndexedHeaders(size int) {
+	m.indexedHeaders.Add(float64(size))
 }
 
-func (m *metricer) RecordIndexedLogs(size int) {
-	m.metrics.indexedLogs.WithLabelValues(m.etl).Add(float64(size))
+func (m *etlMetrics) RecordIndexedLogs(size int) {
+	m.indexedLogs.Add(float64(size))
 }
