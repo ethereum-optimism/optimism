@@ -65,7 +65,7 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 
 		log:             log,
 		metrics:         metrics,
-		headerTraversal: node.NewHeaderTraversal(client, fromHeader),
+		headerTraversal: node.NewHeaderTraversal(client, fromHeader, cfg.ConfirmationDepth),
 		ethClient:       client,
 		contracts:       cSlice,
 		etlBatches:      etlBatches,
