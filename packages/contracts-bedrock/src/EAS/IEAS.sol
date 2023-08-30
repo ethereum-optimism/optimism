@@ -155,7 +155,8 @@ interface IEAS {
     ///                 r: '0x148c...b25b',
     ///                 s: '0x5a72...be22'
     ///             },
-    ///             attester: '0xc5E8740aD971409492b1A63Db8d83025e0Fc427e'
+    ///             attester: '0xc5E8740aD971409492b1A63Db8d83025e0Fc427e',
+    ///             deadline: 1673891048
     ///         })
     ///
     /// @param delegatedRequest The arguments of the delegated attestation request.
@@ -240,7 +241,8 @@ interface IEAS {
     ///                 r: '0x487s...67bb',
     ///                 s: '0x12ad...2366'
     ///             }],
-    ///             attester: '0x1D86495b2A7B524D747d2839b3C645Bed32e8CF4'
+    ///             attester: '0x1D86495b2A7B524D747d2839b3C645Bed32e8CF4',
+    ///             deadline: 1673891048
     ///         }])
     ///
     /// @param multiDelegatedRequests The arguments of the delegated multi attestation requests. The requests should be
@@ -281,7 +283,8 @@ interface IEAS {
     ///                 r: '0xb593...7142',
     ///                 s: '0x0f5b...2cce'
     ///             },
-    ///             revoker: '0x244934dd3e31bE2c81f84ECf0b3E6329F5381992'
+    ///             revoker: '0x244934dd3e31bE2c81f84ECf0b3E6329F5381992',
+    ///             deadline: 1673891048
     ///         })
     ///
     /// @param delegatedRequest The arguments of the delegated revocation request.
@@ -338,7 +341,8 @@ interface IEAS {
     ///                 r: '0x487s...67bb',
     ///                 s: '0x12ad...2366'
     ///             }],
-    ///             revoker: '0x244934dd3e31bE2c81f84ECf0b3E6329F5381992'
+    ///             revoker: '0x244934dd3e31bE2c81f84ECf0b3E6329F5381992',
+    ///             deadline: 1673891048
     ///         }])
     ///
     /// @param multiDelegatedRequests The arguments of the delegated multi revocation attestation requests. The requests
