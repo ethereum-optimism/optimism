@@ -99,7 +99,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hash, err)
 		}
 		return p.storeReceipts(receipts)
-	case l2.HintL2BlockHeader:
+	case l2.HintL2BlockHeader, l2.HintL2Transactions:
 		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 block %s: %w", hash, err)
