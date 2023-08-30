@@ -8,6 +8,7 @@ bytes32 constant EMPTY_UID = 0;
 uint64 constant NO_EXPIRATION_TIME = 0;
 
 error AccessDenied();
+error DeadlineExpired();
 error InvalidEAS();
 error InvalidLength();
 error InvalidSignature();
