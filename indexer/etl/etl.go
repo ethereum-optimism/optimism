@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -28,7 +27,7 @@ type ETL struct {
 	headerBufferSize uint64
 	headerTraversal  *node.HeaderTraversal
 
-	ethClient  *ethclient.Client
+	ethClient  node.EthClient
 	contracts  []common.Address
 	etlBatches chan ETLBatch
 }
@@ -103,8 +102,7 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	}
 
 	headersWithLog := make(map[common.Hash]bool, len(headers))
-	logFilter := ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts}
-	logs, err := etl.ethClient.FilterLogs(context.Background(), logFilter)
+	logs, err := etl.ethClient.FilterLogs(ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts})
 	if err != nil {
 		batchLog.Info("unable to extract logs", "err", err)
 		return err

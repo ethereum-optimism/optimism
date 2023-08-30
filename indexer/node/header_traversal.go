@@ -2,6 +2,7 @@ package node
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -35,7 +36,7 @@ func (f *HeaderTraversal) LastHeader() *types.Header {
 func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, error) {
 	finalizedBlockHeight, err := f.ethClient.FinalizedBlockHeight()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to query latest finalized height: %w", err)
 	}
 
 	if f.lastHeader != nil {
@@ -55,7 +56,7 @@ func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, 
 	endHeight := clampBigInt(nextHeight, finalizedBlockHeight, maxSize)
 	headers, err := f.ethClient.BlockHeadersByRange(nextHeight, endHeight)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error querying blocks by range: %w", err)
 	}
 
 	numHeaders := len(headers)
