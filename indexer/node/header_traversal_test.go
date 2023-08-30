@@ -37,7 +37,7 @@ func TestHeaderTraversalNextFinalizedHeadersNoOp(t *testing.T) {
 
 	// start from block 10 as the latest fetched block
 	lastHeader := &types.Header{Number: big.NewInt(10)}
-	headerTraversal := NewHeaderTraversal(client, lastHeader)
+	headerTraversal := NewHeaderTraversal(client, lastHeader, bigZero)
 
 	// no new headers when matched with head
 	client.On("FinalizedBlockHeight").Return(big.NewInt(10), nil)
@@ -50,7 +50,7 @@ func TestHeaderTraversalNextFinalizedHeadersCursored(t *testing.T) {
 	client := new(MockEthClient)
 
 	// start from genesis
-	headerTraversal := NewHeaderTraversal(client, nil)
+	headerTraversal := NewHeaderTraversal(client, nil, bigZero)
 
 	// blocks [0..4]
 	headers := makeHeaders(5, nil)
@@ -73,7 +73,7 @@ func TestHeaderTraversalNextFinalizedHeadersMaxSize(t *testing.T) {
 	client := new(MockEthClient)
 
 	// start from genesis
-	headerTraversal := NewHeaderTraversal(client, nil)
+	headerTraversal := NewHeaderTraversal(client, nil, bigZero)
 
 	// 100 "available" headers
 	client.On("FinalizedBlockHeight").Return(big.NewInt(100), nil)
@@ -97,7 +97,7 @@ func TestHeaderTraversalMismatchedProviderStateError(t *testing.T) {
 	client := new(MockEthClient)
 
 	// start from genesis
-	headerTraversal := NewHeaderTraversal(client, nil)
+	headerTraversal := NewHeaderTraversal(client, nil, bigZero)
 
 	// blocks [0..4]
 	headers := makeHeaders(5, nil)

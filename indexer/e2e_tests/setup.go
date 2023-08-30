@@ -71,8 +71,10 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
 		},
 		Chain: config.ChainConfig{
-			L1PollingInterval: 1000,
-			L2PollingInterval: 1000,
+			L1PollingInterval:   uint(opCfg.DeployConfig.L1BlockTime),
+			L1ConfirmationDepth: 0,
+			L2PollingInterval:   uint(opCfg.DeployConfig.L2BlockTime),
+			L2ConfirmationDepth: 0,
 			L1Contracts: config.L1Contracts{
 				OptimismPortalProxy:         opCfg.L1Deployments.OptimismPortalProxy,
 				L2OutputOracleProxy:         opCfg.L1Deployments.L2OutputOracleProxy,
