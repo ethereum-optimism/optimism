@@ -86,6 +86,9 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
+	@if [ ! -e op-program/bin ]; then \
+		make cannon-prestate; \
+	fi
 	$(shell ./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock)
 	if [ $(.SHELLSTATUS) -ne 0 ]; then \
 		make devnet-allocs; \
