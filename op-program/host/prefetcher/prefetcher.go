@@ -155,10 +155,7 @@ func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 	_, nodes := mpt.WriteTrie(values)
 	for _, node := range nodes {
 		key := preimage.Keccak256Key(crypto.Keccak256Hash(node)).PreimageKey()
-		if err := p.kvStore.Put(key, node); errors.Is(err, kvstore.ErrAlreadyExists) {
-			// It's not uncommon for different tries to contain common nodes (esp for receipts)
-			continue
-		} else if err != nil {
+		if err := p.kvStore.Put(key, node); err != nil {
 			return fmt.Errorf("failed to store node: %w", err)
 		}
 	}
