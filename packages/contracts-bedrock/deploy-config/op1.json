@@ -1,0 +1,57 @@
+{
+  "finalSystemOwner": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+  "portalGuardian": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+
+  "l1StartingBlockTag": "0x841f5700db5ed5f04f2bf74fbfdc91d74b18a4be9003626c98a877353c45e9e6",
+
+  "l1ChainID": 97,
+  "l2ChainID": 52069,
+  "l2BlockTime": 2,
+  "l1BlockTime": 5,
+
+  "maxSequencerDrift": 600,
+  "sequencerWindowSize": 3600,
+  "channelTimeout": 300,
+
+  "p2pSequencerAddress": "0x5A56126C406809f87D3D9Ef9284df75293b0fC90",
+  "batchInboxAddress": "0xff00000000000000000000000000000000042092",
+  "batchSenderAddress": "0xD19C8efa7b2bB85D7114c68B1B83d51BAb8aF21B",
+
+  "l2OutputOracleSubmissionInterval": 120,
+  "l2OutputOracleStartingBlockNumber": 0,
+  "l2OutputOracleStartingTimestamp": 1693308930,
+
+  "l2OutputOracleProposer": "0x3BB58F0aF219897BCB2e0c8bC1f5904EC76eB806",
+  "l2OutputOracleChallenger": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+
+  "finalizationPeriodSeconds": 12,
+
+  "proxyAdminOwner": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+  "baseFeeVaultRecipient": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+  "l1FeeVaultRecipient": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+  "sequencerFeeVaultRecipient": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000,
+
+  "enableGovernance": true,
+  "governanceTokenSymbol": "OP",
+  "governanceTokenName": "Optimism",
+  "governanceTokenOwner": "0xa23504D1cA5FCaCFB8A4b4ad08D7f29dc398eAe9",
+
+  "l2GenesisBlockGasLimit": "0x1c9c380",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+  "l2GenesisRegolithTimeOffset": "0x0",
+
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 10,
+
+  "systemConfigStartBlock": 0
+}
