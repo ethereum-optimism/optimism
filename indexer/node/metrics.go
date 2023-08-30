@@ -21,8 +21,6 @@ type Metricer interface {
 }
 
 type clientMetrics struct {
-	subsystem string
-
 	rpcClientRequestsTotal          *prometheus.CounterVec
 	rpcClientRequestDurationSeconds *prometheus.HistogramVec
 	rpcClientResponsesTotal         *prometheus.CounterVec
