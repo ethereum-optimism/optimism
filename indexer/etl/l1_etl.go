@@ -21,7 +21,7 @@ type L1ETL struct {
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
 // depending on the state of the database and the supplied start height.
-func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metrics, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
+func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
 	latestHeader, err := db.Blocks.L1LatestBlockHeader()
@@ -61,7 +61,7 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metrics, clie
 		headerBufferSize: uint64(cfg.HeaderBufferSize),
 
 		log:             log,
-		metrics:         metrics.newMetricer("l1"),
+		metrics:         metrics,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),
 		ethClient:       client.GethEthClient(),
 		contracts:       cSlice,

@@ -167,7 +167,7 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
 	query = query.Joins("UNION (?)", ethTransactionDeposits)
 	query = query.Select("*").Order("timestamp DESC").Limit(limit + 1)
 	deposits := []L1BridgeDepositWithTransactionHashes{}
-	result := query.Debug().Find(&deposits)
+	result := query.Find(&deposits)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil

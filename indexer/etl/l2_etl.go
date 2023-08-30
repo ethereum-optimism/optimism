@@ -19,7 +19,7 @@ type L2ETL struct {
 	db *database.DB
 }
 
-func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metrics, client node.EthClient) (*L2ETL, error) {
+func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient) (*L2ETL, error) {
 	log = log.New("etl", "l2")
 
 	// allow predeploys to be overridable
@@ -48,7 +48,7 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metrics, clie
 		headerBufferSize: uint64(cfg.HeaderBufferSize),
 
 		log:             log,
-		metrics:         metrics.newMetricer("l2"),
+		metrics:         metrics,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),
 		ethClient:       client.GethEthClient(),
 		contracts:       l2Contracts,

@@ -35,7 +35,6 @@ type Indexer struct {
 // NewIndexer initializes an instance of the Indexer
 func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, metricsConfig config.MetricsConfig) (*Indexer, error) {
 	metricsRegistry := metrics.NewRegistry()
-	etlMetrics := etl.NewMetrics(metricsRegistry)
 
 	// L1
 	l1EthClient, err := node.DialEthClient(rpcsConfig.L1RPC)
@@ -43,7 +42,7 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 		return nil, err
 	}
 	l1Cfg := etl.Config{LoopIntervalMsec: chainConfig.L1PollingInterval, HeaderBufferSize: chainConfig.L1HeaderBufferSize, StartHeight: chainConfig.L1StartHeight()}
-	l1Etl, err := etl.NewL1ETL(l1Cfg, logger, db, etlMetrics, l1EthClient, chainConfig.L1Contracts)
+	l1Etl, err := etl.NewL1ETL(l1Cfg, logger, db, etl.NewMetrics(metricsRegistry, "l1"), l1EthClient, chainConfig.L1Contracts)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +53,7 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 		return nil, err
 	}
 	l2Cfg := etl.Config{LoopIntervalMsec: chainConfig.L2PollingInterval, HeaderBufferSize: chainConfig.L2HeaderBufferSize}
-	l2Etl, err := etl.NewL2ETL(l2Cfg, logger, db, etlMetrics, l2EthClient)
+	l2Etl, err := etl.NewL2ETL(l2Cfg, logger, db, etl.NewMetrics(metricsRegistry, "l2"), l2EthClient)
 	if err != nil {
 		return nil, err
 	}
