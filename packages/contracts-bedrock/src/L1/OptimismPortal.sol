@@ -13,6 +13,8 @@ import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 import { Semver } from "../universal/Semver.sol";
 
+import "../universal/IZkBridgeNativeTokenVault.sol";
+
 /// @custom:proxied
 /// @title OptimismPortal
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
@@ -63,6 +65,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @custom:network-specific
     address public guardian;
 
+    address public nativeTokenVault;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -90,6 +94,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @notice Emitted when the pause is lifted.
     /// @param account Address of the account triggering the unpause.
     event Unpaused(address account);
+
+     event NewVault(address vault);
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
@@ -332,6 +338,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Check that this withdrawal has not already been finalized, this is replay protection.
         require(finalizedWithdrawals[withdrawalHash] == false, "OptimismPortal: withdrawal has already been finalized");
 
+        uint256 balance = address(this).balance;
+        if (balance < _tx.value) {
+            IZkBridgeNativeTokenVault(nativeTokenVault).withdraw(_tx.value - balance);
+        }
+
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
@@ -398,6 +409,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // transactions are not gossipped over the p2p network.
         require(_data.length <= 120_000, "OptimismPortal: data too large");
 
+        IZkBridgeNativeTokenVault(nativeTokenVault).deposit{value:_value}();
+
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
         if (msg.sender != tx.origin) {
@@ -429,5 +442,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @return Whether or not the finalization period has elapsed.
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
         return block.timestamp > _timestamp + l2Oracle.FINALIZATION_PERIOD_SECONDS();
+    }
+
+    function setVault(address _vault) external {
+        require(_vault != address(0), "OptimismPortal: vault cannot be address(0)");
+        require(msg.sender == guardian, "OptimismPortal: only guardian can set vault");
+
+        nativeTokenVault = _vault;
     }
 }
