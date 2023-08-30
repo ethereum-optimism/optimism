@@ -12,7 +12,7 @@ import {
     RevocationRequestData
 } from "../IEAS.sol";
 
-import { Signature, InvalidSignature, MAX_GAP, stringToBytes32, bytes32ToString } from "../Common.sol";
+import { DeadlineExpired, NO_EXPIRATION_TIME, Signature, InvalidSignature, MAX_GAP, stringToBytes32, bytes32ToString } from "../Common.sol";
 
 /// @title EIP1271Verifier
 /// @notice EIP1271Verifier typed signatures verifier for EAS delegated attestations.
@@ -20,13 +20,12 @@ abstract contract EIP1271Verifier is EIP712 {
     using Address for address;
 
     // The hash of the data type used to relay calls to the attest function. It's the value of
-    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes
-    // data,uint256 nonce)").
-    bytes32 private constant ATTEST_TYPEHASH = 0xdbfdf8dc2b135c26253e00d5b6cbe6f20457e003fd526d97cea183883570de61;
+    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 nonce,uint64 deadline)").
+    bytes32 private constant ATTEST_TYPEHASH = 0xa844e26fb609de229540148ae87fb5e0cd0b309056dd2a39248f5424cc616130;
 
     // The hash of the data type used to relay calls to the revoke function. It's the value of
-    // keccak256("Revoke(bytes32 schema,bytes32 uid,uint256 nonce)").
-    bytes32 private constant REVOKE_TYPEHASH = 0xa98d02348410c9c76735e0d0bb1396f4015ac2bb9615f9c2611d19d7a8a99650;
+    // keccak256("Revoke(bytes32 schema,bytes32 uid,uint256 nonce,uint64 deadline)").
+    bytes32 private constant REVOKE_TYPEHASH = 0xd7d31bf579dcd70fe9512d13cdbcc97168141dc4413ce3dc8f4b9a072baef988;
 
     // The user readable name of the signing domain.
     bytes32 private immutable _name;
@@ -77,6 +76,10 @@ abstract contract EIP1271Verifier is EIP712 {
     /// @notice Verifies delegated attestation request.
     /// @param request The arguments of the delegated attestation request.
     function _verifyAttest(DelegatedAttestationRequest memory request) internal {
+        if (request.deadline != NO_EXPIRATION_TIME && request.deadline <= _time()) {
+            revert DeadlineExpired();
+        }
+
         AttestationRequestData memory data = request.data;
         Signature memory signature = request.signature;
 
@@ -95,7 +98,8 @@ abstract contract EIP1271Verifier is EIP712 {
                     data.revocable,
                     data.refUID,
                     keccak256(data.data),
-                    nonce
+                    nonce,
+                    request.deadline
                 )
             )
         );
@@ -111,6 +115,10 @@ abstract contract EIP1271Verifier is EIP712 {
     /// @notice Verifies delegated revocation request.
     /// @param request The arguments of the delegated revocation request.
     function _verifyRevoke(DelegatedRevocationRequest memory request) internal {
+        if (request.deadline != NO_EXPIRATION_TIME && request.deadline <= _time()) {
+            revert DeadlineExpired();
+        }
+
         RevocationRequestData memory data = request.data;
         Signature memory signature = request.signature;
 
@@ -119,7 +127,7 @@ abstract contract EIP1271Verifier is EIP712 {
             nonce = _nonces[request.revoker]++;
         }
 
-        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce)));
+        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce, request.deadline)));
         if (
             !SignatureChecker.isValidSignatureNow(
                 request.revoker, hash, abi.encodePacked(signature.r, signature.s, signature.v)
@@ -127,5 +135,11 @@ abstract contract EIP1271Verifier is EIP712 {
         ) {
             revert InvalidSignature();
         }
+    }
+
+    /// @dev Returns the current's block timestamp. This method is overridden during tests and used to simulate the
+    ///     current block time.
+    function _time() internal view virtual returns (uint64) {
+        return uint64(block.timestamp);
     }
 }
