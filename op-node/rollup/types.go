@@ -84,6 +84,9 @@ type Config struct {
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
+
+	// Superchain configuration, optional (Beta feature)
+	SuperchainConfigAddress common.Address `json:"superchain_config_address,omitempty"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.
