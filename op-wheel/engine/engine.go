@@ -3,8 +3,11 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"math/big"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
@@ -305,4 +308,89 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 		return err
 	}
 	return nil
+}
+
+func SetForkchoice(ctx context.Context, client client.RPC, finalizedNum, safeNum, unsafeNum uint64) error {
+	if unsafeNum < safeNum {
+		return fmt.Errorf("cannot set unsafe (%d) < safe (%d)", unsafeNum, safeNum)
+	}
+	if safeNum < finalizedNum {
+		return fmt.Errorf("cannot set safe (%d) < finalized (%d)", safeNum, finalizedNum)
+	}
+	head, err := getHeader(ctx, client, "eth_getBlockByNumber", "latest")
+	if err != nil {
+		return fmt.Errorf("failed to get latest block: %w", err)
+	}
+	if unsafeNum > head.Number.Uint64() {
+		return fmt.Errorf("cannot set unsafe (%d) > latest (%d)", unsafeNum, head.Number.Uint64())
+	}
+	finalizedHeader, err := getHeader(ctx, client, "eth_getBlockByNumber", hexutil.Uint64(finalizedNum).String())
+	if err != nil {
+		return fmt.Errorf("failed to get block %d to mark finalized: %w", finalizedNum, err)
+	}
+	safeHeader, err := getHeader(ctx, client, "eth_getBlockByNumber", hexutil.Uint64(safeNum).String())
+	if err != nil {
+		return fmt.Errorf("failed to get block %d to mark safe: %w", safeNum, err)
+	}
+	if err := updateForkchoice(ctx, client, head.Hash(), safeHeader.Hash(), finalizedHeader.Hash()); err != nil {
+		return fmt.Errorf("failed to update forkchoice: %w", err)
+	}
+	return nil
+}
+
+func RawJSONInteraction(ctx context.Context, client client.RPC, method string, args []string, input io.Reader, output io.Writer) error {
+	var params []any
+	if input != nil {
+		r := json.NewDecoder(input)
+		for {
+			var param json.RawMessage
+			if err := r.Decode(&param); err != nil {
+				if errors.Is(err, io.EOF) {
+					break
+				}
+				return fmt.Errorf("unexpected error while reading json params: %w", err)
+			}
+			params = append(params, param)
+		}
+	} else {
+		for _, arg := range args {
+			// add quotes to unquoted strings, but not to other json data
+			if isUnquotedJsonString(arg) {
+				arg = fmt.Sprintf("%q", arg)
+			}
+			params = append(params, json.RawMessage(arg))
+		}
+	}
+	var result json.RawMessage
+	if err := client.CallContext(ctx, &result, method, params...); err != nil {
+		return fmt.Errorf("failed RPC call: %w", err)
+	}
+	if _, err := output.Write(result); err != nil {
+		return fmt.Errorf("failed to write RPC output: %w", err)
+	}
+	return nil
+}
+
+func isUnquotedJsonString(v string) bool {
+	v = strings.TrimSpace(v)
+	// check if empty string (must get quotes)
+	if len(v) == 0 {
+		return true
+	}
+	// check if special value
+	switch v {
+	case "null", "true", "false":
+		return false
+	}
+	// check if it looks like a json structure
+	switch v[0] {
+	case '[', '{', '"':
+		return false
+	}
+	// check if a number
+	var n json.Number
+	if err := json.Unmarshal([]byte(v), &n); err == nil {
+		return false
+	}
+	return true
 }
