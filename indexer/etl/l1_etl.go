@@ -3,6 +3,7 @@ package etl
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -16,7 +17,9 @@ import (
 type L1ETL struct {
 	ETL
 
-	db *database.DB
+	db        *database.DB
+	mu        *sync.Mutex
+	listeners []chan interface{}
 }
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
@@ -68,7 +71,7 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		etlBatches:      etlBatches,
 	}
 
-	return &L1ETL{ETL: etl, db: db}, nil
+	return &L1ETL{ETL: etl, db: db, mu: new(sync.Mutex)}, nil
 }
 
 func (l1Etl *L1ETL) Start(ctx context.Context) error {
@@ -129,6 +132,29 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 			}
 
 			batch.Logger.Info("indexed batch")
+
+			// Notify Listeners
+			l1Etl.mu.Lock()
+			for i := range l1Etl.listeners {
+				select {
+				case l1Etl.listeners[i] <- struct{}{}:
+				default:
+					// do nothing if the listener hasn't picked
+					// up the previous notif
+				}
+			}
+			l1Etl.mu.Unlock()
 		}
 	}
+}
+
+// Notify returns a channel that'll recieve a value every time new data has
+// been persisted by the L1ETL
+func (l1Etl *L1ETL) Notify() <-chan interface{} {
+	receiver := make(chan interface{})
+	l1Etl.mu.Lock()
+	defer l1Etl.mu.Unlock()
+
+	l1Etl.listeners = append(l1Etl.listeners, receiver)
+	return receiver
 }
