@@ -45,9 +45,9 @@ func kvTest(t *testing.T, kv KV) {
 		require.Equal(t, []byte{4, 2}, dat, "pre-image must match")
 	})
 
-	t.Run("not overwriting pre-image", func(t *testing.T) {
+	t.Run("allowing multiple writes for same pre-image", func(t *testing.T) {
 		t.Parallel()
 		require.NoError(t, kv.Put(common.Hash{0xdd}, []byte{4, 2}))
-		require.ErrorIs(t, kv.Put(common.Hash{0xdd}, []byte{4, 2}), ErrAlreadyExists)
+		require.NoError(t, kv.Put(common.Hash{0xdd}, []byte{4, 2}))
 	})
 }
