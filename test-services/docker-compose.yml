@@ -1,0 +1,48 @@
+version: "3"
+
+services:
+  pushgateway:
+    image: prom/pushgateway
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - pushgateway
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=adminpassword
+    volumes:
+      - ./datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+
+  hello_world_nodejs:
+    build: ./hello-world-nodejs
+    container_name: hello-world-nodejs
+    profiles: ["1minute"]
+    depends_on:
+      - prometheus
+    restart: no
+
+  hello_world_go:
+    build: ./hello-world-go
+    container_name: hello-world-go
+    profiles: ["5minutes"]
+    depends_on:
+      - prometheus
+    restart: no
