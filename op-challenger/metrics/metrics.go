@@ -20,6 +20,9 @@ type Metricer interface {
 
 	// Record Tx metrics
 	txmetrics.TxMetricer
+
+	RecordGameStep()
+	RecordGameMove()
 }
 
 type Metrics struct {
@@ -31,6 +34,9 @@ type Metrics struct {
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	moves prometheus.Counter
+	steps prometheus.Counter
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -58,6 +64,16 @@ func NewMetrics() *Metrics {
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
 		}),
+		moves: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "moves",
+			Help:      "Number of game moves made by the challenge agent",
+		}),
+		steps: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: Namespace,
+			Name:      "steps",
+			Help:      "Number of game steps made by the challenge agent",
+		}),
 	}
 }
 
@@ -83,4 +99,12 @@ func (m *Metrics) RecordUp() {
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 	return m.factory.Document()
+}
+
+func (m *Metrics) RecordGameMove() {
+	m.moves.Add(1)
+}
+
+func (m *Metrics) RecordGameStep() {
+	m.steps.Add(1)
 }
