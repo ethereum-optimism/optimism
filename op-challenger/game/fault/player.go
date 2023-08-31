@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -22,7 +23,7 @@ import (
 type actor func(ctx context.Context) error
 
 type GameInfo interface {
-	GetGameStatus(context.Context) (types.GameStatus, error)
+	GetGameStatus(context.Context) (gameTypes.GameStatus, error)
 	GetClaimCount(context.Context) (uint64, error)
 }
 
@@ -31,8 +32,7 @@ type GamePlayer struct {
 	agreeWithProposedOutput bool
 	loader                  GameInfo
 	logger                  log.Logger
-
-	completed bool
+	status                  gameTypes.GameStatus
 }
 
 func NewGamePlayer(
@@ -57,14 +57,14 @@ func NewGamePlayer(
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game status: %w", err)
 	}
-	if status != types.GameStatusInProgress {
+	if status != gameTypes.GameStatusInProgress {
 		logger.Info("Game already resolved", "status", status)
 		// Game is already complete so skip creating the trace provider, loading game inputs etc.
 		return &GamePlayer{
 			logger:                  logger,
 			loader:                  loader,
 			agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
-			completed:               true,
+			status:                  status,
 			// Act function does nothing because the game is already complete
 			act: func(ctx context.Context) error {
 				return nil
@@ -111,32 +111,32 @@ func NewGamePlayer(
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
-		completed:               status != types.GameStatusInProgress,
+		status:                  status,
 	}, nil
 }
 
-func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
-	if g.completed {
+func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
+	if g.status != gameTypes.GameStatusInProgress {
 		// Game is already complete so don't try to perform further actions.
 		g.logger.Trace("Skipping completed game")
-		return true
+		return g.status
 	}
 	g.logger.Trace("Checking if actions are required")
 	if err := g.act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
 	}
-	if status, err := g.loader.GetGameStatus(ctx); err != nil {
+	status, err := g.loader.GetGameStatus(ctx)
+	if err != nil {
 		g.logger.Warn("Unable to retrieve game status", "err", err)
-	} else {
-		g.logGameStatus(ctx, status)
-		g.completed = status != types.GameStatusInProgress
-		return g.completed
+		return gameTypes.GameStatusInProgress
 	}
-	return false
+	g.logGameStatus(ctx, status)
+	g.status = status
+	return status
 }
 
-func (g *GamePlayer) logGameStatus(ctx context.Context, status types.GameStatus) {
-	if status == types.GameStatusInProgress {
+func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameStatus) {
+	if status == gameTypes.GameStatusInProgress {
 		claimCount, err := g.loader.GetClaimCount(ctx)
 		if err != nil {
 			g.logger.Error("Failed to get claim count for in progress game", "err", err)
@@ -145,11 +145,11 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status types.GameStatus)
 		g.logger.Info("Game info", "claims", claimCount, "status", status)
 		return
 	}
-	var expectedStatus types.GameStatus
+	var expectedStatus gameTypes.GameStatus
 	if g.agreeWithProposedOutput {
-		expectedStatus = types.GameStatusChallengerWon
+		expectedStatus = gameTypes.GameStatusChallengerWon
 	} else {
-		expectedStatus = types.GameStatusDefenderWon
+		expectedStatus = gameTypes.GameStatusDefenderWon
 	}
 	if expectedStatus == status {
 		g.logger.Info("Game won", "status", status)

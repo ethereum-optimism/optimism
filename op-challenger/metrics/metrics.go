@@ -24,6 +24,8 @@ type Metricer interface {
 	RecordGameStep()
 	RecordGameMove()
 	RecordCannonExecutionTime(t float64)
+
+	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 }
 
 type Metrics struct {
@@ -36,9 +38,12 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
-	moves               prometheus.Counter
-	steps               prometheus.Counter
+	moves prometheus.Counter
+	steps prometheus.Counter
+
 	cannonExecutionTime prometheus.Histogram
+
+	trackedGames prometheus.GaugeVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -82,6 +87,13 @@ func NewMetrics() *Metrics {
 			Help:      "Time (in seconds) to execute cannon",
 			Buckets:   append([]float64{1.0, 10.0}, prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}),
+		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "tracked_games",
+			Help:      "Number of games being tracked by the challenger",
+		}, []string{
+			"status",
+		}),
 	}
 }
 
@@ -119,4 +131,10 @@ func (m *Metrics) RecordGameStep() {
 
 func (m *Metrics) RecordCannonExecutionTime(t float64) {
 	m.cannonExecutionTime.Observe(t)
+}
+
+func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
+	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
+	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
+	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
 }
