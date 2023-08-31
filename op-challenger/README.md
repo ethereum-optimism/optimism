@@ -78,6 +78,21 @@ Performs a move to either attack or defend the latest claim in the specified gam
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.
 
+### [resolve.sh](scripts/resolve.sh)
+
+```shell
+./scripts/resolve.sh <RPC_URL> <GAME_ADDRESS> <SIGNER_ARGS>...
+```
+
+Resolves a dispute game. Note that this will fail if the dispute game has already been resolved
+or if the clocks have not yet expired and further moves are possible.
+If the game is resolved successfully, the result is printed.
+
+* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `GAME_ADDRESS` - the address of the dispute game to resolve.
+* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
+  These arguments must specify a way for `cast` to sign the transactions.
+  See `cast send --help` for supported options.
 
 ### [list_claims.sh](scripts/list_claims.sh)
 
