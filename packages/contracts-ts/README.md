@@ -15,11 +15,11 @@ The main entrypoint exports constants related to contracts bedrock as const. As 
 
 ```typescript
 import {
-  l2OutputOracleProxyABI,
-  l2OutputOracleAddresses,
+  l2OutputOracleABI,
+  l2OutputOracleAddress,
 } from '@eth-optimism/contracts-ts'
 
-console.log(l2OutputOracleAddresses[10], abi)
+console.log(l2OutputOracleAddress[1], l2OutputOracleABI)
 ```
 
 Addresses are also exported as an object for convenience.
@@ -27,7 +27,7 @@ Addresses are also exported as an object for convenience.
 ```typescript
 import { addresses } from '@eth-optimism/contracts-ts'
 
-console.log(addresses.l2OutputOracle[10])
+console.log(addresses.L2OutputOracle[1])
 ```
 
 #### @eth-optimism/contracts-ts/react
@@ -35,10 +35,10 @@ console.log(addresses.l2OutputOracle[10])
 - All [React hooks](https://wagmi.sh/cli/plugins/react) `@eth-optimism/contracts-ts/react`
 
 ```typescript
-import { useAddressManagerAddress } from '@eth-optimism/contracts-ts/react'
+import { useAddressManagerGetAddress } from '@eth-optimism/contracts-ts/react'
 
 const component = () => {
-  const { data, error, loading } = useAddressManagerAddress()
+  const { data, error, loading } = useAddressManagerGetAddress()
   if (loading) {
     return <div>Loading</div>
   }
