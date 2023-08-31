@@ -102,6 +102,8 @@ const getConfigurations = async () => {
 }
 
 const bridgeETHToL2 = async () => {
+  console.log(`---------------------------------------------------`)
+  console.log(`Start bridging ETH to L2...`)
   const config = await getConfigurations()
   if (!config) {
     return
@@ -147,6 +149,8 @@ const bridgeETHToL2 = async () => {
 }
 
 const bridgeBOBAToL2 = async () => {
+  console.log(`---------------------------------------------------`)
+  console.log(`Start bridging BOBA to L2...`)
   const config = await getConfigurations()
   if (!config) {
     return
@@ -202,6 +206,8 @@ const bridgeBOBAToL2 = async () => {
 }
 
 const bridgeETHToL1 = async () => {
+  console.log(`---------------------------------------------------`)
+  console.log(`Start withdrawing ETH to L1...`)
   const config = await getConfigurations()
   if (!config) {
     return
@@ -289,7 +295,7 @@ const bridgeETHToL1 = async () => {
 
   let latestBlockOnL1 = await L2OutputOracle.latestBlockNumber()
   while (latestBlockOnL1 < L2BlockNumber) {
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 12000))
     latestBlockOnL1 = await L2OutputOracle.latestBlockNumber()
     console.log(
       `Waiting for L2 block: ${L2BlockNumber} - Latest L2 block on L1: ${latestBlockOnL1}`
@@ -298,10 +304,12 @@ const bridgeETHToL1 = async () => {
 
   console.log(`---------------------------------------------------`)
   console.log(`L2 block published!`)
-  const l2OutputIndex = await L2OutputOracle.getL2OutputIndexAfter(blockNumber)
+  const l2OutputIndex = await L2OutputOracle.getL2OutputIndexAfter(
+    L2BlockNumber
+  )
   const proposal = await L2OutputOracle.getL2Output(l2OutputIndex)
   const proposalBlockNumber = proposal.l2BlockNumber
-  const proposalBlock = await L2Web3.send('eth_getBlockByNumber', [
+  const proposalBlock = await L2Wallet.provider.send('eth_getBlockByNumber', [
     proposalBlockNumber.toNumber(),
     false,
   ])
@@ -386,6 +394,8 @@ const bridgeETHToL1 = async () => {
 }
 
 const bridgeBOBAToL1 = async () => {
+  console.log(`---------------------------------------------------`)
+  console.log(`Start withdrawing BOBA to L1...`)
   const config = await getConfigurations()
   if (!config) {
     return
@@ -485,7 +495,7 @@ const bridgeBOBAToL1 = async () => {
 
   let latestBlockOnL1 = await L2OutputOracle.latestBlockNumber()
   while (latestBlockOnL1 < L2BlockNumber) {
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    await new Promise((resolve) => setTimeout(resolve, 12000))
     latestBlockOnL1 = await L2OutputOracle.latestBlockNumber()
     console.log(
       `Waiting for L2 block: ${L2BlockNumber} - Latest L2 block on L1: ${latestBlockOnL1}`
@@ -494,10 +504,12 @@ const bridgeBOBAToL1 = async () => {
 
   console.log(`---------------------------------------------------`)
   console.log(`L2 block published!`)
-  const l2OutputIndex = await L2OutputOracle.getL2OutputIndexAfter(blockNumber)
+  const l2OutputIndex = await L2OutputOracle.getL2OutputIndexAfter(
+    L2BlockNumber
+  )
   const proposal = await L2OutputOracle.getL2Output(l2OutputIndex)
   const proposalBlockNumber = proposal.l2BlockNumber
-  const proposalBlock = await L2Web3.send('eth_getBlockByNumber', [
+  const proposalBlock = await L2Wallet.provider('eth_getBlockByNumber', [
     proposalBlockNumber.toNumber(),
     false,
   ])
@@ -584,17 +596,15 @@ const bridgeBOBAToL1 = async () => {
 const handleCommand = async (command) => {
   if (command === 'depositETH') {
     await bridgeETHToL2()
-  }
-  if (command === 'depositBOBA') {
+  } else if (command === 'depositBOBA') {
     await bridgeBOBAToL2()
-  }
-  if (command === 'withdrawETH') {
+  } else if (command === 'withdrawETH') {
     await bridgeETHToL1()
-  }
-  if (command === 'withdrawBOBA') {
+  } else if (command === 'withdrawBOBA') {
     await bridgeBOBAToL1()
+  } else {
+    console.log('Command not found')
   }
-  console.log('Command not found')
 }
 
 const main = async () => {
