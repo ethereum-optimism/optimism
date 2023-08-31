@@ -1,13 +1,11 @@
 {
-  "numDeployConfirmations": 1,
-
   "finalSystemOwner": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
   "portalGuardian": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
-  "controller": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
 
   "l1StartingBlockTag": "0xf7f91482b4c0c4bb7f6aa67551ac003d5c6fa3d170c2291ebcf346aef655edef",
 
   "l1ChainID": 11155111,
+  "l1BlockTime": 12,
   "l2ChainID": 28882,
   "l2BlockTime": 2,
 
@@ -51,7 +49,5 @@
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
 
   "eip1559Denominator": 50,
-  "eip1559Elasticity": 10,
-
-  "l1BobaTokenAddress": "0x33faF65b3DfcC6A1FccaD4531D9ce518F0FDc896"
+  "eip1559Elasticity": 10
 }
