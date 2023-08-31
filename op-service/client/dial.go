@@ -13,6 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+// RPC is re-exported from op-node/client.
+type RPC client.RPC
+
 // DefaultDialTimeout is a default timeout for dialing a client.
 const DefaultDialTimeout = 1 * time.Minute
 const defaultRetryCount = 30
@@ -47,15 +50,25 @@ func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url stri
 	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 }
 
+// DialPolledClientWithTimeout attempts to dial the RPC provider using the provided URL.
+// If the dial doesn't complete within timeout seconds, this method will return an error.
+func DialPolledClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string, pollInterval time.Duration) (client.RPC, error) {
+	opts := []client.RPCOption{
+		client.WithHttpPollInterval(pollInterval),
+		client.WithDialBackoff(defaultRetryCount),
+	}
+	return client.NewRPC(ctx, log, url, opts...)
+}
+
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
-func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
+func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := retry.Fixed(defaultRetryTime)
 	return retry.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
 		if !client.IsURLAvailable(addr) {
 			log.Warn("failed to dial address, but may connect later", "addr", addr)
 			return nil, fmt.Errorf("address unavailable (%s)", addr)
 		}
-		client, err := rpc.DialOptions(ctx, addr)
+		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 		}

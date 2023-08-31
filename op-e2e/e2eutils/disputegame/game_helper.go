@@ -65,7 +65,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 }
 
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})

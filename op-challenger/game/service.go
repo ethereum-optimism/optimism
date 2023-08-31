@@ -34,7 +34,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
-	client, err := client.DialEthClientWithTimeout(client.DefaultDialTimeout, logger, cfg.L1EthRpc)
+	l1Client, err := client.DialEthClientWithTimeout(client.DefaultDialTimeout, logger, cfg.L1EthRpc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}
@@ -57,10 +57,10 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 				logger.Error("error starting metrics server", "err", err)
 			}
 		}()
-		m.StartBalanceMetrics(ctx, logger, client, txMgr.From())
+		m.StartBalanceMetrics(ctx, logger, l1Client, txMgr.From())
 	}
 
-	factory, err := bindings.NewDisputeGameFactory(cfg.GameFactoryAddress, client)
+	factory, err := bindings.NewDisputeGameFactory(cfg.GameFactoryAddress, l1Client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
 	}
@@ -73,10 +73,15 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		disk,
 		cfg.MaxConcurrency,
 		func(addr common.Address, dir string) (scheduler.GamePlayer, error) {
-			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, addr, txMgr, client)
+			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, addr, txMgr, l1Client)
 		})
 
-	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, client.BlockNumber, cfg.GameAllowlist)
+	polledClient, err := client.DialPolledClientWithTimeout(ctx, client.DefaultDialTimeout, logger, cfg.L1EthRpc, cfg.PollInterval)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial L1: %w", err)
+	}
+
+	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, l1Client.BlockNumber, cfg.GameAllowlist, polledClient)
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()
