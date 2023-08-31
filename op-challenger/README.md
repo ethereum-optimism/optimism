@@ -111,6 +111,17 @@ If the game is resolved successfully, the result is printed.
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.
 
+### [list_games.sh](scripts/list_games.sh)
+
+```shell
+./scripts/list_games.sh <RPC> <GAME_FACTORY_ADDRESS>
+```
+
+Prints the games created by the game factory along with their current status.
+
+* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
+
 ### [list_claims.sh](scripts/list_claims.sh)
 
 ```shell
