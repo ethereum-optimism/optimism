@@ -116,6 +116,12 @@ var (
 		EnvVars: prefixEnvVars("CANNON_SNAPSHOT_FREQ"),
 		Value:   config.DefaultCannonSnapshotFreq,
 	}
+	CannonInfoFreqFlag = &cli.UintFlag{
+		Name:    "cannon-info-freq",
+		Usage:   "Frequency of cannon info log messages to generate in VM steps (cannon trace type only)",
+		EnvVars: prefixEnvVars("CANNON_INFO_FREQ"),
+		Value:   config.DefaultCannonInfoFreq,
+	}
 	GameWindowFlag = &cli.DurationFlag{
 		Name:    "game-window",
 		Usage:   "The time window which the challenger will look for games to progress.",
@@ -146,6 +152,7 @@ var optionalFlags = []cli.Flag{
 	CannonPreStateFlag,
 	CannonL2Flag,
 	CannonSnapshotFreqFlag,
+	CannonInfoFreqFlag,
 	GameWindowFlag,
 }
 
@@ -250,6 +257,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		Datadir:                 ctx.String(DatadirFlag.Name),
 		CannonL2:                ctx.String(CannonL2Flag.Name),
 		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
+		CannonInfoFreq:          ctx.Uint(CannonInfoFreqFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
 		TxMgrConfig:             txMgrConfig,
 		MetricsConfig:           metricsConfig,
