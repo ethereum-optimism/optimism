@@ -1,6 +1,8 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/external"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/state"
 )
@@ -26,21 +29,18 @@ var (
 	L1Deployments *genesis.L1Deployments
 	// DeployConfig represents the deploy config used by the system.
 	DeployConfig *genesis.DeployConfig
-	// ExternalL2Nodes is the shim to use if external ethereum client testing is
+	// ExternalL2Shim is the shim to use if external ethereum client testing is
 	// enabled
-	ExternalL2Nodes string
+	ExternalL2Shim string
+	// ExternalL2TestParms is additional metadata for executing external L2
+	// tests.
+	ExternalL2TestParms external.TestParms
 	// EthNodeVerbosity is the level of verbosity to output
 	EthNodeVerbosity int
 )
 
-// Init testing to enable test flags
-var _ = func() bool {
-	testing.Init()
-	return true
-}()
-
 func init() {
-	var l1AllocsPath, l1DeploymentsPath, deployConfigPath string
+	var l1AllocsPath, l1DeploymentsPath, deployConfigPath, externalL2 string
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -58,8 +58,9 @@ func init() {
 	flag.StringVar(&l1AllocsPath, "l1-allocs", defaultL1AllocsPath, "")
 	flag.StringVar(&l1DeploymentsPath, "l1-deployments", defaultL1DeploymentsPath, "")
 	flag.StringVar(&deployConfigPath, "deploy-config", defaultDeployConfigPath, "")
-	flag.StringVar(&ExternalL2Nodes, "externalL2", "", "Enable tests with external L2")
+	flag.StringVar(&externalL2, "externalL2", "", "Enable tests with external L2")
 	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", 3, "The level of verbosity to use for the eth node logs")
+	testing.Init() // Register test flags before parsing
 	flag.Parse()
 
 	if err := allExist(l1AllocsPath, l1DeploymentsPath, deployConfigPath); err != nil {
@@ -92,6 +93,40 @@ func init() {
 	if L1Deployments != nil {
 		DeployConfig.SetDeployments(L1Deployments)
 	}
+
+	if externalL2 != "" {
+		if err := initExternalL2(externalL2); err != nil {
+			panic(fmt.Errorf("could not initialize external L2: %w", err))
+		}
+	}
+}
+
+func initExternalL2(externalL2 string) error {
+	var err error
+	ExternalL2Shim, err = filepath.Abs(filepath.Join(externalL2, "shim"))
+	if err != nil {
+		return fmt.Errorf("could not compute abs of externalL2Nodes shim: %w", err)
+	}
+
+	_, err = os.Stat(ExternalL2Shim)
+	if err != nil {
+		return fmt.Errorf("failed to stat externalL2Nodes path: %w", err)
+	}
+
+	file, err := os.Open(filepath.Join(externalL2, "test_parms.json"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("could not open external L2 test parms: %w", err)
+	}
+	defer file.Close()
+
+	if err := json.NewDecoder(file).Decode(&ExternalL2TestParms); err != nil {
+		return fmt.Errorf("could not decode external L2 test parms: %w", err)
+	}
+
+	return nil
 }
 
 func allExist(filenames ...string) error {

@@ -41,6 +41,16 @@ process and looks for the lines indicating that the HTTP server and Auth HTTP
 server have started up.  It then reads the ports which were allocated (because
 the requested ports were passed in as ephemeral via the CLI arguments).
 
+## Skipping tests
+
+Although ideally, all tests would be structured such that they may execute
+either with an in-process op-geth or with an extra-process ethereum client,
+this is not always the case.  You may optionally create a `test_parms.json`
+file in the `external_<your-client>` directory, as there is in the
+`external_geth` directory which specifies a map of tests to skip, and
+accompanying skip text.  See the `op-e2e/external/config.go` file for more
+details.
+
 ## Generalization
 
 This shim is included to help document an demonstrate the usage of the
