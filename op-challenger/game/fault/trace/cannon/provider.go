@@ -33,6 +33,10 @@ type proofData struct {
 	OracleOffset uint32        `json:"oracle-offset,omitempty"`
 }
 
+type CannonMetricer interface {
+	RecordCannonExecutionTime(t float64)
+}
+
 type ProofGenerator interface {
 	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
 	GenerateProof(ctx context.Context, dataDir string, proofAt uint64) error
@@ -51,7 +55,7 @@ type CannonTraceProvider struct {
 	lastProof *proofData
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
@@ -65,15 +69,15 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
-	return NewTraceProviderFromInputs(logger, cfg, localInputs, dir), nil
+	return NewTraceProviderFromInputs(logger, m, cfg, localInputs, dir), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, localInputs LocalGameInputs, dir string) *CannonTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:    logger,
 		dir:       dir,
 		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, cfg, localInputs),
+		generator: NewExecutor(logger, m, cfg, localInputs),
 	}
 }
 
