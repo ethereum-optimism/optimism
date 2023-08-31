@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { SafeCall } from "../libraries/SafeCall.sol";
-import { L2OutputOracle } from "./L2OutputOracle.sol";
-import { SystemConfig } from "./SystemConfig.sol";
-import { Constants } from "../libraries/Constants.sol";
-import { Types } from "../libraries/Types.sol";
-import { Hashing } from "../libraries/Hashing.sol";
-import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
-import { Semver } from "../universal/Semver.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {SafeCall} from "../libraries/SafeCall.sol";
+import {L2OutputOracle} from "./L2OutputOracle.sol";
+import {SystemConfig} from "./SystemConfig.sol";
+import {Constants} from "../libraries/Constants.sol";
+import {Types} from "../libraries/Types.sol";
+import {Hashing} from "../libraries/Hashing.sol";
+import {SecureMerkleTrie} from "../libraries/trie/SecureMerkleTrie.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
+import {ResourceMetering} from "./ResourceMetering.sol";
+import {Semver} from "../universal/Semver.sol";
 
 import "../universal/IZkBridgeNativeTokenVault.sol";
 
@@ -67,6 +67,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     address public nativeTokenVault;
 
+    address public sharedSequencerAddr;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -95,7 +97,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param account Address of the account triggering the unpause.
     event Unpaused(address account);
 
-     event NewVault(address vault);
+    event NewVault(address vault);
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
@@ -119,12 +121,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _guardian Address that can pause withdrawals.
     /// @param _paused Sets the contract's pausability state.
     /// @param _systemConfig Address of the SystemConfig contract.
-    function initialize(
-        L2OutputOracle _l2Oracle,
-        address _guardian,
-        SystemConfig _systemConfig,
-        bool _paused
-    )
+    function initialize(L2OutputOracle _l2Oracle, address _guardian, SystemConfig _systemConfig, bool _paused)
         public
         reinitializer(2)
     {
@@ -213,10 +210,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
-    )
-        external
-        whenNotPaused
-    {
+    ) external whenNotPaused {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
@@ -382,13 +376,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _gasLimit   Amount of L2 gas to purchase by burning gas on L1.
     /// @param _isCreation Whether or not the transaction is a contract creation.
     /// @param _data       Data to trigger the recipient with.
-    function depositTransaction(
-        address _to,
-        uint256 _value,
-        uint64 _gasLimit,
-        bool _isCreation,
-        bytes memory _data
-    )
+    function depositTransaction(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes memory _data)
         public
         payable
         metered(_gasLimit)
@@ -409,7 +397,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // transactions are not gossipped over the p2p network.
         require(_data.length <= 120_000, "OptimismPortal: data too large");
 
-        IZkBridgeNativeTokenVault(nativeTokenVault).deposit{value:_value}();
+        IZkBridgeNativeTokenVault(nativeTokenVault).deposit{value: _value}();
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
@@ -426,6 +414,45 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // transaction for this deposit.
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
     }
+
+    function depositTransactionL2(
+        address _from,
+        address _to,
+        uint256 _mint,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    ) public payable metered(_gasLimit) {
+        require(msg.sender == sharedSequencerAddr, "OptimismPortal: Only Sequencer can call this function");
+
+        // Just to be safe, make sure that people specify address(0) as the target when doing
+        // contract creations.
+        if (_isCreation) {
+            require(_to == address(0), "OptimismPortal: must send to address(0) when creating a contract");
+        }
+
+        // Prevent depositing transactions that have too small of a gas limit. Users should pay
+        // more for more resource usage.
+        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
+
+        // Prevent the creation of deposit transactions that have too much calldata. This gives an
+        // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
+        // that the transaction can fit into the p2p network policy of 128kb even though deposit
+        // transactions are not gossipped over the p2p network.
+        require(_data.length <= 120_000, "OptimismPortal: data too large");
+
+        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
+        // We use opaque data so that we can update the TransactionDeposited event in the future
+        // without breaking the current interface.
+        bytes memory opaqueData = abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data);
+
+        // Emit a TransactionDeposited event so that the rollup node can derive a deposit
+        // transaction for this deposit.
+        emit TransactionDeposited(_from, _to, DEPOSIT_VERSION, opaqueData);
+    }
+
+    /// @notice Determines whether the finalization period has elapsed with respect to
 
     /// @notice Determine if a given output is finalized.
     ///         Reverts if the call to L2_ORACLE.getL2Output reverts.
@@ -449,5 +476,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         require(msg.sender == guardian, "OptimismPortal: only guardian can set vault");
 
         nativeTokenVault = _vault;
+    }
+
+    function setSharedSequencer(address _addr) external {
+        require(_addr != address(0), "OptimismPortal: vault cannot be address(0)");
+        require(msg.sender == guardian, "OptimismPortal: only guardian can set vault");
+
+        sharedSequencerAddr = _addr;
     }
 }
