@@ -6,11 +6,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
 	iclients "github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics/clients"
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum-optimism/optimism/op-service/tls"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/pkg/errors"
@@ -29,11 +29,21 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		return
 	}
 
-	nonce, err := client.PendingNonceAt(ctx, p.walletConfig.Address)
-	if err != nil {
-		log.Error("cant get nounce", "provider", p.name, "err", err)
-		return
+	var nonce uint64
+	p.txPool.M.Lock()
+	if p.txPool.Nonce == uint64(0) {
+		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
+		if err != nil {
+			log.Error("cant get nounce", "provider", p.name, "err", err)
+			p.txPool.M.Unlock()
+			return
+		}
+		p.txPool.Nonce = nonce
+	} else {
+		p.txPool.Nonce++
+		nonce = p.txPool.Nonce
 	}
+	p.txPool.M.Unlock()
 
 	txHash := common.Hash{}
 	attempt := 0
@@ -56,7 +66,9 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		roundTripStartedAt = time.Now()
 		err = client.SendTransaction(ctx, signedTx)
 		if err != nil {
-			if err.Error() == txpool.ErrAlreadyKnown.Error() || err.Error() == core.ErrNonceTooLow.Error() {
+			if err.Error() == txpool.ErrAlreadyKnown.Error() ||
+				err.Error() == txpool.ErrReplaceUnderpriced.Error() ||
+				err.Error() == core.ErrNonceTooLow.Error() {
 				if time.Since(firstAttemptAt) >= time.Duration(p.config.SendTransactionRetryTimeout) {
 					log.Error("send transaction timed out (known already)", "provider", p.name, "hash", txHash.Hex(), "elapsed", time.Since(firstAttemptAt), "attempt", attempt, "nonce", nonce)
 					metrics.RecordError(p.name, "ethclient.SendTransaction.nonce")
@@ -64,7 +76,11 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				}
 				log.Warn("tx already known, incrementing nonce and trying again", "provider", p.name, "nonce", nonce)
 				time.Sleep(time.Duration(p.config.SendTransactionRetryInterval))
-				nonce++
+
+				p.txPool.M.Lock()
+				p.txPool.Nonce++
+				nonce = p.txPool.Nonce
+				p.txPool.M.Unlock()
 				attempt++
 				if attempt%10 == 0 {
 					log.Debug("retrying send transaction...", "provider", p.name, "attempt", attempt, "nonce", nonce, "elapsed", time.Since(firstAttemptAt))
