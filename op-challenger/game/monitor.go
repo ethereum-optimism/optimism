@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -26,6 +27,7 @@ type gameScheduler interface {
 
 type gameMonitor struct {
 	logger           log.Logger
+	metrics          metrics.Metricer
 	clock            clock.Clock
 	source           gameSource
 	scheduler        gameScheduler
@@ -36,6 +38,7 @@ type gameMonitor struct {
 
 func newGameMonitor(
 	logger log.Logger,
+	m metrics.Metricer,
 	cl clock.Clock,
 	source gameSource,
 	scheduler gameScheduler,
@@ -45,6 +48,7 @@ func newGameMonitor(
 ) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
+		metrics:          m,
 		clock:            cl,
 		scheduler:        scheduler,
 		source:           source,
