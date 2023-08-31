@@ -25,8 +25,6 @@ const (
 )
 
 type EthClient interface {
-	FinalizedBlockHeight() (*big.Int, error)
-
 	BlockHeaderByNumber(*big.Int) (*types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
@@ -50,24 +48,6 @@ func DialEthClient(rpcUrl string, metrics Metricer) (EthClient, error) {
 
 	client := &client{rpc: newRPC(rpcClient, metrics)}
 	return client, nil
-}
-
-// FinalizedBlockHeight retrieves the latest block height in a finalized state
-func (c *client) FinalizedBlockHeight() (*big.Int, error) {
-	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
-	defer cancel()
-
-	// **NOTE** Local devnet is having issues with the "finalized" block tag. Temp switch
-	// to "latest" to iterate faster locally but this needs to be updated
-	var header *types.Header
-	err := c.rpc.CallContext(ctxwt, &header, "eth_getBlockByNumber", "latest", false)
-	if err != nil {
-		return nil, err
-	} else if header == nil {
-		return nil, ethereum.NotFound
-	}
-
-	return header.Number, nil
 }
 
 // BlockHeaderByHash retrieves the block header attributed to the supplied hash

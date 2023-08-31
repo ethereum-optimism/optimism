@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"math/big"
 	"os"
 	"reflect"
 
@@ -65,21 +64,21 @@ func (c *L1Contracts) AsSlice() ([]common.Address, error) {
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	Preset      int
-	L1Contracts L1Contracts `toml:"l1-contracts"`
-	// L1StartingHeight is the block height to start indexing from
-	L1StartingHeight uint `toml:"l1-starting-height"`
+	Preset int
+
+	L1Contracts      L1Contracts `toml:"l1-contracts"`
+	L1StartingHeight uint        `toml:"l1-starting-height"`
+
+	// These configuration options will be removed once
+	// native reorg handling is implemented
+	L1ConfirmationDepth uint `toml:"l1-confirmation-depth"`
+	L2ConfirmationDepth uint `toml:"l2-confirmation-depth"`
 
 	L1PollingInterval uint `toml:"l1-polling-interval"`
 	L2PollingInterval uint `toml:"l2-polling-interval"`
 
 	L1HeaderBufferSize uint `toml:"l1-header-buffer-size"`
 	L2HeaderBufferSize uint `toml:"l2-header-buffer-size"`
-}
-
-// L1StartHeight returns the block height to start indexing from
-func (cc *ChainConfig) L1StartHeight() *big.Int {
-	return big.NewInt(int64(cc.L1StartingHeight))
 }
 
 // RPCsConfig configures the RPC urls

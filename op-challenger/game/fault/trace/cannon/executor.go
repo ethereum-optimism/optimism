@@ -40,6 +40,7 @@ type Executor struct {
 	l2Genesis        string
 	absolutePreState string
 	snapshotFreq     uint
+	infoFreq         uint
 	selectSnapshot   snapshotSelect
 	cmdExecutor      cmdExecutor
 }
@@ -57,6 +58,7 @@ func NewExecutor(logger log.Logger, cfg *config.Config, inputs LocalGameInputs) 
 		l2Genesis:        cfg.CannonL2GenesisPath,
 		absolutePreState: cfg.CannonAbsolutePreState,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
+		infoFreq:         cfg.CannonInfoFreq,
 		selectSnapshot:   findStartingSnapshot,
 		cmdExecutor:      runCmd,
 	}
@@ -76,6 +78,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--input", start,
 		"--output", lastGeneratedState,
 		"--meta", "",
+		"--info-at", "%" + strconv.FormatUint(uint64(e.infoFreq), 10),
 		"--proof-at", "=" + strconv.FormatUint(i, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),

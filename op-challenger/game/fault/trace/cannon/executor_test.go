@@ -29,6 +29,7 @@ func TestGenerateProof(t *testing.T) {
 	cfg.CannonServer = "./bin/op-program"
 	cfg.CannonL2 = "http://localhost:9999"
 	cfg.CannonSnapshotFreq = 500
+	cfg.CannonInfoFreq = 900
 
 	inputs := LocalGameInputs{
 		L1Head:        common.Hash{0x11},
@@ -81,6 +82,7 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
+		require.Equal(t, "%900", args["--info-at"])
 		// Slight quirk of how we pair off args
 		// The server binary winds up as the key and the first arg --server as the value which has no value
 		// Then everything else pairs off correctly again

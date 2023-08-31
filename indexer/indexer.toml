@@ -1,15 +1,21 @@
 # Chain configures l1 chain addresses
 # Can configure them manually or use a preset l2 ChainId for known chains including OP Mainnet, OP Goerli, Base, Base Goerli, Zora, and Zora goerli
 [chain]
-l1-polling-interval = 0
-l1-header-buffer-size = 0
-
-l2-polling-interval = 0
-l2-header-buffer-size = 0
 
 # OP Goerli
 preset = 420
+
+# L1 Config
+l1-polling-interval = 0
+l1-header-buffer-size = 0
+l1-confirmation-depth = 0
 l1-starting-height = 0
+
+# L2 Config
+l2-polling-interval = 0
+l2-header-buffer-size = 0
+l2-confirmation-depth = 0
+
 
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"

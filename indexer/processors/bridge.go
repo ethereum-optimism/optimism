@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/etl"
 	"github.com/ethereum-optimism/optimism/indexer/processors/bridge"
 
 	"github.com/ethereum/go-ethereum/core/types"
@@ -17,6 +17,7 @@ import (
 type BridgeProcessor struct {
 	log         log.Logger
 	db          *database.DB
+	l1Etl       *etl.L1ETL
 	chainConfig config.ChainConfig
 
 	// NOTE: We'll need this processor to handle for reorgs events.
@@ -25,7 +26,7 @@ type BridgeProcessor struct {
 	LatestL2Header *types.Header
 }
 
-func NewBridgeProcessor(log log.Logger, db *database.DB, chainConfig config.ChainConfig) (*BridgeProcessor, error) {
+func NewBridgeProcessor(log log.Logger, db *database.DB, l1Etl *etl.L1ETL, chainConfig config.ChainConfig) (*BridgeProcessor, error) {
 	log = log.New("processor", "bridge")
 
 	latestL1Header, err := bridge.L1LatestBridgeEventHeader(db, chainConfig)
@@ -56,16 +57,11 @@ func NewBridgeProcessor(log log.Logger, db *database.DB, chainConfig config.Chai
 		log.Info("detected the latest indexed state", "l1_block_number", latestL1Header.Number, "l2_block_number", latestL2Header.Number)
 	}
 
-	return &BridgeProcessor{log, db, chainConfig, latestL1Header, latestL2Header}, nil
+	return &BridgeProcessor{log, db, l1Etl, chainConfig, latestL1Header, latestL2Header}, nil
 }
 
 func (b *BridgeProcessor) Start(ctx context.Context) error {
 	done := ctx.Done()
-
-	// NOTE: This should run on same iterval as L1 ETL rather than as finding the
-	// lasted epoch is constrained to how much L1 data we've indexed.
-	pollTicker := time.NewTicker(5 * time.Second)
-	defer pollTicker.Stop()
 
 	// In order to ensure all seen bridge finalization events correspond with seen
 	// bridge initiated events, we establish a shared marker between L1 and L2 when
@@ -75,9 +71,7 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 	// sequencing epoch and corresponding L1 origin that has also been indexed
 	// serves as this shared marker.
 
-	// TODOs:
-	// 	  1. Fix Logging. Should be clear if we're looking at L1 or L2 side of things
-
+	l1EtlUpdates := b.l1Etl.Notify()
 	b.log.Info("starting bridge processor...")
 	for {
 		select {
@@ -85,18 +79,18 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			b.log.Info("stopping bridge processor")
 			return nil
 
-		case <-pollTicker.C:
+		case <-l1EtlUpdates:
 			latestEpoch, err := b.db.Blocks.LatestEpoch()
 			if err != nil {
 				return err
 			}
 			if latestEpoch == nil {
 				if b.LatestL1Header != nil {
-					// Once we have some satte `latestEpoch` should never return nil.
-					b.log.Error("started with indexed bridge state, but no blocks epochs returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
+					// Once we have some state `latestEpoch` should never return nil.
+					b.log.Error("started with indexed bridge state, but no latest epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
 					return errors.New("started with indexed bridge state, but no blocks epochs returned")
 				} else {
-					b.log.Warn("no indexed block state. waiting...")
+					b.log.Warn("no indexed epochs. waiting...")
 					continue
 				}
 			}
@@ -116,7 +110,7 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			}
 
 			batchLog := b.log.New("epoch_start_number", fromL1Height, "epoch_end_number", toL1Height)
-			batchLog.Info("scanning bridge events")
+			batchLog.Info("scanning for new bridge events")
 			err = b.db.Transaction(func(tx *database.DB) error {
 				l1BridgeLog := b.log.New("from_l1_block_number", fromL1Height, "to_l1_block_number", toL1Height)
 				l2BridgeLog := b.log.New("from_l2_block_number", fromL2Height, "to_l2_block_number", toL2Height)
