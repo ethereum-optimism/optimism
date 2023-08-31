@@ -83,11 +83,9 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) error 
 		}()
 	}
 
-	metrics := NewMetrics(registry)
-	metrics.RecordVersion(version)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", HealthzHandler)
-	mux.Handle("/", Handler(l, metrics))
+	mux.Handle("/", Handler(l))
 	recorder := opmetrics.NewPromHTTPRecorder(registry, MetricsNamespace)
 	mw := opmetrics.NewHTTPRecordingMiddleware(recorder, mux)
 
@@ -103,7 +101,7 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) error 
 	return httputil.ListenAndServeContext(ctx, server)
 }
 
-func Handler(l log.Logger, metrics Metrics) http.HandlerFunc {
+func Handler(l log.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ipStr := r.Header.Get("X-Forwarded-For")
 		// XFF can be a comma-separated list. Left-most is the original client.
@@ -126,15 +124,13 @@ func Handler(l log.Logger, metrics Metrics) http.HandlerFunc {
 		}
 
 		innerL.Info(
-			"got heartbeat",
+			"heartbeat",
 			"version", payload.Version,
 			"meta", payload.Meta,
 			"moniker", payload.Moniker,
 			"peer_id", payload.PeerID,
 			"chain_id", payload.ChainID,
 		)
-
-		metrics.RecordHeartbeat(payload, ipStr)
 
 		w.WriteHeader(204)
 	}

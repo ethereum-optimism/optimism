@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"testing"
@@ -46,37 +45,12 @@ func TestService(t *testing.T) {
 	}
 
 	tests := []struct {
-		name   string
-		hbs    []heartbeat.Payload
-		metric string
-		ip     string
+		name string
+		hbs  []heartbeat.Payload
+		ip   string
 	}{
 		{
-			"no whitelisted version",
-			[]heartbeat.Payload{{
-				Version: "not_whitelisted",
-				Meta:    "whatever",
-				Moniker: "whatever",
-				PeerID:  "1X2398ug",
-				ChainID: 10,
-			}},
-			`op_heartbeat_heartbeats{chain_id="10",version="unknown"} 1`,
-			"1.2.3.100",
-		},
-		{
-			"no whitelisted chain",
-			[]heartbeat.Payload{{
-				Version: "v0.1.0-beta.1",
-				Meta:    "whatever",
-				Moniker: "whatever",
-				PeerID:  "1X2398ug",
-				ChainID: 999,
-			}},
-			`op_heartbeat_heartbeats{chain_id="unknown",version="v0.1.0-beta.1"} 1`,
-			"1.2.3.101",
-		},
-		{
-			"both whitelisted",
+			"valid payload",
 			[]heartbeat.Payload{{
 				Version: "v0.1.0-beta.1",
 				Meta:    "whatever",
@@ -84,29 +58,7 @@ func TestService(t *testing.T) {
 				PeerID:  "1X2398ug",
 				ChainID: 10,
 			}},
-			`op_heartbeat_heartbeats{chain_id="10",version="v0.1.0-beta.1"} 1`,
 			"1.2.3.102",
-		},
-		{
-			"spamming",
-			[]heartbeat.Payload{
-				{
-					Version: "v0.1.0-goerli-rehearsal.1",
-					Meta:    "whatever",
-					Moniker: "alice",
-					PeerID:  "1X2398ug",
-					ChainID: 10,
-				},
-				{
-					Version: "v0.1.0-goerli-rehearsal.1",
-					Meta:    "whatever",
-					Moniker: "bob",
-					PeerID:  "1X2398ug",
-					ChainID: 10,
-				},
-			},
-			`op_heartbeat_heartbeat_same_ip_bucket{chain_id="10",version="v0.1.0-goerli-rehearsal.1",le="32"} 1`,
-			"1.2.3.103",
 		},
 	}
 	for _, tt := range tests {
@@ -122,17 +74,8 @@ func TestService(t *testing.T) {
 				res.Body.Close()
 				require.Equal(t, res.StatusCode, 204)
 			}
-
-			metricsRes, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d", metricsPort))
-			require.NoError(t, err)
-			defer metricsRes.Body.Close()
-			require.NoError(t, err)
-			metricsBody, err := io.ReadAll(metricsRes.Body)
-			require.NoError(t, err)
-			require.Contains(t, string(metricsBody), tt.metric)
 		})
 	}
-
 	cancel()
 	require.NoError(t, <-exitC)
 }
