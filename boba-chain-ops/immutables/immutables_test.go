@@ -13,7 +13,8 @@ import (
 func TestBuildOptimism(t *testing.T) {
 	minimumWithdrawalAmountBig, _ := big.NewInt(0).SetString("8ac7230489e80000", 16)
 	minimumWithdrawalAmount := (*hexutil.Big)(minimumWithdrawalAmountBig)
-	results, err := immutables.BuildOptimism(immutables.ImmutableConfig{
+
+	config := immutables.ImmutableConfig{
 		"L2StandardBridge": {
 			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
@@ -50,7 +51,9 @@ func TestBuildOptimism(t *testing.T) {
 			"_symbol":   "BOBA",
 			"_decimals": uint8(18),
 		},
-	})
+	}
+
+	results, err := immutables.BuildOptimism(config)
 	require.NoError(t, err)
 	require.NotNil(t, results)
 
@@ -85,4 +88,10 @@ func TestBuildOptimism(t *testing.T) {
 		// It is in the set of contracts that we care about
 		require.True(t, contracts[name])
 	}
+
+	// Duplicate results
+	// The contract bytecode should be the same
+	duplicateResults, err := immutables.BuildOptimism(config)
+	require.NoError(t, err)
+	require.Equal(t, results, duplicateResults)
 }

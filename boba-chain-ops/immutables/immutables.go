@@ -9,7 +9,6 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/deployer"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
 	"github.com/ledgerwatch/erigon/accounts/abi/bind/backends"
 	"github.com/ledgerwatch/erigon/common/hexutil"
@@ -62,7 +61,7 @@ func (i ImmutableConfig) Check() error {
 
 // DeploymentResults represents the output of deploying each of the
 // contracts so that the immutables can be set properly in the bytecode.
-type DeploymentResults map[string]hexutility.Bytes
+type DeploymentResults map[string]string
 
 // BuildOptimism will deploy the L2 predeploys so that their immutables are set
 // correctly.
