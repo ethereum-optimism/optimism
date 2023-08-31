@@ -28,6 +28,23 @@ This are not intended to be used in production, only to support manual testing a
 dispute games work. They also serve as examples of how to use `cast` to manually interact with the dispute game
 contracts.
 
+### Understanding Revert Reasons
+
+When actions performed by these scripts fails, they typically print a message that includes the
+abi encoded revert reason provided by the contract. e.g.
+
+```
+Error:
+(code: 3, message: execution reverted, data: Some(String("0x67fe1950")))
+```
+
+The `cast 4byte` command can be used to decode these revert reasons. e.g.
+
+```shell
+$ cast 4byte 0x67fe1950
+GameNotInProgress()
+```
+
 ### Dependencies
 
 These scripts assume that the following tools are installed and available on the current `PATH`:
