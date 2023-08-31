@@ -142,7 +142,7 @@ func createContractInput(input abi.Argument, inputs []ContractInput) ([]Contract
 	}
 
 	internalType := input.Type.String()
-	if inputType == "tuple" {
+	if input.Type.T == abi.TupleTy {
 		internalType = input.Type.TupleRawName
 	}
 
