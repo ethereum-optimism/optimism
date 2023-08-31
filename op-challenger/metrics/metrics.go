@@ -23,6 +23,7 @@ type Metricer interface {
 
 	RecordGameStep()
 	RecordGameMove()
+	RecordCannonExecutionTime(t float64)
 }
 
 type Metrics struct {
@@ -35,8 +36,9 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
-	moves prometheus.Counter
-	steps prometheus.Counter
+	moves               prometheus.Counter
+	steps               prometheus.Counter
+	cannonExecutionTime prometheus.Histogram
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -74,6 +76,12 @@ func NewMetrics() *Metrics {
 			Name:      "steps",
 			Help:      "Number of game steps made by the challenge agent",
 		}),
+		cannonExecutionTime: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: Namespace,
+			Name:      "cannon_execution_time",
+			Help:      "Time (in seconds) to execute cannon",
+			Buckets:   append([]float64{1.0, 10.0}, prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
+		}),
 	}
 }
 
@@ -107,4 +115,8 @@ func (m *Metrics) RecordGameMove() {
 
 func (m *Metrics) RecordGameStep() {
 	m.steps.Add(1)
+}
+
+func (m *Metrics) RecordCannonExecutionTime(t float64) {
+	m.cannonExecutionTime.Observe(t)
 }
