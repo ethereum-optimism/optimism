@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -49,8 +49,8 @@ func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url stri
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
-	bOff := backoff.Fixed(defaultRetryTime)
-	return backoff.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
+	bOff := retry.Fixed(defaultRetryTime)
+	return retry.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
 		if !client.IsURLAvailable(addr) {
 			log.Warn("failed to dial address, but may connect later", "addr", addr)
 			return nil, fmt.Errorf("address unavailable (%s)", addr)

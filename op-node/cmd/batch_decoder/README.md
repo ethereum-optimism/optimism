@@ -63,7 +63,6 @@ jq '.batches|del(.[]|.Transactions)' $CHANNEL_FILE
 
 ## Roadmap
 
-- Parallel transaction fetching (CLI-3563)
 - Pull the batches out of channels & store that information inside the ChannelWithMetadata (CLI-3565)
 	- Transaction Bytes used
 	- Total uncompressed (different from tx bytes) + compressed bytes

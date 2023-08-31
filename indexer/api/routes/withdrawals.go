@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
@@ -42,9 +43,9 @@ type WithdrawalResponse struct {
 }
 
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
-func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransactionHashes) WithdrawalResponse {
-	items := make([]WithdrawalItem, len(withdrawals))
-	for _, withdrawal := range withdrawals {
+func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) WithdrawalResponse {
+	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
+	for _, withdrawal := range withdrawals.Withdrawals {
 		item := WithdrawalItem{
 			Guid: withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
 			Block: Block{
@@ -59,7 +60,7 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 			From:            withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
 			To:              withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
 			TransactionHash: withdrawal.L2TransactionHash.String(),
-			Amount:          withdrawal.L2BridgeWithdrawal.Tx.Amount.Int.String(),
+			Amount:          withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
 			Proof: Proof{
 				TransactionHash: withdrawal.ProvenL1TransactionHash.String(),
 				BlockTimestamp:  withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
@@ -73,7 +74,7 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 			WithdrawalState: "COMPLETE", // TODO
 			L1Token: TokenInfo{
 				ChainId:  1,
-				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.L1TokenAddress.String(),
+				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
 				Name:     "Example", // TODO
 				Symbol:   "EXAMPLE", // TODO
 				Decimals: 18,        // TODO
@@ -83,7 +84,7 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 			},
 			L2Token: TokenInfo{
 				ChainId:  10,
-				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.L2TokenAddress.String(),
+				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.LocalTokenAddress.String(),
 				Name:     "Example", // TODO
 				Symbol:   "EXAMPLE", // TODO
 				Decimals: 18,        // TODO
@@ -96,23 +97,34 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 	}
 
 	return WithdrawalResponse{
-		Cursor:      "42042042-0420-4204-2042-420420420420", // TODO
-		HasNextPage: true,                                   // TODO
+		Cursor:      withdrawals.Cursor,
+		HasNextPage: withdrawals.HasNextPage,
 		Items:       items,
 	}
 }
 
 func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	address := common.HexToAddress(chi.URLParam(r, "address"))
+	cursor := r.URL.Query().Get("cursor")
+	limitQuery := r.URL.Query().Get("limit")
 
-	withdrawals, err := h.BridgeTransfersView.L2BridgeWithdrawalsByAddress(address)
-	if err != nil {
-		http.Error(w, "Internal server error fetching withdrawals", http.StatusInternalServerError)
-		h.Logger.Error("Unable to read deposits from DB")
-		h.Logger.Error(err.Error())
-		return
+	defaultLimit := 100
+	limit := defaultLimit
+	if limitQuery != "" {
+		parsedLimit, err := strconv.Atoi(limitQuery)
+		if err != nil {
+			http.Error(w, "Limit could not be parsed into a number", http.StatusBadRequest)
+			h.Logger.Error("Invalid limit")
+			h.Logger.Error(err.Error())
+		}
+		limit = parsedLimit
 	}
-
+	withdrawals, err := h.BridgeTransfersView.L2BridgeWithdrawalsByAddress(address, cursor, limit)
+	if err != nil {
+		http.Error(w, "Internal server error reading withdrawals", http.StatusInternalServerError)
+		h.Logger.Error("Unable to read withdrawals from DB")
+		h.Logger.Error(err.Error())
+	}
 	response := newWithdrawalResponse(withdrawals)
 
 	jsonResponse(w, h.Logger, response, http.StatusOK)

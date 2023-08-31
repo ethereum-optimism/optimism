@@ -1,0 +1,64 @@
+{
+  "version": "",
+  "chainId": "",
+  "createdAt": 0,
+  "meta": {
+    "createdFromSafeAddress": "",
+    "createdFromOwnerAddress": "",
+    "name": "",
+    "description": ""
+  },
+  "transactions": [
+    {
+      "to": "0x0000000000000000000000000000000000000001",
+      "value": "222",
+      "data": "0x8c3152e900000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000c00000000000000000000000000000000000000000000000000000000000000000",
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "TypesWithdrawalTransaction",
+            "name": "_tx",
+            "type": "tuple",
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "nonce",
+                "type": "uint256"
+              },
+              {
+                "internalType": "address",
+                "name": "sender",
+                "type": "address"
+              },
+              {
+                "internalType": "address",
+                "name": "target",
+                "type": "address"
+              },
+              {
+                "internalType": "uint256",
+                "name": "value",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "gasLimit",
+                "type": "uint256"
+              },
+              {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+              }
+            ]
+          }
+        ],
+        "name": "finalizeWithdrawalTransaction",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_tx": "[0,0x0000000000000000000000000000000000000001,0x0000000000000000000000000000000000000002,1,2,0x]"
+      }
+    }
+  ]
+}

@@ -24,7 +24,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 

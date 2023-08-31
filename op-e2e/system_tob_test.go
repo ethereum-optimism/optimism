@@ -41,7 +41,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -124,7 +124,7 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -169,7 +169,7 @@ type TestAccount struct {
 // startConfigWithTestAccounts takes a SystemConfig, generates additional accounts, adds them to the config, so they
 // are funded on startup, starts the system, and imports the keys into the keystore, and obtains transaction opts for
 // each account.
-func startConfigWithTestAccounts(cfg *SystemConfig, accountsToGenerate int) (*System, []*TestAccount, error) {
+func startConfigWithTestAccounts(t *testing.T, cfg *SystemConfig, accountsToGenerate int) (*System, []*TestAccount, error) {
 	// Create our test accounts and add them to the pre-mine cfg.
 	testAccounts := make([]*TestAccount, 0)
 	var err error
@@ -211,7 +211,7 @@ func startConfigWithTestAccounts(cfg *SystemConfig, accountsToGenerate int) (*Sy
 	}
 
 	// Start our system
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	if err != nil {
 		return sys, nil, err
 	}
@@ -233,7 +233,7 @@ func TestMixedDepositValidity(t *testing.T) {
 
 	// Create our system configuration, funding all accounts we created for L1/L2, and start it
 	cfg := DefaultSystemConfig(t)
-	sys, testAccounts, err := startConfigWithTestAccounts(&cfg, accountUsedToDeposit)
+	sys, testAccounts, err := startConfigWithTestAccounts(t, &cfg, accountUsedToDeposit)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -400,7 +400,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			cfg.DeployConfig.L2BlockTime = 2
 			require.LessOrEqual(t, cfg.DeployConfig.FinalizationPeriodSeconds, uint64(6))
 			require.Equal(t, cfg.DeployConfig.FundDevAccounts, true)
-			sys, err := cfg.Start()
+			sys, err := cfg.Start(t)
 			require.NoError(t, err, "error starting up system")
 			defer sys.Close()
 
@@ -544,7 +544,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			cancel()
 			require.Nil(t, err)
 
-			rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
 			require.Nil(t, err)
 			proofCl := gethclient.New(rpcClient)
 			receiptCl := ethclient.NewClient(rpcClient)
@@ -715,7 +715,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			// TODO: Check L1 balance as well here. We avoided this due to time constraints as it seems L1 fees
 			//  were off slightly.
 			_ = endL1Balance
-			//require.Equal(t, transactor.ExpectedL1Balance, endL1Balance, "Unexpected L1 balance for transactor")
+			// require.Equal(t, transactor.ExpectedL1Balance, endL1Balance, "Unexpected L1 balance for transactor")
 			require.Equal(t, transactor.ExpectedL1Nonce, endL1Nonce, "Unexpected L1 nonce for transactor")
 			require.Equal(t, transactor.ExpectedL2Nonce, endL2SeqNonce, "Unexpected L2 sequencer nonce for transactor")
 			require.Equal(t, transactor.ExpectedL2Balance, endL2SeqBalance, "Unexpected L2 sequencer balance for transactor")

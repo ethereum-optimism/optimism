@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Semver } from "./Semver.sol";
 
 /// @custom:proxied
@@ -11,9 +12,10 @@ import { Semver } from "./Semver.sol";
 ///         contracts on the network it's deployed to. Simplifies the deployment process for users
 ///         who may be less familiar with deploying smart contracts. Designed to be backwards
 ///         compatible with the older StandardL2ERC20Factory contract.
-contract OptimismMintableERC20Factory is Semver {
+contract OptimismMintableERC20Factory is Semver, Initializable {
     /// @notice Address of the StandardBridge on this chain.
-    address public immutable BRIDGE;
+    /// @custom:network-specific
+    address public bridge;
 
     /// @custom:legacy
     /// @notice Emitted whenever a new OptimismMintableERC20 is created. Legacy version of the newer
@@ -28,13 +30,25 @@ contract OptimismMintableERC20Factory is Semver {
     /// @param deployer    Address of the account that deployed the token.
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    /// @custom:semver 1.2.0
+    /// @custom:semver 1.3.0
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
+    constructor() Semver(1, 3, 0) {
+        initialize({ _bridge: address(0) });
+    }
+
+    /// @notice Initializer.
     /// @param _bridge Address of the StandardBridge on this chain.
-    constructor(address _bridge) Semver(1, 2, 0) {
-        BRIDGE = _bridge;
+    function initialize(address _bridge) public reinitializer(2) {
+        bridge = _bridge;
+    }
+
+    /// @notice Returns the address of the StandardBridge on this chain.
+    ///         This is a legacy getter, use `bridge` instead.
+    /// @custom:legacy
+    function BRIDGE() external view returns (address) {
+        return bridge;
     }
 
     /// @custom:legacy
@@ -71,7 +85,7 @@ contract OptimismMintableERC20Factory is Semver {
         require(_remoteToken != address(0), "OptimismMintableERC20Factory: must provide remote token address");
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
-        address localToken = address(new OptimismMintableERC20{salt: salt}(BRIDGE, _remoteToken, _name, _symbol));
+        address localToken = address(new OptimismMintableERC20{salt: salt}(bridge, _remoteToken, _name, _symbol));
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, localToken);

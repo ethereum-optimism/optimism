@@ -8,7 +8,7 @@ import {
   optimistAddress,
 } from '@eth-optimism/contracts-ts'
 
-import { OptimismFeeEstimationPlugin } from './plugin'
+import { OptimismPlugin } from './plugin'
 
 const defaultProvider = 'https://mainnet.optimism.io'
 const provider = z
@@ -21,17 +21,17 @@ if (provider === defaultProvider)
     'Warning: Using default public provider, this could cause tests to fail due to rate limits. Set the VITE_L2_RPC_URL env to override default provider'
   )
 
-describe('OptimismFeeEstimationPlugin', () => {
+describe('OptimismPlugin', () => {
   let web3: Web3
 
   beforeAll(() => {
     web3 = new Web3(provider)
-    web3.registerPlugin(new OptimismFeeEstimationPlugin())
+    web3.registerPlugin(new OptimismPlugin())
   })
 
   test('should be registered under .op namespace', () =>
     expect(web3.op).toMatchInlineSnapshot(`
-      OptimismFeeEstimationPlugin {
+      OptimismPlugin {
         "_accountProvider": {
           "create": [Function],
           "decrypt": [Function],
@@ -62,7 +62,7 @@ describe('OptimismFeeEstimationPlugin', () => {
             Symbol(kCapture): false,
           },
           "_provider": HttpProvider {
-            "clientUrl": "https://mainnet.optimism.io",
+            "clientUrl": "https://opt-mainnet.g.alchemy.com/v2/OVlbpe9COlhG-ijOXGvL_phb5ns6p9-w",
             "httpProviderOptions": undefined,
           },
           "useRpcCallSpecification": undefined,
@@ -88,7 +88,7 @@ describe('OptimismFeeEstimationPlugin', () => {
               Symbol(kCapture): false,
             },
             "_provider": HttpProvider {
-              "clientUrl": "https://mainnet.optimism.io",
+              "clientUrl": "https://opt-mainnet.g.alchemy.com/v2/OVlbpe9COlhG-ijOXGvL_phb5ns6p9-w",
               "httpProviderOptions": undefined,
             },
             "useRpcCallSpecification": undefined,

@@ -104,9 +104,9 @@ func RollupNodeMain(ctx *cli.Context) error {
 
 	// Only pretty-print the banner if it is a terminal log. Other log it as key-value pairs.
 	if logCfg.Format == "terminal" {
-		log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkName))
+		log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkDisplayName))
 	} else {
-		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkName)
+		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkDisplayName)
 	}
 
 	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta, m)

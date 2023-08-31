@@ -543,14 +543,35 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 		return err
 	}
 
-	bridge, err := contract.BRIDGE(&bind.CallOpts{})
+	bridgeLegacy, err := contract.BRIDGE(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
-	log.Info("OptimismMintableERC20Factory", "BRIDGE", bridge.Hex())
-	if bridge == (common.Address{}) {
+	log.Info("OptimismMintableERC20Factory", "BRIDGE", bridgeLegacy.Hex())
+	if bridgeLegacy == (common.Address{}) {
 		return errors.New("OptimismMintableERC20Factory.BRIDGE is zero address")
 	}
+
+	bridge, err := contract.Bridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if bridge == (common.Address{}) {
+		return errors.New("OptimismMintableERC20Factory.bridge is zero address")
+	}
+	log.Info("OptimismMintableERC20Factory", "bridge", bridge.Hex())
+
+	initialized, err := getInitialized("OptimismMintableERC20Factory", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC20Factory", "_initialized", initialized)
+
+	initializing, err := getInitializing("OptimismMintableERC20Factory", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC20Factory", "_initializing", initializing)
 
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {

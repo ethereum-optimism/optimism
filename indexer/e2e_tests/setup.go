@@ -43,14 +43,16 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
-	// Replace the handler of the global logger with the testlog
-	logger := testlog.Logger(t, log.LvlInfo)
-	log.Root().SetHandler(logger.GetHandler())
+	// Discard the Global Logger as each component
+	// has its own configured logger
+	log.Root().SetHandler(log.DiscardHandler())
 
 	// Rollup System Configuration and Start
 	opCfg := op_e2e.DefaultSystemConfig(t)
-	opSys, err := opCfg.Start()
+	opCfg.DeployConfig.FinalizationPeriodSeconds = 2
+	opSys, err := opCfg.Start(t)
 	require.NoError(t, err)
+	t.Cleanup(func() { opSys.Close() })
 
 	// E2E tests can run on the order of magnitude of minutes. Once
 	// the system is running, mark this test for Parallel execution
@@ -58,7 +60,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
-
 		DB: config.DBConfig{
 			Host: "127.0.0.1",
 			Port: 5432,
@@ -66,46 +67,41 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			User: dbUser,
 		},
 		RPCs: config.RPCsConfig{
-			L1RPC: opSys.Nodes["l1"].HTTPEndpoint(),
-			L2RPC: opSys.Nodes["sequencer"].HTTPEndpoint(),
+			L1RPC: opSys.EthInstances["l1"].HTTPEndpoint(),
+			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
 		},
 		Chain: config.ChainConfig{
+			L1PollingInterval:   uint(opCfg.DeployConfig.L1BlockTime) * 1000,
+			L1ConfirmationDepth: 0,
+			L2PollingInterval:   uint(opCfg.DeployConfig.L2BlockTime) * 1000,
+			L2ConfirmationDepth: 0,
 			L1Contracts: config.L1Contracts{
-				OptimismPortal:         opCfg.L1Deployments.OptimismPortalProxy,
-				L2OutputOracle:         opCfg.L1Deployments.L2OutputOracleProxy,
-				L1CrossDomainMessenger: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
-				L1StandardBridge:       opCfg.L1Deployments.L1StandardBridgeProxy,
-				L1ERC721Bridge:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+				OptimismPortalProxy:         opCfg.L1Deployments.OptimismPortalProxy,
+				L2OutputOracleProxy:         opCfg.L1Deployments.L2OutputOracleProxy,
+				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
+				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 			},
+		},
+		Metrics: config.MetricsConfig{
+			Host: "127.0.0.1",
+			Port: 0,
 		},
 	}
 
 	db, err := database.NewDB(indexerCfg.DB)
 	require.NoError(t, err)
-	indexer, err := indexer.NewIndexer(
-		indexerCfg.Chain,
-		indexerCfg.RPCs,
-		db,
-		logger,
-	)
+	t.Cleanup(func() { db.Close() })
+
+	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
+	indexer, err := indexer.NewIndexer(indexerLog, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.Metrics)
 	require.NoError(t, err)
 
-	indexerStoppedCh := make(chan interface{}, 1)
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
+	t.Cleanup(func() { indexerStop() })
 	go func() {
 		err := indexer.Run(indexerCtx)
 		require.NoError(t, err)
-		indexerStoppedCh <- nil
 	}()
-
-	t.Cleanup(func() {
-		indexerStop()
-		<-indexerStoppedCh
-
-		indexer.Cleanup()
-		db.Close()
-		opSys.Close()
-	})
 
 	return E2ETestSuite{
 		t:        t,

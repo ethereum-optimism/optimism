@@ -7,17 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func bigIntMatcher(num int64) func(*big.Int) bool {
-	return func(bi *big.Int) bool { return bi.Int64() == num }
-}
-
 func TestClampBigInt(t *testing.T) {
 	assert.True(t, true)
 
 	start := big.NewInt(1)
 	end := big.NewInt(10)
 
-	// When the (start, end) boudnds are within range
+	// When the (start, end) bounds are within range
 	// the same end pointer should be returned
 
 	// larger range

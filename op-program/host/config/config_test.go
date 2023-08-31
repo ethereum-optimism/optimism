@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	validRollupConfig    = &chaincfg.Goerli
+	validRollupConfig    = chaincfg.Goerli
 	validL2Genesis       = params.GoerliChainConfig
 	validL1Head          = common.Hash{0xaa}
 	validL2Head          = common.Hash{0xbb}

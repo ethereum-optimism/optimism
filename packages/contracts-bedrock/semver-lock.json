@@ -6,7 +6,7 @@
   "src/L1/L1StandardBridge.sol": "0xbd7b303cefe46bc14bf1a2b81e5702ff45ce9c5257524e59778e11c75f7f5bdc",
   "src/L1/L2OutputOracle.sol": "0x05ea17a834563ffa50cade81189b120b6f0805ba316d6a9893c8cf8b231e57e3",
   "src/L1/OptimismPortal.sol": "0xeefcc16d30e14ed7ce9970f3aeaf1d5668324b3fc1ddb4790da5804cfdd78980",
-  "src/L1/SystemConfig.sol": "0x29beec0a03b9602a53e3ceaec2354972d917f8b80f1b3a8f03f4fb7a67753fce",
+  "src/L1/SystemConfig.sol": "0xd5904b53153f2e32be28f2ce1ea51374b19fdf4f478f486f02cf67d8b62b7c29",
   "src/L2/BaseFeeVault.sol": "0xd8df28898799b80c370e77e9aad09f79235dfda2bf13e56daf21997cfe54200d",
   "src/L2/GasPriceOracle.sol": "0xb7d8c4f3ea8db31900125e341aae42a862a2b7d3f1c1aa60c97dc2d0e022b7ba",
   "src/L2/L1Block.sol": "0x38ea78a9611656a60ae4d58db75e96413a638e3ccb2e935052441f98a1fd3105",
@@ -25,7 +25,7 @@
   "src/periphery/op-nft/OptimistAllowlist.sol": "0x53e9a9dfecbae036fd468e8f34c80c7d9c35bd8908c8a6483db44dbc5128ad69",
   "src/periphery/op-nft/OptimistInviter.sol": "0xfdd5b9d45205ef9372ba37f7a6394724695e676d27a47cb154ee6e4148490013",
   "src/universal/OptimismMintableERC20.sol": "0xa0b4f168802d0f9eca9ddc54347ca66c34ad7aa0fd84b01e0d7e99a9f86f46d6",
-  "src/universal/OptimismMintableERC20Factory.sol": "0x8afb6b634f40e8ac8c60ec7e2ca3bcd610b020d09b3cae70a3d4995722cab3ce",
+  "src/universal/OptimismMintableERC20Factory.sol": "0xf4beb7fed4defc3e70b2298831bf0024cceaa8f1cf55fd98c00f5998b8ab5589",
   "src/universal/OptimismMintableERC721.sol": "0x49dc863caf3e002bf0c90b3af3873990fb282771f4c63735fd61a885b7873983",
   "src/universal/OptimismMintableERC721Factory.sol": "0x502438b009bfaf0ab187914662468261f10446fd85d44a79b29cdaef7b4982ba"
 }

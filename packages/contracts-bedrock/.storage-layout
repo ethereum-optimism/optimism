@@ -259,8 +259,11 @@
 ➡ src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory
 =======================
 
-| Name | Type | Slot | Offset | Bytes | Contract |
-|------|------|------|--------|-------|----------|
+| Name          | Type    | Slot | Offset | Bytes | Contract                                                                    |
+|---------------|---------|------|--------|-------|-----------------------------------------------------------------------------|
+| _initialized  | uint8   | 0    | 0      | 1     | src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory |
+| _initializing | bool    | 0    | 1      | 1     | src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory |
+| bridge        | address | 0    | 2      | 20    | src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory |
 
 =======================
 ➡ src/dispute/DisputeGameFactory.sol:DisputeGameFactory

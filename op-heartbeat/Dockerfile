@@ -1,4 +1,4 @@
-FROM golang:1.19.9-alpine3.16 as builder
+FROM golang:1.20.7-alpine3.18 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
@@ -15,7 +15,7 @@ WORKDIR /app/op-heartbeat
 
 RUN make op-heartbeat
 
-FROM alpine:3.16
+FROM alpine:3.18
 
 COPY --from=builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin
 

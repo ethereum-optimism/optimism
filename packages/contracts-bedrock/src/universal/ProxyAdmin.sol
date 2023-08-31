@@ -5,6 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Proxy } from "./Proxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /// @title IStaticERC1967Proxy
 /// @notice IStaticERC1967Proxy is a static version of the ERC1967 proxy interface.
@@ -163,9 +164,7 @@ contract ProxyAdmin is Ownable {
             Proxy(_proxy).upgradeTo(_implementation);
         } else if (ptype == ProxyType.CHUGSPLASH) {
             L1ChugSplashProxy(_proxy).setStorage(
-                // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-                0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc,
-                bytes32(uint256(uint160(_implementation)))
+                Constants.PROXY_IMPLEMENTATION_ADDRESS, bytes32(uint256(uint160(_implementation)))
             );
         } else if (ptype == ProxyType.RESOLVED) {
             string memory name = implementationName[_proxy];

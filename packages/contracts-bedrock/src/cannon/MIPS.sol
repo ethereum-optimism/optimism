@@ -67,7 +67,7 @@ contract MIPS {
     }
 
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
-    function SE(uint32 _dat, uint32 _idx) internal pure returns (uint32) {
+    function SE(uint32 _dat, uint32 _idx) internal pure returns (uint32 out_) {
         unchecked {
             bool isSigned = (_dat >> (_idx - 1)) != 0;
             uint256 signed = ((1 << (32 - _idx)) - 1) << _idx;
@@ -771,112 +771,168 @@ contract MIPS {
     }
 
     /// @notice Execute an instruction.
-    function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32) {
+    function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32 out) {
         unchecked {
             uint32 opcode = insn >> 26; // 6-bits
-            uint32 func = insn & 0x3f; // 6-bits
 
-            if (opcode < 0x20) {
-                // transform ArithLogI
-                // TODO(CLI-4136): replace with table
-                if (opcode >= 8 && opcode < 0xF) {
-                    if (opcode == 8) func = 0x20; // addi
-
-                    else if (opcode == 9) func = 0x21; // addiu
-
-                    else if (opcode == 0xa) func = 0x2a; // slti
-
-                    else if (opcode == 0xb) func = 0x2B; // sltiu
-
-                    else if (opcode == 0xc) func = 0x24; // andi
-
-                    else if (opcode == 0xd) func = 0x25; // ori
-
-                    else if (opcode == 0xe) func = 0x26; // xori
-                    opcode = 0;
+            if (opcode == 0 || (opcode >= 8 && opcode < 0xF)) {
+                uint32 func = insn & 0x3f; // 6-bits
+                assembly {
+                    // transform ArithLogI to SPECIAL
+                    switch opcode
+                    // addi
+                    case 0x8 { func := 0x20 }
+                    // addiu
+                    case 0x9 { func := 0x21 }
+                    // stli
+                    case 0xA { func := 0x2A }
+                    // sltiu
+                    case 0xB { func := 0x2B }
+                    // andi
+                    case 0xC { func := 0x24 }
+                    // ori
+                    case 0xD { func := 0x25 }
+                    // xori
+                    case 0xE { func := 0x26 }
                 }
 
-                // 0 is opcode SPECIAL
-                if (opcode == 0) {
-                    uint32 shamt = (insn >> 6) & 0x1f;
-                    if (func < 0x20) {
-                        // jr/jalr/div + others
-                        if (func >= 0x08) {
-                            return rs;
-                        }
-                        // sll: Logical Shift Left
-                        else if (func == 0x00) {
-                            return rt << shamt;
-                        }
-                        // srl: Logical Shift Right
-                        else if (func == 0x02) {
-                            return rt >> shamt;
-                        }
-                        // sra: Arithmetic Shift Right
-                        else if (func == 0x03) {
-                            return SE(rt >> shamt, 32 - shamt);
-                        }
-                        // sllv: Variable Logical Shift Left
-                        else if (func == 0x04) {
-                            return rt << (rs & 0x1F);
-                        }
-                        // srlv: Variable Logical Shift Right
-                        else if (func == 0x06) {
-                            return rt >> (rs & 0x1F);
-                        }
-                        // srav: Variable Arithmetic Shift Right
-                        else if (func == 0x07) {
-                            return SE(rt >> rs, 32 - rs);
-                        }
-                    }
-
-                    // R-type (ArithLog)
-                    // 0x10-0x13 = mfhi, mthi, mflo, mtlo
-                    // add or addu
-                    if (func == 0x20 || func == 0x21) {
-                        return rs + rt;
-                    }
-                    // sub or subu
-                    else if (func == 0x22 || func == 0x23) {
-                        return rs - rt;
-                    }
-                    // and
-                    else if (func == 0x24) {
-                        return rs & rt;
-                    }
-                    // or
-                    else if (func == 0x25) {
-                        return (rs | rt);
-                    }
-                    // xor
-                    else if (func == 0x26) {
-                        return (rs ^ rt);
-                    }
-                    // nor
-                    else if (func == 0x27) {
-                        return ~(rs | rt);
-                    }
-                    // slt: Set to 1 if less than
-                    else if (func == 0x2a) {
-                        return int32(rs) < int32(rt) ? 1 : 0;
-                    }
-                    // sltu: Set to 1 if less than unsigned
-                    else if (func == 0x2B) {
-                        return rs < rt ? 1 : 0;
-                    }
+                // sll
+                if (func == 0x00) {
+                    return rt << ((insn >> 6) & 0x1F);
                 }
-                // lui: Load Upper Immediate
-                else if (opcode == 0xf) {
-                    return rt << 16;
+                // srl
+                else if (func == 0x02) {
+                    return rt >> ((insn >> 6) & 0x1F);
                 }
+                // sra
+                else if (func == 0x03) {
+                    uint32 shamt = (insn >> 6) & 0x1F;
+                    return SE(rt >> shamt, 32 - shamt);
+                }
+                // sllv
+                else if (func == 0x04) {
+                    return rt << (rs & 0x1F);
+                }
+                // srlv
+                else if (func == 0x6) {
+                    return rt >> (rs & 0x1F);
+                }
+                // srav
+                else if (func == 0x07) {
+                    return SE(rt >> rs, 32 - rs);
+                }
+                // functs in range [0x8, 0x1b] are handled specially by other functions
+                // Explicitly enumerate each funct in range to reduce code diff against Go Vm
+                // jr
+                else if (func == 0x08) {
+                    return rs;
+                }
+                // jalr
+                else if (func == 0x09) {
+                    return rs;
+                }
+                // movz
+                else if (func == 0x0a) {
+                    return rs;
+                }
+                // movn
+                else if (func == 0x0b) {
+                    return rs;
+                }
+                // syscall
+                else if (func == 0x0c) {
+                    return rs;
+                }
+                // 0x0d - break not supported
+                // sync
+                else if (func == 0x0f) {
+                    return rs;
+                }
+                // mfhi
+                else if (func == 0x10) {
+                    return rs;
+                }
+                // mthi
+                else if (func == 0x11) {
+                    return rs;
+                }
+                // mflo
+                else if (func == 0x12) {
+                    return rs;
+                }
+                // mtlo
+                else if (func == 0x13) {
+                    return rs;
+                }
+                // mult
+                else if (func == 0x18) {
+                    return rs;
+                }
+                // multu
+                else if (func == 0x19) {
+                    return rs;
+                }
+                // div
+                else if (func == 0x1a) {
+                    return rs;
+                }
+                // divu
+                else if (func == 0x1b) {
+                    return rs;
+                }
+                // The rest includes transformed R-type arith imm instructions
+                // add
+                else if (func == 0x20) {
+                    return (rs + rt);
+                }
+                // addu
+                else if (func == 0x21) {
+                    return (rs + rt);
+                }
+                // sub
+                else if (func == 0x22) {
+                    return (rs - rt);
+                }
+                // subu
+                else if (func == 0x23) {
+                    return (rs - rt);
+                }
+                // and
+                else if (func == 0x24) {
+                    return (rs & rt);
+                }
+                // or
+                else if (func == 0x25) {
+                    return (rs | rt);
+                }
+                // xor
+                else if (func == 0x26) {
+                    return (rs ^ rt);
+                }
+                // nor
+                else if (func == 0x27) {
+                    return ~(rs | rt);
+                }
+                // slti
+                else if (func == 0x2a) {
+                    return int32(rs) < int32(rt) ? 1 : 0;
+                }
+                // sltiu
+                else if (func == 0x2b) {
+                    return rs < rt ? 1 : 0;
+                } else {
+                    revert("invalid instruction");
+                }
+            } else {
                 // SPECIAL2
-                else if (opcode == 0x1c) {
+                if (opcode == 0x1C) {
+                    uint32 func = insn & 0x3f; // 6-bits
                     // mul
-                    if (func == 2) {
+                    if (func == 0x2) {
                         return uint32(int32(rs) * int32(rt));
                     }
-                    // clo
-                    if (func == 0x20 || func == 0x21) {
+                    // clz, clo
+                    else if (func == 0x20 || func == 0x21) {
                         if (func == 0x20) {
                             rs = ~rs;
                         }
@@ -888,9 +944,12 @@ contract MIPS {
                         return i;
                     }
                 }
-            } else if (opcode < 0x28) {
+                // lui
+                else if (opcode == 0x0F) {
+                    return rt << 16;
+                }
                 // lb
-                if (opcode == 0x20) {
+                else if (opcode == 0x20) {
                     return SE((mem >> (24 - (rs & 3) * 8)) & 0xFF, 8);
                 }
                 // lh
@@ -911,54 +970,55 @@ contract MIPS {
                 else if (opcode == 0x24) {
                     return (mem >> (24 - (rs & 3) * 8)) & 0xFF;
                 }
-                // lhu
+                //  lhu
                 else if (opcode == 0x25) {
                     return (mem >> (16 - (rs & 2) * 8)) & 0xFFFF;
                 }
-                // lwr
+                //  lwr
                 else if (opcode == 0x26) {
                     uint32 val = mem >> (24 - (rs & 3) * 8);
                     uint32 mask = uint32(0xFFFFFFFF) >> (24 - (rs & 3) * 8);
                     return (rt & ~mask) | val;
                 }
+                //  sb
+                else if (opcode == 0x28) {
+                    uint32 val = (rt & 0xFF) << (24 - (rs & 3) * 8);
+                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (rs & 3) * 8));
+                    return (mem & mask) | val;
+                }
+                //  sh
+                else if (opcode == 0x29) {
+                    uint32 val = (rt & 0xFFFF) << (16 - (rs & 2) * 8);
+                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (rs & 2) * 8));
+                    return (mem & mask) | val;
+                }
+                //  swl
+                else if (opcode == 0x2a) {
+                    uint32 val = rt >> ((rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) >> ((rs & 3) * 8);
+                    return (mem & ~mask) | val;
+                }
+                //  sw
+                else if (opcode == 0x2b) {
+                    return rt;
+                }
+                //  swr
+                else if (opcode == 0x2e) {
+                    uint32 val = rt << (24 - (rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) << (24 - (rs & 3) * 8);
+                    return (mem & ~mask) | val;
+                }
+                // ll
+                else if (opcode == 0x30) {
+                    return mem;
+                }
+                // sc
+                else if (opcode == 0x38) {
+                    return rt;
+                } else {
+                    revert("invalid instruction");
+                }
             }
-            // sb
-            else if (opcode == 0x28) {
-                uint32 val = (rt & 0xFF) << (24 - (rs & 3) * 8);
-                uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (rs & 3) * 8));
-                return (mem & mask) | val;
-            }
-            // sh
-            else if (opcode == 0x29) {
-                uint32 val = (rt & 0xFFFF) << (16 - (rs & 2) * 8);
-                uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (rs & 2) * 8));
-                return (mem & mask) | val;
-            }
-            // swl
-            else if (opcode == 0x2a) {
-                uint32 val = rt >> ((rs & 3) * 8);
-                uint32 mask = uint32(0xFFFFFFFF) >> ((rs & 3) * 8);
-                return (mem & ~mask) | val;
-            }
-            // sw
-            else if (opcode == 0x2b) {
-                return rt;
-            }
-            // swr
-            else if (opcode == 0x2e) {
-                uint32 val = rt << (24 - (rs & 3) * 8);
-                uint32 mask = uint32(0xFFFFFFFF) << (24 - (rs & 3) * 8);
-                return (mem & ~mask) | val;
-            }
-            // ll
-            else if (opcode == 0x30) {
-                return mem;
-            }
-            // sc
-            else if (opcode == 0x38) {
-                return rt;
-            }
-
             revert("invalid instruction");
         }
     }

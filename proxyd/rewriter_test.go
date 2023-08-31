@@ -48,7 +48,7 @@ func TestRewriteRequest(t *testing.T) {
 				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"fromBlock": hexutil.Uint64(55).String()}})},
 				res:  nil,
 			},
-			expected: RewriteNone,
+			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
 				err := json.Unmarshal(args.req.Params, &p)
@@ -88,7 +88,7 @@ func TestRewriteRequest(t *testing.T) {
 				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"toBlock": hexutil.Uint64(55).String()}})},
 				res:  nil,
 			},
-			expected: RewriteNone,
+			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
 				err := json.Unmarshal(args.req.Params, &p)
@@ -147,6 +147,62 @@ func TestRewriteRequest(t *testing.T) {
 			},
 			expected:    RewriteOverrideError,
 			expectedErr: ErrRewriteBlockOutOfRange,
+		},
+		{
+			name: "eth_getLogs fromBlock -> toBlock above max range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), maxBlockRange: 30},
+				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"fromBlock": hexutil.Uint64(20).String(), "toBlock": hexutil.Uint64(80).String()}})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteRangeTooLarge,
+		},
+		{
+			name: "eth_getLogs earliest -> latest above max range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), maxBlockRange: 30},
+				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"fromBlock": "earliest", "toBlock": "latest"}})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteRangeTooLarge,
+		},
+		{
+			name: "eth_getLogs earliest -> pending above max range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), maxBlockRange: 30},
+				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"fromBlock": "earliest", "toBlock": "pending"}})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteRangeTooLarge,
+		},
+		{
+			name: "eth_getLogs earliest -> default above max range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), maxBlockRange: 30},
+				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"fromBlock": "earliest"}})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteRangeTooLarge,
+		},
+		{
+			name: "eth_getLogs default -> latest within range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), maxBlockRange: 30},
+				req:  &RPCReq{Method: "eth_getLogs", Params: mustMarshalJSON([]map[string]interface{}{{"toBlock": "latest"}})},
+				res:  nil,
+			},
+			expected: RewriteOverrideRequest,
+			check: func(t *testing.T, args args) {
+				var p []map[string]interface{}
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, hexutil.Uint64(100).String(), p[0]["fromBlock"])
+				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
+			},
 		},
 		/* required parameter at pos 0 */
 		{

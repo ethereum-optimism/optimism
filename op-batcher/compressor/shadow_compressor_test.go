@@ -3,8 +3,8 @@ package compressor_test
 import (
 	"bytes"
 	"compress/zlib"
+	"crypto/rand"
 	"io"
-	"math/rand"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"

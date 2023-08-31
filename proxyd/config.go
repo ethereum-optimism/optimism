@@ -93,6 +93,7 @@ type BackendConfig struct {
 	StripTrailingXFF bool   `toml:"strip_trailing_xff"`
 
 	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
+	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
 	ConsensusReceiptsTarget     string `toml:"consensus_receipts_target"`
 }
 
@@ -107,6 +108,7 @@ type BackendGroupConfig struct {
 	ConsensusBanPeriod          TOMLDuration `toml:"consensus_ban_period"`
 	ConsensusMaxUpdateThreshold TOMLDuration `toml:"consensus_max_update_threshold"`
 	ConsensusMaxBlockLag        uint64       `toml:"consensus_max_block_lag"`
+	ConsensusMaxBlockRange      uint64       `toml:"consensus_max_block_range"`
 	ConsensusMinPeerCount       int          `toml:"consensus_min_peer_count"`
 }
 

@@ -12,7 +12,17 @@ const (
 	EnabledFlagName    = "pprof.enabled"
 	ListenAddrFlagName = "pprof.addr"
 	PortFlagName       = "pprof.port"
+	defaultListenAddr  = "0.0.0.0"
+	defaultListenPort  = 6060
 )
+
+func DefaultCLIConfig() CLIConfig {
+	return CLIConfig{
+		Enabled:    false,
+		ListenAddr: defaultListenAddr,
+		ListenPort: defaultListenPort,
+	}
+}
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
@@ -24,13 +34,13 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.StringFlag{
 			Name:    ListenAddrFlagName,
 			Usage:   "pprof listening address",
-			Value:   "0.0.0.0", // TODO(CLI-4159): Switch to 127.0.0.1
+			Value:   defaultListenAddr, // TODO(CLI-4159): Switch to 127.0.0.1
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
 		},
 		&cli.IntFlag{
 			Name:    PortFlagName,
 			Usage:   "pprof listening port",
-			Value:   6060,
+			Value:   defaultListenPort,
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
 		},
 	}

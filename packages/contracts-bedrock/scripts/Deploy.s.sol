@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
-import { Test } from "forge-std/Test.sol";
+
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
@@ -76,7 +76,8 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeOptimismPortal();
 
-        setFaultGameImplementation();
+        setAlphabetFaultGameImplementation();
+        setCannonFaultGameImplementation();
 
         transferProxyAdminOwnership();
         transferDisputeGameFactoryOwnership();
@@ -345,10 +346,10 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(l1StandardBridgeProxy);
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory();
 
-        require(factory.BRIDGE() == l1StandardBridgeProxy);
+        require(factory.BRIDGE() == address(0));
+        require(factory.bridge() == address(0));
 
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
@@ -613,9 +614,10 @@ contract Deploy is Deployer {
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
-        proxyAdmin.upgrade({
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismMintableERC20FactoryProxy),
-            _implementation: optimismMintableERC20Factory
+            _implementation: optimismMintableERC20Factory,
+            _data: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
         });
 
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
@@ -623,6 +625,7 @@ contract Deploy is Deployer {
         console.log("OptimismMintableERC20Factory version: %s", version);
 
         require(factory.BRIDGE() == l1StandardBridgeProxy);
+        require(factory.bridge() == l1StandardBridgeProxy);
     }
 
     /// @notice initializeL1CrossDomainMessenger
@@ -757,47 +760,89 @@ contract Deploy is Deployer {
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setFaultGameImplementation() public onlyDevnet broadcast {
-        // Create the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
-        bytes32 mipsAbsolutePrestate;
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
-        if (vm.ffi(commands).length == 0) {
-            revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
-        }
-        commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
-        mipsAbsolutePrestate = abi.decode(vm.ffi(commands), (bytes32));
-        console.log("Absolute prestate: %s", vm.toString(mipsAbsolutePrestate));
-
+    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        for (uint8 i; i < 2; i++) {
-            Claim absolutePrestate =
-                Claim.wrap(i == 0 ? bytes32(cfg.faultGameAbsolutePrestate()) : mipsAbsolutePrestate);
-            IBigStepper faultVm =
-                IBigStepper(i == 0 ? address(new AlphabetVM(absolutePrestate)) : mustGetAddress("Mips"));
-            GameType gameType = GameType.wrap(i);
-            if (address(factory.gameImpls(gameType)) == address(0)) {
-                factory.setImplementation(
-                    gameType,
-                    new FaultDisputeGame({
-                    _gameType: gameType,
-                    _absolutePrestate: absolutePrestate,
-                    _maxGameDepth: i == 0 ? 4 : cfg.faultGameMaxDepth(), // The max depth of the alphabet game is always 4
+
+        Claim mipsAbsolutePrestate;
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
+            // Fetch the absolute prestate dump
+            string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
+            string[] memory commands = new string[](3);
+            commands[0] = "bash";
+            commands[1] = "-c";
+            commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
+            if (vm.ffi(commands).length == 0) {
+                revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
+            }
+            commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
+            mipsAbsolutePrestate = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
+            console.log(
+                "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
+                vm.toString(Claim.unwrap(mipsAbsolutePrestate))
+            );
+        } else {
+            console.log(
+                "[Cannon Dispute Game] Using absolute prestate from config: %s", cfg.faultGameAbsolutePrestate()
+            );
+            mipsAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        }
+
+        // Set the Cannon FaultDisputeGame implementation in the factory.
+        _setFaultGameImplementation(
+            factory, GameTypes.FAULT, mipsAbsolutePrestate, IBigStepper(mustGetAddress("Mips")), cfg.faultGameMaxDepth()
+        );
+    }
+
+    /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
+    function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        // Set the Alphabet FaultDisputeGame implementation in the factory.
+        Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation(
+            factory,
+            GameType.wrap(255),
+            alphabetAbsolutePrestate,
+            IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
+            4 // The max game depth of the alphabet game is always 4.
+        );
+    }
+
+    /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
+    function _setFaultGameImplementation(
+        DisputeGameFactory _factory,
+        GameType _gameType,
+        Claim _absolutePrestate,
+        IBigStepper _faultVm,
+        uint256 _maxGameDepth
+    )
+        internal
+    {
+        if (address(_factory.gameImpls(_gameType)) == address(0)) {
+            _factory.setImplementation(
+                _gameType,
+                new FaultDisputeGame({
+                    _gameType: _gameType,
+                    _absolutePrestate: _absolutePrestate,
+                    _maxGameDepth: _maxGameDepth,
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: faultVm,
+                    _vm: _faultVm,
                     _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
                     _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
-                    })
-                );
-                console.log(
-                    "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
-                    i == 0 ? "AlphabetVM" : "MIPS",
-                    vm.toString(i)
-                );
-            }
+                })
+            );
+
+            uint8 rawGameType = GameType.unwrap(_gameType);
+            console.log(
+                "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
+                rawGameType == 0 ? "Cannon" : "Alphabet",
+                vm.toString(rawGameType)
+            );
+        } else {
+            console.log(
+                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
+                vm.toString(GameType.unwrap(_gameType))
+            );
         }
     }
 }

@@ -3,12 +3,12 @@ package database
 import (
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 /**
@@ -16,30 +16,25 @@ import (
  */
 
 type Transaction struct {
-	FromAddress common.Address `gorm:"serializer:json"`
-	ToAddress   common.Address `gorm:"serializer:json"`
-	Amount      U256
-	Data        hexutil.Bytes `gorm:"serializer:json"`
+	FromAddress common.Address `gorm:"serializer:bytes"`
+	ToAddress   common.Address `gorm:"serializer:bytes"`
+	Amount      *big.Int       `gorm:"serializer:u256"`
+	Data        Bytes          `gorm:"serializer:bytes"`
 	Timestamp   uint64
 }
 
 type L1TransactionDeposit struct {
-	SourceHash        common.Hash `gorm:"serializer:json;primaryKey"`
-	L2TransactionHash common.Hash `gorm:"serializer:json"`
-
+	SourceHash           common.Hash `gorm:"serializer:bytes;primaryKey"`
+	L2TransactionHash    common.Hash `gorm:"serializer:bytes"`
 	InitiatedL1EventGUID uuid.UUID
 
-	Version    U256
-	OpaqueData hexutil.Bytes `gorm:"serializer:json"`
-
 	Tx       Transaction `gorm:"embedded"`
-	GasLimit U256
+	GasLimit *big.Int    `gorm:"serializer:u256"`
 }
 
 type L2TransactionWithdrawal struct {
-	WithdrawalHash common.Hash `gorm:"serializer:json;primaryKey"`
-
-	Nonce                U256
+	WithdrawalHash       common.Hash `gorm:"serializer:bytes;primaryKey"`
+	Nonce                *big.Int    `gorm:"serializer:u256"`
 	InitiatedL2EventGUID uuid.UUID
 
 	ProvenL1EventGUID    *uuid.UUID
@@ -47,7 +42,7 @@ type L2TransactionWithdrawal struct {
 	Succeeded            *bool
 
 	Tx       Transaction `gorm:"embedded"`
-	GasLimit U256
+	GasLimit *big.Int    `gorm:"serializer:u256"`
 }
 
 type BridgeTransactionsView interface {
@@ -58,9 +53,9 @@ type BridgeTransactionsView interface {
 type BridgeTransactionsDB interface {
 	BridgeTransactionsView
 
-	StoreL1TransactionDeposits([]*L1TransactionDeposit) error
+	StoreL1TransactionDeposits([]L1TransactionDeposit) error
 
-	StoreL2TransactionWithdrawals([]*L2TransactionWithdrawal) error
+	StoreL2TransactionWithdrawals([]L2TransactionWithdrawal) error
 	MarkL2TransactionWithdrawalProvenEvent(common.Hash, uuid.UUID) error
 	MarkL2TransactionWithdrawalFinalizedEvent(common.Hash, uuid.UUID, bool) error
 }
@@ -81,7 +76,7 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
  * Transactions deposited from L1
  */
 
-func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []*L1TransactionDeposit) error {
+func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
 	result := db.gorm.Create(&deposits)
 	return result.Error
 }
@@ -103,7 +98,7 @@ func (db *bridgeTransactionsDB) L1TransactionDeposit(sourceHash common.Hash) (*L
  * Transactions withdrawn from L2
  */
 
-func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []*L2TransactionWithdrawal) error {
+func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
 	result := db.gorm.Create(&withdrawals)
 	return result.Error
 }

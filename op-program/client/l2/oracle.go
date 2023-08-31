@@ -64,9 +64,15 @@ func (p *PreimageOracle) headerByBlockHash(blockHash common.Hash) *types.Header 
 
 func (p *PreimageOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	header := p.headerByBlockHash(blockHash)
+	txs := p.LoadTransactions(blockHash, header.TxHash)
+
+	return types.NewBlockWithHeader(header).WithBody(txs, nil)
+}
+
+func (p *PreimageOracle) LoadTransactions(blockHash common.Hash, txHash common.Hash) []*types.Transaction {
 	p.hint.Hint(TransactionsHint(blockHash))
 
-	opaqueTxs := mpt.ReadTrie(header.TxHash, func(key common.Hash) []byte {
+	opaqueTxs := mpt.ReadTrie(txHash, func(key common.Hash) []byte {
 		return p.oracle.Get(preimage.Keccak256Key(key))
 	})
 
@@ -74,8 +80,7 @@ func (p *PreimageOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	if err != nil {
 		panic(fmt.Errorf("failed to decode list of txs: %w", err))
 	}
-
-	return types.NewBlockWithHeader(header).WithBody(txs, nil)
+	return txs
 }
 
 func (p *PreimageOracle) NodeByHash(nodeHash common.Hash) []byte {

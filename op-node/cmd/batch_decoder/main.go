@@ -55,6 +55,11 @@ func main() {
 					Usage:    "L1 RPC URL",
 					EnvVars:  []string{"L1_RPC"},
 				},
+				&cli.IntFlag{
+					Name:  "concurrent-requests",
+					Value: 10,
+					Usage: "Concurrency level when fetching L1",
+				},
 			},
 			Action: func(cliCtx *cli.Context) error {
 				client, err := ethclient.Dial(cliCtx.String("l1"))
@@ -74,8 +79,9 @@ func main() {
 					BatchSenders: map[common.Address]struct{}{
 						common.HexToAddress(cliCtx.String("sender")): struct{}{},
 					},
-					BatchInbox:   common.HexToAddress(cliCtx.String("inbox")),
-					OutDirectory: cliCtx.String("out"),
+					BatchInbox:         common.HexToAddress(cliCtx.String("inbox")),
+					OutDirectory:       cliCtx.String("out"),
+					ConcurrentRequests: uint64(cliCtx.Int("concurrent-requests")),
 				}
 				totalValid, totalInvalid := fetch.Batches(client, config)
 				fmt.Printf("Fetched batches in range [%v,%v). Found %v valid & %v invalid batches\n", config.Start, config.End, totalValid, totalInvalid)

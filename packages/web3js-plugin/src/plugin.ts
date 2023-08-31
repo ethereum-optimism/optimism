@@ -17,7 +17,7 @@ import {
 } from '@eth-optimism/contracts-ts'
 import { RLP } from '@ethereumjs/rlp'
 
-export class OptimismFeeEstimationPlugin extends Web3PluginBase {
+export class OptimismPlugin extends Web3PluginBase {
   public pluginNamespace = 'op'
 
   private _gasPriceOracleContract:
@@ -323,6 +323,6 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
 // Module Augmentation to add op namespace to root {web3} instance
 declare module 'web3' {
   interface Web3Context {
-    op: OptimismFeeEstimationPlugin
+    op: OptimismPlugin
   }
 }

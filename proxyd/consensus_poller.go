@@ -38,6 +38,7 @@ type ConsensusPoller struct {
 	banPeriod          time.Duration
 	maxUpdateThreshold time.Duration
 	maxBlockLag        uint64
+	maxBlockRange      uint64
 }
 
 type backendState struct {
@@ -198,6 +199,12 @@ func WithMaxUpdateThreshold(maxUpdateThreshold time.Duration) ConsensusOpt {
 func WithMaxBlockLag(maxBlockLag uint64) ConsensusOpt {
 	return func(cp *ConsensusPoller) {
 		cp.maxBlockLag = maxBlockLag
+	}
+}
+
+func WithMaxBlockRange(maxBlockRange uint64) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.maxBlockRange = maxBlockRange
 	}
 }
 
@@ -621,6 +628,10 @@ func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
 
 	for _, be := range cp.backendGroup.Backends {
 		bs := cp.getBackendState(be)
+		if be.forcedCandidate {
+			candidates[be] = bs
+			continue
+		}
 		if bs.IsBanned() {
 			continue
 		}

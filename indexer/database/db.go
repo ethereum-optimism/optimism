@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
+	_ "github.com/ethereum-optimism/optimism/indexer/database/serializers"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
