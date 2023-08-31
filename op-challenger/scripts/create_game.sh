@@ -33,9 +33,7 @@ echo "L2 Block Number: ${L2_BLOCK_NUM}"
 # Create a checkpoint in the block oracle to commit to the current L1 head.
 # This defines the L1 head that will be used in the dispute game.
 echo "Checkpointing the block oracle..."
-L1_CHECKPOINT=$(cast send --rpc-url "${RPC}" ${SIGNER_ARGS} "${BLOCK_ORACLE_ADDR}" "checkpoint()" --json | jq -r .blockNumber | cast to-dec)
-# The L1 head to be used is the block prior to the one the checkpoint transaction was included in.
-((L1_CHECKPOINT=L1_CHECKPOINT-1))
+L1_CHECKPOINT=$(cast send --rpc-url "${RPC}" ${SIGNER_ARGS} "${BLOCK_ORACLE_ADDR}" "checkpoint()" --json | jq -r '.logs[0].topics[1]' | cast to-dec)
 echo "L1 Checkpoint: $L1_CHECKPOINT"
 
 # Fault dispute game extra data is calculated as follows.
