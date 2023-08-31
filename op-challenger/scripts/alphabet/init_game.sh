@@ -15,7 +15,7 @@ make cannon-prestate
 make devnet-up
 
 DEVNET_SPONSOR="ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-DISPUTE_GAME_PROXY=$(jq -r .DisputeGameFactoryProxy $MONOREPO_DIR/.devnet/addresses.json)
+DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy $MONOREPO_DIR/.devnet/addresses.json)
 
 echo "----------------------------------------------------------------"
 echo " Dispute Game Factory at $DISPUTE_GAME_PROXY"
@@ -59,43 +59,8 @@ do
   sleep 2
 done
 
-# Fetch the latest block number
-L2_BLOCK_NUMBER=$(cast call $L2_OUTPUT_ORACLE_PROXY "latestBlockNumber()")
-echo "Using the latest L2OO block number: $L2_BLOCK_NUMBER"
-
-# We will use the l2 block number of 1 for the dispute game.
-# We need to check that the block oracle contains the corresponding l1 block number.
-echo "Checkpointing the block oracle..."
-L1_CHECKPOINT=$(cast send --private-key $DEVNET_SPONSOR $BLOCK_ORACLE_PROXY "checkpoint()" --json | jq -r .blockNumber | cast to-dec)
-((L1_CHECKPOINT=L1_CHECKPOINT-1))
-echo "L1 Checkpoint: $L1_CHECKPOINT"
-
-INDEX=$(cast call $L2_OUTPUT_ORACLE_PROXY "getL2OutputIndexAfter(uint256)" $L2_BLOCK_NUMBER | cast to-dec)
-((PRIOR_INDEX=INDEX-1))
-echo "Getting the l2 output at index $PRIOR_INDEX"
-cast call $L2_OUTPUT_ORACLE_PROXY "getL2Output(uint256)" $PRIOR_INDEX
-
-echo "Getting the l2 output at index $INDEX"
-cast call $L2_OUTPUT_ORACLE_PROXY "getL2Output(uint256)" $INDEX
-
-# (Alphabet) Fault game type = 255
-GAME_TYPE=255
-
 # Root claim commits to the entire trace.
 # Alphabet game claim construction: keccak256(abi.encode(trace_index, trace[trace_index]))
 ROOT_CLAIM=$(cast keccak $(cast abi-encode "f(uint256,uint256)" 15 122))
 
-# Fault dispute game extra data is calculated as follows.
-# abi.encode(uint256(l2_block_number), uint256(l1 checkpoint))
-EXTRA_DATA=$(cast abi-encode "f(uint256,uint256)" $L2_BLOCK_NUMBER $L1_CHECKPOINT)
-
-echo "Initializing the game"
-FAULT_GAME_ADDRESS=$(cast call --private-key $MALLORY_KEY $DISPUTE_GAME_PROXY "create(uint8,bytes32,bytes)" $GAME_TYPE $ROOT_CLAIM $EXTRA_DATA)
-
-echo "Creating game at address $FAULT_GAME_ADDRESS"
-cast send --private-key $MALLORY_KEY $DISPUTE_GAME_PROXY "create(uint8,bytes32,bytes)" $GAME_TYPE $ROOT_CLAIM $EXTRA_DATA
-
-FORMATTED_ADDRESS=$(cast parse-bytes32-address $FAULT_GAME_ADDRESS)
-echo "Formatted Address: $FORMATTED_ADDRESS"
-
-echo $FORMATTED_ADDRESS > $CHALLENGER_DIR/.fault-game-address
+GAME_TYPE=255 ${SOURCE_DIR}/../create_game.sh http://localhost:8545 "${DISPUTE_GAME_FACTORY}" "${ROOT_CLAIM}" --private-key "${DEVNET_SPONSOR}"

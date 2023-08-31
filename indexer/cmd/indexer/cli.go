@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/urfave/cli/v2"
@@ -25,67 +24,75 @@ var (
 )
 
 func runIndexer(ctx *cli.Context) error {
-	logger := log.NewLogger(log.ReadCLIConfig(ctx))
-	cfg, err := config.LoadConfig(logger, ctx.String(ConfigFlag.Name))
+	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "indexer")
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
-		logger.Error("failed to load config", "err", err)
+		log.Error("failed to load config", "err", err)
 		return err
 	}
 
 	db, err := database.NewDB(cfg.DB)
 	if err != nil {
+		log.Error("failed to connect to database", "err", err)
 		return err
 	}
+	defer db.Close()
 
-	indexer, err := indexer.NewIndexer(logger, cfg.Chain, cfg.RPCs, db)
+	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.Metrics)
 	if err != nil {
+		log.Error("failed to create indexer", "err", err)
 		return err
 	}
 
-	indexerCtx, indexerCancel := context.WithCancel(context.Background())
-	go func() {
-		opio.BlockOnInterrupts()
-		logger.Error("caught interrupt, shutting down...")
-		indexerCancel()
-	}()
-
-	return indexer.Run(indexerCtx)
+	return indexer.Run(ctx.Context)
 }
 
 func runApi(ctx *cli.Context) error {
-	logger := log.NewLogger(log.ReadCLIConfig(ctx))
-	cfg, err := config.LoadConfig(logger, ctx.String(ConfigFlag.Name))
+	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
-		logger.Error("failed to load config", "err", err)
+		log.Error("failed to load config", "err", err)
 		return err
 	}
 
 	db, err := database.NewDB(cfg.DB)
 	if err != nil {
-		logger.Crit("Failed to connect to database", "err", err)
+		log.Error("failed to connect to database", "err", err)
+		return err
 	}
+	defer db.Close()
 
-	apiCtx, apiCancel := context.WithCancel(context.Background())
-	api := api.NewApi(logger, db.BridgeTransfers)
-	go func() {
-		opio.BlockOnInterrupts()
-		logger.Error("caught interrupt, shutting down...")
-		apiCancel()
-	}()
-
-	return api.Listen(apiCtx, cfg.API.Port)
+	api := api.NewApi(log, db.BridgeTransfers)
+	return api.Listen(ctx.Context, cfg.API.Port)
 }
 
 func runAll(ctx *cli.Context) error {
-	// Run the indexer
+	log := log.NewLogger(log.ReadCLIConfig(ctx))
+
+	// Ensure both processes complete before returning.
+	var wg sync.WaitGroup
+	wg.Add(2)
+
 	go func() {
-		if err := runIndexer(ctx); err != nil {
-			log.NewLogger(log.ReadCLIConfig(ctx)).Error("Error running the indexer", "err", err)
+		defer wg.Done()
+		err := runApi(ctx)
+		if err != nil {
+			log.Error("api process non-zero exit", "err", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		err := runIndexer(ctx)
+		if err != nil {
+			log.Error("indexer process non-zero exit", "err", err)
 		}
 	}()
 
-	// Run the API and return its error, if any
-	return runApi(ctx)
+	// We purposefully return no error since the indexer and api
+	// have no inter-dependencies. We simply rely on the logs to
+	// report a non-zero exit for either process.
+	wg.Wait()
+	return nil
 }
 
 func newCli(GitCommit string, GitDate string) *cli.App {
@@ -109,18 +116,18 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Action:      runIndexer,
 			},
 			{
+				Name:        "all",
+				Flags:       flags,
+				Description: "Runs both the api service and the indexing service",
+				Action:      runAll,
+			},
+			{
 				Name:        "version",
 				Description: "print version",
 				Action: func(ctx *cli.Context) error {
 					cli.ShowVersion(ctx)
 					return nil
 				},
-			},
-			{
-				Name:        "all",
-				Flags:       flags,
-				Description: "Runs both the api service and the indexing service",
-				Action:      runAll,
 			},
 		},
 	}

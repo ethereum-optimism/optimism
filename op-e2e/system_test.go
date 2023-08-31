@@ -46,34 +46,19 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if config.ExternalL2Nodes != "" {
-		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Nodes)
-		shimPath, err := filepath.Abs(config.ExternalL2Nodes)
-		if err != nil {
-			fmt.Printf("Could not compute abs of externalL2Nodes shim: %s\n", err)
-			os.Exit(2)
-		}
-		// We convert the passed in path to an absolute path, as it simplifies
-		// the path handling logic for the rest of the testing
-		config.ExternalL2Nodes = shimPath
-
+	if config.ExternalL2Shim != "" {
+		fmt.Println("Building external L2 process adapter for ", config.ExternalL2Shim)
 		// A small hack to ensure that the resulting binary is always rebuilt.
 		cmd := exec.Command("make")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.Dir = filepath.Dir(shimPath)
-		err = cmd.Run()
-		if err != nil {
+		cmd.Dir = filepath.Dir(config.ExternalL2Shim)
+		if err := cmd.Run(); err != nil {
 			fmt.Printf("Failed to compute externalL2Nodes dir: %s\n", err)
 			os.Exit(5)
 		}
 
-		_, err = os.Stat(config.ExternalL2Nodes)
-		if err != nil {
-			fmt.Printf("Failed to stat externalL2Nodes path: %s\n", err)
-			os.Exit(3)
-		}
-
+		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Shim)
 		// As these are integration tests which launch many other processes, the
 		// default parallelism makes the tests flaky.  This change aims to
 		// reduce the flakiness of these tests.
@@ -285,13 +270,6 @@ func TestPendingGasLimit(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	if cfg.ExternalL2Nodes != "" {
-		// Some eth clients such as Erigon don't currently build blocks until
-		// they receive the engine call which includes the gas limit.  After we
-		// provide a mechanism for external clients to advertise test support we
-		// should enable for those which support it.
-		t.Skip()
-	}
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000

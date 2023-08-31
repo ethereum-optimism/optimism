@@ -2,12 +2,14 @@ package e2e_tests
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	e2etest_utils "github.com/ethereum-optimism/optimism/indexer/e2e_tests/utils"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
@@ -86,118 +88,6 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 	require.NotNil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
 }
 
-/*
-TODO make this test work:
-Error Trace:	/root/project/indexer/e2e_tests/bridge_transfers_e2e_test.go:116
-        	Error:      	Received unexpected error:
-        	            	expected status 1, but got 0
-        	            	tx trace unavailable: websocket: read limit exceeded
-        	Test:       	TestE2EBridgeTransfersPagination
-func TestE2EBridgeTransfersPagination(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
-
-	l1StandardBridge, err := bindings.NewL1StandardBridge(testSuite.OpCfg.L1Deployments.L1StandardBridgeProxy, testSuite.L1Client)
-	require.NoError(t, err)
-
-	// 1 ETH transfer
-	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
-	// (1) Test Deposit Initiation
-	var deposits []struct {
-		Tx      *types.Transaction
-		Receipt *types.Receipt
-		Info    *e2etest_utils.DepositInfo
-	}
-
-	for i := 0; i < 3; i++ {
-		l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
-		require.NoError(t, err)
-		l1Opts.Value = big.NewInt(params.Ether)
-
-		depositTx, err := l1StandardBridge.DepositETH(l1Opts, 200_000, []byte{byte(i)})
-		require.NoError(t, err)
-
-		depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
-		require.NoError(t, err)
-
-		depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
-		require.NoError(t, err)
-
-		// wait for processor catchup
-		err = wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-			return l1Header != nil && l1Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
-		})
-		require.NoError(t, err)
-
-		deposits = append(deposits, struct {
-			Tx      *types.Transaction
-			Receipt *types.Receipt
-			Info    *e2etest_utils.DepositInfo
-		}{
-			Tx:      depositTx,
-			Receipt: depositReceipt,
-			Info:    depositInfo,
-		})
-		// wait for processor catchup
-		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-			return l1Header != nil && l1Header.Number.Uint64() >= deposits[i].Receipt.BlockNumber.Uint64(), nil
-		}))
-	}
-
-	// Test no cursor or limit
-	cursor := ""
-	limit := 0
-	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, cursor, limit)
-	require.NoError(t, err)
-	require.Len(t, aliceDeposits.Deposits, 3)
-	require.Equal(t, deposits[0].Tx.Hash(), aliceDeposits.Deposits[0].L1TransactionHash)
-	require.Equal(t, deposits[1].Tx.Hash(), aliceDeposits.Deposits[1].L1TransactionHash)
-	require.Equal(t, deposits[2].Tx.Hash(), aliceDeposits.Deposits[2].L1TransactionHash)
-	require.Equal(t, "", aliceDeposits.Cursor)
-	require.Equal(t, false, aliceDeposits.HasNextPage)
-
-	// test cursor with no limit
-	cursor = deposits[1].Tx.Hash().String()
-	limit = 0
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, cursor, limit)
-	require.NoError(t, err)
-	require.Len(t, aliceDeposits.Deposits, 2)
-	require.Equal(t, deposits[1].Tx.Hash().String(), aliceDeposits.Deposits[0].L1TransactionHash)
-	require.Equal(t, deposits[2].Tx.Hash().String(), aliceDeposits.Deposits[1].L1TransactionHash)
-	require.Equal(t, "", aliceDeposits.Cursor)
-	require.Equal(t, false, aliceDeposits.HasNextPage)
-
-	// test no cursor with limit and hasNext page is true
-	cursor = ""
-	limit = 2
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, cursor, limit)
-	require.NoError(t, err)
-	require.Len(t, aliceDeposits.Deposits, limit)
-	require.Equal(t, deposits[0].Tx.Hash().String(), aliceDeposits.Deposits[0].L1TransactionHash)
-	require.Equal(t, deposits[1].Tx.Hash().String(), aliceDeposits.Deposits[1].L1TransactionHash)
-	require.Equal(t, deposits[2].Tx.Hash().String(), aliceDeposits.Cursor)
-	require.Equal(t, true, aliceDeposits.HasNextPage)
-
-	// test cursor with limit and hasNext page is true
-	cursor = deposits[1].Tx.Hash().String()
-	limit = 1
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, cursor, limit)
-	require.NoError(t, err)
-	require.Len(t, aliceDeposits.Deposits, 1)
-	require.Equal(t, deposits[1].Tx.Hash().String(), aliceDeposits.Deposits[1].L1TransactionHash)
-	require.Equal(t, deposits[2].Tx.Hash().String(), aliceDeposits.Cursor)
-	require.Equal(t, true, aliceDeposits.HasNextPage)
-
-	// limit bigger than the total amount
-	cursor = ""
-	limit = 10
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, cursor, limit)
-	require.NoError(t, err)
-	require.Len(t, aliceDeposits.Deposits, 3)
-}
-*/
-
 func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
@@ -255,6 +145,75 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
 	require.NoError(t, err)
 	require.Nil(t, aliceDeposits.Deposits[0].L1BridgeDeposit.CrossDomainMessageHash)
+}
+
+func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
+	testSuite := createE2ETestSuite(t)
+
+	l1StandardBridge, err := bindings.NewL1StandardBridge(testSuite.OpCfg.L1Deployments.L1StandardBridgeProxy, testSuite.L1Client)
+	require.NoError(t, err)
+	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
+	require.NoError(t, err)
+
+	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
+	l1Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L1ChainIDBig())
+	require.NoError(t, err)
+
+	// Deposit 1/2/3 ETH (second deposit via the optimism portal)
+	var depositReceipts [3]*types.Receipt
+	for i := 0; i < 3; i++ {
+		var depositTx *types.Transaction
+		l1Opts.Value = big.NewInt(int64((i + 1)) * params.Ether)
+		if i != 1 {
+			depositTx, err = transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return l1StandardBridge.Receive(opts) })
+			require.NoError(t, err)
+		} else {
+			depositTx, err = transactions.PadGasEstimate(l1Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return optimismPortal.Receive(opts) })
+			require.NoError(t, err)
+		}
+
+		depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+		require.NoError(t, err, fmt.Sprintf("failed on deposit %d", i))
+		depositReceipts[i] = depositReceipt
+	}
+
+	// wait for processor catchup of the latest tx
+	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
+		l1Header := testSuite.Indexer.BridgeProcessor.LatestL1Header
+		return l1Header != nil && l1Header.Number.Uint64() >= depositReceipts[2].BlockNumber.Uint64(), nil
+	}))
+
+	// Get All
+	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
+	require.NotNil(t, aliceDeposits)
+	require.NoError(t, err)
+	require.Len(t, aliceDeposits.Deposits, 3)
+	require.False(t, aliceDeposits.HasNextPage)
+
+	// Respects Limits & Supplied Cursors
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 2)
+	require.NotNil(t, aliceDeposits)
+	require.NoError(t, err)
+	require.Len(t, aliceDeposits.Deposits, 2)
+	require.True(t, aliceDeposits.HasNextPage)
+
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, aliceDeposits.Cursor, 2)
+	require.NoError(t, err)
+	require.NotNil(t, aliceDeposits)
+	require.Len(t, aliceDeposits.Deposits, 1)
+	require.False(t, aliceDeposits.HasNextPage)
+
+	// Returns the results in the right order
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 100)
+	require.NotNil(t, aliceDeposits)
+	require.NoError(t, err)
+	for i := 0; i < 3; i++ {
+		deposit := aliceDeposits.Deposits[i]
+
+		// DESCENDING order
+		require.Equal(t, depositReceipts[2-i].TxHash, deposit.L1TransactionHash)
+		require.Equal(t, int64(3-i)*params.Ether, deposit.L1BridgeDeposit.Tx.Amount.Int64())
+	}
 }
 
 func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
@@ -415,90 +374,72 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 	require.Equal(t, finalizeReceipt.TxHash, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
 }
 
-/**
-THIS test will work after we order transactions correctly
-
-func TestE2EBridgeTransfersPaginationWithdrawals(t *testing.T) {
+func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	l2StandardBridge, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, testSuite.L2Client)
 	require.NoError(t, err)
+	l2ToL1MP, err := bindings.NewOptimismPortal(predeploys.L2ToL1MessagePasserAddr, testSuite.L2Client)
+	require.NoError(t, err)
 
-	// 1 ETH transfer
 	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
 	l2Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L2ChainIDBig())
 	require.NoError(t, err)
-	l2Opts.Value = big.NewInt(params.Ether)
 
-	var withdrawals []struct {
-		Tx      *types.Transaction
-		Receipt *types.Receipt
-	}
-
+	// Withdraw 1/2/3 ETH (second deposit via the l2ToL1MP). We dont ever finalize these withdrawals on
+	// L1 so we dont have to worry about funding the OptimismPortal contract with ETH
+	var withdrawReceipts [3]*types.Receipt
 	for i := 0; i < 3; i++ {
-		withdrawTx, err := l2StandardBridge.Withdraw(l2Opts, predeploys.LegacyERC20ETHAddr, l2Opts.Value, 200_000, []byte{byte(i)})
-		require.NoError(t, err)
+		var withdrawTx *types.Transaction
+		l2Opts.Value = big.NewInt(int64((i + 1)) * params.Ether)
+		if i != 1 {
+			withdrawTx, err = transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return l2StandardBridge.Receive(opts) })
+			require.NoError(t, err)
+		} else {
+			withdrawTx, err = transactions.PadGasEstimate(l2Opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) { return l2ToL1MP.Receive(opts) })
+			require.NoError(t, err)
+		}
 
 		withdrawReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, withdrawTx.Hash())
-		require.NoError(t, err)
-
-		err = wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-			l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-			return l2Header != nil && l2Header.Number.Uint64() >= withdrawReceipt.BlockNumber.Uint64(), nil
-		})
-		require.NoError(t, err)
-
-		withdrawals = append(withdrawals, struct {
-			Tx      *types.Transaction
-			Receipt *types.Receipt
-		}{
-			Tx:      withdrawTx,
-			Receipt: withdrawReceipt,
-		})
+		require.NoError(t, err, fmt.Sprintf("failed on withdrawal %d", i))
+		withdrawReceipts[i] = withdrawReceipt
 	}
 
-	cursor := ""
-	limit := 0
-	aliceWithdrawals, err := testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, cursor, limit)
+	// wait for processor catchup of the latest tx
+	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
+		l2Header := testSuite.Indexer.BridgeProcessor.LatestL2Header
+		return l2Header != nil && l2Header.Number.Uint64() >= withdrawReceipts[2].BlockNumber.Uint64(), nil
+	}))
+
+	// Get All
+	aliceWithdrawals, err := testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 0)
+	require.NotNil(t, aliceWithdrawals)
 	require.NoError(t, err)
 	require.Len(t, aliceWithdrawals.Withdrawals, 3)
-	require.Equal(t, withdrawals[0].Tx.Hash().String(), aliceWithdrawals.Withdrawals[0].L2TransactionHash.String())
-	require.Equal(t, withdrawals[1].Tx.Hash().String(), aliceWithdrawals.Withdrawals[1].L2TransactionHash.String())
-	require.Equal(t, withdrawals[2].Tx.Hash().String(), aliceWithdrawals.Withdrawals[2].L2TransactionHash.String())
+	require.False(t, aliceWithdrawals.HasNextPage)
 
-	cursor = withdrawals[1].Tx.Hash().String()
-	limit = 0
-	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, cursor, limit)
+	// Respects Limits & Supplied Cursors
+	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 2)
+	require.NotNil(t, aliceWithdrawals)
 	require.NoError(t, err)
-	require.Len(t, aliceWithdrawals, 2)
-	require.Equal(t, withdrawals[1].Tx.Hash().String(), aliceWithdrawals.Withdrawals[0].L2TransactionHash.String())
-	require.Equal(t, withdrawals[2].Tx.Hash().String(), aliceWithdrawals.Withdrawals[1].L2TransactionHash.String())
+	require.Len(t, aliceWithdrawals.Withdrawals, 2)
+	require.True(t, aliceWithdrawals.HasNextPage)
 
-	cursor = ""
-	limit = 2
-	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, cursor, limit)
+	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, aliceWithdrawals.Cursor, 2)
+	require.NotNil(t, aliceWithdrawals)
 	require.NoError(t, err)
-	require.Len(t, aliceWithdrawals, limit)
-	require.Equal(t, withdrawals[0].Tx.Hash().String(), aliceWithdrawals.Withdrawals[0].L2TransactionHash.String())
-	require.Equal(t, withdrawals[1].Tx.Hash().String(), aliceWithdrawals.Withdrawals[1].L2TransactionHash.String())
+	require.Len(t, aliceWithdrawals.Withdrawals, 1)
+	require.False(t, aliceWithdrawals.HasNextPage)
 
-	cursor = withdrawals[1].Tx.Hash().String()
-	limit = 1
-	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, cursor, limit)
+	// Returns the results in the right order
+	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 100)
+	require.NotNil(t, aliceWithdrawals)
 	require.NoError(t, err)
-	require.Len(t, aliceWithdrawals, 1)
-	require.Equal(t, withdrawals[1].Tx.Hash().String(), aliceWithdrawals.Withdrawals[0].L2TransactionHash.String())
-	require.Equal(t, true, aliceWithdrawals.HasNextPage)
-	require.Equal(t, withdrawals[2].Tx.Hash().String(), aliceWithdrawals.Cursor)
+	for i := 0; i < 3; i++ {
+		withdrawal := aliceWithdrawals.Withdrawals[i]
 
-	cursor = ""
-	limit = 10
-	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, cursor, limit)
-	require.NoError(t, err)
-	require.Equal(t, proveReceipt.TxHash, aliceWithdrawals.Withdrawals[0].ProvenL1TransactionHash)
-	require.Equal(t, finalizeReceipt.TxHash, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
-
-	// Still nil as the withdrawal did not occur through the standard bridge
-	require.Nil(t, aliceWithdrawals.Withdrawals[0].L2BridgeWithdrawal.CrossDomainMessageHash)
+		// DESCENDING order
+		require.Equal(t, withdrawReceipts[2-i].TxHash, withdrawal.L2TransactionHash)
+		require.Equal(t, int64(3-i)*params.Ether, withdrawal.L2BridgeWithdrawal.Tx.Amount.Int64())
+	}
 }
-*/

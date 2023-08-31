@@ -137,7 +137,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		if err != nil {
 			return err
 		} else if message == nil {
-			log.Crit("missing indexed L1CrossDomainMessenger message", "message_hash", relayed.MessageHash, "tx_hash", relayed.Event.TransactionHash)
+			log.Error("missing indexed L1CrossDomainMessenger message", "message_hash", relayed.MessageHash, "tx_hash", relayed.Event.TransactionHash)
 			return fmt.Errorf("missing indexed L1CrossDomainMessager message")
 		}
 
@@ -174,7 +174,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		if err != nil {
 			return err
 		} else if deposit == nil {
-			log.Crit("missing L1StandardBridge deposit on L2 finalization", "tx_hash", finalizedBridge.Event.TransactionHash)
+			log.Error("missing L1StandardBridge deposit on L2 finalization", "tx_hash", finalizedBridge.Event.TransactionHash)
 			return errors.New("missing L1StandardBridge deposit on L2 finalization")
 		}
 	}

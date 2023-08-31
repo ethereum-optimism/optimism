@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 
@@ -133,21 +134,31 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, c
 		limit = defaultLimit
 	}
 
+	cursorClause := ""
+	if cursor != "" {
+		sourceHash := common.HexToHash(cursor)
+		txDeposit := new(L1TransactionDeposit)
+		result := db.gorm.Model(&L1TransactionDeposit{}).Where(&L1TransactionDeposit{SourceHash: sourceHash}).Take(txDeposit)
+		if result.Error != nil || errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("unable to find transaction with supplied cursor source hash %s: %w", sourceHash, result.Error)
+		}
+		cursorClause = fmt.Sprintf("l1_transaction_deposits.timestamp <= %d", txDeposit.Tx.Timestamp)
+	}
+
 	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
 	// Coalesce l1 transaction deposits that are simply ETH sends
 	ethTransactionDeposits := db.gorm.Model(&L1TransactionDeposit{})
-	ethTransactionDeposits = ethTransactionDeposits.Where(Transaction{FromAddress: address}).Where(`data = '0x' AND amount > 0`)
+	ethTransactionDeposits = ethTransactionDeposits.Where(Transaction{FromAddress: address}).Where("data = '0x' AND amount > 0")
 	ethTransactionDeposits = ethTransactionDeposits.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = initiated_l1_event_guid")
 	ethTransactionDeposits = ethTransactionDeposits.Select(`
 from_address, to_address, amount, data, source_hash AS transaction_source_hash,
 l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
 l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
-
-	if cursor != "" {
-		// Probably need to fix this and compare timestamps
-		ethTransactionDeposits = ethTransactionDeposits.Where("source_hash < ?", cursor)
+	ethTransactionDeposits = ethTransactionDeposits.Order("timestamp DESC").Limit(limit + 1)
+	if cursorClause != "" {
+		ethTransactionDeposits = ethTransactionDeposits.Where(cursorClause)
 	}
 
 	depositsQuery := db.gorm.Model(&L1BridgeDeposit{})
@@ -157,17 +168,16 @@ l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local
 l1_bridge_deposits.from_address, l1_bridge_deposits.to_address, l1_bridge_deposits.amount, l1_bridge_deposits.data, transaction_source_hash,
 l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
 l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
-
-	if cursor != "" {
-		// Probably need to fix this and compare timestamps
-		depositsQuery = depositsQuery.Where("source_hash < ?", cursor)
+	depositsQuery = depositsQuery.Order("timestamp DESC").Limit(limit + 1)
+	if cursorClause != "" {
+		depositsQuery = depositsQuery.Where(cursorClause)
 	}
 
 	query := db.gorm.Table("(?) AS deposits", depositsQuery)
 	query = query.Joins("UNION (?)", ethTransactionDeposits)
 	query = query.Select("*").Order("timestamp DESC").Limit(limit + 1)
 	deposits := []L1BridgeDepositWithTransactionHashes{}
-	result := query.Debug().Find(&deposits)
+	result := query.Find(&deposits)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -179,16 +189,11 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
 	hasNextPage := false
 	if len(deposits) > limit {
 		hasNextPage = true
+		nextCursor = deposits[limit].L1BridgeDeposit.TransactionSourceHash.String()
 		deposits = deposits[:limit]
-		nextCursor = deposits[limit].L1TransactionHash.String()
 	}
 
-	response := &L1BridgeDepositsResponse{
-		Deposits:    deposits,
-		Cursor:      nextCursor,
-		HasNextPage: hasNextPage,
-	}
-
+	response := &L1BridgeDepositsResponse{Deposits: deposits, Cursor: nextCursor, HasNextPage: hasNextPage}
 	return response, nil
 }
 
@@ -242,6 +247,17 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 		limit = defaultLimit
 	}
 
+	cursorClause := ""
+	if cursor != "" {
+		withdrawalHash := common.HexToHash(cursor)
+		var txWithdrawal L2TransactionWithdrawal
+		result := db.gorm.Model(&L2TransactionWithdrawal{}).Where(&L2TransactionWithdrawal{WithdrawalHash: withdrawalHash}).Take(&txWithdrawal)
+		if result.Error != nil || errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("unable to find transaction with supplied cursor withdrawal hash %s: %w", withdrawalHash, result.Error)
+		}
+		cursorClause = fmt.Sprintf("l2_transaction_withdrawals.timestamp <= %d", txWithdrawal.Tx.Timestamp)
+	}
+
 	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
@@ -255,10 +271,9 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 from_address, to_address, amount, data, withdrawal_hash AS transaction_withdrawal_hash,
 l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
-
-	if cursor != "" {
-		// Probably need to fix this and compare timestamps
-		ethTransactionWithdrawals = ethTransactionWithdrawals.Where("withdrawal_hash < ?", cursor)
+	ethTransactionWithdrawals = ethTransactionWithdrawals.Order("timestamp DESC").Limit(limit + 1)
+	if cursorClause != "" {
+		ethTransactionWithdrawals = ethTransactionWithdrawals.Where(cursorClause)
 	}
 
 	withdrawalsQuery := db.gorm.Model(&L2BridgeWithdrawal{})
@@ -270,17 +285,16 @@ l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS lo
 l2_bridge_withdrawals.from_address, l2_bridge_withdrawals.to_address, l2_bridge_withdrawals.amount, l2_bridge_withdrawals.data, transaction_withdrawal_hash,
 l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
-
-	if cursor != "" {
-		// Probably need to fix this and compare timestamps
-		withdrawalsQuery = withdrawalsQuery.Where("withdrawal_hash < ?", cursor)
+	withdrawalsQuery = withdrawalsQuery.Order("timestamp DESC").Limit(limit + 1)
+	if cursorClause != "" {
+		withdrawalsQuery = withdrawalsQuery.Where(cursorClause)
 	}
 
 	query := db.gorm.Table("(?) AS withdrawals", withdrawalsQuery)
 	query = query.Joins("UNION (?)", ethTransactionWithdrawals)
 	query = query.Select("*").Order("timestamp DESC").Limit(limit + 1)
 	withdrawals := []L2BridgeWithdrawalWithTransactionHashes{}
-	result := query.Scan(&withdrawals)
+	result := query.Find(&withdrawals)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -292,21 +306,10 @@ l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address,
 	hasNextPage := false
 	if len(withdrawals) > limit {
 		hasNextPage = true
+		nextCursor = withdrawals[limit].L2BridgeWithdrawal.TransactionWithdrawalHash.String()
 		withdrawals = withdrawals[:limit]
-		nextCursor = withdrawals[limit].L2TransactionHash.String()
 	}
 
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, result.Error
-	}
-	response := &L2BridgeWithdrawalsResponse{
-		Withdrawals: withdrawals,
-		Cursor:      nextCursor,
-		HasNextPage: hasNextPage,
-	}
-
+	response := &L2BridgeWithdrawalsResponse{Withdrawals: withdrawals, Cursor: nextCursor, HasNextPage: hasNextPage}
 	return response, nil
 }
