@@ -20,19 +20,14 @@ func (m *MockEthClient) BlockHeaderByNumber(number *big.Int) (*types.Header, err
 	return args.Get(0).(*types.Header), args.Error(1)
 }
 
-func (m *MockEthClient) FinalizedBlockHeight() (*big.Int, error) {
-	args := m.Called()
-	return args.Get(0).(*big.Int), args.Error(1)
+func (m *MockEthClient) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
+	args := m.Called(hash)
+	return args.Get(0).(*types.Header), args.Error(1)
 }
 
 func (m *MockEthClient) BlockHeadersByRange(from, to *big.Int) ([]types.Header, error) {
 	args := m.Called(from, to)
 	return args.Get(0).([]types.Header), args.Error(1)
-}
-
-func (m *MockEthClient) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
-	args := m.Called(hash)
-	return args.Get(0).(*types.Header), args.Error(1)
 }
 
 func (m *MockEthClient) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {

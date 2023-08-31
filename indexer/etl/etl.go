@@ -16,7 +16,9 @@ import (
 type Config struct {
 	LoopIntervalMsec uint
 	HeaderBufferSize uint
-	StartHeight      *big.Int
+
+	StartHeight       *big.Int
+	ConfirmationDepth *big.Int
 }
 
 type ETL struct {

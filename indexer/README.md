@@ -33,3 +33,28 @@ TODO add indexer to the optimism devnet compose file (previously removed for bre
 
 `docker-compose.dev.yml` is git ignored.   Fill in your own docker-compose file here.
 
+## Architecture
+![Architectural Diagram](./assets/architecture.png)
+
+
+The indexer application supports two separate services for collective operation:
+**Indexer API** - Provides a lightweight API service that supports paginated lookups for bridge events.
+**Indexer Service** - A polling based service that constantly reads and persists OP Stack chain data (i.e, block meta, system contract events, synchronized bridge events) from a L1 and L2 chain.
+
+### Indexer API
+TBD
+
+### Indexer Service
+![Service Component Diagram](./assets/indexer-service.png)
+
+The indexer service is responsible for polling and processing real-time batches of L1 and L2 chain data. The indexer service is currently composed of the following key components:
+- **Poller Routines** - Individually polls the L1/L2 chain for new blocks and OP Stack system contract events.
+- **Insertion Routines** - Awaits new batches from the poller routines and inserts them into the database upon retrieval.
+- **Bridge Routine** - Polls the database directly for new L1 blocks and bridge events. Upon retrieval, the bridge routine will:
+* Process and persist new bridge events
+* Synchronize L1 proven/finalized withdrawals with their L2 initialization counterparts
+
+### Database
+The indexer service currently supports a Postgres database for storing L1/L2 OP Stack chain data. The most up-to-date database schemas can be found in the `./migrations` directory.
+
+**NOTE:** The indexer service implementation currently does not natively support database migration. Because of this a database must be manually updated to ensure forward compatibility with the latest indexer service implementation.

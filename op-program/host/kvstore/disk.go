@@ -17,8 +17,8 @@ const diskPermission = 0666
 
 // DiskKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
 // DiskKV is safe for concurrent use with a single DiskKV instance.
-// DiskKV is not safe for concurrent use between different DiskKV instances of the same disk directory:
-// a Put needs to be completed before another DiskKV Get retrieves the values.
+// DiskKV is safe for concurrent use between different DiskKV instances of the same disk directory as long as the
+// file system supports atomic renames.
 type DiskKV struct {
 	sync.RWMutex
 	path string
@@ -37,19 +37,22 @@ func (d *DiskKV) pathKey(k common.Hash) string {
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
-	f, err := os.OpenFile(d.pathKey(k), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, diskPermission)
+	f, err := os.CreateTemp(d.path, k.String()+".txt.*")
 	if err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return ErrAlreadyExists
-		}
-		return fmt.Errorf("failed to open new pre-image file %s: %w", k, err)
+		return fmt.Errorf("failed to open temp file for pre-image %s: %w", k, err)
 	}
+	defer os.Remove(f.Name()) // Clean up the temp file if it doesn't actually get moved into place
 	if _, err := f.Write([]byte(hex.EncodeToString(v))); err != nil {
 		_ = f.Close()
 		return fmt.Errorf("failed to write pre-image %s to disk: %w", k, err)
 	}
 	if err := f.Close(); err != nil {
-		return fmt.Errorf("failed to close pre-image %s file: %w", k, err)
+		return fmt.Errorf("failed to close temp pre-image %s file: %w", k, err)
+	}
+
+	targetFile := d.pathKey(k)
+	if err := os.Rename(f.Name(), targetFile); err != nil {
+		return fmt.Errorf("failed to move temp dir %v to final destination %v: %w", f.Name(), targetFile, err)
 	}
 	return nil
 }

@@ -43,9 +43,9 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
-	// Replace the handler of the global logger with the testlog
-	logger := testlog.Logger(t, log.LvlInfo)
-	log.Root().SetHandler(logger.GetHandler())
+	// Discard the Global Logger as each component
+	// has its own configured logger
+	log.Root().SetHandler(log.DiscardHandler())
 
 	// Rollup System Configuration and Start
 	opCfg := op_e2e.DefaultSystemConfig(t)
@@ -71,8 +71,10 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
 		},
 		Chain: config.ChainConfig{
-			L1PollingInterval: 1000,
-			L2PollingInterval: 1000,
+			L1PollingInterval:   uint(opCfg.DeployConfig.L1BlockTime) * 1000,
+			L1ConfirmationDepth: 0,
+			L2PollingInterval:   uint(opCfg.DeployConfig.L2BlockTime) * 1000,
+			L2ConfirmationDepth: 0,
 			L1Contracts: config.L1Contracts{
 				OptimismPortalProxy:         opCfg.L1Deployments.OptimismPortalProxy,
 				L2OutputOracleProxy:         opCfg.L1Deployments.L2OutputOracleProxy,
@@ -90,7 +92,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
-	indexer, err := indexer.NewIndexer(logger, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.Metrics)
+	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
+	indexer, err := indexer.NewIndexer(indexerLog, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.Metrics)
 	require.NoError(t, err)
 
 	indexerCtx, indexerStop := context.WithCancel(context.Background())

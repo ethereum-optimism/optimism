@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"runtime/debug"
 	"sync"
 
@@ -26,9 +27,8 @@ type Indexer struct {
 	metricsConfig   config.MetricsConfig
 	metricsRegistry *prometheus.Registry
 
-	L1ETL *etl.L1ETL
-	L2ETL *etl.L2ETL
-
+	L1ETL           *etl.L1ETL
+	L2ETL           *etl.L2ETL
 	BridgeProcessor *processors.BridgeProcessor
 }
 
@@ -41,7 +41,12 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 	if err != nil {
 		return nil, err
 	}
-	l1Cfg := etl.Config{LoopIntervalMsec: chainConfig.L1PollingInterval, HeaderBufferSize: chainConfig.L1HeaderBufferSize, StartHeight: chainConfig.L1StartHeight()}
+	l1Cfg := etl.Config{
+		LoopIntervalMsec:  chainConfig.L1PollingInterval,
+		HeaderBufferSize:  chainConfig.L1HeaderBufferSize,
+		ConfirmationDepth: big.NewInt(int64(chainConfig.L1ConfirmationDepth)),
+		StartHeight:       big.NewInt(int64(chainConfig.L1StartingHeight)),
+	}
 	l1Etl, err := etl.NewL1ETL(l1Cfg, logger, db, etl.NewMetrics(metricsRegistry, "l1"), l1EthClient, chainConfig.L1Contracts)
 	if err != nil {
 		return nil, err
@@ -52,14 +57,18 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 	if err != nil {
 		return nil, err
 	}
-	l2Cfg := etl.Config{LoopIntervalMsec: chainConfig.L2PollingInterval, HeaderBufferSize: chainConfig.L2HeaderBufferSize}
+	l2Cfg := etl.Config{
+		LoopIntervalMsec:  chainConfig.L2PollingInterval,
+		HeaderBufferSize:  chainConfig.L2HeaderBufferSize,
+		ConfirmationDepth: big.NewInt(int64(chainConfig.L2ConfirmationDepth)),
+	}
 	l2Etl, err := etl.NewL2ETL(l2Cfg, logger, db, etl.NewMetrics(metricsRegistry, "l2"), l2EthClient)
 	if err != nil {
 		return nil, err
 	}
 
 	// Bridge
-	bridgeProcessor, err := processors.NewBridgeProcessor(logger, db, chainConfig)
+	bridgeProcessor, err := processors.NewBridgeProcessor(logger, db, l1Etl, chainConfig)
 	if err != nil {
 		return nil, err
 	}
