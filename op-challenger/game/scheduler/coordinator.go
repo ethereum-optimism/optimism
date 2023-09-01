@@ -65,6 +65,7 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 			errs = append(errs, err)
 		} else if j != nil {
 			jobs = append(jobs, *j)
+			c.m.RecordGameUpdateScheduled()
 		}
 		state, ok := c.states[addr]
 		if ok {
@@ -136,6 +137,7 @@ func (c *coordinator) processResult(j job) error {
 	state.inflight = false
 	state.status = j.status
 	c.deleteResolvedGameFiles()
+	c.m.RecordGameUpdateCompleted()
 	return nil
 }
 

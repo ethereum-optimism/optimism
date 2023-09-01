@@ -26,6 +26,9 @@ type Metricer interface {
 	RecordCannonExecutionTime(t float64)
 
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+
+	RecordGameUpdateScheduled()
+	RecordGameUpdateCompleted()
 }
 
 type Metrics struct {
@@ -43,7 +46,8 @@ type Metrics struct {
 
 	cannonExecutionTime prometheus.Histogram
 
-	trackedGames prometheus.GaugeVec
+	trackedGames  prometheus.GaugeVec
+	inflightGames prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -85,7 +89,9 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "cannon_execution_time",
 			Help:      "Time (in seconds) to execute cannon",
-			Buckets:   append([]float64{1.0, 10.0}, prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
+			Buckets: append(
+				[]float64{1.0, 10.0},
+				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
 		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -94,6 +100,11 @@ func NewMetrics() *Metrics {
 		}, []string{
 			"status",
 		}),
+		inflightGames: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "inflight_games",
+			Help:      "Number of games being tracked by the challenger",
+		}),
 	}
 }
 
@@ -101,7 +112,12 @@ func (m *Metrics) Serve(ctx context.Context, host string, port int) error {
 	return opmetrics.ListenAndServe(ctx, m.registry, host, port)
 }
 
-func (m *Metrics) StartBalanceMetrics(ctx context.Context, l log.Logger, client *ethclient.Client, account common.Address) {
+func (m *Metrics) StartBalanceMetrics(
+	ctx context.Context,
+	l log.Logger,
+	client *ethclient.Client,
+	account common.Address,
+) {
 	opmetrics.LaunchBalanceMetrics(ctx, l, m.registry, m.ns, client, account)
 }
 
@@ -137,4 +153,12 @@ func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) 
 	m.trackedGames.WithLabelValues("in_progress").Set(float64(inProgress))
 	m.trackedGames.WithLabelValues("defender_won").Set(float64(defenderWon))
 	m.trackedGames.WithLabelValues("challenger_won").Set(float64(challengerWon))
+}
+
+func (m *Metrics) RecordGameUpdateScheduled() {
+	m.inflightGames.Add(1)
+}
+
+func (m *Metrics) RecordGameUpdateCompleted() {
+	m.inflightGames.Sub(1)
 }
