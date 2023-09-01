@@ -18,7 +18,7 @@ var (
 	bytesType, _   = abi.NewType("bytes", "", nil)
 	addressType, _ = abi.NewType("address", "", nil)
 
-	legacyCrossDomainMessengerRelayMessageMethod = abi.NewMethod(
+	CrossDomainMessengerLegacyRelayMessageEncoding = abi.NewMethod(
 		"relayMessage",
 		"relayMessage",
 		abi.Function,
@@ -26,10 +26,13 @@ var (
 		false,      // isConst
 		true,       // payable
 		abi.Arguments{ // inputs
-			{Name: "sender", Type: addressType},
 			{Name: "target", Type: addressType},
+			{Name: "sender", Type: addressType},
 			{Name: "data", Type: bytesType},
 			{Name: "nonce", Type: uint256Type},
+			// The actual transaction on the legacy L1CrossDomainMessenger
+			// actually has a trailing proof argument but is ignored for the
+			// `XDomainCallData` encoding
 		},
 		abi.Arguments{}, // outputs
 	)
@@ -58,7 +61,6 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 		return nil, err
 	}
 	if len(sentMessageEvents) == 0 {
-		// prevent the following db queries if we dont need them
 		return nil, nil
 	}
 
@@ -68,10 +70,13 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 	if err != nil {
 		return nil, err
 	}
-	if len(sentMessageEvents) != len(sentMessageExtensionEvents) {
-		return nil, fmt.Errorf("mismatch in SentMessage events. %d sent messages & %d sent message extensions", len(sentMessageEvents), len(sentMessageExtensionEvents))
+	if len(sentMessageExtensionEvents) > len(sentMessageEvents) {
+		return nil, fmt.Errorf("mismatch. %d sent messages & %d sent message extensions", len(sentMessageEvents), len(sentMessageExtensionEvents))
 	}
 
+	// We handle version zero messages uniquely since the first version of cross domain messages
+	// do not have the SentMessageExtension1 event emitted, introduced in version 1.
+	numVersionZeroMessages := len(sentMessageEvents) - len(sentMessageExtensionEvents)
 	crossDomainSentMessages := make([]CrossDomainMessengerSentMessageEvent, len(sentMessageEvents))
 	for i := range sentMessageEvents {
 		sentMessage := bindings.CrossDomainMessengerSentMessage{Raw: *sentMessageEvents[i].RLPLog}
@@ -79,13 +84,24 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 		if err != nil {
 			return nil, err
 		}
-		sentMessageExtension := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageExtensionEvents[i].RLPLog}
-		err = UnpackLog(&sentMessageExtension, sentMessageExtensionEvents[i].RLPLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerAbi)
-		if err != nil {
-			return nil, err
+
+		version, _ := DecodeVersionedNonce(sentMessage.MessageNonce)
+		if i < numVersionZeroMessages && version != 0 {
+			return nil, fmt.Errorf("expected version zero nonce. nonce %d tx_hash %s", sentMessage.MessageNonce, sentMessage.Raw.TxHash)
 		}
 
-		messageHash, err := CrossDomainMessageHash(crossDomainMessengerAbi, &sentMessage, sentMessageExtension.Value)
+		// In version zero, to value is bridged through the cross domain messenger.
+		value := big.NewInt(0)
+		if version > 0 {
+			sentMessageExtension := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageExtensionEvents[i].RLPLog}
+			err = UnpackLog(&sentMessageExtension, sentMessageExtensionEvents[i].RLPLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerAbi)
+			if err != nil {
+				return nil, err
+			}
+			value = sentMessageExtension.Value
+		}
+
+		messageHash, err := CrossDomainMessageHash(crossDomainMessengerAbi, &sentMessage, value)
 		if err != nil {
 			return nil, err
 		}
@@ -100,13 +116,12 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 				Tx: database.Transaction{
 					FromAddress: sentMessage.Sender,
 					ToAddress:   sentMessage.Target,
-					Amount:      sentMessageExtension.Value,
+					Amount:      value,
 					Data:        sentMessage.Message,
 					Timestamp:   sentMessageEvents[i].Timestamp,
 				},
 			},
 		}
-
 	}
 
 	return crossDomainSentMessages, nil
@@ -148,11 +163,11 @@ func CrossDomainMessageHash(abi *abi.ABI, sentMsg *bindings.CrossDomainMessenger
 	switch version {
 	case 0:
 		// Legacy Message
-		inputBytes, err := legacyCrossDomainMessengerRelayMessageMethod.Inputs.Pack(sentMsg.Sender, sentMsg.Target, sentMsg.Message, sentMsg.MessageNonce)
+		inputBytes, err := CrossDomainMessengerLegacyRelayMessageEncoding.Inputs.Pack(sentMsg.Target, sentMsg.Sender, sentMsg.Message, sentMsg.MessageNonce)
 		if err != nil {
 			return common.Hash{}, err
 		}
-		msgBytes := append(legacyCrossDomainMessengerRelayMessageMethod.ID, inputBytes...)
+		msgBytes := append(CrossDomainMessengerLegacyRelayMessageEncoding.ID, inputBytes...)
 		return crypto.Keccak256Hash(msgBytes), nil
 	case 1:
 		// Current Message
