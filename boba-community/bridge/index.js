@@ -212,14 +212,7 @@ const bridgeETHToL1 = async () => {
   if (!config) {
     return
   }
-  const {
-    L1Wallet,
-    L2Wallet,
-    L2OutputOracle,
-    OptimismPortal,
-    L2ToL1MessagePasser,
-    addresses,
-  } = config
+  const { L1Wallet, L2Wallet, addresses } = config
   console.log(`---------------------------------------------------`)
 
   const L1Balance = await L1Wallet.getBalance()
@@ -246,151 +239,13 @@ const bridgeETHToL1 = async () => {
     )} ETH to L2 Standard Bridge at block ${L2BlockNumber}`
   )
 
-  const logs = await L2ToL1MessagePasser.queryFilter(
-    L2ToL1MessagePasser.filters.MessagePassed(),
-    L2BlockNumber,
-    L2BlockNumber
-  )
-  if (logs.length !== 1) {
-    console.error('!! Unknown error: logs.length != 1 !!')
-    return
-  }
+  await submitProof(L2BlockNumber)
 
-  const types = ['uint256', 'address', 'address', 'uint256', 'uint256', 'bytes']
-  const encoded = defaultAbiCoder.encode(types, [
-    logs[0].args.nonce,
-    logs[0].args.sender,
-    logs[0].args.target,
-    logs[0].args.value,
-    logs[0].args.gasLimit,
-    logs[0].args.data,
-  ])
-  const slot = keccak256(encoded)
-  console.log(`Calculated slot: ${slot}`)
-
-  const withdrawalHash = logs[0].args.withdrawalHash
-  console.log(`withdrawalHash: ${withdrawalHash}`)
-  const messageSlot = ethers.utils.keccak256(
-    ethers.utils.defaultAbiCoder.encode(
-      ['bytes32', 'uint256'],
-      [slot, ethers.constants.HashZero]
-    )
-  )
-
-  if (withdrawalHash !== slot) {
-    console.error('!! Unknown error: withdrawalHash !== slot !!')
-    return
-  }
-  console.log(`Pass check! withdrawalHash === slot`)
-
-  const proof = await L2Wallet.provider.send('eth_getProof', [
-    '0x4200000000000000000000000000000000000016',
-    [messageSlot],
-    L2BlockNumber,
-  ])
-  console.log(`Got proof: ${JSON.stringify(proof)}`)
-
-  console.log(`---------------------------------------------------`)
-  console.log(`Waiting for L2 block to be published...`)
-
-  let latestBlockOnL1 = await L2OutputOracle.latestBlockNumber()
-  while (latestBlockOnL1 < L2BlockNumber) {
-    await new Promise((resolve) => setTimeout(resolve, 12000))
-    latestBlockOnL1 = await L2OutputOracle.latestBlockNumber()
-    console.log(
-      `Waiting for L2 block: ${L2BlockNumber} - Latest L2 block on L1: ${latestBlockOnL1}`
-    )
-  }
-
-  console.log(`---------------------------------------------------`)
-  console.log(`L2 block published!`)
-  const l2OutputIndex = await L2OutputOracle.getL2OutputIndexAfter(
-    L2BlockNumber
-  )
-  const proposal = await L2OutputOracle.getL2Output(l2OutputIndex)
-  const proposalBlockNumber = proposal.l2BlockNumber
-  const proposalBlock = await L2Wallet.provider.send('eth_getBlockByNumber', [
-    proposalBlockNumber.toNumber(),
-    false,
-  ])
-  const hash = keccak256(
-    defaultAbiCoder.encode(
-      ['bytes32', 'bytes32', 'bytes32', 'bytes32'],
-      [
-        ethers.constants.HashZero,
-        proposalBlock.stateRoot,
-        proof.storageHash,
-        proposalBlock.hash,
-      ]
-    )
-  )
-  console.log(`Calculated L2 proposal hash: ${hash}`)
-
-  const proveTx = await OptimismPortal.proveWithdrawalTransaction(
-    [
-      logs[0].args.nonce,
-      logs[0].args.sender,
-      logs[0].args.target,
-      logs[0].args.value,
-      logs[0].args.gasLimit,
-      logs[0].args.data,
-    ],
-    l2OutputIndex,
-    [
-      ethers.constants.HashZero,
-      proposalBlock.stateRoot,
-      proof.storageHash,
-      proposalBlock.hash,
-    ],
-    proof.storageProof[0].proof
-  )
-  await proveTx.wait()
-  console.log(`Proved withdrawal transaction!`)
-
-  const gasEstimationFinalSubmit = async () => {
-    const gas = await OptimismPortal.estimateGas.finalizeWithdrawalTransaction([
-      logs[0].args.nonce,
-      logs[0].args.sender,
-      logs[0].args.target,
-      logs[0].args.value,
-      logs[0].args.gasLimit,
-      logs[0].args.data,
-    ])
-    console.log(
-      'Gas estimation for finalizeWithdrawalTransaction',
-      gas.toString()
-    )
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-  }
-
-  while (true) {
-    try {
-      await gasEstimationFinalSubmit()
-      break
-    } catch (e) {
-      await new Promise((resolve) => setTimeout(resolve, 5000))
-      console.log(
-        `Failed to get gas estimation for finalizeWithdrawalTransaction`
-      )
-    }
-  }
-
-  const preL1ETHBalance = await L1Wallet.getBalance()
-  const finalSubmitTx = await OptimismPortal.finalizeWithdrawalTransaction([
-    logs[0].args.nonce,
-    logs[0].args.sender,
-    logs[0].args.target,
-    logs[0].args.value,
-    logs[0].args.gasLimit,
-    logs[0].args.data,
-  ])
-  await finalSubmitTx.wait()
-  console.log(`Finalized withdrawal transaction!`)
   const postL1ETHBalance = await L1Wallet.getBalance()
   console.log(
     `L1 ETH Balance: ${ethers.utils.formatEther(
       postL1ETHBalance
-    )} (was ${ethers.utils.formatEther(preL1ETHBalance)})`
+    )} (was ${ethers.utils.formatEther(L1Balance)})`
   )
 }
 
@@ -401,16 +256,7 @@ const bridgeBOBAToL1 = async () => {
   if (!config) {
     return
   }
-  const {
-    L1Wallet,
-    L2Wallet,
-    L2OutputOracle,
-    OptimismPortal,
-    L2StandardBridge,
-    L2ToL1MessagePasser,
-    L1BOBA,
-    L2BOBA,
-  } = config
+  const { L1Wallet, L2StandardBridge, L1BOBA, L2BOBA } = config
   console.log(`---------------------------------------------------`)
 
   const L1BOBABalance = await L1BOBA.balanceOf(L1Wallet.address)
@@ -446,6 +292,23 @@ const bridgeBOBAToL1 = async () => {
     )} BOBA to L2 Standard Bridge at block ${L2BlockNumber}`
   )
 
+  await submitProof(L2BlockNumber)
+
+  const postL1BOBABalance = await L1BOBA.balanceOf(L1Wallet.address)
+  console.log(
+    `L1 BOBA Balance: ${ethers.utils.formatEther(
+      postL1BOBABalance
+    )} (was ${ethers.utils.formatEther(L1BOBABalance)})`
+  )
+}
+
+const submitProof = async (L2BlockNumber) => {
+  const config = await getConfigurations()
+  if (!config) {
+    return
+  }
+  const { L2Wallet, L2OutputOracle, OptimismPortal, L2ToL1MessagePasser } =
+    config
   const logs = await L2ToL1MessagePasser.queryFilter(
     L2ToL1MessagePasser.filters.MessagePassed(),
     L2BlockNumber,
@@ -576,7 +439,6 @@ const bridgeBOBAToL1 = async () => {
     }
   }
 
-  const preL1BOBABalance = await L1BOBA.balanceOf(L1Wallet.address)
   const finalSubmitTx = await OptimismPortal.finalizeWithdrawalTransaction([
     logs[0].args.nonce,
     logs[0].args.sender,
@@ -587,12 +449,6 @@ const bridgeBOBAToL1 = async () => {
   ])
   await finalSubmitTx.wait()
   console.log(`Finalized withdrawal transaction!`)
-  const postL1BOBABalance = await L1BOBA.balanceOf(L1Wallet.address)
-  console.log(
-    `L1 BOBA Balance: ${ethers.utils.formatEther(
-      postL1BOBABalance
-    )} (was ${ethers.utils.formatEther(preL1BOBABalance)})`
-  )
 }
 
 const handleCommand = async (command) => {
@@ -620,7 +476,7 @@ const main = async () => {
     await handleCommand(command)
   }
   if (args.length === 2) {
-    for (arg of args) {
+    for (const arg of args) {
       await handleCommand(arg)
     }
   }
