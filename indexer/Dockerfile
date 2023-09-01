@@ -22,5 +22,6 @@ RUN make indexer
 FROM alpine:3.18
 
 COPY --from=builder /app/indexer/indexer /usr/local/bin
+COPY --from=builder /app/indexer/indexer.toml /configs/indexer.toml
 
-CMD ["indexer", "all", "--config", "/app/indexer/indexer.toml"]
+CMD ["indexer", "all", "--config", "/configs/indexer.toml"]
