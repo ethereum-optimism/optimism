@@ -180,6 +180,31 @@ func TestFetchL2Block(t *testing.T) {
 	})
 }
 
+func TestFetchL2Transactions(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+	block, rcpts := testutils.RandomBlock(rng, 10)
+	hash := block.Hash()
+
+	t.Run("AlreadyKnown", func(t *testing.T) {
+		prefetcher, _, _, kv := createPrefetcher(t)
+		storeBlock(t, kv, block, rcpts)
+
+		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		result := oracle.LoadTransactions(hash, block.TxHash())
+		assertTransactionsEqual(t, block.Transactions(), result)
+	})
+
+	t.Run("Unknown", func(t *testing.T) {
+		prefetcher, _, l2Cl, _ := createPrefetcher(t)
+		l2Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		defer l2Cl.MockL2Client.AssertExpectations(t)
+
+		oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		result := oracle.LoadTransactions(hash, block.TxHash())
+		assertTransactionsEqual(t, block.Transactions(), result)
+	})
+}
+
 func TestFetchL2Node(t *testing.T) {
 	rng := rand.New(rand.NewSource(123))
 	node := testutils.RandomData(rng, 30)

@@ -152,6 +152,13 @@ var (
 		Value:    "",
 		EnvVars:  p2pEnv("STATIC"),
 	}
+	NetRestrict = &cli.StringFlag{
+		Name:     "p2p.netrestrict",
+		Usage:    "Comma-separated list of CIDR masks. P2P will only try to connect on these networks",
+		Required: false,
+		Value:    "",
+		EnvVars:  p2pEnv("NETRESTRICT"),
+	}
 	HostMux = &cli.StringFlag{
 		Name:     "p2p.mux",
 		Usage:    "Comma-separated list of multiplexing protocols in order of preference. At least 1 required. Options: 'yamux','mplex'.",
@@ -322,6 +329,7 @@ var p2pFlags = []cli.Flag{
 	AdvertiseUDPPort,
 	Bootnodes,
 	StaticPeers,
+	NetRestrict,
 	HostMux,
 	HostSecurity,
 	PeersLo,

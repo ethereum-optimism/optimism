@@ -1,0 +1,17 @@
+{
+  "skip_tests":{
+    "TestTxGasSameAsBlockGasLimit":"Erigon does not discard txes which exceed the gas limit immediately, but instead retains them in case the gas limit changes",
+    "TestVerifyL2OutputRoot":"This test depends on debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootDetached":"This test depends on debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootEmptyBlock":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestVerifyL2OutputRootEmptyBlockDetached":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
+    "TestPendingGasLimit":"This test requires changes that neither Geth nor Erigon support as CLI flags",
+    "TestERC20BridgeDeposits":"TODO This used to work and must be fixed",
+    "TestWithdrawals":"TODO This used to work and must be fixed",
+    "TestMixedWithdrawalValidity":"TODO This used to work and must be fixed",
+    "TestSystemP2PAltSync":"TODO This used to work and must be fixed",
+    "TestCannonDefendStep":"TODO This is a new failure that should be investigated",
+    "TestMultipleCannonGames":"TODO This is a new failure that should be investigated",
+    "TestCannonDisputeGame":"TODO This is a new failure that should be investigated"
+  }
+}

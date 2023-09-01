@@ -254,6 +254,28 @@ func TestCannonSnapshotFreq(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--cannon-snapshot-freq=1234"))
 		require.Equal(t, uint(1234), cfg.CannonSnapshotFreq)
 	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid value \"abc\" for flag -cannon-snapshot-freq",
+			addRequiredArgs(config.TraceTypeCannon, "--cannon-snapshot-freq=abc"))
+	})
+}
+
+func TestCannonInfoFreq(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
+		require.Equal(t, config.DefaultCannonInfoFreq, cfg.CannonInfoFreq)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--cannon-info-freq=1234"))
+		require.Equal(t, uint(1234), cfg.CannonInfoFreq)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid value \"abc\" for flag -cannon-info-freq",
+			addRequiredArgs(config.TraceTypeCannon, "--cannon-info-freq=abc"))
+	})
 }
 
 func TestGameWindow(t *testing.T) {

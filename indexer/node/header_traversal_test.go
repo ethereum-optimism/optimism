@@ -37,10 +37,10 @@ func TestHeaderTraversalNextFinalizedHeadersNoOp(t *testing.T) {
 
 	// start from block 10 as the latest fetched block
 	lastHeader := &types.Header{Number: big.NewInt(10)}
-	headerTraversal := NewHeaderTraversal(client, lastHeader)
+	headerTraversal := NewHeaderTraversal(client, lastHeader, bigZero)
 
 	// no new headers when matched with head
-	client.On("FinalizedBlockHeight").Return(big.NewInt(10), nil)
+	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(lastHeader, nil)
 	headers, err := headerTraversal.NextFinalizedHeaders(100)
 	require.NoError(t, err)
 	require.Empty(t, headers)
@@ -50,11 +50,11 @@ func TestHeaderTraversalNextFinalizedHeadersCursored(t *testing.T) {
 	client := new(MockEthClient)
 
 	// start from genesis
-	headerTraversal := NewHeaderTraversal(client, nil)
+	headerTraversal := NewHeaderTraversal(client, nil, bigZero)
 
 	// blocks [0..4]
 	headers := makeHeaders(5, nil)
-	client.On("FinalizedBlockHeight").Return(big.NewInt(4), nil).Times(1) // Times so that we can override next
+	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&headers[4], nil).Times(1) // Times so that we can override next
 	client.On("BlockHeadersByRange", mock.MatchedBy(BigIntMatcher(0)), mock.MatchedBy(BigIntMatcher(4))).Return(headers, nil)
 	headers, err := headerTraversal.NextFinalizedHeaders(5)
 	require.NoError(t, err)
@@ -62,7 +62,7 @@ func TestHeaderTraversalNextFinalizedHeadersCursored(t *testing.T) {
 
 	// blocks [5..9]
 	headers = makeHeaders(5, &headers[len(headers)-1])
-	client.On("FinalizedBlockHeight").Return(big.NewInt(9), nil)
+	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&headers[4], nil)
 	client.On("BlockHeadersByRange", mock.MatchedBy(BigIntMatcher(5)), mock.MatchedBy(BigIntMatcher(9))).Return(headers, nil)
 	headers, err = headerTraversal.NextFinalizedHeaders(5)
 	require.NoError(t, err)
@@ -73,10 +73,10 @@ func TestHeaderTraversalNextFinalizedHeadersMaxSize(t *testing.T) {
 	client := new(MockEthClient)
 
 	// start from genesis
-	headerTraversal := NewHeaderTraversal(client, nil)
+	headerTraversal := NewHeaderTraversal(client, nil, bigZero)
 
 	// 100 "available" headers
-	client.On("FinalizedBlockHeight").Return(big.NewInt(100), nil)
+	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(100)}, nil)
 
 	// clamped by the supplied size
 	headers := makeHeaders(5, nil)
@@ -97,11 +97,11 @@ func TestHeaderTraversalMismatchedProviderStateError(t *testing.T) {
 	client := new(MockEthClient)
 
 	// start from genesis
-	headerTraversal := NewHeaderTraversal(client, nil)
+	headerTraversal := NewHeaderTraversal(client, nil, bigZero)
 
 	// blocks [0..4]
 	headers := makeHeaders(5, nil)
-	client.On("FinalizedBlockHeight").Return(big.NewInt(4), nil).Times(1) // Times so that we can override next
+	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&headers[4], nil).Times(1) // Times so that we can override next
 	client.On("BlockHeadersByRange", mock.MatchedBy(BigIntMatcher(0)), mock.MatchedBy(BigIntMatcher(4))).Return(headers, nil)
 	headers, err := headerTraversal.NextFinalizedHeaders(5)
 	require.NoError(t, err)
@@ -109,7 +109,7 @@ func TestHeaderTraversalMismatchedProviderStateError(t *testing.T) {
 
 	// blocks [5..9]. Next batch is not chained correctly (starts again from genesis)
 	headers = makeHeaders(5, nil)
-	client.On("FinalizedBlockHeight").Return(big.NewInt(9), nil)
+	client.On("BlockHeaderByNumber", (*big.Int)(nil)).Return(&types.Header{Number: big.NewInt(9)}, nil)
 	client.On("BlockHeadersByRange", mock.MatchedBy(BigIntMatcher(5)), mock.MatchedBy(BigIntMatcher(9))).Return(headers, nil)
 	headers, err = headerTraversal.NextFinalizedHeaders(5)
 	require.Nil(t, headers)
