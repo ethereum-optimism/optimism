@@ -74,7 +74,7 @@ func (a *Agent) Act(ctx context.Context) error {
 
 // shouldResolve returns true if the agent should resolve the game.
 // This method will return false if the game is still in progress.
-func (a *Agent) shouldResolve(ctx context.Context, status types.GameStatus) bool {
+func (a *Agent) shouldResolve(status types.GameStatus) bool {
 	expected := types.GameStatusDefenderWon
 	if a.agreeWithProposedOutput {
 		expected = types.GameStatusChallengerWon
@@ -85,20 +85,19 @@ func (a *Agent) shouldResolve(ctx context.Context, status types.GameStatus) bool
 	return expected == status
 }
 
-// tryResolve resolves the game if it is in a terminal state
-// and returns true if the game resolves successfully.
+// tryResolve resolves the game if it is in a winning state
+// Returns true if the game is resolvable (regardless of whether it was actually resolved)
 func (a *Agent) tryResolve(ctx context.Context) bool {
 	status, err := a.responder.CallResolve(ctx)
-	if err != nil {
+	if err != nil || status == types.GameStatusInProgress {
 		return false
 	}
-	if !a.shouldResolve(ctx, status) {
-		return false
+	if !a.shouldResolve(status) {
+		return true
 	}
 	a.log.Info("Resolving game")
 	if err := a.responder.Resolve(ctx); err != nil {
 		a.log.Error("Failed to resolve the game", "err", err)
-		return false
 	}
 	return true
 }
