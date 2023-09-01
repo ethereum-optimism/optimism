@@ -28,6 +28,23 @@ This are not intended to be used in production, only to support manual testing a
 dispute games work. They also serve as examples of how to use `cast` to manually interact with the dispute game
 contracts.
 
+### Understanding Revert Reasons
+
+When actions performed by these scripts fails, they typically print a message that includes the
+abi encoded revert reason provided by the contract. e.g.
+
+```
+Error:
+(code: 3, message: execution reverted, data: Some(String("0x67fe1950")))
+```
+
+The `cast 4byte` command can be used to decode these revert reasons. e.g.
+
+```shell
+$ cast 4byte 0x67fe1950
+GameNotInProgress()
+```
+
 ### Dependencies
 
 These scripts assume that the following tools are installed and available on the current `PATH`:
@@ -78,6 +95,32 @@ Performs a move to either attack or defend the latest claim in the specified gam
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.
 
+### [resolve.sh](scripts/resolve.sh)
+
+```shell
+./scripts/resolve.sh <RPC_URL> <GAME_ADDRESS> <SIGNER_ARGS>...
+```
+
+Resolves a dispute game. Note that this will fail if the dispute game has already been resolved
+or if the clocks have not yet expired and further moves are possible.
+If the game is resolved successfully, the result is printed.
+
+* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `GAME_ADDRESS` - the address of the dispute game to resolve.
+* `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
+  These arguments must specify a way for `cast` to sign the transactions.
+  See `cast send --help` for supported options.
+
+### [list_games.sh](scripts/list_games.sh)
+
+```shell
+./scripts/list_games.sh <RPC> <GAME_FACTORY_ADDRESS>
+```
+
+Prints the games created by the game factory along with their current status.
+
+* `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
+* `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
 
 ### [list_claims.sh](scripts/list_claims.sh)
 
