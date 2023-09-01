@@ -78,6 +78,8 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 }
 
 func DefaultSystemConfig(t *testing.T) SystemConfig {
+	config.ExternalL2TestParms.SkipIfNecessary(t)
+
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
 	deployConfig := config.DeployConfig.Copy()
@@ -139,7 +141,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GethOptions:                map[string][]GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
 		NonFinalizedProposals:      false,
-		ExternalL2Nodes:            config.ExternalL2Nodes,
+		ExternalL2Shim:             config.ExternalL2Shim,
 		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
@@ -175,7 +177,7 @@ type SystemConfig struct {
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
 
-	ExternalL2Nodes string
+	ExternalL2Shim string
 
 	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
 	// A nil map disables P2P completely.
@@ -438,7 +440,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for name := range cfg.Nodes {
 		var ethClient EthInstance
-		if cfg.ExternalL2Nodes == "" {
+		if cfg.ExternalL2Shim == "" {
 			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 			if err != nil {
 				return nil, err
@@ -459,7 +461,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			}
 			ethClient = (&ExternalRunner{
 				Name:    name,
-				BinPath: cfg.ExternalL2Nodes,
+				BinPath: cfg.ExternalL2Shim,
 				Genesis: l2Genesis,
 				JWTPath: cfg.JWTFilePath,
 			}).Run(t)

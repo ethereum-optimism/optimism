@@ -32,10 +32,12 @@ func (s *Service) Start(ctx context.Context) {
 	log.Info("service starting")
 	if s.Config.Healthz.Enabled {
 		addr := net.JoinHostPort(s.Config.Healthz.Host, s.Config.Healthz.Port)
-		log.Info("starting healthz server", "addr", addr)
+		log.Info("starting healthz server",
+			"addr", addr)
 		go func() {
 			if err := s.Healthz.Start(ctx, addr); err != nil {
-				log.Error("error starting healthz server", "err", err)
+				log.Error("error starting healthz server",
+					"err", err)
 			}
 		}()
 	}
@@ -43,10 +45,12 @@ func (s *Service) Start(ctx context.Context) {
 	metrics.Debug = s.Config.Metrics.Debug
 	if s.Config.Metrics.Enabled {
 		addr := net.JoinHostPort(s.Config.Metrics.Host, s.Config.Metrics.Port)
-		log.Info("starting metrics server", "addr", addr)
+		log.Info("starting metrics server",
+			"addr", addr)
 		go func() {
 			if err := s.Metrics.Start(ctx, addr); err != nil {
-				log.Error("error starting metrics server", "err", err)
+				log.Error("error starting metrics server",
+					"err", err)
 			}
 		}()
 	}
@@ -60,7 +64,8 @@ func (s *Service) Start(ctx context.Context) {
 	txpool := &provider.TransactionPool{}
 	for name, providers := range networks {
 		if len(providers) == 1 {
-			log.Warn("can't measure first seen for network, please another provider", "network", name)
+			log.Warn("can't measure first seen for network, please another provider",
+				"network", name)
 		}
 		(*txpool)[name] = &provider.NetworkTransactionPool{}
 		(*txpool)[name].Transactions = make(map[string]*provider.TransactionState)
@@ -76,7 +81,8 @@ func (s *Service) Start(ctx context.Context) {
 			s.Config.Wallets[providerConfig.Wallet],
 			(*txpool)[providerConfig.Network])
 		s.Providers[name].Start(ctx)
-		log.Info("provider started", "provider", name)
+		log.Info("provider started",
+			"provider", name)
 	}
 
 	log.Info("service started")
@@ -94,7 +100,8 @@ func (s *Service) Shutdown() {
 	}
 	for name, provider := range s.Providers {
 		provider.Shutdown()
-		log.Info("provider stopped", "provider", name)
+		log.Info("provider stopped",
+			"provider", name)
 	}
 	log.Info("service stopped")
 }

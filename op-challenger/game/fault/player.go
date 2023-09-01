@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -37,6 +38,7 @@ type GamePlayer struct {
 func NewGamePlayer(
 	ctx context.Context,
 	logger log.Logger,
+	m metrics.Metricer,
 	cfg *config.Config,
 	dir string,
 	addr common.Address,
@@ -79,7 +81,7 @@ func NewGamePlayer(
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, cfg, client, dir, addr)
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr)
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
@@ -105,7 +107,7 @@ func NewGamePlayer(
 	}
 
 	return &GamePlayer{
-		act:                     NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
