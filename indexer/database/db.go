@@ -4,6 +4,8 @@ package database
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	_ "github.com/ethereum-optimism/optimism/indexer/database/serializers"
@@ -70,6 +72,11 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to database after multiple retries")
 	}
+
+	if err := db.executeSQLMigration(); err != nil {
+		return nil, errors.Wrap(err, "failed to execute SQL migration")
+	}
+
 	return db, nil
 }
 
@@ -99,4 +106,37 @@ func dbFromGormTx(tx *gorm.DB) *DB {
 		BridgeMessages:     newBridgeMessagesDB(tx),
 		BridgeTransactions: newBridgeTransactionsDB(tx),
 	}
+}
+
+func (db *DB) executeSQLMigration() error {
+	err := filepath.Walk("migrations", func(path string, info os.FileInfo, err error) error {
+		// Check for any walking error
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Failed to process migration file: %s", path))
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Read the migration file content
+		fileContent, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return errors.Wrap(readErr, fmt.Sprintf("Error reading SQL file: %s", path))
+		}
+
+		// Execute the migration
+		execErr := db.gorm.Exec(string(fileContent)).Error
+		if execErr != nil {
+			return errors.Wrap(execErr, fmt.Sprintf("Error executing SQL script: %s", path))
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
