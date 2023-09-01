@@ -64,6 +64,24 @@ func runApi(ctx *cli.Context) error {
 	return api.Start(ctx.Context)
 }
 
+func runMigrations(ctx *cli.Context) error {
+	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return err
+	}
+
+	db, err := database.NewDB(cfg.DB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return err
+	}
+	defer db.Close()
+
+	return db.ExecuteSQLMigration()
+}
+
 func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
 	flags = append(flags, log.CLIFlags("INDEXER")...)
@@ -83,6 +101,12 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Flags:       flags,
 				Description: "Runs the indexing service",
 				Action:      runIndexer,
+			},
+			{
+				Name:        "migrate",
+				Flags:       flags,
+				Description: "Runs the database migrations",
+				Action:      runMigrations,
 			},
 			{
 				Name:        "version",
