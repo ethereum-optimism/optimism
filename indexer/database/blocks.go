@@ -234,6 +234,7 @@ func (db *blocksDB) LatestEpoch() (*Epoch, error) {
 	// will have a matching timestamp with the L1 origin.
 	query := db.gorm.Table("l1_block_headers").Order("l1_block_headers.timestamp DESC")
 	query = query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_block_headers.timestamp")
+	query = query.Order("l2_block_headers.number DESC")
 	query = query.Select("*")
 
 	var epoch Epoch
