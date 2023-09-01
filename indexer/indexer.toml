@@ -28,7 +28,7 @@ user = "db_username"
 password = "db_password"
 name = "db_name"
 
-[api]
+[http]
 host = "127.0.0.1"
 port = 8080
 
