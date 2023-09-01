@@ -7,19 +7,58 @@ games, and validity games. To learn more about dispute games, visit the
 
 ## Quickstart
 
-First, clone this repo. Then, run `make`, which will build all required targets.
-Alternatively, run `make devnet` to bring up the [devnet](../ops-bedrock/devnet-up.sh)
-which deploys the [mock dispute game contracts](./contracts) as well as an
-`op-challenger` instance.
+First, clone this repo. Then run:
 
-Alternatively, you can build the `op-challenger` binary locally using the pre-configured
-[Makefile](./Makefile) target by running `make build`, and then running `./op-challenger --help`
+```shell
+cd op-challenger
+make alphabet
+```
+
+This creates a local devnet, starts a dispute game using the simple alphabet trace type and runs two op-challenger
+instances with differing views of the correct alphabet to play the game.
+
+Alternatively, you can build the `op-challenger` binary directly using the pre-configured
+[Makefile](./Makefile) target by running `make build`, and then running `./bin/op-challenger --help`
 to see a list of available options.
 
 ## Usage
 
 `op-challenger` is configurable via command line flags and environment variables. The help menu
 shows the available config options and can be accessed by running `./op-challenger --help`.
+
+### Running with Cannon on Local Devnet
+
+To run `op-challenger` against the local devnet, first ensure the required components are built and the devnet is running.
+From the top level of the repository run:
+
+```shell
+make devnet-clean
+make cannon-prestate op-challenger
+make devnet-up
+```
+
+Then start `op-challenger` with:
+```shell
+DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
+./op-challenger/bin/op-challenger \
+  --trace-type cannon \
+  --l1-eth-rpc http://localhost:8545 \
+  --game-factory-address $DISPUTE_GAME_FACTORY \
+  --agree-with-proposed-output=true \
+  --datadir temp/challenger-data \
+  --cannon-rollup-config .devnet/rollup.json  \
+  --cannon-l2-genesis .devnet/genesis-l2.json \
+  --cannon-bin ./cannon/bin/cannon \
+  --cannon-server ./op-program/bin/op-program \
+  --cannon-prestate ./op-program/bin/prestate.json \
+  --cannon-l2 http://localhost:9545 \
+  --mnemonic "test test test test test test test test test test test junk" \
+  --hd-path "m/44'/60'/0'/0/8" \
+  --num-confirmations 1
+```
+
+The mnemonic and hd-path above is a prefunded address on the devnet. The challenger respond to any created games by
+posting the correct trace as the counter-claim. The scripts below can then be used to create and interact with games.
 
 ## Scripts
 
