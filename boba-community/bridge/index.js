@@ -26,8 +26,8 @@ const loadContracts = (addresses, l1Wallet, l2Wallet) => {
     addresses.L2OUTPUTORACLE,
     new ethers.utils.Interface([
       'function latestBlockNumber() public view returns (uint256)',
-      'function getL2OutputIndexAfter() public view returns (uint256)',
-      'function getL2Output() public view returns (bytes32 outputRoot, uint128 timestamp, uint128 l2BlockNumber)',
+      'function getL2OutputIndexAfter(uint256) public view returns (uint256)',
+      'function getL2Output(uint256) public view returns (bytes32 outputRoot, uint128 timestamp, uint128 l2BlockNumber)',
     ]),
     l1Wallet
   )
@@ -342,7 +342,7 @@ const bridgeETHToL1 = async () => {
       proof.storageHash,
       proposalBlock.hash,
     ],
-    estimate.storageProof[0].proof
+    proof.storageProof[0].proof
   )
   await proveTx.wait()
   console.log(`Proved withdrawal transaction!`)
@@ -368,8 +368,9 @@ const bridgeETHToL1 = async () => {
       await gasEstimationFinalSubmit()
       break
     } catch (e) {
+      await new Promise((resolve) => setTimeout(resolve, 5000))
       console.log(
-        'Failed to get gas estimation for finalizeWithdrawalTransaction'
+        `Failed to get gas estimation for finalizeWithdrawalTransaction`
       )
     }
   }
@@ -509,7 +510,7 @@ const bridgeBOBAToL1 = async () => {
   )
   const proposal = await L2OutputOracle.getL2Output(l2OutputIndex)
   const proposalBlockNumber = proposal.l2BlockNumber
-  const proposalBlock = await L2Wallet.provider('eth_getBlockByNumber', [
+  const proposalBlock = await L2Wallet.provider.send('eth_getBlockByNumber', [
     proposalBlockNumber.toNumber(),
     false,
   ])
@@ -542,7 +543,7 @@ const bridgeBOBAToL1 = async () => {
       proof.storageHash,
       proposalBlock.hash,
     ],
-    estimate.storageProof[0].proof
+    proof.storageProof[0].proof
   )
   await proveTx.wait()
   console.log(`Proved withdrawal transaction!`)
@@ -568,8 +569,9 @@ const bridgeBOBAToL1 = async () => {
       await gasEstimationFinalSubmit()
       break
     } catch (e) {
+      await new Promise((resolve) => setTimeout(resolve, 5000))
       console.log(
-        'Failed to get gas estimation for finalizeWithdrawalTransaction'
+        `Failed to get gas estimation for finalizeWithdrawalTransaction`
       )
     }
   }
