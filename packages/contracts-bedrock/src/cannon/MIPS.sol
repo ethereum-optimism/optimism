@@ -103,9 +103,9 @@ contract MIPS {
             from, to := copyMem(from, to, 4) // lo
             from, to := copyMem(from, to, 4) // hi
             from, to := copyMem(from, to, 4) // heap
-            let exitCode := shr(248, mload(from))
+            let exitCode := mload(from)
             from, to := copyMem(from, to, 1) // exitCode
-            let exited := shr(248, mload(from))
+            let exited := mload(from)
             from, to := copyMem(from, to, 1) // exited
             from, to := copyMem(from, to, 8) // step
             from := add(from, 32) // offset to registers
@@ -137,7 +137,7 @@ contract MIPS {
 
             // Compute the hash of the resulting MIPS state
             out_ := keccak256(start, sub(to, start))
-            out_ := or(shl(248, status), and(not(shl(248, 0xff)), out_))
+            out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
         }
     }
 

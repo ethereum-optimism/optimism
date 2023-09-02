@@ -1558,7 +1558,7 @@ contract MIPS_Test is CommonTest {
     ///      1. Exited with success (Invalid)
     ///      2. Exited with failure (Panic)
     ///      3. Unfinished
-    function vmStatus(MIPS.State memory state) internal pure returns (uint8 out_) {
+    function vmStatus(MIPS.State memory state) internal pure returns (uint256 out_) {
         if (state.exited) {
             if (state.exitCode == 0) {
                 return 0;
@@ -1574,7 +1574,7 @@ contract MIPS_Test is CommonTest {
 
     function outputState(MIPS.State memory state) internal pure returns (bytes32 out_) {
         bytes memory enc = encodeState(state);
-        uint8 status = vmStatus(state);
+        uint256 status = vmStatus(state);
         assembly {
             out_ := keccak256(add(enc, 0x20), 226)
             out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
