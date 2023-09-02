@@ -123,10 +123,15 @@ contract MIPS {
                 switch _exited
                 case 1 {
                     switch _exitCode
-                    case 0 { status_ := 0 } // VMStatusValid
-                    case 1 { status_ := 1 } // VMStatusInvalid
-                    default { status_ := 2 } // VMStatusPanic
-                } default { status_ := 3 } // VMStatusUnfinished
+                    // VMStatusValid
+                    case 0 { status_ := 0 }
+                    // VMStatusInvalid
+                    case 1 { status_ := 1 }
+                    // VMStatusPanic
+                    default { status_ := 2 }
+                }
+                // VMStatusUnfinished
+                default { status_ := 3 }
             }
             let status := vmStatus(exited, exitCode)
 

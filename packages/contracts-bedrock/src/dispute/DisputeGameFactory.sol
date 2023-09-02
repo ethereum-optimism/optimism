@@ -91,10 +91,6 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         // If there is no implementation to clone for the given `GameType`, revert.
         if (address(impl) == address(0)) revert NoImplementation(_gameType);
 
-        // The VMStatus must indicate (1) 'invalid', to argue that disputed thing is invalid.
-        // Games that agree with the existing outcome are not allowed.
-        if (uint8(Claim.unwrap(_rootClaim)[0]) != 1) revert UnexpectedRootClaim(_rootClaim);
-
         // Clone the implementation contract and initialize it with the given parameters.
         proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
         proxy_.initialize();

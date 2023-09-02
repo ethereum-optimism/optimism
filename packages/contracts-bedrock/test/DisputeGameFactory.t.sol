@@ -36,12 +36,6 @@ contract DisputeGameFactory_Init is L2OutputOracle_Initializer {
 }
 
 contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
-    function changeClaimStatus(Claim claim, uint8 status) public pure returns (Claim _out) {
-        bytes32 hash = Claim.unwrap(claim);
-        hash = bytes32((uint256(hash) & (~(uint256(0xff) << 248))) | (uint256(status) << 248));
-        return Claim.wrap(hash);
-    }
-
     /// @dev Tests that the `create` function succeeds when creating a new dispute game
     ///      with a `GameType` that has an implementation set.
     function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
@@ -83,17 +77,6 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         factory.create(gt, rootClaim, extraData);
     }
 
-    /// @dev Tests that the `create` function reverts when the rootClaim does not disagree with the outcome.
-    function testFuzz_create_badRootStatus_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
-        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
-        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
-        // Ensure the root claim does not have the correct VM status
-        if (uint8(Claim.unwrap(rootClaim)[0]) == 1) rootClaim = changeClaimStatus(rootClaim, 0);
-
-        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
-        factory.create(gt, rootClaim, extraData);
-    }
-
     /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
     function testFuzz_create_sameUUID_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
@@ -121,6 +104,12 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
             abi.encodeWithSelector(GameAlreadyExists.selector, factory.getGameUUID(gt, rootClaim, extraData))
         );
         factory.create(gt, rootClaim, extraData);
+    }
+
+    function changeClaimStatus(Claim claim, uint8 status) public pure returns (Claim _out) {
+        bytes32 hash = Claim.unwrap(claim);
+        hash = bytes32((uint256(hash) & (~(uint256(0xff) << 248))) | (uint256(status) << 248));
+        return Claim.wrap(hash);
     }
 }
 

@@ -143,6 +143,16 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(1800, block.number - 1));
     }
 
+    /// @dev Tests that the `create` function reverts when the rootClaim does not disagree with the outcome.
+    function testFuzz_initialize_badRootStatus_reverts(Claim rootClaim, bytes calldata extraData) public {
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
+        // Ensure the root claim does not have the correct VM status
+        if (uint8(Claim.unwrap(rootClaim)[0]) == 1) rootClaim = changeClaimStatus(rootClaim, 0);
+
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
+        factory.create(GameTypes.FAULT, rootClaim, extraData);
+    }
+
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
         // Starting
@@ -448,6 +458,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function _getKey(uint256 _ident) internal view returns (bytes32) {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy)));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
+    }
+
+    function changeClaimStatus(Claim claim, uint8 status) public pure returns (Claim _out) {
+        bytes32 hash = Claim.unwrap(claim);
+        hash = bytes32((uint256(hash) & (~(uint256(0xff) << 248))) | (uint256(status) << 248));
+        return Claim.wrap(hash);
     }
 }
 

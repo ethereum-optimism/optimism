@@ -437,6 +437,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Implicit assumptions:
         // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
 
+        // The VMStatus must indicate (1) 'invalid', to argue that disputed thing is invalid.
+        // Games that agree with the existing outcome are not allowed.
+        if (uint8(Claim.unwrap(rootClaim())[0]) != 1) revert UnexpectedRootClaim(rootClaim());
+
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
