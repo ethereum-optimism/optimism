@@ -159,7 +159,7 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status types.GameStatus)
 }
 
 type PrestateLoader interface {
-	FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error)
+	FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
 }
 
 // ValidateAbsolutePrestate validates the absolute prestate of the fault game.
@@ -173,7 +173,7 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 	if err != nil {
 		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
 	}
-	if !bytes.Equal(providerPrestateHash, onchainPrestate) {
+	if !bytes.Equal(providerPrestateHash, onchainPrestate[:]) {
 		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate")
 	}
 	return nil

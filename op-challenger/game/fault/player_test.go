@@ -120,7 +120,7 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		prestateHash := crypto.Keccak256(prestate)
 		mockTraceProvider := newMockTraceProvider(false, prestate)
-		mockLoader := newMockPrestateLoader(false, prestateHash)
+		mockLoader := newMockPrestateLoader(false, common.BytesToHash(prestateHash))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.NoError(t, err)
 	})
@@ -128,7 +128,7 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("TraceProviderErrors", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		mockTraceProvider := newMockTraceProvider(true, prestate)
-		mockLoader := newMockPrestateLoader(false, prestate)
+		mockLoader := newMockPrestateLoader(false, common.BytesToHash(prestate))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.ErrorIs(t, err, mockTraceProviderError)
 	})
@@ -136,14 +136,14 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("LoaderErrors", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		mockTraceProvider := newMockTraceProvider(false, prestate)
-		mockLoader := newMockPrestateLoader(true, prestate)
+		mockLoader := newMockPrestateLoader(true, common.BytesToHash(prestate))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.ErrorIs(t, err, mockLoaderError)
 	})
 
 	t.Run("PrestateMismatch", func(t *testing.T) {
 		mockTraceProvider := newMockTraceProvider(false, []byte{0x00, 0x01, 0x02, 0x03})
-		mockLoader := newMockPrestateLoader(false, []byte{0x00})
+		mockLoader := newMockPrestateLoader(false, common.BytesToHash([]byte{0x00}))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.Error(t, err)
 	})
@@ -210,20 +210,25 @@ func (m *mockTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error
 	return m.prestate, nil
 }
 
-type mockLoader struct {
-	prestateError bool
-	prestate      []byte
+// StateHash computes the state-hash of the given state, or returns an error if the state is invalid.
+func (m *mockTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
+	panic("not implemented")
 }
 
-func newMockPrestateLoader(prestateError bool, prestate []byte) *mockLoader {
+type mockLoader struct {
+	prestateError bool
+	prestate      common.Hash
+}
+
+func newMockPrestateLoader(prestateError bool, prestate common.Hash) *mockLoader {
 	return &mockLoader{
 		prestateError: prestateError,
 		prestate:      prestate,
 	}
 }
-func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error) {
+func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	if m.prestateError {
-		return nil, mockLoaderError
+		return common.Hash{}, mockLoaderError
 	}
 	return m.prestate, nil
 }
