@@ -19,9 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
 const (
