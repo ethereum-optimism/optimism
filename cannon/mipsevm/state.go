@@ -78,8 +78,8 @@ const (
 func (sw StateWitness) StateHash() common.Hash {
 	hash := crypto.Keccak256Hash(sw)
 	offset := 32*2 + 4*6
-	exited := sw[offset]
-	exitCode := sw[offset+1]
+	exitCode := sw[offset]
+	exited := sw[offset+1]
 	status := vmStatus(exited == 1, exitCode)
 	hash[0] = status
 	return hash
