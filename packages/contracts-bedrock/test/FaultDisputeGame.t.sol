@@ -77,7 +77,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
 contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev The root claim of the game.
-    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) + uint256(10)));
+    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
     /// @dev The absolute prestate of the trace.
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(0)));
 
@@ -609,9 +609,11 @@ contract GamePlayer {
 
     /// @notice Returns the player's claim that commits to a given trace index.
     function claimAt(uint256 _traceIndex) public view returns (Claim claim_) {
-        return Claim.wrap(
-            keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, traceAt(_traceIndex)))
-        );
+        bytes32 hash =
+            keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, traceAt(_traceIndex)));
+        assembly {
+            claim_ := or(and(hash, not(shl(248, 0xFF))), shl(248, 1))
+        }
     }
 
     /// @notice Returns the player's claim that commits to a given trace index.
@@ -631,7 +633,7 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
     GamePlayer internal challenger;
 
     function init(GamePlayer _defender, GamePlayer _challenger, uint256 _finalTraceIndex) public {
-        Claim rootClaim = Claim.wrap(keccak256(abi.encode(_finalTraceIndex, _defender.traceAt(_finalTraceIndex))));
+        Claim rootClaim = _defender.claimAt(_finalTraceIndex);
         super.init(rootClaim, ABSOLUTE_PRESTATE_CLAIM);
         defender = _defender;
         challenger = _challenger;
@@ -995,5 +997,8 @@ contract AlphabetVM is IBigStepper {
         }
         // STF: n -> n + 1
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
+        assembly {
+            postState_ := or(and(postState_, not(shl(248, 0xFF))), shl(248, 1))
+        }
     }
 }

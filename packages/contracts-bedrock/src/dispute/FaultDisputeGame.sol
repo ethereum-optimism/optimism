@@ -85,7 +85,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.7
+    /// @custom:semver 0.0.8
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -149,7 +149,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
         //            preimage of the prestate claim hash.
-        if (keccak256(_stateData) != Claim.unwrap(preStateClaim)) revert InvalidPrestate();
+        //            We ignore the highest order byte of the digest because it is used to
+        //            indicate the VM Status.
+        if (cleanHighByte(keccak256(_stateData)) != cleanHighByte(Claim.unwrap(preStateClaim))) {
+            revert InvalidPrestate();
+        }
 
         // INVARIANT: If a step is an attack, the poststate is valid if the step produces
         //            the same poststate hash as the parent claim's value.
@@ -434,11 +438,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     function initialize() external {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
+        //
         // Implicit assumptions:
         // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
 
         // The VMStatus must indicate (1) 'invalid', to argue that disputed thing is invalid.
         // Games that agree with the existing outcome are not allowed.
+        // NOTE(clabby): This assumption will change in Alpha Chad.
         if (uint8(Claim.unwrap(rootClaim())[0]) != 1) revert UnexpectedRootClaim(rootClaim());
 
         // Set the game's starting timestamp
@@ -533,6 +539,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         ancestor_ = claimData[_start];
         while (Position.unwrap(ancestor_.position) != Position.unwrap(preStateTraceAncestor)) {
             ancestor_ = claimData[ancestor_.parentIndex];
+        }
+    }
+
+    /// @notice Cleans the highest order byte of a given fixed bytes value.
+    /// @param _in The bytes32 value to clean.
+    /// @return out_ The cleaned bytes32 value.
+    function cleanHighByte(bytes32 _in) internal pure returns (bytes32 out_) {
+        assembly {
+            out_ := and(not(shl(248, 0xFF)), _in)
         }
     }
 }

@@ -75,19 +75,10 @@ func BuildAlphabetPreimage(i uint64, letter string) []byte {
 	return append(IndexToBytes(i), LetterToBytes(letter)...)
 }
 
-const maxAlphabet = 26
-
 func alphabetStateHash(state []byte) common.Hash {
 	h := crypto.Keccak256Hash(state)
-	// instead of the state containing an "exited" boolean, we just check if the index reached the end
-	i := new(big.Int).SetBytes(state[:32])
-	if !i.IsUint64() || i.Uint64() > maxAlphabet {
-		h[0] = types.VMStatusPanic // this state should never be reached, if we increment by 1 per step
-	} else if i.Uint64() == maxAlphabet {
-		h[0] = types.VMStatusValid
-	} else {
-		h[0] = types.VMStatusUnfinished
-	}
+	// In the alphabet game, we ignore the VM status code and always set it to 1.
+	h[0] = 1
 	return h
 }
 
