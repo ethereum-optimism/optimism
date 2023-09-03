@@ -119,23 +119,22 @@ contract MIPS {
             // Log the resulting MIPS state, for debugging
             log0(start, sub(to, start))
 
-            function vmStatus(_exited, _exitCode) -> status_ {
-                switch _exited
-                case 1 {
-                    switch _exitCode
-                    // VMStatusValid
-                    case 0 { status_ := 0 }
-                    // VMStatusInvalid
-                    case 1 { status_ := 1 }
-                    // VMStatusPanic
-                    default { status_ := 2 }
-                }
-                // VMStatusUnfinished
-                default { status_ := 3 }
+            // Determine the VM status
+            let status := 0
+            switch exited
+            case 1 {
+                switch exitCode
+                // VMStatusValid
+                case 0 { status := 0 }
+                // VMStatusInvalid
+                case 1 { status := 1 }
+                // VMStatusPanic
+                default { status := 2 }
             }
-            let status := vmStatus(exited, exitCode)
+            // VMStatusUnfinished
+            default { status := 3 }
 
-            // Compute the hash of the resulting MIPS state
+            // Compute the hash of the resulting MIPS state and set the status byte
             out_ := keccak256(start, sub(to, start))
             out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
         }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -119,6 +120,7 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("ValidPrestates", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		prestateHash := crypto.Keccak256(prestate)
+		prestateHash[0] = mipsevm.VMStatusUnfinished
 		mockTraceProvider := newMockTraceProvider(false, prestate)
 		mockLoader := newMockPrestateLoader(false, common.BytesToHash(prestateHash))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)

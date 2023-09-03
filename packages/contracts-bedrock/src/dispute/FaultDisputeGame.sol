@@ -85,7 +85,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.8
+    /// @custom:semver 0.0.9
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -95,7 +95,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
     )
-        Semver(0, 0, 8)
+        Semver(0, 0, 9)
     {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
@@ -150,7 +150,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
         //            preimage of the prestate claim hash.
         //            We ignore the highest order byte of the digest because it is used to
-        //            indicate the VM Status.
+        //            indicate the VM Status and is added after the digest is computed.
         if (cleanHighByte(keccak256(_stateData)) != cleanHighByte(Claim.unwrap(preStateClaim))) {
             revert InvalidPrestate();
         }

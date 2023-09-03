@@ -110,13 +110,6 @@ type TraceProvider interface {
 	StateHash(ctx context.Context, state []byte) (common.Hash, error)
 }
 
-const (
-	VMStatusValid      = 0
-	VMStatusInvalid    = 1
-	VMStatusPanic      = 2
-	VMStatusUnfinished = 3
-)
-
 // ClaimData is the core of a claim. It must be unique inside a specific game.
 type ClaimData struct {
 	Value common.Hash

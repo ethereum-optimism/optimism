@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -78,7 +79,7 @@ func BuildAlphabetPreimage(i uint64, letter string) []byte {
 func alphabetStateHash(state []byte) common.Hash {
 	h := crypto.Keccak256Hash(state)
 	// In the alphabet game, we ignore the VM status code and always set it to 1.
-	h[0] = 1
+	h[0] = mipsevm.VMStatusInvalid
 	return h
 }
 
