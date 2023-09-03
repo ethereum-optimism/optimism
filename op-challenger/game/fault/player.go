@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
@@ -170,7 +169,6 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
 	}
 	providerPrestateHash := crypto.Keccak256(providerPrestate)
-	providerPrestateHash[0] = mipsevm.VMStatusUnfinished
 	onchainPrestate, err := loader.FetchAbsolutePrestateHash(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
