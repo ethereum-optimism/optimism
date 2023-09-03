@@ -8,7 +8,7 @@ import (
 func main() {
 	// Default to a machine parsable but relatively human friendly log format.
 	// Don't do anything fancy to detect if color output is supported.
-	logger := oplog.NewLogger(oplog.CLIConfig{
+	logger := oplog.NewLogger(nil, oplog.CLIConfig{
 		Level:  "info",
 		Format: "logfmt",
 		Color:  false,

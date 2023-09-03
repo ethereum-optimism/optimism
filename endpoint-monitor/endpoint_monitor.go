@@ -33,7 +33,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			return fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		l := oplog.NewLogger(cfg.LogConfig)
+		l := oplog.NewLogger(cliCtx, cfg.LogConfig)
 
 		endpointMonitor := NewEndpointMonitor(cfg, l)
 		l.Info(fmt.Sprintf("starting endpoint monitor with checkInterval=%s checkDuration=%s", cfg.CheckInterval, cfg.CheckDuration))

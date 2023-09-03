@@ -27,11 +27,8 @@ func Main(version string, cliCtx *cli.Context) error {
 		return err
 	}
 	cfg := NewConfig(cliCtx)
-	if err := cfg.Check(); err != nil {
-		return fmt.Errorf("invalid CLI flags: %w", err)
-	}
 
-	l := oplog.NewLogger(cfg.LogConfig)
+	l := oplog.NewLogger(cliCtx, cfg.LogConfig)
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing Batch Submitter")

@@ -104,7 +104,7 @@ func TestL1ETLConstruction(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ts := test.construction()
 
-			logger := log.NewLogger(log.DefaultCLIConfig())
+			logger := log.NewLogger(nil, log.DefaultCLIConfig())
 			cfg := Config{StartHeight: ts.start}
 
 			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts)

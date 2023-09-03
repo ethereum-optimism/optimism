@@ -396,10 +396,7 @@ var (
 		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
-			if err := logCfg.Check(); err != nil {
-				return fmt.Errorf("failed to parse log configuration: %w", err)
-			}
-			l := oplog.NewLogger(logCfg)
+			l := oplog.NewLogger(ctx, logCfg)
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag
