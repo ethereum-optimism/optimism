@@ -38,6 +38,11 @@ abstract contract EIP1271Verifier is EIP712 {
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 1] private __gap;
 
+    /// @dev Emitted when users invalidate nonces by increasing their nonces to (higher) new values.
+    /// @param oldNonce The previous nonce.
+    /// @param newNonce The new value.
+    event NonceIncreased(uint256 oldNonce, uint256 newNonce);
+
     /// @dev Creates a new EIP1271Verifier instance.
     /// @param version The current major version of the signing domain
     constructor(string memory name, string memory version) EIP712(name, version) {
@@ -78,11 +83,14 @@ abstract contract EIP1271Verifier is EIP712 {
     /// @notice Provides users an option to invalidate nonces by increasing their nonces to (higher) new values.
     /// @param newNonce The (higher) new value.
     function increaseNonce(uint256 newNonce) external {
-        if (newNonce <= _nonces[msg.sender]) {
+        uint256 oldNonce = _nonces[msg.sender];
+        if (newNonce <= oldNonce) {
             revert InvalidNonce();
         }
 
         _nonces[msg.sender] = newNonce;
+
+        emit NonceIncreased({ oldNonce: oldNonce, newNonce: newNonce });
     }
 
     /// @notice Verifies delegated attestation request.
