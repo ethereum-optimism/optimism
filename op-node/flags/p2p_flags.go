@@ -156,7 +156,6 @@ var (
 		Name:     "p2p.netrestrict",
 		Usage:    "Comma-separated list of CIDR masks. P2P will only try to connect on these networks",
 		Required: false,
-		Value:    "",
 		EnvVars:  p2pEnv("NETRESTRICT"),
 	}
 	HostMux = &cli.StringFlag{
