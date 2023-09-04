@@ -45,7 +45,7 @@
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.5.3",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
-    "@typescript-eslint/parser": "^5.60.1",
+    "@typescript-eslint/parser": "^6.6.0",
     "chai": "^4.2.0",
     "copyfiles": "^2.3.0",
     "depcheck": "^1.4.3",
