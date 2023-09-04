@@ -38,7 +38,7 @@ func runIndexer(ctx *cli.Context) error {
 	}
 	defer db.Close()
 
-	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.Metrics)
+	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.HTTPServer, cfg.MetricsServer)
 	if err != nil {
 		log.Error("failed to create indexer", "err", err)
 		return err
@@ -63,7 +63,7 @@ func runApi(ctx *cli.Context) error {
 	defer db.Close()
 
 	api := api.NewApi(log, db.BridgeTransfers)
-	return api.Listen(ctx.Context, cfg.API.Port)
+	return api.Listen(ctx.Context, cfg.HTTPServer.Port)
 }
 
 func runAll(ctx *cli.Context) error {

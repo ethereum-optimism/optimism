@@ -20,11 +20,11 @@ const (
 
 // Config represents the `indexer.toml` file used to configure the indexer
 type Config struct {
-	Chain   ChainConfig   `toml:"chain"`
-	RPCs    RPCsConfig    `toml:"rpcs"`
-	DB      DBConfig      `toml:"db"`
-	API     APIConfig     `toml:"api"`
-	Metrics MetricsConfig `toml:"metrics"`
+	Chain         ChainConfig  `toml:"chain"`
+	RPCs          RPCsConfig   `toml:"rpcs"`
+	DB            DBConfig     `toml:"db"`
+	HTTPServer    ServerConfig `toml:"http"`
+	MetricsServer ServerConfig `toml:"metrics"`
 }
 
 // fetch this via onchain config from RPCsConfig and remove from config in future
@@ -96,14 +96,8 @@ type DBConfig struct {
 	Password string `toml:"password"`
 }
 
-// APIConfig configures the API server
-type APIConfig struct {
-	Host string `toml:"host"`
-	Port int    `toml:"port"`
-}
-
-// MetricsConfig configures the metrics server
-type MetricsConfig struct {
+// Configures the a server
+type ServerConfig struct {
 	Host string `toml:"host"`
 	Port int    `toml:"port"`
 }
