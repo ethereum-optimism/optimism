@@ -118,7 +118,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
         uint256 length = multiRequests.length;
-        bytes32[][] memory totalUids = new bytes32[][](multiRequests.length);
+        bytes32[][] memory totalUids = new bytes32[][](length);
         uint256 totalUidsCount = 0;
 
         // We are keeping track of the total available ETH amount that can be sent to resolvers and will keep deducting
