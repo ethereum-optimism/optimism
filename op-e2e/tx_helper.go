@@ -93,16 +93,16 @@ func SendL2Tx(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, privKe
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	err := l2Client.SendTransaction(ctx, tx)
-	require.Nil(t, err, "Sending L2 tx")
+	require.NoError(t, err, "Sending L2 tx")
 
 	receipt, err := waitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx")
+	require.NoError(t, err, "Waiting for L2 tx")
 	require.Equal(t, opts.ExpectedStatus, receipt.Status, "TX should have expected status")
 
 	for i, client := range opts.VerifyClients {
 		t.Logf("Waiting for tx %v on verification client %d", tx.Hash(), i)
 		receiptVerif, err := waitForTransaction(tx.Hash(), client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
-		require.Nilf(t, err, "Waiting for L2 tx on verification client %d", i)
+		require.NoErrorf(t, err, "Waiting for L2 tx on verification client %d", i)
 		require.Equalf(t, receipt, receiptVerif, "Receipts should be the same on sequencer and verification client %d", i)
 	}
 	return receipt
