@@ -12,6 +12,7 @@
     "TestSystemP2PAltSync":"TODO This used to work and must be fixed",
     "TestCannonDefendStep":"TODO This is a new failure that should be investigated",
     "TestMultipleCannonGames":"TODO This is a new failure that should be investigated",
-    "TestCannonDisputeGame":"TODO This is a new failure that should be investigated"
+    "TestCannonDisputeGame":"TODO This is a new failure that should be investigated",
+    "TestDepositTxCreateContract":"TODO, this is a new test from 2023-09-05 that should be investigated"
   }
 }

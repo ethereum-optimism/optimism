@@ -15,6 +15,7 @@ type NetworkTransactionPool struct {
 	M            sync.Mutex
 	Transactions map[string]*TransactionState
 	Expected     int
+	Nonce        uint64
 }
 
 type TransactionState struct {

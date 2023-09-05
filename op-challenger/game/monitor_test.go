@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
@@ -100,7 +101,7 @@ func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor
 		return i, nil
 	}
 	sched := &stubScheduler{}
-	monitor := newGameMonitor(logger, clock.SystemClock, source, sched, time.Duration(0), fetchBlockNum, allowedGames)
+	monitor := newGameMonitor(logger, metrics.NoopMetrics, clock.SystemClock, source, sched, time.Duration(0), fetchBlockNum, allowedGames)
 	return monitor, source, sched
 }
 

@@ -306,6 +306,41 @@ func TestBadHints(t *testing.T) {
 	})
 }
 
+func TestRetryWhenNotAvailableAfterPrefetching(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+	node := testutils.RandomData(rng, 30)
+	hash := crypto.Keccak256Hash(node)
+
+	_, l1Source, l2Cl, kv := createPrefetcher(t)
+	putsToIgnore := 2
+	kv = &unreliableKvStore{KV: kv, putsToIgnore: putsToIgnore}
+	prefetcher := NewPrefetcher(testlog.Logger(t, log.LvlInfo), l1Source, l2Cl, kv)
+
+	// Expect one call for each ignored put, plus one more request for when the put succeeds
+	for i := 0; i < putsToIgnore+1; i++ {
+		l2Cl.ExpectNodeByHash(hash, node, nil)
+	}
+	defer l2Cl.MockDebugClient.AssertExpectations(t)
+
+	oracle := l2.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+	result := oracle.NodeByHash(hash)
+	require.EqualValues(t, node, result)
+}
+
+type unreliableKvStore struct {
+	kvstore.KV
+	putsToIgnore int
+}
+
+func (s *unreliableKvStore) Put(k common.Hash, v []byte) error {
+	if s.putsToIgnore > 0 {
+		s.putsToIgnore--
+		return nil
+	}
+	println("storing")
+	return s.KV.Put(k, v)
+}
+
 type l2Client struct {
 	*testutils.MockL2Client
 	*testutils.MockDebugClient

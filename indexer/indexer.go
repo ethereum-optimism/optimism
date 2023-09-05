@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"net/http"
 	"runtime/debug"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -15,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/etl"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processors"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 )
 
@@ -24,7 +30,8 @@ type Indexer struct {
 	log log.Logger
 	db  *database.DB
 
-	metricsConfig   config.MetricsConfig
+	httpConfig      config.ServerConfig
+	metricsConfig   config.ServerConfig
 	metricsRegistry *prometheus.Registry
 
 	L1ETL           *etl.L1ETL
@@ -33,7 +40,14 @@ type Indexer struct {
 }
 
 // NewIndexer initializes an instance of the Indexer
-func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, metricsConfig config.MetricsConfig) (*Indexer, error) {
+func NewIndexer(
+	log log.Logger,
+	db *database.DB,
+	chainConfig config.ChainConfig,
+	rpcsConfig config.RPCsConfig,
+	httpConfig config.ServerConfig,
+	metricsConfig config.ServerConfig,
+) (*Indexer, error) {
 	metricsRegistry := metrics.NewRegistry()
 
 	// L1
@@ -47,7 +61,7 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 		ConfirmationDepth: big.NewInt(int64(chainConfig.L1ConfirmationDepth)),
 		StartHeight:       big.NewInt(int64(chainConfig.L1StartingHeight)),
 	}
-	l1Etl, err := etl.NewL1ETL(l1Cfg, logger, db, etl.NewMetrics(metricsRegistry, "l1"), l1EthClient, chainConfig.L1Contracts)
+	l1Etl, err := etl.NewL1ETL(l1Cfg, log, db, etl.NewMetrics(metricsRegistry, "l1"), l1EthClient, chainConfig.L1Contracts)
 	if err != nil {
 		return nil, err
 	}
@@ -62,21 +76,22 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 		HeaderBufferSize:  chainConfig.L2HeaderBufferSize,
 		ConfirmationDepth: big.NewInt(int64(chainConfig.L2ConfirmationDepth)),
 	}
-	l2Etl, err := etl.NewL2ETL(l2Cfg, logger, db, etl.NewMetrics(metricsRegistry, "l2"), l2EthClient)
+	l2Etl, err := etl.NewL2ETL(l2Cfg, log, db, etl.NewMetrics(metricsRegistry, "l2"), l2EthClient)
 	if err != nil {
 		return nil, err
 	}
 
 	// Bridge
-	bridgeProcessor, err := processors.NewBridgeProcessor(logger, db, l1Etl, chainConfig)
+	bridgeProcessor, err := processors.NewBridgeProcessor(log, db, l1Etl, chainConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	indexer := &Indexer{
-		log: logger,
+		log: log,
 		db:  db,
 
+		httpConfig:      httpConfig,
 		metricsConfig:   metricsConfig,
 		metricsRegistry: metricsRegistry,
 
@@ -86,6 +101,23 @@ func NewIndexer(logger log.Logger, db *database.DB, chainConfig config.ChainConf
 	}
 
 	return indexer, nil
+}
+
+func (i *Indexer) startHttpServer(ctx context.Context) error {
+	i.log.Info("starting http server...", "port", i.httpConfig.Host)
+
+	r := chi.NewRouter()
+	r.Use(middleware.Heartbeat("/healthz"))
+
+	server := http.Server{Addr: fmt.Sprintf("%s:%d", i.httpConfig.Host, i.httpConfig.Port), Handler: r}
+	err := httputil.ListenAndServeContext(ctx, &server)
+	if err != nil {
+		i.log.Error("http server stopped", "err", err)
+	} else {
+		i.log.Info("http server stopped")
+	}
+
+	return err
 }
 
 func (i *Indexer) startMetricsServer(ctx context.Context) error {
@@ -103,7 +135,7 @@ func (i *Indexer) startMetricsServer(ctx context.Context) error {
 // Start starts the indexing service on L1 and L2 chains
 func (i *Indexer) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	errCh := make(chan error, 4)
+	errCh := make(chan error, 5)
 
 	// if any goroutine halts, we stop the entire indexer
 	processCtx, processCancel := context.WithCancel(ctx)
@@ -130,6 +162,7 @@ func (i *Indexer) Run(ctx context.Context) error {
 	runProcess(i.L2ETL.Start)
 	runProcess(i.BridgeProcessor.Start)
 	runProcess(i.startMetricsServer)
+	runProcess(i.startHttpServer)
 	wg.Wait()
 
 	err := <-errCh
