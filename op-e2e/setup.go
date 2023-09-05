@@ -84,7 +84,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	require.NoError(t, err)
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
-	require.NoError(t, deployConfig.Check())
+	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check())
 
@@ -457,7 +457,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			ethClient = gethInst
 		} else {
 			if len(cfg.GethOptions[name]) > 0 {
-				t.Errorf("External L2 nodes do not support configuration through GethOptions")
+				t.Skip("External L2 nodes do not support configuration through GethOptions")
 			}
 			ethClient = (&ExternalRunner{
 				Name:    name,
