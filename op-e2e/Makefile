@@ -55,3 +55,7 @@ clean:
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 .PHONY: lint
+
+test-external-%: pre-test
+	make -C ./external_$*/
+	go test -v --externalL2 ./external_$*/

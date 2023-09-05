@@ -49,6 +49,9 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 // SetStorage will set the storage values in a db given a contract name,
 // address and the storage values
 func SetStorage(name string, address common.Address, values StorageValues, db vm.StateDB) error {
+	if name == "BobaL2" {
+		name = "OptimismMintableERC20"
+	}
 	layout, err := bindings.GetStorageLayout(name)
 	if err != nil {
 		return fmt.Errorf("cannot set storage: %w", err)

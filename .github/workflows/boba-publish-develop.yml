@@ -1,0 +1,59 @@
+name: Publish Packages (boba-develop)
+
+on:
+  push:
+    branches:
+      - 'boba-develop'
+
+jobs:
+  publish-develop:
+    name: Publish Packages
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build l1 component
+        working-directory: ./ops-bedrock
+        run: |
+          docker build . -f ./Dockerfile.l1 -t bobanetwork/geth:latest
+
+      - name: Build l2 components
+        working-directory: .
+        run: |
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:latest
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:latest
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:latest
+          docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:latest
+
+      - name: Print images
+        working-directory: .
+        run: docker images
+
+      - name: Rename and retag images
+        working-directory: .
+        run: |
+          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
+            docker image tag "$i" bobanetwork/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):latest
+          done
+          docker images
+
+      - name: Push images
+        working-directory: .
+        run: |
+          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
+            echo "$1"
+            docker push "$i"
+          done

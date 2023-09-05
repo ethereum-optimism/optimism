@@ -1,11 +1,13 @@
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
+# Requires at least Python v3.9; specify a minor version below if needed
+PYTHON=python3
 
 build: build-go build-ts
 .PHONY: build
 
-build-go: submodules op-node op-proposer op-batcher
+build-go: submodules op-node op-proposer op-batcher op-erigon
 .PHONY: build-go
 
 build-ts: submodules
@@ -22,8 +24,9 @@ ci-builder:
 submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
 	if [ -z "$$GITHUB_ENV" ]; then \
-		git submodule init; \
-		git submodule update; \
+		echo "SKIP submodules" \
+		#git submodule init; \
+		#git submodule update; \
 	fi
 .PHONY: submodules
 
@@ -59,6 +62,10 @@ op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
 
+op-erigon:
+	make -C ./op-erigon erigon
+.PHONY: op-erigon
+
 cannon:
 	make -C ./cannon cannon
 .PHONY: cannon
@@ -74,11 +81,14 @@ mod-tidy:
 	# can take a while to index new versions.
 	#
 	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
+	export GOPRIVATE="github.com/ethereum-optimism,github.com/bobanetwork"
+	export GOPROXY="https://proxy.golang.org,direct"
+	go mod tidy
 .PHONY: mod-tidy
 
 clean:
 	rm -rf ./bin
+	make -C ./op-erigon clean
 .PHONY: clean
 
 nuke: clean devnet-clean
@@ -93,14 +103,14 @@ devnet-up:
 	if [ $(.SHELLSTATUS) -ne 0 ]; then \
 		make devnet-allocs; \
 	fi
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 # alias for devnet-up
 devnet-up-deploy: devnet-up
 
 devnet-test:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
+	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/main.py --monorepo-dir=. --test
 .PHONY: devnet-test
 
 devnet-down:

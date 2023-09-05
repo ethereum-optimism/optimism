@@ -1,0 +1,350 @@
+{
+  "in": {
+    "storage": [
+      {
+        "astId": 1000,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_balances",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_uint256)"
+      },
+      {
+        "astId": 1001,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_allowances",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      {
+        "astId": 1002,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_totalSupply",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 1003,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_name",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_string_storage"
+      },
+      {
+        "astId": 1004,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_symbol",
+        "offset": 0,
+        "slot": "4",
+        "type": "t_string_storage"
+      },
+      {
+        "astId": 1005,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_nonces",
+        "offset": 0,
+        "slot": "5",
+        "type": "t_mapping(t_address,t_struct(Counter)1012_storage)"
+      },
+      {
+        "astId": 1006,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_PERMIT_TYPEHASH_DEPRECATED_SLOT",
+        "offset": 0,
+        "slot": "6",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 1007,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_delegates",
+        "offset": 0,
+        "slot": "7",
+        "type": "t_mapping(t_address,t_address)"
+      },
+      {
+        "astId": 1008,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_checkpoints",
+        "offset": 0,
+        "slot": "8",
+        "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)1011_storage)dyn_storage)"
+      },
+      {
+        "astId": 1009,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_totalSupplyCheckpoints",
+        "offset": 0,
+        "slot": "9",
+        "type": "t_array(t_struct(Checkpoint)1011_storage)dyn_storage"
+      },
+      {
+        "astId": 1010,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "10",
+        "type": "t_address"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_struct(Checkpoint)1011_storage)dyn_storage": {
+        "encoding": "dynamic_array",
+        "label": "struct ERC20Votes.Checkpoint[]",
+        "numberOfBytes": "32"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_address,t_address)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e address)",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_address"
+      },
+      "t_mapping(t_address,t_array(t_struct(Checkpoint)1011_storage)dyn_storage)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e struct ERC20Votes.Checkpoint[])",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_array(t_struct(Checkpoint)1011_storage)dyn_storage"
+      },
+      "t_mapping(t_address,t_mapping(t_address,t_uint256))": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e mapping(address =u003e uint256))",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_mapping(t_address,t_uint256)"
+      },
+      "t_mapping(t_address,t_struct(Counter)1012_storage)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e struct Counters.Counter)",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_struct(Counter)1012_storage"
+      },
+      "t_mapping(t_address,t_uint256)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e uint256)",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_uint256"
+      },
+      "t_string_storage": {
+        "encoding": "bytes",
+        "label": "string",
+        "numberOfBytes": "32"
+      },
+      "t_struct(Checkpoint)1011_storage": {
+        "encoding": "inplace",
+        "label": "struct ERC20Votes.Checkpoint",
+        "numberOfBytes": "32"
+      },
+      "t_struct(Counter)1012_storage": {
+        "encoding": "inplace",
+        "label": "struct Counters.Counter",
+        "numberOfBytes": "32"
+      },
+      "t_uint224": {
+        "encoding": "inplace",
+        "label": "uint224",
+        "numberOfBytes": "28"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint32": {
+        "encoding": "inplace",
+        "label": "uint32",
+        "numberOfBytes": "4"
+      }
+    }
+  },
+  "out": {
+    "storage": [
+      {
+        "astId": 1000,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_balances",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_uint256)"
+      },
+      {
+        "astId": 1001,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_allowances",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      {
+        "astId": 1002,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_totalSupply",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 1003,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_name",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_string_storage"
+      },
+      {
+        "astId": 1004,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_symbol",
+        "offset": 0,
+        "slot": "4",
+        "type": "t_string_storage"
+      },
+      {
+        "astId": 1005,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_nonces",
+        "offset": 0,
+        "slot": "5",
+        "type": "t_mapping(t_address,t_struct(Counter)1012_storage)"
+      },
+      {
+        "astId": 1006,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_PERMIT_TYPEHASH_DEPRECATED_SLOT",
+        "offset": 0,
+        "slot": "6",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 1007,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_delegates",
+        "offset": 0,
+        "slot": "7",
+        "type": "t_mapping(t_address,t_address)"
+      },
+      {
+        "astId": 1008,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_checkpoints",
+        "offset": 0,
+        "slot": "8",
+        "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)1011_storage)dyn_storage)"
+      },
+      {
+        "astId": 1009,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_totalSupplyCheckpoints",
+        "offset": 0,
+        "slot": "9",
+        "type": "t_array(t_struct(Checkpoint)1011_storage)dyn_storage"
+      },
+      {
+        "astId": 1010,
+        "contract": "contracts/L2/GovernanceToken.sol:GovernanceToken",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "10",
+        "type": "t_address"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_struct(Checkpoint)1011_storage)dyn_storage": {
+        "encoding": "dynamic_array",
+        "label": "struct ERC20Votes.Checkpoint[]",
+        "numberOfBytes": "32"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_address,t_address)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e address)",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_address"
+      },
+      "t_mapping(t_address,t_array(t_struct(Checkpoint)1011_storage)dyn_storage)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e struct ERC20Votes.Checkpoint[])",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_array(t_struct(Checkpoint)1011_storage)dyn_storage"
+      },
+      "t_mapping(t_address,t_mapping(t_address,t_uint256))": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e mapping(address =u003e uint256))",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_mapping(t_address,t_uint256)"
+      },
+      "t_mapping(t_address,t_struct(Counter)1012_storage)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e struct Counters.Counter)",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_struct(Counter)1012_storage"
+      },
+      "t_mapping(t_address,t_uint256)": {
+        "encoding": "mapping",
+        "label": "mapping(address =u003e uint256)",
+        "numberOfBytes": "32",
+        "key": "t_address",
+        "value": "t_uint256"
+      },
+      "t_string_storage": {
+        "encoding": "bytes",
+        "label": "string",
+        "numberOfBytes": "32"
+      },
+      "t_struct(Checkpoint)1011_storage": {
+        "encoding": "inplace",
+        "label": "struct ERC20Votes.Checkpoint",
+        "numberOfBytes": "32"
+      },
+      "t_struct(Counter)1012_storage": {
+        "encoding": "inplace",
+        "label": "struct Counters.Counter",
+        "numberOfBytes": "32"
+      },
+      "t_uint224": {
+        "encoding": "inplace",
+        "label": "uint224",
+        "numberOfBytes": "28"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint32": {
+        "encoding": "inplace",
+        "label": "uint32",
+        "numberOfBytes": "4"
+      }
+    }
+  }
+}

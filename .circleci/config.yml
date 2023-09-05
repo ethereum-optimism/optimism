@@ -5,6 +5,12 @@ orbs:
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
 commands:
+  checkout-with-submodules:
+    description: "Checkout and init submodules as needed"
+    steps:
+      - checkout
+      - run: git submodule sync --recursive
+      - run: git submodule update --recursive --init
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
@@ -237,27 +243,33 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
     steps:
-      - gcp-oidc-authenticate
-      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
-      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
-      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
-      - run: cat /etc/netplan/50-cloud-init.yaml
-      - run: sudo netplan apply
-      - checkout
+      - when:
+          condition: false
+          steps:
+            - gcp-oidc-authenticate
+            # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+            # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
+            - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
+            - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
+            - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
+            - run: cat /etc/netplan/50-cloud-init.yaml
+            - run: sudo netplan apply
+            - checkout
+            - run:
+                name: Build & Publish
+                command: |
+                  gcloud auth configure-docker <<parameters.registry>>
+                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+                  docker context create buildx-build
+                  docker buildx create --use buildx-build
+                  docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+                    $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+                    -f <<parameters.docker_file>> \
+                    <<parameters.docker_context>>
       - run:
-          name: Build & Publish
-          command: |
-            gcloud auth configure-docker <<parameters.registry>>
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker context create buildx-build
-            docker buildx create --use buildx-build
-            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
-              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-              -f <<parameters.docker_file>> \
-              <<parameters.docker_context>>
+          name: "no-op to make config parsing happy"
+          command: /bin/true
 
   docker-release:
     environment:
@@ -381,7 +393,7 @@ jobs:
           command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: build contracts
-          command: pnpm build
+          command: pnpm build && git diff --exit-code
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
@@ -494,6 +506,17 @@ jobs:
           name: check go bindings
           command: make && git diff --exit-code
           working_directory: op-bindings
+
+  boba-bindings-build:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: check go bindings
+          command: make && git diff --exit-code
+          working_directory: boba-bindings
 
   js-lint-test:
     parameters:
@@ -894,7 +917,7 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
-      - checkout
+      - checkout-with-submodules
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock
       - run:
@@ -1103,7 +1126,12 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build
+      - op-bindings-build:
+          requires:
+            - pnpm-monorepo
+      - boba-bindings-build:
+          requires:
+            - pnpm-monorepo
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
@@ -1152,6 +1180,18 @@ workflows:
       - fuzz-op-chain-ops
       - fuzz-cannon
       - bedrock-markdown
+      - go-lint:
+          name: boba-bindings-lint
+          module: boba-bindings
+      - go-lint:
+          name: boba-chain-ops-lint
+          module: boba-chain-ops
+      - go-test:
+          name: boba-bindings-tests
+          module: boba-bindings
+      - go-test:
+          name: boba-chain-ops-tests
+          module: boba-chain-ops
       - go-lint:
           name: op-batcher-lint
           module: op-batcher
@@ -1222,6 +1262,10 @@ workflows:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
+      - go-e2e-test:
+          name: op-e2e-ext-erigon-tests
+          module: op-e2e
+          target: test-external-erigon
       - bedrock-go-tests:
           requires:
             - cannon-go-lint-and-test

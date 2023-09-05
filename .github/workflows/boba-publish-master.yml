@@ -1,0 +1,58 @@
+name: Publish Packages (boba-master)
+
+on:
+  push:
+    tags:
+    - '*'
+
+jobs:
+  publish-develop:
+    name: Publish Packages
+    runs-on: ubuntu-latest
+    # These permissions are needed to interact with GitHub's OIDC Token endpoint.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Get the version
+        id: tag
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Print current tag
+        run: echo ${{ steps.tag.outputs.VERSION }}
+
+      - name: Build l1 component
+        working-directory: ./ops-bedrock
+        run: |
+          docker build . -f ./Dockerfile.l1 -t bobanetwork/geth:${{ steps.tag.outputs.VERSION }}
+
+      - name: Build l2 components
+        working-directory: .
+        run: |
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:${{ steps.tag.outputs.VERSION }}
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:${{ steps.tag.outputs.VERSION }}
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:${{ steps.tag.outputs.VERSION }}
+          docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:${{ steps.tag.outputs.VERSION }}
+
+      - name: Print images
+        working-directory: .
+        run: docker images
+
+      - name: Push images
+        working-directory: .
+        run: |
+          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
+            echo "$1"
+            docker push "$i"
+          done

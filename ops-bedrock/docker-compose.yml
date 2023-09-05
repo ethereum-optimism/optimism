@@ -24,26 +24,43 @@ services:
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
 
+#  l2:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.l2
+#    ports:
+#      - "9545:8545"
+#    volumes:
+#      - "l2_data:/db"
+#      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+#      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+#    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+#      - "/bin/sh"
+#      - "/entrypoint.sh"
+#      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
   l2:
     build:
-      context: .
-      dockerfile: Dockerfile.l2
+      context: ..
+      dockerfile: ops-bedrock/Dockerfile.l2-erigon
+    environment:
+      - CHAIN_NAME=dev
+      - CHAIN_ID=901
+      - VERBOSITY=6
     ports:
       - "9545:8545"
       - "8060:6060"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet:/config"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
-      - "/entrypoint.sh"
+      - "/home/boba/l2-erigon.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
 
   op-node:
     depends_on:
       - l1
-      - l2
+#      - l2
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
@@ -55,8 +72,9 @@ services:
       --sequencer.enabled
       --sequencer.l1-confs=0
       --verifier.l1-confs=0
+      --p2p.disable
       --p2p.sequencer.key=8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-      --rollup.config=/rollup.json
+      --rollup.config=/config/rollup.json
       --rpc.addr=0.0.0.0
       --rpc.port=8545
       --p2p.listen.ip=0.0.0.0
@@ -71,16 +89,14 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --log.level=DEBUG
     ports:
       - "7545:8545"
       - "9003:9003"
       - "7300:7300"
       - "6060:6060"
     volumes:
-      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
-      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - "${PWD}/../.devnet:/config"
       - op_log:/op_log
 
   op-proposer:
@@ -88,6 +104,7 @@ services:
       - l1
       - l2
       - op-node
+      - kms
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
@@ -99,18 +116,26 @@ services:
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
       OP_PROPOSER_POLL_INTERVAL: 1s
       OP_PROPOSER_NUM_CONFIRMATIONS: 1
-      OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
-      OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
+      # OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
+      # OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
+      OP_PROPOSER_KMS_ENDPOINT: "http://kms:8888"
+      OP_PROPOSER_KMS_REGION: "us-east-1"
+      # The private key is derived from the mnemonic above
+      OP_PROPOSER_KMS_KEY_ID: "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+      # testing purposes only
+      AWS_ACCESS_KEY_ID: "1"
+      AWS_SECRET_ACCESS_KEY: "1"
 
   op-batcher:
     depends_on:
       - l1
       - l2
       - op-node
+      - kms
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
@@ -126,11 +151,18 @@ services:
       OP_BATCHER_SUB_SAFETY_MARGIN: 4 # SWS is 15, ChannelTimeout is 40
       OP_BATCHER_POLL_INTERVAL: 1s
       OP_BATCHER_NUM_CONFIRMATIONS: 1
-      OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
-      OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
+      # OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
+      # OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
+      OP_BATCHER_KMS_ENDPOINT: "http://kms:8888"
+      OP_BATCHER_KMS_REGION: "us-east-1"
+      # The private key is derived from the mnemonic above
+      OP_BATCHER_KMS_KEY_ID: "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+      # testing purposes only
+      AWS_ACCESS_KEY_ID: "1"
+      AWS_SECRET_ACCESS_KEY: "1"
 
   artifact-server:
     depends_on:
@@ -156,3 +188,16 @@ services:
       - "9090:8080"
     volumes:
       - op_log:/op_log:ro
+
+  #in no way should this be running in production
+  kms:
+    image: bobanetwork/local-kms:latest
+    environment:
+      PORT: "8888"
+      KMS_REGION: "us-east-1"
+    volumes:
+      - type: bind
+        source: ./seed.yaml
+        target: /init/seed.yaml
+    ports:
+      - 8888:8888

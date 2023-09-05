@@ -1,0 +1,172 @@
+{
+  "in": {
+    "storage": [
+      {
+        "astId": 2533,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "number",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 2536,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "timestamp",
+        "offset": 8,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 2539,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "basefee",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 2542,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "hash",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 2545,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "sequenceNumber",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 2548,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "batcherHash",
+        "offset": 0,
+        "slot": "4",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 2551,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "l1FeeOverhead",
+        "offset": 0,
+        "slot": "5",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 2554,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "l1FeeScalar",
+        "offset": 0,
+        "slot": "6",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint64": {
+        "encoding": "inplace",
+        "label": "uint64",
+        "numberOfBytes": "8"
+      }
+    }
+  },
+  "out": {
+    "storage": [
+      {
+        "astId": 1000,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "number",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 1001,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "timestamp",
+        "offset": 8,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 1002,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "basefee",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 1003,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "hash",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 1004,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "sequenceNumber",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 1005,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "batcherHash",
+        "offset": 0,
+        "slot": "4",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 1006,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "l1FeeOverhead",
+        "offset": 0,
+        "slot": "5",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 1007,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "l1FeeScalar",
+        "offset": 0,
+        "slot": "6",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint64": {
+        "encoding": "inplace",
+        "label": "uint64",
+        "numberOfBytes": "8"
+      }
+    }
+  }
+}

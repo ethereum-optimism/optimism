@@ -118,7 +118,11 @@ func (s *Driver) Start() error {
 }
 
 func (s *Driver) Close() error {
-	s.done <- struct{}{}
+	select {
+	case <-s.done:
+	default:
+		close(s.done)
+	}
 	s.wg.Wait()
 	return nil
 }

@@ -1,0 +1,172 @@
+{
+  "in": {
+    "storage": [
+      {
+        "astId": 37343,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 27905,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "proxyType",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_enum(ProxyType)27899)"
+      },
+      {
+        "astId": 27910,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "implementationName",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_mapping(t_address,t_string_storage)"
+      },
+      {
+        "astId": 27914,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "addressManager",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_contract(AddressManager)4431"
+      },
+      {
+        "astId": 27918,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "upgrading",
+        "offset": 20,
+        "slot": "3",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_contract(AddressManager)4431": {
+        "encoding": "inplace",
+        "label": "contract AddressManager",
+        "numberOfBytes": "20"
+      },
+      "t_enum(ProxyType)27899": {
+        "encoding": "inplace",
+        "label": "enum ProxyAdmin.ProxyType",
+        "numberOfBytes": "1"
+      },
+      "t_mapping(t_address,t_enum(ProxyType)27899)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => enum ProxyAdmin.ProxyType)",
+        "numberOfBytes": "32",
+        "value": "t_enum(ProxyType)27899"
+      },
+      "t_mapping(t_address,t_string_storage)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => string)",
+        "numberOfBytes": "32",
+        "value": "t_string_storage"
+      },
+      "t_string_storage": {
+        "encoding": "bytes",
+        "label": "string",
+        "numberOfBytes": "32"
+      }
+    }
+  },
+  "out": {
+    "storage": [
+      {
+        "astId": 1000,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 1001,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "proxyType",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_enum(ProxyType)1006)"
+      },
+      {
+        "astId": 1002,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "implementationName",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_mapping(t_address,t_string_storage)"
+      },
+      {
+        "astId": 1003,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "addressManager",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_contract(AddressManager)1005"
+      },
+      {
+        "astId": 1004,
+        "contract": "contracts/universal/ProxyAdmin.sol:ProxyAdmin",
+        "label": "upgrading",
+        "offset": 20,
+        "slot": "3",
+        "type": "t_bool"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_contract(AddressManager)1005": {
+        "encoding": "inplace",
+        "label": "contract AddressManager",
+        "numberOfBytes": "20"
+      },
+      "t_enum(ProxyType)1006": {
+        "encoding": "inplace",
+        "label": "enum ProxyAdmin.ProxyType",
+        "numberOfBytes": "1"
+      },
+      "t_mapping(t_address,t_enum(ProxyType)1006)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => enum ProxyAdmin.ProxyType)",
+        "numberOfBytes": "32",
+        "value": "t_enum(ProxyType)1006"
+      },
+      "t_mapping(t_address,t_string_storage)": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => string)",
+        "numberOfBytes": "32",
+        "value": "t_string_storage"
+      },
+      "t_string_storage": {
+        "encoding": "bytes",
+        "label": "string",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}
