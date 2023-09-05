@@ -64,6 +64,18 @@ var (
 	LegacyBobaProxyImplementation = make(map[string]*common.Address)
 )
 
+// IsProxied returns true for predeploys that will sit behind a proxy contract
+func IsProxied(predeployAddr common.Address) bool {
+	switch predeployAddr {
+	case LegacyERC20ETHAddr:
+	case WETH9Addr:
+	case BobaL2Addr:
+	default:
+		return true
+	}
+	return false
+}
+
 func init() {
 	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
 	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr

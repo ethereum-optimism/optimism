@@ -2,6 +2,7 @@ package solc
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ledgerwatch/erigon/accounts/abi"
 )
@@ -47,6 +48,26 @@ type CompilerOutputContract struct {
 type StorageLayout struct {
 	Storage []StorageLayoutEntry         `json:"storage"`
 	Types   map[string]StorageLayoutType `json:"types"`
+}
+
+// GetStorageLayoutEntry returns the StorageLayoutEntry where the label matches
+// the provided name.
+func (s *StorageLayout) GetStorageLayoutEntry(name string) (StorageLayoutEntry, error) {
+	for _, entry := range s.Storage {
+		if entry.Label == name {
+			return entry, nil
+		}
+	}
+	return StorageLayoutEntry{}, fmt.Errorf("%s not found", name)
+}
+
+// GetStorageLayoutType returns the StorageLayoutType where the label matches
+// the provided name.
+func (s *StorageLayout) GetStorageLayoutType(name string) (StorageLayoutType, error) {
+	if ty, ok := s.Types[name]; ok {
+		return ty, nil
+	}
+	return StorageLayoutType{}, fmt.Errorf("%s not found", name)
 }
 
 type StorageLayoutEntry struct {

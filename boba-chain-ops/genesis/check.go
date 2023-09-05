@@ -295,7 +295,7 @@ func PostCheckUntouchables(tx kv.Tx, g *types.Genesis) error {
 func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 	for i := uint64(0); i <= 2048; i++ {
 		// Compute the predeploy address
-		bigAddr := new(big.Int).Or(bigL2PredeployNamespace, new(big.Int).SetUint64(i))
+		bigAddr := new(big.Int).Or(BigL2PredeployNamespace, new(big.Int).SetUint64(i))
 		addr := libcommon.BigToAddress(bigAddr)
 
 		// Get the code for the predeploy
