@@ -2,17 +2,20 @@ FROM golang:1.20.7-alpine3.18 as builder
 
 RUN apk --no-cache add make jq bash git alpine-sdk
 
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN go mod download
+
 COPY ./endpoint-monitor /app/endpoint-monitor
 COPY ./op-service /app/op-service
 COPY ./op-node /app/op-node
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
 
 COPY ./.git /app/.git
 
 WORKDIR /app/endpoint-monitor
-
-RUN go mod download
 
 RUN make build
 
