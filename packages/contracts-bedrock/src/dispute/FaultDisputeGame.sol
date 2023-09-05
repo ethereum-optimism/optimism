@@ -449,7 +449,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // The VMStatus must indicate (1) 'invalid', to argue that disputed thing is invalid.
         // Games that agree with the existing outcome are not allowed.
         // NOTE(clabby): This assumption will change in Alpha Chad.
-        if (uint8(Claim.unwrap(rootClaim())[0]) != 1) revert UnexpectedRootClaim(rootClaim());
+        if (uint8(Claim.unwrap(rootClaim())[0]) != VMStatus.unwrap(VMStatuses.INVALID)) {
+            revert UnexpectedRootClaim(rootClaim());
+        }
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));

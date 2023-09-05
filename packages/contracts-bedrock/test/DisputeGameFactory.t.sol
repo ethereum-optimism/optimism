@@ -42,7 +42,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
-        rootClaim = changeClaimStatus(rootClaim, 1);
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
@@ -71,7 +71,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
-        rootClaim = changeClaimStatus(rootClaim, 1);
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, gt));
         factory.create(gt, rootClaim, extraData);
@@ -82,7 +82,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
         // Ensure the rootClaim has a VMStatus that disagrees with the validity.
-        rootClaim = changeClaimStatus(rootClaim, 1);
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
@@ -106,10 +106,10 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         factory.create(gt, rootClaim, extraData);
     }
 
-    function changeClaimStatus(Claim claim, uint8 status) public pure returns (Claim _out) {
-        bytes32 hash = Claim.unwrap(claim);
-        hash = bytes32((uint256(hash) & (~(uint256(0xff) << 248))) | (uint256(status) << 248));
-        return Claim.wrap(hash);
+    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
+        assembly {
+            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
+        }
     }
 }
 

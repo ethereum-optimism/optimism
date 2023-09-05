@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import "src/libraries/DisputeTypes.sol";
 
 contract MIPS_Test is CommonTest {
     MIPS internal mips;
@@ -1558,23 +1559,23 @@ contract MIPS_Test is CommonTest {
     ///      1. Exited with success (Invalid)
     ///      2. Exited with failure (Panic)
     ///      3. Unfinished
-    function vmStatus(MIPS.State memory state) internal pure returns (uint256 out_) {
+    function vmStatus(MIPS.State memory state) internal pure returns (VMStatus out_) {
         if (state.exited) {
             if (state.exitCode == 0) {
-                return 0;
+                return VMStatuses.VALID;
             } else if (state.exitCode == 1) {
-                return 1;
+                return VMStatuses.INVALID;
             } else {
-                return 2;
+                return VMStatuses.PANIC;
             }
         } else {
-            return 3;
+            return VMStatuses.UNFINISHED;
         }
     }
 
     function outputState(MIPS.State memory state) internal pure returns (bytes32 out_) {
         bytes memory enc = encodeState(state);
-        uint256 status = vmStatus(state);
+        VMStatus status = vmStatus(state);
         assembly {
             out_ := keccak256(add(enc, 0x20), 226)
             out_ := or(and(not(shl(248, 0xFF)), out_), shl(248, status))
