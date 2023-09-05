@@ -1142,7 +1142,7 @@ workflows:
           working_directory: proxyd
       - indexer-tests
       - go-lint-test-build:
-          name: op-heartbeat tests
+          name: op-heartbeat-tests
           binary_name: op-heartbeat
           working_directory: op-heartbeat
       - semgrep-scan
@@ -1224,7 +1224,11 @@ workflows:
           target: test-external-geth
       - bedrock-go-tests:
           requires:
+            - go-mod-tidy
+            - cannon-build-test-vectors
             - cannon-go-lint-and-test
+            - check-generated-mocks-op-node
+            - check-generated-mocks-op-service
             - op-batcher-lint
             - op-bootnode-lint
             - op-bindings-lint
@@ -1238,6 +1242,7 @@ workflows:
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
+            - op-heartbeat-tests
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests
@@ -1245,6 +1250,7 @@ workflows:
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
+            - op-e2e-ext-geth-tests
       - docker-build:
           name: op-node-docker-build
           docker_file: op-node/Dockerfile
