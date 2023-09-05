@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -36,13 +37,13 @@ func SendWithdrawal(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, 
 	tx, err := l2withdrawer.InitiateWithdrawal(l2opts, l2opts.From, big.NewInt(int64(opts.Gas)), opts.Data)
 	require.Nil(t, err, "sending initiate withdraw tx")
 
-	receipt, err := waitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
 	require.Equal(t, opts.ExpectedStatus, receipt.Status, "transaction had incorrect status")
 
 	for i, client := range opts.VerifyClients {
 		t.Logf("Waiting for tx %v on verification client %d", tx.Hash(), i)
-		receiptVerif, err := waitForTransaction(tx.Hash(), client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+		receiptVerif, err := geth.WaitForTransaction(tx.Hash(), client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
 		require.Nilf(t, err, "Waiting for L2 tx on verification client %d", i)
 		require.Equalf(t, receipt, receiptVerif, "Receipts should be the same on sequencer and verification client %d", i)
 	}
@@ -134,7 +135,7 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client,
 	require.Nil(t, err)
 
 	// Ensure that our withdrawal was proved successfully
-	proveReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	proveReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "prove withdrawal")
 	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 	return params, proveReceipt
@@ -167,7 +168,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 	require.Nil(t, err)
 
 	// Ensure that our withdrawal was finalized successfully
-	finalizeReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	finalizeReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "finalize withdrawal")
 	require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
 	return finalizeReceipt
