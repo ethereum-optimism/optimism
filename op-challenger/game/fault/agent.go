@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -14,7 +15,7 @@ import (
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
-	CallResolve(ctx context.Context) (types.GameStatus, error)
+	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve(ctx context.Context) error
 	Respond(ctx context.Context, response types.Claim) error
 	Step(ctx context.Context, stepData types.StepCallData) error
@@ -74,10 +75,10 @@ func (a *Agent) Act(ctx context.Context) error {
 
 // shouldResolve returns true if the agent should resolve the game.
 // This method will return false if the game is still in progress.
-func (a *Agent) shouldResolve(status types.GameStatus) bool {
-	expected := types.GameStatusDefenderWon
+func (a *Agent) shouldResolve(status gameTypes.GameStatus) bool {
+	expected := gameTypes.GameStatusDefenderWon
 	if a.agreeWithProposedOutput {
-		expected = types.GameStatusChallengerWon
+		expected = gameTypes.GameStatusChallengerWon
 	}
 	if expected != status {
 		a.log.Warn("Game will be lost", "expected", expected, "actual", status)
@@ -89,7 +90,7 @@ func (a *Agent) shouldResolve(status types.GameStatus) bool {
 // Returns true if the game is resolvable (regardless of whether it was actually resolved)
 func (a *Agent) tryResolve(ctx context.Context) bool {
 	status, err := a.responder.CallResolve(ctx)
-	if err != nil || status == types.GameStatusInProgress {
+	if err != nil || status == gameTypes.GameStatusInProgress {
 		return false
 	}
 	if !a.shouldResolve(status) {
