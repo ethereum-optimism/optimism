@@ -151,7 +151,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //            preimage of the prestate claim hash.
         //            We ignore the highest order byte of the digest because it is used to
         //            indicate the VM Status and is added after the digest is computed.
-        if (cleanHighByte(keccak256(_stateData)) != cleanHighByte(Claim.unwrap(preStateClaim))) {
+        if (keccak256(_stateData) << 8 != Claim.unwrap(preStateClaim) << 8) {
             revert InvalidPrestate();
         }
 
@@ -167,7 +167,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
+        //            We ignore the highest order byte of the digest because it is used to
+        //            indicate the VM Status and is added after the digest is computed. The
+        //            hash commits to the exit code and the exit status, so the VM status does
+        //            not need to be checked for equivalence.
+        bool validStep = (VM.step(_stateData, _proof)) << 8 == (Claim.unwrap(postState.claim) << 8);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 
@@ -539,15 +543,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         ancestor_ = claimData[_start];
         while (Position.unwrap(ancestor_.position) != Position.unwrap(preStateTraceAncestor)) {
             ancestor_ = claimData[ancestor_.parentIndex];
-        }
-    }
-
-    /// @notice Cleans the highest order byte of a given fixed bytes value.
-    /// @param _in The bytes32 value to clean.
-    /// @return out_ The cleaned bytes32 value.
-    function cleanHighByte(bytes32 _in) internal pure returns (bytes32 out_) {
-        assembly {
-            out_ := and(not(shl(248, 0xFF)), _in)
         }
     }
 }

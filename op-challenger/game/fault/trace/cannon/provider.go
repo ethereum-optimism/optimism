@@ -123,6 +123,14 @@ func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, err
 	return state.EncodeWitness(), nil
 }
 
+func (p *CannonTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
+	state, err := p.AbsolutePreState(ctx)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
+	}
+	return mipsevm.StateWitness(state).StateHash(), nil
+}
+
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
 func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {

@@ -59,7 +59,7 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i uint64) (common.Hash
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return alphabetStateHash(claimBytes), nil
+	return ap.alphabetStateHash(claimBytes), nil
 }
 
 // AbsolutePreState returns the absolute pre-state for the alphabet trace.
@@ -67,8 +67,18 @@ func (ap *AlphabetTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, 
 	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060"), nil
 }
 
+func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
+	prestate, err := ap.AbsolutePreState(ctx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	hash := common.BytesToHash(crypto.Keccak256(prestate))
+	hash[0] = mipsevm.VMStatusUnfinished
+	return hash, nil
+}
+
 func (ap *AlphabetTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
-	return alphabetStateHash(state), nil
+	return ap.alphabetStateHash(state), nil
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
@@ -76,10 +86,18 @@ func BuildAlphabetPreimage(i uint64, letter string) []byte {
 	return append(IndexToBytes(i), LetterToBytes(letter)...)
 }
 
-func alphabetStateHash(state []byte) common.Hash {
+func (ap *AlphabetTraceProvider) alphabetStateHash(state []byte) common.Hash {
 	h := crypto.Keccak256Hash(state)
-	// In the alphabet game, we ignore the VM status code and always set it to 1.
-	h[0] = mipsevm.VMStatusInvalid
+	// instead of the state containing an "exited" boolean, we just check if the index reached the end
+	i := new(big.Int).SetBytes(state[:32])
+	finalStateIdx := uint64(len(ap.state) - 1)
+	if !i.IsUint64() || i.Uint64() > finalStateIdx {
+		h[0] = mipsevm.VMStatusPanic // this state should never be reached, if we increment by 1 per step
+	} else if i.Uint64() == finalStateIdx {
+		h[0] = mipsevm.VMStatusInvalid
+	} else {
+		h[0] = mipsevm.VMStatusUnfinished
+	}
 	return h
 }
 

@@ -106,6 +106,9 @@ type TraceProvider interface {
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreState(ctx context.Context) (preimage []byte, err error)
 
+	// AbsolutePreStateCommitment is the commitment of the pre-image value of the trace that transitions to the trace value at index 0
+	AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error)
+
 	// StateHash computes the state-hash of the given state, or returns an error if the state is invalid.
 	StateHash(ctx context.Context, state []byte) (common.Hash, error)
 }
