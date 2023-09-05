@@ -457,7 +457,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			ethClient = gethInst
 		} else {
 			if len(cfg.GethOptions[name]) > 0 {
-				t.Errorf("External L2 nodes do not support configuration through GethOptions")
+				t.Skip("External L2 nodes do not support configuration through GethOptions")
 			}
 			ethClient = (&ExternalRunner{
 				Name:    name,
