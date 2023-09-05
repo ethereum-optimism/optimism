@@ -1,7 +1,4 @@
-comment:
-  layout: "reach, diff, flags, files"
-  behavior: default
-  require_changes: true    # only post the comment if coverage changes
+comment: false
 ignore:
   - "op-e2e"
   - "**/*.t.sol"

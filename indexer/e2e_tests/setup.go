@@ -82,10 +82,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 			},
 		},
-		Metrics: config.MetricsConfig{
-			Host: "127.0.0.1",
-			Port: 0,
-		},
+		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
+		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
 	db, err := database.NewDB(indexerCfg.DB)
@@ -93,7 +91,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	t.Cleanup(func() { db.Close() })
 
 	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
-	indexer, err := indexer.NewIndexer(indexerLog, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.Metrics)
+	indexer, err := indexer.NewIndexer(indexerLog, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.HTTPServer, indexerCfg.MetricsServer)
 	require.NoError(t, err)
 
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
