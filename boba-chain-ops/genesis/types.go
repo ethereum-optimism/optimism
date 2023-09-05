@@ -5,8 +5,11 @@ import (
 	"math/big"
 	"reflect"
 
+	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
+	"github.com/ledgerwatch/erigon/common/hexutil"
+	"github.com/ledgerwatch/erigon/core/types"
 )
 
 type Genesis struct {
@@ -185,4 +188,48 @@ func (b Bytes32) String() string {
 // output during logging.
 func (b Bytes32) TerminalString() string {
 	return fmt.Sprintf("%x..%x", b[:3], b[29:])
+}
+
+// The struct type of genesis file is different from Genesis in types.go
+// It doesn't have the following fields:
+// AuRaStep 	uint64         `json:"auRaStep"`
+// AuRaSeal 	[]byte         `json:"auRaSeal"`
+type GenesisOutput struct {
+	Config        *chain.Config      `json:"config"`
+	Nonce         hexutil.Uint64     `json:"nonce"`
+	Timestamp     hexutil.Uint64     `json:"timestamp"`
+	ExtraData     hexutility.Bytes   `json:"extraData"`
+	GasLimit      hexutil.Uint64     `json:"gasLimit"   gencodec:"required"`
+	Difficulty    *hexutil.Big       `json:"difficulty" gencodec:"required"`
+	Mixhash       common.Hash        `json:"mixHash"`
+	Coinbase      common.Address     `json:"coinbase"`
+	BaseFee       *hexutil.Big       `json:"baseFeePerGas"`
+	ExcessDataGas *hexutil.Big       `json:"excessDataGas"`
+	Alloc         types.GenesisAlloc `json:"alloc"      gencodec:"required"`
+
+	// These fields are used for consensus tests. Please don't use them
+	// in actual genesis blocks.
+	Number     hexutil.Uint64 `json:"number"`
+	GasUsed    hexutil.Uint64 `json:"gasUsed"`
+	ParentHash common.Hash    `json:"parentHash"`
+}
+
+func (g GenesisOutput) PerformOutput(genesis *types.Genesis) GenesisOutput {
+	return GenesisOutput{
+		Config:        genesis.Config,
+		Nonce:         hexutil.Uint64(genesis.Nonce),
+		Timestamp:     hexutil.Uint64(genesis.Timestamp),
+		ExtraData:     genesis.ExtraData,
+		GasLimit:      hexutil.Uint64(genesis.GasLimit),
+		Difficulty:    (*hexutil.Big)(genesis.Difficulty),
+		Mixhash:       genesis.Mixhash,
+		Coinbase:      genesis.Coinbase,
+		BaseFee:       (*hexutil.Big)(genesis.BaseFee),
+		ExcessDataGas: (*hexutil.Big)(genesis.ExcessDataGas),
+		Alloc:         genesis.Alloc,
+
+		Number:     hexutil.Uint64(genesis.Number),
+		GasUsed:    hexutil.Uint64(genesis.GasUsed),
+		ParentHash: genesis.ParentHash,
+	}
 }

@@ -1009,6 +1009,93 @@ jobs:
           when: on_fail
           working_directory: packages/contracts-bedrock
 
+  devnet-hardhat:
+    machine:
+      image: ubuntu-2204:2022.10.2
+    environment:
+      DOCKER_BUILDKIT: 1
+    steps:
+      - checkout-with-submodules
+      - check-changed:
+          patterns: op-(.+),packages,ops-bedrock
+      - run:
+          name: Install latest golang
+          command: |
+            wget https://go.dev/dl/go1.20.linux-amd64.tar.gz
+            sudo rm -rf /usr/local/go
+            sudo tar -C /usr/local -xzf go1.20.linux-amd64.tar.gz
+            export PATH=$PATH:/usr/local/go/bin
+            go version
+      - run:
+          name: foundryup
+          command: |
+            curl -L https://foundry.paradigm.xyz | bash
+            source $HOME/.bashrc
+            foundryup
+            echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+            source $HOME/.bashrc
+            forge --version
+      - run:
+          name: Install NVM
+          command: |
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+            source ~/.bashrc
+            nvm --version
+      - run:
+          name: Install Node
+          command: |
+            nvm install
+            nvm use && node --version && npm --version
+      - run:
+          name: Install pnpm
+          command: |
+            npm i pnpm --global
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: Install and build
+          command: |
+            pnpm install --frozen-lockfile --prefer-offline && pnpm build
+      - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
+      - run:
+          name: Build images
+          command: docker-compose build
+          working_directory: ops-bedrock
+      - run:
+          name: Bring up the stack
+          command: make devnet-hardhat-up
+      - run:
+          name: Test the stack
+          command: make devnet-hardhat-test
+      - run:
+          name: Dump op-node logs
+          command: |
+            docker logs ops-bedrock-op-node-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-geth logs
+          command: |
+            docker logs ops-bedrock-l2-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1 logs
+          command: |
+            docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-batcher logs
+          command: |
+            docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-proposer logs
+          command: |
+            docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+          when: on_fail
+
   semgrep-scan:
     parameters:
       diff_branch:
@@ -1164,6 +1251,7 @@ workflows:
           requires:
             - pnpm-monorepo
       - devnet
+      - devnet-hardhat
       - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd

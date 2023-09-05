@@ -19,6 +19,7 @@ cache
 
 packages/contracts-bedrock/deployments/devnetL1
 packages/contracts-bedrock/deployments/anvil
+packages/contracts-bedrock/deployments/hardhat-local
 
 # vim
 *.sw*

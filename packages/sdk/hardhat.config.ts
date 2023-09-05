@@ -41,6 +41,12 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
       live: true,
     },
+    'hardhat-local': {
+      url: 'http://localhost:8545',
+      accounts: [
+        'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      ],
+    },
   },
   external: {
     contracts: [
@@ -59,6 +65,7 @@ const config: HardhatUserConfig = {
         '../contracts-bedrock/deployments/goerli',
         '../contracts/deployments/goerli',
       ],
+      'hardhat-local': ['../contracts-bedrock/deployments/hardhat-local'],
     },
   },
 }
