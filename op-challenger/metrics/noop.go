@@ -19,3 +19,6 @@ func (*noopMetrics) RecordGameStep() {}
 func (*noopMetrics) RecordCannonExecutionTime(t float64) {}
 
 func (*noopMetrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
+
+func (*noopMetrics) RecordGameUpdateScheduled() {}
+func (*noopMetrics) RecordGameUpdateCompleted() {}

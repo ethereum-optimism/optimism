@@ -13,6 +13,8 @@ var ErrBusy = errors.New("busy scheduling previous update")
 
 type SchedulerMetricer interface {
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+	RecordGameUpdateScheduled()
+	RecordGameUpdateCompleted()
 }
 
 type Scheduler struct {
