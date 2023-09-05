@@ -21,7 +21,8 @@ import (
 // The L1 transaction, including sender, is configured by the l1Opts param.
 // The L2 transaction options can be configured by modifying the DepositTxOps value supplied to applyL2Opts
 // Will verify that the transaction is included with the expected status on L1 and L2
-func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l2Client *ethclient.Client, l1Opts *bind.TransactOpts, applyL2Opts DepositTxOptsFn) {
+// Returns the receipt of the L2 transaction
+func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l2Client *ethclient.Client, l1Opts *bind.TransactOpts, applyL2Opts DepositTxOptsFn) *types.Receipt {
 	l2Opts := defaultDepositTxOpts(l1Opts)
 	applyL2Opts(l2Opts)
 
@@ -38,16 +39,17 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	require.Nil(t, err, "with deposit tx")
 
 	// Wait for transaction on L1
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	l1Receipt, err := waitForTransaction(tx.Hash(), l1Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
 	// Wait for transaction to be included on L2
-	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
+	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	l2Receipt, err := waitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
 	require.NoError(t, err)
-	require.Equal(t, l2Opts.ExpectedStatus, receipt.Status, "l2 transaction status")
+	require.Equal(t, l2Opts.ExpectedStatus, l2Receipt.Status, "l2 transaction status")
+	return l2Receipt
 }
 
 type DepositTxOptsFn func(l2Opts *DepositTxOpts)
