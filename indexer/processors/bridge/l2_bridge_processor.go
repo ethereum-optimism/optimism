@@ -50,7 +50,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 	if err != nil {
 		return err
 	}
-	if len(crossDomainSentMessages) < len(messagesPassed) {
+	if len(crossDomainSentMessages) > len(messagesPassed) {
 		return fmt.Errorf("missing L2ToL1MP withdrawal for each cross-domain message. withdrawals: %d, messages: %d", len(messagesPassed), len(crossDomainSentMessages))
 	}
 
@@ -81,7 +81,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 	if err != nil {
 		return err
 	}
-	if len(initiatedBridges) < len(crossDomainSentMessages) {
+	if len(initiatedBridges) > len(crossDomainSentMessages) {
 		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
 	}
 
@@ -153,7 +153,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 	if err != nil {
 		return err
 	}
-	if len(finalizedBridges) < len(crossDomainRelayedMessages) {
+	if len(finalizedBridges) > len(crossDomainRelayedMessages) {
 		return fmt.Errorf("missing cross-domain message for each finalized bridge event. messages: %d, bridges: %d", len(crossDomainRelayedMessages), len(finalizedBridges))
 	}
 

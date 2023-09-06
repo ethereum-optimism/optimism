@@ -51,7 +51,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	if err != nil {
 		return err
 	}
-	if len(crossDomainSentMessages) < len(transactionDeposits) {
+	if len(crossDomainSentMessages) > len(transactionDeposits) {
 		return fmt.Errorf("missing transaction deposit for each cross-domain message. deposits: %d, messages: %d", len(transactionDeposits), len(crossDomainSentMessages))
 	}
 
@@ -82,7 +82,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	if err != nil {
 		return err
 	}
-	if len(initiatedBridges) < len(crossDomainSentMessages) {
+	if len(initiatedBridges) > len(crossDomainSentMessages) {
 		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
 	}
 
@@ -205,7 +205,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	if err != nil {
 		return err
 	}
-	if len(finalizedBridges) < len(crossDomainRelayedMessages) {
+	if len(finalizedBridges) > len(crossDomainRelayedMessages) {
 		return fmt.Errorf("missing cross-domain message for each finalized bridge event. messages: %d, bridges: %d", len(crossDomainRelayedMessages), len(finalizedBridges))
 	}
 
