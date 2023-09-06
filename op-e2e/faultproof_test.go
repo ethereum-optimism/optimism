@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
+	l2oo2 "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -353,6 +354,83 @@ func TestCannonDefendStep(t *testing.T) {
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)
+}
+
+func TestCannonProposedOutputRootInvalid(t *testing.T) {
+	InitParallel(t)
+
+	ctx := context.Background()
+	sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, common.Hash{0xab})
+	t.Cleanup(sys.Close)
+
+	maxDepth := game.MaxDepth(ctx)
+
+	// Now maliciously play the game and it should be impossible to win
+
+	for claimCount := int64(1); claimCount < maxDepth; {
+		// Attack everything but oddly using the correct hash.
+		correctTrace.Attack(ctx, claimCount-1)
+		claimCount++
+		game.LogGameData(ctx)
+		game.WaitForClaimCount(ctx, claimCount)
+
+		game.LogGameData(ctx)
+		// Wait for the challenger to counter
+		claimCount++
+		game.WaitForClaimCount(ctx, claimCount)
+	}
+
+	game.LogGameData(ctx)
+	// Wait for the challenger to call step and counter our invalid claim
+	game.WaitForClaimAtMaxDepth(ctx, false)
+
+	// It's on us to call step if we want to win but shouldn't be possible
+	// Need to add support for this to the helper
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+	game.LogGameData(ctx)
+}
+
+// setupDisputeGameForInvalidOutputRoot sets up an L2 chain with at least one valid output root followed by an invalid output root.
+// A cannon dispute game is started to dispute the invalid output root with the correct root claim provided.
+// An honest challenger is run to defend the root claim (ie disagree with the invalid output root).
+func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) (*System, *ethclient.Client, *disputegame.CannonGameHelper, *disputegame.HonestHelper) {
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+
+	l2oo := l2oo2.NewL2OOHelper(t, sys.cfg.L1Deployments, l1Client, sys.cfg.Secrets.Proposer, sys.RollupConfig)
+
+	// Wait for one valid output root to be submitted
+	l2oo.WaitForProposals(ctx, 1)
+
+	// Stop the honest output submitter so we can publish invalid outputs
+	sys.L2OutputSubmitter.Stop()
+	sys.L2OutputSubmitter = nil
+
+	// Submit an invalid output rooot
+	l2oo.PublishNextOutput(ctx, outputRoot)
+
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+
+	// Dispute the new output root by creating a new game with the correct cannon trace.
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+	require.NotNil(t, game)
+
+	// Start the honest challenger
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Defender",
+		// Disagree with the proposed output, so agree with the (correct) root claim
+		challenger.WithAgreeProposedOutput(false),
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+	return sys, l1Client, game, correctTrace
 }
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
