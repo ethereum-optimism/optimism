@@ -33,26 +33,10 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		return
 	}
 
-	var nonce uint64
-	p.txPool.M.Lock()
-	if p.txPool.Nonce == uint64(0) {
-		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
-		if err != nil {
-			log.Error("cant get nounce",
-				"provider", p.name,
-				"err", err)
-			p.txPool.M.Unlock()
-			return
-		}
-		p.txPool.Nonce = nonce
-	} else {
-		p.txPool.Nonce++
-		nonce = p.txPool.Nonce
-	}
-	p.txPool.M.Unlock()
-
 	txHash := common.Hash{}
 	attempt := 0
+	nonce := uint64(0)
+
 	// used for timeout
 	firstAttemptAt := time.Now()
 	// used for actual round trip time (disregard retry time)
@@ -68,6 +52,14 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			}
 		}
 
+		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
+		if err != nil {
+			log.Error("cant get nounce",
+				"provider", p.name,
+				"err", err)
+			return
+		}
+
 		tx := p.createTx(nonce)
 		txHash = tx.Hash()
 
@@ -79,7 +71,6 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				"err", err)
 			return
 		}
-
 		txHash = signedTx.Hash()
 
 		roundTripStartedAt = time.Now()
@@ -88,14 +79,15 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			if err.Error() == txpool.ErrAlreadyKnown.Error() ||
 				err.Error() == txpool.ErrReplaceUnderpriced.Error() ||
 				err.Error() == core.ErrNonceTooLow.Error() {
+
 				if time.Since(firstAttemptAt) >= time.Duration(p.config.SendTransactionRetryTimeout) {
 					log.Error("send transaction timed out (known already)",
 						"provider", p.name,
 						"hash", txHash.Hex(),
+						"nonce", nonce,
 						"elapsed", time.Since(firstAttemptAt),
-						"attempt", attempt,
-						"nonce", nonce)
-					metrics.RecordError(p.name, "ethclient.SendTransaction.nonce")
+						"attempt", attempt)
+					metrics.RecordErrorDetails(p.name, "ethclient.SendTransaction", err)
 					return
 				}
 				log.Warn("tx already known, incrementing nonce and trying again",
@@ -118,6 +110,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			} else {
 				log.Error("cant send transaction",
 					"provider", p.name,
+					"nonce", nonce,
 					"err", err)
 				metrics.RecordErrorDetails(p.name, "ethclient.SendTransaction", err)
 				return
@@ -141,6 +134,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		SentAt:         sentAt,
 		SeenBy:         make(map[string]time.Time),
 	}
+	p.txPool.LastSend = sentAt
 	p.txPool.M.Unlock()
 
 	var receipt *types.Receipt
@@ -150,6 +144,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			log.Error("receipt retrieval timed out",
 				"provider", p.name,
 				"hash", txHash,
+				"nonce", nonce,
 				"elapsed", time.Since(sentAt))
 			return
 		}
@@ -157,6 +152,8 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		if attempt%10 == 0 {
 			log.Debug("checking for receipt...",
 				"provider", p.name,
+				"hash", txHash,
+				"nonce", nonce,
 				"attempt", attempt,
 				"elapsed", time.Since(sentAt))
 		}
@@ -165,6 +162,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			log.Error("cant get receipt for transaction",
 				"provider", p.name,
 				"hash", txHash.Hex(),
+				"nonce", nonce,
 				"err", err)
 			return
 		}
@@ -178,6 +176,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 
 	log.Info("got transaction receipt",
 		"hash", txHash.Hex(),
+		"nonce", nonce,
 		"roundTripLatency", roundTripLatency,
 		"provider", p.name,
 		"blockNumber", receipt.BlockNumber,
