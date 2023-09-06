@@ -125,17 +125,19 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 
 				// FOR OP-MAINNET, OP-GOERLI ONLY! Specially handle pre-bedrock blocks
 				if true {
+					// First, find all possible initiated bridge events
 					if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
 						return err
 					}
-					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL2Height, toL2Height); err != nil {
+					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, fromL2Height, toL2Height); err != nil {
 						return err
 					}
 
+					// Now that all initiated events have been indexed, it is ensured that all finalization can find their counterpart.
 					if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
 						return err
 					}
-					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL2Height, toL2Height); err != nil {
+					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, fromL2Height, toL2Height); err != nil {
 						return err
 					}
 

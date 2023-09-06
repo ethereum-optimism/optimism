@@ -115,11 +115,8 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 	return nil
 }
 
-func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
-	// (1) LegacyMessagePasser -> no-op since there's no emitted events an the public entrypoint is non-functional pre-bedrock. All withdrawals
-	// be sent through the L2CrossDomainMessenger
-
-	// (2) L2CrossDomainMessenger
+func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
+	// (1) L2CrossDomainMessenger -> This is the root-most contract for which bridge events since withdrawals must be initiated from the L2CrossDomainMessenger
 	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
 	if err != nil {
 		return err
@@ -159,7 +156,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 		}
 	}
 
-	// (3) L2StandardBridge
+	// (2) L2StandardBridge
 	initiatedBridges, err := contracts.L2StandardBridgeLegacyWithdrawalInitiatedEvents(predeploys.L2StandardBridgeAddr, db, fromHeight, toHeight)
 	if err != nil {
 		return err
@@ -202,7 +199,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 
 func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
 	// (1) L1CrossDomainMessenger -> This is the root-most contract from which bridge events are finalized since withdrawals must be initiated from the
-	// L2CrossDomainMessenger. Since there's no analogous bedrock two-step withdrawal process, we mark the transaction as proven/finalized in the same step
+	// L2CrossDomainMessenger. Since there's no two-step withdrawal process, we mark the transaction as proven/finalized in the same step
 	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l1", chainConfig.L1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
@@ -210,15 +207,6 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chain
 
 	for i := range crossDomainRelayedMessages {
 		relayedMessage := crossDomainRelayedMessages[i]
-
-		// Mark the associated tx withdrawal as proven/finalized with the same event
-		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
-			return err
-		}
-		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID, true); err != nil {
-			return err
-		}
-
 		message, err := db.BridgeMessages.L2BridgeMessage(relayedMessage.MessageHash)
 		if err != nil {
 			return err
@@ -227,6 +215,13 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chain
 			return fmt.Errorf("missing indexed L2CrossDomainMessager message")
 		}
 
+		// Mark the associated tx withdrawal as proven/finalized with the same event
+		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
+			return err
+		}
+		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID, true); err != nil {
+			return err
+		}
 		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
 			return err
 		}
@@ -244,7 +239,7 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chain
 	return nil
 }
 
-func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
+func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
 	// (1) L2CrossDomainMessenger
 	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
 	if err != nil {
