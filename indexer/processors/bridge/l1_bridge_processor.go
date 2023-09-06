@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -232,81 +231,4 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 
 	// a-ok!
 	return nil
-}
-
-// L1LatestBridgeEventHeader returns the latest header for which and on-chain event
-// has been observed on L1 -- Both initiated L1 events and finalization markers on L2.
-func L1LatestBridgeEventHeader(db *database.DB, chainConfig config.ChainConfig) (*types.Header, error) {
-	portalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	depositEventID := portalAbi.Events["TransactionDeposited"].ID
-	provenEventID := portalAbi.Events["WithdrawalProven"].ID
-	finalizedEventID := portalAbi.Events["WithdrawalFinalized"].ID
-
-	// (1) Initiated L1 Events
-	// Since all initaited bridge events eventually reach the OptimismPortal to
-	// conduct the deposit, we can simply look for the last deposited transaction
-	// event on L2.
-	var latestDepositHeader *types.Header
-	contractEventFilter := database.ContractEvent{ContractAddress: chainConfig.L1Contracts.OptimismPortalProxy, EventSignature: depositEventID}
-	depositEvent, err := db.ContractEvents.L1LatestContractEventWithFilter(contractEventFilter)
-	if err != nil {
-		return nil, err
-	}
-	if depositEvent != nil {
-		l1BlockHeader, err := db.Blocks.L1BlockHeader(depositEvent.BlockHash)
-		if err != nil {
-			return nil, err
-		}
-		if l1BlockHeader != nil {
-			latestDepositHeader = l1BlockHeader.RLPHeader.Header()
-		}
-	}
-
-	// (2) Finalization markers for L2
-	// Like initiated L1 events, all withdrawals must flow through the OptimismPortal
-	// contract. We must look for both proven and finalized withdrawal events.
-	var latestWithdrawHeader *types.Header
-	contractEventFilter.EventSignature = finalizedEventID
-	withdrawEvent, err := db.ContractEvents.L1LatestContractEventWithFilter(contractEventFilter)
-	if err != nil {
-		return nil, err
-	}
-	if withdrawEvent != nil {
-		// Check if a have a later detected proven event
-		contractEventFilter.EventSignature = provenEventID
-		provenEvent, err := db.ContractEvents.L1LatestContractEventWithFilter(contractEventFilter)
-		if err != nil {
-			return nil, err
-		}
-		if provenEvent != nil && provenEvent.Timestamp > withdrawEvent.Timestamp {
-			withdrawEvent = provenEvent
-		}
-
-		l1BlockHeader, err := db.Blocks.L1BlockHeader(withdrawEvent.BlockHash)
-		if err != nil {
-			return nil, err
-		}
-		latestWithdrawHeader = l1BlockHeader.RLPHeader.Header()
-	}
-
-	if latestDepositHeader == nil {
-		// If there has been no seen deposits yet, there could have been no seen withdrawals
-		if latestWithdrawHeader != nil {
-			return nil, errors.New("detected an indexed withdrawal without any deposits")
-		}
-		return nil, nil
-	} else if latestWithdrawHeader == nil {
-		return latestDepositHeader, nil
-	} else {
-		// both deposits & withdrawals have occurred
-		if latestDepositHeader.Time > latestWithdrawHeader.Time {
-			return latestDepositHeader, nil
-		} else {
-			return latestWithdrawHeader, nil
-		}
-	}
 }
