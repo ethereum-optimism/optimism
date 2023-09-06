@@ -30,7 +30,10 @@ func Witness(ctx *cli.Context) error {
 		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}
 	witness := state.EncodeWitness()
-	h := witness.StateHash()
+	h, err := witness.StateHash()
+	if err != nil {
+		return fmt.Errorf("failed to compute witness hash: %w", err)
+	}
 	if output != "" {
 		if err := os.WriteFile(output, witness, 0755); err != nil {
 			return fmt.Errorf("writing output to %v: %w", output, err)

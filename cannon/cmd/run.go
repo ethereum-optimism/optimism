@@ -330,12 +330,18 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if proofAt(state) {
-			preStateHash := state.EncodeWitness().StateHash()
+			preStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash prestate witness: %w", err)
+			}
 			witness, err := stepFn(true)
 			if err != nil {
 				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
 			}
-			postStateHash := state.EncodeWitness().StateHash()
+			postStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash poststate witness: %w", err)
+			}
 			proof := &Proof{
 				Step:      step,
 				Pre:       preStateHash,

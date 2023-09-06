@@ -128,7 +128,11 @@ func (p *CannonTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (c
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}
-	return mipsevm.StateWitness(state).StateHash(), nil
+	hash, err := mipsevm.StateWitness(state).StateHash()
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
+	}
+	return hash, nil
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index
@@ -160,8 +164,12 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 				// No execution is done, so no proof-data or oracle values are required.
 				witness := state.EncodeWitness()
+				witnessHash, err := mipsevm.StateWitness(witness).StateHash()
+				if err != nil {
+					return nil, fmt.Errorf("cannot hash witness: %w", err)
+				}
 				proof := &proofData{
-					ClaimValue:   witness.StateHash(),
+					ClaimValue:   witnessHash,
 					StateData:    hexutil.Bytes(witness),
 					ProofData:    []byte{},
 					OracleKey:    nil,
@@ -188,5 +196,9 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 }
 
 func (p *CannonTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
-	return mipsevm.StateWitness(state).StateHash(), nil
+	hash, err := mipsevm.StateWitness(state).StateHash()
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("cannot hash state: %w", err)
+	}
+	return hash, nil
 }

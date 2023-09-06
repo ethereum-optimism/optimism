@@ -633,13 +633,7 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
     /// @dev The challenger.
     GamePlayer internal challenger;
 
-    function init(
-        GamePlayer _defender,
-        GamePlayer _challenger,
-        uint256 _finalTraceIndex
-    )
-        public
-    {
+    function init(GamePlayer _defender, GamePlayer _challenger, uint256 _finalTraceIndex) public {
         Claim rootClaim = _defender.claimAt(_finalTraceIndex);
         super.init(rootClaim, ABSOLUTE_PRESTATE_CLAIM);
         defender = _defender;

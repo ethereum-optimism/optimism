@@ -92,7 +92,8 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 	require.Equal(t, 1, len(logs), "expecting a log with post-state")
 	evmPost := logs[0].Data
 
-	stateHash := StateWitness(evmPost).StateHash()
+	stateHash, err := StateWitness(evmPost).StateHash()
+	require.NoError(t, err, "state hash could not be computed")
 	require.Equal(t, stateHash, postHash, "logged state must be accurate")
 
 	m.env.StateDB.RevertToSnapshot(snap)
