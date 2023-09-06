@@ -222,11 +222,6 @@ func (m *mockTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (com
 	return hash, nil
 }
 
-// StateHash computes the state-hash of the given state, or returns an error if the state is invalid.
-func (m *mockTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
-	panic("not implemented")
-}
-
 type mockLoader struct {
 	prestateError bool
 	prestate      common.Hash

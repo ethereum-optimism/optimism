@@ -108,9 +108,6 @@ type TraceProvider interface {
 
 	// AbsolutePreStateCommitment is the commitment of the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error)
-
-	// StateHash computes the state-hash of the given state, or returns an error if the state is invalid.
-	StateHash(ctx context.Context, state []byte) (common.Hash, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.

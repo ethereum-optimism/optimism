@@ -1560,16 +1560,14 @@ contract MIPS_Test is CommonTest {
     ///      2. Exited with failure (Panic)
     ///      3. Unfinished
     function vmStatus(MIPS.State memory state) internal pure returns (VMStatus out_) {
-        if (state.exited) {
-            if (state.exitCode == 0) {
-                return VMStatuses.VALID;
-            } else if (state.exitCode == 1) {
-                return VMStatuses.INVALID;
-            } else {
-                return VMStatuses.PANIC;
-            }
-        } else {
+        if (!state.exited) {
             return VMStatuses.UNFINISHED;
+        } else if (state.exitCode == 0) {
+            return VMStatuses.VALID;
+        } else if (state.exitCode == 1) {
+            return VMStatuses.INVALID;
+        } else {
+            return VMStatuses.PANIC;
         }
     }
 

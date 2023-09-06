@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func alphabetClaim(index uint64, letter string, provider *AlphabetTraceProvider) common.Hash {
+func alphabetClaim(index uint64, letter string) common.Hash {
 	return alphabetStateHash(BuildAlphabetPreimage(index, letter))
 }
 
@@ -25,15 +25,15 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}{
 		{
 			7,
-			alphabetClaim(7, "h", canonicalProvider),
+			alphabetClaim(7, "h"),
 		},
 		{
 			3,
-			alphabetClaim(3, "d", canonicalProvider),
+			alphabetClaim(3, "d"),
 		},
 		{
 			5,
-			alphabetClaim(5, "f", canonicalProvider),
+			alphabetClaim(5, "f"),
 		},
 	}
 
@@ -80,7 +80,7 @@ func TestGet_Succeeds(t *testing.T) {
 	ap := NewTraceProvider("abc", 2)
 	claim, err := ap.Get(context.Background(), 0)
 	require.NoError(t, err)
-	expected := alphabetClaim(0, "a", ap)
+	expected := alphabetClaim(0, "a")
 	require.Equal(t, expected, claim)
 }
 
@@ -98,6 +98,6 @@ func TestGet_Extends(t *testing.T) {
 	ap := NewTraceProvider("abc", 2)
 	claim, err := ap.Get(context.Background(), 3)
 	require.NoError(t, err)
-	expected := alphabetClaim(2, "c", ap)
+	expected := alphabetClaim(2, "c")
 	require.Equal(t, expected, claim)
 }

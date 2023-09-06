@@ -194,11 +194,3 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 	}
 	return &proof, nil
 }
-
-func (p *CannonTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
-	hash, err := mipsevm.StateWitness(state).StateHash()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot hash state: %w", err)
-	}
-	return hash, nil
-}

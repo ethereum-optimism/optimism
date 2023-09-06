@@ -42,7 +42,7 @@ func TestGet(t *testing.T) {
 		value, err := provider.Get(context.Background(), 7000)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
-		stateHash, err := provider.StateHash(context.Background(), generator.finalState.EncodeWitness())
+		stateHash, err := generator.finalState.EncodeWitness().StateHash()
 		require.NoError(t, err)
 		require.Equal(t, stateHash, value)
 	})

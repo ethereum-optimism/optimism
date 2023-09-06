@@ -80,13 +80,12 @@ const (
 )
 
 func (sw StateWitness) StateHash() (common.Hash, error) {
-	hash := crypto.Keccak256Hash(sw)
-	offset := 32*2 + 4*6
-
 	if len(sw) != 226 {
 		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected at least 88", len(sw))
 	}
 
+	hash := crypto.Keccak256Hash(sw)
+	offset := 32*2 + 4*6
 	exitCode := sw[offset]
 	exited := sw[offset+1]
 	status := vmStatus(exited == 1, exitCode)

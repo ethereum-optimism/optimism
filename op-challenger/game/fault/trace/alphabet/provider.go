@@ -77,10 +77,6 @@ func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(ctx context.Context)
 	return hash, nil
 }
 
-func (ap *AlphabetTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
-	return alphabetStateHash(state), nil
-}
-
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
 func BuildAlphabetPreimage(i uint64, letter string) []byte {
 	return append(IndexToBytes(i), LetterToBytes(letter)...)
