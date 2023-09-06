@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
@@ -21,7 +22,7 @@ import (
 
 // RoundTrip send a new transaction to measure round trip latency
 func (p *Provider) RoundTrip(ctx context.Context) {
-	log.Debug("roundTripLatency",
+	log.Debug("RoundTrip",
 		"provider", p.name)
 
 	client, err := iclients.Dial(p.name, p.config.URL)
@@ -40,8 +41,9 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 	// used for timeout
 	firstAttemptAt := time.Now()
 	// used for actual round trip time (disregard retry time)
-	roundTripStartedAt := time.Now()
+	var roundTripStartedAt time.Time
 	for {
+
 		// sleep until we get a clear to send
 		for {
 			coolDown := time.Duration(p.config.SendTransactionCoolDown) - time.Since(p.txPool.LastSend)
@@ -52,16 +54,15 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			}
 		}
 
-		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
+		tx, err := p.createTx(ctx, client, nonce)
+		nonce = tx.Nonce()
 		if err != nil {
-			log.Error("cant get nounce",
+			log.Error("cant create tx",
 				"provider", p.name,
+				"nonce", nonce,
 				"err", err)
 			return
 		}
-
-		tx := p.createTx(nonce)
-		txHash = tx.Hash()
 
 		signedTx, err := p.sign(ctx, tx)
 		if err != nil {
@@ -90,15 +91,13 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 					metrics.RecordErrorDetails(p.name, "ethclient.SendTransaction", err)
 					return
 				}
+
 				log.Warn("tx already known, incrementing nonce and trying again",
 					"provider", p.name,
 					"nonce", nonce)
 				time.Sleep(time.Duration(p.config.SendTransactionRetryInterval))
 
-				p.txPool.M.Lock()
-				p.txPool.Nonce++
-				nonce = p.txPool.Nonce
-				p.txPool.M.Unlock()
+				nonce++
 				attempt++
 				if attempt%10 == 0 {
 					log.Debug("retrying send transaction...",
@@ -184,20 +183,80 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		"gasUsed", receipt.GasUsed)
 }
 
-func (p *Provider) createTx(nonce uint64) *types.Transaction {
-	toAddress := common.HexToAddress(p.walletConfig.Address)
+func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEthClient, nonce uint64) (*types.Transaction, error) {
+	var err error
+	if nonce == 0 {
+		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
+		if err != nil {
+			log.Error("cant get nounce",
+				"provider", p.name,
+				"nonce", nonce,
+				"err", err)
+			return nil, err
+		}
+	}
+
+	gasTipCap, err := client.SuggestGasTipCap(ctx)
+	if err != nil {
+		log.Error("cant get gas tip cap",
+			"provider", p.name,
+			"err", err)
+		return nil, err
+	}
+	gasTipCap = new(big.Int).Mul(gasTipCap, big.NewInt(110))
+	gasTipCap = new(big.Int).Div(gasTipCap, big.NewInt(100))
+
+	head, err := client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		log.Error("cant get base fee from head",
+			"provider", p.name,
+			"err", err)
+		return nil, err
+	}
+	baseFee := head.BaseFee
+
+	gasFeeCap := new(big.Int).Add(
+		gasTipCap,
+		new(big.Int).Mul(baseFee, big.NewInt(2)))
+
+	addr := common.HexToAddress(p.walletConfig.Address)
 	var data []byte
-	tx := types.NewTx(&types.DynamicFeeTx{
+	dynamicTx := &types.DynamicFeeTx{
 		ChainID:   &p.walletConfig.ChainID,
 		Nonce:     nonce,
-		GasFeeCap: &p.walletConfig.GasFeeCap,
-		GasTipCap: &p.walletConfig.GasTipCap,
-		Gas:       p.walletConfig.GasLimit,
-		To:        &toAddress,
+		GasFeeCap: gasFeeCap,
+		GasTipCap: gasTipCap,
+		To:        &addr,
 		Value:     &p.walletConfig.TxValue,
 		Data:      data,
+	}
+
+	gas, err := client.EstimateGas(ctx, ethereum.CallMsg{
+		From:      addr,
+		To:        &addr,
+		GasFeeCap: gasFeeCap,
+		GasTipCap: gasTipCap,
+		Data:      dynamicTx.Data,
+		Value:     dynamicTx.Value,
 	})
-	return tx
+	if err != nil {
+		log.Error("cant estimate gas",
+			"provider", p.name,
+			"err", err)
+		return nil, err
+	}
+	dynamicTx.Gas = gas
+	tx := types.NewTx(dynamicTx)
+
+	log.Debug("tx created",
+		"provider", p.name,
+		"nonce", nonce,
+		"gas", dynamicTx.Gas,
+		"gasTipCap", dynamicTx.GasTipCap,
+		"gasFeeCap", dynamicTx.GasFeeCap,
+	)
+
+	return tx, nil
 }
 
 func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {

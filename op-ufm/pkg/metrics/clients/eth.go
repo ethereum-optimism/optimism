@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
@@ -77,6 +78,39 @@ func (i *InstrumentedEthClient) SendTransaction(ctx context.Context, tx *types.T
 	}
 	metrics.RecordRPCLatency(i.providerName, "ethclient", "SendTransaction", time.Since(start))
 	return err
+}
+
+func (i *InstrumentedEthClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	start := time.Now()
+	gas, err := i.c.EstimateGas(ctx, msg)
+	if err != nil {
+		metrics.RecordErrorDetails(i.providerName, "ethclient.EstimateGas", err)
+		return 0, err
+	}
+	metrics.RecordRPCLatency(i.providerName, "ethclient", "EstimateGas", time.Since(start))
+	return gas, err
+}
+
+func (i *InstrumentedEthClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	start := time.Now()
+	gasTipCap, err := i.c.SuggestGasTipCap(ctx)
+	if err != nil {
+		metrics.RecordErrorDetails(i.providerName, "ethclient.SuggestGasTipCap", err)
+		return nil, err
+	}
+	metrics.RecordRPCLatency(i.providerName, "ethclient", "SuggestGasTipCap", time.Since(start))
+	return gasTipCap, err
+}
+
+func (i *InstrumentedEthClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	start := time.Now()
+	header, err := i.c.HeaderByNumber(ctx, number)
+	if err != nil {
+		metrics.RecordErrorDetails(i.providerName, "ethclient.HeaderByNumber", err)
+		return nil, err
+	}
+	metrics.RecordRPCLatency(i.providerName, "ethclient", "HeaderByNumber", time.Since(start))
+	return header, err
 }
 
 func (i *InstrumentedEthClient) ignorableErrors(err error) bool {
