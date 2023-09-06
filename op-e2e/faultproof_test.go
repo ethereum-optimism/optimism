@@ -434,7 +434,6 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 }
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
-	t.Skip("Not currently handling this case as the correct approach will change when output root bisection is added")
 	InitParallel(t)
 
 	ctx := context.Background()
