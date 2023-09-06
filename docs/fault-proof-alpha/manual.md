@@ -1,6 +1,6 @@
 ## Manual Fault Proof Interactions
 
-## Creating a Game
+### Creating a Game
 
 The process of disputing an output root starts by creating a new dispute game. There are conceptually three key inputs
 required for a dispute game:
@@ -48,7 +48,7 @@ newly created dispute game.
 The helper script, [create_game.sh](../../op-challenger#create_gamesh) can be used to easily create a new dispute
 game and also acts as an example of using `cast` to manually create a game.
 
-## Performing Moves
+### Performing Moves
 
 The dispute game progresses by actors countering existing claims via either the `attack` or `defend` methods in
 the `FaultDisputeGame` contract. Note that only `attack` can be used to counter the root claim. In both cases, there are
@@ -60,7 +60,7 @@ two inputs required:
 The helper script, [move.sh](../../op-challenger#movesh), can be used to easily perform moves and also
 acts as an example of using `cast` to manually call `attack` and `defend`.
 
-## Performing Steps
+### Performing Steps
 
 Attacking or defending are teh only available actions before the maximum depth of the game is reached. To counter claims
 at the maximum depth, a step must be performed instead. Calling the `step` method in the `FaultDisputeGame` contract
@@ -89,7 +89,7 @@ The `step` function will revert with `ValidStep()` if the cannon execution prove
 countered is correct. As a result, claims at the maximum game depth can only be countered by a valid execution of the
 single instruction in cannon running on-chain.
 
-### Populating the Pre-image Oracle
+#### Populating the Pre-image Oracle
 
 When the instruction to be executed as part of a `step` call reads from some pre-image data, that data must be loaded
 into the pre-image oracle prior to calling `step`.
@@ -98,7 +98,7 @@ the `FaultDisputeGame` contract by calling the `addLocalData` function.
 For [global keccak256 keys](../../specs/fault-proof.md#type-2-global-keccak256-key), the data should be added directly
 to the pre-image oracle contract.
 
-## Resolving a Game
+### Resolving a Game
 
 The final action required for a game is to resolve it by calling the `resolve` method in the `FaultDisputeGame`
 contract. This can only be done once the clock of the left-most uncontested claim’s parent has expired. A game can only
