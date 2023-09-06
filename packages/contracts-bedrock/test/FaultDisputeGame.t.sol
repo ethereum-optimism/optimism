@@ -147,7 +147,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function testFuzz_initialize_badRootStatus_reverts(Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         // Ensure the root claim does not have the correct VM status
-        if (uint8(Claim.unwrap(rootClaim)[0]) == 1) rootClaim = changeClaimStatus(rootClaim, VMStatuses.VALID);
+        uint8 vmStatus = uint8(Claim.unwrap(rootClaim)[0]);
+        if (vmStatus == 1 || vmStatus == 2) rootClaim = changeClaimStatus(rootClaim, VMStatuses.VALID);
 
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
         factory.create(GameTypes.FAULT, rootClaim, extraData);
