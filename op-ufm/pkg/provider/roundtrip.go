@@ -34,6 +34,9 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		return
 	}
 
+	p.txPool.ExclusiveSend.Lock()
+	defer p.txPool.ExclusiveSend.Unlock()
+
 	txHash := common.Hash{}
 	attempt := 0
 	nonce := uint64(0)

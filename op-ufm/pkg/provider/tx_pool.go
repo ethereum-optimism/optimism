@@ -18,6 +18,8 @@ type NetworkTransactionPool struct {
 
 	// Last time a transaction was sent
 	LastSend time.Time
+	// Prevents concurrent transaction send
+	ExclusiveSend sync.Mutex
 }
 
 type TransactionState struct {
