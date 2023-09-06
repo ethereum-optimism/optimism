@@ -47,7 +47,10 @@ type L2TransactionWithdrawal struct {
 
 type BridgeTransactionsView interface {
 	L1TransactionDeposit(common.Hash) (*L1TransactionDeposit, error)
+	L1LatestBlockHeader() (*L1BlockHeader, error)
+
 	L2TransactionWithdrawal(common.Hash) (*L2TransactionWithdrawal, error)
+	L2LatestBlockHeader() (*L2BlockHeader, error)
 }
 
 type BridgeTransactionsDB interface {
@@ -92,6 +95,37 @@ func (db *bridgeTransactionsDB) L1TransactionDeposit(sourceHash common.Hash) (*L
 	}
 
 	return &deposit, nil
+}
+
+func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
+	// Markers for an indexed bridge event
+	// L1: Latest Transaction Deposit, Latest Proven/Finalized Withdrawal
+	l1DepositQuery := db.gorm.Table("l1_transaction_deposits").Order("l1_transaction_deposits.timestamp DESC").Limit(1)
+	l1DepositQuery = l1DepositQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
+	l1DepositQuery = l1DepositQuery.Select("l1_contract_events.*")
+
+	l1ProvenQuery := db.gorm.Table("l2_transaction_withdrawals")
+	l1ProvenQuery = l1ProvenQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
+	l1ProvenQuery = l1ProvenQuery.Order("l1_contract_events.timestamp DESC").Select("l1_contract_events.*").Limit(1)
+
+	l1FinalizedQuery := db.gorm.Table("l2_transaction_withdrawals")
+	l1FinalizedQuery = l1FinalizedQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
+	l1FinalizedQuery = l1FinalizedQuery.Order("l1_contract_events.timestamp DESC").Select("l1_contract_events.*").Limit(1)
+
+	l1Query := db.gorm.Table("((?) UNION (?) UNION (?)) AS latest_bridge_events", l1DepositQuery.Limit(1), l1ProvenQuery, l1FinalizedQuery)
+	l1Query = l1Query.Joins("INNER JOIN l1_block_headers ON l1_block_headers.hash = latest_bridge_events.block_hash")
+	l1Query = l1Query.Order("l1_block_headers.number DESC").Select("l1_block_headers.*")
+
+	var l1Header L1BlockHeader
+	result := l1Query.Take(&l1Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &l1Header, nil
 }
 
 /**
@@ -148,4 +182,26 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 	withdrawal.Succeeded = &succeeded
 	result := db.gorm.Save(&withdrawal)
 	return result.Error
+}
+
+func (db *bridgeTransactionsDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
+	// L2: Inclusion of the latest deposit
+	l1DepositQuery := db.gorm.Table("l1_transaction_deposits").Order("l1_transaction_deposits.timestamp DESC")
+	l1DepositQuery = l1DepositQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
+	l1DepositQuery = l1DepositQuery.Select("l1_contract_events.*")
+
+	l2Query := db.gorm.Table("(?) AS l1_deposit_events", l1DepositQuery)
+	l2Query = l2Query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_deposit_events.timestamp")
+	l2Query = l2Query.Select("l2_block_headers.*")
+
+	var l2Header L2BlockHeader
+	result := l2Query.Take(&l2Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &l2Header, nil
 }
