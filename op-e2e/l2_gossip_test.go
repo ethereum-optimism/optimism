@@ -11,7 +11,7 @@ import (
 func TestTxGossip(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	gethOpts := []GethOption{
+	gethOpts := []geth.GethOption{
 		geth.WithP2P(),
 	}
 	cfg.GethOptions["sequencer"] = gethOpts
