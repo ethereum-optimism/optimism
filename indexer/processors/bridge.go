@@ -29,35 +29,32 @@ type BridgeProcessor struct {
 func NewBridgeProcessor(log log.Logger, db *database.DB, l1Etl *etl.L1ETL, chainConfig config.ChainConfig) (*BridgeProcessor, error) {
 	log = log.New("processor", "bridge")
 
-	latestL1Header, err := bridge.L1LatestBridgeEventHeader(db, chainConfig)
+	latestL1Header, err := db.BridgeTransactions.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
-	latestL2Header, err := bridge.L2LatestBridgeEventHeader(db)
+	latestL2Header, err := db.BridgeTransactions.L2LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
 
-	// Since the bridge processor indexes events based on epochs, there's
-	// no scenario in which we have indexed L2 data with no L1 data.
-	//
-	// NOTE: Technically there is an exception if our bridging contracts are
-	// used to bridges native from L2 and an op-chain happens to launch where
-	// only L2 native bridge events have occurred. This is a rare situation now
-	// and it's worth the assertion as an integrity check. We can revisit this
-	// as more chains launch with primarily L2-native activity.
-	if latestL1Header == nil && latestL2Header != nil {
-		log.Error("detected indexed L2 bridge activity with no indexed L1 state", "l2_block_number", latestL2Header.Number)
-		return nil, errors.New("detected indexed L2 bridge activity with no indexed L1 state")
-	}
-
+	var l1Header, l2Header *types.Header
 	if latestL1Header == nil && latestL2Header == nil {
-		log.Info("no indexed state, starting from genesis")
+		log.Info("no indexed state, starting from rollup genesis")
 	} else {
-		log.Info("detected the latest indexed state", "l1_block_number", latestL1Header.Number, "l2_block_number", latestL2Header.Number)
+		l1Height, l2Height := big.NewInt(0), big.NewInt(0)
+		if latestL1Header != nil {
+			l1Height = latestL1Header.Number
+			l1Header = latestL1Header.RLPHeader.Header()
+		}
+		if latestL2Header != nil {
+			l2Height = latestL2Header.Number
+			l2Header = latestL2Header.RLPHeader.Header()
+		}
+		log.Info("detected latest indexed state", "l1_block_number", l1Height, "l2_block_number", l2Height)
 	}
 
-	return &BridgeProcessor{log, db, l1Etl, chainConfig, latestL1Header, latestL2Header}, nil
+	return &BridgeProcessor{log, db, l1Etl, chainConfig, l1Header, l2Header}, nil
 }
 
 func (b *BridgeProcessor) Start(ctx context.Context) error {
@@ -83,29 +80,40 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			latestEpoch, err := b.db.Blocks.LatestEpoch()
 			if err != nil {
 				return err
-			}
-			if latestEpoch == nil {
-				if b.LatestL1Header != nil {
-					// Once we have some state `latestEpoch` should never return nil.
-					b.log.Error("started with indexed bridge state, but no latest epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
-					return errors.New("started with indexed bridge state, but no blocks epochs returned")
-				} else {
-					b.log.Warn("no indexed epochs. waiting...")
-					continue
+			} else if latestEpoch == nil {
+				if b.LatestL1Header != nil || b.LatestL2Header != nil {
+					// Once we have some indexed state `latestEpoch` can never return nil
+					b.log.Error("bridge events indexed, but no indexed epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
+					return errors.New("bridge events indexed, but no indexed epoch returned")
 				}
-			}
 
-			if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Hash == b.LatestL1Header.Hash() {
-				// Marked as a warning since the bridge should always be processing at least 1 new epoch
-				b.log.Warn("all available epochs indexed by the bridge", "latest_epoch_number", b.LatestL1Header.Number)
+				b.log.Warn("no indexed epochs available. waiting...")
 				continue
 			}
+
+			// Integrity Checks
+
+			if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Hash == b.LatestL1Header.Hash() {
+				b.log.Warn("all available epochs indexed", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
+				continue
+			}
+			if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Number.Cmp(b.LatestL1Header.Number) <= 0 {
+				b.log.Error("non-increasing l1 block height observed", "latest_bridge_l1_block_number", b.LatestL1Header.Number, "latest_epoch_number", latestEpoch.L1BlockHeader.Number)
+				return errors.New("non-increasing l1 block heght observed")
+			}
+			if b.LatestL2Header != nil && latestEpoch.L2BlockHeader.Number.Cmp(b.LatestL2Header.Number) <= 0 {
+				b.log.Error("non-increasing l2 block height observed", "latest_bridge_l2_block_number", b.LatestL2Header.Number, "latest_epoch_number", latestEpoch.L2BlockHeader.Number)
+				return errors.New("non-increasing l2 block heght observed")
+			}
+
+			// Process Bridge Events
 
 			toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number, latestEpoch.L2BlockHeader.Number
 			fromL1Height, fromL2Height := big.NewInt(0), big.NewInt(0)
 			if b.LatestL1Header != nil {
-				// `NewBridgeProcessor` ensures that LatestL2Header must not be nil if LatestL1Header is set
 				fromL1Height = new(big.Int).Add(b.LatestL1Header.Number, big.NewInt(1))
+			}
+			if b.LatestL2Header != nil {
 				fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, big.NewInt(1))
 			}
 
@@ -139,7 +147,7 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 				// Try again on a subsequent interval
 				batchLog.Error("unable to index new bridge events", "err", err)
 			} else {
-				batchLog.Info("done indexing new bridge events", "latest_l1_block_number", toL1Height, "latest_l2_block_number", toL2Height)
+				batchLog.Info("done indexing bridge events", "latest_l1_block_number", toL1Height, "latest_l2_block_number", toL2Height)
 				b.LatestL1Header = latestEpoch.L1BlockHeader.RLPHeader.Header()
 				b.LatestL2Header = latestEpoch.L2BlockHeader.RLPHeader.Header()
 			}
