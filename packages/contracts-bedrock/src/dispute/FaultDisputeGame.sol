@@ -167,11 +167,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        //            We ignore the highest order byte of the digest because it is used to
-        //            indicate the VM Status and is added after the digest is computed. The
-        //            hash commits to the exit code and the exit status, so the VM status does
-        //            not need to be checked for equivalence.
-        bool validStep = (VM.step(_stateData, _proof)) << 8 == (Claim.unwrap(postState.claim) << 8);
+        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 

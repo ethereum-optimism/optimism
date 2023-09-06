@@ -133,7 +133,7 @@ func (s *Solver) defend(ctx context.Context, claim types.Claim) (*types.Claim, e
 // agreeWithClaim returns true if the claim is correct according to the internal [TraceProvider].
 func (s *Solver) agreeWithClaim(ctx context.Context, claim types.ClaimData) (bool, error) {
 	ourValue, err := s.traceAtPosition(ctx, claim.Position)
-	return bytes.Equal(ourValue[1:], claim.Value[1:]), err
+	return bytes.Equal(ourValue[:], claim.Value[:]), err
 }
 
 // traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
