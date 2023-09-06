@@ -62,8 +62,8 @@ func runApi(ctx *cli.Context) error {
 	}
 	defer db.Close()
 
-	api := api.NewApi(log, db.BridgeTransfers)
-	return api.Listen(ctx.Context, cfg.HTTPServer.Port)
+	api := api.NewApi(log, db.BridgeTransfers, cfg.HTTPServer, cfg.MetricsServer)
+	return api.Start(ctx.Context)
 }
 
 func runAll(ctx *cli.Context) error {
