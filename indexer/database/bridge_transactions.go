@@ -192,7 +192,7 @@ func (db *bridgeTransactionsDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 
 	l2Query := db.gorm.Table("(?) AS l1_deposit_events", l1DepositQuery)
 	l2Query = l2Query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_deposit_events.timestamp")
-	l2Query = l2Query.Select("l2_block_headers.*")
+	l2Query = l2Query.Order("l2_block_headers.timestamp DESC").Select("l2_block_headers.*")
 
 	var l2Header L2BlockHeader
 	result := l2Query.Take(&l2Header)
