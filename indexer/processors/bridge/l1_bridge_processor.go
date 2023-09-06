@@ -51,7 +51,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	if err != nil {
 		return err
 	}
-	if len(crossDomainSentMessages) > len(transactionDeposits) {
+	if len(crossDomainSentMessages) < len(transactionDeposits) {
 		return fmt.Errorf("missing transaction deposit for each cross-domain message. deposits: %d, messages: %d", len(transactionDeposits), len(crossDomainSentMessages))
 	}
 
@@ -64,7 +64,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		// extract the deposit hash from the previous TransactionDepositedEvent
 		portalDeposit, ok := portalDeposits[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			return fmt.Errorf("missing expected preceding TransactionDeposit for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
+			return fmt.Errorf("expected TransactionDeposit preceding SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash)
 		}
 
 		l1BridgeMessages[i] = database.L1BridgeMessage{TransactionSourceHash: portalDeposit.DepositTx.SourceHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -82,7 +82,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	if err != nil {
 		return err
 	}
-	if len(initiatedBridges) > len(crossDomainSentMessages) {
+	if len(initiatedBridges) < len(crossDomainSentMessages) {
 		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
 	}
 
@@ -93,11 +93,11 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		// extract the cross domain message hash & deposit source hash from the following events
 		portalDeposit, ok := portalDeposits[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
 		if !ok {
-			return fmt.Errorf("missing expected following TransactionDeposit for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected TransactionDeposit following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		}
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
 		if !ok {
-			return fmt.Errorf("missing expected following SentMessage for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected SentMessage following TransactionDeposit event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -205,7 +205,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	if err != nil {
 		return err
 	}
-	if len(finalizedBridges) > len(crossDomainRelayedMessages) {
+	if len(finalizedBridges) < len(crossDomainRelayedMessages) {
 		return fmt.Errorf("missing cross-domain message for each finalized bridge event. messages: %d, bridges: %d", len(crossDomainRelayedMessages), len(finalizedBridges))
 	}
 
@@ -215,7 +215,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		finalizedBridge := finalizedBridges[i]
 		relayedMessage, ok := relayedMessages[logKey{finalizedBridge.Event.BlockHash, finalizedBridge.Event.LogIndex + 1}]
 		if !ok {
-			return fmt.Errorf("missing following RelayedMessage for BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash)
 		}
 
 		// Since the message hash is computed from the relayed message, this ensures the deposit fields must match. For good measure,
