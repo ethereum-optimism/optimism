@@ -121,7 +121,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 //
 // NOTE: Unlike L1, there's no L2ToL1MessagePasser stage since transaction deposits are apart of the block derivation process.
 func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
-	// (1) L2CrossDomainMessenger relayedMessage
+	// (1) L2CrossDomainMessenger
 	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
 	if err != nil {
 		return err
@@ -148,7 +148,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		log.Info("relayed L1CrossDomainMessenger messages", "size", len(crossDomainRelayedMessages))
 	}
 
-	// (2) L2StandardBridge BridgeFinalized
+	// (2) L2StandardBridge
 	finalizedBridges, err := contracts.StandardBridgeFinalizedEvents("l2", predeploys.L2StandardBridgeAddr, db, fromHeight, toHeight)
 	if err != nil {
 		return err

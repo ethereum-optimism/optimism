@@ -34,6 +34,9 @@ type L1Contracts struct {
 	L1CrossDomainMessengerProxy common.Address `toml:"l1-cross-domain-messenger"`
 	L1StandardBridgeProxy       common.Address `toml:"l1-standard-bridge"`
 
+	// Pre-Bedrock Legacy Contracts
+	LegacyCanonicalTransactionChain common.Address `toml:"l1-canonical-transaction-chain"`
+
 	// Some more contracts -- L1ERC721Bridge, ProxyAdmin, SystemConfig, etc
 	// Ignore the auxiliary contracts?
 

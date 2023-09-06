@@ -123,6 +123,26 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 				l1BridgeLog := b.log.New("from_l1_block_number", fromL1Height, "to_l1_block_number", toL1Height)
 				l2BridgeLog := b.log.New("from_l2_block_number", fromL2Height, "to_l2_block_number", toL2Height)
 
+				// FOR OP-MAINNET, OP-GOERLI ONLY! Specially handle pre-bedrock blocks
+				if true {
+					if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+						return err
+					}
+					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+						return err
+					}
+
+					if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+						return err
+					}
+					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+						return err
+					}
+
+					// a-ok!
+					return nil
+				}
+
 				// First, find all possible initiated bridge events
 				if err := bridge.L1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
 					return err
