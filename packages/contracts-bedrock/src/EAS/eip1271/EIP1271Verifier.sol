@@ -12,7 +12,15 @@ import {
     RevocationRequestData
 } from "../IEAS.sol";
 
-import { DeadlineExpired, NO_EXPIRATION_TIME, Signature, InvalidSignature, MAX_GAP, stringToBytes32, bytes32ToString } from "../Common.sol";
+import {
+    DeadlineExpired,
+    NO_EXPIRATION_TIME,
+    Signature,
+    InvalidSignature,
+    MAX_GAP,
+    stringToBytes32,
+    bytes32ToString
+} from "../Common.sol";
 
 /// @title EIP1271Verifier
 /// @notice EIP1271Verifier typed signatures verifier for EAS delegated attestations.
@@ -22,7 +30,8 @@ abstract contract EIP1271Verifier is EIP712 {
     error InvalidNonce();
 
     // The hash of the data type used to relay calls to the attest function. It's the value of
-    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 value,uint256 nonce,uint64 deadline)").
+    // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes
+    // data,uint256 value,uint256 nonce,uint64 deadline)").
     bytes32 private constant ATTEST_TYPEHASH = 0xf83bb2b0ede93a840239f7e701a54d9bc35f03701f51ae153d601c6947ff3d3f;
 
     // The hash of the data type used to relay calls to the revoke function. It's the value of
@@ -141,12 +150,7 @@ abstract contract EIP1271Verifier is EIP712 {
         bytes32 hash = _hashTypedDataV4(
             keccak256(
                 abi.encode(
-                    REVOKE_TYPEHASH,
-                    request.schema,
-                    data.uid,
-                    data.value,
-                    _nonces[request.revoker]++,
-                    request.deadline
+                    REVOKE_TYPEHASH, request.schema, data.uid, data.value, _nonces[request.revoker]++, request.deadline
                 )
             )
         );
