@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-ts": "workspace:^",
+    "@eth-optimism/old-contracts": "npm:@eth-optimism/contracts@0.4.10",
     "@testing-library/jest-dom": "^6.0.1",
     "@testing-library/react-hooks": "^8.0.1",
     "@vitest/coverage-istanbul": "^0.34.1",
@@ -50,5 +51,11 @@
   },
   "peerDependencies": {
     "viem": "^0.3.30"
+  },
+  "dependencies": {
+    "@eth-optimism/core-utils": "workspace:^",
+    "@eth-optimism/message-relayer": "^0.2.0",
+    "@eth-optimism/sdk": "workspace:^",
+    "ethers": "5"
   }
 }
