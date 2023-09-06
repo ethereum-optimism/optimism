@@ -58,6 +58,16 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 	// used for actual round trip time (disregard retry time)
 	roundTripStartedAt := time.Now()
 	for {
+		// sleep until we get a clear to send
+		for {
+			coolDown := time.Duration(p.config.SendTransactionCoolDown) - time.Since(p.txPool.LastSend)
+			if coolDown > 0 {
+				time.Sleep(coolDown)
+			} else {
+				break
+			}
+		}
+
 		tx := p.createTx(nonce)
 		txHash = tx.Hash()
 
