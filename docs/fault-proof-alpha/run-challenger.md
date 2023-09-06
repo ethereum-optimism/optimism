@@ -18,7 +18,18 @@
 
 ### Starting op-challenger
 
-In the top level of the monorepo, replace the placeholders and then run:
+When executing `op-challenger`, there are a few placeholders that need to be set to concreate values:
+
+- `<L1_URL>` the Goerli L1 JSON RPC endpoint
+- `<DISPUTE_GAME_FACTORY_ADDRESS>` the address of the dispute game factory contract (see
+  the [Goerli deployment details](./deployments.md#goerli))
+- `<PRESTATE>` the prestate.json downloaded above. Note that this needs to precisely match the prestate used on-chain so
+  must be the downloaded version and not a version built locally (see the [Goerli deployment details](./deployments.md#goerli))
+- `<L2_URL>` the OP-Goerli L2 archive node JSON RPC endpoint
+- `<PRIVATE_KEY>` the private key for a funded Goerli account. For other ways to specify the account to use
+  see `./op-challenger/bin/op-challenger --help`
+
+From inside the monorepo directory, run the challenger with these placeholders set.
 
 ```bash
 # Build the required components
@@ -39,16 +50,6 @@ make op-challenger op-program cannon
   --private-key <PRIVATE_KEY>
 ```
 
-The placeholders are:
-
-- `<L1_URL>` the Goerli L1 JSON RPC endpoint
-- `<DISPUTE_GAME_FACTORY_ADDRESS>` the address of the dispute game factory contract (see
-  the [Goerli deployment details](./deployments.md#goerli))
-- `<PRESTATE>` the prestate.json downloaded above. Note that this needs to precisely match the prestate used on-chain so
-  must be the downloaded version and not a version built locally (see the [Goerli deployment details](./deployments.md#goerli))
-- `<L2_URL>` the OP-Goerli L2 archive node JSON RPC endpoint
-- `<PRIVATE_KEY>` the private key for a funded Goerli account. For other ways to specify the account to use
-  see `./op-challenger/bin/op-challenger --help`
 
 ### Restricting Games to Play
 

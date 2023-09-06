@@ -10,7 +10,7 @@ finalized and may change without notice.
 ### Contents
 
  * Overview
- * Deployment Details
+ * [Deployment Details](./deployments.md)
  * [Manual Usage](./manual.md)
    * [Creating Traces with Cannon](./cannon.md)
  * [Automation with `op-challenger`](./run-challenger.md)

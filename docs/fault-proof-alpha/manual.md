@@ -14,22 +14,22 @@ look up the full details in the L2 output oracle.
 
 The agreed output root is defined as the output root immediately prior to the disputed output root in the L2 output
 oracle. Therefore, a dispute game should only be created for the first invalid output root. If it is successfully
-disputed, all output roots after it would be considered invalid by inference.
+disputed, all output roots after it are considered invalid by inference.
 
 The L1 head block can be any L1 block where the disputed output root is present in the L2 output oracle. Proposers
 should therefore ensure that all batch data has been submitted to L1 before submitting a proposal. The L1 head block is
 recorded in the `BlockOracle` and then referenced by its block number.
 
 Creating a game requires two separate transactions. First the L1 head block is recorded in the `BlockOracle` by calling
-its `checkpoint` function. This record the parent of the block the transaction is included in. The `BlockOracle` emits a
-log `Checkpoint(blockNumber, blockHash, childTimestamp)`.
+its `checkpoint` function. This records the parent of the block the transaction is included in. The `BlockOracle` emits
+a log `Checkpoint(blockNumber, blockHash, childTimestamp)`.
 
-Now the L1 head, along with the information on the output roots from the L2 output oracle can be used to execute cannon
-and determine the root claim to use when creating the game. In simple cases, where the claim is expected to be
-incorrect, an arbitrary hash can be used for claim values. For more advanced cases [cannon can be used](./cannon.md) to
-generate a trace, including the claim values to use at specific steps. Note that it is not valid to create a game that
-disputes an output root, using the final hash from a trace that confirms the output root is valid. To dispute an output
-root successfully, the trace must resolve that the disputed output root is invalid.
+Now, using the L1 head along with output root info available in the L2 output oracle, cannon can be executed to
+determine the root claim to use when creating the game. In simple cases, where the claim is expected to be incorrect, an
+arbitrary hash can be used for claim values. For more advanced cases [cannon can be used](./cannon.md) to generate a
+trace, including the claim values to use at specific steps. Note that it is not valid to create a game that disputes an
+output root, using the final hash from a trace that confirms the output root is valid. To dispute an output root
+successfully, the trace must resolve that the disputed output root is invalid.
 
 The game can then be created by calling the `create` method on the `DisputeGameFactory` contract. This requires three
 parameters:
@@ -45,27 +45,28 @@ parameters:
 This emits a log event `DisputeGameCreated(gameAddress, gameType, rootClaim)` where `gameAddress` is the address of the
 newly created dispute game.
 
-A simple helper script, [create_game.sh](../../op-challenger#create_gamesh) has been created to easily create a new
-dispute game and also provides an example of using `cast` to manually create a game.
+The helper script, [create_game.sh](../../op-challenger#create_gamesh) can be used to easily create a new dispute
+game and also acts as an example of using `cast` to manually create a game.
 
 ## Performing Moves
 
-The dispute game progresses by actors by countering existing claims via either the `attack` or `defend` methods in
+The dispute game progresses by actors countering existing claims via either the `attack` or `defend` methods in
 the `FaultDisputeGame` contract. Note that only `attack` can be used to counter the root claim. In both cases, there are
 two inputs required:
 
-- `parentIndex` - the index in the claims array of the parent claim that is being countered
+- `parentIndex` - the index in the claims array of the parent claim that is being countered.
 - `claim` - a `bytes32` hash of the state at the trace index corresponding to the new claim’s position.
 
-A simple helper script, [move.sh](../../op-challenger#movesh), has been created to easily perform moves and also
-provides an example of using `cast` to manually call `attack` and `defend`.
+The helper script, [move.sh](../../op-challenger#movesh), can be used to easily perform moves and also
+acts as an example of using `cast` to manually call `attack` and `defend`.
 
 ## Performing Steps
 
-Attack and defend can only be used until the maximum depth of the game is reached. To counter claims at the maximum
-depth, a step must be performed instead. Calling the `step` method in the `FaultDisputeGame` contract counters a claim
-at the maximum depth by running a single step of the cannon VM on chain. The `step` method will revert unless the cannon
-execution confirms the claim being countered is invalid.
+Attacking or defending are teh only available actions before the maximum depth of the game is reached. To counter claims
+at the maximum depth, a step must be performed instead. Calling the `step` method in the `FaultDisputeGame` contract
+counters a claim at the maximum depth by running a single step of the cannon VM on chain. The `step` method will revert
+unless the cannon execution confirms the claim being countered is invalid. Note, if an actor's clock runs out at any
+point, the game can be [resolved](#resolving-a-game).
 
 The inputs for step are:
 
@@ -74,14 +75,14 @@ The inputs for step are:
 - `stateData` - the full cannon state witness to use as the starting state for execution
 - `proof` - the additional proof data for the state witness required by cannon to perform the step
 
-When a step is attacking, the caller is making the claim that the claim at `claimIndex` is incorrect, and the claim for
+When a step is attacking, the caller is asserting that the claim at `claimIndex` is incorrect, and the claim for
 the previous trace index (made at a previous level in the game) was correct. The `stateData` must be the pre-image for
 the agreed correct hash at the previous trace index. The call to `step` will revert if the post-state from cannon
 matches the claim at `claimIndex` since the on-chain execution has proven the claim correct and it should not be
 countered.
 
-When a step is defending, the caller is making the claim that the claim at `claimIndex` is correct, and the claim for
-the next trac index (made at a previous level in the game) is incorrect. The `stateData` must be the pre-image for the
+When a step is defending, the caller is asserting that the claim at `claimIndex` is correct, and the claim for
+the next trace index (made at a previous level in the game) is incorrect. The `stateData` must be the pre-image for the
 hash in the claim at `claimIndex`.
 
 The `step` function will revert with `ValidStep()` if the cannon execution proves that the claim attempting to be
@@ -106,5 +107,5 @@ be resolved once.
 There are no inputs required for the `resolve` method. When successful, a log event is emitted with the game’s final
 status.
 
-A helper script, [resolve.sh](../../op-challenger#resolvesh), has been created to easily resolve a game and also
-provides an example of using `cast` to manually call `resolve` and understand the result.
+The helper script, [resolve.sh](../../op-challenger#resolvesh), can be used to easily resolve a game and also acts as an
+example of using `cast` to manually call `resolve` and understand the result.
