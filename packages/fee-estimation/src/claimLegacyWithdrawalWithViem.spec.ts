@@ -6,8 +6,6 @@ import {
   optimismPortalABI,
   optimismPortalAddress
 } from '@eth-optimism/contracts-ts'
-// note I'm using 0.2.0 here
-import { getLegacyProofsForL2Transaction } from '@eth-optimism/message-relayer'
 import { WalletClient, createPublicClient, encodeFunctionData, http, keccak256, parseAbi, parseAbiItem } from 'viem'
 import { getL2Client } from 'estimateFees'
 import { optimism } from 'viem/dist/types/chains'
@@ -40,27 +38,6 @@ const ovm1Withdrawals_version1 =   {
     "target": "0xc04f345d5a50fe433de3235ca88333aba11b90a7",
     "message_nonce": 8885
   } as const
-// I got this from  https://raw.githubusercontent.com/ethereum-optimism/gateway/develop/packages/backend/src/data/ovm1Withdrawals_version1.json?token=GHSAT0AAAAAACGMCI43WSTVIA7BZL4NQPY6ZHX4WYA
-// that originally came from the old gateway
-// I don't think this is actually necessary they only both exist because I was copy pasting exactly without modifying the legacy code
-const ovmWithdrawals = {
-        "version": 1,
-        "message_nonce": 8885,
-        "days_since_initiated": 957,
-        "symbol": "ETH",
-        "amount_tokens": 1e-7,
-        "amount_usd": 0.0001356,
-        "l2_tx_hash": "0xc31d3ef563a9710728a7959c98c7781aa864956048b9627bf27fed3e7fe03e60",
-        "l2_block_time": "2021-09-19T07:56:49Z",
-        "target": "0xc04f345d5a50fe433de3235ca88333aba11b90a7",
-        "_l1Token": "0x0000000000000000000000000000000000000000",
-        "_l2Token": "0x4200000000000000000000000000000000000006",
-        "all_withdrawals": 29914,
-        "unclaimed_withdrawals_gt7": 13305,
-        "usd_unclaimed_gt7": 17520072.364946086,
-        "unclaimed_withdrawals_lte7": 84,
-        "usd_unclaimed_lte7": 11313457.16728247
-} as const
 // finally this one came from https://raw.githubusercontent.com/ethereum-optimism/gateway/develop/packages/backend/src/data/ovmhistorical.json?token=GHSAT0AAAAAACGMCI43K27J2HZCDXTN4QDKZHX5SSA
 const ovmHistorical = {
     // this is the from address
@@ -149,7 +126,6 @@ test('should be able to get message status prove and claim', async () => {
      encodeFunctionData({
          abi: parseAbi([
   'function relayMessage(address,address,bytes,uint256)',
-  'function relayMessage(uint256,address,address,uint256,uint256,bytes)',
          ]),
          functionName: 'relayMessage',
          args: [relayData._target, relayData._sender, relayData._message, relayData._messageNonce]
@@ -178,7 +154,7 @@ test('should be able to get message status prove and claim', async () => {
     }
   )
 
-  // not that if it's failed we can retry so message status is retryable READY_FOR_RELAY
+  // note that if it's failed we can retry so message status is retryable READY_FOR_RELAY
     const isFailed = !isSuccessful && failedRelayedMessageEvents.length > 0
 
     // so if we have no relay attempts we know the message is either in challenge period or ready to prove
