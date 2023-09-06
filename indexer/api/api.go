@@ -46,6 +46,7 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 	promRecorder := metrics.NewPromHTTPRecorder(mr, MetricsNamespace)
 
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
+	apiRouter.Use(middleware.Recoverer)
 	apiRouter.Use(middleware.Heartbeat("/healthz"))
 
 	apiRouter.Get(fmt.Sprintf("/api/v0/deposits/{address:%s}", ethereumAddressRegex), h.L1DepositsHandler)
