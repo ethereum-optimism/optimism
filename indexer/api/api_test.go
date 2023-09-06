@@ -19,11 +19,11 @@ type MockBridgeTransfersView struct{}
 
 var mockAddress = "0x4204204204204204204204204204204204204204"
 
-var apiConfig = config.APIConfig{
+var apiConfig = config.ServerConfig{
 	Host: "localhost",
 	Port: 8080,
 }
-var metricsConfig = config.MetricsConfig{
+var metricsConfig = config.ServerConfig{
 	Host: "localhost",
 	Port: 7300,
 }

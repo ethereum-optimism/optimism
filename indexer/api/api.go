@@ -23,8 +23,8 @@ const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 type Api struct {
 	log             log.Logger
 	Router          *chi.Mux
-	apiConfig       config.APIConfig
-	metricsConfig   config.MetricsConfig
+	serverConfig    config.ServerConfig
+	metricsConfig   config.ServerConfig
 	metricsRegistry *prometheus.Registry
 }
 
@@ -38,20 +38,20 @@ func chiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Hand
 	}
 }
 
-func NewApi(logger log.Logger, bv database.BridgeTransfersView, apiConfig config.APIConfig, metricsConfig config.MetricsConfig) *Api {
+func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig config.ServerConfig, metricsConfig config.ServerConfig) *Api {
 	apiRouter := chi.NewRouter()
 	h := routes.NewRoutes(logger, bv, apiRouter)
 
 	mr := metrics.NewRegistry()
 	promRecorder := metrics.NewPromHTTPRecorder(mr, MetricsNamespace)
 
-	apiRouter.Use(ChiMetricsMiddleware(promRecorder))
+	apiRouter.Use(chiMetricsMiddleware(promRecorder))
 	apiRouter.Use(middleware.Heartbeat("/healthz"))
 
 	apiRouter.Get(fmt.Sprintf("/api/v0/deposits/{address:%s}", ethereumAddressRegex), h.L1DepositsHandler)
 	apiRouter.Get(fmt.Sprintf("/api/v0/withdrawals/{address:%s}", ethereumAddressRegex), h.L2WithdrawalsHandler)
 
-	return &Api{log: logger, Router: apiRouter, metricsRegistry: mr, metricsConfig: metricsConfig, apiConfig: apiConfig}
+	return &Api{log: logger, Router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }
 
 func (a *Api) Start(ctx context.Context) error {
@@ -93,8 +93,8 @@ func (a *Api) Start(ctx context.Context) error {
 }
 
 func (a *Api) startServer(ctx context.Context) error {
-	a.log.Info("api server listening...", "port", a.apiConfig.Port)
-	server := http.Server{Addr: fmt.Sprintf(":%d", a.apiConfig.Port), Handler: a.Router}
+	a.log.Info("api server listening...", "port", a.serverConfig.Port)
+	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.Router}
 	err := httputil.ListenAndServeContext(ctx, &server)
 	if err != nil {
 		a.log.Error("api server stopped", "err", err)
