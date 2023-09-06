@@ -52,13 +52,15 @@ url = "http://localhost:8551"
 # Read only providers are only used to check for transactions
 read_only = true
 # Interval to poll the provider for expected transactions
-read_interval = "1s"
+read_interval = "10s"
 # Interval to submit new transactions to the provider
-send_interval = "5s"
-# Wallet to be used for sending transactions
-wallet = "default"
-# Network to pool transactions, i.e. providers in the same network will check transactions from each other
-network = "op-goerli"
+send_interval = "30s"
+# Interval between send transaction when we get "already known" txpool err
+send_transaction_retry_interval = "100ms"
+# Max time to retry
+send_transaction_retry_timeout = "5s"
+# Interval between each send transaction to the same network
+send_transaction_cool_down = "30s"
 # Interval between receipt retrieval
 receipt_retrieval_interval = "500ms"
 # Max time to check for receipt
@@ -72,13 +74,15 @@ url = "http://localhost:8552"
 # Read only providers are only used to check for transactions
 read_only = false
 # Interval to poll the provider for expected transactions
-read_interval = "2s"
+read_interval = "10s"
 # Interval to submit new transactions to the provider
-send_interval = "3s"
-# Wallet to be used for sending transactions
-wallet = "default"
-# Network to pool transactions, i.e. providers in the same network will check transactions from each other
-network = "op-goerli"
+send_interval = "30s"
+# Interval between send transaction when we get "already known" txpool err
+send_transaction_retry_interval = "100ms"
+# Max time to retry
+send_transaction_retry_timeout = "5s"
+# Interval between each send transaction to the same network
+send_transaction_cool_down = "30s"
 # Interval between receipt retrieval
 receipt_retrieval_interval = "500ms"
 # Max time to check for receipt
