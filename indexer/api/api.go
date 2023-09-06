@@ -32,7 +32,7 @@ const (
 	MetricsNamespace = "op_indexer"
 )
 
-func ChiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Handler {
+func chiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return metrics.NewHTTPRecordingMiddleware(rec, next)
 	}
