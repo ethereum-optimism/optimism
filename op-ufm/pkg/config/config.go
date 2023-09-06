@@ -64,6 +64,7 @@ type ProviderConfig struct {
 	SendInterval                 TOMLDuration `toml:"send_interval"`
 	SendTransactionRetryInterval TOMLDuration `toml:"send_transaction_retry_interval"`
 	SendTransactionRetryTimeout  TOMLDuration `toml:"send_transaction_retry_timeout"`
+	SendTransactionCoolDown      TOMLDuration `toml:"send_transaction_cool_down"`
 	ReceiptRetrievalInterval     TOMLDuration `toml:"receipt_retrieval_interval"`
 	ReceiptRetrievalTimeout      TOMLDuration `toml:"receipt_retrieval_timeout"`
 

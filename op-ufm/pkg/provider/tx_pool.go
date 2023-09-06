@@ -16,6 +16,9 @@ type NetworkTransactionPool struct {
 	Transactions map[string]*TransactionState
 	Expected     int
 	Nonce        uint64
+
+	// Last time a transaction was sent
+	LastSend time.Time
 }
 
 type TransactionState struct {
