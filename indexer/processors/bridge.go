@@ -128,14 +128,14 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 					if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
 						return err
 					}
-					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL2Height, toL2Height); err != nil {
 						return err
 					}
 
 					if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
 						return err
 					}
-					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL2Height, toL2Height); err != nil {
 						return err
 					}
 
