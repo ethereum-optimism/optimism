@@ -10,7 +10,7 @@ import (
 )
 
 func alphabetClaim(index uint64, letter string, provider *AlphabetTraceProvider) common.Hash {
-	return provider.alphabetStateHash(BuildAlphabetPreimage(index, letter))
+	return alphabetStateHash(BuildAlphabetPreimage(index, letter))
 }
 
 // TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
