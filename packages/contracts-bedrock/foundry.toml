@@ -1,15 +1,20 @@
+################################################################
+#                   PROFILE: DEFAULT (Local)                   #
+################################################################
+
 [profile.default]
+
+# Compilation settings
 src = 'src'
 out = 'forge-artifacts'
 script = 'scripts'
 optimizer = true
 optimizer_runs = 999999
-
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
   '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
   '@rari-capital/solmate/=lib/solmate',
-  "@cwia/=lib/clones-with-immutable-args/src",
+  '@cwia/=lib/clones-with-immutable-args/src',
   'forge-std/=lib/forge-std/src',
   'ds-test/=lib/forge-std/lib/ds-test/src'
 ]
@@ -17,9 +22,9 @@ extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
 build_info = true
 build_info_path = 'artifacts/build-info'
-ffi = true
-fuzz_runs = 16
 
+# Test / Script Runner Settings
+ffi = true
 fs_permissions = [
   { access='read-write', path='./.resource-metering.csv' },
   { access='read-write', path='./deployments/' },
@@ -29,14 +34,19 @@ fs_permissions = [
   { access='write', path='./semver-lock.json' },
 ]
 
+[fuzz]
+runs = 64
+
 [fmt]
 line_length=120
-multiline_func_header="all"
+multiline_func_header='all'
 bracket_spacing=true
 wrap_comments=true
-ignore = [
-  'src/vendor/WETH9.sol'
-]
+ignore = ['src/vendor/WETH9.sol']
 
-[profile.ci]
-fuzz_runs = 512
+################################################################
+#                         PROFILE: CI                          #
+################################################################
+
+[profile.ci.fuzz]
+runs = 512

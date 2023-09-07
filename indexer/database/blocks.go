@@ -233,7 +233,7 @@ func (db *blocksDB) LatestEpoch() (*Epoch, error) {
 	// L2 for a faster query. Per the protocol, the L2 block that starts a new epoch
 	// will have a matching timestamp with the L1 origin.
 	query := db.gorm.Table("l1_block_headers").Order("l1_block_headers.timestamp DESC")
-	query = query.Joins("INNER JOIN l2_block_headers ON l1_block_headers.timestamp = l2_block_headers.timestamp")
+	query = query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_block_headers.timestamp")
 	query = query.Select("*")
 
 	var epoch Epoch

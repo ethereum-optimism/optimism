@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -30,6 +31,7 @@ type cmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...
 
 type Executor struct {
 	logger           log.Logger
+	metrics          CannonMetricer
 	l1               string
 	l2               string
 	inputs           LocalGameInputs
@@ -40,13 +42,15 @@ type Executor struct {
 	l2Genesis        string
 	absolutePreState string
 	snapshotFreq     uint
+	infoFreq         uint
 	selectSnapshot   snapshotSelect
 	cmdExecutor      cmdExecutor
 }
 
-func NewExecutor(logger log.Logger, cfg *config.Config, inputs LocalGameInputs) *Executor {
+func NewExecutor(logger log.Logger, m CannonMetricer, cfg *config.Config, inputs LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
+		metrics:          m,
 		l1:               cfg.L1EthRpc,
 		l2:               cfg.CannonL2,
 		inputs:           inputs,
@@ -57,6 +61,7 @@ func NewExecutor(logger log.Logger, cfg *config.Config, inputs LocalGameInputs) 
 		l2Genesis:        cfg.CannonL2GenesisPath,
 		absolutePreState: cfg.CannonAbsolutePreState,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
+		infoFreq:         cfg.CannonInfoFreq,
 		selectSnapshot:   findStartingSnapshot,
 		cmdExecutor:      runCmd,
 	}
@@ -76,6 +81,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--input", start,
 		"--output", lastGeneratedState,
 		"--meta", "",
+		"--info-at", "%" + strconv.FormatUint(uint64(e.infoFreq), 10),
 		"--proof-at", "=" + strconv.FormatUint(i, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
@@ -116,7 +122,13 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
 	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", strings.Join(args, ", "))
-	return e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
+	execStart := time.Now()
+	err = e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
+	if err != nil {
+		execDuration := time.Since(execStart).Seconds()
+		e.metrics.RecordCannonExecutionTime(execDuration)
+	}
+	return err
 }
 
 func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {

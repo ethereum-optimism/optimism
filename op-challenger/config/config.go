@@ -26,6 +26,7 @@ var (
 	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
 	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonInfoFreq         = errors.New("missing cannon info freq")
 	ErrMissingCannonRollupConfig     = errors.New("missing cannon network or rollup config path")
 	ErrMissingCannonL2Genesis        = errors.New("missing cannon network or l2 genesis path")
 	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
@@ -78,6 +79,7 @@ func ValidTraceType(value TraceType) bool {
 
 const (
 	DefaultCannonSnapshotFreq = uint(1_000_000_000)
+	DefaultCannonInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
 	// that the challenger will look for games to progress.
 	// The default value is 11 days, which is a 4 day resolution buffer
@@ -111,6 +113,7 @@ type Config struct {
 	CannonL2GenesisPath    string
 	CannonL2               string // L2 RPC Url
 	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
+	CannonInfoFreq         uint   // Frequency of cannon progress log messages (in VM instructions)
 
 	TxMgrConfig   txmgr.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
@@ -140,6 +143,7 @@ func NewConfig(
 		Datadir: datadir,
 
 		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
+		CannonInfoFreq:     DefaultCannonInfoFreq,
 		GameWindow:         DefaultGameWindow,
 	}
 }
@@ -193,6 +197,9 @@ func (c Config) Check() error {
 		}
 		if c.CannonSnapshotFreq == 0 {
 			return ErrMissingCannonSnapshotFreq
+		}
+		if c.CannonInfoFreq == 0 {
+			return ErrMissingCannonInfoFreq
 		}
 	}
 	if c.TraceType == TraceTypeAlphabet && c.AlphabetTrace == "" {

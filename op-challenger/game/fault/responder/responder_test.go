@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
@@ -32,7 +33,7 @@ func TestCallResolve(t *testing.T) {
 		mockTxMgr.callFails = true
 		status, err := responder.CallResolve(context.Background())
 		require.ErrorIs(t, err, mockCallError)
-		require.Equal(t, types.GameStatusInProgress, status)
+		require.Equal(t, gameTypes.GameStatusInProgress, status)
 		require.Equal(t, 0, mockTxMgr.calls)
 	})
 
@@ -41,7 +42,7 @@ func TestCallResolve(t *testing.T) {
 		mockTxMgr.callBytes = []byte{0x00, 0x01}
 		status, err := responder.CallResolve(context.Background())
 		require.Error(t, err)
-		require.Equal(t, types.GameStatusInProgress, status)
+		require.Equal(t, gameTypes.GameStatusInProgress, status)
 		require.Equal(t, 1, mockTxMgr.calls)
 	})
 
@@ -49,7 +50,7 @@ func TestCallResolve(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
 		status, err := responder.CallResolve(context.Background())
 		require.NoError(t, err)
-		require.Equal(t, types.GameStatusInProgress, status)
+		require.Equal(t, gameTypes.GameStatusInProgress, status)
 		require.Equal(t, 1, mockTxMgr.calls)
 	})
 }

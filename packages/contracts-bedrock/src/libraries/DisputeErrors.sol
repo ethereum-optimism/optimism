@@ -15,6 +15,11 @@ error NoImplementation(GameType gameType);
 /// @param uuid The UUID of the dispute game that already exists.
 error GameAlreadyExists(Hash uuid);
 
+/// @notice Thrown when the root claim has an unexpected VM status.
+///         Some games can only start with a root-claim with a specific status.
+/// @param rootClaim is the claim that was unexpected.
+error UnexpectedRootClaim(Claim rootClaim);
+
 ////////////////////////////////////////////////////////////////
 //                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////

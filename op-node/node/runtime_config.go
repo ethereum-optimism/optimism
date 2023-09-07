@@ -23,6 +23,10 @@ type RuntimeCfgL1Source interface {
 	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
 }
 
+type ReadonlyRuntimeConfig interface {
+	P2PSequencerAddress() common.Address
+}
+
 // RuntimeConfig maintains runtime-configurable options.
 // These options are loaded based on initial loading + updates for every subsequent L1 block.
 // Only the *latest* values are maintained however, the runtime config has no concept of chain history,

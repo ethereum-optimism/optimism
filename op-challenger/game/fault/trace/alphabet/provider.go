@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -58,7 +59,7 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i uint64) (common.Hash
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return crypto.Keccak256Hash(claimBytes), nil
+	return alphabetStateHash(claimBytes), nil
 }
 
 // AbsolutePreState returns the absolute pre-state for the alphabet trace.
@@ -66,9 +67,25 @@ func (ap *AlphabetTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, 
 	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060"), nil
 }
 
+func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
+	prestate, err := ap.AbsolutePreState(ctx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	hash := common.BytesToHash(crypto.Keccak256(prestate))
+	hash[0] = mipsevm.VMStatusUnfinished
+	return hash, nil
+}
+
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
 func BuildAlphabetPreimage(i uint64, letter string) []byte {
 	return append(IndexToBytes(i), LetterToBytes(letter)...)
+}
+
+func alphabetStateHash(state []byte) common.Hash {
+	h := crypto.Keccak256Hash(state)
+	h[0] = mipsevm.VMStatusInvalid
+	return h
 }
 
 // IndexToBytes converts an index to a byte slice big endian

@@ -132,6 +132,14 @@ func TestCannonSnapshotFreq(t *testing.T) {
 	})
 }
 
+func TestCannonInfoFreq(t *testing.T) {
+	t.Run("MustNotBeZero", func(t *testing.T) {
+		cfg := validConfig(TraceTypeCannon)
+		cfg.CannonInfoFreq = 0
+		require.ErrorIs(t, cfg.Check(), ErrMissingCannonInfoFreq)
+	})
+}
+
 func TestCannonNetworkOrRollupConfigRequired(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
 	cfg.CannonNetwork = ""

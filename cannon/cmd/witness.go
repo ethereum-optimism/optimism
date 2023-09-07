@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/urfave/cli/v2"
 )
 
@@ -31,7 +30,10 @@ func Witness(ctx *cli.Context) error {
 		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}
 	witness := state.EncodeWitness()
-	h := crypto.Keccak256Hash(witness)
+	h, err := witness.StateHash()
+	if err != nil {
+		return fmt.Errorf("failed to compute witness hash: %w", err)
+	}
 	if output != "" {
 		if err := os.WriteFile(output, witness, 0755); err != nil {
 			return fmt.Errorf("writing output to %v: %w", output, err)
