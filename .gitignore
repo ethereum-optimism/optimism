@@ -1,3 +1,8 @@
+# Added these ingnores for avail-optimism
+cmd-addrs-keys.txt
+
+
+
 .DS_Store
 node_modules
 results
