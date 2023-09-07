@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -174,6 +175,9 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), metrics.NoopMetrics, cfg, inputs, cfg.Datadir)
 	rootClaim, err := provider.Get(ctx, math.MaxUint64)
 	h.require.NoError(err, "Compute correct root hash")
+	// Override the VM status to claim the root is invalid
+	// Otherwise creating the game will fail
+	rootClaim[0] = mipsevm.VMStatusInvalid
 
 	game := h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
 	honestHelper := &HonestHelper{
