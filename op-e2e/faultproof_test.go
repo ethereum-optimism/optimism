@@ -360,7 +360,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	InitParallel(t)
 
 	ctx := context.Background()
-	sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, common.Hash{0xab})
+	sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, common.Hash{0x01, 0xab})
 	t.Cleanup(sys.Close)
 
 	maxDepth := game.MaxDepth(ctx)
@@ -385,7 +385,9 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	game.WaitForClaimAtMaxDepth(ctx, false)
 
 	// It's on us to call step if we want to win but shouldn't be possible
-	// Need to add support for this to the helper
+	correctTrace.StepFails(ctx, maxDepth, true)
+	// Defending should fail too
+	correctTrace.StepFails(ctx, maxDepth, false)
 
 	// Time travel past when the game will be resolvable.
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
