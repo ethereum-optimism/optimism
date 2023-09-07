@@ -119,13 +119,14 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
+	// In LoadConfig function
 	if conf.Chain.Preset != 0 {
-		knownContracts, ok := presetL1Contracts[conf.Chain.Preset]
-		if ok {
-			conf.Chain.L1Contracts = knownContracts
-		} else {
+		knownPreset, ok := presetConfigs[conf.Chain.Preset]
+		if !ok {
 			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
 		}
+		conf.Chain.L1Contracts = knownPreset.L1Contracts
+		conf.Chain.L1StartingHeight = knownPreset.L1StartingHeight
 	}
 
 	// Set polling defaults if not set
