@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -70,11 +71,11 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	cancel()
 	require.Nil(t, err, "sending overhead update tx")
 
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
+	receipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
 	require.Nil(t, err, "waiting for sysconfig set gas config update tx")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
-	_, err = waitForL1OriginOnL2(receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	gpoOverhead, err := gpoContract.Overhead(&bind.CallOpts{})
@@ -97,11 +98,11 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	cancel()
 	require.Nil(t, err, "sending overhead update tx")
 
-	receipt, err = waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
+	receipt, err = geth.WaitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
 	require.Nil(t, err, "waiting for sysconfig set gas config update tx")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
-	_, err = waitForL1OriginOnL2(receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
+	_, err = geth.WaitForL1OriginOnL2(receipt.BlockNumber.Uint64(), l2Seq, txTimeoutDuration)
 	require.NoError(t, err, "waiting for L2 block to include the sysconfig update")
 
 	gpoOverhead, err = gpoContract.Overhead(&bind.CallOpts{})
@@ -504,7 +505,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			require.Nil(t, err, "sending initiate withdraw tx")
 
 			t.Logf("Waiting for tx %s to be in sequencer", tx.Hash().Hex())
-			receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, txTimeoutDuration)
+			receiptSeq, err := geth.WaitForTransaction(tx.Hash(), l2Seq, txTimeoutDuration)
 			require.Nil(t, err, "withdrawal initiated on L2 sequencer")
 			require.Equal(t, receiptSeq.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
@@ -513,7 +514,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 
 			t.Logf("Waiting for tx %s to be in verifier. Verifier tip is %s:%d. Included in sequencer in block %s:%d", tx.Hash().Hex(), verifierTip.Hash().Hex(), verifierTip.NumberU64(), receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
 			// Wait for the transaction to appear in L2 verifier
-			receipt, err := waitForTransaction(tx.Hash(), l2Verif, txTimeoutDuration)
+			receipt, err := geth.WaitForTransaction(tx.Hash(), l2Verif, txTimeoutDuration)
 			require.Nilf(t, err, "withdrawal tx %s not found in verifier. included in block %s:%d", tx.Hash().Hex(), receiptSeq.BlockHash.Hex(), receiptSeq.BlockNumber)
 			require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
@@ -638,7 +639,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-				receipt, err = waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
+				receipt, err = geth.WaitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
 				require.Nil(t, err, "finalize withdrawal")
 				require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 
@@ -656,7 +657,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				transactor.ExpectedL1Nonce++
 
 				// Ensure that our withdrawal was proved successfully
-				proveReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+				proveReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				require.Nil(t, err, "prove withdrawal")
 				require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 
