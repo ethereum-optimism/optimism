@@ -6,6 +6,6 @@ challenge an invalid output proposal, a custom chain is required. The simplest w
 test utilities in [`op-e2e`](https://github.com/ethereum-optimism/optimism/tree/develop/op-e2e).
 
 A simple starting point has been provided in the `TestCannonProposedOutputRootInvalid` test case
-in [`faultproof_test.go`](https://github.com/ethereum-optimism/optimism/blob/5e93c1696c28402c54ef0dab9d98f41680e3c0c3/op-e2e/faultproof_test.go#L334).
+in [`faultproof_test.go`](https://github.com/ethereum-optimism/optimism/blob/6e174ae2b2587d9ac5e2930d7574f85d254ca8b4/op-e2e/faultproof_test.go#L334).
 This is a table test that takes the output root to propose, plus functions for move and step to counter the honest
 claims. The test asserts that the defender always wins and thus the output root is found to be invalid.
