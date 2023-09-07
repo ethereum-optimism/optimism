@@ -36,5 +36,6 @@
   "BlockOracle",
   "EAS",
   "SchemaRegistry",
-  "ProtocolVersions"
+  "ProtocolVersions",
+  "DelayedVetoable"
 ]
