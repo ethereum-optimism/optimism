@@ -65,16 +65,16 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 }
 
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
 		if err != nil {
 			return false, fmt.Errorf("retrieve number of claims: %w", err)
 		}
 		// Search backwards because the new claims are at the end and more likely the ones we want.
 		for i := count.Int64() - 1; i >= 0; i-- {
-			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(i))
+			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: timedCtx}, big.NewInt(i))
 			if err != nil {
 				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
 			}
@@ -127,10 +127,10 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 
 func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
 		defer cancel()
 		status, err := g.game.Status(&bind.CallOpts{Context: ctx})
 		if err != nil {
@@ -139,7 +139,7 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 		g.t.Logf("Game %v has state %v, waiting for state %v", g.addr, Status(status), expected)
 		return expected == Status(status), nil
 	})
-	g.require.NoError(err, "wait for game status")
+	g.require.NoErrorf(err, "wait for game status. Game state: \n%v", g.gameData(ctx))
 }
 
 func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
