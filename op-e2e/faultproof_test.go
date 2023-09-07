@@ -244,8 +244,8 @@ func TestCannonDisputeGame(t *testing.T) {
 	InitParallel(t)
 
 	tests := []struct {
-		name          string
-		defendAtClaim int64
+		name             string
+		defendClaimCount int64
 	}{
 		{"StepFirst", 0},
 		{"StepMiddle", 28},
@@ -271,27 +271,15 @@ func TestCannonDisputeGame(t *testing.T) {
 				challenger.WithPrivKey(sys.cfg.Secrets.Alice),
 			)
 
-			maxDepth := game.MaxDepth(ctx)
-			for claimCount := int64(1); claimCount < maxDepth; {
-				game.LogGameData(ctx)
-				claimCount++
-				// Wait for the challenger to counter
-				game.WaitForClaimCount(ctx, claimCount)
-
-				// Post our own counter to the latest challenger claim
-				if claimCount == test.defendAtClaim {
-					// Defend one claim so we don't wind up executing from the absolute pre-state
-					game.Defend(ctx, claimCount-1, common.Hash{byte(claimCount)})
-				} else {
-					game.Attack(ctx, claimCount-1, common.Hash{byte(claimCount)})
-				}
-				claimCount++
-				game.WaitForClaimCount(ctx, claimCount)
-			}
-
-			game.LogGameData(ctx)
-			// Wait for the challenger to call step and counter our invalid claim
-			game.WaitForClaimAtMaxDepth(ctx, true)
+			game.DefendRootClaim(
+				ctx,
+				func(parentClaimIdx int64) {
+					if parentClaimIdx+1 == test.defendClaimCount {
+						game.Defend(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+					} else {
+						game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+					}
+				})
 
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -326,28 +314,15 @@ func TestCannonDefendStep(t *testing.T) {
 		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
 	)
 
-	maxDepth := game.MaxDepth(ctx)
-	for claimCount := int64(1); claimCount < maxDepth; {
-		game.LogGameData(ctx)
-		claimCount++
-		// Wait for the challenger to counter
-		game.WaitForClaimCount(ctx, claimCount)
-
+	game.DefendRootClaim(ctx, func(parentClaimIdx int64) {
 		// Post invalid claims for most steps to get down into the early part of the trace
-		if claimCount < 28 {
-			game.Attack(ctx, claimCount-1, common.Hash{byte(claimCount)})
+		if parentClaimIdx < 27 {
+			game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
 		} else {
 			// Post our own counter but using the correct hash in low levels to force a defense step
-			correctTrace.Attack(ctx, claimCount-1)
+			correctTrace.Attack(ctx, parentClaimIdx)
 		}
-		claimCount++
-		game.LogGameData(ctx)
-		game.WaitForClaimCount(ctx, claimCount)
-	}
-
-	game.LogGameData(ctx)
-	// Wait for the challenger to call step and counter our invalid claim
-	game.WaitForClaimAtMaxDepth(ctx, true)
+	})
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
@@ -358,43 +333,69 @@ func TestCannonDefendStep(t *testing.T) {
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	InitParallel(t)
-
-	ctx := context.Background()
-	sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, common.Hash{0x01, 0xab})
-	t.Cleanup(sys.Close)
-
-	maxDepth := game.MaxDepth(ctx)
-
-	// Now maliciously play the game and it should be impossible to win
-
-	for claimCount := int64(1); claimCount < maxDepth; {
-		// Attack everything but oddly using the correct hash.
-		correctTrace.Attack(ctx, claimCount-1)
-		claimCount++
-		game.LogGameData(ctx)
-		game.WaitForClaimCount(ctx, claimCount)
-
-		game.LogGameData(ctx)
-		// Wait for the challenger to counter
-		claimCount++
-		game.WaitForClaimCount(ctx, claimCount)
+	honestStepsFail := func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
+		// Attack step should fail
+		correctTrace.StepFails(ctx, parentClaimIdx, true)
+		// Defending should fail too
+		correctTrace.StepFails(ctx, parentClaimIdx, false)
+	}
+	tests := []struct {
+		name        string
+		outputRoot  common.Hash
+		performMove func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64)
+		performStep func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64)
+	}{
+		{
+			name:       "AttackWithCorrectTrace",
+			outputRoot: common.Hash{0xab},
+			performMove: func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
+				// Attack everything but oddly using the correct hash.
+				correctTrace.Attack(ctx, parentClaimIdx)
+			},
+			performStep: honestStepsFail,
+		},
+		{
+			name:       "DefendWithCorrectTrace",
+			outputRoot: common.Hash{0xab},
+			performMove: func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
+				// Can only attack the root claim
+				if parentClaimIdx == 0 {
+					correctTrace.Attack(ctx, parentClaimIdx)
+					return
+				}
+				// Otherwise, defend everything using the correct hash.
+				correctTrace.Defend(ctx, parentClaimIdx)
+			},
+			performStep: honestStepsFail,
+		},
 	}
 
-	game.LogGameData(ctx)
-	// Wait for the challenger to call step and counter our invalid claim
-	game.WaitForClaimAtMaxDepth(ctx, false)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			InitParallel(t)
 
-	// It's on us to call step if we want to win but shouldn't be possible
-	correctTrace.StepFails(ctx, maxDepth, true)
-	// Defending should fail too
-	correctTrace.StepFails(ctx, maxDepth, false)
+			ctx := context.Background()
+			sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, common.Hash{0xab})
+			t.Cleanup(sys.Close)
 
-	// Time travel past when the game will be resolvable.
-	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+			// Now maliciously play the game and it should be impossible to win
+			game.ChallengeRootClaim(ctx,
+				func(parentClaimIdx int64) {
+					test.performMove(ctx, correctTrace, parentClaimIdx)
+				},
+				func(parentClaimIdx int64) {
+					test.performStep(ctx, correctTrace, parentClaimIdx)
+				})
 
-	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
-	game.LogGameData(ctx)
+			// Time travel past when the game will be resolvable.
+			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+			game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+			game.LogGameData(ctx)
+		})
+	}
 }
 
 // setupDisputeGameForInvalidOutputRoot sets up an L2 chain with at least one valid output root followed by an invalid output root.
@@ -413,7 +414,7 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 	sys.L2OutputSubmitter.Stop()
 	sys.L2OutputSubmitter = nil
 
-	// Submit an invalid output rooot
+	// Submit an invalid output root
 	l2oo.PublishNextOutput(ctx, outputRoot)
 
 	l1Endpoint := sys.NodeEndpoint("l1")
@@ -458,23 +459,10 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
 	)
 
-	maxDepth := game.MaxDepth(ctx)
-	for claimCount := int64(1); claimCount < maxDepth; {
-		game.LogGameData(ctx)
-		claimCount++
-		// Wait for the challenger to counter
-		game.WaitForClaimCount(ctx, claimCount)
-
+	game.DefendRootClaim(ctx, func(parentClaimIdx int64) {
 		// Defend everything because we have the same trace as the honest proposer
-		correctTrace.Defend(ctx, claimCount-1)
-		claimCount++
-		game.LogGameData(ctx)
-		game.WaitForClaimCount(ctx, claimCount)
-	}
-
-	game.LogGameData(ctx)
-	// Wait for the challenger to call step and counter our invalid claim
-	game.WaitForClaimAtMaxDepth(ctx, true)
+		correctTrace.Defend(ctx, parentClaimIdx)
+	})
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
