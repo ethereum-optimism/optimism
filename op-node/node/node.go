@@ -199,7 +199,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
 	}
 
-	// start a background loop, to keep reloading it every 10 minutes
+	// start a background loop, to keep reloading it at the configured reload interval
 	go func(ctx context.Context, reloadInterval time.Duration) {
 		if reloadInterval <= 0 {
 			n.log.Debug("not running runtime-config reloading background loop")
