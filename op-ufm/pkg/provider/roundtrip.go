@@ -84,6 +84,11 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				err.Error() == txpool.ErrReplaceUnderpriced.Error() ||
 				err.Error() == core.ErrNonceTooLow.Error() {
 
+				log.Warn("cant send transaction (retryable)",
+					"provider", p.name,
+					"err", err,
+					"nonce", nonce)
+
 				if time.Since(firstAttemptAt) >= time.Duration(p.config.SendTransactionRetryTimeout) {
 					log.Error("send transaction timed out (known already)",
 						"provider", p.name,
@@ -91,7 +96,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 						"nonce", nonce,
 						"elapsed", time.Since(firstAttemptAt),
 						"attempt", attempt)
-					metrics.RecordErrorDetails(p.name, "ethclient.SendTransaction", err)
+					metrics.RecordErrorDetails(p.name, "send.timeout", err)
 					return
 				}
 
@@ -148,6 +153,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				"hash", txHash,
 				"nonce", nonce,
 				"elapsed", time.Since(sentAt))
+			metrics.RecordErrorDetails(p.name, "receipt.timeout", err)
 			return
 		}
 		time.Sleep(time.Duration(p.config.ReceiptRetrievalInterval))
@@ -251,9 +257,12 @@ func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEt
 	dynamicTx.Gas = gas
 	tx := types.NewTx(dynamicTx)
 
-	log.Debug("tx created",
+	log.Info("tx created",
 		"provider", p.name,
-		"nonce", nonce,
+		"from", addr,
+		"to", dynamicTx.To,
+		"nonce", dynamicTx.Nonce,
+		"value", dynamicTx.Value,
 		"gas", dynamicTx.Gas,
 		"gasTipCap", dynamicTx.GasTipCap,
 		"gasFeeCap", dynamicTx.GasFeeCap,
