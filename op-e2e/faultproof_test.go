@@ -333,22 +333,32 @@ func TestCannonDefendStep(t *testing.T) {
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	InitParallel(t)
-	honestStepsFail := func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
+	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
+	honestStepsFail := func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
 		correctTrace.StepFails(ctx, parentClaimIdx, true)
 		// Defending should fail too
 		correctTrace.StepFails(ctx, parentClaimIdx, false)
 	}
 	tests := []struct {
-		name        string
-		outputRoot  common.Hash
-		performMove func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64)
-		performStep func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64)
+		// name is the name of the test
+		name string
+
+		// outputRoot is the invalid output root to propose
+		outputRoot common.Hash
+
+		// performMove is called to respond to each claim posted by the honest op-challenger.
+		// It should either attack or defend the claim at parentClaimIdx
+		performMove func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64)
+
+		// performStep is called once the maximum game depth is reached. It should perform a step to counter the
+		// claim at parentClaimIdx. Since the proposed output root is invalid, the step call should always revert.
+		performStep func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64)
 	}{
 		{
 			name:       "AttackWithCorrectTrace",
 			outputRoot: common.Hash{0xab},
-			performMove: func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
+			performMove: func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 				// Attack everything but oddly using the correct hash.
 				correctTrace.Attack(ctx, parentClaimIdx)
 			},
@@ -357,7 +367,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 		{
 			name:       "DefendWithCorrectTrace",
 			outputRoot: common.Hash{0xab},
-			performMove: func(ctx context.Context, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
+			performMove: func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 				// Can only attack the root claim
 				if parentClaimIdx == 0 {
 					correctTrace.Attack(ctx, parentClaimIdx)
@@ -376,16 +386,16 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 			InitParallel(t)
 
 			ctx := context.Background()
-			sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, common.Hash{0xab})
+			sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, test.outputRoot)
 			t.Cleanup(sys.Close)
 
 			// Now maliciously play the game and it should be impossible to win
 			game.ChallengeRootClaim(ctx,
 				func(parentClaimIdx int64) {
-					test.performMove(ctx, correctTrace, parentClaimIdx)
+					test.performMove(ctx, game, correctTrace, parentClaimIdx)
 				},
 				func(parentClaimIdx int64) {
-					test.performStep(ctx, correctTrace, parentClaimIdx)
+					test.performStep(ctx, game, correctTrace, parentClaimIdx)
 				})
 
 			// Time travel past when the game will be resolvable.
