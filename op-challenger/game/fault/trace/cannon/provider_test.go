@@ -13,8 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,9 @@ func TestGet(t *testing.T) {
 		value, err := provider.Get(context.Background(), 7000)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
-		require.Equal(t, crypto.Keccak256Hash(generator.finalState.EncodeWitness()), value)
+		stateHash, err := generator.finalState.EncodeWitness().StateHash()
+		require.NoError(t, err)
+		require.Equal(t, stateHash, value)
 	})
 
 	t.Run("MissingPostHash", func(t *testing.T) {
@@ -85,7 +87,7 @@ func TestGetStepData(t *testing.T) {
 			Exited: true,
 		}
 		generator.proof = &proofData{
-			ClaimValue:   common.Hash{0xaa}.Bytes(),
+			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
 			OracleKey:    common.Hash{0xdd}.Bytes(),
@@ -110,7 +112,7 @@ func TestGetStepData(t *testing.T) {
 			Exited: true,
 		}
 		generator.proof = &proofData{
-			ClaimValue:   common.Hash{0xaa}.Bytes(),
+			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
 			OracleKey:    common.Hash{0xdd}.Bytes(),
@@ -184,7 +186,7 @@ func TestAbsolutePreState(t *testing.T) {
 			Step:           0,
 			Registers:      [32]uint32{},
 		}
-		require.Equal(t, state.EncodeWitness(), preState)
+		require.Equal(t, []byte(state.EncodeWitness()), preState)
 	})
 }
 
@@ -207,7 +209,7 @@ func setupTestData(t *testing.T) (string, string) {
 		path := filepath.Join(srcDir, entry.Name())
 		file, err := testData.ReadFile(path)
 		require.NoErrorf(t, err, "reading %v", path)
-		err = os.WriteFile(filepath.Join(dataDir, proofsDir, entry.Name()), file, 0o644)
+		err = writeGzip(filepath.Join(dataDir, proofsDir, entry.Name()+".gz"), file)
 		require.NoErrorf(t, err, "writing %v", path)
 	}
 	return dataDir, "state.json"
@@ -237,15 +239,25 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(filepath.Join(dir, finalState), data, 0644)
+		return writeGzip(filepath.Join(dir, finalState), data)
 	}
 	if e.proof != nil {
-		proofFile := filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json", i))
+		proofFile := filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
 		data, err := json.Marshal(e.proof)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(proofFile, data, 0644)
+		return writeGzip(proofFile, data)
 	}
 	return nil
+}
+
+func writeGzip(path string, data []byte) error {
+	writer, err := ioutil.OpenCompressed(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	defer writer.Close()
+	_, err = writer.Write(data)
+	return err
 }

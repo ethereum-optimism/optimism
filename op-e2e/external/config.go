@@ -1,8 +1,11 @@
 package external
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
+	"strings"
+	"testing"
 )
 
 type Config struct {
@@ -39,4 +42,27 @@ type Endpoints struct {
 	WSEndpoint       string `json:"ws_endpoint"`
 	HTTPAuthEndpoint string `json:"http_auth_endpoint"`
 	WSAuthEndpoint   string `json:"ws_auth_endpoint"`
+}
+
+type TestParms struct {
+	// SkipTests is a map from test name to skip message.  The skip message may
+	// be arbitrary, but the test name should match the skipped test (either
+	// base, or a sub-test) exactly.  Precisely, the skip name must match rune for
+	// rune starting with the first rune.  If the skip name does not match all
+	// runes, the first mismatched rune must be a '/'.
+	SkipTests map[string]string `json:"skip_tests"`
+}
+
+func (tp TestParms) SkipIfNecessary(t *testing.T) {
+	if len(tp.SkipTests) == 0 {
+		return
+	}
+	var base bytes.Buffer
+	for _, name := range strings.Split(t.Name(), "/") {
+		base.WriteString(name)
+		if msg, ok := tp.SkipTests[base.String()]; ok {
+			t.Skip(msg)
+		}
+		base.WriteRune('/')
+	}
 }

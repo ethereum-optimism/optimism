@@ -41,6 +41,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        // Ensure the rootClaim has a VMStatus that disagrees with the validity.
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
@@ -68,6 +70,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     function testFuzz_create_noImpl_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        // Ensure the rootClaim has a VMStatus that disagrees with the validity.
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, gt));
         factory.create(gt, rootClaim, extraData);
@@ -77,6 +81,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     function testFuzz_create_sameUUID_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
+        // Ensure the rootClaim has a VMStatus that disagrees with the validity.
+        rootClaim = changeClaimStatus(rootClaim, VMStatuses.INVALID);
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
@@ -98,6 +104,12 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
             abi.encodeWithSelector(GameAlreadyExists.selector, factory.getGameUUID(gt, rootClaim, extraData))
         );
         factory.create(gt, rootClaim, extraData);
+    }
+
+    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
+        assembly {
+            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
+        }
     }
 }
 

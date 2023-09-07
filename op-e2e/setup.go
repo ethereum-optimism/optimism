@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	ds "github.com/ipfs/go-datastore"
@@ -78,11 +79,13 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 }
 
 func DefaultSystemConfig(t *testing.T) SystemConfig {
+	config.ExternalL2TestParms.SkipIfNecessary(t)
+
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
-	require.NoError(t, deployConfig.Check())
+	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check())
 
@@ -117,8 +120,9 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				L1EpochPollInterval: time.Second * 2,
-				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
+				L1EpochPollInterval:         time.Second * 2,
+				RuntimeConfigReloadInterval: time.Minute * 10,
+				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 			},
 			"verifier": {
 				Driver: driver.Config{
@@ -126,8 +130,9 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerConfDepth: 0,
 					SequencerEnabled:   false,
 				},
-				L1EpochPollInterval: time.Second * 4,
-				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
+				L1EpochPollInterval:         time.Second * 4,
+				RuntimeConfigReloadInterval: time.Minute * 10,
+				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -136,10 +141,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		GethOptions:                map[string][]GethOption{},
+		GethOptions:                map[string][]geth.GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
 		NonFinalizedProposals:      false,
-		ExternalL2Nodes:            config.ExternalL2Nodes,
+		ExternalL2Shim:             config.ExternalL2Shim,
 		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
@@ -171,11 +176,11 @@ type SystemConfig struct {
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers        map[string]log.Logger
-	GethOptions    map[string][]GethOption
+	GethOptions    map[string][]geth.GethOption
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
 
-	ExternalL2Nodes string
+	ExternalL2Shim string
 
 	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
 	// A nil map disables P2P completely.
@@ -422,7 +427,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, c, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -438,8 +443,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for name := range cfg.Nodes {
 		var ethClient EthInstance
-		if cfg.ExternalL2Nodes == "" {
-			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+		if cfg.ExternalL2Shim == "" {
+			node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 			if err != nil {
 				return nil, err
 			}
@@ -455,11 +460,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			ethClient = gethInst
 		} else {
 			if len(cfg.GethOptions[name]) > 0 {
-				t.Errorf("External L2 nodes do not support configuration through GethOptions")
+				t.Skip("External L2 nodes do not support configuration through GethOptions")
 			}
 			ethClient = (&ExternalRunner{
 				Name:    name,
-				BinPath: cfg.ExternalL2Nodes,
+				BinPath: cfg.ExternalL2Shim,
 				Genesis: l2Genesis,
 				JWTPath: cfg.JWTFilePath,
 			}).Run(t)
@@ -503,7 +508,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		sys.Clients[name] = client
 	}
 
-	_, err = waitForBlock(big.NewInt(2), l1Client, 6*time.Second*time.Duration(cfg.DeployConfig.L1BlockTime))
+	_, err = geth.WaitForBlock(big.NewInt(2), l1Client, 6*time.Second*time.Duration(cfg.DeployConfig.L1BlockTime))
 	if err != nil {
 		return nil, fmt.Errorf("waiting for blocks: %w", err)
 	}

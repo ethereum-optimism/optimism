@@ -36,8 +36,9 @@ func runIndexer(ctx *cli.Context) error {
 		log.Error("failed to connect to database", "err", err)
 		return err
 	}
+	defer db.Close()
 
-	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.Metrics)
+	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.HTTPServer, cfg.MetricsServer)
 	if err != nil {
 		log.Error("failed to create indexer", "err", err)
 		return err
@@ -59,9 +60,10 @@ func runApi(ctx *cli.Context) error {
 		log.Error("failed to connect to database", "err", err)
 		return err
 	}
+	defer db.Close()
 
-	api := api.NewApi(log, db.BridgeTransfers)
-	return api.Listen(ctx.Context, cfg.API.Port)
+	api := api.NewApi(log, db.BridgeTransfers, cfg.HTTPServer, cfg.MetricsServer)
+	return api.Start(ctx.Context)
 }
 
 func runAll(ctx *cli.Context) error {

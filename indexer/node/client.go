@@ -7,10 +7,10 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -25,23 +25,19 @@ const (
 )
 
 type EthClient interface {
-	FinalizedBlockHeight() (*big.Int, error)
-
 	BlockHeaderByNumber(*big.Int) (*types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
 
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
-
-	GethRpcClient() *rpc.Client
-	GethEthClient() *ethclient.Client
+	FilterLogs(ethereum.FilterQuery) ([]types.Log, error)
 }
 
 type client struct {
-	rpcClient *rpc.Client
+	rpc RPC
 }
 
-func DialEthClient(rpcUrl string) (EthClient, error) {
+func DialEthClient(rpcUrl string, metrics Metricer) (EthClient, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
 	defer cancel()
 
@@ -50,36 +46,8 @@ func DialEthClient(rpcUrl string) (EthClient, error) {
 		return nil, err
 	}
 
-	client := &client{rpcClient: rpcClient}
+	client := &client{rpc: newRPC(rpcClient, metrics)}
 	return client, nil
-}
-
-func NewEthClient(rpcClient *rpc.Client) EthClient {
-	return &client{rpcClient}
-}
-
-func (c *client) GethRpcClient() *rpc.Client {
-	return c.rpcClient
-}
-
-func (c *client) GethEthClient() *ethclient.Client {
-	return ethclient.NewClient(c.GethRpcClient())
-}
-
-// FinalizedBlockHeight retrieves the latest block height in a finalized state
-func (c *client) FinalizedBlockHeight() (*big.Int, error) {
-	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
-	defer cancel()
-
-	// Local devnet is having issues with the "finalized" block tag. Switch to "latest"
-	// to iterate faster locally but this needs to be updated
-	header := new(types.Header)
-	err := c.rpcClient.CallContext(ctxwt, header, "eth_getBlockByNumber", "latest", false)
-	if err != nil {
-		return nil, err
-	}
-
-	return header.Number, nil
 }
 
 // BlockHeaderByHash retrieves the block header attributed to the supplied hash
@@ -87,9 +55,12 @@ func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
-	header, err := ethclient.NewClient(c.rpcClient).HeaderByHash(ctxwt, hash)
+	var header *types.Header
+	err := c.rpc.CallContext(ctxwt, &header, "eth_getBlockByHash", hash, false)
 	if err != nil {
 		return nil, err
+	} else if header == nil {
+		return nil, ethereum.NotFound
 	}
 
 	// sanity check on the data returned
@@ -105,9 +76,12 @@ func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
-	header, err := ethclient.NewClient(c.rpcClient).HeaderByNumber(ctxwt, number)
+	var header *types.Header
+	err := c.rpc.CallContext(ctxwt, &header, "eth_getBlockByNumber", toBlockNumArg(number), false)
 	if err != nil {
 		return nil, err
+	} else if header == nil {
+		return nil, ethereum.NotFound
 	}
 
 	return header, nil
@@ -117,6 +91,15 @@ func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 // are placed on the range such as blocks in the "latest", "safe" or "finalized" states. If the specified
 // range is too large, `endHeight > latest`, the resulting list is truncated to the available headers
 func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Header, error) {
+	// avoid the batch call if there's no range
+	if startHeight.Cmp(endHeight) == 0 {
+		header, err := c.BlockHeaderByNumber(startHeight)
+		if err != nil {
+			return nil, err
+		}
+		return []types.Header{*header}, nil
+	}
+
 	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
 	batchElems := make([]rpc.BatchElem, count)
 	for i := uint64(0); i < count; i++ {
@@ -131,7 +114,7 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.H
 
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
-	err := c.rpcClient.BatchCallContext(ctxwt, batchElems)
+	err := c.rpc.BatchCallContext(ctxwt, batchElems)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +153,7 @@ func (c *client) StorageHash(address common.Address, blockNumber *big.Int) (comm
 	defer cancel()
 
 	proof := struct{ StorageHash common.Hash }{}
-	err := c.rpcClient.CallContext(ctxwt, &proof, "eth_getProof", address, nil, toBlockNumArg(blockNumber))
+	err := c.rpc.CallContext(ctxwt, &proof, "eth_getProof", address, nil, toBlockNumArg(blockNumber))
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -178,19 +161,87 @@ func (c *client) StorageHash(address common.Address, blockNumber *big.Int) (comm
 	return proof.StorageHash, nil
 }
 
+// FilterLogs returns logs that fit the query parameters
+func (c *client) FilterLogs(query ethereum.FilterQuery) ([]types.Log, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	var result []types.Log
+	arg, err := toFilterArg(query)
+	if err != nil {
+		return nil, err
+	}
+
+	err = c.rpc.CallContext(ctxwt, &result, "eth_getLogs", arg)
+	return result, err
+}
+
+// Modeled off op-node/client.go. We can refactor this once the client/metrics portion
+// of op-node/client has been generalized
+
+type RPC interface {
+	Close()
+	CallContext(ctx context.Context, result any, method string, args ...any) error
+	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
+}
+
+type rpcClient struct {
+	rpc     *rpc.Client
+	metrics Metricer
+}
+
+func newRPC(client *rpc.Client, metrics Metricer) RPC {
+	return &rpcClient{client, metrics}
+}
+
+func (c *rpcClient) Close() {
+	c.rpc.Close()
+}
+
+func (c *rpcClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
+	record := c.metrics.RecordRPCClientRequest(method)
+	err := c.rpc.CallContext(ctx, result, method, args...)
+	record(err)
+	return err
+}
+
+func (c *rpcClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
+	record := c.metrics.RecordRPCClientBatchRequest(b)
+	err := c.rpc.BatchCallContext(ctx, b)
+	record(err)
+	return err
+}
+
+// Needed private utils from geth
+
 func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"
-	} else if number.Sign() >= 0 {
+	}
+	if number.Sign() >= 0 {
 		return hexutil.EncodeBig(number)
 	}
-
 	// It's negative.
-	if number.IsInt64() {
-		tag, _ := rpc.BlockNumber(number.Int64()).MarshalText()
-		return string(tag)
-	}
+	return rpc.BlockNumber(number.Int64()).String()
+}
 
-	// It's negative and large, which is invalid.
-	return fmt.Sprintf("<invalid %d>", number)
+func toFilterArg(q ethereum.FilterQuery) (interface{}, error) {
+	arg := map[string]interface{}{
+		"address": q.Addresses,
+		"topics":  q.Topics,
+	}
+	if q.BlockHash != nil {
+		arg["blockHash"] = *q.BlockHash
+		if q.FromBlock != nil || q.ToBlock != nil {
+			return nil, errors.New("cannot specify both BlockHash and FromBlock/ToBlock")
+		}
+	} else {
+		if q.FromBlock == nil {
+			arg["fromBlock"] = "0x0"
+		} else {
+			arg["fromBlock"] = toBlockNumArg(q.FromBlock)
+		}
+		arg["toBlock"] = toBlockNumArg(q.ToBlock)
+	}
+	return arg, nil
 }

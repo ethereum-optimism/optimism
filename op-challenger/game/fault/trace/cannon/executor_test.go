@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -29,6 +30,7 @@ func TestGenerateProof(t *testing.T) {
 	cfg.CannonServer = "./bin/op-program"
 	cfg.CannonL2 = "http://localhost:9999"
 	cfg.CannonSnapshotFreq = 500
+	cfg.CannonInfoFreq = 900
 
 	inputs := LocalGameInputs{
 		L1Head:        common.Hash{0x11},
@@ -38,7 +40,7 @@ func TestGenerateProof(t *testing.T) {
 		L2BlockNumber: big.NewInt(3333),
 	}
 	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
-		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
+		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), metrics.NoopMetrics, &cfg, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
 		}
@@ -81,6 +83,7 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
+		require.Equal(t, "%900", args["--info-at"])
 		// Slight quirk of how we pair off args
 		// The server binary winds up as the key and the first arg --server as the value which has no value
 		// Then everything else pairs off correctly again
@@ -88,8 +91,8 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
 		require.Equal(t, cfg.CannonL2, args["--l2"])
 		require.Equal(t, filepath.Join(dir, preimagesDir), args["--datadir"])
-		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json"), args["--proof-fmt"])
-		require.Equal(t, filepath.Join(dir, snapsDir, "%d.json"), args["--snapshot-fmt"])
+		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json.gz"), args["--proof-fmt"])
+		require.Equal(t, filepath.Join(dir, snapsDir, "%d.json.gz"), args["--snapshot-fmt"])
 		require.Equal(t, cfg.CannonNetwork, args["--network"])
 		require.NotContains(t, args, "--rollup.config")
 		require.NotContains(t, args, "--l2.genesis")
@@ -174,37 +177,37 @@ func TestFindStartingSnapshot(t *testing.T) {
 	})
 
 	t.Run("UseClosestAvailableSnapshot", func(t *testing.T) {
-		dir := withSnapshots(t, "100.json", "123.json", "250.json")
+		dir := withSnapshots(t, "100.json.gz", "123.json.gz", "250.json.gz")
 
 		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 101)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 
 		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 123)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 
 		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 124)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "123.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "123.json.gz"), snapshot)
 
 		snapshot, err = findStartingSnapshot(logger, dir, execTestCannonPrestate, 256)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "250.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "250.json.gz"), snapshot)
 	})
 
 	t.Run("IgnoreDirectories", func(t *testing.T) {
-		dir := withSnapshots(t, "100.json")
-		require.NoError(t, os.Mkdir(filepath.Join(dir, "120.json"), 0o777))
+		dir := withSnapshots(t, "100.json.gz")
+		require.NoError(t, os.Mkdir(filepath.Join(dir, "120.json.gz"), 0o777))
 		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})
 
 	t.Run("IgnoreUnexpectedFiles", func(t *testing.T) {
-		dir := withSnapshots(t, ".file", "100.json", "foo", "bar.json")
+		dir := withSnapshots(t, ".file", "100.json.gz", "foo", "bar.json.gz")
 		snapshot, err := findStartingSnapshot(logger, dir, execTestCannonPrestate, 150)
 		require.NoError(t, err)
-		require.Equal(t, filepath.Join(dir, "100.json"), snapshot)
+		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})
 }
