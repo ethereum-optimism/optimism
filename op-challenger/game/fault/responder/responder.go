@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/ethereum/go-ethereum"
@@ -81,23 +82,23 @@ func (r *faultResponder) BuildTx(ctx context.Context, response types.Claim) ([]b
 
 // CallResolve determines if the resolve function on the fault dispute game contract
 // would succeed. Returns the game status if the call would succeed, errors otherwise.
-func (r *faultResponder) CallResolve(ctx context.Context) (types.GameStatus, error) {
+func (r *faultResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
 	txData, err := r.buildResolveData()
 	if err != nil {
-		return types.GameStatusInProgress, err
+		return gameTypes.GameStatusInProgress, err
 	}
 	res, err := r.txMgr.Call(ctx, ethereum.CallMsg{
 		To:   &r.fdgAddr,
 		Data: txData,
 	}, nil)
 	if err != nil {
-		return types.GameStatusInProgress, err
+		return gameTypes.GameStatusInProgress, err
 	}
 	var status uint8
 	if err = r.fdgAbi.UnpackIntoInterface(&status, "resolve", res); err != nil {
-		return types.GameStatusInProgress, err
+		return gameTypes.GameStatusInProgress, err
 	}
-	return types.GameStatusFromUint8(status)
+	return gameTypes.GameStatusFromUint8(status)
 }
 
 // Resolve executes a resolve transaction to resolve a fault dispute game.

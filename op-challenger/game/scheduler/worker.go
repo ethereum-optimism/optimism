@@ -15,7 +15,7 @@ func progressGames(ctx context.Context, in <-chan job, out chan<- job, wg *sync.
 		case <-ctx.Done():
 			return
 		case j := <-in:
-			j.resolved = j.player.ProgressGame(ctx)
+			j.status = j.player.ProgressGame(ctx)
 			out <- j
 		}
 	}

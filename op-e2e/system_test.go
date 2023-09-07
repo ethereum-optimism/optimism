@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -88,7 +88,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	// for that block and subsequently reorgs to match what the verifier derives when running the
 	// reconcillation process.
 	l2Verif := sys.Clients["verifier"]
-	_, err = waitForBlock(big.NewInt(6), l2Verif, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	_, err = geth.WaitForBlock(big.NewInt(6), l2Verif, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
 	require.Nil(t, err)
 
 	// Wait for batch submitter to update L2 output oracle.
@@ -260,14 +260,14 @@ func TestPendingGasLimit(t *testing.T) {
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
-	cfg.GethOptions["sequencer"] = []GethOption{
+	cfg.GethOptions["sequencer"] = []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 10_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
 	}
-	cfg.GethOptions["verifier"] = []GethOption{
+	cfg.GethOptions["verifier"] = []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 9_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
@@ -337,67 +337,6 @@ func TestFinalize(t *testing.T) {
 	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
 }
 
-func TestMintOnRevertedDeposit(t *testing.T) {
-	InitParallel(t)
-	cfg := DefaultSystemConfig(t)
-
-	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-
-	l1Client := sys.Clients["l1"]
-	l2Verif := sys.Clients["verifier"]
-
-	l1Node := sys.EthInstances["l1"].(*GethInstance).Node
-
-	// create signer
-	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
-	opts, err := bind.NewKeyStoreTransactorWithChainID(ks, ks.Accounts()[0], cfg.L1ChainIDBig())
-	require.Nil(t, err)
-	fromAddr := opts.From
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
-	cancel()
-	require.Nil(t, err)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	startNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
-	require.NoError(t, err)
-	cancel()
-
-	toAddr := common.Address{0xff, 0xff}
-	mintAmount := big.NewInt(9_000_000)
-	opts.Value = mintAmount
-	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {
-		l2Opts.ToAddr = toAddr
-		// trigger a revert by transferring more than we have available
-		l2Opts.Value = new(big.Int).Mul(common.Big2, startBalance)
-		l2Opts.ExpectedStatus = types.ReceiptStatusFailed
-	})
-
-	// Confirm balance
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
-	cancel()
-	require.Nil(t, err)
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	toAddrBalance, err := l2Verif.BalanceAt(ctx, toAddr, nil)
-	require.NoError(t, err)
-	cancel()
-
-	diff := new(big.Int)
-	diff = diff.Sub(endBalance, startBalance)
-	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
-	require.Equal(t, common.Big0.Int64(), toAddrBalance.Int64(), "The recipient account balance should be zero")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	endNonce, err := l2Verif.NonceAt(ctx, fromAddr, nil)
-	require.NoError(t, err)
-	cancel()
-	require.Equal(t, startNonce+1, endNonce, "Nonce of deposit sender should increment on L2, even if the deposit fails")
-}
-
 func TestMissingBatchE2E(t *testing.T) {
 	InitParallel(t)
 	// Note this test zeroes the balance of the batch-submitter to make the batches unable to go into L1.
@@ -431,7 +370,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	})
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, time.Duration((sys.RollupConfig.SeqWindowSize+4)*cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, time.Duration((sys.RollupConfig.SeqWindowSize+4)*cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// Assert that the transaction is not found on the verifier
@@ -762,7 +701,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	configureL1(syncNodeCfg, sys.EthInstances["l1"])
-	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
+	syncerL2Engine, _, err := geth.InitL2("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 
@@ -784,7 +723,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	l2Verif := ethclient.NewClient(rpc)
 
 	// It may take a while to sync, but eventually we should see the sequenced data show up
-	receiptVerif, err := waitForTransaction(receiptSeq.TxHash, l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptVerif, err := geth.WaitForTransaction(receiptSeq.TxHash, l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)
@@ -914,9 +853,9 @@ func TestL1InfoContract(t *testing.T) {
 
 	endVerifBlockNumber := big.NewInt(4)
 	endSeqBlockNumber := big.NewInt(6)
-	endVerifBlock, err := waitForBlock(endVerifBlockNumber, l2Verif, time.Minute)
+	endVerifBlock, err := geth.WaitForBlock(endVerifBlockNumber, l2Verif, time.Minute)
 	require.Nil(t, err)
-	endSeqBlock, err := waitForBlock(endSeqBlockNumber, l2Seq, time.Minute)
+	endSeqBlock, err := geth.WaitForBlock(endSeqBlockNumber, l2Seq, time.Minute)
 	require.Nil(t, err)
 
 	seqL1Info, err := bindings.NewL1Block(cfg.L1InfoPredeployAddress, l2Seq)
@@ -1313,7 +1252,7 @@ func TestStopStartBatcher(t *testing.T) {
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
 	safeBlockInclusionDuration := time.Duration(6*cfg.DeployConfig.L1BlockTime) * time.Second
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
+	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// ensure the safe chain advances
@@ -1350,7 +1289,7 @@ func TestStopStartBatcher(t *testing.T) {
 	receipt = sendTx()
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
+	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// ensure that the safe chain advances after restarting the batcher
@@ -1372,7 +1311,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
 
-	_, err = waitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
+	_, err = geth.WaitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
 	require.Nil(t, err, "Waiting for L2 blocks")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1389,7 +1328,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	// possible additional L1 blocks will be created before the batcher starts,
 	// so we wait additional blocks.
 	for i := int64(0); i < 10; i++ {
-		block, err := waitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+		block, err := geth.WaitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
 		require.Nil(t, err, "Waiting for l1 blocks")
 		totalTxCount += len(block.Transactions())
 

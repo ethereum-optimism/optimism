@@ -18,7 +18,7 @@ DEVNET_SPONSOR="ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy $MONOREPO_DIR/.devnet/addresses.json)
 
 echo "----------------------------------------------------------------"
-echo " Dispute Game Factory at $DISPUTE_GAME_PROXY"
+echo " Dispute Game Factory at $DISPUTE_GAME_FACTORY"
 echo "----------------------------------------------------------------"
 
 L2_OUTPUT_ORACLE_PROXY=$(jq -r .L2OutputOracleProxy $MONOREPO_DIR/.devnet/addresses.json)
