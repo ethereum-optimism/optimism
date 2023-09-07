@@ -25,6 +25,10 @@ DEV_ACCOUNTS = [
     '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65'
 ]
 
+# The original L1 starting block tag and timestamp
+L1STARTINGBLOCKTAG = '0xb21fa192d3169c824801af37775514f246d96b906eff24849c5bd240ccb23557'
+L2OUTPUTORACLESTARTINGTIMESTAMP = 1693950295
+
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
@@ -88,6 +92,7 @@ def main():
     devnet_bring_op_node(paths)
     devnet_bring_batcher_proposer(paths)
     devnet_store_addresses(paths)
+    devent_restore_configurations(paths)
 
 def devnet_l1_genesis(paths):
     # Create the allocs
@@ -226,6 +231,13 @@ def devnet_store_addresses(paths):
         deployment = read_json(pjoin(paths.deployment_dir, v))
         addresses[k] = deployment['address']
     write_json(paths.addresses_json_path, addresses)
+
+def devent_restore_configurations(paths):
+    with open(paths.devnet_config_path, 'r') as f:
+        config = json.load(f)
+        config['l1StartingBlockTag'] = L1STARTINGBLOCKTAG
+        config['l2OutputOracleStartingTimestamp'] = L2OUTPUTORACLESTARTINGTIMESTAMP
+    write_json(paths.devnet_config_path, config)
 
 def eth_block(url):
     log.info(f'Fetch eth_getBlockByNumber {url}')
