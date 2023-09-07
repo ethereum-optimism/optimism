@@ -16,7 +16,7 @@
   "src/L2/L2StandardBridge.sol": "0xe025dcccbf21d48828ecf588941c9ba04c91b87bdd177a653d3f1b265b0b02a8",
   "src/L2/L2ToL1MessagePasser.sol": "0xda56ba2e5b2c28fa8ca2df24077d49e96155a00ecc99cd0778d681be6ed166fe",
   "src/L2/SequencerFeeVault.sol": "0x37816035c992d38cf7e3d5a1846b02d017dd7bdca46abe6e5c5171b9ee6225ab",
-  "src/dispute/FaultDisputeGame.sol": "0x72c917e8513d17f274753a391bdbddc1f4daeca1a392f79492df29a1107c3525",
+  "src/dispute/FaultDisputeGame.sol": "0x7b8462c29d003e96a73491c644001e1a9034bcc45c5be2a7bac3caf80d521635",
   "src/legacy/DeployerWhitelist.sol": "0xf2129ec3da75307ba8e21bc943c332bb04704642e6e263149b5c8ee92dbcb7a8",
   "src/legacy/L1BlockNumber.sol": "0x30aae1fc85103476af0226b6e98c71c01feebbdc35d93401390b1ad438a37be6",
   "src/legacy/LegacyMessagePasser.sol": "0x5c08b0a663cc49d30e4e38540f6aefab19ef287c3ecd31c8d8c3decd5f5bd497",

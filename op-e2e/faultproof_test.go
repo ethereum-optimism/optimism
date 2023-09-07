@@ -65,8 +65,8 @@ func TestMultipleCannonGames(t *testing.T) {
 		challenger.WithAgreeProposedOutput(true),
 	)
 
-	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0xaa})
-	game2 := gameFactory.StartCannonGame(ctx, common.Hash{0xbb})
+	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
+	game2 := gameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xbb})
 
 	game1.WaitForClaimCount(ctx, 2)
 	game2.WaitForClaimCount(ctx, 2)
@@ -261,7 +261,7 @@ func TestCannonDisputeGame(t *testing.T) {
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
-			game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0xaa})
+			game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
@@ -310,7 +310,7 @@ func TestCannonDefendStep(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
-	game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0xaa})
+	game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
 	require.NotNil(t, game)
 	game.LogGameData(ctx)
 

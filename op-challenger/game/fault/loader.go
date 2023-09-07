@@ -139,16 +139,15 @@ func (l *loader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 }
 
 // FetchAbsolutePrestateHash fetches the hashed absolute prestate from the fault dispute game.
-func (l *loader) FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error) {
+func (l *loader) FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	callOpts := bind.CallOpts{
 		Context: ctx,
 	}
 
 	absolutePrestate, err := l.caller.ABSOLUTEPRESTATE(&callOpts)
 	if err != nil {
-		return nil, err
+		return common.Hash{}, err
 	}
-	returnValue := absolutePrestate[:]
 
-	return returnValue, nil
+	return absolutePrestate, nil
 }
