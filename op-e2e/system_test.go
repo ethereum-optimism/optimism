@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -1388,4 +1389,48 @@ func TestPendingBlockIsLatest(t *testing.T) {
 		}
 		t.Fatal("failed to get pending header with same number as latest header")
 	})
+}
+
+func TestRuntimeConfigReload(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
+	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
+	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	initialRuntimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
+
+	// close the EL node, since we want to block derivation, to solely rely on the reloading mechanism for updates.
+	sys.EthInstances["verifier"].Close()
+
+	l1 := sys.Clients["l1"]
+
+	// Change the system-config via L1
+	sysCfgContract, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1)
+	require.NoError(t, err)
+	newUnsafeBlocksSigner := common.Address{0x12, 0x23, 0x45}
+	require.NotEqual(t, initialRuntimeConfig.P2PSequencerAddress(), newUnsafeBlocksSigner, "changing to a different address")
+	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+	require.Nil(t, err)
+	// the unsafe signer address is part of the runtime config
+	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
+	require.NoError(t, err)
+
+	// wait for the change to confirm
+	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
+	require.NoError(t, err)
+
+	// wait for the address to change
+	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
+		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress()
+		if v == newUnsafeBlocksSigner {
+			return struct{}{}, nil
+		}
+		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newUnsafeBlocksSigner)
+	})
+	require.NoError(t, err)
 }
