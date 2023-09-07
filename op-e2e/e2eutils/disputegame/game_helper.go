@@ -156,6 +156,19 @@ func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim comm
 	g.require.NoError(err, "Defend transaction was not OK")
 }
 
+type ErrWithData interface {
+	ErrorData() interface{}
+}
+
+// StepFails attempts to call step and verifies that it fails with ValidStep()
+func (g *FaultGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
+	g.t.Logf("Attempting step against claim %v isAttack: %v", claimIdx, isAttack)
+	_, err := g.game.Step(g.opts, big.NewInt(claimIdx), isAttack, stateData, proof)
+	errData, ok := err.(ErrWithData)
+	g.require.Truef(ok, "Error should provide ErrorData method: %v", err)
+	g.require.Equal("0xfb4e40dd", errData.ErrorData(), "Revert reason should be abi encoded ValidStep()")
+}
+
 func (g *FaultGameHelper) gameData(ctx context.Context) string {
 	opts := &bind.CallOpts{Context: ctx}
 	maxDepth := int(g.MaxDepth(ctx))
