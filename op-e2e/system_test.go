@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -1419,9 +1420,8 @@ func TestRuntimeConfigReload(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for the change to confirm
-	receipt, err := bind.WaitMined(context.Background(), l1, tx)
+	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
 	require.NoError(t, err)
-	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
 
 	// wait for the address to change
 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
