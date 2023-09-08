@@ -199,4 +199,4 @@ require (
 
 // replace github.com/ethereum/go-ethereum v1.12.0 => github.com/ethereum-optimism/op-geth v1.101106.1-0.20230724181546-b9c6d36ae9b8
 
-replace github.com/ethereum/go-ethereum v1.12.0 => ../op-geth
+replace github.com/ethereum/go-ethereum v1.12.0 => ../go-ethereum
