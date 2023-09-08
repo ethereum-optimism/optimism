@@ -5,6 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/kms v1.12.1
 	github.com/BurntSushi/toml v1.3.2
+	github.com/aws/aws-sdk-go v1.45.5
 	github.com/ethereum-optimism/optimism/op-service v0.10.14
 	github.com/ethereum-optimism/optimism/op-signer v0.1.1
 	github.com/ethereum/go-ethereum v1.12.0
@@ -12,7 +13,12 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.16.0
 	github.com/rs/cors v1.9.0
-	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130
+)
+
+require (
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	google.golang.org/genproto v0.0.0-20230706204954-ccb25ca9f130 // indirect
 )
 
 require (
@@ -64,6 +70,8 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/urfave/cli v1.22.9 // indirect
+	github.com/urfave/cli/v2 v2.25.7 // indirect
+	github.com/welthee/go-ethereum-aws-kms-tx-signer v0.0.0-20211013075913-ca566ae7abeb
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	golang.org/x/crypto v0.11.0 // indirect

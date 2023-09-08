@@ -17,6 +17,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kms"
+	ethawskmssigner "github.com/welthee/go-ethereum-aws-kms-tx-signer"
 )
 
 // RoundTrip send a new transaction to measure round trip latency
@@ -222,6 +228,25 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 			return nil, err
 		}
 
+		return signedTx, nil
+	} else if p.walletConfig.SignerMethod == "kms" {
+		session, err := session.NewSession(&aws.Config{
+			Credentials: credentials.NewEnvCredentials(),
+			Region:      aws.String(p.walletConfig.KMSRegion),
+			Endpoint:    aws.String(p.walletConfig.KMSEndpoint),
+		})
+		if err != nil {
+			return nil, err
+		}
+		kmsSession := kms.New(session)
+		transactOpts, err := ethawskmssigner.NewAwsKmsTransactorWithChainID(kmsSession, p.walletConfig.KMSKeyID, &p.walletConfig.ChainID)
+		if err != nil {
+			return nil, err
+		}
+		signedTx, err := transactOpts.Signer(transactOpts.From, tx)
+		if err != nil {
+			return nil, err
+		}
 		return signedTx, nil
 	} else {
 		return nil, errors.New("invalid signer method")
