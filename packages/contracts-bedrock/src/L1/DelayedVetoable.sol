@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-// TODO(maurelian): remove this when the contract is complete
-import { console } from "forge-std/console.sol";
-
 contract DelayedVetoable {
     /// @notice Error for when attempting to forward too early.
     error ForwardingEarly();
