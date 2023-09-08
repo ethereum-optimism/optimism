@@ -270,11 +270,10 @@ def wait_for_rpc_server(url):
             time.sleep(1)
 
 def devnet_test(paths):
-    # # Check the L2 config
-    # run_command(
-    #     ['go', 'run', './cmd/check-l2/main.go', '--l2-rpc-url', 'http://localhost:9545', '--l1-rpc-url', 'http://localhost:8545'],
-    #     cwd=paths.boba_chain_ops,
-    # )
+    run_command(
+        ['go', 'run', './cmd/check-l2/main.go', '--l2-rpc-url', 'http://localhost:9545', '--l1-rpc-url', 'http://localhost:8545'],
+        cwd=paths.boba_chain_ops,
+    )
 
     run_command(
          ['npx', 'hardhat',  'deposit-eth', '--network',  'hardhat-local', '--l1-contracts-json-path', paths.addresses_json_path],
