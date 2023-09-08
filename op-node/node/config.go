@@ -41,6 +41,12 @@ type Config struct {
 
 	ConfigPersistence ConfigPersistence
 
+	// RuntimeConfigReloadInterval defines the interval between runtime config reloads.
+	// Disabled if 0.
+	// Runtime config changes should be picked up from log-events,
+	// but if log-events are not coming in (e.g. not syncing blocks) then the reload ensures the config stays accurate.
+	RuntimeConfigReloadInterval time.Duration
+
 	// Optional
 	Tracer    Tracer
 	Heartbeat HeartbeatConfig
