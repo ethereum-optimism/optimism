@@ -119,7 +119,6 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
-	// In LoadConfig function
 	if conf.Chain.Preset != 0 {
 		knownPreset, ok := presetConfigs[conf.Chain.Preset]
 		if !ok {
