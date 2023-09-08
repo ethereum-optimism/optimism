@@ -28,7 +28,10 @@ func main() {
 		),
 	)
 
-	log.Info("initializing", "version", GitVersion, "commit", GitCommit, "date", GitDate)
+	log.Info("initializing",
+		"version", GitVersion,
+		"commit", GitCommit,
+		"date", GitDate)
 
 	if len(os.Args) < 2 {
 		log.Crit("must specify a config file on the command line")
@@ -42,7 +45,8 @@ func main() {
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 	recvSig := <-sig
-	log.Info("caught signal, shutting down", "signal", recvSig)
+	log.Info("caught signal, shutting down",
+		"signal", recvSig)
 
 	svc.Shutdown()
 }
@@ -50,7 +54,9 @@ func main() {
 func initConfig(cfgFile string) *config.Config {
 	cfg, err := config.New(cfgFile)
 	if err != nil {
-		log.Crit("error reading config file", "file", cfgFile, "err", err)
+		log.Crit("error reading config file",
+			"file", cfgFile,
+			"err", err)
 	}
 
 	// update log level from config
@@ -58,7 +64,8 @@ func initConfig(cfgFile string) *config.Config {
 	if err != nil {
 		logLevel = log.LvlInfo
 		if cfg.LogLevel != "" {
-			log.Warn("invalid server.log_level set: " + cfg.LogLevel)
+			log.Warn("invalid server.log_level",
+				"log_level", cfg.LogLevel)
 		}
 	}
 	log.Root().SetHandler(
@@ -74,7 +81,8 @@ func initConfig(cfgFile string) *config.Config {
 
 	err = cfg.Validate()
 	if err != nil {
-		log.Crit("invalid config", "err", err)
+		log.Crit("invalid config",
+			"err", err)
 	}
 
 	return cfg

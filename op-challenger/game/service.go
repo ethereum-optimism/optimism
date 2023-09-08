@@ -69,10 +69,11 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 	disk := newDiskManager(cfg.Datadir)
 	sched := scheduler.NewScheduler(
 		logger,
+		m,
 		disk,
 		cfg.MaxConcurrency,
 		func(addr common.Address, dir string) (scheduler.GamePlayer, error) {
-			return fault.NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
+			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, addr, txMgr, client)
 		})
 
 	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, client.BlockNumber, cfg.GameAllowlist)

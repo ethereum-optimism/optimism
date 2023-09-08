@@ -11,6 +11,12 @@ import (
 
 var ErrBusy = errors.New("busy scheduling previous update")
 
+type SchedulerMetricer interface {
+	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+	RecordGameUpdateScheduled()
+	RecordGameUpdateCompleted()
+}
+
 type Scheduler struct {
 	logger         log.Logger
 	coordinator    *coordinator
@@ -22,7 +28,7 @@ type Scheduler struct {
 	cancel         func()
 }
 
-func NewScheduler(logger log.Logger, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator) *Scheduler {
+func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator) *Scheduler {
 	// Size job and results queues to be fairly small so backpressure is applied early
 	// but with enough capacity to keep the workers busy
 	jobQueue := make(chan job, maxConcurrency*2)
@@ -34,7 +40,7 @@ func NewScheduler(logger log.Logger, disk DiskManager, maxConcurrency uint, crea
 
 	return &Scheduler{
 		logger:         logger,
-		coordinator:    newCoordinator(logger, jobQueue, resultQueue, createPlayer, disk),
+		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk),
 		maxConcurrency: maxConcurrency,
 		scheduleQueue:  scheduleQueue,
 		jobQueue:       jobQueue,

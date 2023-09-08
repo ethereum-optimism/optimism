@@ -14,7 +14,9 @@ import (
 
 // Heartbeat polls for expected in-flight transactions
 func (p *Provider) Heartbeat(ctx context.Context) {
-	log.Debug("heartbeat", "provider", p.name, "inflight", len(p.txPool.Transactions))
+	log.Debug("heartbeat",
+		"provider", p.name,
+		"count", len(p.txPool.Transactions))
 
 	metrics.RecordTransactionsInFlight(p.config.Network, len(p.txPool.Transactions))
 
@@ -33,26 +35,42 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 	}
 
 	if len(expectedTransactions) == 0 {
-		log.Debug("no expected txs", "count", len(p.txPool.Transactions), "provider", p.name, "alreadySeen", alreadySeen)
+		log.Debug("no expected txs",
+			"count", len(p.txPool.Transactions),
+			"provider", p.name,
+			"alreadySeen", alreadySeen)
 		return
 	}
 
 	client, err := clients.Dial(p.name, p.config.URL)
 	if err != nil {
-		log.Error("cant dial to provider", "provider", p.name, "url", p.config.URL, "err", err)
+		log.Error("cant dial to provider",
+			"provider", p.name,
+			"url", p.config.URL,
+			"err", err)
 	}
 
-	log.Debug("checking in-flight tx", "count", len(p.txPool.Transactions), "provider", p.name, "alreadySeen", alreadySeen)
+	log.Debug("checking in-flight tx",
+		"count", len(p.txPool.Transactions),
+		"provider", p.name,
+		"alreadySeen", alreadySeen)
 	for _, st := range expectedTransactions {
 		hash := st.Hash.Hex()
 
 		_, isPending, err := client.TransactionByHash(ctx, st.Hash)
 		if err != nil && !errors.Is(err, ethereum.NotFound) {
-			log.Error("cant check transaction", "provider", p.name, "hash", hash, "url", p.config.URL, "err", err)
+			log.Error("cant check transaction",
+				"provider", p.name,
+				"hash", hash,
+				"url", p.config.URL,
+				"err", err)
 			continue
 		}
 
-		log.Debug("got transaction", "provider", p.name, "hash", hash, "isPending", isPending)
+		log.Debug("got transaction",
+			"provider", p.name,
+			"hash", hash,
+			"isPending", isPending)
 
 		// mark transaction as seen by this provider
 		st.M.Lock()
@@ -75,7 +93,10 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 		// check if transaction have been seen by all providers
 		p.txPool.M.Lock()
 		if len(st.SeenBy) == p.txPool.Expected {
-			log.Debug("transaction seen by all", "hash", hash, "expected", p.txPool.Expected, "seenBy", len(st.SeenBy))
+			log.Debug("transaction seen by all",
+				"hash", hash,
+				"expected", p.txPool.Expected,
+				"seenBy", len(st.SeenBy))
 			delete(p.txPool.Transactions, st.Hash.Hex())
 		}
 		p.txPool.M.Unlock()
