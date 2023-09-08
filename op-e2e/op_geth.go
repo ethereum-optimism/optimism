@@ -42,7 +42,7 @@ type OpGeth struct {
 	L2Client      *ethclient.Client
 	SystemConfig  eth.SystemConfig
 	L1ChainConfig *params.ChainConfig
-	L2ChainConfig *params.ChainConfig // NOTE: This is the thing we want to modify
+	L2ChainConfig *params.ChainConfig
 	L1Head        eth.BlockInfo
 	L2Head        *eth.ExecutionPayload
 	sequenceNum   uint64
@@ -55,7 +55,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block) // this has the chainConfig
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 

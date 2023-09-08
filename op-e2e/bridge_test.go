@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/types"`	`	`
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -20,10 +20,6 @@ import (
 // TestERC20BridgeDeposits tests the the L1StandardBridge bridge ERC20
 // functionality.
 func TestERC20BridgeDeposits(t *testing.T) {
-	// TODO: fork this test
-	// TODO: deploy weth to L1, send some eth to it
-	// TODO: send a eth_call to the L2 contract to the remote static call precompile
-	// TODO: check result of remote static call precompile is correct
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
