@@ -90,7 +90,7 @@ func TestRemoteStaticCall(t *testing.T) {
 	remote_static_call_result, err := l2Client.CallContract(context.Background(), ethereum.CallMsg{
 		From:     opts.From,
 		To:       &remoteStaticCallAddr,
-		Gas:      1000000,
+		Gas:      1000000000,
 		GasPrice: big.NewInt(0),
 		Value:    big.NewInt(0),
 		Data:     remote_static_call_data,
