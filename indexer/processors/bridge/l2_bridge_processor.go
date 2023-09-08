@@ -63,7 +63,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		// extract the withdrawal hash from the previous MessagePassed event
 		messagePassed, ok := messagesPassed[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			return fmt.Errorf("missing expected preceding MessagePassedEvent for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
+			return fmt.Errorf("expected MessagePassedEvent preceding SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
 		}
 
 		l2BridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -92,11 +92,11 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		// extract the cross domain message hash & deposit source hash from the following events
 		messagePassed, ok := messagesPassed[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
 		if !ok {
-			return fmt.Errorf("missing expected following MessagePassed for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected MessagePassed following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		}
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
 		if !ok {
-			return fmt.Errorf("missing expected following SentMessage for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected SentMessage following MessagePassed event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -163,7 +163,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		finalizedBridge := finalizedBridges[i]
 		relayedMessage, ok := relayedMessages[logKey{finalizedBridge.Event.BlockHash, finalizedBridge.Event.LogIndex + 1}]
 		if !ok {
-			return fmt.Errorf("missing following RelayedMessage for BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash)
 		}
 
 		// Since the message hash is computed from the relayed message, this ensures the withdrawal fields must match. For good measure,

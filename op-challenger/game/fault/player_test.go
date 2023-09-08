@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -120,8 +121,9 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("ValidPrestates", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		prestateHash := crypto.Keccak256(prestate)
+		prestateHash[0] = mipsevm.VMStatusUnfinished
 		mockTraceProvider := newMockTraceProvider(false, prestate)
-		mockLoader := newMockPrestateLoader(false, prestateHash)
+		mockLoader := newMockPrestateLoader(false, common.BytesToHash(prestateHash))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.NoError(t, err)
 	})
@@ -129,7 +131,7 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("TraceProviderErrors", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		mockTraceProvider := newMockTraceProvider(true, prestate)
-		mockLoader := newMockPrestateLoader(false, prestate)
+		mockLoader := newMockPrestateLoader(false, common.BytesToHash(prestate))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.ErrorIs(t, err, mockTraceProviderError)
 	})
@@ -137,14 +139,14 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("LoaderErrors", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		mockTraceProvider := newMockTraceProvider(false, prestate)
-		mockLoader := newMockPrestateLoader(true, prestate)
+		mockLoader := newMockPrestateLoader(true, common.BytesToHash(prestate))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.ErrorIs(t, err, mockLoaderError)
 	})
 
 	t.Run("PrestateMismatch", func(t *testing.T) {
 		mockTraceProvider := newMockTraceProvider(false, []byte{0x00, 0x01, 0x02, 0x03})
-		mockLoader := newMockPrestateLoader(false, []byte{0x00})
+		mockLoader := newMockPrestateLoader(false, common.BytesToHash([]byte{0x00}))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.Error(t, err)
 	})
@@ -210,21 +212,31 @@ func (m *mockTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error
 	}
 	return m.prestate, nil
 }
+func (m *mockTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
+	prestate, err := m.AbsolutePreState(ctx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	hash := common.BytesToHash(crypto.Keccak256(prestate))
+	hash[0] = mipsevm.VMStatusUnfinished
+	return hash, nil
+}
 
 type mockLoader struct {
 	prestateError bool
-	prestate      []byte
+	prestate      common.Hash
 }
 
-func newMockPrestateLoader(prestateError bool, prestate []byte) *mockLoader {
+func newMockPrestateLoader(prestateError bool, prestate common.Hash) *mockLoader {
 	return &mockLoader{
 		prestateError: prestateError,
 		prestate:      prestate,
 	}
 }
-func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error) {
+func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	if m.prestateError {
-		return nil, mockLoaderError
+		return common.Hash{}, mockLoaderError
 	}
 	return m.prestate, nil
 }

@@ -146,6 +146,13 @@ var (
 		Required: false,
 		Value:    time.Second * 12 * 32,
 	}
+	RuntimeConfigReloadIntervalFlag = &cli.DurationFlag{
+		Name:     "l1.runtime-config-reload-interval",
+		Usage:    "Poll interval for reloading the runtime config, useful when config events are not being picked up. Disabled if 0 or negative.",
+		EnvVars:  prefixEnvVars("L1_RUNTIME_CONFIG_RELOAD_INTERVAL"),
+		Required: false,
+		Value:    time.Minute * 10,
+	}
 	MetricsEnabledFlag = &cli.BoolFlag{
 		Name:    "metrics.enabled",
 		Usage:   "Enable the metrics server",
@@ -261,6 +268,7 @@ var optionalFlags = []cli.Flag{
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
+	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
 	RPCAdminPersistence,
 	MetricsEnabledFlag,

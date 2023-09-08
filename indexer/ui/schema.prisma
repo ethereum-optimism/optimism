@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = "postgresql://db_username:db_password@localhost:5434/db_name"
+  url      = env("DATABASE_URL")
 }
 
 model l1_bridged_tokens {
@@ -111,7 +111,7 @@ model l2_block_headers {
   hash               String               @id @db.VarChar
   parent_hash        String               @unique @db.VarChar
   number             Decimal              @unique @db.Decimal
-  timestamp          Int                  @unique
+  timestamp          Int
   rlp_bytes          String               @db.VarChar
   l2_contract_events l2_contract_events[]
 }
