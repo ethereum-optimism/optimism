@@ -79,8 +79,8 @@ test('Send an EIP-1559 transaciton and verfiy success', async () => {
   await metamask.confirmTransaction()
   const txHash = await txHashPromise
 
-  // Waiting for Infura (Metamask given provider) to index our transaction
-  await sharedPage.waitForTimeout(2_000)
+    // Waiting for Infura (Metamask given provider) to index our transaction
+    await sharedPage.waitForTimeout(10_000)
 
   // Metamask test dApp allows us access to the Metamask RPC provider via loading this URL.
   // The RPC reponse will be populated onto the page that's loaded.

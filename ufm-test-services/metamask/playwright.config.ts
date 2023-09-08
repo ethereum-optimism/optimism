@@ -40,7 +40,7 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'pnpm run start:metamask-dapp',
+    command: 'npm run start:metamask-dapp',
     url: process.env.METAMASK_DAPP_URL,
     reuseExistingServer: false,
   },
