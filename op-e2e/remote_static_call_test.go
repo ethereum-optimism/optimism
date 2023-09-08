@@ -2,13 +2,13 @@ package op_e2e
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -55,14 +55,44 @@ func TestRemoteStaticCall(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, big.NewInt(params.Ether), wethBalance)
 
-	l2Block, err := l2Client.BlockNumber(context.Background())
+	l1Block, err := l1Client.BlockNumber(context.Background())
 	require.NoError(t, err)
-	l2BlockBigInt := big.NewInt(int64(l2Block))
+	l1BlockBigInt := big.NewInt(int64(l1Block))
 
 	WETH9Abi, err := abi.JSON(strings.NewReader(bindings.WETH9ABI))
 	require.NoError(t, err)
 	weth_balanceOf_calldata, err := WETH9Abi.Pack("balanceOf", opts.From)
 	require.NoError(t, err)
+
+	// Check that `Call` on L1 with the calldata returns correct information
+	l1CallResult, err := l1Client.CallContract(context.Background(), ethereum.CallMsg{To: &weth9Address, Data: weth_balanceOf_calldata}, l1BlockBigInt)
+	require.NoError(t, err)
+	var l1_decoded_balance *big.Int
+	err = WETH9Abi.UnpackIntoInterface(&l1_decoded_balance, "balanceOf", l1CallResult)
+	require.NoError(t, err)
+	require.Equal(t, wethBalance, l1_decoded_balance)
+
+	// Spin until the L2 has been updated with the L1 block
+	l1BlockContract, err := bindings.NewL1Block(predeploys.L1BlockAddr, l2Client)
+	require.NoError(t, err)
+	l2Updated := false
+
+	l2Block, err := l2Client.BlockNumber(context.Background())
+	require.NoError(t, err)
+	l2BlockBigInt := big.NewInt(int64(l2Block))
+
+	for !l2Updated {
+		l1BlockOnL2, err := l1BlockContract.Number(&bind.CallOpts{})
+		require.NoError(t, err)
+		l1BlockOnL2AsInt := big.NewInt(int64(l1BlockOnL2))
+		if l1BlockOnL2AsInt.Cmp(l1BlockBigInt) >= 0 {
+			l2Updated = true
+			l2Block, err := l2Client.BlockNumber(context.Background())
+			require.NoError(t, err)
+			l2BlockBigInt = big.NewInt(int64(l2Block))
+		}
+		time.Sleep(3 * time.Second)
+	}
 
 	const definition = `[{
         "name": "encode_address_bytes",
@@ -98,7 +128,6 @@ func TestRemoteStaticCall(t *testing.T) {
 		Data:     remote_static_call_data,
 	}, l2BlockBigInt)
 	require.NoError(t, err)
-	fmt.Printf("remote_static_call_result: %v\n", remote_static_call_result)
 
 	var alice_balance *big.Int
 	err = WETH9Abi.UnpackIntoInterface(&alice_balance, "balanceOf", remote_static_call_result)
