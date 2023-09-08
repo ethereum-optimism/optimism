@@ -94,6 +94,7 @@ type DeployConfig struct {
 	L1GenesisBlockGasUsed       hexutil.Uint64 `json:"l1GenesisBlockGasUsed"`
 	L1GenesisBlockParentHash    common.Hash    `json:"l1GenesisBlockParentHash"`
 	L1GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l1GenesisBlockBaseFeePerGas"`
+	L1ArchiveNodeRPC            string         `json:"l1ArchiveNodeRPC"`
 
 	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`

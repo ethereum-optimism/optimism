@@ -392,6 +392,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sys.Backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
+		endpoint := l1Node.HTTPEndpoint()
+		l2Genesis.Config.L1ArchiveNodeRPC = endpoint
+		// TODO: get l1Node RPC url
+		// TODO: pass in l1Node RPC url to initL2Geth
 		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
 			return nil, err

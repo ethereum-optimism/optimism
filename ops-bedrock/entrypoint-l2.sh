@@ -49,4 +49,5 @@ exec geth \
 	--metrics \
 	--metrics.addr=0.0.0.0 \
 	--metrics.port=6060 \
+	--rollup.l1archivenoderpc="https://docs-demo.quiknode.pro/" \
 	"$@"

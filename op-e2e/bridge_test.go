@@ -20,6 +20,10 @@ import (
 // TestERC20BridgeDeposits tests the the L1StandardBridge bridge ERC20
 // functionality.
 func TestERC20BridgeDeposits(t *testing.T) {
+	// TODO: fork this test
+	// TODO: deploy weth to L1, send some eth to it
+	// TODO: send a eth_call to the L2 contract to the remote static call precompile
+	// TODO: check result of remote static call precompile is correct
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
