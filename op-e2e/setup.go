@@ -394,6 +394,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	for name := range cfg.Nodes {
 		endpoint := l1Node.HTTPEndpoint()
 		l2Genesis.Config.L1ArchiveNodeRPC = endpoint
+		fmt.Printf("\n\n\n\n")
+		fmt.Printf("L1 archive node RPC endpoint: %s\n", endpoint)
+		fmt.Printf("\n\n\n\n")
+
 		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
 			return nil, err

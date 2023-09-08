@@ -83,8 +83,10 @@ func TestRemoteStaticCall(t *testing.T) {
 
 	remote_static_call_data, err := encode_abi.Pack("encode_address_bytes", weth9Address, weth_balanceOf_calldata)
 	require.NoError(t, err)
+	// Slice off the first 4 bytes of the selector, since we just want the abi.encode(...)
+	remote_static_call_data = remote_static_call_data[4:]
 
-	remoteStaticCallAddr := common.HexToAddress("0x0000000000000000000000000000000000000019")
+	remoteStaticCallAddr := common.HexToAddress("0x0000000000000000000000000000000000000013")
 
 	// Send a `eth_call` to the L2 remote static call precompile contract
 	remote_static_call_result, err := l2Client.CallContract(context.Background(), ethereum.CallMsg{
