@@ -7,10 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -65,7 +63,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		// extract the withdrawal hash from the previous MessagePassed event
 		messagePassed, ok := messagesPassed[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			return fmt.Errorf("missing expected preceding MessagePassedEvent for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
+			return fmt.Errorf("expected MessagePassedEvent preceding SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
 		}
 
 		l2BridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -94,11 +92,11 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		// extract the cross domain message hash & deposit source hash from the following events
 		messagePassed, ok := messagesPassed[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
 		if !ok {
-			return fmt.Errorf("missing expected following MessagePassed for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected MessagePassed following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		}
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
 		if !ok {
-			return fmt.Errorf("missing expected following SentMessage for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected SentMessage following MessagePassed event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -165,7 +163,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		finalizedBridge := finalizedBridges[i]
 		relayedMessage, ok := relayedMessages[logKey{finalizedBridge.Event.BlockHash, finalizedBridge.Event.LogIndex + 1}]
 		if !ok {
-			return fmt.Errorf("missing following RelayedMessage for BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash)
+			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash)
 		}
 
 		// Since the message hash is computed from the relayed message, this ensures the withdrawal fields must match. For good measure,
@@ -181,72 +179,4 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 
 	// a-ok!
 	return nil
-}
-
-// L2LatestBridgeEventHeader returns the latest header for which and on-chain event
-// has been observed on L2 -- Both initiated L2 events and finalization markers from L1.
-func L2LatestBridgeEventHeader(db *database.DB) (*types.Header, error) {
-	l2ToL1MessagePasserAbi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-	crossDomainMessengerAbi, err := bindings.CrossDomainMessengerMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	messagePassedID := l2ToL1MessagePasserAbi.Events["MessagePassed"].ID
-	relayedEventID := crossDomainMessengerAbi.Events["RelayedMessage"].ID
-
-	// (1) Initiated L2 Events
-	// Since all initiated bridge events eventually reach the L2ToL1MessagePasser to
-	// initiate the withdrawal, we can simply look for the last message passed from
-	// this cont
-	var latestWithdrawHeader *types.Header
-	contractEventFilter := database.ContractEvent{ContractAddress: predeploys.L2ToL1MessagePasserAddr, EventSignature: messagePassedID}
-	withdrawEvent, err := db.ContractEvents.L2LatestContractEventWithFilter(contractEventFilter)
-	if err != nil {
-		return nil, err
-	}
-	if withdrawEvent != nil {
-		l2BlockHeader, err := db.Blocks.L2BlockHeader(withdrawEvent.BlockHash)
-		if err != nil {
-			return nil, err
-		}
-		if l2BlockHeader != nil {
-			latestWithdrawHeader = l2BlockHeader.RLPHeader.Header()
-		}
-	}
-
-	// (2) Finalization markers for L1
-	// Since deposited transactions from L1 are apart of the block derivation process,
-	// there are no native finalization markers for OptimismPortal#TransactionDeposited.
-	// The lowest layer to check for here is the CrossDomainMessenger#RelayedMessage event.
-	// This also converts the StandardBridge which simply is an extension of the messenger.
-	var latestRelayedMessageHeader *types.Header
-	contractEventFilter = database.ContractEvent{ContractAddress: predeploys.L2CrossDomainMessengerAddr, EventSignature: relayedEventID}
-	relayedEvent, err := db.ContractEvents.L2LatestContractEventWithFilter(contractEventFilter)
-	if err != nil {
-		return nil, err
-	}
-	if relayedEvent != nil {
-		l2BlockHeader, err := db.Blocks.L2BlockHeader(relayedEvent.BlockHash)
-		if err != nil {
-			return nil, err
-		}
-		if l2BlockHeader != nil {
-			latestRelayedMessageHeader = l2BlockHeader.RLPHeader.Header()
-		}
-	}
-
-	// No causaal relationship between withdraw and relayed messages
-	if latestWithdrawHeader == nil || latestRelayedMessageHeader == nil {
-		return nil, nil
-	} else {
-		if latestWithdrawHeader.Time > latestRelayedMessageHeader.Time {
-			return latestWithdrawHeader, nil
-		} else {
-			return latestRelayedMessageHeader, nil
-		}
-	}
 }

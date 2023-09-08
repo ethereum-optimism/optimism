@@ -62,6 +62,9 @@ type Position is uint128;
 /// @notice A `GameType` represents the type of game being played.
 type GameType is uint8;
 
+/// @notice A `VMStatus` represents the status of a VM execution.
+type VMStatus is uint8;
+
 /// @notice The current status of the dispute game.
 enum GameStatus
 // The game is currently in progress, and has not been resolved.
@@ -84,4 +87,19 @@ library GameTypes {
 
     /// @dev The game will use a `IDisputeGame` implementation that utilizes attestation proofs.
     GameType internal constant ATTESTATION = GameType.wrap(2);
+}
+
+/// @title VMStatuses
+library VMStatuses {
+    /// @dev The VM has executed successfully and the outcome is valid.
+    VMStatus internal constant VALID = VMStatus.wrap(0);
+
+    /// @dev The VM has executed successfully and the outcome is invalid.
+    VMStatus internal constant INVALID = VMStatus.wrap(1);
+
+    /// @dev The VM has paniced.
+    VMStatus internal constant PANIC = VMStatus.wrap(2);
+
+    /// @dev The VM execution is still in progress.
+    VMStatus internal constant UNFINISHED = VMStatus.wrap(3);
 }

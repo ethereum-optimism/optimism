@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
@@ -331,12 +330,18 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if proofAt(state) {
-			preStateHash := crypto.Keccak256Hash(state.EncodeWitness())
+			preStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash prestate witness: %w", err)
+			}
 			witness, err := stepFn(true)
 			if err != nil {
 				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
 			}
-			postStateHash := crypto.Keccak256Hash(state.EncodeWitness())
+			postStateHash, err := state.EncodeWitness().StateHash()
+			if err != nil {
+				return fmt.Errorf("failed to hash poststate witness: %w", err)
+			}
 			proof := &Proof{
 				Step:      step,
 				Pre:       preStateHash,
