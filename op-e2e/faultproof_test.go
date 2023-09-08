@@ -13,43 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMultipleAlphabetGames(t *testing.T) {
-	InitParallel(t)
-
-	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
-	t.Cleanup(sys.Close)
-
-	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
-	// Start a challenger with the correct alphabet trace
-	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
-		challenger.WithAlphabet("abcdefg"),
-		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
-		challenger.WithAgreeProposedOutput(true),
-	)
-
-	game1 := gameFactory.StartAlphabetGame(ctx, "abcxyz")
-	// Wait for the challenger to respond to the first game
-	game1.WaitForClaimCount(ctx, 2)
-
-	game2 := gameFactory.StartAlphabetGame(ctx, "zyxabc")
-	// Wait for the challenger to respond to the second game
-	game2.WaitForClaimCount(ctx, 2)
-
-	// Challenger should respond to new claims
-	game2.Attack(ctx, 1, common.Hash{0xaa})
-	game2.WaitForClaimCount(ctx, 4)
-	game1.Defend(ctx, 1, common.Hash{0xaa})
-	game1.WaitForClaimCount(ctx, 4)
-
-	gameDuration := game1.GameDuration(ctx)
-	sys.TimeTravelClock.AdvanceTime(gameDuration)
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	game1.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
-	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
-}
-
 func TestMultipleCannonGames(t *testing.T) {
 	InitParallel(t)
 
@@ -104,36 +67,6 @@ func TestMultipleCannonGames(t *testing.T) {
 
 	// Check that the game directories are removed
 	challenger.WaitForGameDataDeletion(ctx, game1, game2)
-}
-
-func TestResolveDisputeGame(t *testing.T) {
-	InitParallel(t)
-
-	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
-	t.Cleanup(sys.Close)
-
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
-
-	game := disputeGameFactory.StartAlphabetGame(ctx, "zyxwvut")
-	require.NotNil(t, game)
-	gameDuration := game.GameDuration(ctx)
-
-	game.WaitForGameStatus(ctx, disputegame.StatusInProgress)
-
-	game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "HonestAlice",
-		challenger.WithAgreeProposedOutput(true),
-		challenger.WithAlphabet("abcdefg"),
-		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
-	)
-
-	game.WaitForClaimCount(ctx, 2)
-
-	sys.TimeTravelClock.AdvanceTime(gameDuration)
-	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
-
-	// Challenger should resolve the game now that the clocks have expired.
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
 func TestChallengerCompleteDisputeGame(t *testing.T) {

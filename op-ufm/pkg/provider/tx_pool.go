@@ -15,7 +15,11 @@ type NetworkTransactionPool struct {
 	M            sync.Mutex
 	Transactions map[string]*TransactionState
 	Expected     int
-	Nonce        uint64
+
+	// Last time a transaction was sent
+	LastSend time.Time
+	// Prevents concurrent transaction send
+	ExclusiveSend sync.Mutex
 }
 
 type TransactionState struct {

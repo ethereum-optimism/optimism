@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
@@ -22,7 +23,7 @@ func Dial(providerName string, url string) (*InstrumentedEthClient, error) {
 	start := time.Now()
 	c, err := ethclient.Dial(url)
 	if err != nil {
-		metrics.RecordError(providerName, "ethclient.Dial")
+		metrics.RecordErrorDetails(providerName, "ethclient.Dial", err)
 		return nil, err
 	}
 	metrics.RecordRPCLatency(providerName, "ethclient", "Dial", time.Since(start))
@@ -34,7 +35,7 @@ func (i *InstrumentedEthClient) TransactionByHash(ctx context.Context, hash comm
 	tx, isPending, err := i.c.TransactionByHash(ctx, hash)
 	if err != nil {
 		if !i.ignorableErrors(err) {
-			metrics.RecordError(i.providerName, "ethclient.TransactionByHash")
+			metrics.RecordErrorDetails(i.providerName, "ethclient.TransactionByHash", err)
 		}
 		return nil, false, err
 	}
@@ -46,7 +47,7 @@ func (i *InstrumentedEthClient) PendingNonceAt(ctx context.Context, address stri
 	start := time.Now()
 	nonce, err := i.c.PendingNonceAt(ctx, common.HexToAddress(address))
 	if err != nil {
-		metrics.RecordError(i.providerName, "ethclient.PendingNonceAt")
+		metrics.RecordErrorDetails(i.providerName, "ethclient.PendingNonceAt", err)
 		return 0, err
 	}
 	metrics.RecordRPCLatency(i.providerName, "ethclient", "PendingNonceAt", time.Since(start))
@@ -58,7 +59,7 @@ func (i *InstrumentedEthClient) TransactionReceipt(ctx context.Context, txHash c
 	receipt, err := i.c.TransactionReceipt(ctx, txHash)
 	if err != nil {
 		if !i.ignorableErrors(err) {
-			metrics.RecordError(i.providerName, "ethclient.TransactionReceipt")
+			metrics.RecordErrorDetails(i.providerName, "ethclient.TransactionReceipt", err)
 		}
 		return nil, err
 	}
@@ -71,12 +72,45 @@ func (i *InstrumentedEthClient) SendTransaction(ctx context.Context, tx *types.T
 	err := i.c.SendTransaction(ctx, tx)
 	if err != nil {
 		if !i.ignorableErrors(err) {
-			metrics.RecordError(i.providerName, "ethclient.SendTransaction")
+			metrics.RecordErrorDetails(i.providerName, "ethclient.SendTransaction", err)
 		}
 		return err
 	}
 	metrics.RecordRPCLatency(i.providerName, "ethclient", "SendTransaction", time.Since(start))
 	return err
+}
+
+func (i *InstrumentedEthClient) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	start := time.Now()
+	gas, err := i.c.EstimateGas(ctx, msg)
+	if err != nil {
+		metrics.RecordErrorDetails(i.providerName, "ethclient.EstimateGas", err)
+		return 0, err
+	}
+	metrics.RecordRPCLatency(i.providerName, "ethclient", "EstimateGas", time.Since(start))
+	return gas, err
+}
+
+func (i *InstrumentedEthClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	start := time.Now()
+	gasTipCap, err := i.c.SuggestGasTipCap(ctx)
+	if err != nil {
+		metrics.RecordErrorDetails(i.providerName, "ethclient.SuggestGasTipCap", err)
+		return nil, err
+	}
+	metrics.RecordRPCLatency(i.providerName, "ethclient", "SuggestGasTipCap", time.Since(start))
+	return gasTipCap, err
+}
+
+func (i *InstrumentedEthClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	start := time.Now()
+	header, err := i.c.HeaderByNumber(ctx, number)
+	if err != nil {
+		metrics.RecordErrorDetails(i.providerName, "ethclient.HeaderByNumber", err)
+		return nil, err
+	}
+	metrics.RecordRPCLatency(i.providerName, "ethclient", "HeaderByNumber", time.Since(start))
+	return header, err
 }
 
 func (i *InstrumentedEthClient) ignorableErrors(err error) bool {
