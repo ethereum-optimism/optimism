@@ -69,7 +69,7 @@ var (
 // can be set in state and the ProxyAdmin can be set as the admin of the
 // Proxy.
 func SetL2Proxies(g *types.Genesis) error {
-	return setProxies(g, predeploys.ProxyAdminAddr, bigL2PredeployNamespace, 2048)
+	return setProxies(g, predeploys.ProxyAdminAddr, BigL2PredeployNamespace, 2048)
 }
 
 // WipePredeployStorage will wipe the storage of all L2 predeploys expect
