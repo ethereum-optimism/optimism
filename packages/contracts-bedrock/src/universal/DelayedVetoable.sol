@@ -60,12 +60,39 @@ contract DelayedVetoable {
     }
 
     /// @notice Sets the target admin during contract deployment.
-    /// @param target Address of the target.
-    constructor(address vetoer, address initiator, address target, uint256 delay) {
-        _vetoer = vetoer;
-        _initiator = initiator;
-        _target = target;
-        _delay = delay;
+    /// @param vetoer_ Address of the vetoer.
+    /// @param initiator_ Address of the initiator.
+    /// @param target_ Address of the target.
+    /// @param delay_ Address of the delay.
+    constructor(address vetoer_, address initiator_, address target_, uint256 delay_) {
+        _vetoer = vetoer_;
+        _initiator = initiator_;
+        _target = target_;
+        _delay = delay_;
+    }
+
+    /// @notice Gets the initiator
+    /// @return Initiator address.
+    function initiator() external handleCallIfNotVetoer returns (address) {
+        return _initiator;
+    }
+
+    //// @notice Queries the vetoer address.
+    /// @return Vetoer address.
+    function vetoer() external handleCallIfNotVetoer returns (address) {
+        return _vetoer;
+    }
+
+    //// @notice Queries the target address.
+    /// @return Target address.
+    function target() external handleCallIfNotVetoer returns (address) {
+        return _target;
+    }
+
+    /// @notice Gets the delay
+    /// @return Delay address.
+    function delay() external handleCallIfNotVetoer returns (uint256) {
+        return _delay;
     }
 
     // TODO(maurelian): Remove this? The contract currently cannot handle forwarding ETH and I'm
