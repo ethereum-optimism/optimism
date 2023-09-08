@@ -19,8 +19,8 @@ on:
         type: choice
         options:
           - ci-builder
-          - fault-detector
           - indexer
+          - chain-mon
           - op-node
           - op-batcher
           - op-proposer
