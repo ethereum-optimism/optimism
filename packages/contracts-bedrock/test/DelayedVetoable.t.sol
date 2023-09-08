@@ -23,12 +23,37 @@ contract DelayedVetoable_Init is CommonTest {
     function setUp() public override {
         super.setUp();
         delayedVetoable = new DelayedVetoable({
-            initiator: alice,
-            vetoer: bob,
-            target: address(target),
-            delay: delay
+            initiator_: alice,
+            vetoer_: bob,
+            target_: address(target),
+            delay_: delay
         });
         reverter = new Reverter();
+    }
+}
+
+contract DelayedVetoable_Getters_Test is DelayedVetoable_Init {
+    function test_getters() external {
+        vm.startPrank(address(0));
+        assertEq(delayedVetoable.initiator(), initiator);
+        assertEq(delayedVetoable.vetoer(), vetoer);
+        assertEq(delayedVetoable.target(), target);
+        assertEq(delayedVetoable.delay(), delay);
+    }
+}
+
+contract DelayedVetoable_Getters_TestFail is DelayedVetoable_Init {
+    function test_getters_notVetoer() external {
+        // getter calls from addresses other than the vetoer or zero address will revert in the
+        // initiation branch of the proxy.
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        delayedVetoable.initiator();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        delayedVetoable.vetoer();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        delayedVetoable.target();
+        vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
+        delayedVetoable.delay();
     }
 }
 
