@@ -56,8 +56,9 @@ def main():
     deployment_dir = pjoin(contracts_bedrock_dir, 'deployments', 'devnetL1')
     op_node_dir = pjoin(args.monorepo_dir, 'op-node')
     ops_bedrock_dir = pjoin(monorepo_dir, 'ops-bedrock')
-    deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config'),
-    devnet_config_path = pjoin(contracts_bedrock_dir, 'deploy-config', 'devnetL1.json')
+    deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config')
+    devnet_config_path = pjoin(deploy_config_dir, 'devnetL1.json')
+    devnet_config_template_path = pjoin(deploy_config_dir, 'devnetL1-template.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
     sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
 
@@ -69,6 +70,7 @@ def main():
       l1_deployments_path=pjoin(deployment_dir, '.deploy'),
       deploy_config_dir=deploy_config_dir,
       devnet_config_path=devnet_config_path,
+      devnet_config_template_path=devnet_config_template_path,
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
       ops_chain_ops=ops_chain_ops,
@@ -124,10 +126,16 @@ def deploy_contracts(paths):
         '--rpc-url', 'http://127.0.0.1:8545'
     ], env={}, cwd=paths.contracts_bedrock_dir)
 
-
+def init_devnet_l1_deploy_config(paths, update_timestamp=False):
+    deploy_config = read_json(paths.devnet_config_template_path)
+    if update_timestamp:
+        deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
+    write_json(paths.devnet_config_path, deploy_config)
 
 def devnet_l1_genesis(paths):
     log.info('Generating L1 genesis state')
+    init_devnet_l1_deploy_config(paths)
+
     geth = subprocess.Popen([
         'geth', '--dev', '--http', '--http.api', 'eth,debug',
         '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000'
@@ -157,13 +165,13 @@ def devnet_deploy(paths):
         if os.path.exists(paths.allocs_path) == False:
             devnet_l1_genesis(paths)
 
-        devnet_config_backup = pjoin(paths.devnet_dir, 'devnetL1.json.bak')
-        shutil.copy(paths.devnet_config_path, devnet_config_backup)
-        deploy_config = read_json(paths.devnet_config_path)
-        deploy_config['l1GenesisBlockTimestamp'] = '{:#x}'.format(int(time.time()))
-        write_json(paths.devnet_config_path, deploy_config)
+        # It's odd that we want to regenerate the devnetL1.json file with
+        # an updated timestamp different than the one used in the devnet_l1_genesis
+        # function.  But, without it, CI flakes on this test rather consistently.
+        # If someone reads this comment and understands why this is being done, please
+        # update this comment to explain.
+        init_devnet_l1_deploy_config(paths, update_timestamp=True)
         outfile_l1 = pjoin(paths.devnet_dir, 'genesis-l1.json')
-
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l1',
             '--deploy-config', paths.devnet_config_path,

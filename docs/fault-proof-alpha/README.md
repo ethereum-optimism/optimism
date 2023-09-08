@@ -14,3 +14,4 @@ finalized and may change without notice.
  * [Manual Usage](./manual.md)
    * [Creating Traces with Cannon](./cannon.md)
  * [Automation with `op-challenger`](./run-challenger.md)
+ * [Challenging Invalid Output Proposals](./invalid-proposals.md)
