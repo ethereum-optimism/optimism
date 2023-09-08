@@ -128,7 +128,7 @@ We can deploy the new L1 smart contracts first. To deploy new smart contracts, w
 ```go
 {
   "numDeployConfirmations": 1,
-	
+
   // The final contract owner of ProxyAdmin
   "finalSystemOwner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   // The admin can pause deposits and withdrawals of OptimismPortal
@@ -142,14 +142,14 @@ We can deploy the new L1 smart contracts first. To deploy new smart contracts, w
   "l1ChainID": 910,
   "l2ChainID": 911,
   "l2BlockTime": 2,
-	
+
   // How far the L2 timestamp can differ from the L1 timestamp. If our next l2 block timestamp is beyond the drift threshold, op-rollup produces the empty blocks to catch up the timestamp
   "maxSequencerDrift": 600,
   // Maximum number of L1 blocks that a Sequencer can wait to incorporate the information in a specific L1 block.
   "sequencerWindowSize": 3600,
   // Maximum number of L1 blocks that a transaction channel frame can be considered valid. A transaction channel frame is a chunk of a compressed batch of transactions.
   "channelTimeout": 300,
-	
+
   // Address of the key that the Sequencer uses to sign blocks on the p2p network.
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   // The target address for the sequencer batch
@@ -164,7 +164,7 @@ We can deploy the new L1 smart contracts first. To deploy new smart contracts, w
   "l2OutputOracleStartingBlockNumber": 41,
   // This is the timetamp of the l1StartingBlockTag
   "l2OutputOracleStartingTimestamp": 1687907471,
-	
+
   // The proposer address
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   // The admin address can challenge the proposals submitted to L1 `L2OutputOracle`
@@ -192,7 +192,7 @@ We can deploy the new L1 smart contracts first. To deploy new smart contracts, w
 
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10,
-	
+
   // Replace this to the actual L1 BOBA token address
   "l1BobaTokenAddress": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8"
 }
@@ -243,7 +243,7 @@ We create a new DB for erigon first. The network inforamtion should be added to 
   BobaGoerliGenesisBlockHash = "0xde36bac664c1215f9a7d87cddd3745594b351d3464e8a624e322eddd59ccacf3"
   // Goerli L1 BOBA Address
   BobaTokenGoerliL1Address = "0xeCCD355862591CBB4bB7E7dD55072070ee3d0fC1"
-  
+
   // Add the network logic to the following code...
   ```
 
@@ -259,7 +259,7 @@ We create a new DB for erigon first. The network inforamtion should be added to 
   }
   ```
 
-* `boba-chain-ops/genesis/setters.go` 
+* `boba-chain-ops/genesis/setters.go`
 
   For example:
 
@@ -371,7 +371,7 @@ Then we use `boba-migrate ` to generate the genesis block.
 go run ./cmd/boba-migrate --l1-rpc-url=L1_RPC --db-path=ERIGON_DB_PATH --alloc-path=ALLOCATION_PATH --genesis-config-path=GENESIS_FILE --ovm-addresses=ETH_ADDRESSES_FILE --ovm-allowances=ETH_ALLOWANCE_FILE --witness-file=WITNESS_FILE --deploy-config=CONFIGURATION_FILE --network=NETWORK_NAME --hardhat-deployments=HARDHAT_DEPLOYMENT_FOLDER --outfile-rollup=ROLLUP_OUTPUT_PATH  --ovm-messages=OVM_MESSAGE_FILE
 ```
 
-The above command creates the initial DB and a rollup configuration file for `op-node`. 
+The above command creates the initial DB and a rollup configuration file for `op-node`.
 
 >!! IMPORTANT !!
 >
@@ -400,7 +400,7 @@ The above command uses the engine api to communicate with erigon and recreate th
 
 ## Connect v2 and v3
 
-We run the `boba-connect` to create a transition block between the legacy and new ones. 
+We run the `boba-connect` to create a transition block between the legacy and new ones.
 
 ```bash
 go run ./cmd/boba-connect --jwt-secret-path=JWT_PATH --deploy-config=CONFIGURATION_PATH
@@ -416,7 +416,7 @@ To reduce the blank blocks after the migration, we will create the blockchain be
 
 > This procedure can reduce the waiting time of getting the genesis block before launching the erigon and op-node into few minutes.
 
-## Abort migration 
+## Abort migration
 
 We can restore the legacy system by resetting the addresses in `Lib_AddressManager` and restoring the implementation contracts of the proxy contracts.
 
@@ -452,5 +452,3 @@ We can restore the legacy system by resetting the addresses in `Lib_AddressManag
   	"Proxy__L1StandardBridge"
   }
   ```
-
-  
