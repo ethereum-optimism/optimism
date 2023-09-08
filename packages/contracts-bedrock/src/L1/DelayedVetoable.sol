@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-contract DelayedVetoable {
+import { Semver } from "../universal/Semver.sol";
+
+contract DelayedVetoable is Semver {
     /// @notice Error for when attempting to forward too early.
     error ForwardingEarly();
 
@@ -56,12 +58,13 @@ contract DelayedVetoable {
         }
     }
 
+    /// @custom:semver 0.0.1
     /// @notice Sets the target admin during contract deployment.
     /// @param vetoer_ Address of the vetoer.
     /// @param initiator_ Address of the initiator.
     /// @param target_ Address of the target.
     /// @param delay_ Address of the delay.
-    constructor(address vetoer_, address initiator_, address target_, uint256 delay_) {
+    constructor(address vetoer_, address initiator_, address target_, uint256 delay_) Semver(0, 1, 1) {
         _vetoer = vetoer_;
         _initiator = initiator_;
         _target = target_;
