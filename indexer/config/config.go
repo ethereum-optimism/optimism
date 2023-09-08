@@ -12,9 +12,9 @@ import (
 
 const (
 	// default to 2.5 seconds
-	defaultLoopInterval     = 2500
+	defaultLoopInterval = 1000
 	// 2000 is chosen as a default because it's the max range rpcs like alchemy support without throttling
-	defaultHeaderBufferSize = 2000
+	defaultHeaderBufferSize = 1000
 )
 
 // in future presets can just be onchain config and fetched on initialization
