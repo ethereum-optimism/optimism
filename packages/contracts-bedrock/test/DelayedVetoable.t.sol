@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest, Reverter } from "./CommonTest.t.sol";
-import { DelayedVetoable } from "../src/universal/DelayedVetoable.sol";
+import { DelayedVetoable } from "../src/L1/DelayedVetoable.sol";
 
 contract DelayedVetoable_Init is CommonTest {
     error Unauthorized(address expected, address actual);
