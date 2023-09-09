@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -39,7 +40,7 @@ func TestGenerateProof(t *testing.T) {
 		L2BlockNumber: big.NewInt(3333),
 	}
 	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
-		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
+		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), metrics.NoopMetrics, &cfg, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
 		}

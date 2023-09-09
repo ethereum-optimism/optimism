@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +42,9 @@ func TestGet(t *testing.T) {
 		value, err := provider.Get(context.Background(), 7000)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
-		require.Equal(t, crypto.Keccak256Hash(generator.finalState.EncodeWitness()), value)
+		stateHash, err := generator.finalState.EncodeWitness().StateHash()
+		require.NoError(t, err)
+		require.Equal(t, stateHash, value)
 	})
 
 	t.Run("MissingPostHash", func(t *testing.T) {
@@ -86,7 +87,7 @@ func TestGetStepData(t *testing.T) {
 			Exited: true,
 		}
 		generator.proof = &proofData{
-			ClaimValue:   common.Hash{0xaa}.Bytes(),
+			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
 			OracleKey:    common.Hash{0xdd}.Bytes(),
@@ -111,7 +112,7 @@ func TestGetStepData(t *testing.T) {
 			Exited: true,
 		}
 		generator.proof = &proofData{
-			ClaimValue:   common.Hash{0xaa}.Bytes(),
+			ClaimValue:   common.Hash{0xaa},
 			StateData:    []byte{0xbb},
 			ProofData:    []byte{0xcc},
 			OracleKey:    common.Hash{0xdd}.Bytes(),
@@ -185,7 +186,7 @@ func TestAbsolutePreState(t *testing.T) {
 			Step:           0,
 			Registers:      [32]uint32{},
 		}
-		require.Equal(t, state.EncodeWitness(), preState)
+		require.Equal(t, []byte(state.EncodeWitness()), preState)
 	})
 }
 

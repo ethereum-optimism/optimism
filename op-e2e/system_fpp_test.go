@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -99,7 +100,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	t.Log("Wait for sequencer to catch up with last submitted batch")
 	l1HeadNum, err := l1Client.BlockNumber(ctx)
 	require.NoError(t, err)
-	_, err = waitForL1OriginOnL2(l1HeadNum, l2Seq, 30*time.Second)
+	_, err = geth.WaitForL1OriginOnL2(l1HeadNum, l2Seq, 30*time.Second)
 	require.NoError(t, err)
 
 	// Get the current safe head now that the batcher is stopped

@@ -85,6 +85,19 @@ func ForBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
 	return nil
 }
 
+func ForBlockWithTimestamp(ctx context.Context, client *ethclient.Client, target uint64) error {
+	_, err := AndGet(ctx, time.Second, func() (uint64, error) {
+		head, err := client.BlockByNumber(ctx, nil)
+		if err != nil {
+			return 0, err
+		}
+		return head.Time(), nil
+	}, func(actual uint64) bool {
+		return actual >= target
+	})
+	return err
+}
+
 func ForNextBlock(ctx context.Context, client *ethclient.Client) error {
 	current, err := client.BlockNumber(ctx)
 	if err != nil {

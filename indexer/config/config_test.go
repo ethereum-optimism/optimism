@@ -31,9 +31,9 @@ func TestLoadConfig(t *testing.T) {
 		port = 5432
 		user = "postgres"
 		password = "postgres"
-	  name = "indexer"
+	    name = "indexer"
 
-		[api]
+		[http]
 		host = "127.0.0.1"
 		port = 8080
 
@@ -54,10 +54,10 @@ func TestLoadConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, conf.Chain.Preset, 420)
-	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), presetL1Contracts[420].OptimismPortalProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), presetL1Contracts[420].L1CrossDomainMessengerProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), presetL1Contracts[420].L1StandardBridgeProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), presetL1Contracts[420].L2OutputOracleProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), presetConfigs[420].L1Contracts.OptimismPortalProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), presetConfigs[420].L1Contracts.L1CrossDomainMessengerProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), presetConfigs[420].L1Contracts.L1StandardBridgeProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), presetConfigs[420].L1Contracts.L2OutputOracleProxy.String())
 	require.Equal(t, conf.RPCs.L1RPC, "https://l1.example.com")
 	require.Equal(t, conf.RPCs.L2RPC, "https://l2.example.com")
 	require.Equal(t, conf.DB.Host, "127.0.0.1")
@@ -65,10 +65,10 @@ func TestLoadConfig(t *testing.T) {
 	require.Equal(t, conf.DB.User, "postgres")
 	require.Equal(t, conf.DB.Password, "postgres")
 	require.Equal(t, conf.DB.Name, "indexer")
-	require.Equal(t, conf.API.Host, "127.0.0.1")
-	require.Equal(t, conf.API.Port, 8080)
-	require.Equal(t, conf.Metrics.Host, "127.0.0.1")
-	require.Equal(t, conf.Metrics.Port, 7300)
+	require.Equal(t, conf.HTTPServer.Host, "127.0.0.1")
+	require.Equal(t, conf.HTTPServer.Port, 8080)
+	require.Equal(t, conf.MetricsServer.Host, "127.0.0.1")
+	require.Equal(t, conf.MetricsServer.Port, 7300)
 }
 
 func TestLoadConfig_WithoutPreset(t *testing.T) {

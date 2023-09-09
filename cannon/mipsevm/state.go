@@ -2,10 +2,15 @@ package mipsevm
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
+
+// StateWitnessSize is the size of the state witness encoding in bytes.
+var StateWitnessSize = 226
 
 type State struct {
 	Memory *Memory `json:"memory"`
@@ -37,7 +42,11 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
-func (s *State) EncodeWitness() []byte {
+func (s *State) VMStatus() uint8 {
+	return vmStatus(s.Exited, s.ExitCode)
+}
+
+func (s *State) EncodeWitness() StateWitness {
 	out := make([]byte, 0)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
@@ -59,4 +68,42 @@ func (s *State) EncodeWitness() []byte {
 		out = binary.BigEndian.AppendUint32(out, r)
 	}
 	return out
+}
+
+type StateWitness []byte
+
+const (
+	VMStatusValid      = 0
+	VMStatusInvalid    = 1
+	VMStatusPanic      = 2
+	VMStatusUnfinished = 3
+)
+
+func (sw StateWitness) StateHash() (common.Hash, error) {
+	if len(sw) != 226 {
+		return common.Hash{}, fmt.Errorf("Invalid witness length. Got %d, expected at least 88", len(sw))
+	}
+
+	hash := crypto.Keccak256Hash(sw)
+	offset := 32*2 + 4*6
+	exitCode := sw[offset]
+	exited := sw[offset+1]
+	status := vmStatus(exited == 1, exitCode)
+	hash[0] = status
+	return hash, nil
+}
+
+func vmStatus(exited bool, exitCode uint8) uint8 {
+	if !exited {
+		return VMStatusUnfinished
+	}
+
+	switch exitCode {
+	case 0:
+		return VMStatusValid
+	case 1:
+		return VMStatusInvalid
+	default:
+		return VMStatusPanic
+	}
 }
