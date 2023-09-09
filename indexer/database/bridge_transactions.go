@@ -80,7 +80,7 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
  */
 
 func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
-	result := db.gorm.Create(&deposits)
+	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
 	return result.Error
 }
 
@@ -133,7 +133,7 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
  */
 
 func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
-	result := db.gorm.Create(&withdrawals)
+	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
 	return result.Error
 }
 

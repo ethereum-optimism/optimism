@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/etl"
@@ -42,7 +43,7 @@ func NewBridgeProcessor(log log.Logger, db *database.DB, l1Etl *etl.L1ETL, chain
 	if latestL1Header == nil && latestL2Header == nil {
 		log.Info("no indexed state, starting from rollup genesis")
 	} else {
-		l1Height, l2Height := big.NewInt(0), big.NewInt(0)
+		l1Height, l2Height := bigint.Zero, bigint.Zero
 		if latestL1Header != nil {
 			l1Height = latestL1Header.Number
 			l1Header = latestL1Header.RLPHeader.Header()
@@ -109,12 +110,12 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			// Process Bridge Events
 
 			toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number, latestEpoch.L2BlockHeader.Number
-			fromL1Height, fromL2Height := big.NewInt(0), big.NewInt(0)
+			fromL1Height, fromL2Height := bigint.Zero, bigint.Zero
 			if b.LatestL1Header != nil {
-				fromL1Height = new(big.Int).Add(b.LatestL1Header.Number, big.NewInt(1))
+				fromL1Height = new(big.Int).Add(b.LatestL1Header.Number, bigint.One)
 			}
 			if b.LatestL2Header != nil {
-				fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, big.NewInt(1))
+				fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, bigint.One)
 			}
 
 			batchLog := b.log.New("epoch_start_number", fromL1Height, "epoch_end_number", toL1Height)
