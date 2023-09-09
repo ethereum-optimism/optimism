@@ -7,7 +7,6 @@ import { DelayedVetoable } from "../src/L1/DelayedVetoable.sol";
 contract DelayedVetoable_Init is CommonTest {
     error Unauthorized(address expected, address actual);
     error ForwardingEarly();
-    error TargetUnitialized();
 
     event Initiated(bytes32 indexed callHash, bytes data);
     event Forwarded(bytes32 indexed callHash, bytes data);
@@ -83,14 +82,7 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
 }
 
 contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
-    function test_handleCall_unAuthorizedInitiation_reverts() external {
-        vm.store(address(delayedVetoable), bytes32(0), bytes32(0));
-        vm.expectRevert(abi.encodeWithSelector(TargetUnitialized.selector));
-        (bool success,) = address(delayedVetoable).call(hex"");
-        assert(success);
-    }
-
-    function test_handleCall_targetIsZero_reverts() external {
+    function test_handleCall_unauthorizedInitiation_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
         (bool success,) = address(delayedVetoable).call(hex"");
         assert(success);

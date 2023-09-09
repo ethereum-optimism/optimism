@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.8.15;
 
 import { Semver } from "../universal/Semver.sol";
 
@@ -64,7 +64,7 @@ contract DelayedVetoable is Semver {
     /// @param initiator_ Address of the initiator.
     /// @param target_ Address of the target.
     /// @param delay_ Address of the delay.
-    constructor(address vetoer_, address initiator_, address target_, uint256 delay_) Semver(0, 1, 1) {
+    constructor(address vetoer_, address initiator_, address target_, uint256 delay_) Semver(0, 0, 1) {
         _vetoer = vetoer_;
         _initiator = initiator_;
         _target = target_;
@@ -123,10 +123,6 @@ contract DelayedVetoable is Semver {
     ///         This enables transparent initiation and forwarding of calls to the target and avoids
     ///         the need for additional layers of abi encoding.
     function _handleCall() internal {
-        if (_target == address(0)) {
-            revert TargetUnitialized();
-        }
-
         bytes32 callHash = keccak256(msg.data);
         if (_queuedAt[callHash] == 0) {
             if (msg.sender != _initiator) {
