@@ -3,7 +3,7 @@
 [chain]
 
 # OP Goerli
-preset = 420
+preset = $INDEXER_CHAIN_PRESET
 
 # L1 Config
 l1-polling-interval = 0
