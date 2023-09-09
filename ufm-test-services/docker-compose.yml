@@ -33,8 +33,7 @@ services:
     depends_on:
       - prometheus
     environment:
-      # TODO - Replace with ENV variables to allow for better security
-      - GF_SECURITY_ADMIN_PASSWORD=adminpassword
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PWD}
     volumes:
       - ./datesources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
     security_opt:

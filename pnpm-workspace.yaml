@@ -2,4 +2,3 @@ packages:
   - 'packages/*'
   - 'endpoint-monitor'
   - 'op-exporter'
-  - 'ufm-test-services/metamask'
