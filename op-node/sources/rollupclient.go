@@ -2,12 +2,14 @@ package sources
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -57,4 +59,18 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	var result bool
 	err := r.rpc.CallContext(ctx, &result, "admin_sequencerActive")
 	return result, err
+}
+
+// DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
+// If the dial doesn't complete within timeout seconds, this method will return an error.
+func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url string) (*RollupClient, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	rpcCl, err := client.DialRPCClientWithBackoff(ctx, log, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 }

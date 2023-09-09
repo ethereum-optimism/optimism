@@ -162,7 +162,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	rollupClient, err := opclient.DialRollupClientWithTimeout(opclient.DefaultDialTimeout, l, cfg.RollupRpc)
+	rollupClient, err := sources.DialRollupClientWithTimeout(opclient.DefaultDialTimeout, l, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
 	}

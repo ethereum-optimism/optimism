@@ -8,13 +8,13 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -83,7 +83,7 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 	if cfg.backoffAttempts < 1 { // default to at least 1 attempt, or it always fails to dial.
 		cfg.backoffAttempts = 1
 	}
-	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
+	underlying, err := dialExponentialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,22 +99,6 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 	}
 
 	return wrapped, nil
-}
-
-// Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
-func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
-	bOff := retry.Exponential()
-	return retry.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
-		if !IsURLAvailable(addr) {
-			log.Warn("failed to dial address, but may connect later", "addr", addr)
-			return nil, fmt.Errorf("address unavailable (%s)", addr)
-		}
-		client, err := rpc.DialOptions(ctx, addr, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
-		}
-		return client, nil
-	})
 }
 
 func IsURLAvailable(address string) bool {
@@ -230,4 +214,19 @@ func instrumentBatch(m *metrics.Metrics, cb func() error, b []rpc.BatchElem) err
 		m.RecordRPCClientResponse(elem.Method, elem.Error)
 	}
 	return nil
+}
+
+func dialExponentialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
+	bOff := retry.Exponential()
+	return retry.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
+		if !IsURLAvailable(addr) {
+			log.Warn("failed to dial address, but may connect later", "addr", addr)
+			return nil, fmt.Errorf("address unavailable (%s)", addr)
+		}
+		client, err := rpc.DialOptions(ctx, addr, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
+		}
+		return client, nil
+	})
 }

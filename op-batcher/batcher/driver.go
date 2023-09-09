@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -60,7 +61,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, err
 	}
 
-	rollupClient, err := opclient.DialRollupClientWithTimeout(opclient.DefaultDialTimeout, l, cfg.RollupRpc)
+	rollupClient, err := sources.DialRollupClientWithTimeout(opclient.DefaultDialTimeout, l, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
 	}
