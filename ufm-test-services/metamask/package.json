@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@metamask/test-dapp": "^7.1.0",
-    "@playwright/test": "^1.37.1",
+    "@playwright/test": "1.37.1",
     "@synthetixio/synpress": "3.7.2-beta.5",
     "dotenv": "^16.3.1",
     "static-server": "^2.2.1",

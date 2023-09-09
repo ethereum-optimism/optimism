@@ -35,9 +35,22 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PWD}
     volumes:
-      - ./datesources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - ./datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
     security_opt:
       - "no-new-privileges:true"
+
+  metamask:
+    build: ./metamask
+    container_name: test-service-metamask
+    profiles: ["30minute"]
+    depends_on:
+      - prometheus
+    environment:
+      DISPLAY: ${MM_DISPLAY:-:0}
+      CI: ${CI:-true}
+    volumes:
+      - ${MM_DISPLAY_VOLUME}
+    restart: no
 
   # Example Test Service Config
   # my_test_service:
