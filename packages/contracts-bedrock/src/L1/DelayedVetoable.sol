@@ -49,8 +49,8 @@ contract DelayedVetoable is Semver {
     ///         eth_call to interact with this proxy without needing to use low-level storage
     ///         inspection. We assume that nobody is able to trigger calls from address(0) during
     ///         normal EVM execution.
-    modifier handleCallIfNotVetoer() {
-        if (msg.sender == _vetoer || msg.sender == address(0)) {
+    modifier readOrHandle() {
+        if (msg.sender == address(0)) {
             _;
         } else {
             // This WILL halt the call frame on completion.
@@ -73,25 +73,25 @@ contract DelayedVetoable is Semver {
 
     /// @notice Gets the initiator
     /// @return Initiator address.
-    function initiator() external handleCallIfNotVetoer returns (address) {
+    function initiator() external readOrHandle returns (address) {
         return _initiator;
     }
 
     //// @notice Queries the vetoer address.
     /// @return Vetoer address.
-    function vetoer() external handleCallIfNotVetoer returns (address) {
+    function vetoer() external readOrHandle returns (address) {
         return _vetoer;
     }
 
     //// @notice Queries the target address.
     /// @return Target address.
-    function target() external handleCallIfNotVetoer returns (address) {
+    function target() external readOrHandle returns (address) {
         return _target;
     }
 
     /// @notice Gets the delay
     /// @return Delay address.
-    function delay() external handleCallIfNotVetoer returns (uint256) {
+    function delay() external readOrHandle returns (uint256) {
         return _delay;
     }
 
@@ -110,46 +110,50 @@ contract DelayedVetoable is Semver {
         _handleCall();
     }
 
-    /// @notice Vetoes a call. This method can only be called by the vetoer. If called by another
-    ///         address, execution will be redirected to _handleCall()
-    function veto(bytes memory data) external handleCallIfNotVetoer {
-        bytes32 callHash = keccak256(data);
-
-        delete _queuedAt[callHash];
-        emit Vetoed(callHash, data);
-    }
-
     /// @notice Receives all calls other than those made by the vetoer.
     ///         This enables transparent initiation and forwarding of calls to the target and avoids
     ///         the need for additional layers of abi encoding.
     function _handleCall() internal {
         bytes32 callHash = keccak256(msg.data);
-        if (_queuedAt[callHash] == 0) {
-            if (msg.sender != _initiator) {
-                revert Unauthorized(_initiator, msg.sender);
-            }
+
+        // Case 1: The initiator is calling the contract to initiate a call.
+        if (msg.sender == _initiator && _queuedAt[callHash] == 0) {
             _queuedAt[callHash] = block.timestamp;
             emit Initiated(callHash, msg.data);
-        } else if (_queuedAt[callHash] + _delay < block.timestamp) {
+            return;
+        }
+
+        // Case 2: The vetoer is calling the contract to veto a call.
+        if (msg.sender == _vetoer && _queuedAt[callHash] != 0 && block.timestamp <= _queuedAt[callHash] + _delay) {
+            delete _queuedAt[callHash];
+            emit Vetoed(callHash, msg.data);
+            return;
+        }
+
+        // Case 3: The call is from an unpermissioned actor. We'll forward the call if the delay has
+        // passed.
+        if (_queuedAt[callHash] == 0) {
+            // The call has not been initiated, so we'll treat this is an unauthorized initiation attempt.
+            revert Unauthorized(_initiator, msg.sender);
+        }
+
+        if (_queuedAt[callHash] + _delay < block.timestamp) {
             // Not enough time has passed, so we'll revert.
             revert ForwardingEarly();
-        } else {
-            // The ability to finalize the call after sufficient time has passed does not require
-            // authorization.
+        }
 
-            // Delete the call to prevent replays
-            delete _queuedAt[callHash];
+        // Delete the call to prevent replays
+        delete _queuedAt[callHash];
 
-            // Forward the call
-            emit Forwarded(callHash, msg.data);
-            (bool success,) = _target.call(msg.data);
-            assembly {
-                // Success == 0 means a revert. We'll revert too and pass the data up.
-                if iszero(success) { revert(0x0, returndatasize()) }
+        // Forward the call
+        emit Forwarded(callHash, msg.data);
+        (bool success,) = _target.call(msg.data);
+        assembly {
+            // Success == 0 means a revert. We'll revert too and pass the data up.
+            if iszero(success) { revert(0x0, returndatasize()) }
 
-                // Otherwise we'll just return and pass the data up.
-                return(0x0, returndatasize())
-            }
+            // Otherwise we'll just return and pass the data up.
+            return(0x0, returndatasize())
         }
     }
 }

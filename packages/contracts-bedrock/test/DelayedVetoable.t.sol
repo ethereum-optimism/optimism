@@ -130,20 +130,3 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         assertFalse(success);
     }
 }
-
-contract DelayedVetoable_Veto_Test is DelayedVetoable_Init {
-    function test_veto_succeeds(bytes memory data) external {
-        vm.expectEmit(true, false, false, true, address(delayedVetoable));
-        emit Vetoed(keccak256(data), data);
-
-        vm.prank(vetoer);
-        delayedVetoable.veto(data);
-    }
-}
-
-contract DelayedVetoable_Veto_TestFail is DelayedVetoable_Init {
-    function test_veto_notVetoer_reverts() external {
-        vm.expectRevert();
-        delayedVetoable.veto(hex"");
-    }
-}
