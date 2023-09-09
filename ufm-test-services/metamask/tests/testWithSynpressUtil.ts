@@ -48,7 +48,6 @@ export const testWithSynpress = base.extend<{
 			enableAdvancedSettings: true,
 		})
 		await use(context)
-		await context.close()
 	},
 })
 

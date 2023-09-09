@@ -26,6 +26,9 @@ importers:
       typescript:
         specifier: ^5.1.6
         version: 5.1.6
+      viem:
+        specifier: ^1.10.8
+        version: 1.10.8(typescript@5.1.6)
 
 packages:
 
