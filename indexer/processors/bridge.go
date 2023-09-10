@@ -145,7 +145,7 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 				legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
 				if l1BedrockStartingHeight.Cmp(toL1Height) <= 0 {
 					legacyToL1Height = new(big.Int).Sub(l1BedrockStartingHeight, big.NewInt(1))
-					legacyToL1Height = new(big.Int).Sub(l2BedrockStartingHeight, big.NewInt(1))
+					legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, big.NewInt(1))
 				}
 
 				l1BridgeLog := l1BridgeLog.New("mode", "legacy")

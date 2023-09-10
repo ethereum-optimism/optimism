@@ -88,6 +88,10 @@ func L2StandardBridgeLegacyWithdrawalInitiatedEvents(contractAddress common.Addr
 
 	withdrawalInitiatedEventAbi := l2StandardBridgeAbi.Events["WithdrawalInitiated"]
 	withdrawalEvents, err := db.ContractEvents.L2ContractEventsWithFilter(database.ContractEvent{ContractAddress: contractAddress, EventSignature: withdrawalInitiatedEventAbi.ID}, fromHeight, toHeight)
+	if err != nil {
+		return nil, err
+	}
+
 	withdrawals := make([]LegacyBridgeEvent, len(withdrawalEvents))
 	for i := range withdrawalEvents {
 		bridgeEvent := bindings.L2StandardBridgeWithdrawalInitiated{Raw: *withdrawalEvents[i].RLPLog}

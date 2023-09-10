@@ -135,7 +135,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
 
-		// To ensure consitency in our schema, we duplicate this as the "root" transaction withdrawal. We re-use the same withdrawal hash as the storage
+		// To ensure consistency in our schema, we duplicate this as the "root" transaction withdrawal. We re-use the same withdrawal hash as the storage
 		// key for the proof sha3(calldata + sender) can be derived from the fields. (NOTE: should we just use the storage key here?)
 		l2BridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash, BridgeMessage: sentMessage.BridgeMessage}
 		l2TransactionWithdrawals[i] = database.L2TransactionWithdrawal{
