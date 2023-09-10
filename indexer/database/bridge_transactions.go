@@ -80,7 +80,7 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
  */
 
 func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
-	result := db.gorm.Create(&deposits)
+	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
 	return result.Error
 }
 
@@ -114,7 +114,7 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 
 	l1Query := db.gorm.Table("((?) UNION (?) UNION (?)) AS latest_bridge_events", l1DepositQuery.Limit(1), l1ProvenQuery, l1FinalizedQuery)
 	l1Query = l1Query.Joins("INNER JOIN l1_block_headers ON l1_block_headers.hash = latest_bridge_events.block_hash")
-	l1Query = l1Query.Order("l1_block_headers.number DESC").Select("l1_block_headers.*")
+	l1Query = l1Query.Order("latest_bridge_events.timestamp DESC").Select("l1_block_headers.*")
 
 	var l1Header L1BlockHeader
 	result := l1Query.Take(&l1Header)
@@ -133,7 +133,7 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
  */
 
 func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
-	result := db.gorm.Create(&withdrawals)
+	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
 	return result.Error
 }
 
@@ -185,23 +185,47 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 }
 
 func (db *bridgeTransactionsDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
-	// L2: Inclusion of the latest deposit
-	l1DepositQuery := db.gorm.Table("l1_transaction_deposits").Order("l1_transaction_deposits.timestamp DESC")
-	l1DepositQuery = l1DepositQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
-	l1DepositQuery = l1DepositQuery.Select("l1_contract_events.*")
+	// L2: Latest Withdrawal, Latest L2 Header of indexed deposit epoch
+	var latestWithdrawalHeader, latestL2DepositHeader *L2BlockHeader
 
-	l2Query := db.gorm.Table("(?) AS l1_deposit_events", l1DepositQuery)
-	l2Query = l2Query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_deposit_events.timestamp")
-	l2Query = l2Query.Order("l2_block_headers.timestamp DESC").Select("l2_block_headers.*")
-
-	var l2Header L2BlockHeader
-	result := l2Query.Take(&l2Header)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
+	var withdrawHeader L2BlockHeader
+	withdrawalQuery := db.gorm.Table("l2_transaction_withdrawals").Order("timestamp DESC").Limit(1)
+	withdrawalQuery = withdrawalQuery.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
+	withdrawalQuery = withdrawalQuery.Joins("INNER JOIN l2_block_headers ON l2_block_headers.hash = l2_contract_events.block_hash")
+	result := withdrawalQuery.Select("l2_block_headers.*").Take(&withdrawHeader)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		return nil, result.Error
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		latestWithdrawalHeader = &withdrawHeader
 	}
 
-	return &l2Header, nil
+	// Check for any deposits that may have been included after the latest withdrawal. However, since the bridge
+	// processor only inserts entries when the corresponding epoch has been indexed on both L1 and L2, we can
+	// simply look for the latest L2 block with at <= time of the latest L1 deposit.
+	var l1Deposit L1TransactionDeposit
+	result = db.gorm.Table("l1_transaction_deposits").Order("timestamp DESC").Limit(1).Take(&l1Deposit)
+	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, result.Error
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		var l2DepositHeader L2BlockHeader
+		result := db.gorm.Table("l2_block_headers").Order("timestamp DESC").Limit(1).Where("timestamp <= ?", l1Deposit.Tx.Timestamp).Take(&l2DepositHeader)
+		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, result.Error
+		} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			latestL2DepositHeader = &l2DepositHeader
+		}
+	}
+
+	// compare
+	if latestWithdrawalHeader == nil {
+		return latestL2DepositHeader, nil
+	} else if latestL2DepositHeader == nil {
+		return latestWithdrawalHeader, nil
+	}
+
+	if latestWithdrawalHeader.Timestamp >= latestL2DepositHeader.Timestamp {
+		return latestWithdrawalHeader, nil
+	} else {
+		return latestL2DepositHeader, nil
+	}
 }
