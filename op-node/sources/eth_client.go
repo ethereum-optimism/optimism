@@ -147,7 +147,7 @@ func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
 }
 
 func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
-	if unusableMethod(err) {
+	if client.UnusableMethod(err) {
 		// clear the bit of the method that errored
 		s.availableReceiptMethods &^= m
 		s.log.Warn("failed to use selected RPC method for receipt fetching, temporarily falling back to alternatives",
@@ -220,7 +220,7 @@ func (n numberID) CheckID(id eth.BlockID) error {
 }
 
 func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
-	var header *rpcHeader
+	var header *client.RpcHeader
 	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
 		return nil, err
@@ -240,7 +240,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 }
 
 func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
-	var block *rpcBlock
+	var block *client.RpcBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, nil, err
@@ -261,7 +261,7 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID)
 }
 
 func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockID) (*eth.ExecutionPayload, error) {
-	var block *rpcBlock
+	var block *client.RpcBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, err

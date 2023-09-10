@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 )
 
 type DebugClient struct {
-	callContext CallContextFn
+	callContext client.CallContextFn
 }
 
-func NewDebugClient(callContext CallContextFn) *DebugClient {
+func NewDebugClient(callContext client.CallContextFn) *DebugClient {
 	return &DebugClient{callContext}
 }
 

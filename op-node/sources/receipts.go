@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -357,7 +358,7 @@ type receiptsFetchingJob struct {
 	receiptHash common.Hash
 	txHashes    []common.Hash
 
-	fetcher *IterativeBatchCall[common.Hash, *types.Receipt]
+	fetcher *client.IterativeBatchCall[common.Hash, *types.Receipt]
 
 	result types.Receipts
 }
@@ -386,7 +387,7 @@ type ReceiptsRequester interface {
 func (job *receiptsFetchingJob) runFetcher(ctx context.Context) error {
 	if job.fetcher == nil {
 		// start new work
-		job.fetcher = NewIterativeBatchCall[common.Hash, *types.Receipt](
+		job.fetcher = client.NewIterativeBatchCall[common.Hash, *types.Receipt](
 			job.txHashes,
 			makeReceiptRequest,
 			job.client.BatchCallContext,
@@ -430,7 +431,7 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 	switch m {
 	case AlchemyGetTransactionReceipts:
 		var tmp receiptsWrapper
-		err = job.client.CallContext(ctx, &tmp, "alchemy_getTransactionReceipts", blockHashParameter{BlockHash: job.block.Hash})
+		err = job.client.CallContext(ctx, &tmp, "alchemy_getTransactionReceipts", client.BlockHashParameter{BlockHash: job.block.Hash})
 		result = tmp.Receipts
 	case DebugGetRawReceipts:
 		var rawReceipts []hexutil.Bytes

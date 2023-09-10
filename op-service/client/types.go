@@ -1,4 +1,4 @@
-package sources
+package client
 
 import (
 	"context"
@@ -87,7 +87,7 @@ func (h headerInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.Header)
 }
 
-type rpcHeader struct {
+type RpcHeader struct {
 	ParentHash  common.Hash      `json:"parentHash"`
 	UncleHash   common.Hash      `json:"sha3Uncles"`
 	Coinbase    common.Address   `json:"miner"`
@@ -116,7 +116,7 @@ type rpcHeader struct {
 
 // checkPostMerge checks that the block header meets all criteria to be a valid ExecutionPayloadHeader,
 // see EIP-3675 (block header changes) and EIP-4399 (mixHash usage for prev-randao)
-func (hdr *rpcHeader) checkPostMerge() error {
+func (hdr *RpcHeader) checkPostMerge() error {
 	// TODO: the genesis block has a non-zero difficulty number value.
 	// Either this block needs to change, or we special case it. This is not valid w.r.t. EIP-3675.
 	if hdr.Number != 0 && (*big.Int)(&hdr.Difficulty).Cmp(common.Big0) != 0 {
@@ -137,12 +137,12 @@ func (hdr *rpcHeader) checkPostMerge() error {
 	return nil
 }
 
-func (hdr *rpcHeader) computeBlockHash() common.Hash {
+func (hdr *RpcHeader) computeBlockHash() common.Hash {
 	gethHeader := hdr.createGethHeader()
 	return gethHeader.Hash()
 }
 
-func (hdr *rpcHeader) createGethHeader() *types.Header {
+func (hdr *RpcHeader) createGethHeader() *types.Header {
 	return &types.Header{
 		ParentHash:      hdr.ParentHash,
 		UncleHash:       hdr.UncleHash,
@@ -164,7 +164,7 @@ func (hdr *rpcHeader) createGethHeader() *types.Header {
 	}
 }
 
-func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
+func (hdr *RpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, error) {
 	if mustBePostMerge {
 		if err := hdr.checkPostMerge(); err != nil {
 			return nil, err
@@ -178,12 +178,12 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 	return &headerInfo{hdr.Hash, hdr.createGethHeader()}, nil
 }
 
-type rpcBlock struct {
-	rpcHeader
+type RpcBlock struct {
+	RpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
 }
 
-func (block *rpcBlock) verify() error {
+func (block *RpcBlock) verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
@@ -193,7 +193,7 @@ func (block *rpcBlock) verify() error {
 	return nil
 }
 
-func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, types.Transactions, error) {
+func (block *RpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo, types.Transactions, error) {
 	if mustBePostMerge {
 		if err := block.checkPostMerge(); err != nil {
 			return nil, nil, err
@@ -206,7 +206,7 @@ func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInf
 	}
 
 	// verify the header data
-	info, err := block.rpcHeader.Info(trustCache, mustBePostMerge)
+	info, err := block.RpcHeader.Info(trustCache, mustBePostMerge)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to verify block from RPC: %w", err)
 	}
@@ -214,7 +214,7 @@ func (block *rpcBlock) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInf
 	return info, block.Transactions, nil
 }
 
-func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload, error) {
+func (block *RpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload, error) {
 	if err := block.checkPostMerge(); err != nil {
 		return nil, err
 	}
@@ -257,13 +257,13 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 
 // blockHashParameter is used as "block parameter":
 // Some Nethermind and Alchemy RPC endpoints require an object to identify a block, instead of a string.
-type blockHashParameter struct {
+type BlockHashParameter struct {
 	BlockHash common.Hash `json:"blockHash"`
 }
 
-// unusableMethod identifies if an error indicates that the RPC method cannot be used as expected:
+// UnusableMethod identifies if an error indicates that the RPC method cannot be used as expected:
 // if it's an unknown method, or if parameters were invalid.
-func unusableMethod(err error) bool {
+func UnusableMethod(err error) bool {
 	if rpcErr, ok := err.(rpc.Error); ok {
 		code := rpcErr.ErrorCode()
 		// invalid request, method not found, or invalid params
