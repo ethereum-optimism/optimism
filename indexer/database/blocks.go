@@ -104,17 +104,17 @@ func newBlocksDB(db *gorm.DB) BlocksDB {
 // L1
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
-	result := db.gorm.Create(&headers)
+	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
 	return result.Error
 }
 
 func (db *blocksDB) StoreLegacyStateBatches(stateBatches []LegacyStateBatch) error {
-	result := db.gorm.Create(stateBatches)
+	result := db.gorm.CreateInBatches(stateBatches, batchInsertSize)
 	return result.Error
 }
 
 func (db *blocksDB) StoreOutputProposals(outputs []OutputProposal) error {
-	result := db.gorm.Create(outputs)
+	result := db.gorm.CreateInBatches(outputs, batchInsertSize)
 	return result.Error
 }
 
@@ -180,7 +180,7 @@ func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
 // L2
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
-	result := db.gorm.Create(&headers)
+	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
 	return result.Error
 }
 
@@ -234,6 +234,7 @@ func (db *blocksDB) LatestEpoch() (*Epoch, error) {
 	// will have a matching timestamp with the L1 origin.
 	query := db.gorm.Table("l1_block_headers").Order("l1_block_headers.timestamp DESC")
 	query = query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_block_headers.timestamp")
+	query = query.Order("l2_block_headers.number DESC")
 	query = query.Select("*")
 
 	var epoch Epoch

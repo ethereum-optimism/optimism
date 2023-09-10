@@ -12,6 +12,14 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+var (
+	// The postgres parameter counter for a given query is stored via a  uint16,
+	// resulting in a parameter limit of 65535. In order to avoid reaching this limit
+	// we'll utilize a batch size of 3k for inserts, well below as long as the the number
+	// of columns < 20.
+	batchInsertSize int = 3_000
+)
+
 type DB struct {
 	gorm *gorm.DB
 
@@ -31,8 +39,7 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
 	}
 	gorm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		// The indexer will explicitly manage the transaction
-		// flow processing blocks
+		// The indexer will explicitly manage the transactions
 		SkipDefaultTransaction: true,
 
 		// We may choose to create an adapter such that the
