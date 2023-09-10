@@ -27,7 +27,7 @@ var presetConfigs = map[int]ChainConfig{
 			L2OutputOracleProxy:             common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0"),
 			L1CrossDomainMessengerProxy:     common.HexToAddress("0x5086d1eEF304eb5284A0f6720f79403b4e9bE294"),
 			L1StandardBridgeProxy:           common.HexToAddress("0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"),
-			LegacyCanonicalTransactionChain: common.HexToAddress("0x2ebA8c4EfDB39A8Cd8f9eD65c50ec079f7CEBD81"),
+			LegacyCanonicalTransactionChain: common.HexToAddress("0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D"),
 		},
 		L1StartingHeight:        7017096,
 		L1BedrockStartingHeight: 8300214,
