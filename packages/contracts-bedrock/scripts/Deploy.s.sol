@@ -53,7 +53,7 @@ contract Deploy is Deployer {
     address constant CREATE2_PROXY = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
 
     /// @notice
-    address constant CREATE2_PROXY_DEPLOYER = address(0x3fab184622dc19b6109349b94811493bf2a45362);
+    address constant CREATE2_PROXY_DEPLOYER = address(0x3fAB184622Dc19b6109349B94811493BF2a45362);
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
@@ -111,16 +111,21 @@ contract Deploy is Deployer {
         }
     }
 
+    /// @notice
     function deployCreate2Proxy() public {
         if (CREATE2_PROXY.code.length == 0) {
+            require(CREATE2_PROXY_DEPLOYER.balance >= 0.007 ether, "Deployer balance too low");
+
             console.log("Deploying create2 proxy to %s", CREATE2_PROXY);
             string[] memory commands = new string[](3);
             commands[0] = "bash";
             commands[1] = "-c";
-            commands[2] = "cast publish 0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222"
+            commands[2] = "cast publish 0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222";
             try vm.ffi(commands) {} catch (bytes memory) {
                 console.log("Error publishing");
             }
+        } else {
+            console.log("create2 proxy found at %s", CREATE2_PROXY);
         }
     }
 

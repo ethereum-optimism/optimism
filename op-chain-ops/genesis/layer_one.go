@@ -55,6 +55,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 	FundDevAccounts(memDB)
 	SetPrecompileBalances(memDB)
 
+	// TODO: perhaps place the code here?
+
 	if dump != nil {
 		for address, account := range dump.Accounts {
 			name := "<unknown>"
