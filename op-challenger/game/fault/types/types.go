@@ -74,6 +74,9 @@ type TraceProvider interface {
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreState(ctx context.Context) (preimage []byte, err error)
+
+	// AbsolutePreStateCommitment is the commitment of the pre-image value of the trace that transitions to the trace value at index 0
+	AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
