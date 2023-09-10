@@ -7,7 +7,7 @@
 // [EngineClient] extends the [L2Client] providing engine API bindings.
 //
 // Internally, the listed clients wrap an [EthClient] which itself wraps a specified RPC client.
-package sources
+package client
 
 import (
 	"context"
@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -91,7 +90,7 @@ func (c *EthClientConfig) Check() error {
 
 // EthClient retrieves ethereum data with optimized batch requests, cached results, and flag to not trust the RPC.
 type EthClient struct {
-	client client.RPC
+	client RPC
 
 	maxBatchSize int
 
@@ -147,7 +146,7 @@ func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
 }
 
 func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
-	if client.UnusableMethod(err) {
+	if UnusableMethod(err) {
 		// clear the bit of the method that errored
 		s.availableReceiptMethods &^= m
 		s.log.Warn("failed to use selected RPC method for receipt fetching, temporarily falling back to alternatives",
@@ -160,7 +159,7 @@ func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
 
 // NewEthClient returns an [EthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
 // metric tracking, and caching. The [EthClient] uses a [LimitRPC] wrapper to limit the number of concurrent RPC requests.
-func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *EthClientConfig) (*EthClient, error) {
+func NewEthClient(client RPC, log log.Logger, metrics caching.Metrics, config *EthClientConfig) (*EthClient, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}
@@ -220,7 +219,7 @@ func (n numberID) CheckID(id eth.BlockID) error {
 }
 
 func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
-	var header *client.RpcHeader
+	var header *RpcHeader
 	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
 		return nil, err
@@ -240,7 +239,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 }
 
 func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
-	var block *client.RpcBlock
+	var block *RpcBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, nil, err
@@ -261,7 +260,7 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID)
 }
 
 func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockID) (*eth.ExecutionPayload, error) {
-	var block *client.RpcBlock
+	var block *RpcBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, err

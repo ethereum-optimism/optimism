@@ -63,7 +63,7 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 
 // L2Client extends EthClient with functions to fetch and cache eth.L2BlockRef values.
 type L2Client struct {
-	*EthClient
+	*client.EthClient
 	rollupCfg *rollup.Config
 
 	// cache L2BlockRef by hash
