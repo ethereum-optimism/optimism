@@ -23,10 +23,10 @@ importers:
         version: 0.4.8
       '@nrwl/nx-cloud':
         specifier: latest
-        version: 16.0.5
+        version: 16.4.0
       '@types/chai':
         specifier: ^4.2.18
-        version: 4.2.21
+        version: 4.3.5
       '@types/chai-as-promised':
         specifier: ^7.1.4
         version: 7.1.5
@@ -44,7 +44,7 @@ importers:
         version: 5.60.1(eslint@8.47.0)(typescript@5.1.6)
       chai:
         specifier: ^4.2.0
-        version: 4.3.4
+        version: 4.3.7
       copyfiles:
         specifier: ^2.3.0
         version: 2.4.1
@@ -159,7 +159,7 @@ importers:
         version: 5.0.0
       chai-as-promised:
         specifier: ^7.1.1
-        version: 7.1.1(chai@4.3.7)
+        version: 7.1.1(chai@4.3.8)
       dateformat:
         specifier: ^4.5.1
         version: 4.5.1
@@ -491,7 +491,7 @@ importers:
         version: 20.5.0
       chai-as-promised:
         specifier: ^7.1.1
-        version: 7.1.1(chai@4.3.7)
+        version: 7.1.1(chai@4.3.8)
       ethereum-waffle:
         specifier: ^4.0.10
         version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.2)(typescript@5.1.6)
@@ -1673,7 +1673,7 @@ packages:
       '@ethersproject/transactions': 5.7.0
       '@ethersproject/web': 5.7.1
       bufio: 1.2.0
-      chai: 4.3.7
+      chai: 4.3.8
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -2973,10 +2973,10 @@ packages:
       - nx
     dev: true
 
-  /@nrwl/nx-cloud@16.0.5:
-    resolution: {integrity: sha512-1p82ym8WE9ziejwgPslstn19iV/VkHfHfKr/5YOnfCHQS+NxUf92ogcYhHXtqWLblVZ9Zs4W4pkSXK4e04wCmQ==}
+  /@nrwl/nx-cloud@16.4.0:
+    resolution: {integrity: sha512-QitrYK6z9ceagetBlgLMZnC0T85k2JTk+oK0MxZ5p/woclqeYN7SiGNZgMzDq8TjJwt8Fm/MDnsSo3xtufmLBg==}
     dependencies:
-      nx-cloud: 16.0.5
+      nx-cloud: 16.4.0
     transitivePeerDependencies:
       - debug
     dev: true
@@ -4063,21 +4063,21 @@ packages:
   /@types/chai-as-promised@7.1.5:
     resolution: {integrity: sha512-jStwss93SITGBwt/niYrkf2C+/1KTeZCZl1LaeezTlqppAKeoQC7jxyqYuP72sxBGKCIbw7oHgbYssIRzT5FCQ==}
     dependencies:
-      '@types/chai': 4.3.5
+      '@types/chai': 4.3.6
     dev: true
 
   /@types/chai-subset@1.3.3:
     resolution: {integrity: sha512-frBecisrNGz+F4T6bcc+NLeolfiojh5FxW2klu669+8BARtyQv2C/GkNW6FUodVe4BroGMP/wER/YDGc7rEllw==}
     dependencies:
-      '@types/chai': 4.3.5
-    dev: true
-
-  /@types/chai@4.2.21:
-    resolution: {integrity: sha512-yd+9qKmJxm496BOV9CMNaey8TWsikaZOwMRwPHQIjcOJM9oV+fi9ZMNw3JsVnbEEbo2gRTDnGEBv8pjyn67hNg==}
+      '@types/chai': 4.3.6
     dev: true
 
   /@types/chai@4.3.5:
     resolution: {integrity: sha512-mEo1sAde+UCE6b2hxn332f1g1E8WfYRu6p5SvTKr2ZKC1f7gFJXk4h5PyGP9Dt6gCaG8y8XhwnXWC6Iy2cmBng==}
+    dev: true
+
+  /@types/chai@4.3.6:
+    resolution: {integrity: sha512-VOVRLM1mBxIRxydiViqPcKn6MIxZytrbMpd6RJLIWKxUNr3zux8no0Oc7kJx0WAPIitgZ0gkrDS+btlqQpubpw==}
     dev: true
 
   /@types/connect@3.4.35:
@@ -4334,7 +4334,7 @@ packages:
   /@types/sinon-chai@3.2.5:
     resolution: {integrity: sha512-bKQqIpew7mmIGNRlxW6Zli/QVyc3zikpGzCa797B/tRnD9OtHvZ/ts8sYXV+Ilj9u3QRaUEM8xrjgd1gwm1BpQ==}
     dependencies:
-      '@types/chai': 4.3.5
+      '@types/chai': 4.3.6
       '@types/sinon': 10.0.2
     dev: true
 
@@ -4679,7 +4679,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.1
       '@vitest/utils': 0.34.1
-      chai: 4.3.7
+      chai: 4.3.8
     dev: true
 
   /@vitest/expect@0.34.2:
@@ -4687,7 +4687,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.2
       '@vitest/utils': 0.34.2
-      chai: 4.3.7
+      chai: 4.3.8
     dev: true
 
   /@vitest/runner@0.34.1:
@@ -6537,28 +6537,28 @@ packages:
     resolution: {integrity: sha512-vlNK021QdI7PNeiUh/lKkC/mNHHfV0m/Ad5JoI0TYtlBnJAslM/JIkm/tGC88bkLIwO6OQ5uV6ztS6kVAtCDlg==}
     dev: true
 
-  /chai-as-promised@7.1.1(chai@4.3.7):
+  /chai-as-promised@7.1.1(chai@4.3.8):
     resolution: {integrity: sha512-azL6xMoi+uxu6z4rhWQ1jbdUhOMhis2PvscD/xjLqNMkv3BPPp2JyyuTHOrf9BOosGpNQ11v6BKv/g57RXbiaA==}
     peerDependencies:
       chai: '>= 2.1.2 < 5'
     dependencies:
-      chai: 4.3.7
+      chai: 4.3.8
       check-error: 1.0.2
 
-  /chai@4.3.4:
-    resolution: {integrity: sha512-yS5H68VYOCtN1cjfwumDSuzn/9c+yza4f3reKXlE5rUg7SFcCEy90gJvydNgOYtblyf4Zi6jIWRnXOgErta0KA==}
+  /chai@4.3.7:
+    resolution: {integrity: sha512-HLnAzZ2iupm25PlN0xFreAlBA5zaBSv3og0DdeGA4Ar6h6rJ3A0rolRUKJhSF2V10GZKDgWF/VmAEsNWjCRB+A==}
     engines: {node: '>=4'}
     dependencies:
       assertion-error: 1.1.0
       check-error: 1.0.2
-      deep-eql: 3.0.1
+      deep-eql: 4.1.3
       get-func-name: 2.0.0
+      loupe: 2.3.6
       pathval: 1.1.1
       type-detect: 4.0.8
-    dev: true
 
-  /chai@4.3.7:
-    resolution: {integrity: sha512-HLnAzZ2iupm25PlN0xFreAlBA5zaBSv3og0DdeGA4Ar6h6rJ3A0rolRUKJhSF2V10GZKDgWF/VmAEsNWjCRB+A==}
+  /chai@4.3.8:
+    resolution: {integrity: sha512-vX4YvVVtxlfSZ2VecZgFUTU5qPCYsobVI2O9FmwEXBhDigYGQA6jRXCycIs1yJnnWbZ6/+a2zNIF5DfVCcJBFQ==}
     engines: {node: '>=4'}
     dependencies:
       assertion-error: 1.1.0
@@ -7311,13 +7311,6 @@ packages:
 
   /dedent@0.7.0:
     resolution: {integrity: sha512-Q6fKUPqnAHAyhiUgFU7BUzLiv0kd8saH9al7tnu5Q/okj6dnupxyTgFIBjVzJATdfIAm9NAsvXNzjaKa+bxVyA==}
-    dev: true
-
-  /deep-eql@3.0.1:
-    resolution: {integrity: sha512-+QeIQyN5ZuO+3Uk5DYh6/1eKO0m0YmJFGNmFHGACpf1ClL1nmlV/p4gNgbl2pJGxgXb4faqo6UE+M5ACEMyVcw==}
-    engines: {node: '>=0.12'}
-    dependencies:
-      type-detect: 4.0.8
     dev: true
 
   /deep-eql@4.1.3:
@@ -12773,11 +12766,11 @@ packages:
     resolution: {integrity: sha512-ub5E4+FBPKwAZx0UwIQOjYWGHTEq5sPqHQNRN8Z9e4A7u3Tj1weLJsL59yH9vmvqEtBHaOmT6cYQKIZOxp35FQ==}
     dev: true
 
-  /nx-cloud@16.0.5:
-    resolution: {integrity: sha512-13P7r0aKikjBtmdZrNorwXzVPeVIV4MLEwqGY+DEG6doLBtI5KqEQk/d5B5l2dCF2BEi/LXEmLYCmf9gwbOJ+Q==}
+  /nx-cloud@16.4.0:
+    resolution: {integrity: sha512-jbq4hWvDwRlJVpxgMgbmNSkue+6XZSn53R6Vo6qmCAWODJ9KY1BZdZ/9VRL8IX/BRKebVFiXp3SapFB1qPhH8A==}
     hasBin: true
     dependencies:
-      '@nrwl/nx-cloud': 16.0.5
+      '@nrwl/nx-cloud': 16.4.0
       axios: 1.1.3
       chalk: 4.1.2
       dotenv: 10.0.0
