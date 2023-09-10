@@ -267,6 +267,8 @@ abstract contract Deployer is Script {
             '"',
             ") | select(.transactionType == ",
             '"CREATE"',
+            " or .transactionType == "
+            '"CREATE2"',
             ")' < ",
             deployPath
         );
