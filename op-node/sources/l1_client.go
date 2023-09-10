@@ -17,12 +17,12 @@ import (
 )
 
 type L1ClientConfig struct {
-	EthClientConfig
+	client.EthClientConfig
 
 	L1BlockRefsCacheSize int
 }
 
-func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProviderKind) *L1ClientConfig {
+func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind client.RPCProviderKind) *L1ClientConfig {
 	// Cache 3/2 worth of sequencing window of receipts and txs
 	span := int(config.SeqWindowSize) * 3 / 2
 	fullSpan := span
@@ -30,7 +30,7 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 		span = 1000
 	}
 	return &L1ClientConfig{
-		EthClientConfig: EthClientConfig{
+		EthClientConfig: client.EthClientConfig{
 			// receipts and transactions are cached per block
 			ReceiptsCacheSize:     span,
 			TransactionsCacheSize: span,
@@ -52,7 +52,7 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 // with optimized batch requests, cached results, and flag to not trust the RPC
 // (i.e. to verify all returned contents against corresponding block hashes).
 type L1Client struct {
-	*EthClient
+	*client.EthClient
 
 	// cache L1BlockRef by hash
 	// common.Hash -> eth.L1BlockRef
@@ -60,8 +60,8 @@ type L1Client struct {
 }
 
 // NewL1Client wraps a RPC with bindings to fetch L1 data, while logging errors, tracking metrics (optional), and caching.
-func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, config *L1ClientConfig) (*L1Client, error) {
-	ethClient, err := NewEthClient(client, log, metrics, &config.EthClientConfig)
+func NewL1Client(cli client.RPC, log log.Logger, metrics caching.Metrics, config *L1ClientConfig) (*L1Client, error) {
+	ethClient, err := client.NewEthClient(cli, log, metrics, &config.EthClientConfig)
 	if err != nil {
 		return nil, err
 	}

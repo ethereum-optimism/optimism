@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/urfave/cli/v2"
 
@@ -109,7 +109,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
 		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
-		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
+		L1RPCKind:        client.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
 		RateLimit:        ctx.Float64(flags.L1RPCRateLimit.Name),
 		BatchSize:        ctx.Int(flags.L1RPCMaxBatchSize.Name),
 		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),

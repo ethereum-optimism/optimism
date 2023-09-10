@@ -90,7 +90,9 @@ func (c *EthClientConfig) Check() error {
 
 // EthClient retrieves ethereum data with optimized batch requests, cached results, and flag to not trust the RPC.
 type EthClient struct {
-	client RPC
+	Client RPC
+
+	Log log.Logger
 
 	maxBatchSize int
 
@@ -99,8 +101,6 @@ type EthClient struct {
 	mustBePostMerge bool
 
 	provKind RPCProviderKind
-
-	log log.Logger
 
 	// cache receipts in bundles per block hash
 	// We cache the receipts fetching job to not lose progress when we have to retry the `Fetch` call
@@ -137,7 +137,7 @@ func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
 	if now := time.Now(); now.Sub(s.lastMethodsReset) > s.methodResetDuration {
 		m := AvailableReceiptsFetchingMethods(s.provKind)
 		if s.availableReceiptMethods != m {
-			s.log.Warn("resetting back RPC preferences, please review RPC provider kind setting", "kind", s.provKind.String())
+			s.Log.Warn("resetting back RPC preferences, please review RPC provider kind setting", "kind", s.provKind.String())
 		}
 		s.availableReceiptMethods = m
 		s.lastMethodsReset = now
@@ -149,10 +149,10 @@ func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
 	if UnusableMethod(err) {
 		// clear the bit of the method that errored
 		s.availableReceiptMethods &^= m
-		s.log.Warn("failed to use selected RPC method for receipt fetching, temporarily falling back to alternatives",
+		s.Log.Warn("failed to use selected RPC method for receipt fetching, temporarily falling back to alternatives",
 			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods, "err", err)
 	} else {
-		s.log.Debug("failed to use selected RPC method for receipt fetching, but method does appear to be available, so we continue to use it",
+		s.Log.Debug("failed to use selected RPC method for receipt fetching, but method does appear to be available, so we continue to use it",
 			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods&^m, "err", err)
 	}
 }
@@ -165,12 +165,12 @@ func NewEthClient(client RPC, log log.Logger, metrics caching.Metrics, config *E
 	}
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 	return &EthClient{
-		client:                  client,
+		Client:                  client,
 		maxBatchSize:            config.MaxRequestsPerBatch,
 		trustRPC:                config.TrustRPC,
 		mustBePostMerge:         config.MustBePostMerge,
 		provKind:                config.RPCProviderKind,
-		log:                     log,
+		Log:                     log,
 		receiptsCache:           caching.NewLRUCache[common.Hash, *receiptsFetchingJob](metrics, "receipts", config.ReceiptsCacheSize),
 		transactionsCache:       caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", config.TransactionsCacheSize),
 		headersCache:            caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", config.HeadersCacheSize),
@@ -185,7 +185,7 @@ func NewEthClient(client RPC, log log.Logger, metrics caching.Metrics, config *E
 func (s *EthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
 	// Note that *types.Header does not cache the block hash unlike *HeaderInfo, it always recomputes.
 	// Inefficient if used poorly, but no trust issue.
-	return s.client.EthSubscribe(ctx, ch, "newHeads")
+	return s.Client.EthSubscribe(ctx, ch, "newHeads")
 }
 
 // rpcBlockID is an internal type to enforce header and block call results match the requested identifier
@@ -220,7 +220,7 @@ func (n numberID) CheckID(id eth.BlockID) error {
 
 func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
 	var header *RpcHeader
-	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
+	err := s.Client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 
 func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
 	var block *RpcBlock
-	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
+	err := s.Client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -261,7 +261,7 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID)
 
 func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockID) (*eth.ExecutionPayload, error) {
 	var block *RpcBlock
-	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
+	err := s.Client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
 		return nil, err
 	}
@@ -282,7 +282,7 @@ func (s *EthClient) payloadCall(ctx context.Context, method string, id rpcBlockI
 // ChainID fetches the chain id of the internal RPC.
 func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
 	var id hexutil.Big
-	err := s.client.CallContext(ctx, &id, "eth_chainId")
+	err := s.Client.CallContext(ctx, &id, "eth_chainId")
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +356,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		job = v
 	} else {
 		txHashes := eth.TransactionsToHashes(txs)
-		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
+		job = NewReceiptsFetchingJob(s, s.Client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
 		s.receiptsCache.Add(blockHash, job)
 	}
 	receipts, err := job.Fetch(ctx)
@@ -372,7 +372,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 // but does not verify the result. Call accountResult.Verify(stateRoot) to verify the result.
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
 	var getProofResponse *eth.AccountResult
-	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, storage, blockTag)
+	err := s.Client.CallContext(ctx, &getProofResponse, "eth_getProof", address, storage, blockTag)
 	if err != nil {
 		return nil, err
 	}
@@ -395,7 +395,7 @@ func (s *EthClient) GetProof(ctx context.Context, address common.Address, storag
 // E.g. Erigon L1 node users may have to use this, since Erigon does not support eth_getProof, see https://github.com/ledgerwatch/erigon/issues/1349
 func (s *EthClient) GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error) {
 	var out common.Hash
-	err := s.client.CallContext(ctx, &out, "eth_getStorageAt", address, storageSlot, blockTag)
+	err := s.Client.CallContext(ctx, &out, "eth_getStorageAt", address, storageSlot, blockTag)
 	return out, err
 }
 
@@ -423,5 +423,5 @@ func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, s
 }
 
 func (s *EthClient) Close() {
-	s.client.Close()
+	s.Client.Close()
 }

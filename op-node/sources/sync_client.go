@@ -113,7 +113,7 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockR
 
 	// TODO(CLI-3635): optimize the by-range fetching with the Engine API payloads-by-range method.
 
-	s.log.Info("Scheduling to fetch trailing missing payloads from backup RPC", "start", start, "end", endNum, "size", endNum-start.Number-1)
+	s.Log.Info("Scheduling to fetch trailing missing payloads from backup RPC", "start", start, "end", endNum, "size", endNum-start.Number-1)
 
 	for i := start.Number + 1; i < endNum; i++ {
 		select {
@@ -128,7 +128,7 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockR
 // eventLoop is the main event loop for the sync client.
 func (s *SyncClient) eventLoop() {
 	defer s.wg.Done()
-	s.log.Info("Starting sync client event loop")
+	s.Log.Info("Starting sync client event loop")
 
 	backoffStrategy := &retry.ExponentialStrategy{
 		Min:       1000 * time.Millisecond,
@@ -139,7 +139,7 @@ func (s *SyncClient) eventLoop() {
 	for {
 		select {
 		case <-s.resCtx.Done():
-			s.log.Debug("Shutting down RPC sync worker")
+			s.Log.Debug("Shutting down RPC sync worker")
 			return
 		case reqNum := <-s.requests:
 			_, err := retry.Do(s.resCtx, 5, backoffStrategy, func() (interface{}, error) {
@@ -153,7 +153,7 @@ func (s *SyncClient) eventLoop() {
 				if err == s.resCtx.Err() {
 					return
 				}
-				s.log.Error("failed syncing L2 block via RPC", "err", err, "num", reqNum)
+				s.Log.Error("failed syncing L2 block via RPC", "err", err, "num", reqNum)
 				// Reschedule at end of queue
 				select {
 				case s.requests <- reqNum:
@@ -171,7 +171,7 @@ func (s *SyncClient) eventLoop() {
 // Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
 // the `eth_getBlockByNumber` method is more widely available.
 func (s *SyncClient) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64) error {
-	s.log.Info("Requesting unsafe payload from backup RPC", "block number", blockNumber)
+	s.Log.Info("Requesting unsafe payload from backup RPC", "block number", blockNumber)
 
 	payload, err := s.PayloadByNumber(ctx, blockNumber)
 	if err != nil {
@@ -179,13 +179,13 @@ func (s *SyncClient) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber ui
 	}
 	// Note: the underlying RPC client used for syncing verifies the execution payload blockhash, if set to untrusted.
 
-	s.log.Info("Received unsafe payload from backup RPC", "payload", payload.ID())
+	s.Log.Info("Received unsafe payload from backup RPC", "payload", payload.ID())
 
 	// Send the retrieved payload to the `unsafeL2Payloads` channel.
 	if err = s.receivePayload(ctx, RpcSyncPeer, payload); err != nil {
 		return fmt.Errorf("failed to send payload %s into the driver's unsafeL2Payloads channel: %w", payload.ID(), err)
 	} else {
-		s.log.Debug("Sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
+		s.Log.Debug("Sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
 		return nil
 	}
 }

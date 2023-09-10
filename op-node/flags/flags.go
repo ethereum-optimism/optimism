@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
@@ -75,10 +75,10 @@ var (
 	L1RPCProviderKind = &cli.GenericFlag{
 		Name: "l1.rpckind",
 		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
-			openum.EnumString(sources.RPCProviderKinds),
+			openum.EnumString(client.RPCProviderKinds),
 		EnvVars: prefixEnvVars("L1_RPC_KIND"),
-		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
+		Value: func() *client.RPCProviderKind {
+			out := client.RPCKindBasic
 			return &out
 		}(),
 	}

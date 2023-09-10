@@ -143,7 +143,7 @@ type L1EndpointConfig struct {
 
 	// L1RPCKind identifies the RPC provider kind that serves the RPC,
 	// to inform the optimal usage of the RPC for transaction receipts fetching.
-	L1RPCKind sources.RPCProviderKind
+	L1RPCKind client.RPCProviderKind
 
 	// RateLimit specifies a self-imposed rate-limit on L1 requests. 0 is no rate-limit.
 	RateLimit float64
@@ -192,7 +192,7 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 type PreparedL1Endpoint struct {
 	Client          client.RPC
 	TrustRPC        bool
-	RPCProviderKind sources.RPCProviderKind
+	RPCProviderKind client.RPCProviderKind
 }
 
 var _ L1EndpointSetup = (*PreparedL1Endpoint)(nil)

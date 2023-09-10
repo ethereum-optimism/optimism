@@ -19,7 +19,7 @@ import (
 )
 
 type L2ClientConfig struct {
-	EthClientConfig
+	client.EthClientConfig
 
 	L2BlockRefsCacheSize int
 	L1ConfigsCacheSize   int
@@ -41,7 +41,7 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 		span = 1000
 	}
 	return &L2ClientConfig{
-		EthClientConfig: EthClientConfig{
+		EthClientConfig: client.EthClientConfig{
 			// receipts and transactions are cached per block
 			ReceiptsCacheSize:     span,
 			TransactionsCacheSize: span,
@@ -51,7 +51,7 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 			MaxConcurrentRequests: 10,
 			TrustRPC:              trustRPC,
 			MustBePostMerge:       true,
-			RPCProviderKind:       RPCKindBasic,
+			RPCProviderKind:       client.RPCKindBasic,
 			MethodResetDuration:   time.Minute,
 		},
 		// Not bounded by span, to cover find-sync-start range fully for speedy recovery after errors.
@@ -78,8 +78,8 @@ type L2Client struct {
 // NewL2Client constructs a new L2Client instance. The L2Client is a thin wrapper around the EthClient with added functions
 // for fetching and caching eth.L2BlockRef values. This includes fetching an L2BlockRef by block number, label, or hash.
 // See: [L2BlockRefByLabel], [L2BlockRefByNumber], [L2BlockRefByHash]
-func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*L2Client, error) {
-	ethClient, err := NewEthClient(client, log, metrics, &config.EthClientConfig)
+func NewL2Client(cli client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*L2Client, error) {
+	ethClient, err := client.NewEthClient(cli, log, metrics, &config.EthClientConfig)
 	if err != nil {
 		return nil, err
 	}
