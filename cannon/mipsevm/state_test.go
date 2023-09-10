@@ -82,6 +82,53 @@ func TestState(t *testing.T) {
 	}
 }
 
+// Run through all permutations of `exited` / `exitCode` and ensure that the
+// correct witness, state hash, and VM Status is produced.
+func TestStateHash(t *testing.T) {
+	cases := []struct {
+		exited   bool
+		exitCode uint8
+	}{
+		{exited: false, exitCode: 0},
+		{exited: false, exitCode: 1},
+		{exited: false, exitCode: 2},
+		{exited: false, exitCode: 3},
+		{exited: true, exitCode: 0},
+		{exited: true, exitCode: 1},
+		{exited: true, exitCode: 2},
+		{exited: true, exitCode: 3},
+	}
+
+	exitedOffset := 32*2 + 4*6
+	for _, c := range cases {
+		state := &State{
+			Memory:   NewMemory(),
+			Exited:   c.exited,
+			ExitCode: c.exitCode,
+		}
+
+		actualWitness := state.EncodeWitness()
+		actualStateHash, err := StateWitness(actualWitness).StateHash()
+		require.NoError(t, err, "Error hashing witness")
+		require.Equal(t, len(actualWitness), StateWitnessSize, "Incorrect witness size")
+
+		expectedWitness := make(StateWitness, 226)
+		memRoot := state.Memory.MerkleRoot()
+		copy(expectedWitness[:32], memRoot[:])
+		expectedWitness[exitedOffset] = c.exitCode
+		var exited uint8
+		if c.exited {
+			exited = 1
+		}
+		expectedWitness[exitedOffset+1] = uint8(exited)
+		require.Equal(t, expectedWitness[:], actualWitness[:], "Incorrect witness")
+
+		expectedStateHash := crypto.Keccak256Hash(actualWitness)
+		expectedStateHash[0] = vmStatus(c.exited, c.exitCode)
+		require.Equal(t, expectedStateHash, actualStateHash, "Incorrect state hash")
+	}
+}
+
 func TestHello(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")

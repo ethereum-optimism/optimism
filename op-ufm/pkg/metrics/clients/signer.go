@@ -22,7 +22,7 @@ func NewSignerClient(providerName string, logger log.Logger, endpoint string, tl
 	start := time.Now()
 	c, err := signer.NewSignerClient(logger, endpoint, tlsConfig)
 	if err != nil {
-		metrics.RecordError(providerName, "signer.NewSignerClient")
+		metrics.RecordErrorDetails(providerName, "signer.NewSignerClient", err)
 		return nil, err
 	}
 	metrics.RecordRPCLatency(providerName, "signer", "NewSignerClient", time.Since(start))
@@ -33,7 +33,7 @@ func (i *InstrumentedSignerClient) SignTransaction(ctx context.Context, chainId 
 	start := time.Now()
 	tx, err := i.c.SignTransaction(ctx, chainId, tx)
 	if err != nil {
-		metrics.RecordError(i.providerName, "signer.SignTransaction")
+		metrics.RecordErrorDetails(i.providerName, "signer.SignTransaction", err)
 		return nil, err
 	}
 	metrics.RecordRPCLatency(i.providerName, "signer", "SignTransaction", time.Since(start))

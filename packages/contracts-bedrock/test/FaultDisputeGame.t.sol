@@ -77,9 +77,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
 contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev The root claim of the game.
-    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
+    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
     /// @dev The absolute prestate of the trace.
-    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(0)));
+    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
 
     function setUp() public override {
         super.init(ROOT_CLAIM, ABSOLUTE_PRESTATE);
@@ -141,6 +141,17 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_initialize_firstOutput_reverts() public {
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(1800, block.number - 1));
+    }
+
+    /// @dev Tests that the `create` function reverts when the rootClaim does not disagree with the outcome.
+    function testFuzz_initialize_badRootStatus_reverts(Claim rootClaim, bytes calldata extraData) public {
+        // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
+        // Ensure the root claim does not have the correct VM status
+        uint8 vmStatus = uint8(Claim.unwrap(rootClaim)[0]);
+        if (vmStatus == 1 || vmStatus == 2) rootClaim = changeClaimStatus(rootClaim, VMStatuses.VALID);
+
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
+        factory.create(GameTypes.FAULT, rootClaim, extraData);
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -449,6 +460,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy)));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }
+
+    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
+        assembly {
+            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
+        }
+    }
 }
 
 /// @notice A generic game player actor with a configurable trace.
@@ -593,9 +610,11 @@ contract GamePlayer {
 
     /// @notice Returns the player's claim that commits to a given trace index.
     function claimAt(uint256 _traceIndex) public view returns (Claim claim_) {
-        return Claim.wrap(
-            keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, traceAt(_traceIndex)))
-        );
+        bytes32 hash =
+            keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, traceAt(_traceIndex)));
+        assembly {
+            claim_ := or(and(hash, not(shl(248, 0xFF))), shl(248, 1))
+        }
     }
 
     /// @notice Returns the player's claim that commits to a given trace index.
@@ -608,14 +627,15 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
     /// @dev The absolute prestate of the trace.
     bytes ABSOLUTE_PRESTATE = abi.encode(15);
     /// @dev The absolute prestate claim.
-    Claim internal constant ABSOLUTE_PRESTATE_CLAIM = Claim.wrap(keccak256(abi.encode(15)));
+    Claim internal constant ABSOLUTE_PRESTATE_CLAIM =
+        Claim.wrap(bytes32((uint256(3) << 248) | (~uint256(0xFF << 248) & uint256(keccak256(abi.encode(15))))));
     /// @dev The defender.
     GamePlayer internal defender;
     /// @dev The challenger.
     GamePlayer internal challenger;
 
     function init(GamePlayer _defender, GamePlayer _challenger, uint256 _finalTraceIndex) public {
-        Claim rootClaim = Claim.wrap(keccak256(abi.encode(_finalTraceIndex, _defender.traceAt(_finalTraceIndex))));
+        Claim rootClaim = _defender.claimAt(_finalTraceIndex);
         super.init(rootClaim, ABSOLUTE_PRESTATE_CLAIM);
         defender = _defender;
         challenger = _challenger;
@@ -874,7 +894,6 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRootFuzz is OneVsOne_Arena 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRootFuzz is OneVsOne_Arena {
     function testFuzz_resolvesCorrectly_succeeds(uint256 _dishonestTraceLength) public {
         _dishonestTraceLength = bound(_dishonestTraceLength, 1, 16);
-
         for (uint256 i = 0; i < _dishonestTraceLength; i++) {
             uint256 snapshot = vm.snapshot();
 
@@ -968,7 +987,7 @@ contract AlphabetVM is IBigStepper {
     function step(bytes calldata _stateData, bytes calldata) external view returns (bytes32 postState_) {
         uint256 traceIndex;
         uint256 claim;
-        if (keccak256(_stateData) == Claim.unwrap(ABSOLUTE_PRESTATE)) {
+        if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
             // If the state data is empty, then the absolute prestate is the claim.
             traceIndex = 0;
             (claim) = abi.decode(_stateData, (uint256));
@@ -979,5 +998,8 @@ contract AlphabetVM is IBigStepper {
         }
         // STF: n -> n + 1
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
+        assembly {
+            postState_ := or(and(postState_, not(shl(248, 0xFF))), shl(248, 1))
+        }
     }
 }
