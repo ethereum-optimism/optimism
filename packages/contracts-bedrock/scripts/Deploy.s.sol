@@ -49,6 +49,12 @@ contract Deploy is Deployer {
     ///         addresses will be the same across networks when deployed with create2.
     bytes32 constant IMPL_SALT = bytes32("ether's phoenix");
 
+    /// @notice The address of the create2 proxy used to deploy the implementations.
+    address constant CREATE2_PROXY = address(0x4e59b44847b379578588920cA78FbF26c0B4956C);
+
+    /// @notice
+    address constant CREATE2_PROXY_DEPLOYER = address(0x3fab184622dc19b6109349b94811493bf2a45362);
+
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
     function name() public pure override returns (string memory name_) {
@@ -68,6 +74,8 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts
     function run() public {
         console.log("Deploying L1 system");
+
+        deployCreate2Proxy();
 
         deployProxies();
         deployImplementations();
@@ -100,6 +108,19 @@ contract Deploy is Deployer {
         uint256 chainid = block.chainid;
         if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             _;
+        }
+    }
+
+    function deployCreate2Proxy() public {
+        if (CREATE2_PROXY.code.length == 0) {
+            console.log("Deploying create2 proxy to %s", CREATE2_PROXY);
+            string[] memory commands = new string[](3);
+            commands[0] = "bash";
+            commands[1] = "-c";
+            commands[2] = "cast publish 0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222"
+            try vm.ffi(commands) {} catch (bytes memory) {
+                console.log("Error publishing");
+            }
         }
     }
 
