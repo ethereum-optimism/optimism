@@ -68,8 +68,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.2
-    string constant public version = "1.2.2";
+    /// @custom:semver 1.3.0
+    string constant public version = "1.3.0";
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {

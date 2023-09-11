@@ -18,8 +18,8 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.2.2
-    string constant public version = "1.2.2";
+    /// @custom:semver 1.3.0
+    string constant public version = "1.3.0";
 
     /// @notice Constructs the contract.
     constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
