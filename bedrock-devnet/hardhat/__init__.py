@@ -28,6 +28,7 @@ DEV_ACCOUNTS = [
 # The original L1 starting block tag and timestamp
 L1STARTINGBLOCKTAG = '0xb21fa192d3169c824801af37775514f246d96b906eff24849c5bd240ccb23557'
 L2OUTPUTORACLESTARTINGTIMESTAMP = 1693950295
+L1BOBATOKENADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 
 class Bunch:
     def __init__(self, **kwds):
@@ -124,6 +125,7 @@ def devnet_write_env(paths):
         f.write("""
 L1_RPC=http://127.0.0.1:8545
 PRIVATE_KEY_DEPLOYER=ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+ENABLE_BOBA_TOKEN_DEPLOYMENT=true
 """)
 
     block_info = eth_block("127.0.0.1:8545")
@@ -158,6 +160,15 @@ def devnet_deploy(paths):
 
 def devnet_generate_files(paths):
     log.info('Generating L2 genesis and rollup config')
+
+    BOBA_deployment = read_json(pjoin(paths.deployment_dir, 'BOBA.json'))
+    boba_token_address = BOBA_deployment['address']
+    log.info(f'Using l1 boba token {boba_token_address}')
+
+    with open(paths.devnet_config_path, 'r') as f:
+        config = json.load(f)
+        config['l1BobaTokenAddress'] = boba_token_address
+    write_json(paths.devnet_config_path, config)
 
     run_command([
         'go', 'run', './cmd/boba-devnet',
@@ -225,6 +236,7 @@ def devnet_store_addresses(paths):
         'ProxyAdmin': 'ProxyAdmin.json',
         'SystemConfig': 'SystemConfig.json',
         'SystemConfigProxy': 'SystemConfigProxy.json',
+        'L1BobaToken': 'BOBA.json',
     }
 
     for k, v in addresses_name.items():
@@ -237,6 +249,7 @@ def devent_restore_configurations(paths):
         config = json.load(f)
         config['l1StartingBlockTag'] = L1STARTINGBLOCKTAG
         config['l2OutputOracleStartingTimestamp'] = L2OUTPUTORACLESTARTINGTIMESTAMP
+        config['l1BobaTokenAddress'] = L1BOBATOKENADDRESS
     write_json(paths.devnet_config_path, config)
 
 def eth_block(url):
@@ -283,6 +296,12 @@ def devnet_test(paths):
 
     run_command(
          ['npx', 'hardhat',  'deposit-erc20', '--network',  'hardhat-local', '--l1-contracts-json-path', paths.addresses_json_path],
+         cwd=paths.sdk_dir,
+         timeout=12*60,
+    )
+
+    run_command(
+         ['npx', 'hardhat',  'deposit-boba', '--network',  'hardhat-local', '--l1-contracts-json-path', paths.addresses_json_path],
          cwd=paths.sdk_dir,
          timeout=12*60,
     )
