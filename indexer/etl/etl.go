@@ -29,9 +29,10 @@ type ETL struct {
 	headerBufferSize uint64
 	headerTraversal  *node.HeaderTraversal
 
-	ethClient  node.EthClient
 	contracts  []common.Address
 	etlBatches chan ETLBatch
+
+	EthClient node.EthClient
 }
 
 type ETLBatch struct {
@@ -104,7 +105,7 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	}
 
 	headersWithLog := make(map[common.Hash]bool, len(headers))
-	logs, err := etl.ethClient.FilterLogs(ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts})
+	logs, err := etl.EthClient.FilterLogs(ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts})
 	if err != nil {
 		batchLog.Info("unable to extract logs", "err", err)
 		return err

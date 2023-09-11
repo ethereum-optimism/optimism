@@ -10,23 +10,28 @@ var presetConfigs = map[int]ChainConfig{
 	// OP Mainnet
 	10: {
 		L1Contracts: L1Contracts{
-			OptimismPortalProxy:         common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
-			L2OutputOracleProxy:         common.HexToAddress("0xdfe97868233d1aa22e815a266982f2cf17685a27"),
-			L1CrossDomainMessengerProxy: common.HexToAddress("0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1"),
-			L1StandardBridgeProxy:       common.HexToAddress("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"),
-			// LegacyCanonicalTransactionChain: common.HexToAddress("0x5e4e65926ba27467555eb562121fac00d24e9dd2"),
+			OptimismPortalProxy:             common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
+			L2OutputOracleProxy:             common.HexToAddress("0xdfe97868233d1aa22e815a266982f2cf17685a27"),
+			L1CrossDomainMessengerProxy:     common.HexToAddress("0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1"),
+			L1StandardBridgeProxy:           common.HexToAddress("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"),
+			LegacyCanonicalTransactionChain: common.HexToAddress("0x5e4e65926ba27467555eb562121fac00d24e9dd2"),
 		},
-		L1StartingHeight: 13596466,
+		L1StartingHeight:        13596466,
+		L1BedrockStartingHeight: 17422590,
+		L2BedrockStartingHeight: 105235063,
 	},
 	// OP Goerli
 	420: {
 		L1Contracts: L1Contracts{
-			OptimismPortalProxy:         common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
-			L2OutputOracleProxy:         common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0"),
-			L1CrossDomainMessengerProxy: common.HexToAddress("0x5086d1eEF304eb5284A0f6720f79403b4e9bE294"),
-			L1StandardBridgeProxy:       common.HexToAddress("0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"),
+			OptimismPortalProxy:             common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
+			L2OutputOracleProxy:             common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0"),
+			L1CrossDomainMessengerProxy:     common.HexToAddress("0x5086d1eEF304eb5284A0f6720f79403b4e9bE294"),
+			L1StandardBridgeProxy:           common.HexToAddress("0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"),
+			LegacyCanonicalTransactionChain: common.HexToAddress("0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D"),
 		},
-		L1StartingHeight: 7017096,
+		L1StartingHeight:        7017096,
+		L1BedrockStartingHeight: 8300214,
+		L2BedrockStartingHeight: 4061224,
 	},
 	// Base Mainnet
 	8453: {

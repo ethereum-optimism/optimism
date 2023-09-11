@@ -124,19 +124,78 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, bigint.One)
 		}
 
+		l1BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L1BedrockStartingHeight))
+		l2BedrockStartingHeight := big.NewInt(int64(b.chainConfig.L2BedrockStartingHeight))
+
 		batchLog := b.log.New("epoch_start_number", fromL1Height, "epoch_end_number", toL1Height)
 		batchLog.Info("unobserved epochs")
 		err = b.db.Transaction(func(tx *database.DB) error {
+			// In the event where we have a large number of un-observed blocks, group the block range
+			// on the order of 10k blocks at a time. If this turns out to be a bottleneck, we can
+			// parallelize these operations
+			maxBlockRange := uint64(10_000)
 			l1BridgeLog := b.log.New("bridge", "l1")
 			l2BridgeLog := b.log.New("bridge", "l2")
 
-			// In the event where we have a large number of un-observed blocks, group the block range
-			// on the order of 10k blocks at a time. If this turns out to be a bottleneck, we can
-			// parallelize these operations for significant improvements as well
-			l1BlockGroups := bigint.Grouped(fromL1Height, toL1Height, 10_000)
-			l2BlockGroups := bigint.Grouped(fromL2Height, toL2Height, 10_000)
+			// FOR OP-MAINNET, OP-GOERLI ONLY! Specially handle the existence of pre-bedrock blocks
+			if l1BedrockStartingHeight.Cmp(fromL1Height) > 0 {
+				l1BridgeLog := l1BridgeLog.New("mode", "legacy")
+				l2BridgeLog := l2BridgeLog.New("mode", "legacy")
+
+				legacyFromL1Height, legacyToL1Height := fromL1Height, toL1Height
+				legacyFromL2Height, legacyToL2Height := fromL2Height, toL2Height
+				if l1BedrockStartingHeight.Cmp(toL1Height) <= 0 {
+					legacyToL1Height = new(big.Int).Sub(l1BedrockStartingHeight, big.NewInt(1))
+					legacyToL2Height = new(big.Int).Sub(l2BedrockStartingHeight, big.NewInt(1))
+				}
+
+				// First, find all possible initiated bridge events
+				l1BlockGroups := bigint.Grouped(legacyFromL1Height, legacyToL1Height, maxBlockRange)
+				l2BlockGroups := bigint.Grouped(legacyFromL2Height, legacyToL2Height, maxBlockRange)
+				for _, group := range l1BlockGroups {
+					log := l1BridgeLog.New("from_l1_block_number", group.Start, "to_l1_block_number", group.End)
+					log.Info("scanning for initiated bridge events")
+					if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(log, tx, b.chainConfig, group.Start, group.End); err != nil {
+						return err
+					}
+				}
+				for _, group := range l2BlockGroups {
+					log := l2BridgeLog.New("from_l2_block_number", group.Start, "to_l2_block_number", group.End)
+					log.Info("scanning for initiated bridge events")
+					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+						return err
+					}
+				}
+
+				// Now that all initiated events have been indexed, it is ensured that all finalization can find their counterpart.
+				for _, group := range l1BlockGroups {
+					log := l1BridgeLog.New("from_l1_block_number", group.Start, "to_l1_block_number", group.End)
+					log.Info("scanning for finalized bridge events")
+					if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(log, tx, b.l1Etl.EthClient, b.chainConfig, group.Start, group.End); err != nil {
+						return err
+					}
+				}
+				for _, group := range l2BlockGroups {
+					log := l2BridgeLog.New("from_l2_block_number", group.Start, "to_l2_block_number", group.End)
+					log.Info("scanning for finalized bridge events")
+					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+						return err
+					}
+				}
+
+				if legacyToL1Height.Cmp(toL1Height) == 0 {
+					// a-ok! entire batch was legacy blocks
+					return nil
+				}
+
+				batchLog.Info("detected switch to bedrock", "l1_bedrock_starting_height", l1BedrockStartingHeight, "l2_bedrock_starting_height", l2BedrockStartingHeight)
+				fromL1Height = l1BedrockStartingHeight
+				fromL2Height = l2BedrockStartingHeight
+			}
 
 			// First, find all possible initiated bridge events
+			l1BlockGroups := bigint.Grouped(fromL1Height, toL1Height, maxBlockRange)
+			l2BlockGroups := bigint.Grouped(fromL2Height, toL2Height, maxBlockRange)
 			for _, group := range l1BlockGroups {
 				log := l1BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
 				log.Info("scanning for initiated bridge events")
@@ -181,4 +240,5 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			b.LatestL2Header = latestEpoch.L2BlockHeader.RLPHeader.Header()
 		}
 	}
+
 }

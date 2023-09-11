@@ -37,7 +37,6 @@ func Grouped(start, end *big.Int, size uint64) []Range {
 	if end.Cmp(start) < 0 || size == 0 {
 		return nil
 	}
-
 	bigMaxDiff := big.NewInt(int64(size - 1))
 
 	groups := []Range{}

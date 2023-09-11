@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// L2ProcessInitiatedBridgeEvents will query the database for new bridge events that have been initiated between
+// L2ProcessInitiatedBridgeEvents will query the database for bridge events that have been initiated between
 // the specified block range. This covers every part of the multi-layered stack:
 //  1. OptimismPortal
 //  2. L2CrossDomainMessenger

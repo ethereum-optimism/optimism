@@ -7,7 +7,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
-	geth_log "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -33,6 +33,9 @@ type L1Contracts struct {
 	L2OutputOracleProxy         common.Address `toml:"l2-output-oracle"`
 	L1CrossDomainMessengerProxy common.Address `toml:"l1-cross-domain-messenger"`
 	L1StandardBridgeProxy       common.Address `toml:"l1-standard-bridge"`
+
+	// Pre-Bedrock Legacy Contracts
+	LegacyCanonicalTransactionChain common.Address `toml:"l1-canonical-transaction-chain"`
 
 	// Some more contracts -- L1ERC721Bridge, ProxyAdmin, SystemConfig, etc
 	// Ignore the auxiliary contracts?
@@ -69,6 +72,10 @@ type ChainConfig struct {
 	L1Contracts      L1Contracts `toml:"l1-contracts"`
 	L1StartingHeight uint        `toml:"l1-starting-height"`
 
+	// Bedrock starting heights only applicable for OP-Mainnet & OP-Goerli
+	L1BedrockStartingHeight uint `toml:"-"`
+	L2BedrockStartingHeight uint `toml:"-"`
+
 	// These configuration options will be removed once
 	// native reorg handling is implemented
 	L1ConfirmationDepth uint `toml:"l1-confirmation-depth"`
@@ -103,8 +110,8 @@ type ServerConfig struct {
 }
 
 // LoadConfig loads the `indexer.toml` config file from a given path
-func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
-	logger.Debug("loading config", "path", path)
+func LoadConfig(log log.Logger, path string) (Config, error) {
+	log.Debug("loading config", "path", path)
 
 	var conf Config
 	data, err := os.ReadFile(path)
@@ -113,9 +120,9 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 	}
 
 	data = []byte(os.ExpandEnv(string(data)))
-	logger.Debug("parsed config file", "data", string(data))
+	log.Debug("parsed config file", "data", string(data))
 	if _, err := toml.Decode(string(data), &conf); err != nil {
-		logger.Info("failed to decode config file", "err", err)
+		log.Info("failed to decode config file", "err", err)
 		return conf, err
 	}
 
@@ -124,31 +131,34 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 		if !ok {
 			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
 		}
+
 		conf.Chain.L1Contracts = knownPreset.L1Contracts
 		conf.Chain.L1StartingHeight = knownPreset.L1StartingHeight
+		conf.Chain.L1BedrockStartingHeight = knownPreset.L1BedrockStartingHeight
+		conf.Chain.L2BedrockStartingHeight = knownPreset.L1BedrockStartingHeight
 	}
 
 	// Set polling defaults if not set
 	if conf.Chain.L1PollingInterval == 0 {
-		logger.Info("setting default L1 polling interval", "interval", defaultLoopInterval)
+		log.Info("setting default L1 polling interval", "interval", defaultLoopInterval)
 		conf.Chain.L1PollingInterval = defaultLoopInterval
 	}
 
 	if conf.Chain.L2PollingInterval == 0 {
-		logger.Info("setting default L2 polling interval", "interval", defaultLoopInterval)
+		log.Info("setting default L2 polling interval", "interval", defaultLoopInterval)
 		conf.Chain.L2PollingInterval = defaultLoopInterval
 	}
 
 	if conf.Chain.L1HeaderBufferSize == 0 {
-		logger.Info("setting default L1 header buffer", "size", defaultHeaderBufferSize)
+		log.Info("setting default L1 header buffer", "size", defaultHeaderBufferSize)
 		conf.Chain.L1HeaderBufferSize = defaultHeaderBufferSize
 	}
 
 	if conf.Chain.L2HeaderBufferSize == 0 {
-		logger.Info("setting default L2 header buffer", "size", defaultHeaderBufferSize)
+		log.Info("setting default L2 header buffer", "size", defaultHeaderBufferSize)
 		conf.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
 	}
 
-	logger.Info("loaded config")
+	log.Info("loaded config")
 	return conf, nil
 }
