@@ -9,6 +9,9 @@ on:
 # Always wait for previous release to finish before releasing again
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+env:
+  ORG: bobanetwork
+
 jobs:
   release:
     name: Release
@@ -99,7 +102,7 @@ jobs:
           context: .
           file: ./op-exporter/Dockerfile
           push: true
-          tags: ethereumoptimism/op-exporter:${{ needs.release.outputs.op-exporter }},ethereumoptimism/op-exporter:latest
+          tags: $ORG/op-exporter:${{ needs.release.outputs.op-exporter }},$ORG/op-exporter:latest
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
@@ -130,7 +133,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: fault-mon
           push: true
-          tags: ethereumoptimism/fault-mon:${{ needs.release.outputs.fault-mon }},ethereumoptimism/fault-mon:latest
+          tags: $ORG/fault-mon:${{ needs.release.outputs.fault-mon }},$ORG/fault-mon:latest
 
   wd-mon:
     name: Publish Withdrawal Monitor Version ${{ needs.release.outputs.wd-mon }}
@@ -157,7 +160,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: wd-mon
           push: true
-          tags: ethereumoptimism/wd-mon:${{ needs.release.outputs.wd-mon }},ethereumoptimism/wd-mon:latest
+          tags: $ORG/wd-mon:${{ needs.release.outputs.wd-mon }},$ORG/wd-mon:latest
 
   balance-mon:
     name: Publish Balance Monitor Version ${{ needs.release.outputs.balance-mon }}
@@ -184,7 +187,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: balance-mon
           push: true
-          tags: ethereumoptimism/balance-mon:${{ needs.release.outputs.balance-mon }},ethereumoptimism/balance-mon:latest
+          tags: $ORG/balance-mon:${{ needs.release.outputs.balance-mon }},$ORG/balance-mon:latest
 
   drippie-mon:
     name: Publish Drippie Monitor Version ${{ needs.release.outputs.drippie-mon }}
@@ -211,7 +214,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: drippie-mon
           push: true
-          tags: ethereumoptimism/drippie-mon:${{ needs.release.outputs.drippie-mon }},ethereumoptimism/drippie-mon:latest
+          tags: $ORG/drippie-mon:${{ needs.release.outputs.drippie-mon }},$ORG/drippie-mon:latest
 
   replica-mon:
     name: Publish Replica Healthcheck Version ${{ needs.release.outputs.replica-mon }}
@@ -238,7 +241,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: replica-mon
           push: true
-          tags: ethereumoptimism/replica-mon:${{ needs.release.outputs.replica-mon }},ethereumoptimism/replica-mon:latest
+          tags: $ORG/replica-mon:${{ needs.release.outputs.replica-mon }},$ORG/replica-mon:latest
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}
@@ -271,7 +274,7 @@ jobs:
           context: .
           file: ./endpoint-monitor/Dockerfile
           push: true
-          tags: ethereumoptimism/endpoint-monitor:${{ needs.release.outputs.endpoint-monitor }},ethereumoptimism/endpoint-monitor:latest
+          tags: $ORG/endpoint-monitor:${{ needs.release.outputs.endpoint-monitor }},$ORG/endpoint-monitor:latest
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
