@@ -42,7 +42,7 @@ contract ProtocolVersions is OwnableUpgradeable, Semver {
     constructor() Semver(0, 1, 0) {
         initialize({
             _owner: address(0xdEaD),
-            _required: ProtocolVersion.wrap(uint256(0)), // TODO init actual protocol version defaults
+            _required: ProtocolVersion.wrap(uint256(0)), // zero version is considered empty and is ignored by nodes
             _recommended: ProtocolVersion.wrap(uint256(0))
         });
     }
