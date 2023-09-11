@@ -412,5 +412,5 @@ The allocated response time is limited by the dispute-game window,
 and any additional time necessary based on L1 fee changes when bonds are insufficient.
 
 > Note: the timed, bonded, bisection dispute game is in development.
-> Also see [dispute-game specs](./dispute-game.md) for general dispute game system specifications,
+> Also see [fault dispute-game specs](./fault-dispute-game.md) for fault dispute game system specifications,
 > And [dispute-game-interface specs](./dispute-game-interface.md) for dispute game interface specifications.

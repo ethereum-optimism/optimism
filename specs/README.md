@@ -29,8 +29,9 @@ that maintains 1:1 compatibility with Ethereum.
 Specifications of new features in active development.
 
 - [Fault Proof](./fault-proof.md)
-- [Dispute Game](./dispute-game.md)
 - [Dispute Game Interface](./dispute-game-interface.md)
+- [Fault Dispute Game](./fault-dispute-game.md)
+- [Cannon VM](./cannon-fault-proof-vm.md)
 
 ## Design Goals
 
