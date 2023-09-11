@@ -19,7 +19,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.3.0
-    string constant public version = "1.3.0";
+    string public constant version = "1.3.0";
 
     /// @notice Constructs the contract.
     constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {

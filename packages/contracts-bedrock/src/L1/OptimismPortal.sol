@@ -99,7 +99,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.9.0
-    string constant public version = "1.9.0";
+    string public constant version = "1.9.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {

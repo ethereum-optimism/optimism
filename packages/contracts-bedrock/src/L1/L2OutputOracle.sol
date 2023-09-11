@@ -64,18 +64,14 @@ contract L2OutputOracle is Initializable, ISemver {
 
     /// @notice Semantic version.
     /// @custom:semver 1.5.0
-    string constant public version = "1.5.0";
+    string public constant version = "1.5.0";
 
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
     /// @param _finalizationPeriodSeconds The amount of time that must pass for an output proposal
     //                                    to be considered canonical.
-    constructor(
-        uint256 _submissionInterval,
-        uint256 _l2BlockTime,
-        uint256 _finalizationPeriodSeconds
-    ) {
+    constructor(uint256 _submissionInterval, uint256 _l2BlockTime, uint256 _finalizationPeriodSeconds) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(_submissionInterval > 0, "L2OutputOracle: submission interval must be greater than 0");
 
