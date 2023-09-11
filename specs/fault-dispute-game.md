@@ -62,7 +62,7 @@ We refer to this state as the **ABSOLUTE\_PRESTATE**.
 ### Claims
 
 Claims assert an execution trace. This is represented as `ClaimHash`, a `bytes32` commitment to
-the last VM state in the trace. A FDG is initialized with a root claim, which commits to the entire
+the last VM state in a trace. A FDG is initialized with a root claim, which commits to the entire
 execution trace. As we'll see later, there can be multiple claims, committing to different states in the FDG.
 
 ### DAG
@@ -97,6 +97,7 @@ Positions higher up the game tree also cover the deepest, right-most positions r
 We refer to this coverage as the **trace index** of a Position.
 
 > This means claims commit to an execution trace that terminates at the same index as their Position's trace index.
+> That is, for a given trace index $n$, its ClaimHash corresponds to the $S_n$ th state in the trace.
 
 Note that there can be multiple positions covering the same _trace index_.
 
