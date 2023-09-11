@@ -73,13 +73,13 @@ contract DelayedVetoable is Semver {
 
     /// @notice Gets the initiator
     /// @return Initiator address.
-    function initiator() external readOrHandle returns (address) {
+    function initiator() external virtual readOrHandle returns (address) {
         return _initiator;
     }
 
     //// @notice Queries the vetoer address.
     /// @return Vetoer address.
-    function vetoer() external readOrHandle returns (address) {
+    function vetoer() external virtual readOrHandle returns (address) {
         return _vetoer;
     }
 
