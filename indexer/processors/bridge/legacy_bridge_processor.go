@@ -222,7 +222,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 // Legacy Bridge Finalization
 
 // LegacyL1ProcessFinalizedBridgeEvents will query for bridge events within the specified block range
-// acording to the pre-bedrock protocol. This follows:
+// according to the pre-bedrock protocol. This follows:
 //  1. L1CrossDomainMessenger
 //  2. L1StandardBridge
 func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Client node.EthClient, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
@@ -302,7 +302,7 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Cli
 }
 
 // LegacyL2ProcessFinalizedBridgeEvents will query for bridge events within the specified block range
-// acording to the pre-bedrock protocol. This follows:
+// according to the pre-bedrock protocol. This follows:
 //  1. L2CrossDomainMessenger
 //  2. L2StandardBridge
 func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
