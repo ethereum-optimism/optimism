@@ -23,7 +23,7 @@ importers:
         version: 0.4.8
       '@nrwl/nx-cloud':
         specifier: latest
-        version: 16.0.5
+        version: 16.4.0
       '@types/chai':
         specifier: ^4.2.18
         version: 4.3.5
@@ -91,8 +91,8 @@ importers:
         specifier: 14.0.1
         version: 14.0.1
       markdownlint:
-        specifier: ^0.30.0
-        version: 0.30.0
+        specifier: ^0.31.0
+        version: 0.31.0
       markdownlint-cli2:
         specifier: 0.4.0
         version: 0.4.0
@@ -2808,10 +2808,10 @@ packages:
       hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
     dev: true
 
-  /@nrwl/nx-cloud@16.0.5:
-    resolution: {integrity: sha512-1p82ym8WE9ziejwgPslstn19iV/VkHfHfKr/5YOnfCHQS+NxUf92ogcYhHXtqWLblVZ9Zs4W4pkSXK4e04wCmQ==}
+  /@nrwl/nx-cloud@16.4.0:
+    resolution: {integrity: sha512-QitrYK6z9ceagetBlgLMZnC0T85k2JTk+oK0MxZ5p/woclqeYN7SiGNZgMzDq8TjJwt8Fm/MDnsSo3xtufmLBg==}
     dependencies:
-      nx-cloud: 16.0.5
+      nx-cloud: 16.4.0
     transitivePeerDependencies:
       - debug
     dev: true
@@ -10642,8 +10642,8 @@ packages:
       markdown-it: 12.3.2
     dev: true
 
-  /markdownlint@0.30.0:
-    resolution: {integrity: sha512-nInuFvI/rEzanAOArW5490Ez4EYpB5ODqVM0mcDYCPx9DKJWCQqCgejjiCvbSeE7sjbDscVtZmwr665qpF5xGA==}
+  /markdownlint@0.31.0:
+    resolution: {integrity: sha512-e+jZGRGZrz1s0T4wiPDFtyQafq7sKgdbf2sdL46gRT8zLEvDDihQmGeSCV6VXp9BsfkuZ0dPTAg9hf4j6NFgjg==}
     engines: {node: '>=16'}
     dependencies:
       markdown-it: 13.0.1
@@ -11384,11 +11384,11 @@ packages:
     resolution: {integrity: sha512-ub5E4+FBPKwAZx0UwIQOjYWGHTEq5sPqHQNRN8Z9e4A7u3Tj1weLJsL59yH9vmvqEtBHaOmT6cYQKIZOxp35FQ==}
     dev: true
 
-  /nx-cloud@16.0.5:
-    resolution: {integrity: sha512-13P7r0aKikjBtmdZrNorwXzVPeVIV4MLEwqGY+DEG6doLBtI5KqEQk/d5B5l2dCF2BEi/LXEmLYCmf9gwbOJ+Q==}
+  /nx-cloud@16.4.0:
+    resolution: {integrity: sha512-jbq4hWvDwRlJVpxgMgbmNSkue+6XZSn53R6Vo6qmCAWODJ9KY1BZdZ/9VRL8IX/BRKebVFiXp3SapFB1qPhH8A==}
     hasBin: true
     dependencies:
-      '@nrwl/nx-cloud': 16.0.5
+      '@nrwl/nx-cloud': 16.4.0
       axios: 1.1.3
       chalk: 4.1.2
       dotenv: 10.0.0
