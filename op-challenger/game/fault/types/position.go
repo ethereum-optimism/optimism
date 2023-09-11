@@ -18,31 +18,33 @@ func NewPositionFromGIndex(x uint64) Position {
 	return NewPosition(depth, int(indexAtDepth))
 }
 
-func (p *Position) Depth() int {
+func (p Position) Depth() int {
 	return p.depth
 }
 
-func (p *Position) IndexAtDepth() int {
+func (p Position) IndexAtDepth() int {
 	return p.indexAtDepth
 }
 
-func (p *Position) IsRootPosition() bool {
+func (p Position) IsRootPosition() bool {
 	return p.depth == 0 && p.indexAtDepth == 0
 }
 
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
-func (p *Position) TraceIndex(maxDepth int) uint64 {
+func (p Position) TraceIndex(maxDepth int) uint64 {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
 	rd := maxDepth - p.depth
 	return uint64(p.indexAtDepth<<rd | ((1 << rd) - 1))
 }
 
-// move goes to the left or right child.
-func (p *Position) move(right bool) {
-	p.depth++
-	p.indexAtDepth = (p.indexAtDepth << 1) | boolToInt(right)
+// move returns a new position at the left or right child.
+func (p Position) move(right bool) Position {
+	return Position{
+		depth:        p.depth + 1,
+		indexAtDepth: (p.indexAtDepth << 1) | boolToInt(right),
+	}
 }
 
 func boolToInt(b bool) int {
@@ -53,33 +55,29 @@ func boolToInt(b bool) int {
 	}
 }
 
-// parent moves up to the parent.
-func (p *Position) parent() {
-	p.depth--
-	p.indexAtDepth = p.indexAtDepth >> 1
+// parent return a new position that is the parent of this Position.
+func (p Position) parent() Position {
+	return Position{
+		depth:        p.depth - 1,
+		indexAtDepth: p.indexAtDepth >> 1,
+	}
 }
 
 // Attack creates a new position which is the attack position of this one.
-func (p *Position) Attack() Position {
-	p2 := NewPosition(p.depth, p.indexAtDepth)
-	p2.move(false)
-	return p2
+func (p Position) Attack() Position {
+	return p.move(false)
 }
 
 // Defend creates a new position which is the defend position of this one.
-func (p *Position) Defend() Position {
-	p2 := NewPosition(p.depth, p.indexAtDepth)
-	p2.parent()
-	p2.move(true)
-	p2.move(false)
-	return p2
+func (p Position) Defend() Position {
+	return p.parent().move(true).move(false)
 }
 
-func (p *Position) Print(maxDepth int) {
+func (p Position) Print(maxDepth int) {
 	fmt.Printf("GIN: %4b\tTrace Position is %4b\tTrace Depth is: %d\tTrace Index is: %d\n", p.ToGIndex(), p.indexAtDepth, p.depth, p.TraceIndex(maxDepth))
 }
 
-func (p *Position) ToGIndex() uint64 {
+func (p Position) ToGIndex() uint64 {
 	return uint64(1<<p.depth | p.indexAtDepth)
 }
 

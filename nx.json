@@ -9,7 +9,7 @@
     ".foundryrc": "*",
     "pnpm.lock.yaml": "*",
     ".npmrc": "*",
-    ".nvmrc":  "*"
+    ".nvmrc": "*"
   },
   "tasksRunnerOptions": {
     "default": {
@@ -78,5 +78,6 @@
       "dependsOn": ["^build", "build:contracts"],
       "outputs": ["{projectRoot}/dist"]
     }
-  }
+  },
+  "$schema": "./node_modules/nx/schemas/nx-schema.json"
 }
