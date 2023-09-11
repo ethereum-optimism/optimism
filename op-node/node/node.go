@@ -241,7 +241,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initProtocolVersionReporting(ctx context.Context, cfg *Config) error {
 	// nothing to report if there is no reporting interval or source-data
-	if cfg.ProtocolVersionReportInterval <= 0 || cfg.Rollup.SuperchainConfigAddress == (common.Address{}) {
+	if cfg.ProtocolVersionReportInterval <= 0 || cfg.Rollup.ProtocolVersionsAddress == (common.Address{}) {
 		return nil
 	}
 

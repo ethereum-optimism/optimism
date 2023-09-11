@@ -3,14 +3,13 @@ pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Semver} from "../universal/Semver.sol";
-import {ResourceMetering} from "./ResourceMetering.sol";
 
 /// @notice ProtocolVersion is a numeric identifier of the protocol version.
 type ProtocolVersion is uint256;
 
-/// @title SuperchainConfig
-/// @notice The SuperchainConfig contract is used to manage superchain configuration.
-contract SuperchainConfig is OwnableUpgradeable, Semver {
+/// @title ProtocolVersions
+/// @notice The ProtocolVersions contract is used to manage superchain protocol version information.
+contract ProtocolVersions is OwnableUpgradeable, Semver {
     /// @notice Enum representing different types of updates.
     /// @custom:value REQUIRED_PROTOCOL_VERSION              Represents an update to the required protocol version.
     /// @custom:value RECOMMENDED_PROTOCOL_VERSION           Represents an update to the recommended protocol version.
@@ -23,21 +22,21 @@ contract SuperchainConfig is OwnableUpgradeable, Semver {
     uint256 public constant VERSION = 0;
 
     /// @notice Storage slot that the required protocol version is stored at.
-    bytes32 public constant REQUIRED_SLOT = bytes32(uint256(keccak256("superchainconfig.required")) - 1);
+    bytes32 public constant REQUIRED_SLOT = bytes32(uint256(keccak256("protocolversion.required")) - 1);
 
     /// @notice Storage slot that the recommended protocol version is stored at.
-    bytes32 public constant RECOMMENDED_SLOT = bytes32(uint256(keccak256("superchainconfig.recommended")) - 1);
+    bytes32 public constant RECOMMENDED_SLOT = bytes32(uint256(keccak256("protocolversion.recommended")) - 1);
 
     /// @notice Emitted when configuration is updated.
-    /// @param version    SuperchainConfig version.
+    /// @param version    ProtocolVersion version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
-    // TODO: should we introduce the SystemConfig notion of startBlock to SuperchainConfig?
+    // TODO: should we introduce the SystemConfig notion of startBlock to ProtocolVersion?
 
     /// @custom:semver 0.1.0
-    /// @notice Constructs the SuperchainConfig contract. Cannot set
+    /// @notice Constructs the ProtocolVersion contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
     constructor() Semver(0, 1, 0) {

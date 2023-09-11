@@ -20,12 +20,12 @@ var (
 	UnsafeBlockSignerAddressSystemConfigStorageSlot = common.HexToHash("0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08")
 
 	// RequiredProtocolVersionStorageSlot is the storage slot that the required protocol version is stored at.
-	// Computed as: `bytes32(uint256(keccak256("superchainconfig.required")) - 1)`
-	RequiredProtocolVersionStorageSlot = common.HexToHash("0xeb75c045af8a14461fe3a1e7ecc4e2c45da8179cf73cdd5fb4341229e6c4b28c")
+	// Computed as: `bytes32(uint256(keccak256("protocolversion.required")) - 1)`
+	RequiredProtocolVersionStorageSlot = common.HexToHash("0x4aaefe95bd84fd3f32700cf3b7566bc944b73138e41958b5785826df2aecace0")
 
 	// RecommendedProtocolVersionStorageSlot is the storage slot that the recommended protocol version is stored at.
-	// Computed as: `bytes32(uint256(keccak256("superchainconfig.recommended")) - 1)`
-	RecommendedProtocolVersionStorageSlot = common.HexToHash("0xff71b5ccd5f08cedb6bb6490bfb79ab59028e2767e73551429ec8ac04184336a")
+	// Computed as: `bytes32(uint256(keccak256("protocolversion.recommended")) - 1)`
+	RecommendedProtocolVersionStorageSlot = common.HexToHash("0xe314dfc40f0025322aacc0ba8ef420b62fb3b702cf01e0cdf3d829117ac2ff1a")
 )
 
 type RuntimeCfgL1Source interface {
@@ -111,17 +111,17 @@ func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch unsafe block signing address from system config: %w", err)
 	}
-	// The superchain protocol version data is optional; only applicable to rollup configs that specify a SuperchainConfig address.
+	// The superchain protocol version data is optional; only applicable to rollup configs that specify a ProtocolVersions address.
 	var requiredProtVersion, recommendedProtoVersion params.ProtocolVersion
-	if r.rollupCfg.SuperchainConfigAddress != (common.Address{}) {
-		requiredVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.SuperchainConfigAddress, RequiredProtocolVersionStorageSlot, l1Ref.Hash)
+	if r.rollupCfg.ProtocolVersionsAddress != (common.Address{}) {
+		requiredVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.ProtocolVersionsAddress, RequiredProtocolVersionStorageSlot, l1Ref.Hash)
 		if err != nil {
-			return fmt.Errorf("required-protocol-version value failed to load from the superchain config: %w", err)
+			return fmt.Errorf("required-protocol-version value failed to load from L1 contract: %w", err)
 		}
 		requiredProtVersion = params.ProtocolVersion(requiredVal)
-		recommendedVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.SuperchainConfigAddress, RecommendedProtocolVersionStorageSlot, l1Ref.Hash)
+		recommendedVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.ProtocolVersionsAddress, RecommendedProtocolVersionStorageSlot, l1Ref.Hash)
 		if err != nil {
-			return fmt.Errorf("recommended-protocol-version value failed to load from the superchain config: %w", err)
+			return fmt.Errorf("recommended-protocol-version value failed to load from L1 contract: %w", err)
 		}
 		recommendedProtoVersion = params.ProtocolVersion(recommendedVal)
 	}
