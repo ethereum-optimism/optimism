@@ -85,13 +85,7 @@ If the agent determines itself to be a Defender, aiming to delete an output root
 Otherwise, it disputes claims positioned at even depths in the game tree.
 This means an honest challenger will only respond to claims made by the opposing team.
 
-The next step is to determine if the claim, now determined to be on the opposing team,
-disputes another claim it _agrees with_.
-An honest challenger agrees with a claim iff every other claim along its path to the root
-claim commits to a valid `ClaimHash`.
-Thus, an honest challenger avoids supporting invalid claims on the same team.
-
-The last step is to determine whether the claim has a valid commitment (i.e. `ClaimHash`).
+The next step is to determine whether the claim has a valid commitment (i.e. `ClaimHash`).
 If the `ClaimHash` matches ours at the same trace index, then we disagree with the claim's
 stance by moving to [defend](./fault-dispute-game.md#defend).
 Otherwise, the claim is [attacked](./fault-dispute-game.md#attack).
@@ -104,28 +98,18 @@ class Team(Enum):
     CHALLENGER = 1
 
 class Claim:
-    parent: Claim
     position: uint64
     claim_hash: ClaimHash
 
 MAX_TRACE = 2**MAX_GAME_DEPTH
 
-def agree_with(claim: Claim, chal_trace: List[ClaimHash, MAX_TRACE]):
-    if chal_trace[claim.trace_index] != claim.claim_hash:
-        return False
-    grand_parent = claim.parent.parent if claim.parent is not None else None
-    if grand_parent is not None:
-        return agree_with(grand_parent)
-    return True
-
 def respond(claim: Claim, chal: Team, chal_trace: List[ClaimHash, MAX_TRACE]):
     if depth(claim.position) % 2 != chal.value:
-        if claim.parent is None or agree_with(claim.parent, chal_trace):
-            if chal_trace[trace_index(claim.position)] == claim.claim_hash:
-                defend()
-            else:
-                attack()
-        else: pass # no response
+        if chal_trace[trace_index(claim.position)] == claim.claim_hash:
+            defend()
+        else:
+            attack()
+    else: pass # no response
 ```
 
 In attack or defense, the honest challenger MUST submit a `ClaimHash` corresponding to the state
