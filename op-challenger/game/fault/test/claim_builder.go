@@ -38,6 +38,13 @@ func (c *ClaimBuilder) CorrectClaim(idx uint64) common.Hash {
 	return value
 }
 
+// CorrectClaimAtPosition returns the canonical claim at a specified position
+func (c *ClaimBuilder) CorrectClaimAtPosition(pos types.Position) common.Hash {
+	value, err := c.correct.Get(context.Background(), pos.TraceIndex(c.maxDepth))
+	c.require.NoError(err)
+	return value
+}
+
 // CorrectPreState returns the pre-state (not hashed) required to execute the valid step at the specified trace index
 func (c *ClaimBuilder) CorrectPreState(idx uint64) []byte {
 	preimage, _, _, err := c.correct.GetStepData(context.Background(), idx)
@@ -102,7 +109,20 @@ func (c *ClaimBuilder) AttackClaim(claim types.Claim, correct bool) types.Claim 
 			Value:    c.claim(pos.TraceIndex(c.maxDepth), correct),
 			Position: pos,
 		},
-		Parent: claim.ClaimData,
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
+	}
+}
+
+func (c *ClaimBuilder) AttackClaimWithValue(claim types.Claim, value common.Hash) types.Claim {
+	pos := claim.Position.Attack()
+	return types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    value,
+			Position: pos,
+		},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}
 }
 
@@ -113,6 +133,19 @@ func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim 
 			Value:    c.claim(pos.TraceIndex(c.maxDepth), correct),
 			Position: pos,
 		},
-		Parent: claim.ClaimData,
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
+	}
+}
+
+func (c *ClaimBuilder) DefendClaimWithValue(claim types.Claim, value common.Hash) types.Claim {
+	pos := claim.Position.Defend()
+	return types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    value,
+			Position: pos,
+		},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}
 }
