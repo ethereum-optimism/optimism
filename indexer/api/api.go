@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -46,6 +47,7 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 	promRecorder := metrics.NewPromHTTPRecorder(mr, MetricsNamespace)
 
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
+	apiRouter.Use(middleware.Timeout(time.Duration(serverConfig.WriteTimeout) * time.Second))
 	apiRouter.Use(middleware.Recoverer)
 	apiRouter.Use(middleware.Heartbeat("/healthz"))
 
