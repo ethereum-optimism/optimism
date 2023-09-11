@@ -260,8 +260,8 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 }
 
 type stubStepper struct {
-	reads  int
-	writes int
+	reads       int
+	writes      int
 	noReadError bool
 }
 
