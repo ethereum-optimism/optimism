@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -82,10 +83,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.String(flags.PprofAddrFlag.Name),
 			ListenPort: ctx.Int(flags.PprofPortFlag.Name),
 		},
-		P2P:                         p2pConfig,
-		P2PSigner:                   p2pSignerSetup,
-		L1EpochPollInterval:         ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
-		RuntimeConfigReloadInterval: ctx.Duration(flags.RuntimeConfigReloadIntervalFlag.Name),
+		P2P:                           p2pConfig,
+		P2PSigner:                     p2pSignerSetup,
+		L1EpochPollInterval:           ctx.Duration(flags.L1EpochPollIntervalFlag.Name),
+		RuntimeConfigReloadInterval:   ctx.Duration(flags.RuntimeConfigReloadIntervalFlag.Name),
+		ProtocolVersionReportInterval: time.Minute * 10,
 		Heartbeat: node.HeartbeatConfig{
 			Enabled: ctx.Bool(flags.HeartbeatEnabledFlag.Name),
 			Moniker: ctx.String(flags.HeartbeatMonikerFlag.Name),

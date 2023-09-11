@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -83,6 +87,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the runtime config: %w", err)
+	}
+	if err := n.initProtocolVersionReporting(ctx, cfg); err != nil {
+		return fmt.Errorf("failed to init the protocol-version reporting: %w", err)
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
@@ -189,6 +196,13 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			n.log.Error("failed to fetch runtime config data", "err", err)
 			return l1Head, err
 		}
+
+		// update metrics (data may be zero if non-activated)
+		recommended := n.runCfg.RecommendedProtocolVersion()
+		required := n.runCfg.RequiredProtocolVersion()
+		engine := n.runCfg.EngineProtocolVersion()
+		n.metrics.ReportProtocolVersions(rollup.OPStackSupport, engine, recommended, required)
+
 		return l1Head, nil
 	}
 
@@ -222,6 +236,46 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			}
 		}
 	}(n.resourcesCtx, cfg.RuntimeConfigReloadInterval) // this keeps running after initialization
+	return nil
+}
+
+func (n *OpNode) initProtocolVersionReporting(ctx context.Context, cfg *Config) error {
+	// nothing to report if there is no reporting interval or source-data
+	if cfg.ProtocolVersionReportInterval <= 0 || cfg.Rollup.SuperchainConfigAddress == (common.Address{}) {
+		return nil
+	}
+
+	// start a background loop to report the protocol version
+	go func(ctx context.Context, interval time.Duration) {
+		if interval <= 0 {
+			n.log.Debug("not running protocol-version reporting background loop")
+			return
+		}
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				local := rollup.OPStackSupport
+				recommended := n.runCfg.RecommendedProtocolVersion()
+				required := n.runCfg.RequiredProtocolVersion()
+				// forward to execution engine, and get back the protocol version that op-geth supports
+				engineSupport, err := n.l2Source.SignalSuperchainV1(ctx, recommended, required)
+				if err != nil {
+					engineSupport = n.runCfg.EngineProtocolVersion() // fallback to last seen version
+					n.log.Warn("failed to notify engine of protocol version", "err", err)
+				} else {
+					catalyst.LogProtocolVersionSupport(n.log.New("node", "engine"), local, recommended, "recommended")
+					catalyst.LogProtocolVersionSupport(n.log.New("node", "engine"), local, required, "required")
+				}
+				n.metrics.ReportProtocolVersions(local, engineSupport, recommended, required)
+				catalyst.LogProtocolVersionSupport(n.log.New("node", "op-node"), engineSupport, recommended, "recommended")
+				catalyst.LogProtocolVersionSupport(n.log.New("node", "op-node"), engineSupport, required, "required")
+			case <-ctx.Done():
+				return
+			}
+		}
+	}(n.resourcesCtx, cfg.ProtocolVersionReportInterval) // this keeps running after initialization
 	return nil
 }
 

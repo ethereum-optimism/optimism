@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -33,6 +34,8 @@ type RuntimeCfgL1Source interface {
 
 type ReadonlyRuntimeConfig interface {
 	P2PSequencerAddress() common.Address
+	RequiredProtocolVersion() params.ProtocolVersion
+	RecommendedProtocolVersion() params.ProtocolVersion
 }
 
 // RuntimeConfig maintains runtime-configurable options.
@@ -54,15 +57,16 @@ type RuntimeConfig struct {
 	runtimeConfigData
 }
 
-type ProtocolVersion [32]byte
-
 // runtimeConfigData is a flat bundle of configurable data, easy and light to copy around.
 type runtimeConfigData struct {
 	p2pBlockSignerAddr common.Address
 
 	// superchain protocol version signals
-	recommended ProtocolVersion
-	required    ProtocolVersion
+	recommended params.ProtocolVersion
+	required    params.ProtocolVersion
+
+	// last seen supported protocol version of execution engine
+	engineSupport params.ProtocolVersion
 }
 
 var _ p2p.GossipRuntimeConfig = (*RuntimeConfig)(nil)
@@ -81,16 +85,22 @@ func (r *RuntimeConfig) P2PSequencerAddress() common.Address {
 	return r.p2pBlockSignerAddr
 }
 
-func (r *RuntimeConfig) RequiredProtocolVersion() ProtocolVersion {
+func (r *RuntimeConfig) RequiredProtocolVersion() params.ProtocolVersion {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.required
 }
 
-func (r *RuntimeConfig) RecommendedProtocolVersion() ProtocolVersion {
+func (r *RuntimeConfig) RecommendedProtocolVersion() params.ProtocolVersion {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.recommended
+}
+
+func (r *RuntimeConfig) EngineProtocolVersion() params.ProtocolVersion {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.engineSupport
 }
 
 // Load resets the runtime configuration by fetching the latest config data from L1 at the given L1 block.
@@ -102,18 +112,18 @@ func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef) error {
 		return fmt.Errorf("failed to fetch unsafe block signing address from system config: %w", err)
 	}
 	// The superchain protocol version data is optional; only applicable to rollup configs that specify a SuperchainConfig address.
-	var requiredProtVersion, recommendedProtoVersion ProtocolVersion
+	var requiredProtVersion, recommendedProtoVersion params.ProtocolVersion
 	if r.rollupCfg.SuperchainConfigAddress != (common.Address{}) {
 		requiredVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.SuperchainConfigAddress, RequiredProtocolVersionStorageSlot, l1Ref.Hash)
 		if err != nil {
 			return fmt.Errorf("required-protocol-version value failed to load from the superchain config: %w", err)
 		}
-		requiredProtVersion = ProtocolVersion(requiredVal)
+		requiredProtVersion = params.ProtocolVersion(requiredVal)
 		recommendedVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.SuperchainConfigAddress, RecommendedProtocolVersionStorageSlot, l1Ref.Hash)
 		if err != nil {
 			return fmt.Errorf("recommended-protocol-version value failed to load from the superchain config: %w", err)
 		}
-		recommendedProtoVersion = ProtocolVersion(recommendedVal)
+		recommendedProtoVersion = params.ProtocolVersion(recommendedVal)
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()

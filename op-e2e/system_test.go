@@ -1434,3 +1434,51 @@ func TestRuntimeConfigReload(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestProtocolVersionReporting(t *testing.T) {
+	t.Skip() // TODO superchain config support
+
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
+	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
+	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
+	// and frequently report the protocol versions
+	cfg.Nodes["verifier"].ProtocolVersionReportInterval = time.Second * 5
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	runtimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
+
+	l1 := sys.Clients["l1"]
+
+	// Change the superchain-config via L1
+
+	newRecommendedProtocolVersion := params.ToProtocolVersion(0, 0, 0, 0, 1)
+	require.NotEqual(t, runtimeConfig.RecommendedProtocolVersion(), newRecommendedProtocolVersion, "changing to a different protocol version")
+	// TODO superchain config bindings
+
+	// TODO new contract bindings instance
+	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig()) // TODO superchain config owner
+	require.Nil(t, err)
+
+	// TODO change recommended protocol version
+	_ = opts
+	var tx *types.Transaction
+
+	// wait for the change to confirm
+	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
+	require.NoError(t, err)
+
+	// wait for the recommended protocol version to change
+	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
+		v := sys.RollupNodes["verifier"].RuntimeConfig().RecommendedProtocolVersion()
+		if v == newRecommendedProtocolVersion {
+			return struct{}{}, nil
+		}
+		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newRecommendedProtocolVersion)
+	})
+	require.NoError(t, err)
+}
