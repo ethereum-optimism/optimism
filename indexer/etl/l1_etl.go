@@ -44,7 +44,7 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		fromHeader = latestHeader.RLPHeader.Header()
 
 	} else if cfg.StartHeight.BitLen() > 0 {
-		log.Info("no indexed state in storage, starting from supplied L1 height", "height", cfg.StartHeight.String())
+		log.Info("no indexed state starting from supplied L1 height", "height", cfg.StartHeight.String())
 		header, err := client.BlockHeaderByNumber(cfg.StartHeight)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
@@ -53,7 +53,7 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		fromHeader = header
 
 	} else {
-		log.Info("no indexed state in storage, starting from L1 genesis")
+		log.Info("no indexed state, starting from genesis")
 	}
 
 	// NOTE - The use of un-buffered channel here assumes that downstream consumers

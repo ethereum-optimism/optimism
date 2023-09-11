@@ -4,6 +4,13 @@ ARG VERSION=v0.0.0
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
+
+WORKDIR /app
+
+RUN go mod download
+
 # build op-challenger with the shared go.mod & go.sum files
 COPY ./op-challenger /app/op-challenger
 COPY ./op-program /app/op-program
@@ -12,8 +19,6 @@ COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-service /app/op-service
 COPY ./op-signer /app/op-signer
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
 COPY ./.git /app/.git
 
 # Copy cannon and its dependencies
@@ -22,8 +27,6 @@ COPY ./op-preimage /app/op-preimage
 COPY ./op-chain-ops /app/op-chain-ops
 
 WORKDIR /app/op-program
-
-RUN go mod download
 
 ARG TARGETOS TARGETARCH
 

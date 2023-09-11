@@ -80,8 +80,8 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     uint256[MAX_GAP - 3] private __gap;
 
     /// @dev Creates a new EAS instance.
-    /// @custom:semver 1.1.0
-    constructor() Semver(1, 1, 0) EIP1271Verifier("EAS", "1.0.1") { }
+    /// @custom:semver 1.2.0
+    constructor() Semver(1, 2, 0) EIP1271Verifier("EAS", "1.2.0") { }
 
     /// @inheritdoc IEAS
     function getSchemaRegistry() external pure returns (ISchemaRegistry) {
@@ -90,9 +90,10 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
     /// @inheritdoc IEAS
     function attest(AttestationRequest calldata request) external payable returns (bytes32) {
-        AttestationRequestData[] memory requests = new AttestationRequestData[](1);
-        requests[0] = request.data;
-        return _attest(request.schema, requests, msg.sender, msg.value, true).uids[0];
+        AttestationRequestData[] memory data = new AttestationRequestData[](1);
+        data[0] = request.data;
+
+        return _attest(request.schema, data, msg.sender, msg.value, true).uids[0];
     }
 
     /// @inheritdoc IEAS
@@ -116,7 +117,8 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
-        bytes32[][] memory totalUids = new bytes32[][](multiRequests.length);
+        uint256 length = multiRequests.length;
+        bytes32[][] memory totalUids = new bytes32[][](length);
         uint256 totalUidsCount = 0;
 
         // We are keeping track of the total available ETH amount that can be sent to resolvers and will keep deducting
@@ -125,17 +127,23 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiRequests.length; i = uncheckedInc(i)) {
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiRequests.length - 1;
+                last = i == length - 1;
             }
 
             // Process the current batch of attestations.
             MultiAttestationRequest calldata multiRequest = multiRequests[i];
+
+            // Ensure that data isn't empty.
+            if (multiRequest.data.length == 0) {
+                revert InvalidLength();
+            }
+
             AttestationsResult memory res =
                 _attest(multiRequest.schema, multiRequest.data, msg.sender, availableValue, last);
 
@@ -161,7 +169,8 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
-        bytes32[][] memory totalUids = new bytes32[][](multiDelegatedRequests.length);
+        uint256 length = multiDelegatedRequests.length;
+        bytes32[][] memory totalUids = new bytes32[][](length);
         uint256 totalUidsCount = 0;
 
         // We are keeping track of the total available ETH amount that can be sent to resolvers and will keep deducting
@@ -170,31 +179,33 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiDelegatedRequests.length; i = uncheckedInc(i)) {
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiDelegatedRequests.length - 1;
+                last = i == length - 1;
             }
 
             MultiDelegatedAttestationRequest calldata multiDelegatedRequest = multiDelegatedRequests[i];
             AttestationRequestData[] calldata data = multiDelegatedRequest.data;
 
             // Ensure that no inputs are missing.
-            if (data.length == 0 || data.length != multiDelegatedRequest.signatures.length) {
+            uint256 dataLength = data.length;
+            if (dataLength == 0 || dataLength != multiDelegatedRequest.signatures.length) {
                 revert InvalidLength();
             }
 
             // Verify signatures. Please note that the signatures are assumed to be signed with increasing nonces.
-            for (uint256 j = 0; j < data.length; j = uncheckedInc(j)) {
+            for (uint256 j = 0; j < dataLength; j = uncheckedInc(j)) {
                 _verifyAttest(
                     DelegatedAttestationRequest({
                         schema: multiDelegatedRequest.schema,
                         data: data[j],
                         signature: multiDelegatedRequest.signatures[j],
-                        attester: multiDelegatedRequest.attester
+                        attester: multiDelegatedRequest.attester,
+                        deadline: multiDelegatedRequest.deadline
                     })
                 );
             }
@@ -219,10 +230,10 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
     /// @inheritdoc IEAS
     function revoke(RevocationRequest calldata request) external payable {
-        RevocationRequestData[] memory requests = new RevocationRequestData[](1);
-        requests[0] = request.data;
+        RevocationRequestData[] memory data = new RevocationRequestData[](1);
+        data[0] = request.data;
 
-        _revoke(request.schema, requests, msg.sender, msg.value, true);
+        _revoke(request.schema, data, msg.sender, msg.value, true);
     }
 
     /// @inheritdoc IEAS
@@ -243,13 +254,14 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiRequests.length; i = uncheckedInc(i)) {
+        uint256 length = multiRequests.length;
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiRequests.length - 1;
+                last = i == length - 1;
             }
 
             MultiRevocationRequest calldata multiRequest = multiRequests[i];
@@ -270,31 +282,34 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         // possible to send too much ETH anyway.
         uint256 availableValue = msg.value;
 
-        for (uint256 i = 0; i < multiDelegatedRequests.length; i = uncheckedInc(i)) {
+        uint256 length = multiDelegatedRequests.length;
+        for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
             // is a remainder - it will be refunded back to the attester (something that we can only verify during the
             // last and final batch).
             bool last;
             unchecked {
-                last = i == multiDelegatedRequests.length - 1;
+                last = i == length - 1;
             }
 
             MultiDelegatedRevocationRequest memory multiDelegatedRequest = multiDelegatedRequests[i];
             RevocationRequestData[] memory data = multiDelegatedRequest.data;
 
             // Ensure that no inputs are missing.
-            if (data.length == 0 || data.length != multiDelegatedRequest.signatures.length) {
+            uint256 dataLength = data.length;
+            if (dataLength == 0 || dataLength != multiDelegatedRequest.signatures.length) {
                 revert InvalidLength();
             }
 
             // Verify signatures. Please note that the signatures are assumed to be signed with increasing nonces.
-            for (uint256 j = 0; j < data.length; j = uncheckedInc(j)) {
+            for (uint256 j = 0; j < dataLength; j = uncheckedInc(j)) {
                 _verifyRevoke(
                     DelegatedRevocationRequest({
                         schema: multiDelegatedRequest.schema,
                         data: data[j],
                         signature: multiDelegatedRequest.signatures[j],
-                        revoker: multiDelegatedRequest.revoker
+                        revoker: multiDelegatedRequest.revoker,
+                        deadline: multiDelegatedRequest.deadline
                     })
                 );
             }
@@ -350,7 +365,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
     /// @inheritdoc IEAS
     function isAttestationValid(bytes32 uid) public view returns (bool) {
-        return _db[uid].uid != 0;
+        return _db[uid].uid != EMPTY_UID;
     }
 
     /// @inheritdoc IEAS
@@ -364,14 +379,14 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     }
 
     /// @dev Attests to a specific schema.
-    /// @param schema // the unique identifier of the schema to attest to.
+    /// @param schemaUID The unique identifier of the schema to attest to.
     /// @param data The arguments of the attestation requests.
     /// @param attester The attesting account.
     /// @param availableValue The total available ETH amount that can be sent to the resolver.
     /// @param last Whether this is the last attestations/revocations set.
     /// @return The UID of the new attestations and the total sent ETH amount.
     function _attest(
-        bytes32 schema,
+        bytes32 schemaUID,
         AttestationRequestData[] memory data,
         address attester,
         uint256 availableValue,
@@ -386,7 +401,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         res.uids = new bytes32[](length);
 
         // Ensure that we aren't attempting to attest to a non-existing schema.
-        SchemaRecord memory schemaRecord = _schemaRegistry.getSchema(schema);
+        SchemaRecord memory schemaRecord = _schemaRegistry.getSchema(schemaUID);
         if (schemaRecord.uid == EMPTY_UID) {
             revert InvalidSchema();
         }
@@ -409,7 +424,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
             Attestation memory attestation = Attestation({
                 uid: EMPTY_UID,
-                schema: schema,
+                schema: schemaUID,
                 refUID: request.refUID,
                 time: _time(),
                 expirationTime: request.expirationTime,
@@ -437,7 +452,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
             _db[uid] = attestation;
 
-            if (request.refUID != 0) {
+            if (request.refUID != EMPTY_UID) {
                 // Ensure that we aren't trying to attest to a non-existing referenced UID.
                 if (!isAttestationValid(request.refUID)) {
                     revert NotFound();
@@ -449,7 +464,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
 
             res.uids[i] = uid;
 
-            emit Attested(request.recipient, attester, uid, schema);
+            emit Attested(request.recipient, attester, uid, schemaUID);
         }
 
         res.usedValue = _resolveAttestations(schemaRecord, attestations, values, false, availableValue, last);
@@ -458,14 +473,14 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     }
 
     /// @dev Revokes an existing attestation to a specific schema.
-    /// @param schema The unique identifier of the schema to attest to.
+    /// @param schemaUID The unique identifier of the schema to attest to.
     /// @param data The arguments of the revocation requests.
     /// @param revoker The revoking account.
     /// @param availableValue The total available ETH amount that can be sent to the resolver.
     /// @param last Whether this is the last attestations/revocations set.
     /// @return Returns the total sent ETH amount.
     function _revoke(
-        bytes32 schema,
+        bytes32 schemaUID,
         RevocationRequestData[] memory data,
         address revoker,
         uint256 availableValue,
@@ -475,7 +490,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         returns (uint256)
     {
         // Ensure that a non-existing schema ID wasn't passed by accident.
-        SchemaRecord memory schemaRecord = _schemaRegistry.getSchema(schema);
+        SchemaRecord memory schemaRecord = _schemaRegistry.getSchema(schemaUID);
         if (schemaRecord.uid == EMPTY_UID) {
             revert InvalidSchema();
         }
@@ -495,7 +510,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
             }
 
             // Ensure that a wrong schema ID wasn't passed by accident.
-            if (attestation.schema != schema) {
+            if (attestation.schema != schemaUID) {
                 revert InvalidSchema();
             }
 
@@ -520,7 +535,7 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
             attestations[i] = attestation;
             values[i] = request.value;
 
-            emit Revoked(attestation.recipient, revoker, request.uid, attestation.schema);
+            emit Revoked(attestations[i].recipient, revoker, request.uid, schemaUID);
         }
 
         return _resolveAttestations(schemaRecord, attestations, values, true, availableValue, last);
@@ -552,22 +567,28 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
                 revert NotPayable();
             }
 
+            if (last) {
+                _refund(availableValue);
+            }
+
             return 0;
         }
 
         // Ensure that we don't accept payments which can't be forwarded to the resolver.
-        if (value != 0 && !resolver.isPayable()) {
-            revert NotPayable();
-        }
+        if (value != 0) {
+            if (!resolver.isPayable()) {
+                revert NotPayable();
+            }
 
-        // Ensure that the attester/revoker doesn't try to spend more than available.
-        if (value > availableValue) {
-            revert InsufficientValue();
-        }
+            // Ensure that the attester/revoker doesn't try to spend more than available.
+            if (value > availableValue) {
+                revert InsufficientValue();
+            }
 
-        // Ensure to deduct the sent value explicitly.
-        unchecked {
-            availableValue -= value;
+            // Ensure to deduct the sent value explicitly.
+            unchecked {
+                availableValue -= value;
+            }
         }
 
         if (isRevocation) {
@@ -618,16 +639,25 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
                 }
             }
 
+            if (last) {
+                _refund(availableValue);
+            }
+
             return 0;
         }
 
         uint256 totalUsedValue = 0;
+        bool isResolverPayable = resolver.isPayable();
 
         for (uint256 i = 0; i < length; i = uncheckedInc(i)) {
             uint256 value = values[i];
 
             // Ensure that we don't accept payments which can't be forwarded to the resolver.
-            if (value != 0 && !resolver.isPayable()) {
+            if (value == 0) {
+                continue;
+            }
+
+            if (!isResolverPayable) {
                 revert NotPayable();
             }
 
@@ -702,11 +732,12 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         emit Timestamped(data, time);
     }
 
-    /// @dev Timestamps the specified bytes32 data.
-    /// @param data The data to timestamp.
-    /// @param time The timestamp.
+    /// @dev Revokes the specified bytes32 data.
+    /// @param revoker The revoking account.
+    /// @param data The data to revoke.
+    /// @param time The timestamp the data was revoked with.
     function _revokeOffchain(address revoker, bytes32 data, uint64 time) private {
-        mapping(bytes32 => uint64) storage revocations = _revocationsOffchain[revoker];
+        mapping(bytes32 data => uint64 timestamp) storage revocations = _revocationsOffchain[revoker];
 
         if (revocations[data] != 0) {
             revert AlreadyRevokedOffchain();
@@ -717,13 +748,6 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         emit RevokedOffchain(revoker, data, time);
     }
 
-    /// @dev Returns the current's block timestamp.
-    ///      This method is overridden during tests and
-    ///      used to simulate the current block time.
-    function _time() internal view virtual returns (uint64) {
-        return uint64(block.timestamp);
-    }
-
     /// @dev Merges lists of UIDs.
     /// @param uidLists The provided lists of UIDs.
     /// @param uidsCount Total UIDs count.
@@ -732,9 +756,11 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
         bytes32[] memory uids = new bytes32[](uidsCount);
 
         uint256 currentIndex = 0;
-        for (uint256 i = 0; i < uidLists.length; i = uncheckedInc(i)) {
+        uint256 uidListLength = uidLists.length;
+        for (uint256 i = 0; i < uidListLength; i = uncheckedInc(i)) {
             bytes32[] memory currentUids = uidLists[i];
-            for (uint256 j = 0; j < currentUids.length; j = uncheckedInc(j)) {
+            uint256 currentUidsLength = currentUids.length;
+            for (uint256 j = 0; j < currentUidsLength; j = uncheckedInc(j)) {
                 uids[currentIndex] = currentUids[j];
 
                 unchecked {

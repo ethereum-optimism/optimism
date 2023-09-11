@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -31,6 +32,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -100,7 +102,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	// for that block and subsequently reorgs to match what the verifier derives when running the
 	// reconcillation process.
 	l2Verif := sys.Clients["verifier"]
-	_, err = waitForBlock(big.NewInt(6), l2Verif, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	_, err = geth.WaitForBlock(big.NewInt(6), l2Verif, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
 	require.Nil(t, err)
 
 	// Wait for batch submitter to update L2 output oracle.
@@ -272,14 +274,14 @@ func TestPendingGasLimit(t *testing.T) {
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
-	cfg.GethOptions["sequencer"] = []GethOption{
+	cfg.GethOptions["sequencer"] = []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 10_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
 	}
-	cfg.GethOptions["verifier"] = []GethOption{
+	cfg.GethOptions["verifier"] = []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 9_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
@@ -382,7 +384,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	})
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, time.Duration((sys.RollupConfig.SeqWindowSize+4)*cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, time.Duration((sys.RollupConfig.SeqWindowSize+4)*cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// Assert that the transaction is not found on the verifier
@@ -713,7 +715,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	configureL1(syncNodeCfg, sys.EthInstances["l1"])
-	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
+	syncerL2Engine, _, err := geth.InitL2("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 
@@ -735,7 +737,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	l2Verif := ethclient.NewClient(rpc)
 
 	// It may take a while to sync, but eventually we should see the sequenced data show up
-	receiptVerif, err := waitForTransaction(receiptSeq.TxHash, l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptVerif, err := geth.WaitForTransaction(receiptSeq.TxHash, l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)
@@ -865,9 +867,9 @@ func TestL1InfoContract(t *testing.T) {
 
 	endVerifBlockNumber := big.NewInt(4)
 	endSeqBlockNumber := big.NewInt(6)
-	endVerifBlock, err := waitForBlock(endVerifBlockNumber, l2Verif, time.Minute)
+	endVerifBlock, err := geth.WaitForBlock(endVerifBlockNumber, l2Verif, time.Minute)
 	require.Nil(t, err)
-	endSeqBlock, err := waitForBlock(endSeqBlockNumber, l2Seq, time.Minute)
+	endSeqBlock, err := geth.WaitForBlock(endSeqBlockNumber, l2Seq, time.Minute)
 	require.Nil(t, err)
 
 	seqL1Info, err := bindings.NewL1Block(cfg.L1InfoPredeployAddress, l2Seq)
@@ -1264,7 +1266,7 @@ func TestStopStartBatcher(t *testing.T) {
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
 	safeBlockInclusionDuration := time.Duration(6*cfg.DeployConfig.L1BlockTime) * time.Second
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
+	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// ensure the safe chain advances
@@ -1301,7 +1303,7 @@ func TestStopStartBatcher(t *testing.T) {
 	receipt = sendTx()
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
-	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
+	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
 
 	// ensure that the safe chain advances after restarting the batcher
@@ -1323,7 +1325,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
 
-	_, err = waitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
+	_, err = geth.WaitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
 	require.Nil(t, err, "Waiting for L2 blocks")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1340,7 +1342,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	// possible additional L1 blocks will be created before the batcher starts,
 	// so we wait additional blocks.
 	for i := int64(0); i < 10; i++ {
-		block, err := waitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+		block, err := geth.WaitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
 		require.Nil(t, err, "Waiting for l1 blocks")
 		totalTxCount += len(block.Transactions())
 
@@ -1400,4 +1402,48 @@ func TestPendingBlockIsLatest(t *testing.T) {
 		}
 		t.Fatal("failed to get pending header with same number as latest header")
 	})
+}
+
+func TestRuntimeConfigReload(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
+	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
+	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	initialRuntimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
+
+	// close the EL node, since we want to block derivation, to solely rely on the reloading mechanism for updates.
+	sys.EthInstances["verifier"].Close()
+
+	l1 := sys.Clients["l1"]
+
+	// Change the system-config via L1
+	sysCfgContract, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1)
+	require.NoError(t, err)
+	newUnsafeBlocksSigner := common.Address{0x12, 0x23, 0x45}
+	require.NotEqual(t, initialRuntimeConfig.P2PSequencerAddress(), newUnsafeBlocksSigner, "changing to a different address")
+	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+	require.Nil(t, err)
+	// the unsafe signer address is part of the runtime config
+	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
+	require.NoError(t, err)
+
+	// wait for the change to confirm
+	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
+	require.NoError(t, err)
+
+	// wait for the address to change
+	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
+		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress()
+		if v == newUnsafeBlocksSigner {
+			return struct{}{}, nil
+		}
+		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newUnsafeBlocksSigner)
+	})
+	require.NoError(t, err)
 }

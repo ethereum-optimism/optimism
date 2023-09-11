@@ -37,7 +37,7 @@ func (d *DiskKV) pathKey(k common.Hash) string {
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
 	d.Lock()
 	defer d.Unlock()
-	f, err := os.CreateTemp(d.path, k.String()+".txt.*")
+	f, err := openTempFile(d.path, k.String()+".txt.*")
 	if err != nil {
 		return fmt.Errorf("failed to open temp file for pre-image %s: %w", k, err)
 	}
@@ -55,6 +55,21 @@ func (d *DiskKV) Put(k common.Hash, v []byte) error {
 		return fmt.Errorf("failed to move temp dir %v to final destination %v: %w", f.Name(), targetFile, err)
 	}
 	return nil
+}
+
+func openTempFile(dir string, nameTemplate string) (*os.File, error) {
+	f, err := os.CreateTemp(dir, nameTemplate)
+	// Directory has been deleted out from underneath us. Recreate it.
+	if errors.Is(err, os.ErrNotExist) {
+		if mkdirErr := os.MkdirAll(dir, 0777); mkdirErr != nil {
+			return nil, errors.Join(fmt.Errorf("failed to create directory %v: %w", dir, mkdirErr), err)
+		}
+		f, err = os.CreateTemp(dir, nameTemplate)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
 }
 
 func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
