@@ -30,9 +30,8 @@ var (
 			{Name: "sender", Type: addressType},
 			{Name: "data", Type: bytesType},
 			{Name: "nonce", Type: uint256Type},
-			// The actual transaction on the legacy L1CrossDomainMessenger
-			// actually has a trailing proof argument but is ignored for the
-			// `XDomainCallData` encoding
+			// The actual transaction on the legacy L1CrossDomainMessenger has a trailing
+			// proof argument but is ignored for the `XDomainCallData` encoding
 		},
 		abi.Arguments{}, // outputs
 	)
@@ -44,8 +43,9 @@ type CrossDomainMessengerSentMessageEvent struct {
 }
 
 type CrossDomainMessengerRelayedMessageEvent struct {
-	Event       *database.ContractEvent
-	MessageHash common.Hash
+	Event           *database.ContractEvent
+	MessageHash     common.Hash
+	MessageCallData []byte
 }
 
 func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerSentMessageEvent, error) {

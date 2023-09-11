@@ -3,6 +3,7 @@ package contracts
 import (
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 
@@ -38,15 +39,15 @@ func LegacyCTCDepositEvents(contractAddress common.Address, db *database.DB, fro
 			return nil, err
 		}
 
-		zeroAmt := big.NewInt(0)
+		// Enqueued Deposits do not carry a `msg.value` amount. ETH is only minted on L2 via the L1StandardBrige
 		ctcTxDeposits[i] = LegacyCTCDepositEvent{
 			Event:    &events[i].ContractEvent,
 			GasLimit: txEnqueued.GasLimit,
-			TxHash:   types.NewTransaction(0, txEnqueued.Target, zeroAmt, txEnqueued.GasLimit.Uint64(), nil, txEnqueued.Data).Hash(),
+			TxHash:   types.NewTransaction(0, txEnqueued.Target, bigint.Zero, txEnqueued.GasLimit.Uint64(), nil, txEnqueued.Data).Hash(),
 			Tx: database.Transaction{
 				FromAddress: txEnqueued.L1TxOrigin,
 				ToAddress:   txEnqueued.Target,
-				Amount:      zeroAmt,
+				Amount:      bigint.Zero,
 				Data:        txEnqueued.Data,
 				Timestamp:   events[i].Timestamp,
 			},

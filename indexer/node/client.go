@@ -161,8 +161,6 @@ func (c *client) TxByHash(hash common.Hash) (*types.Transaction, error) {
 		return nil, ethereum.NotFound
 	}
 
-	// NOTE: why does ethclient do something different here
-
 	return tx, nil
 }
 

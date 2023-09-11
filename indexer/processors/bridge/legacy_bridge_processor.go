@@ -15,6 +15,11 @@ import (
 
 // Legacy Bridge Initiation
 
+// LegacyL1ProcessInitiatedEvents will query the data for bridge events within the specified block range
+// according the pre-bedrock protocol. This follows:
+//  1. CanonicalTransactionChain
+//  2. L1CrossDomainMessenger
+//  3. L1StandardBridge
 func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
 	// (1) CanonicalTransactionChain
 	ctcTxDepositEvents, err := contracts.LegacyCTCDepositEvents(chainConfig.L1Contracts.LegacyCanonicalTransactionChain, db, fromHeight, toHeight)
@@ -31,8 +36,11 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 		deposit := ctcTxDepositEvents[i]
 		ctcTxDeposits[logKey{deposit.Event.BlockHash, deposit.Event.LogIndex}] = &deposit
 		transactionDeposits[i] = database.L1TransactionDeposit{
-			SourceHash:           deposit.TxHash,
-			L2TransactionHash:    deposit.TxHash, // TODO: check that this is right
+			// We re-use the L2 Transaction hash as the source hash
+			// to remain consistent in the schema.
+			SourceHash:        deposit.TxHash,
+			L2TransactionHash: deposit.TxHash,
+
 			InitiatedL1EventGUID: deposit.Event.GUID,
 			GasLimit:             deposit.GasLimit,
 			Tx:                   deposit.Tx,
@@ -93,12 +101,12 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
 			log.Error("missing cross domain message for bridge transfer", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage preceding TransactionEnqeueud event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
 		}
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 2}]
 		if !ok {
 			log.Error("missing transaction deposit for bridge transfer", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected TransactionEnqueued preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding DepostInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -117,8 +125,14 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 	return nil
 }
 
+// LegacyL2ProcessInitiatedEvents will query the data for bridge events within the specified block range
+// according the pre-bedrock protocol. This follows:
+//  1. L2CrossDomainMessenger
+//     - The LegacyMessagePasser contract cannot be used as entrypoint to bridge transactions from L2. The protocol
+//     only allows the L2CrossDomainMessenger as the sole sender when relaying a bridged message.
+//  2. L2StandardBridge
 func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
-	// (1) L2CrossDomainMessenger -> This is the root-most contract for which bridge events since withdrawals must be initiated from the L2CrossDomainMessenger
+	// (1) L2CrossDomainMessenger
 	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
 	if err != nil {
 		return err
@@ -135,9 +149,8 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
 
-		// To ensure consistency in our schema, we duplicate this as the "root" transaction withdrawal. We re-use the same withdrawal hash as the storage
+		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. We re-use the same withdrawal hash as the storage
 		// key for the proof sha3(calldata + sender) can be derived from the fields. (NOTE: should we just use the storage key here?)
-		l2BridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash, BridgeMessage: sentMessage.BridgeMessage}
 		l2TransactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       sentMessage.BridgeMessage.MessageHash,
 			InitiatedL2EventGUID: sentMessage.Event.GUID,
@@ -150,6 +163,11 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 				Data:        sentMessage.BridgeMessage.Tx.Data,
 				Timestamp:   sentMessage.Event.Timestamp,
 			},
+		}
+
+		l2BridgeMessages[i] = database.L2BridgeMessage{
+			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
+			BridgeMessage:             sentMessage.BridgeMessage,
 		}
 	}
 
