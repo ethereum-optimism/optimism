@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -127,8 +128,7 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 
 // LegacyL2ProcessInitiatedEvents will query the data for bridge events within the specified block range
 // according the pre-bedrock protocol. This follows:
-//  1. L2CrossDomainMessenger
-//     - The LegacyMessagePasser contract cannot be used as entrypoint to bridge transactions from L2. The protocol
+//  1. L2CrossDomainMessenger - The LegacyMessagePasser contract cannot be used as entrypoint to bridge transactions from L2. The protocol
 //     only allows the L2CrossDomainMessenger as the sole sender when relaying a bridged message.
 //  2. L2StandardBridge
 func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
@@ -149,10 +149,11 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
 
-		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. We re-use the same withdrawal hash as the storage
-		// key for the proof sha3(calldata + sender) can be derived from the fields. (NOTE: should we just use the storage key here?)
+		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
+		// passer contract is sha3(calldata + sender). The sender always being the L2CrossDomainMessenger pre-bedrock.
+		withdrawalHash := crypto.Keccak256Hash(append(sentMessage.MessageCalldata, predeploys.L2CrossDomainMessengerAddr[:]...))
 		l2TransactionWithdrawals[i] = database.L2TransactionWithdrawal{
-			WithdrawalHash:       sentMessage.BridgeMessage.MessageHash,
+			WithdrawalHash:       withdrawalHash,
 			InitiatedL2EventGUID: sentMessage.Event.GUID,
 			Nonce:                sentMessage.BridgeMessage.Nonce,
 			GasLimit:             sentMessage.BridgeMessage.GasLimit,
@@ -166,7 +167,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 		}
 
 		l2BridgeMessages[i] = database.L2BridgeMessage{
-			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
+			TransactionWithdrawalHash: withdrawalHash,
 			BridgeMessage:             sentMessage.BridgeMessage,
 		}
 	}
@@ -220,6 +221,10 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 
 // Legacy Bridge Finalization
 
+// LegacyL1ProcessFinalizedBridgeEvents will query for bridge events within the specified block range
+// acording to the pre-bedrock protocol. This follows:
+//  1. L1CrossDomainMessenger
+//  2. L1StandardBridge
 func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Client node.EthClient, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
 	// (1) L1CrossDomainMessenger -> This is the root-most contract from which bridge events are finalized since withdrawals must be initiated from the
 	// L2CrossDomainMessenger. Since there's no two-step withdrawal process, we mark the transaction as proven/finalized in the same step
@@ -288,13 +293,18 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Cli
 		log.Warn("skipped pre-regensis relayed L2CrossDomainMessenger withdrawals", "size", skippedPreRegenesisMessages)
 	}
 
-	// (2) L1StandardBridge
-	// no-op for now as there's nothing actionable to do here besides sanity checks that we'll skip for now
+	// (2) L2StandardBridge -- no-op for now as there's nothing actionable to do here besides
+	// santiy checks which is not important for legacy code. The message status is already tracked
+	// via the relayed bridge messed through the cross domain messenger.
 
 	// a-ok!
 	return nil
 }
 
+// LegacyL2ProcessFinalizedBridgeEvents will query for bridge events within the specified block range
+// acording to the pre-bedrock protocol. This follows:
+//  1. L2CrossDomainMessenger
+//  2. L2StandardBridge
 func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
 	// (1) L2CrossDomainMessenger
 	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
@@ -321,8 +331,9 @@ func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromH
 		}
 	}
 
-	// (2) L2StandardBridge
-	// no-op for now as there's nothing actionable to do here besides sanity checks that we'll skip for now
+	// (2) L2StandardBridge -- no-op for now as there's nothing actionable to do here besides
+	// santiy checks which is not important for legacy code. The message status is already tracked
+	// via the relayed bridge messed through the cross domain messenger.
 
 	// a-ok!
 	return nil

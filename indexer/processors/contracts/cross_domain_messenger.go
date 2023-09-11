@@ -38,14 +38,14 @@ var (
 )
 
 type CrossDomainMessengerSentMessageEvent struct {
-	Event         *database.ContractEvent
-	BridgeMessage database.BridgeMessage
+	Event           *database.ContractEvent
+	MessageCalldata []byte
+	BridgeMessage   database.BridgeMessage
 }
 
 type CrossDomainMessengerRelayedMessageEvent struct {
-	Event           *database.ContractEvent
-	MessageHash     common.Hash
-	MessageCallData []byte
+	Event       *database.ContractEvent
+	MessageHash common.Hash
 }
 
 func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerSentMessageEvent, error) {
@@ -101,15 +101,16 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 			value = sentMessageExtension.Value
 		}
 
-		messageHash, err := CrossDomainMessageHash(crossDomainMessengerAbi, &sentMessage, value)
+		messageCalldata, err := CrossDomainMessageCalldata(crossDomainMessengerAbi, &sentMessage, value)
 		if err != nil {
 			return nil, err
 		}
 
 		crossDomainSentMessages[i] = CrossDomainMessengerSentMessageEvent{
-			Event: &sentMessageEvents[i],
+			Event:           &sentMessageEvents[i],
+			MessageCalldata: messageCalldata,
 			BridgeMessage: database.BridgeMessage{
-				MessageHash:          messageHash,
+				MessageHash:          crypto.Keccak256Hash(messageCalldata),
 				Nonce:                sentMessage.MessageNonce,
 				SentMessageEventGUID: sentMessageEvents[i].GUID,
 				GasLimit:             sentMessage.GasLimit,
@@ -157,26 +158,25 @@ func CrossDomainMessengerRelayedMessageEvents(chainSelector string, contractAddr
 	return crossDomainRelayedMessages, nil
 }
 
-// Replica of `Hashing.sol#hashCrossDomainMessage` solidity implementation
-func CrossDomainMessageHash(abi *abi.ABI, sentMsg *bindings.CrossDomainMessengerSentMessage, value *big.Int) (common.Hash, error) {
+// Replica of `Encoding.sol#encodeCrossDomainMessage` solidity implementation
+func CrossDomainMessageCalldata(abi *abi.ABI, sentMsg *bindings.CrossDomainMessengerSentMessage, value *big.Int) ([]byte, error) {
 	version, _ := DecodeVersionedNonce(sentMsg.MessageNonce)
 	switch version {
 	case 0:
 		// Legacy Message
 		inputBytes, err := CrossDomainMessengerLegacyRelayMessageEncoding.Inputs.Pack(sentMsg.Target, sentMsg.Sender, sentMsg.Message, sentMsg.MessageNonce)
 		if err != nil {
-			return common.Hash{}, err
+			return nil, err
 		}
-		msgBytes := append(CrossDomainMessengerLegacyRelayMessageEncoding.ID, inputBytes...)
-		return crypto.Keccak256Hash(msgBytes), nil
+		return append(CrossDomainMessengerLegacyRelayMessageEncoding.ID, inputBytes...), nil
 	case 1:
 		// Current Message
 		msgBytes, err := abi.Pack("relayMessage", sentMsg.MessageNonce, sentMsg.Sender, sentMsg.Target, value, sentMsg.GasLimit, sentMsg.Message)
 		if err != nil {
-			return common.Hash{}, err
+			return nil, err
 		}
-		return crypto.Keccak256Hash(msgBytes), nil
+		return msgBytes, nil
 	}
 
-	return common.Hash{}, fmt.Errorf("unsupported cross domain messenger version: %d", version)
+	return nil, fmt.Errorf("unsupported cross domain messenger version: %d", version)
 }
