@@ -9,7 +9,11 @@ finalized and may change without notice.
 
 ### Contents
 
- * Overview
+ * Specifications
+   * [Generic Fault Proof System](../../specs/fault-proof.md)
+   * [Generic Dispute Game Interface](../../specs/dispute-game-interface.md)
+   * [Fault Dispute Game](../../specs/fault-dispute-game.md)
+   * [Cannon VM](../../specs/cannon-fault-proof-vm.md)
  * [Deployment Details](./deployments.md)
  * [Manual Usage](./manual.md)
    * [Creating Traces with Cannon](./cannon.md)
