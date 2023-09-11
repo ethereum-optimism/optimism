@@ -7,8 +7,6 @@ import (
 	"io"
 	"os"
 	"strings"
-
-	"github.com/samber/lo"
 )
 
 // OpenDecompressed opens a reader for the specified file and automatically gzip decompresses the content
@@ -51,9 +49,10 @@ func WriteCompressedJson(file string, obj any, flags ...int) error {
 	if len(flags) == 0 {
 		flags = []int{os.O_CREATE | os.O_WRONLY}
 	}
-	flag := lo.Reduce(flags, func(agg int, item int, _ int) int {
-		return agg | item
-	}, 0)
+	var flag int
+	for _, arg := range flags {
+		flag |= arg
+	}
 	out, err := OpenCompressed(file, flag, 0644)
 	if err != nil {
 		return err
