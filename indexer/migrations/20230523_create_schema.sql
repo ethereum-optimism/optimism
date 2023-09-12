@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
 CREATE INDEX IF NOT EXISTS l1_contract_events_timestamp ON l1_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l1_contract_events_block_hash ON l1_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l1_contract_events_event_signature ON l1_contract_events(event_signature);
+CREATE INDEX IF NOT EXISTS l1_contract_events_contract_address ON l1_contract_events(contract_address);
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Searchable fields
@@ -74,6 +75,7 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
 CREATE INDEX IF NOT EXISTS l2_contract_events_timestamp ON l2_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l2_contract_events_block_hash ON l2_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l2_contract_events_event_signature ON l2_contract_events(event_signature);
+CREATE INDEX IF NOT EXISTS l2_contract_events_contract_address ON l2_contract_events(contract_address);
 
 -- Tables that index finalization markers for L2 blocks.
 

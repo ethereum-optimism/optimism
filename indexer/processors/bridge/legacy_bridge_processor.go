@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 )
 
 // Legacy Bridge Initiation
@@ -21,9 +20,9 @@ import (
 //  1. CanonicalTransactionChain
 //  2. L1CrossDomainMessenger
 //  3. L1StandardBridge
-func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
+func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) CanonicalTransactionChain
-	ctcTxDepositEvents, err := contracts.LegacyCTCDepositEvents(chainConfig.L1Contracts.LegacyCanonicalTransactionChain, db, fromHeight, toHeight)
+	ctcTxDepositEvents, err := contracts.LegacyCTCDepositEvents(l1Contracts.LegacyCanonicalTransactionChain, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -54,7 +53,7 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 	}
 
 	// (2) L1CrossDomainMessenger
-	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l1", chainConfig.L1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
+	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l1", l1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -84,7 +83,7 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 	}
 
 	// (3) L1StandardBridge
-	initiatedBridges, err := contracts.L1StandardBridgeLegacyDepositInitiatedEvents(chainConfig.L1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
+	initiatedBridges, err := contracts.L1StandardBridgeLegacyDepositInitiatedEvents(l1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -131,9 +130,9 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chain
 //  1. L2CrossDomainMessenger - The LegacyMessagePasser contract cannot be used as entrypoint to bridge transactions from L2. The protocol
 //     only allows the L2CrossDomainMessenger as the sole sender when relaying a bridged message.
 //  2. L2StandardBridge
-func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
+func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L2CrossDomainMessenger
-	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
+	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l2", l2Contracts.L2CrossDomainMessenger, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -151,7 +150,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 
 		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
 		// passer contract is sha3(calldata + sender). The sender always being the L2CrossDomainMessenger pre-bedrock.
-		withdrawalHash := crypto.Keccak256Hash(append(sentMessage.MessageCalldata, predeploys.L2CrossDomainMessengerAddr[:]...))
+		withdrawalHash := crypto.Keccak256Hash(append(sentMessage.MessageCalldata, l2Contracts.L2CrossDomainMessenger[:]...))
 		l2TransactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       withdrawalHash,
 			InitiatedL2EventGUID: sentMessage.Event.GUID,
@@ -182,7 +181,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 	}
 
 	// (2) L2StandardBridge
-	initiatedBridges, err := contracts.L2StandardBridgeLegacyWithdrawalInitiatedEvents(predeploys.L2StandardBridgeAddr, db, fromHeight, toHeight)
+	initiatedBridges, err := contracts.L2StandardBridgeLegacyWithdrawalInitiatedEvents(l2Contracts.L2StandardBridge, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -225,10 +224,10 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromH
 // according to the pre-bedrock protocol. This follows:
 //  1. L1CrossDomainMessenger
 //  2. L1StandardBridge
-func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Client node.EthClient, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
+func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Client node.EthClient, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L1CrossDomainMessenger -> This is the root-most contract from which bridge events are finalized since withdrawals must be initiated from the
 	// L2CrossDomainMessenger. Since there's no two-step withdrawal process, we mark the transaction as proven/finalized in the same step
-	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l1", chainConfig.L1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
+	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l1", l1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -305,9 +304,9 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Cli
 // according to the pre-bedrock protocol. This follows:
 //  1. L2CrossDomainMessenger
 //  2. L2StandardBridge
-func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, fromHeight *big.Int, toHeight *big.Int) error {
+func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L2CrossDomainMessenger
-	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l2", predeploys.L2CrossDomainMessengerAddr, db, fromHeight, toHeight)
+	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l2", l2Contracts.L2CrossDomainMessenger, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}

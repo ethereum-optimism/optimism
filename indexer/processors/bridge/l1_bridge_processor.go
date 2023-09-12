@@ -17,9 +17,9 @@ import (
 //  1. OptimismPortal
 //  2. L1CrossDomainMessenger
 //  3. L1StandardBridge
-func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
+func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) OptimismPortal
-	optimismPortalTxDeposits, err := contracts.OptimismPortalTransactionDepositEvents(chainConfig.L1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
+	optimismPortalTxDeposits, err := contracts.OptimismPortalTransactionDepositEvents(l1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	}
 
 	// (2) L1CrossDomainMessenger
-	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l1", chainConfig.L1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
+	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l1", l1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	}
 
 	// (3) L1StandardBridge
-	initiatedBridges, err := contracts.StandardBridgeInitiatedEvents("l1", chainConfig.L1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
+	initiatedBridges, err := contracts.StandardBridgeInitiatedEvents("l1", l1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -121,9 +121,9 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 //  1. OptimismPortal (Bedrock prove & finalize steps)
 //  2. L1CrossDomainMessenger (relayMessage marker)
 //  3. L1StandardBridge (no-op, since this is simply a wrapper over the L1CrossDomainMessenger)
-func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig config.ChainConfig, fromHeight *big.Int, toHeight *big.Int) error {
+func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) OptimismPortal (proven withdrawals)
-	provenWithdrawals, err := contracts.OptimismPortalWithdrawalProvenEvents(chainConfig.L1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
+	provenWithdrawals, err := contracts.OptimismPortalWithdrawalProvenEvents(l1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -148,7 +148,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	}
 
 	// (2) OptimismPortal (finalized withdrawals)
-	finalizedWithdrawals, err := contracts.OptimismPortalWithdrawalFinalizedEvents(chainConfig.L1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
+	finalizedWithdrawals, err := contracts.OptimismPortalWithdrawalFinalizedEvents(l1Contracts.OptimismPortalProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	}
 
 	// (3) L1CrossDomainMessenger
-	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l1", chainConfig.L1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
+	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l1", l1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	}
 
 	// (4) L1StandardBridge
-	finalizedBridges, err := contracts.StandardBridgeFinalizedEvents("l1", chainConfig.L1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
+	finalizedBridges, err := contracts.StandardBridgeFinalizedEvents("l1", l1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
