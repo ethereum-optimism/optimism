@@ -129,7 +129,8 @@ func main() {
 				return err
 			}
 
-			if err := writeGenesisFile(ctx.String("outfile-l2"), l2Genesis); err != nil {
+			l2GenesisOutput := (genesis.GenesisOutput{}).PerformOutput(l2Genesis)
+			if err := writeGenesisFile(ctx.String("outfile-l2"), l2GenesisOutput); err != nil {
 				return err
 			}
 			if err := writeGenesisFile(ctx.String("outfile-rollup"), rollupConfig); err != nil {
