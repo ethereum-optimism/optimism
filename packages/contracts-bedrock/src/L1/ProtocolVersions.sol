@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {Semver} from "../universal/Semver.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /// @notice ProtocolVersion is a numeric identifier of the protocol version.
 type ProtocolVersion is uint256;
@@ -33,16 +33,15 @@ contract ProtocolVersions is OwnableUpgradeable, Semver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
-    // TODO: should we introduce the SystemConfig notion of startBlock to ProtocolVersion?
-
     /// @custom:semver 0.1.0
     /// @notice Constructs the ProtocolVersion contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
+    ///         A zero version is considered empty and is ignored by nodes.
     constructor() Semver(0, 1, 0) {
         initialize({
             _owner: address(0xdEaD),
-            _required: ProtocolVersion.wrap(uint256(0)), // zero version is considered empty and is ignored by nodes
+            _required: ProtocolVersion.wrap(uint256(0)),
             _recommended: ProtocolVersion.wrap(uint256(0))
         });
     }
@@ -56,8 +55,8 @@ contract ProtocolVersions is OwnableUpgradeable, Semver {
         ProtocolVersion _required,
         ProtocolVersion _recommended
     )
-    public
-    reinitializer(2)
+        public
+        reinitializer(2)
     {
         __Ownable_init();
         transferOwnership(_owner);
@@ -88,7 +87,7 @@ contract ProtocolVersions is OwnableUpgradeable, Semver {
     /// @notice High level getter for the required protocol version.
     /// @return out_ Required protocol version to sync to the head of the chain.
     function required() external view returns (ProtocolVersion out_) {
-       out_ = _getProtocolVersion(REQUIRED_SLOT);
+        out_ = _getProtocolVersion(REQUIRED_SLOT);
     }
 
     /// @notice Updates the required protocol version. Can only be called by the owner.
@@ -126,5 +125,4 @@ contract ProtocolVersions is OwnableUpgradeable, Semver {
         bytes memory data = abi.encode(_recommended);
         emit ConfigUpdate(VERSION, UpdateType.RECOMMENDED_PROTOCOL_VERSION, data);
     }
-
 }

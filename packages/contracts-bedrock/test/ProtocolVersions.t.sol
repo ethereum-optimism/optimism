@@ -5,13 +5,13 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 
 // Libraries
-import { Constants } from "../src/libraries/Constants.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
-import { Proxy } from "../src/universal/Proxy.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
-import { ProtocolVersions, ProtocolVersion } from "../src/L1/ProtocolVersions.sol";
+import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 
 contract ProtocolVersions_Init is CommonTest {
     ProtocolVersions protocolVersions;
@@ -49,8 +49,8 @@ contract ProtocolVersions_Init is CommonTest {
 contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
     /// @dev Tests that initialization sets the correct values.
     function test_initialize_values_succeeds() external {
-        assertEq(protocolVersions.required(), required);
-        assertEq(protocolVersions.recommended(), recommended);
+        assertEq(ProtocolVersion.unwrap(protocolVersions.required()), ProtocolVersion.unwrap(required));
+        assertEq(ProtocolVersion.unwrap(protocolVersions.recommended()), ProtocolVersion.unwrap(recommended));
     }
 
     /// @dev Ensures that the events are emitted during initialization.
@@ -58,7 +58,7 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(protocolVersions), bytes32(0), bytes32(0));
         vm.store(address(protocolVersions), bytes32(uint256(106)), bytes32(0));
-        assertEq(protocolVersions.owner(), address());
+        assertEq(protocolVersions.owner(), address(0xdEad));
 
         // The order depends here
         vm.expectEmit(true, true, true, true, address(protocolVersions));
@@ -74,32 +74,7 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
                 (
                     alice, // _owner
                     required, // _required
-                    recommended, // recommended
-                )
-            )
-        );
-    }
-}
-
-contract ProtocolVersions_Initialize_TestFail is ProtocolVersions_Init {
-    /// @dev Tests that initialization reverts if the gas limit is too low.
-    function test_initialize_lowGasLimit_reverts() external {
-        uint64 minimumGasLimit = protocolVersions.minimumGasLimit();
-
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(protocolVersions), bytes32(0), bytes32(0));
-        vm.prank(multisig);
-        // The call to initialize reverts due to: "ProtocolVersions: gas limit too low"
-        // but the proxy revert message bubbles up.
-        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
-        Proxy(payable(address(protocolVersions))).upgradeToAndCall(
-            address(protocolVersionsImpl),
-            abi.encodeCall(
-                ProtocolVersions.initialize,
-                (
-                    alice, // _owner
-                    required, // _required
-                    recommended, // recommended
+                    recommended // recommended
                 )
             )
         );
@@ -110,34 +85,34 @@ contract ProtocolVersions_Setters_TestFail is ProtocolVersions_Init {
     /// @dev Tests that `setRequired` reverts if the caller is not the owner.
     function test_setRequired_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        protocolVersions.setRequired(bytes32(hex""));
+        protocolVersions.setRequired(ProtocolVersion.wrap(0));
     }
 
     /// @dev Tests that `setRecommended` reverts if the caller is not the owner.
     function test_setRecommended_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        protocolVersions.setRecommended(bytes32(hex""));
+        protocolVersions.setRecommended(ProtocolVersion.wrap(0));
     }
 }
 
 contract ProtocolVersions_Setters_Test is ProtocolVersions_Init {
     /// @dev Tests that `setRequired` updates the required protocol version successfully.
-    function testFuzz_setRequired_succeeds(bytes32 newProtocolVersion) external {
+    function testFuzz_setRequired_succeeds(uint256 _version) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, ProtocolVersions.UpdateType.REQUIRED_PROTOCOL_VERSION, abi.encode(newProtocolVersion));
+        emit ConfigUpdate(0, ProtocolVersions.UpdateType.REQUIRED_PROTOCOL_VERSION, abi.encode(_version));
 
         vm.prank(protocolVersions.owner());
-        protocolVersions.setRequired(newProtocolVersion);
-        assertEq(protocolVersions.required(), newProtocolVersion);
+        protocolVersions.setRequired(ProtocolVersion.wrap(_version));
+        assertEq(ProtocolVersion.unwrap(protocolVersions.required()), _version);
     }
 
     /// @dev Tests that `setRecommended` updates the recommended protocol version successfully.
-    function testFuzz_setRecommended_succeeds(bytes32 newProtocolVersion) external {
+    function testFuzz_setRecommended_succeeds(uint256 _version) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, ProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(newProtocolVersion));
+        emit ConfigUpdate(0, ProtocolVersions.UpdateType.RECOMMENDED_PROTOCOL_VERSION, abi.encode(_version));
 
         vm.prank(protocolVersions.owner());
-        protocolVersions.setRecommended(newProtocolVersion);
-        assertEq(protocolVersions.recommended(), newProtocolVersion);
+        protocolVersions.setRecommended(ProtocolVersion.wrap(_version));
+        assertEq(ProtocolVersion.unwrap(protocolVersions.recommended()), _version);
     }
 }
