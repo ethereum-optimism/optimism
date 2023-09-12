@@ -24,6 +24,7 @@ on:
           - op-node
           - op-batcher
           - op-proposer
+          - op-challenger
           - op-ufm
           - proxyd
       prerelease:
