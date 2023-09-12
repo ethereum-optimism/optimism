@@ -6,6 +6,19 @@ During this early phase of ongoing development, we invite security researchers a
 The current system is not production ready, however the core infrastructure for creating an instruction trace ([Cannon][cannon] + the [`op-program`][op-program]), the off-chain challenge agent ([`op-challenger`][op-challenger]),
 and the on-chain infrastructure for the [Dispute Game][dispute-game] are all in place.
 
+### Resources
+
+> **Note** 
+> Prior to moving forward, we recommended reading into the technical documentation for the components of Fault Proof Alpha.
+
+* [Cannon][cannon] & [Cannon Contracts][cannon-contracts]
+    * [Cannon VM Specs][cannon-vm-specs]
+* [`op-program`][op-program]
+    * [Fault Proof Specs][fault-proof-specs]
+* [Dispute Game][dispute-game]
+    * [Fault Dispute Game Specs][fault-dispute-specs]
+* [`op-challenger`][op-challenger]
+
 ## Known Issues
 The alpha system is not prepared for mainnet, and as such, there are a number of known issues that we are working on fixing and components of the system that must be improved prior to it being sustainable.
 
@@ -59,15 +72,6 @@ There are several key invariants that must be maintained in order for the system
         1. *Note:* Because of the rules in the current solving / resolution mechanism, the challenger will counter all claims that have a different view of the root claim's validity. While this is an inefficiency, it is not considered a violation of this invariant, as this behavior is necessary to ensure that all invalid claims have been countered.
 
 Any bug reports in the form of a PoC `op-e2e` test that demonstrates a violation of any of the above invariants will be considered valid bug reports and elligible for a reward.
-
-### Resources
-* [Cannon][cannon] & [Cannon Contracts][cannon-contracts]
-    * [Cannon VM Specs][cannon-vm-specs]
-* [`op-program`][op-program]
-    * [Fault Proof Specs][fault-proof-specs]
-* [Dispute Game][dispute-game]
-    * [Fault Dispute Game Specs][fault-dispute-specs]
-* [`op-challenger`][op-challenger]
 
 ### Bounty Rewards
 All valid bug reports for Fault Proof Alpha qualify as a low-severity report. See [immunefi][immunefi]
