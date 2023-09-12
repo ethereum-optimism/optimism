@@ -108,7 +108,10 @@ contract Deploy is Deployer {
     ///         testnet or devnet.
     modifier onlyTestnetOrDevnet() {
         uint256 chainid = block.chainid;
-        if (chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
+        if (
+            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
+                || chainid == Chains.GethDevnet
+        ) {
             _;
         }
     }
@@ -798,7 +801,7 @@ contract Deploy is Deployer {
                     ProtocolVersion.wrap(requiredProtocolVersion),
                     ProtocolVersion.wrap(recommendedProtocolVersion)
                 )
-            )
+                )
         });
 
         ProtocolVersions versions = ProtocolVersions(protocolVersionsProxy);
