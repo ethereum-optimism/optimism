@@ -157,7 +157,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	}
 
 	if conf.Chain.Preset != 0 {
-		preset, ok := presetConfigs[conf.Chain.Preset]
+		preset, ok := Presets[conf.Chain.Preset]
 		if !ok {
 			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
 		}

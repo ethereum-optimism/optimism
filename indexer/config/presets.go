@@ -12,9 +12,9 @@ type Preset struct {
 // In the future, presets can just be onchain config and fetched on initialization
 
 // Mapping of L2 chain ids to their preset chain configurations
-var presetConfigs = map[int]Preset{
+var Presets = map[int]Preset{
 	10: {
-		Name: "Optimism Mainnet",
+		Name: "Optimism",
 		ChainConfig: ChainConfig{
 			L1Contracts: L1Contracts{
 				AddressManager:                  common.HexToAddress("0xdE1FCfB0851916CA5101820A69b13a4E276bd81F"),
@@ -79,7 +79,7 @@ var presetConfigs = map[int]Preset{
 			L1StartingHeight: 8410981,
 		},
 	},
-	7777777: { // Zora mainnet
+	7777777: {
 		Name: "Zora",
 		ChainConfig: ChainConfig{
 			L1Contracts: L1Contracts{
