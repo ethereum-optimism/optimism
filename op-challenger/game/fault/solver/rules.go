@@ -15,6 +15,7 @@ var rules = []actionRule{
 	onlyMoveBeforeMaxDepth,
 	onlyCounterClaimsAtDisagreeingLevels,
 	doNotDuplicateExistingMoves,
+	doNotDefendRootClaim,
 }
 
 func checkRules(game types.Game, action types.Action) error {
@@ -71,6 +72,13 @@ func doNotDuplicateExistingMoves(game types.Game, action types.Action) error {
 	}
 	if game.IsDuplicate(newClaimData) {
 		return fmt.Errorf("creating duplicate claim at %v with value %v", newClaimData.Position.ToGIndex(), newClaimData.Value)
+	}
+	return nil
+}
+
+func doNotDefendRootClaim(game types.Game, action types.Action) error {
+	if game.Claims()[action.ParentIdx].IsRootPosition() && !action.IsAttack {
+		return fmt.Errorf("defending the root claim at idx %v", action.ParentIdx)
 	}
 	return nil
 }
