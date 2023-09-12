@@ -91,8 +91,8 @@ importers:
         specifier: 14.0.1
         version: 14.0.1
       markdownlint:
-        specifier: ^0.30.0
-        version: 0.30.0
+        specifier: ^0.31.0
+        version: 0.31.0
       markdownlint-cli2:
         specifier: 0.4.0
         version: 0.4.0
@@ -10643,8 +10643,8 @@ packages:
       markdown-it: 12.3.2
     dev: true
 
-  /markdownlint@0.30.0:
-    resolution: {integrity: sha512-nInuFvI/rEzanAOArW5490Ez4EYpB5ODqVM0mcDYCPx9DKJWCQqCgejjiCvbSeE7sjbDscVtZmwr665qpF5xGA==}
+  /markdownlint@0.31.0:
+    resolution: {integrity: sha512-e+jZGRGZrz1s0T4wiPDFtyQafq7sKgdbf2sdL46gRT8zLEvDDihQmGeSCV6VXp9BsfkuZ0dPTAg9hf4j6NFgjg==}
     engines: {node: '>=16'}
     dependencies:
       markdown-it: 13.0.1
