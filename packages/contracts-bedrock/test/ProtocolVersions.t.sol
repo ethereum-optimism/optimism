@@ -20,8 +20,8 @@ contract ProtocolVersions_Init is CommonTest {
     event ConfigUpdate(uint256 indexed version, ProtocolVersions.UpdateType indexed updateType, bytes data);
 
     // Dummy values used to test getters
-    ProtocolVersion constant required = ProtocolVersion.wrap(uint256(0xabcd));
-    ProtocolVersion constant recommended = ProtocolVersion.wrap(uint256(0x1234));
+    ProtocolVersion constant required = ProtocolVersion.wrap(0xabcd);
+    ProtocolVersion constant recommended = ProtocolVersion.wrap(0x1234);
 
     function setUp() public virtual override {
         super.setUp();
@@ -51,14 +51,20 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
     function test_initialize_values_succeeds() external {
         assertEq(ProtocolVersion.unwrap(protocolVersions.required()), ProtocolVersion.unwrap(required));
         assertEq(ProtocolVersion.unwrap(protocolVersions.recommended()), ProtocolVersion.unwrap(recommended));
+        assertEq(protocolVersions.owner(), alice);
+
+        assertEq(ProtocolVersion.unwrap(protocolVersionsImpl.required()), 0);
+        assertEq(ProtocolVersion.unwrap(protocolVersionsImpl.recommended()), 0);
+        assertEq(protocolVersionsImpl.owner(), address(0xdEad));
     }
 
     /// @dev Ensures that the events are emitted during initialization.
     function test_initialize_events_succeeds() external {
+        //vm.store(address(protocolVersions), bytes32(uint256(106)), bytes32(0));
+        assertEq(protocolVersionsImpl.owner(), address(0xdEad));
+
         // Wipe out the initialized slot so the proxy can be initialized again
         vm.store(address(protocolVersions), bytes32(0), bytes32(0));
-        vm.store(address(protocolVersions), bytes32(uint256(106)), bytes32(0));
-        assertEq(protocolVersions.owner(), address(0xdEad));
 
         // The order depends here
         vm.expectEmit(true, true, true, true, address(protocolVersions));
