@@ -15,22 +15,22 @@ var (
 	ErrStepAgreedClaim = errors.New("cannot step on claims we agree with")
 )
 
-// Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
-type Solver struct {
+// claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
+type claimSolver struct {
 	trace     types.TraceProvider
 	gameDepth int
 }
 
-// NewSolver creates a new [Solver] using the provided [TraceProvider].
-func NewSolver(gameDepth int, traceProvider types.TraceProvider) *Solver {
-	return &Solver{
+// newClaimSolver creates a new [claimSolver] using the provided [TraceProvider].
+func newClaimSolver(gameDepth int, traceProvider types.TraceProvider) *claimSolver {
+	return &claimSolver{
 		traceProvider,
 		gameDepth,
 	}
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *Solver) NextMove(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (*types.Claim, error) {
+func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (*types.Claim, error) {
 	if agreeWithClaimLevel {
 		return nil, nil
 	}
@@ -58,7 +58,7 @@ type StepData struct {
 
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-func (s *Solver) AttemptStep(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (StepData, error) {
+func (s *claimSolver) AttemptStep(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
 		return StepData{}, ErrStepNonLeafNode
 	}
@@ -100,7 +100,7 @@ func (s *Solver) AttemptStep(ctx context.Context, claim types.Claim, agreeWithCl
 }
 
 // attack returns a response that attacks the claim.
-func (s *Solver) attack(ctx context.Context, claim types.Claim) (*types.Claim, error) {
+func (s *claimSolver) attack(ctx context.Context, claim types.Claim) (*types.Claim, error) {
 	position := claim.Attack()
 	value, err := s.traceAtPosition(ctx, position)
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *Solver) attack(ctx context.Context, claim types.Claim) (*types.Claim, e
 }
 
 // defend returns a response that defends the claim.
-func (s *Solver) defend(ctx context.Context, claim types.Claim) (*types.Claim, error) {
+func (s *claimSolver) defend(ctx context.Context, claim types.Claim) (*types.Claim, error) {
 	if claim.IsRoot() {
 		return nil, nil
 	}
@@ -131,13 +131,13 @@ func (s *Solver) defend(ctx context.Context, claim types.Claim) (*types.Claim, e
 }
 
 // agreeWithClaim returns true if the claim is correct according to the internal [TraceProvider].
-func (s *Solver) agreeWithClaim(ctx context.Context, claim types.ClaimData) (bool, error) {
+func (s *claimSolver) agreeWithClaim(ctx context.Context, claim types.ClaimData) (bool, error) {
 	ourValue, err := s.traceAtPosition(ctx, claim.Position)
 	return bytes.Equal(ourValue[:], claim.Value[:]), err
 }
 
 // traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
-func (s *Solver) traceAtPosition(ctx context.Context, p types.Position) (common.Hash, error) {
+func (s *claimSolver) traceAtPosition(ctx context.Context, p types.Position) (common.Hash, error) {
 	index := p.TraceIndex(s.gameDepth)
 	hash, err := s.trace.Get(ctx, index)
 	return hash, err

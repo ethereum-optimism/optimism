@@ -110,6 +110,20 @@ def deploy_contracts(paths):
 
     response = json.loads(res)
     account = response['result'][0]
+    log.info(f'Deploying with {account}')
+
+    # send some ether to the create2 deployer account
+    run_command([
+        'cast', 'send', '--from', account,
+        '--rpc-url', 'http://127.0.0.1:8545',
+        '--unlocked', '--value', '1ether', '0x3fAB184622Dc19b6109349B94811493BF2a45362'
+    ], env={}, cwd=paths.contracts_bedrock_dir)
+
+    # deploy the create2 deployer
+    run_command([
+      'cast', 'publish', '--rpc-url', 'http://127.0.0.1:8545',
+      '0xf8a58085174876e800830186a08080b853604580600e600039806000f350fe7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf31ba02222222222222222222222222222222222222222222222222222222222222222a02222222222222222222222222222222222222222222222222222222222222222'
+    ], env={}, cwd=paths.contracts_bedrock_dir)
 
     fqn = 'scripts/Deploy.s.sol:Deploy'
     run_command([
@@ -138,7 +152,8 @@ def devnet_l1_genesis(paths):
 
     geth = subprocess.Popen([
         'geth', '--dev', '--http', '--http.api', 'eth,debug',
-        '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000'
+        '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000',
+        '--rpc.allow-unprotected-txs'
     ])
 
     forge = ChildProcess(deploy_contracts, paths)
