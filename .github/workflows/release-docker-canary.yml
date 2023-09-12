@@ -48,7 +48,7 @@ jobs:
   fault-mon:
     name: Publish fault-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
-    #if: needs.canary-publish.outputs.fault-mon != ''
+    if: needs.canary-publish.outputs.fault-mon != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -97,7 +97,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: balance-mon
           push: true
-          tags: $ORG/balance-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/balance-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   drippie-mon:
     name: Publish Drippie Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -124,7 +124,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: drippie-mon
           push: true
-          tags: $ORG/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   wd-mon:
     name: Publish Withdrawal Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -151,7 +151,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: wd-mon
           push: true
-          tags: $ORG/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   replica-mon:
     name: Publish replica-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -178,7 +178,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: replica-mon
           push: true
-          tags: $ORG/replica-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/replica-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   op-exporter:
     name: Publish op-exporter Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
@@ -211,7 +211,7 @@ jobs:
           context: .
           file: ./op-exporter/Dockerfile=
           push: true
-          tags: $ORG/op-exporter:${{ needs.canary-publish.outputs.op-exporter }}
+          tags: ${{ env.ORG }}/op-exporter:${{ needs.canary-publish.outputs.op-exporter }}
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
@@ -249,7 +249,7 @@ jobs:
           context: .
           file: ./endpoint-monitor/Dockerfile
           push: true
-          tags: $ORG/endpoint-monitor:${{ needs.canary-publish.outputs.endpoint-monitor }}
+          tags: ${{ env.ORG }}/endpoint-monitor:${{ needs.canary-publish.outputs.endpoint-monitor }}
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
