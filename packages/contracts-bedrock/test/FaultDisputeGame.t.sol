@@ -776,6 +776,27 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
     }
 }
 
+contract FaultDisputeGame_ResolvesCorrectly_IncorrectRootXX is OneVsOne_Arena {
+    function setUp() public override {
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE); // chal
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 15); // def
+        super.init(dishonest, honest, 15);
+    }
+
+    function test_resolvesCorrectly_succeeds() public {
+        // Play the game until a step is forced.
+        challenger.play(0);
+
+        // Warp ahead to expire the other player's clock.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // Resolve the game and assert that the dishonest player challenged the root
+        // claim unsuccessfully.
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
+        assertTrue(challenger.failedToStep());
+    }
+}
+
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
