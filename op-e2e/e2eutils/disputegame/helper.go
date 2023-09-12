@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -104,7 +105,8 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	defer cancel()
 
 	trace := alphabet.NewTraceProvider(claimedAlphabet, alphabetGameDepth)
-	rootClaim, err := trace.Get(ctx, lastAlphabetTraceIndex)
+	pos := faultTypes.NewPosition(alphabetGameDepth, lastAlphabetTraceIndex)
+	rootClaim, err := trace.Get(ctx, pos)
 	h.require.NoError(err, "get root claim")
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
@@ -172,14 +174,26 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2Claim:       challengedOutput.OutputRoot,
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
-	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), metrics.NoopMetrics, cfg, inputs, cfg.Datadir)
-	rootClaim, err := provider.Get(ctx, math.MaxUint64)
+
+	maxDepth := uint64(math.MaxUint64)
+	provider := cannon.NewTraceProviderFromInputs(
+		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
+		metrics.NoopMetrics,
+		cfg,
+		inputs,
+		cfg.Datadir,
+		maxDepth,
+	)
+	pos := faultTypes.NewPosition(int(maxDepth), int(maxDepth))
+	rootClaim, err := provider.Get(ctx, pos)
 	h.require.NoError(err, "Compute correct root hash")
 	// Override the VM status to claim the root is invalid
 	// Otherwise creating the game will fail
 	rootClaim[0] = mipsevm.VMStatusInvalid
 
 	game := h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
+	correctMaxDepth := game.MaxDepth(ctx)
+	provider.SetMaxDepth(uint64(correctMaxDepth))
 	honestHelper := &HonestHelper{
 		t:            h.t,
 		require:      h.require,

@@ -200,10 +200,10 @@ func newMockTraceProvider(prestateErrors bool, prestate []byte) *mockTraceProvid
 		prestate:       prestate,
 	}
 }
-func (m *mockTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
+func (m *mockTraceProvider) Get(ctx context.Context, i types.Position) (common.Hash, error) {
 	panic("not implemented")
 }
-func (m *mockTraceProvider) GetStepData(ctx context.Context, i uint64) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+func (m *mockTraceProvider) GetStepData(ctx context.Context, i types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
 	panic("not implemented")
 }
 func (m *mockTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {

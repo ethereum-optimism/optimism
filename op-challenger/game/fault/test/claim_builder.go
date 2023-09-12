@@ -33,34 +33,38 @@ func (c *ClaimBuilder) CorrectTraceProvider() types.TraceProvider {
 
 // CorrectClaim returns the canonical claim at a specified trace index
 func (c *ClaimBuilder) CorrectClaim(idx uint64) common.Hash {
-	value, err := c.correct.Get(context.Background(), idx)
+	pos := types.NewPosition(c.maxDepth, int(idx))
+	value, err := c.correct.Get(context.Background(), pos)
 	c.require.NoError(err)
 	return value
 }
 
 // CorrectClaimAtPosition returns the canonical claim at a specified position
 func (c *ClaimBuilder) CorrectClaimAtPosition(pos types.Position) common.Hash {
-	value, err := c.correct.Get(context.Background(), pos.TraceIndex(c.maxDepth))
+	value, err := c.correct.Get(context.Background(), pos)
 	c.require.NoError(err)
 	return value
 }
 
 // CorrectPreState returns the pre-state (not hashed) required to execute the valid step at the specified trace index
 func (c *ClaimBuilder) CorrectPreState(idx uint64) []byte {
-	preimage, _, _, err := c.correct.GetStepData(context.Background(), idx)
+	pos := types.NewPosition(c.maxDepth, int(idx))
+	preimage, _, _, err := c.correct.GetStepData(context.Background(), pos)
 	c.require.NoError(err)
 	return preimage
 }
 
 // CorrectProofData returns the proof-data required to execute the valid step at the specified trace index
 func (c *ClaimBuilder) CorrectProofData(idx uint64) []byte {
-	_, proof, _, err := c.correct.GetStepData(context.Background(), idx)
+	pos := types.NewPosition(c.maxDepth, int(idx))
+	_, proof, _, err := c.correct.GetStepData(context.Background(), pos)
 	c.require.NoError(err)
 	return proof
 }
 
 func (c *ClaimBuilder) CorrectOracleData(idx uint64) *types.PreimageOracleData {
-	_, _, data, err := c.correct.GetStepData(context.Background(), idx)
+	pos := types.NewPosition(c.maxDepth, int(idx))
+	_, _, data, err := c.correct.GetStepData(context.Background(), pos)
 	c.require.NoError(err)
 	return data
 }

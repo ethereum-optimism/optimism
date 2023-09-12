@@ -41,7 +41,8 @@ func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rol
 	opts = append(opts, options...)
 	cfg := challenger.NewChallengerConfig(g.t, l1Endpoint, opts...)
 	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "CorrectTrace")
-	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, l1Client, filepath.Join(cfg.Datadir, "honest"), g.addr)
+	maxDepth := g.MaxDepth(ctx)
+	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, l1Client, filepath.Join(cfg.Datadir, "honest"), g.addr, uint64(maxDepth))
 	g.require.NoError(err, "create cannon trace provider")
 
 	return &HonestHelper{

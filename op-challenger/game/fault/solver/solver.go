@@ -97,22 +97,21 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 	if err != nil {
 		return StepData{}, err
 	}
-	index := claim.TraceIndex(s.gameDepth)
 	var preState []byte
 	var proofData []byte
 	var oracleData *types.PreimageOracleData
 
 	if !claimCorrect {
 		// Attack the claim by executing step index, so we need to get the pre-state of that index
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, index)
+		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.Position)
 		if err != nil {
 			return StepData{}, err
 		}
 	} else {
 		// We agree with the claim so Defend and use this claim as the starting point to execute the step after
 		// Thus we need the pre-state of the next step
-		// Note: This makes our maximum depth 63 because we need to add 1 without overflowing.
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, index+1)
+		defendingPosition := types.NewPosition(s.gameDepth, int(claim.TraceIndex(s.gameDepth))+1)
+		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, defendingPosition)
 		if err != nil {
 			return StepData{}, err
 		}
@@ -166,9 +165,7 @@ func (s *claimSolver) agreeWithClaim(ctx context.Context, claim types.ClaimData)
 
 // traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
 func (s *claimSolver) traceAtPosition(ctx context.Context, p types.Position) (common.Hash, error) {
-	index := p.TraceIndex(s.gameDepth)
-	hash, err := s.trace.Get(ctx, index)
-	return hash, err
+	return s.trace.Get(ctx, p)
 }
 
 // agreeWithClaimPath returns true if the every other claim in the path to root is correct according to the internal [TraceProvider].

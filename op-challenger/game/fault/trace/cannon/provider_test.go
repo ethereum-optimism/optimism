@@ -26,7 +26,8 @@ func TestGet(t *testing.T) {
 	dataDir, prestate := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, err := provider.Get(context.Background(), 0)
+		pos := types.NewPosition(int(provider.gameDepth), 0)
+		value, err := provider.Get(context.Background(), pos)
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x45fd9aa59768331c726e719e76aa343e73123af888804604785ae19506e65e87"), value)
 		require.Empty(t, generator.generated)
@@ -39,7 +40,8 @@ func TestGet(t *testing.T) {
 			Step:   10,
 			Exited: true,
 		}
-		value, err := provider.Get(context.Background(), 7000)
+		pos := types.NewPosition(int(provider.gameDepth), 7000)
+		value, err := provider.Get(context.Background(), pos)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
 		stateHash, err := generator.finalState.EncodeWitness().StateHash()
@@ -49,14 +51,16 @@ func TestGet(t *testing.T) {
 
 	t.Run("MissingPostHash", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		_, err := provider.Get(context.Background(), 1)
+		pos := types.NewPosition(int(provider.gameDepth), 1)
+		_, err := provider.Get(context.Background(), pos)
 		require.ErrorContains(t, err, "missing post hash")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, err := provider.Get(context.Background(), 2)
+		pos := types.NewPosition(int(provider.gameDepth), 2)
+		value, err := provider.Get(context.Background(), pos)
 		require.NoError(t, err)
 		expected := common.HexToHash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 		require.Equal(t, expected, value)
@@ -68,7 +72,8 @@ func TestGetStepData(t *testing.T) {
 	t.Run("ExistingProof", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, proof, data, err := provider.GetStepData(context.Background(), 0)
+		pos := types.NewPosition(int(provider.gameDepth), 0)
+		value, proof, data, err := provider.GetStepData(context.Background(), pos)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
@@ -95,7 +100,8 @@ func TestGetStepData(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		preimage, proof, data, err := provider.GetStepData(context.Background(), 4)
+		pos := types.NewPosition(int(provider.gameDepth), 4)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), pos)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 4, "should have tried to generate the proof")
 
@@ -121,7 +127,8 @@ func TestGetStepData(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
+		pos := types.NewPosition(int(provider.gameDepth), 7000)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), pos)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
 
@@ -147,7 +154,8 @@ func TestGetStepData(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		_, _, _, err := provider.GetStepData(context.Background(), 7000)
+		pos := types.NewPosition(int(provider.gameDepth), 7000)
+		_, _, _, err := provider.GetStepData(context.Background(), pos)
 		require.NoError(t, err)
 		require.Contains(t, initGenerator.generated, 7000, "should have tried to generate the proof")
 
@@ -162,7 +170,7 @@ func TestGetStepData(t *testing.T) {
 			StateData:  []byte{0xbb},
 			ProofData:  []byte{0xcc},
 		}
-		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), pos)
 		require.NoError(t, err)
 		require.Empty(t, generator.generated, "should not have to generate the proof again")
 
@@ -174,7 +182,8 @@ func TestGetStepData(t *testing.T) {
 	t.Run("MissingStateData", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		_, _, _, err := provider.GetStepData(context.Background(), 1)
+		pos := types.NewPosition(int(provider.gameDepth), 1)
+		_, _, _, err := provider.GetStepData(context.Background(), pos)
 		require.ErrorContains(t, err, "missing state data")
 		require.Empty(t, generator.generated)
 	})
@@ -182,7 +191,8 @@ func TestGetStepData(t *testing.T) {
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, proof, data, err := provider.GetStepData(context.Background(), 2)
+		pos := types.NewPosition(int(provider.gameDepth), 2)
+		value, proof, data, err := provider.GetStepData(context.Background(), pos)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
@@ -266,6 +276,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 		dir:       dataDir,
 		generator: generator,
 		prestate:  filepath.Join(dataDir, prestate),
+		gameDepth: 63,
 	}, generator
 }
 
