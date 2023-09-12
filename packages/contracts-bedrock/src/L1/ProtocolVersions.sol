@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Semver } from "../universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @notice ProtocolVersion is a numeric identifier of the protocol version.
 type ProtocolVersion is uint256;
 
 /// @title ProtocolVersions
 /// @notice The ProtocolVersions contract is used to manage superchain protocol version information.
-contract ProtocolVersions is OwnableUpgradeable, Semver {
+contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value REQUIRED_PROTOCOL_VERSION              Represents an update to the required protocol version.
     /// @custom:value RECOMMENDED_PROTOCOL_VERSION           Represents an update to the recommended protocol version.
@@ -33,12 +33,15 @@ contract ProtocolVersions is OwnableUpgradeable, Semver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
+    /// @notice Semantic version.
     /// @custom:semver 0.1.0
+    string public constant version = "0.1.0";
+
     /// @notice Constructs the ProtocolVersion contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
     ///         A zero version is considered empty and is ignored by nodes.
-    constructor() Semver(0, 1, 0) {
+    constructor() {
         initialize({
             _owner: address(0xdEaD),
             _required: ProtocolVersion.wrap(uint256(0)),
