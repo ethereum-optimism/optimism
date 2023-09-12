@@ -522,6 +522,8 @@ type L1Deployments struct {
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
+	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
+	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 }
 
 // GetName will return the name of the contract given an address.
