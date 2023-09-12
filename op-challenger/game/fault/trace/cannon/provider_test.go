@@ -277,7 +277,6 @@ type stubGenerator struct {
 }
 
 func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
-	fmt.Printf("GenerateProof called with %d \n", i)
 	e.generated = append(e.generated, int(i))
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
