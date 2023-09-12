@@ -5,7 +5,6 @@
 **Table of Contents**
 
 - [Overview](#overview)
-- [L2OutputOracle Responses](#l2outputoracle-responses)
 - [FDG Responses](#fdg-responses)
   - [Root Claims](#root-claims)
   - [Counter Claims](#counter-claims)
@@ -25,31 +24,15 @@ This document specifies the expected behavior of an honest challenger.
 
 The Honest Challenger has two primary duties:
 
-1. Challenge invalid outputs by either creating new FDGs or supporting existing ones that
-aim to delete such outputs.
-2. Contest root claims in FDGs that seek to remove valid outputs.
+1. Support valid root claims in Fault Dispute Games.
+2. Dispute invalid root claims in Fault Dispute Games.
 
-The honest challenger monitors the `L2OutputOracle` to identify invalid proposals and scans
-the `DisputeGameFactory` contract to find on-going FDGs.
-For verifying the legitimacy of proposed outputs and FDG claims, it relies on a synced,
-trusted rollup node as well as a trace provider (ex: [Cannon](./cannon-fault-proof-vm.md)).
+The honest challenger polls the `DisputeGameFactory` contract for new and on-going Fault
+Dispute Games.
+For verifying the legitimacy of claims, it relies on a synced, trusted rollup node
+as well as a trace provider (ex: [Cannon](./cannon-fault-proof-vm.md)).
 The trace provider must be configured with the [ABSOLUTE_PRESTATE](./fault-dispute-game.md#execution-trace)
 of the FDG being interacted with to generate the traces needed to make truthful claims.
-
-## L2OutputOracle Responses
-
-When a new output is proposed to the `L2OutputOracle`, the honest challenger has a binary decision to make:
-
-1. If the trusted node agrees with the output, take no action. A `FaultDisputeGame` is
-designed to prove that a proposed output root is incorrect and consequently, to delete it.
-Therefore, an honest challenger will not create a dispute game that challenges an output
-root that its trusted node agrees with.
-2. If the trusted node disagrees, create a new `FaultDisputeGame` via the `DisputeGameFactory`.
-In contrast to the above, an honest challenger aims to delete any output roots that its trusted
-node disagrees with in order to claim the bond attached to it.
-The honest challenger assumes that their rollup node is synced to the canonical state and that
-the fault proof program is correct, so it is willing to put its money on the line to counter
-any faults.
 
 ## FDG Responses
 
@@ -59,15 +42,13 @@ When a `FaultDisputeGame` is created, the honest challenger has two possible cor
 to its root claim:
 
 1. [**Attack**](./fault-dispute-game.md#attack) if they disagree with the root claim.
-When an honest challenger disagrees with a root claim of a game,
-it is akin to them agreeing with the output proposal that the game is attempting to delete.
-The root claim commits to the entire execution trace, so the first move by a defender of the
-output root is to attack with the [ClaimHash](./fault-dispute-game.md#claims) at the midpoint
+The root claim commits to the entire execution trace, so the first move here is to
+attack with the [ClaimHash](./fault-dispute-game.md#claims) at the midpoint
 instruction within their execution trace.
-2. **Do Nothing** if they agree with the root claim. If an honest challenger agrees with a
-root claim of a game, it means that they disagree with the output root it is trying to delete.
-They do nothing because if the root claim is left un-countered, the game will delete the output
-root they disagree with.
+2. **Do Nothing** if they agree with the root claim. They do nothing because if the root
+claim is left un-countered, the game resolves to their agreement.
+NOTE: The honest challenger will still track this game in order to defend any subsequent
+claims made against the root claim - in effect, "playing the game".
 
 ### Counter Claims
 
@@ -79,14 +60,14 @@ the honest challenger responds to them in chronological order.
 To determine the appropriate response, the challenger first needs to know which
 [_team_](./fault-dispute-game.md#team-dynamics) it belongs to.
 This determines the set of claims it should respond to in the FDG.
-If the agent determines itself to be a Defender, aiming to delete an output root,
- then it must dispute claims positioned at odd depths in the game tree.
+If the agent determines itself to be a Defender, which aims to support the root claim,
+then it must dispute claims positioned at odd depths in the game tree.
 Otherwise, it disputes claims positioned at even depths in the game tree.
-This means an honest challenger will only respond to claims made by the opposing team.
+This means an honest challenger only responds to claims made by the opposing team.
 
 The next step is to determine whether the claim has a valid commitment (i.e. `ClaimHash`).
-If the `ClaimHash` matches ours at the same trace index, then we disagree with the claim's
-stance by moving to [defend](./fault-dispute-game.md#defend).
+If the `ClaimHash` matches the honest challenger's at the same trace index, then we
+disagree with the claim's stance by moving to [defend](./fault-dispute-game.md#defend).
 Otherwise, the claim is [attacked](./fault-dispute-game.md#attack).
 
 The following pseudocode illustrates the response logic.
@@ -111,10 +92,10 @@ def respond(claim: Claim, chal: Team, chal_trace: List[ClaimHash, MAX_TRACE]):
     else: pass # no response
 ```
 
-In attack or defense, the honest challenger MUST submit a `ClaimHash` corresponding to the state
-identified by the trace index of their response position.
+In attack or defense, the honest challenger submit a `ClaimHash` corresponding to the
+state identified by the trace index of their response position.
 
-The honest challenger SHOULD respond to claims as soon as possible to avoid the clock of its
+The honest challenger responds to claims as soon as possible to avoid the clock of its
 counter-claim from expiring.
 
 ### Steps
@@ -123,23 +104,20 @@ At the max depth of the game, claims represent commitments to the state of the f
 at a single instruction step interval.
 Because the game can no longer bisect further, when the honest challenger has a valid move
 against these claims (valid defined by the response in [Counter Claims](#counter-claims)),
-the only option for an honest challenger is to execute a VM step on-chain to disprove the claim
-at `MAX_GAME_DEPTH`.
+the only option for an honest challenger is to execute a VM step on-chain to disprove the claim at `MAX_GAME_DEPTH`.
 If the VM step proves this claim correct, the claim will be left uncountered.
 
-The same rules for determining whether a move is an attack, defense, or noop from the above
- section apply to claims at the bottom level of the tree.
- Instead of calling `attack` or `defend`, the challenger issues a [step](./fault-dispute-game.md#step).
- An honest challenger will issue an attack step if it disagrees with the claim,
- otherwise a defense step is issued.
+Similar to the above section, the honest challenger will issue an
+[attack step](./fault-dispute-game.md#step-types) when in response to such claims with
+invalid `ClaimHash` commitments. Otherwise, it issues a _defense step_.
 
 ## Resolution
 
-When one side of a `FaultDisputeGame`'s chess clock runs out, the honest challenger’s responsibility
-is to resolve the game.
-This action entails the challenger calling the `resolve` function on the `FaultDisputeGame` contract.
+When the [chess clock](./fault-dispute-game.md#game-clock) of a `FaultDisputeGame` team
+runs out, the game can be resolved.
+The honest challenger does this by calling the `resolve` function on the
+`FaultDisputeGame` contract.
 
-The `FaultDisputeGame` does not put a time cap on resolution - because of the liveness assumption
-on honest challengers and the bonds attached to the claims they’ve countered,
-challengers should resolve the game promptly in order to make their funds
-liquid again and capture their reward(s).
+The `FaultDisputeGame` does not put a time cap on resolution - because of the liveness
+assumption on honest challengers and the bonds attached to the claims they’ve countered,
+challengers are economically incentivized to resolve the game promptly to capture the bonds.
