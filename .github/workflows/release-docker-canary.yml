@@ -48,7 +48,7 @@ jobs:
   fault-mon:
     name: Publish fault-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
-    if: needs.canary-publish.outputs.fault-mon != ''
+    #if: needs.canary-publish.outputs.fault-mon != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -70,7 +70,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: fault-mon
           push: true
-          tags: $ORG/fault-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ${{ env.ORG }}/fault-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   balance-mon:
     name: Publish Balance Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
