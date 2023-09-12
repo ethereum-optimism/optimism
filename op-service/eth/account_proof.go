@@ -3,7 +3,6 @@ package eth
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -50,6 +49,9 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 		val, err := trie.VerifyProof(res.StorageHash, path, db)
 		if err != nil {
 			return fmt.Errorf("failed to verify storage value %d with key %s (path %x) in storage trie %s: %w", i, entry.Key, path, res.StorageHash, err)
+		}
+		if val == nil && entry.Value.ToInt().Cmp(common.Big0) == 0 { // empty storage is zero by default
+			continue
 		}
 		comparison, err := rlp.EncodeToBytes(entry.Value.ToInt().Bytes())
 		if err != nil {
