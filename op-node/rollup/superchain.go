@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-var OPStackSupport = params.ToProtocolVersion(0, 0, 0, 1, 0)
+var OPStackSupport = params.ToProtocolVersion(0, 3, 1, 0, 1)
 
 const (
 	opMainnet   = 10
