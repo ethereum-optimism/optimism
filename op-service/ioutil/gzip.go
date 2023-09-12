@@ -41,19 +41,11 @@ func OpenCompressed(file string, flag int, perm os.FileMode) (io.WriteCloser, er
 
 // WriteCompressedJson writes the object to the specified file as a compressed json object
 // if the filename ends with .gz.
-// If no flags are provided, [os.O_CREATE|os.O_WRONLY] is used.
-func WriteCompressedJson(file string, obj any, flags ...int) error {
+func WriteCompressedJson(file string, obj any) error {
 	if !IsGzip(file) {
 		return fmt.Errorf("file %v does not have .gz extension", file)
 	}
-	if len(flags) == 0 {
-		flags = []int{os.O_CREATE | os.O_WRONLY}
-	}
-	var flag int
-	for _, arg := range flags {
-		flag |= arg
-	}
-	out, err := OpenCompressed(file, flag, 0644)
+	out, err := OpenCompressed(file, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}

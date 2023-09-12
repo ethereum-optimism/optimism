@@ -153,6 +153,8 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 			p.logger.Warn("Failed to read last step from disk cache", "err", err)
 		} else {
 			p.lastStep = step
+			// If the last step is tracked, set i to the last step
+			// to read the correct proof from disk.
 			if i > p.lastStep {
 				i = step
 			}
@@ -184,7 +186,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				if err != nil {
 					return nil, fmt.Errorf("cannot hash witness: %w", err)
 				}
-				if err := WriteLastStep(p.dir, p.lastStep+1); err != nil {
+				if err := WriteLastStep(p.dir, state.Step); err != nil {
 					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
 				}
 				proof := &proofData{
@@ -218,6 +220,7 @@ type diskStateCacheObj struct {
 	Step uint64 `json:"step"`
 }
 
+// ReadLastStep reads the tracked last step from disk.
 func ReadLastStep(dir string) (uint64, error) {
 	state := diskStateCacheObj{}
 	file, err := ioutil.OpenDecompressed(filepath.Join(dir, diskStateCache))
@@ -232,6 +235,7 @@ func ReadLastStep(dir string) (uint64, error) {
 	return state.Step, nil
 }
 
+// WriteLastStep writes the last step to disk as a persistent cache.
 func WriteLastStep(dir string, step uint64) error {
 	state := diskStateCacheObj{Step: step}
 	return ioutil.WriteCompressedJson(filepath.Join(dir, diskStateCache), state)

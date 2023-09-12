@@ -53,12 +53,10 @@ func TestWriteReadCompressedJson(t *testing.T) {
 	tests := []struct {
 		name     string
 		filename string
-		flags    []int
 		err      string
 	}{
-		{"Uncompressed", "test.notgz", []int{}, "does not have .gz extension"},
-		{"Gzipped", "test.gz", []int{}, ""},
-		{"CustomFlags", "test.gz", []int{os.O_CREATE | os.O_WRONLY | os.O_TRUNC}, ""},
+		{"Uncompressed", "test.notgz", "does not have .gz extension"},
+		{"Gzipped", "test.gz", ""},
 	}
 	for _, test := range tests {
 		test := test
@@ -68,7 +66,7 @@ func TestWriteReadCompressedJson(t *testing.T) {
 			err := WriteCompressedJson(path, struct {
 				A int
 				B string
-			}{A: 1, B: "test"}, test.flags...)
+			}{A: 1, B: "test"})
 			if test.err != "" {
 				require.ErrorContains(t, err, test.err)
 				return
