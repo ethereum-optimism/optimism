@@ -75,7 +75,6 @@ func TestBuildOptimism(t *testing.T) {
 		"LegacyERC20ETH":                true,
 		"BobaL2":                        true,
 		"BobaTuringCredit":              true,
-		"BobaGasPriceOracle":            true,
 	}
 
 	// Only the exact contracts that we care about are being

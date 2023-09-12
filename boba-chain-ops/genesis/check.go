@@ -104,8 +104,7 @@ var (
 		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
 		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
 		// Boba contracts
-		predeploys.BobaTuringCreditAddr:   eip1967Slots(predeploys.BobaTuringCreditAddr),
-		predeploys.BobaGasPriceOracleAddr: eip1967Slots(predeploys.BobaGasPriceOracleAddr),
+		predeploys.BobaTuringCreditAddr: eip1967Slots(predeploys.BobaTuringCreditAddr),
 	}
 )
 

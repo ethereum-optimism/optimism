@@ -24,13 +24,11 @@ const (
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	// BOBA Specific
-	BobaTuringCredit   = "0x4200000000000000000000000000000000000020"
-	BobaL2             = "0x4200000000000000000000000000000000000023"
-	BobaGasPriceOracle = "0x4200000000000000000000000000000000000024"
+	BobaTuringCredit = "0x4200000000000000000000000000000000000020"
+	BobaL2           = "0x4200000000000000000000000000000000000023"
 	// These contracts need to be destroyed
-	BobaTuringCreditImplementation  = "0x4200000000000000000000000000000000000021"
-	BobaTuringHelperImplementation  = "0x4200000000000000000000000000000000000022"
-	BobaGasPriceOracleImplmentation = "0x4200000000000000000000000000000000000025"
+	BobaTuringCreditImplementation = "0x4200000000000000000000000000000000000021"
+	BobaTuringHelperImplementation = "0x4200000000000000000000000000000000000022"
 )
 
 var (
@@ -52,13 +50,11 @@ var (
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	// BOBA Specific
-	BobaTuringCreditAddr   = common.HexToAddress(BobaTuringCredit)
-	BobaL2Addr             = common.HexToAddress(BobaL2)
-	BobaGasPriceOracleAddr = common.HexToAddress(BobaGasPriceOracle)
+	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
+	BobaL2Addr           = common.HexToAddress(BobaL2)
 	// Boba Legacy
-	BobaTuringCreditImplementationAddr  = common.HexToAddress(BobaTuringCreditImplementation)
-	BobaTuringHelperImplementationAddr  = common.HexToAddress(BobaTuringHelperImplementation)
-	BobaGasPriceOracleImplmentationAddr = common.HexToAddress(BobaGasPriceOracleImplmentation)
+	BobaTuringCreditImplementationAddr = common.HexToAddress(BobaTuringCreditImplementation)
+	BobaTuringHelperImplementationAddr = common.HexToAddress(BobaTuringHelperImplementation)
 
 	Predeploys                    = make(map[string]*common.Address)
 	LegacyBobaProxyImplementation = make(map[string]*common.Address)
@@ -97,9 +93,7 @@ func init() {
 	// BOBA Specific
 	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
 	Predeploys["BobaL2"] = &BobaL2Addr
-	Predeploys["BobaGasPriceOracle"] = &BobaGasPriceOracleAddr
 	// Legacy
 	LegacyBobaProxyImplementation["BobaTuringCreditImplementation"] = &BobaTuringCreditImplementationAddr
 	LegacyBobaProxyImplementation["BobaTuringHelperImplementation"] = &BobaTuringHelperImplementationAddr
-	LegacyBobaProxyImplementation["BobaGasPriceOracleImplmentation"] = &BobaGasPriceOracleImplmentationAddr
 }

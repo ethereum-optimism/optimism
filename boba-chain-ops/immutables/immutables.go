@@ -157,9 +157,6 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "BobaTuringCredit",
 		},
-		{
-			Name: "BobaGasPriceOracle",
-		},
 	}
 	return BuildL2(deployments)
 }
@@ -285,9 +282,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			uint8(_decimals),
 		)
 		log.Info("BobaL2 Deployment", "err", err, "addr", addr)
-	case "BobaGasPriceOracle":
-		addr, tx, _, err = bindings.DeployBobaGasPriceOracle(opts, backend)
-		log.Info("BobaGasPriceOracle Deployment", "err", err, "addr", addr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
