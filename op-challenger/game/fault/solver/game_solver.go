@@ -10,13 +10,11 @@ import (
 
 type GameSolver struct {
 	claimSolver *claimSolver
-	gameDepth   int
 }
 
 func NewGameSolver(gameDepth int, trace types.TraceProvider) *GameSolver {
 	return &GameSolver{
 		claimSolver: newClaimSolver(gameDepth, trace),
-		gameDepth:   gameDepth,
 	}
 }
 
@@ -26,7 +24,7 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	for _, claim := range game.Claims() {
 		var action *types.Action
 		var err error
-		if claim.Depth() == s.gameDepth {
+		if uint64(claim.Depth()) == game.MaxDepth() {
 			action, err = s.calculateStep(ctx, game, claim)
 		} else {
 			action, err = s.calculateMove(ctx, game, claim)
@@ -69,7 +67,7 @@ func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim t
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate next move for claim index %v: %w", claim.ContractIndex, err)
 	}
-	if move == nil || game.IsDuplicate(*move) {
+	if move == nil || game.IsDuplicate(move.ClaimData) {
 		return nil, nil
 	}
 	return &types.Action{
