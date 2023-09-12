@@ -1,0 +1,92 @@
+name: Docker Build Scan
+on:
+  workflow_dispatch:
+
+jobs:
+  Build-Scan-Container-op-ufm:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-ufm/Dockerfile
+
+  Build-Scan-Container-ops-bedrock-l1:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: ops-bedrock/Dockerfile.l1
+      context: ops-bedrock
+
+  Build-Scan-Container-ops-bedrock-l2:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: ops-bedrock/Dockerfile.l2
+      context: ops-bedrock
+
+  Build-Scan-Container-indexer:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: indexer/Dockerfile
+
+  Build-Scan-Container-op-heartbeat:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-heartbeat/Dockerfile
+
+  Build-Scan-Container-op-exporter:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-exporter/Dockerfile
+
+  Build-Scan-Container-op-program:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-program/Dockerfile
+
+  Build-Scan-Container-ops-bedrock:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: ops-bedrock/Dockerfile.stateviz
+
+  Build-Scan-Container-ci-builder:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: ops/docker/ci-builder/Dockerfile
+
+  Build-Scan-Container-proxyd:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: proxyd/Dockerfile
+
+  Build-Scan-Container-op-node:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-node/Dockerfile
+
+  Build-Scan-Container-op-batcher:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-batcher/Dockerfile
+
+  Build-Scan-Container-indexer-ui:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: indexer/ui/Dockerfile
+
+  Build-Scan-Container-op-proposer:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-proposer/Dockerfile
+
+  Build-Scan-Container-op-challenger:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-challenger/Dockerfile
+
+  Build-Scan-Container-endpoint-monitor:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: endpoint-monitor/Dockerfile
+
+  Build-Scan-Container-opwheel:
+    uses: celo-org/reusable-workflows/.github/workflows/container-cicd-local.yaml@v1.11.2
+    with:
+      dockerfile: op-wheel/Dockerfile
+
