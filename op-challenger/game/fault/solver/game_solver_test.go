@@ -102,6 +102,8 @@ func TestCalculateNextActions(t *testing.T) {
 			for i, action := range actions {
 				t.Logf("Move %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
 					i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
+				// Check that every move the solver returns meets the generic validation rules
+				require.NoError(t, checkRules(game, action), "Attempting to perform invalid action")
 			}
 			for i, action := range builder.ExpectedActions {
 				t.Logf("Expect %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
