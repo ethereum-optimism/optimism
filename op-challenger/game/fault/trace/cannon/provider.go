@@ -48,12 +48,10 @@ type ProofGenerator interface {
 }
 
 type CannonTraceProvider struct {
-	logger         log.Logger
-	dir            string
-	prestate       string
-	generator      ProofGenerator
-	lastStepWriter LastStepWriter
-	lastStepReader LastStepReader
+	logger    log.Logger
+	dir       string
+	prestate  string
+	generator ProofGenerator
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
@@ -81,12 +79,10 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, 
 
 func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:         logger,
-		dir:            dir,
-		prestate:       cfg.CannonAbsolutePreState,
-		generator:      NewExecutor(logger, m, cfg, localInputs),
-		lastStepWriter: WriteLastStep,
-		lastStepReader: LoadLastStep,
+		logger:    logger,
+		dir:       dir,
+		prestate:  cfg.CannonAbsolutePreState,
+		generator: NewExecutor(logger, m, cfg, localInputs),
 	}
 }
 
@@ -152,7 +148,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 	}
 	// Attempt to read the last step from disk cache
 	if p.lastProof == nil && p.lastStep == 0 {
-		step, err := p.lastStepReader(p.dir)
+		step, err := ReadLastStep(p.dir)
 		if err != nil {
 			p.logger.Warn("Failed to read last step from disk cache", "err", err)
 		} else {
@@ -188,7 +184,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				if err != nil {
 					return nil, fmt.Errorf("cannot hash witness: %w", err)
 				}
-				if err := p.lastStepWriter(p.dir, p.lastStep+1); err != nil {
+				if err := WriteLastStep(p.dir, p.lastStep+1); err != nil {
 					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
 				}
 				proof := &proofData{
@@ -222,7 +218,7 @@ type diskStateCacheObj struct {
 	Step uint64 `json:"step"`
 }
 
-func LoadLastStep(dir string) (uint64, error) {
+func ReadLastStep(dir string) (uint64, error) {
 	state := diskStateCacheObj{}
 	file, err := ioutil.OpenDecompressed(filepath.Join(dir, diskStateCache))
 	if err != nil {

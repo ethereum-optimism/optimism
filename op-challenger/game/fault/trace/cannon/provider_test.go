@@ -65,8 +65,8 @@ func TestGet(t *testing.T) {
 }
 
 func TestGetStepData(t *testing.T) {
-	dataDir, prestate := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), 0)
 		require.NoError(t, err)
@@ -80,6 +80,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("GenerateProof", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
@@ -105,6 +106,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
@@ -130,6 +132,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("ReadLastStepFromDisk", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
 		provider, initGenerator := setupWithTestData(t, dataDir, prestate)
 		initGenerator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
@@ -146,7 +149,7 @@ func TestGetStepData(t *testing.T) {
 		}
 		_, _, _, err := provider.GetStepData(context.Background(), 7000)
 		require.NoError(t, err)
-		require.Contains(t, initGenerator.generated, 10, "should have tried to generate the proof")
+		require.Contains(t, initGenerator.generated, 7000, "should have tried to generate the proof")
 
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
@@ -173,6 +176,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("MissingStateData", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		_, _, _, err := provider.GetStepData(context.Background(), 1)
 		require.ErrorContains(t, err, "missing state data")
@@ -180,6 +184,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
 		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), 2)
 		require.NoError(t, err)
@@ -261,12 +266,10 @@ func setupTestData(t *testing.T) (string, string) {
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
 	return &CannonTraceProvider{
-		logger:         testlog.Logger(t, log.LvlInfo),
-		dir:            dataDir,
-		generator:      generator,
-		prestate:       filepath.Join(dataDir, prestate),
-		lastStepReader: LoadLastStep,
-		lastStepWriter: WriteLastStep,
+		logger:    testlog.Logger(t, log.LvlInfo),
+		dir:       dataDir,
+		generator: generator,
+		prestate:  filepath.Join(dataDir, prestate),
 	}, generator
 }
 
