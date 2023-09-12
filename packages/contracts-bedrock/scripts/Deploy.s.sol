@@ -410,7 +410,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public onlyTestnetOrDevnet broadcast returns (address addr_) {
-        ProtocolVersions versions = new ProtocolVersions();
+        ProtocolVersions versions = new ProtocolVersions{ salt: IMPL_SALT }();
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
 
