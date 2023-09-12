@@ -149,4 +149,28 @@ contract BobaTuringCredit {
 
         IERC20(turingToken).safeTransfer(owner, _withdrawAmount);
     }
+
+    // ----------------------------------------------------
+    // New for Anchorage
+
+    // Could make this configurable, but for now it's hard-coded to a predeploy address
+    address public immutable HCHelperAddr = 0x42000000000000000000000000000000000000Fd;
+
+    /**
+     * @dev Interfaces this legacy contract to the new Anchorage hybrid compute system
+     *
+     * @param _helperContractAddress the address of a legacy TuringHelper contract
+     * @param _amount the token balance to be deducted from its prepaid credit
+     */
+    function spendCredit(address _helperContractAddress, uint256 _amount) public returns (bool) {
+        bool success = false;
+        require(msg.sender == HCHelperAddr, "Can only be called from HCHelper");
+
+        if (prepaidBalance[_helperContractAddress] >= _amount) {
+            prepaidBalance[_helperContractAddress] -= _amount;
+            ownerRevenue += _amount;
+            success = true;
+        }
+        return success;
+    }
 }
