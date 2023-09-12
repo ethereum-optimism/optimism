@@ -52,10 +52,9 @@ claims made against the root claim - in effect, "playing the game".
 
 ### Counter Claims
 
-When a new claim is made in a dispute game with a [game tree](./fault-dispute-game.md#game-tree)
-depth in the range of `[1, MAX_DEPTH]`, the honest challenger processes it and performs
-a response. If multiple claims are observed since the last sync,
-the honest challenger responds to them in chronological order.
+For every claim made in a dispute game with a [game tree](./fault-dispute-game.md#game-tree)
+depth in the range of `[1, MAX_DEPTH]`, the honest challenger processes them and performs
+a response.
 
 To determine the appropriate response, the challenger first needs to know which
 [_team_](./fault-dispute-game.md#team-dynamics) it belongs to.
