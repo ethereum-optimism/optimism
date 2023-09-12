@@ -105,7 +105,6 @@ at a single instruction step interval.
 Because the game can no longer bisect further, when the honest challenger has a valid move
 against these claims (valid defined by the response in [Counter Claims](#counter-claims)),
 the only option for an honest challenger is to execute a VM step on-chain to disprove the claim at `MAX_GAME_DEPTH`.
-If the VM step proves this claim correct, the claim will be left uncountered.
 
 Similar to the above section, the honest challenger will issue an
 [attack step](./fault-dispute-game.md#step-types) when in response to such claims with
