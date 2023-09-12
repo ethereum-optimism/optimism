@@ -4,14 +4,13 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Honest Challenger (Fault Dispute Game)](#honest-challenger-fault-dispute-game)
-  - [Overview](#overview)
-  - [L2OutputOracle Responses](#l2outputoracle-responses)
-  - [FDG Responses](#fdg-responses)
-    - [Root Claims](#root-claims)
-    - [Counter Claims](#counter-claims)
-    - [Steps](#steps)
-  - [Resolution](#resolution)
+- [Overview](#overview)
+- [L2OutputOracle Responses](#l2outputoracle-responses)
+- [FDG Responses](#fdg-responses)
+  - [Root Claims](#root-claims)
+  - [Counter Claims](#counter-claims)
+  - [Steps](#steps)
+- [Resolution](#resolution)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
