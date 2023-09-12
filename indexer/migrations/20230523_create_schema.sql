@@ -1,6 +1,11 @@
 
-CREATE DOMAIN UINT256 AS NUMERIC
-    CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
+        CREATE DOMAIN UINT256 AS NUMERIC
+            CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+    END IF;
+END $$;
 
 /**
  * BLOCK DATA
@@ -16,6 +21,8 @@ CREATE TABLE IF NOT EXISTS l1_block_headers (
     -- Raw Data
     rlp_bytes VARCHAR NOT NULL
 );
+CREATE INDEX IF NOT EXISTS l1_block_headers_timestamp ON l1_block_headers(timestamp);
+CREATE INDEX IF NOT EXISTS l1_block_headers_number ON l1_block_headers(number);
 
 CREATE TABLE IF NOT EXISTS l2_block_headers (
     -- Searchable fields
@@ -27,6 +34,8 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
     -- Raw Data
     rlp_bytes VARCHAR NOT NULL
 );
+CREATE INDEX IF NOT EXISTS l2_block_headers_timestamp ON l2_block_headers(timestamp);
+CREATE INDEX IF NOT EXISTS l2_block_headers_number ON l2_block_headers(number);
 
 /**
  * EVENT DATA
@@ -45,6 +54,9 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
     -- Raw Data
     rlp_bytes VARCHAR NOT NULL
 );
+CREATE INDEX IF NOT EXISTS l1_contract_events_timestamp ON l1_contract_events(timestamp);
+CREATE INDEX IF NOT EXISTS l1_contract_events_block_hash ON l1_contract_events(block_hash);
+CREATE INDEX IF NOT EXISTS l1_contract_events_event_signature ON l1_contract_events(event_signature);
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Searchable fields
@@ -59,6 +71,9 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Raw Data
     rlp_bytes VARCHAR NOT NULL
 );
+CREATE INDEX IF NOT EXISTS l2_contract_events_timestamp ON l2_contract_events(timestamp);
+CREATE INDEX IF NOT EXISTS l2_contract_events_block_hash ON l2_contract_events(block_hash);
+CREATE INDEX IF NOT EXISTS l2_contract_events_event_signature ON l2_contract_events(event_signature);
 
 -- Tables that index finalization markers for L2 blocks.
 
@@ -78,6 +93,7 @@ CREATE TABLE IF NOT EXISTS output_proposals (
 
     output_proposed_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
 );
+
 
 /**
  * BRIDGING DATA
@@ -118,6 +134,10 @@ CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
 );
+CREATE INDEX IF NOT EXISTS l1_transaction_deposits_timestamp ON l1_transaction_deposits(timestamp);
+CREATE INDEX IF NOT EXISTS l1_transaction_deposits_initiated_l1_event_guid ON l1_transaction_deposits(initiated_l1_event_guid);
+CREATE INDEX IF NOT EXISTS l1_transaction_deposits_from_address ON l1_transaction_deposits(from_address);
+
 CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
     withdrawal_hash         VARCHAR PRIMARY KEY,
     nonce                   UINT256 NOT NULL UNIQUE,
@@ -136,6 +156,9 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
 );
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_timestamp ON l2_transaction_withdrawals(timestamp);
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_initiated_l2_event_guid ON l2_transaction_withdrawals(initiated_l2_event_guid);
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_from_address ON l2_transaction_withdrawals(from_address);
 
 -- CrossDomainMessenger
 CREATE TABLE IF NOT EXISTS l1_bridge_messages(
@@ -154,6 +177,10 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
 );
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_timestamp ON l1_bridge_messages(timestamp);
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_source_hash ON l1_bridge_messages(transaction_source_hash);
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_from_address ON l1_bridge_messages(from_address);
+
 CREATE TABLE IF NOT EXISTS l2_bridge_messages(
     message_hash                VARCHAR PRIMARY KEY,
     nonce                       UINT256 NOT NULL UNIQUE,
@@ -170,6 +197,9 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
 );
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_timestamp ON l2_bridge_messages(timestamp);
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_withdrawal_hash ON l2_bridge_messages(transaction_withdrawal_hash);
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_from_address ON l2_bridge_messages(from_address);
 
 -- StandardBridge
 CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
@@ -185,6 +215,10 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
 );
+CREATE INDEX IF NOT EXISTS l1_bridge_deposits_timestamp ON l1_bridge_deposits(timestamp);
+CREATE INDEX IF NOT EXISTS l1_bridge_deposits_cross_domain_message_hash ON l1_bridge_deposits(cross_domain_message_hash);
+CREATE INDEX IF NOT EXISTS l1_bridge_deposits_from_address ON l1_bridge_deposits(from_address);
+
 CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     transaction_withdrawal_hash VARCHAR PRIMARY KEY REFERENCES l2_transaction_withdrawals(withdrawal_hash) ON DELETE CASCADE,
     cross_domain_message_hash   VARCHAR NOT NULL UNIQUE REFERENCES l2_bridge_messages(message_hash) ON DELETE CASCADE,
@@ -198,3 +232,6 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
 );
+CREATE INDEX IF NOT EXISTS l2_bridge_withdrawals_timestamp ON l2_bridge_withdrawals(timestamp);
+CREATE INDEX IF NOT EXISTS l2_bridge_withdrawals_cross_domain_message_hash ON l2_bridge_withdrawals(cross_domain_message_hash);
+CREATE INDEX IF NOT EXISTS l2_bridge_withdrawals_from_address ON l2_bridge_withdrawals(from_address);

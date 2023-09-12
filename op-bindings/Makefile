@@ -11,6 +11,7 @@ version:
 
 compile:
 	cd $(contracts-dir) && \
+		forge clean && \
 		pnpm build
 
 bindings: compile bindings-build

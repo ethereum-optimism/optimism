@@ -35,12 +35,6 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
-    'final-migration-rehearsal': {
-      chainId: 5,
-      url: process.env.L1_RPC || '',
-      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
-      live: true,
-    },
   },
   external: {
     contracts: [

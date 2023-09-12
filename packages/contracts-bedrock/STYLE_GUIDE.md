@@ -138,6 +138,9 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
 
+To minimize clutter, getter functions can be grouped together into a single test contract,
+  ie. `TargetContract_Getters_Test`.
+
 ## Withdrawaing From Fee Vaults
 
 See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes

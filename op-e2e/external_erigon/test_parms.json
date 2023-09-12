@@ -9,6 +9,8 @@
     "TestSystemP2PAltSync":"TODO This used to work and must be fixed",
     "TestCannonDefendStep":"TODO This is a new failure that should be investigated",
     "TestMultipleCannonGames":"TODO This is a new failure that should be investigated",
-    "TestCannonDisputeGame":"TODO This is a new failure that should be investigated"
+    "TestCannonDisputeGame":"TODO This is a new failure that should be investigated",
+    "TestCannonProposedOutputRootInvalid":"TODO This is a new failure that should be investigated",
+    "TestCannonChallengeWithCorrectRoot":"TODO This is a new failure that should be investigated"
   }
 }

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slices"
@@ -17,7 +19,7 @@ type PlayerCreator func(address common.Address, dir string) (GamePlayer, error)
 type gameState struct {
 	player   GamePlayer
 	inflight bool
-	resolved bool
+	status   types.GameStatus
 }
 
 // coordinator manages the set of current games, queues games to be played (on separate worker threads) and
@@ -31,6 +33,7 @@ type coordinator struct {
 	resultQueue <-chan job
 
 	logger       log.Logger
+	m            SchedulerMetricer
 	createPlayer PlayerCreator
 	states       map[common.Address]*gameState
 	disk         DiskManager
@@ -49,18 +52,36 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 		}
 	}
 
+	var gamesInProgress int
+	var gamesChallengerWon int
+	var gamesDefenderWon int
 	var errs []error
+	var jobs []job
 	// Next collect all the jobs to schedule and ensure all games are recorded in the states map.
 	// Otherwise, results may start being processed before all games are recorded, resulting in existing
 	// data directories potentially being deleted for games that are required.
-	var jobs []job
 	for _, addr := range games {
 		if j, err := c.createJob(addr); err != nil {
 			errs = append(errs, err)
 		} else if j != nil {
 			jobs = append(jobs, *j)
+			c.m.RecordGameUpdateScheduled()
+		}
+		state, ok := c.states[addr]
+		if ok {
+			switch state.status {
+			case types.GameStatusInProgress:
+				gamesInProgress++
+			case types.GameStatusDefenderWon:
+				gamesDefenderWon++
+			case types.GameStatusChallengerWon:
+				gamesChallengerWon++
+			}
+		} else {
+			c.logger.Warn("Game not found in states map", "game", addr)
 		}
 	}
+	c.m.RecordGamesStatus(gamesInProgress, gamesChallengerWon, gamesDefenderWon)
 
 	// Finally, enqueue the jobs
 	for _, j := range jobs {
@@ -114,15 +135,16 @@ func (c *coordinator) processResult(j job) error {
 		return fmt.Errorf("game %v received unexpected result: %w", j.addr, errUnknownGame)
 	}
 	state.inflight = false
-	state.resolved = j.resolved
+	state.status = j.status
 	c.deleteResolvedGameFiles()
+	c.m.RecordGameUpdateCompleted()
 	return nil
 }
 
 func (c *coordinator) deleteResolvedGameFiles() {
 	var keepGames []common.Address
 	for addr, state := range c.states {
-		if !state.resolved || state.inflight {
+		if state.status == types.GameStatusInProgress || state.inflight {
 			keepGames = append(keepGames, addr)
 		}
 	}
@@ -131,9 +153,10 @@ func (c *coordinator) deleteResolvedGameFiles() {
 	}
 }
 
-func newCoordinator(logger log.Logger, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
+func newCoordinator(logger log.Logger, m SchedulerMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
 	return &coordinator{
 		logger:       logger,
+		m:            m,
 		jobQueue:     jobQueue,
 		resultQueue:  resultQueue,
 		createPlayer: createPlayer,

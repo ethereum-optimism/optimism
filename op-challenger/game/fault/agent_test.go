@@ -5,9 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -19,16 +21,16 @@ import (
 func TestShouldResolve(t *testing.T) {
 	t.Run("AgreeWithProposedOutput", func(t *testing.T) {
 		agent, _, _ := setupTestAgent(t, true)
-		require.False(t, agent.shouldResolve(types.GameStatusDefenderWon))
-		require.True(t, agent.shouldResolve(types.GameStatusChallengerWon))
-		require.False(t, agent.shouldResolve(types.GameStatusInProgress))
+		require.False(t, agent.shouldResolve(gameTypes.GameStatusDefenderWon))
+		require.True(t, agent.shouldResolve(gameTypes.GameStatusChallengerWon))
+		require.False(t, agent.shouldResolve(gameTypes.GameStatusInProgress))
 	})
 
 	t.Run("DisagreeWithProposedOutput", func(t *testing.T) {
 		agent, _, _ := setupTestAgent(t, false)
-		require.True(t, agent.shouldResolve(types.GameStatusDefenderWon))
-		require.False(t, agent.shouldResolve(types.GameStatusChallengerWon))
-		require.False(t, agent.shouldResolve(types.GameStatusInProgress))
+		require.True(t, agent.shouldResolve(gameTypes.GameStatusDefenderWon))
+		require.False(t, agent.shouldResolve(gameTypes.GameStatusChallengerWon))
+		require.False(t, agent.shouldResolve(gameTypes.GameStatusInProgress))
 	})
 }
 
@@ -38,31 +40,31 @@ func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 	tests := []struct {
 		name                    string
 		agreeWithProposedOutput bool
-		callResolveStatus       types.GameStatus
+		callResolveStatus       gameTypes.GameStatus
 		shouldResolve           bool
 	}{
 		{
 			name:                    "Agree_Losing",
 			agreeWithProposedOutput: true,
-			callResolveStatus:       types.GameStatusDefenderWon,
+			callResolveStatus:       gameTypes.GameStatusDefenderWon,
 			shouldResolve:           false,
 		},
 		{
 			name:                    "Agree_Winning",
 			agreeWithProposedOutput: true,
-			callResolveStatus:       types.GameStatusChallengerWon,
+			callResolveStatus:       gameTypes.GameStatusChallengerWon,
 			shouldResolve:           true,
 		},
 		{
 			name:                    "Disagree_Losing",
 			agreeWithProposedOutput: false,
-			callResolveStatus:       types.GameStatusChallengerWon,
+			callResolveStatus:       gameTypes.GameStatusChallengerWon,
 			shouldResolve:           false,
 		},
 		{
 			name:                    "Disagree_Winning",
 			agreeWithProposedOutput: false,
-			callResolveStatus:       types.GameStatusDefenderWon,
+			callResolveStatus:       gameTypes.GameStatusDefenderWon,
 			shouldResolve:           true,
 		},
 	}
@@ -126,14 +128,14 @@ func (s *stubClaimLoader) FetchClaims(ctx context.Context) ([]types.Claim, error
 
 type stubResponder struct {
 	callResolveCount  int
-	callResolveStatus types.GameStatus
+	callResolveStatus gameTypes.GameStatus
 	callResolveErr    error
 
 	resolveCount int
 	resolveErr   error
 }
 
-func (s *stubResponder) CallResolve(ctx context.Context) (types.GameStatus, error) {
+func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
 	s.callResolveCount++
 	return s.callResolveStatus, s.callResolveErr
 }
@@ -143,11 +145,7 @@ func (s *stubResponder) Resolve(ctx context.Context) error {
 	return s.resolveErr
 }
 
-func (s *stubResponder) Respond(ctx context.Context, response types.Claim) error {
-	panic("Not implemented")
-}
-
-func (s *stubResponder) Step(ctx context.Context, stepData types.StepCallData) error {
+func (s *stubResponder) PerformAction(ctx context.Context, response solver.Action) error {
 	panic("Not implemented")
 }
 

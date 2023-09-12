@@ -1,0 +1,62 @@
+version: "3"
+
+services:
+  pushgateway:
+    image: prom/pushgateway
+    ports:
+      - "9091:9091"
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - "no-new-privileges:true"
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - pushgateway
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    read_only: true
+    security_opt:
+      - "no-new-privileges:true"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PWD}
+    volumes:
+      - ./datasources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+    security_opt:
+      - "no-new-privileges:true"
+
+  metamask:
+    build: ./metamask
+    container_name: test-service-metamask
+    profiles: ["30minute"]
+    depends_on:
+      - prometheus
+    environment:
+      DISPLAY: ${MM_DISPLAY:-:0}
+      CI: ${CI:-true}
+    volumes:
+      - ${MM_DISPLAY_VOLUME}
+    restart: no
+
+  # Example Test Service Config
+  # my_test_service:
+  #   build: ./my_test_service_dir
+  #   container_name: my_test_service
+  #   profiles: ["1minute"]
+  #   depends_on:
+  #     - prometheus
+  #   restart: no

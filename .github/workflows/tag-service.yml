@@ -40,7 +40,7 @@ jobs:
     environment: op-stack-production
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
       - name: Fetch tags
         run: git fetch --tags origin --force
       - name: Setup Python 3.10

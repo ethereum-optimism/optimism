@@ -15,9 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 )
 
 const (
@@ -25,7 +26,7 @@ const (
 )
 
 type proofData struct {
-	ClaimValue   hexutil.Bytes `json:"post"`
+	ClaimValue   common.Hash   `json:"post"`
 	StateData    hexutil.Bytes `json:"state-data"`
 	ProofData    hexutil.Bytes `json:"proof-data"`
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
@@ -86,7 +87,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, e
 	if err != nil {
 		return common.Hash{}, err
 	}
-	value := common.BytesToHash(proof.ClaimValue)
+	value := proof.ClaimValue
 
 	if value == (common.Hash{}) {
 		return common.Hash{}, errors.New("proof missing post hash")
@@ -122,6 +123,18 @@ func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, err
 	return state.EncodeWitness(), nil
 }
 
+func (p *CannonTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
+	state, err := p.AbsolutePreState(ctx)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
+	}
+	hash, err := mipsevm.StateWitness(state).StateHash()
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
+	}
+	return hash, nil
+}
+
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
 func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {
@@ -151,9 +164,13 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				// Extend the trace out to the full length using a no-op instruction that doesn't change any state
 				// No execution is done, so no proof-data or oracle values are required.
 				witness := state.EncodeWitness()
+				witnessHash, err := mipsevm.StateWitness(witness).StateHash()
+				if err != nil {
+					return nil, fmt.Errorf("cannot hash witness: %w", err)
+				}
 				proof := &proofData{
-					ClaimValue:   crypto.Keccak256(witness),
-					StateData:    witness,
+					ClaimValue:   witnessHash,
+					StateData:    hexutil.Bytes(witness),
 					ProofData:    []byte{},
 					OracleKey:    nil,
 					OracleValue:  nil,

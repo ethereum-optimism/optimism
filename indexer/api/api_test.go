@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,6 +18,15 @@ import (
 type MockBridgeTransfersView struct{}
 
 var mockAddress = "0x4204204204204204204204204204204204204204"
+
+var apiConfig = config.ServerConfig{
+	Host: "localhost",
+	Port: 8080,
+}
+var metricsConfig = config.ServerConfig{
+	Host: "localhost",
+	Port: 7300,
+}
 
 var (
 	deposit = database.L1BridgeDeposit{
@@ -77,7 +87,7 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.
 }
 func TestHealthz(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(logger, &MockBridgeTransfersView{})
+	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)
 	request, err := http.NewRequest("GET", "/healthz", nil)
 	assert.Nil(t, err)
 
@@ -89,7 +99,7 @@ func TestHealthz(t *testing.T) {
 
 func TestL1BridgeDepositsHandler(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(logger, &MockBridgeTransfersView{})
+	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)
 	request, err := http.NewRequest("GET", fmt.Sprintf("/api/v0/deposits/%s", mockAddress), nil)
 	assert.Nil(t, err)
 
@@ -101,7 +111,7 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 
 func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(logger, &MockBridgeTransfersView{})
+	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)
 	request, err := http.NewRequest("GET", fmt.Sprintf("/api/v0/withdrawals/%s", mockAddress), nil)
 	assert.Nil(t, err)
 

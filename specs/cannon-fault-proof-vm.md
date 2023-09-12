@@ -6,6 +6,7 @@
 
 - [Overview](#overview)
 - [State](#state)
+  - [State Hash](#state-hash)
 - [Memory](#memory)
   - [Heap](#heap)
 - [Delay Slots](#delay-slots)
@@ -52,6 +53,34 @@ It consists of the following fields:
 11. `registers` - General-purpose MIPS32 registers. Each register is a 32-bit value.
 
 The state is represented by packing the above fields, in order, into a 226-byte buffer.
+
+### State Hash
+
+The state hash is computed by hashing the 226-byte state buffer with the Keccak256 hash function
+and then setting the high-order byte to the respective VM status.
+
+The VM status can be derived from the state's `exited` and `exitCode` fields.
+
+```rs
+enum VmStatus {
+    Valid = 0,
+    Invalid = 1,
+    Panic = 2,
+    Unfinished = 3,
+}
+
+fn vm_status(exit_code: u8, exited: bool) -> u8 {
+    if exited {
+        match exit_code {
+            0 => VmStatus::Valid,
+            1 => VmStatus::Invalid,
+            _ => VmStatus::Panic,
+        }
+    } else {
+        VmStatus::Unfinished
+    }
+}
+```
 
 ## Memory
 

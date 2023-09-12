@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -49,9 +50,9 @@ func NewLoaderFromBindings(fdgAddr common.Address, client bind.ContractCaller) (
 }
 
 // GetGameStatus returns the current game status.
-func (l *loader) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
+func (l *loader) GetGameStatus(ctx context.Context) (gameTypes.GameStatus, error) {
 	status, err := l.caller.Status(&bind.CallOpts{Context: ctx})
-	return types.GameStatus(status), err
+	return gameTypes.GameStatus(status), err
 }
 
 // GetClaimCount returns the number of claims in the game.
@@ -138,16 +139,15 @@ func (l *loader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 }
 
 // FetchAbsolutePrestateHash fetches the hashed absolute prestate from the fault dispute game.
-func (l *loader) FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error) {
+func (l *loader) FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	callOpts := bind.CallOpts{
 		Context: ctx,
 	}
 
 	absolutePrestate, err := l.caller.ABSOLUTEPRESTATE(&callOpts)
 	if err != nil {
-		return nil, err
+		return common.Hash{}, err
 	}
-	returnValue := absolutePrestate[:]
 
-	return returnValue, nil
+	return absolutePrestate, nil
 }
