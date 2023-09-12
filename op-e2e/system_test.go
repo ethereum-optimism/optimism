@@ -1435,12 +1435,11 @@ func TestRuntimeConfigReload(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestProtocolVersionReporting(t *testing.T) {
-	t.Skip() // TODO superchain config support
-
+func TestRecommendedProtocolVersionChange(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
+	require.NotEqual(t, common.Address{}, cfg.L1Deployments.ProtocolVersions, "need ProtocolVersions contract deployment")
 	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
 	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
@@ -1452,21 +1451,23 @@ func TestProtocolVersionReporting(t *testing.T) {
 	defer sys.Close()
 	runtimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
 
+	// Change the superchain-config via L1
 	l1 := sys.Clients["l1"]
 
-	// Change the superchain-config via L1
-
-	newRecommendedProtocolVersion := params.ToProtocolVersion(0, 0, 0, 0, 1)
+	_, build, major, minor, patch, preRelease := params.OPStackSupport.Parse()
+	newRecommendedProtocolVersion := params.ToProtocolVersion(build, major+1, minor, patch, preRelease)
 	require.NotEqual(t, runtimeConfig.RecommendedProtocolVersion(), newRecommendedProtocolVersion, "changing to a different protocol version")
-	// TODO superchain config bindings
 
-	// TODO new contract bindings instance
-	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig()) // TODO superchain config owner
-	require.Nil(t, err)
+	protVersions, err := bindings.NewProtocolVersions(cfg.L1Deployments.ProtocolVersionsProxy, l1)
+	require.NoError(t, err)
 
-	// TODO change recommended protocol version
-	_ = opts
-	var tx *types.Transaction
+	// ProtocolVersions contract is owned by same key as SystemConfig in devnet
+	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+	require.NoError(t, err)
+
+	// Change recommended protocol version
+	tx, err := protVersions.SetRecommended(opts, new(big.Int).SetBytes(newRecommendedProtocolVersion[:]))
+	require.NoError(t, err)
 
 	// wait for the change to confirm
 	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
@@ -1479,6 +1480,57 @@ func TestProtocolVersionReporting(t *testing.T) {
 			return struct{}{}, nil
 		}
 		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newRecommendedProtocolVersion)
+	})
+	require.NoError(t, err)
+}
+
+func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
+	t.Skip() // TODO
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// activate the functionality by updating the config // TODO may need to just activate it by default in op-e2e?
+	cfg.Nodes["verifier"].Rollup.ProtocolVersionsAddress = cfg.L1Deployments.ProtocolVersions
+	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
+	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
+	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
+	// and frequently report the protocol versions
+	cfg.Nodes["verifier"].ProtocolVersionReportInterval = time.Second * 5
+	// TODO: configure halt in verifier op-node
+
+	// TODO: configure halt in verifier op-geth node
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	runtimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
+
+	// Change the superchain-config via L1
+	l1 := sys.Clients["l1"]
+
+	_, build, major, minor, patch, preRelease := params.OPStackSupport.Parse()
+	newRequiredProtocolVersion := params.ToProtocolVersion(build, major+1, minor, patch, preRelease)
+	require.NotEqual(t, runtimeConfig.RequiredProtocolVersion(), newRequiredProtocolVersion, "changing to a different protocol version")
+
+	protVersions, err := bindings.NewProtocolVersions(cfg.L1Deployments.ProtocolVersionsProxy, l1)
+	require.NoError(t, err)
+
+	// ProtocolVersions contract is owned by same key as SystemConfig in devnet
+	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+	require.NoError(t, err)
+
+	// Change required protocol version
+	tx, err := protVersions.SetRecommended(opts, new(big.Int).SetBytes(newRequiredProtocolVersion[:]))
+	require.NoError(t, err)
+
+	// wait for the change to confirm
+	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
+	require.NoError(t, err)
+
+	// wait for the required protocol version to take effect by halting the verifier that opted in, and halting the op-geth node that opted in.
+	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
+		// TODO: need to check if op-node and op-geth halted
+		return struct{}{}, nil
 	})
 	require.NoError(t, err)
 }
