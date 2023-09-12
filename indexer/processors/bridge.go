@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/etl"
@@ -20,8 +21,6 @@ type BridgeProcessor struct {
 	l1Etl       *etl.L1ETL
 	chainConfig config.ChainConfig
 
-	// NOTE: We'll need this processor to handle for reorgs events.
-
 	LatestL1Header *types.Header
 	LatestL2Header *types.Header
 }
@@ -29,35 +28,32 @@ type BridgeProcessor struct {
 func NewBridgeProcessor(log log.Logger, db *database.DB, l1Etl *etl.L1ETL, chainConfig config.ChainConfig) (*BridgeProcessor, error) {
 	log = log.New("processor", "bridge")
 
-	latestL1Header, err := bridge.L1LatestBridgeEventHeader(db, chainConfig)
+	latestL1Header, err := db.BridgeTransactions.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
-	latestL2Header, err := bridge.L2LatestBridgeEventHeader(db)
+	latestL2Header, err := db.BridgeTransactions.L2LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
 
-	// Since the bridge processor indexes events based on epochs, there's
-	// no scenario in which we have indexed L2 data with no L1 data.
-	//
-	// NOTE: Technically there is an exception if our bridging contracts are
-	// used to bridges native from L2 and an op-chain happens to launch where
-	// only L2 native bridge events have occurred. This is a rare situation now
-	// and it's worth the assertion as an integrity check. We can revisit this
-	// as more chains launch with primarily L2-native activity.
-	if latestL1Header == nil && latestL2Header != nil {
-		log.Error("detected indexed L2 bridge activity with no indexed L1 state", "l2_block_number", latestL2Header.Number)
-		return nil, errors.New("detected indexed L2 bridge activity with no indexed L1 state")
-	}
-
+	var l1Header, l2Header *types.Header
 	if latestL1Header == nil && latestL2Header == nil {
-		log.Info("no indexed state, starting from genesis")
+		log.Info("no indexed state, starting from rollup genesis")
 	} else {
-		log.Info("detected the latest indexed state", "l1_block_number", latestL1Header.Number, "l2_block_number", latestL2Header.Number)
+		l1Height, l2Height := bigint.Zero, bigint.Zero
+		if latestL1Header != nil {
+			l1Height = latestL1Header.Number
+			l1Header = latestL1Header.RLPHeader.Header()
+		}
+		if latestL2Header != nil {
+			l2Height = latestL2Header.Number
+			l2Header = latestL2Header.RLPHeader.Header()
+		}
+		log.Info("detected latest indexed bridge state", "l1_block_number", l1Height, "l2_block_number", l2Height)
 	}
 
-	return &BridgeProcessor{log, db, l1Etl, chainConfig, latestL1Header, latestL2Header}, nil
+	return &BridgeProcessor{log, db, l1Etl, chainConfig, l1Header, l2Header}, nil
 }
 
 func (b *BridgeProcessor) Start(ctx context.Context) error {
@@ -72,6 +68,9 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 	// serves as this shared marker.
 
 	l1EtlUpdates := b.l1Etl.Notify()
+	startup := make(chan interface{}, 1)
+	startup <- nil
+
 	b.log.Info("starting bridge processor...")
 	for {
 		select {
@@ -79,70 +78,107 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			b.log.Info("stopping bridge processor")
 			return nil
 
+		// Fire off independently on startup to check for any
+		// new data or if we've indexed new L1 data.
+		case <-startup:
 		case <-l1EtlUpdates:
-			latestEpoch, err := b.db.Blocks.LatestEpoch()
-			if err != nil {
-				return err
-			}
-			if latestEpoch == nil {
-				if b.LatestL1Header != nil {
-					// Once we have some state `latestEpoch` should never return nil.
-					b.log.Error("started with indexed bridge state, but no latest epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
-					return errors.New("started with indexed bridge state, but no blocks epochs returned")
-				} else {
-					b.log.Warn("no indexed epochs. waiting...")
-					continue
-				}
+		}
+
+		latestEpoch, err := b.db.Blocks.LatestEpoch()
+		if err != nil {
+			return err
+		} else if latestEpoch == nil {
+			if b.LatestL1Header != nil || b.LatestL2Header != nil {
+				// Once we have some indexed state `latestEpoch` can never return nil
+				b.log.Error("bridge events indexed, but no indexed epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
+				return errors.New("bridge events indexed, but no indexed epoch returned")
 			}
 
-			if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Hash == b.LatestL1Header.Hash() {
-				// Marked as a warning since the bridge should always be processing at least 1 new epoch
-				b.log.Warn("all available epochs indexed by the bridge", "latest_epoch_number", b.LatestL1Header.Number)
-				continue
-			}
+			b.log.Warn("no indexed epochs available. waiting...")
+			continue
+		}
 
-			toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number, latestEpoch.L2BlockHeader.Number
-			fromL1Height, fromL2Height := big.NewInt(0), big.NewInt(0)
-			if b.LatestL1Header != nil {
-				// `NewBridgeProcessor` ensures that LatestL2Header must not be nil if LatestL1Header is set
-				fromL1Height = new(big.Int).Add(b.LatestL1Header.Number, big.NewInt(1))
-				fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, big.NewInt(1))
-			}
+		// Integrity Checks
 
-			batchLog := b.log.New("epoch_start_number", fromL1Height, "epoch_end_number", toL1Height)
-			batchLog.Info("scanning for new bridge events")
-			err = b.db.Transaction(func(tx *database.DB) error {
-				l1BridgeLog := b.log.New("from_l1_block_number", fromL1Height, "to_l1_block_number", toL1Height)
-				l2BridgeLog := b.log.New("from_l2_block_number", fromL2Height, "to_l2_block_number", toL2Height)
+		if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Hash == b.LatestL1Header.Hash() {
+			b.log.Warn("all available epochs indexed", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
+			continue
+		}
+		if b.LatestL1Header != nil && latestEpoch.L1BlockHeader.Number.Cmp(b.LatestL1Header.Number) <= 0 {
+			b.log.Error("decreasing l1 block height observed", "latest_bridge_l1_block_number", b.LatestL1Header.Number, "latest_epoch_number", latestEpoch.L1BlockHeader.Number)
+			return errors.New("decreasing l1 block heght observed")
+		}
+		if b.LatestL2Header != nil && latestEpoch.L2BlockHeader.Number.Cmp(b.LatestL2Header.Number) <= 0 {
+			b.log.Error("decreasing l2 block height observed", "latest_bridge_l2_block_number", b.LatestL2Header.Number, "latest_epoch_number", latestEpoch.L2BlockHeader.Number)
+			return errors.New("decreasing l2 block heght observed")
+		}
 
-				// First, find all possible initiated bridge events
-				if err := bridge.L1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
+		// Process Bridge Events
+
+		toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number, latestEpoch.L2BlockHeader.Number
+		fromL1Height, fromL2Height := big.NewInt(int64(b.chainConfig.L1StartingHeight)), bigint.Zero
+		if b.LatestL1Header != nil {
+			fromL1Height = new(big.Int).Add(b.LatestL1Header.Number, bigint.One)
+		}
+		if b.LatestL2Header != nil {
+			fromL2Height = new(big.Int).Add(b.LatestL2Header.Number, bigint.One)
+		}
+
+		batchLog := b.log.New("epoch_start_number", fromL1Height, "epoch_end_number", toL1Height)
+		batchLog.Info("unobserved epochs")
+		err = b.db.Transaction(func(tx *database.DB) error {
+			l1BridgeLog := b.log.New("bridge", "l1")
+			l2BridgeLog := b.log.New("bridge", "l2")
+
+			// In the event where we have a large number of un-observed blocks, group the block range
+			// on the order of 10k blocks at a time. If this turns out to be a bottleneck, we can
+			// parallelize these operations for significant improvements as well
+			l1BlockGroups := bigint.Grouped(fromL1Height, toL1Height, 10_000)
+			l2BlockGroups := bigint.Grouped(fromL2Height, toL2Height, 10_000)
+
+			// First, find all possible initiated bridge events
+			for _, group := range l1BlockGroups {
+				log := l1BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
+				log.Info("scanning for initiated bridge events")
+				if err := bridge.L1ProcessInitiatedBridgeEvents(log, tx, b.chainConfig, group.Start, group.End); err != nil {
 					return err
 				}
-				if err := bridge.L2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, fromL2Height, toL2Height); err != nil {
-					return err
-				}
-
-				// Now that all initiated events have been indexed, it is ensured that all finalization can find their counterpart.
-				if err := bridge.L1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.chainConfig, fromL1Height, toL1Height); err != nil {
-					return err
-				}
-				if err := bridge.L2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, fromL2Height, toL2Height); err != nil {
-					return err
-				}
-
-				// a-ok
-				return nil
-			})
-
-			if err != nil {
-				// Try again on a subsequent interval
-				batchLog.Error("unable to index new bridge events", "err", err)
-			} else {
-				batchLog.Info("done indexing new bridge events", "latest_l1_block_number", toL1Height, "latest_l2_block_number", toL2Height)
-				b.LatestL1Header = latestEpoch.L1BlockHeader.RLPHeader.Header()
-				b.LatestL2Header = latestEpoch.L2BlockHeader.RLPHeader.Header()
 			}
+			for _, group := range l2BlockGroups {
+				log := l2BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
+				log.Info("scanning for initiated bridge events")
+				if err := bridge.L2ProcessInitiatedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+					return err
+				}
+			}
+
+			// Now all finalization events can find their counterpart.
+			for _, group := range l1BlockGroups {
+				log := l1BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
+				log.Info("scanning for finalized bridge events")
+				if err := bridge.L1ProcessFinalizedBridgeEvents(log, tx, b.chainConfig, group.Start, group.End); err != nil {
+					return err
+				}
+			}
+			for _, group := range l2BlockGroups {
+				log := l2BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
+				log.Info("scanning for finalized bridge events")
+				if err := bridge.L2ProcessFinalizedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+					return err
+				}
+			}
+
+			// a-ok
+			return nil
+		})
+
+		if err != nil {
+			// Try again on a subsequent interval
+			batchLog.Error("failed to index bridge events", "err", err)
+		} else {
+			batchLog.Info("indexed bridge events", "latest_l1_block_number", toL1Height, "latest_l2_block_number", toL2Height)
+			b.LatestL1Header = latestEpoch.L1BlockHeader.RLPHeader.Header()
+			b.LatestL2Header = latestEpoch.L2BlockHeader.RLPHeader.Header()
 		}
 	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -14,10 +15,9 @@ import (
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
-	CallResolve(ctx context.Context) (types.GameStatus, error)
+	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve(ctx context.Context) error
-	Respond(ctx context.Context, response types.Claim) error
-	Step(ctx context.Context, stepData types.StepCallData) error
+	PerformAction(ctx context.Context, action solver.Action) error
 }
 
 type ClaimLoader interface {
@@ -26,7 +26,7 @@ type ClaimLoader interface {
 
 type Agent struct {
 	metrics                 metrics.Metricer
-	solver                  *solver.Solver
+	solver                  *solver.GameSolver
 	loader                  ClaimLoader
 	responder               Responder
 	updater                 types.OracleUpdater
@@ -38,7 +38,7 @@ type Agent struct {
 func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		metrics:                 m,
-		solver:                  solver.NewSolver(maxDepth, trace),
+		solver:                  solver.NewGameSolver(maxDepth, trace),
 		loader:                  loader,
 		responder:               responder,
 		updater:                 updater,
@@ -57,16 +57,34 @@ func (a *Agent) Act(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("create game from contracts: %w", err)
 	}
-	// Create counter claims
-	for _, claim := range game.Claims() {
-		if err := a.move(ctx, claim, game); err != nil && !errors.Is(err, types.ErrGameDepthReached) {
-			log.Error("Failed to move", "err", err)
-		}
+
+	// Calculate the actions to take
+	actions, err := a.solver.CalculateNextActions(ctx, game)
+	if err != nil {
+		log.Error("Failed to calculate all required moves", "err", err)
 	}
-	// Step on all leaf claims
-	for _, claim := range game.Claims() {
-		if err := a.step(ctx, claim, game); err != nil {
-			log.Error("Failed to step", "err", err)
+
+	// Perform the actions
+	for _, action := range actions {
+		log := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx, "value", action.Value)
+
+		if action.OracleData != nil {
+			a.log.Info("Updating oracle data", "oracleKey", action.OracleData.OracleKey, "oracleData", action.OracleData.OracleData)
+			if err := a.updater.UpdateOracle(ctx, action.OracleData); err != nil {
+				return fmt.Errorf("failed to load oracle data: %w", err)
+			}
+		}
+
+		switch action.Type {
+		case solver.ActionTypeMove:
+			a.metrics.RecordGameMove()
+		case solver.ActionTypeStep:
+			a.metrics.RecordGameStep()
+		}
+		log.Info("Performing action")
+		err := a.responder.PerformAction(ctx, action)
+		if err != nil {
+			log.Error("Action failed", "err", err)
 		}
 	}
 	return nil
@@ -74,10 +92,10 @@ func (a *Agent) Act(ctx context.Context) error {
 
 // shouldResolve returns true if the agent should resolve the game.
 // This method will return false if the game is still in progress.
-func (a *Agent) shouldResolve(status types.GameStatus) bool {
-	expected := types.GameStatusDefenderWon
+func (a *Agent) shouldResolve(status gameTypes.GameStatus) bool {
+	expected := gameTypes.GameStatusDefenderWon
 	if a.agreeWithProposedOutput {
-		expected = types.GameStatusChallengerWon
+		expected = gameTypes.GameStatusChallengerWon
 	}
 	if expected != status {
 		a.log.Warn("Game will be lost", "expected", expected, "actual", status)
@@ -89,7 +107,7 @@ func (a *Agent) shouldResolve(status types.GameStatus) bool {
 // Returns true if the game is resolvable (regardless of whether it was actually resolved)
 func (a *Agent) tryResolve(ctx context.Context) bool {
 	status, err := a.responder.CallResolve(ctx)
-	if err != nil || status == types.GameStatusInProgress {
+	if err != nil || status == gameTypes.GameStatusInProgress {
 		return false
 	}
 	if !a.shouldResolve(status) {
@@ -116,69 +134,4 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
 	}
 	return game, nil
-}
-
-// move determines & executes the next move given a claim
-func (a *Agent) move(ctx context.Context, claim types.Claim, game types.Game) error {
-	nextMove, err := a.solver.NextMove(ctx, claim, game.AgreeWithClaimLevel(claim))
-	if err != nil {
-		return fmt.Errorf("execute next move: %w", err)
-	}
-	if nextMove == nil {
-		a.log.Debug("No next move")
-		return nil
-	}
-	move := *nextMove
-	log := a.log.New("is_defend", move.DefendsParent(), "depth", move.Depth(), "index_at_depth", move.IndexAtDepth(),
-		"value", move.Value, "trace_index", move.TraceIndex(a.maxDepth),
-		"parent_value", claim.Value, "parent_trace_index", claim.TraceIndex(a.maxDepth))
-	if game.IsDuplicate(move) {
-		log.Debug("Skipping duplicate move")
-		return nil
-	}
-	a.metrics.RecordGameMove()
-	log.Info("Performing move")
-	return a.responder.Respond(ctx, move)
-}
-
-// step determines & executes the next step against a leaf claim through the responder
-func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) error {
-	if claim.Depth() != a.maxDepth {
-		return nil
-	}
-
-	agreeWithClaimLevel := game.AgreeWithClaimLevel(claim)
-	if agreeWithClaimLevel {
-		a.log.Debug("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
-		return nil
-	}
-
-	if claim.Countered {
-		a.log.Debug("Step already executed against claim", "depth", claim.Depth(), "index_at_depth", claim.IndexAtDepth(), "value", claim.Value)
-		return nil
-	}
-
-	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
-	step, err := a.solver.AttemptStep(ctx, claim, agreeWithClaimLevel)
-	if err != nil {
-		return fmt.Errorf("attempt step: %w", err)
-	}
-
-	if step.OracleData != nil {
-		a.log.Info("Updating oracle data", "oracleKey", step.OracleData.OracleKey, "oracleData", step.OracleData.OracleData)
-		if err := a.updater.UpdateOracle(ctx, step.OracleData); err != nil {
-			return fmt.Errorf("failed to load oracle data: %w", err)
-		}
-	}
-
-	a.log.Info("Performing step", "is_attack", step.IsAttack,
-		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value)
-	a.metrics.RecordGameStep()
-	callData := types.StepCallData{
-		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
-		IsAttack:   step.IsAttack,
-		StateData:  step.PreState,
-		Proof:      step.ProofData,
-	}
-	return a.responder.Step(ctx, callData)
 }

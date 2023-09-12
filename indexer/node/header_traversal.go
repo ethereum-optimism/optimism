@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -55,12 +56,12 @@ func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, 
 		}
 	}
 
-	nextHeight := bigZero
+	nextHeight := bigint.Zero
 	if f.lastHeader != nil {
-		nextHeight = new(big.Int).Add(f.lastHeader.Number, bigOne)
+		nextHeight = new(big.Int).Add(f.lastHeader.Number, bigint.One)
 	}
 
-	endHeight = clampBigInt(nextHeight, endHeight, maxSize)
+	endHeight = bigint.Clamp(nextHeight, endHeight, maxSize)
 	headers, err := f.ethClient.BlockHeadersByRange(nextHeight, endHeight)
 	if err != nil {
 		return nil, fmt.Errorf("error querying blocks by range: %w", err)

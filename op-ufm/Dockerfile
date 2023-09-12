@@ -18,8 +18,9 @@ COPY --from=builder /app/entrypoint.sh /bin/entrypoint.sh
 COPY --from=builder /app/bin/ufm /bin/ufm
 
 RUN apk update && \
-    apk add ca-certificates && \
     chmod +x /bin/entrypoint.sh
+
+RUN apk add ca-certificates jq curl bind-tools
 
 VOLUME /etc/ufm
 
