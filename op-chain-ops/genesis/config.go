@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -198,6 +199,12 @@ type DeployConfig struct {
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+	// RequiredProtocolVersion indicates the protocol version that
+	// nodes are required to adopt, to stay in sync with the network.
+	RequiredProtocolVersion params.ProtocolVersion `json:"requiredProtocolVersion"`
+	// RequiredProtocolVersion indicates the protocol version that
+	// nodes are recommended to adopt, to stay in sync with the network.
+	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
