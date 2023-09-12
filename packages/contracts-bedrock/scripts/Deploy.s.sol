@@ -81,6 +81,7 @@ contract Deploy is Deployer {
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
         initializeOptimismPortal();
+        initializeProtocolVersions();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
