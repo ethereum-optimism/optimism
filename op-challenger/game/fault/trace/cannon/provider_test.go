@@ -25,7 +25,7 @@ var testData embed.FS
 func TestGet(t *testing.T) {
 	dataDir, prestate := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, err := provider.Get(context.Background(), 0)
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x45fd9aa59768331c726e719e76aa343e73123af888804604785ae19506e65e87"), value)
@@ -33,7 +33,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
 			Step:   10,
@@ -48,14 +48,14 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("MissingPostHash", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		_, err := provider.Get(context.Background(), 1)
 		require.ErrorContains(t, err, "missing post hash")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, err := provider.Get(context.Background(), 2)
 		require.NoError(t, err)
 		expected := common.HexToHash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
@@ -67,7 +67,7 @@ func TestGet(t *testing.T) {
 func TestGetStepData(t *testing.T) {
 	dataDir, prestate := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), 0)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
@@ -80,7 +80,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("GenerateProof", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
 			Step:   10,
@@ -105,7 +105,7 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
 			Step:   10,
@@ -130,8 +130,25 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("ReadLastStepFromDisk", func(t *testing.T) {
-		provider, generator, stepper := setupWithTestData(t, dataDir, prestate)
-		stepper.noReadError = true
+		provider, initGenerator := setupWithTestData(t, dataDir, prestate)
+		initGenerator.finalState = &mipsevm.State{
+			Memory: &mipsevm.Memory{},
+			Step:   10,
+			Exited: true,
+		}
+		initGenerator.proof = &proofData{
+			ClaimValue:   common.Hash{0xaa},
+			StateData:    []byte{0xbb},
+			ProofData:    []byte{0xcc},
+			OracleKey:    common.Hash{0xdd}.Bytes(),
+			OracleValue:  []byte{0xdd},
+			OracleOffset: 10,
+		}
+		_, _, _, err := provider.GetStepData(context.Background(), 7000)
+		require.NoError(t, err)
+		require.Contains(t, initGenerator.generated, 10, "should have tried to generate the proof")
+
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		generator.finalState = &mipsevm.State{
 			Memory: &mipsevm.Memory{},
 			Step:   10,
@@ -147,12 +164,7 @@ func TestGetStepData(t *testing.T) {
 		}
 		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
 		require.NoError(t, err)
-		require.Equal(t, generator.generated, []int{10}, "should have tried to generate the proof")
-
-		// even though the stepper was used to read the last step available,
-		// index 10 is not on disk so the generator should still be called
-		require.Equal(t, 1, stepper.reads, "should have read the last step")
-		require.Equal(t, 1, stepper.writes, "should have read the last step")
+		require.Contains(t, generator.generated, 10, "should have tried to generate the proof")
 
 		witness := generator.finalState.EncodeWitness()
 		require.EqualValues(t, witness, preimage)
@@ -161,14 +173,14 @@ func TestGetStepData(t *testing.T) {
 	})
 
 	t.Run("MissingStateData", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		_, _, _, err := provider.GetStepData(context.Background(), 1)
 		require.ErrorContains(t, err, "missing state data")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
-		provider, generator, _ := setupWithTestData(t, dataDir, prestate)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
 		value, proof, data, err := provider.GetStepData(context.Background(), 2)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
@@ -186,21 +198,21 @@ func TestAbsolutePreState(t *testing.T) {
 	prestate := "state.json"
 
 	t.Run("StateUnavailable", func(t *testing.T) {
-		provider, _, _ := setupWithTestData(t, "/dir/does/not/exist", prestate)
+		provider, _ := setupWithTestData(t, "/dir/does/not/exist", prestate)
 		_, err := provider.AbsolutePreState(context.Background())
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	t.Run("InvalidStateFile", func(t *testing.T) {
 		setupPreState(t, dataDir, "invalid.json")
-		provider, _, _ := setupWithTestData(t, dataDir, prestate)
+		provider, _ := setupWithTestData(t, dataDir, prestate)
 		_, err := provider.AbsolutePreState(context.Background())
 		require.ErrorContains(t, err, "invalid mipsevm state")
 	})
 
 	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
 		setupPreState(t, dataDir, "state.json")
-		provider, _, _ := setupWithTestData(t, dataDir, prestate)
+		provider, _ := setupWithTestData(t, dataDir, prestate)
 		preState, err := provider.AbsolutePreState(context.Background())
 		require.NoError(t, err)
 		state := mipsevm.State{
@@ -246,37 +258,16 @@ func setupTestData(t *testing.T) (string, string) {
 	return dataDir, "state.json"
 }
 
-func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator, *stubStepper) {
+func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
 	generator := &stubGenerator{}
-	stepper := &stubStepper{}
 	return &CannonTraceProvider{
 		logger:         testlog.Logger(t, log.LvlInfo),
 		dir:            dataDir,
 		generator:      generator,
 		prestate:       filepath.Join(dataDir, prestate),
-		lastStepReader: stepper.loadLastStep,
-		lastStepWriter: stepper.storeLastStep,
-	}, generator, stepper
-}
-
-type stubStepper struct {
-	reads       int
-	writes      int
-	noReadError bool
-}
-
-func (s *stubStepper) storeLastStep(dir string, step uint64) error {
-	s.writes++
-	return nil
-}
-
-func (s *stubStepper) loadLastStep(dir string) (uint64, error) {
-	s.reads++
-	if s.noReadError {
-		fmt.Printf("Returning 10, nil \n")
-		return 10, nil
-	}
-	return 0, fmt.Errorf("not implemented")
+		lastStepReader: LoadLastStep,
+		lastStepWriter: WriteLastStep,
+	}, generator
 }
 
 type stubGenerator struct {

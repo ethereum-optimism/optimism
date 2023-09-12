@@ -157,7 +157,9 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 			p.logger.Warn("Failed to read last step from disk cache", "err", err)
 		} else {
 			p.lastStep = step
-			i = step
+			if i > p.lastStep {
+				i = step
+			}
 		}
 	}
 	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
@@ -186,7 +188,7 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				if err != nil {
 					return nil, fmt.Errorf("cannot hash witness: %w", err)
 				}
-				if err := p.lastStepWriter(p.dir, p.lastStep); err != nil {
+				if err := p.lastStepWriter(p.dir, p.lastStep+1); err != nil {
 					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
 				}
 				proof := &proofData{
