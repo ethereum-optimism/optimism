@@ -44,13 +44,19 @@ claims made that are disputed and which aren't, to determine the winners of the 
 ### Virtual Machine (VM)
 
 This is a state transition function (STF) that takes a _pre-state_ and computes the post-state.
-The VM may reference external data during the STF and as such, it also accepts a _proof_ of this data.
+The VM may access data referenced during the STF and as such, it also accepts a _proof_ of this data.
 Typically, the pre-state contains a commitment to the _proof_ to verify the integrity of the data referenced.
 
 Mathemtically, we define the STF as $VM(S_i,P_i)$ where
 
 - $S_i$ is the pre-state
 - $P_i$ is an optional proof needed for the transition from $S_i$ to $S_{i+1}$.
+
+### PreimageOracle
+
+This is a pre-image data store. It is often used by VMs to read external data during its STF.
+Before successfully executing a VM STF, it may be necessary to preload the PreimageOracle with pertinent data.
+The method for key-based retrieval of these pre-images varies according to the specific VM.
 
 ### Execution Trace
 
@@ -198,6 +204,22 @@ successful counter against the disputed claim.
 Players interface with `step` by providing an indicator of attack and state data (including any proofs)
 that corresponds to the expected pre/post state (depending on whether it's an attack or defend).
 The FDG will assert that an existing claim commits to the state data provided by players.
+
+### PreimageOracle Interaction
+
+Certain steps (VM state transitions) require external data to be available by the `PreimageOracle`.
+To ensure a successful state transition, players should provide this data in advance.
+The FDG provides the following interface to manage data loaded to the `PreimageOracle`:
+
+```solidity
+/// @notice Posts the requested local data to the VM's `PreimageOralce`.
+/// @param _ident The local identifier of the data to post.
+/// @param _partOffset The offset of the data to post.
+function addLocalData(uint256 _ident, uint256 _partOffset) external;
+```
+
+The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`.
+Players use this to ensure pre-image parts are available to the VM during a step.
 
 ### Team Dynamics
 
