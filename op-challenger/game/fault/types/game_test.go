@@ -52,12 +52,12 @@ func TestIsDuplicate(t *testing.T) {
 	require.NoError(t, g.Put(top))
 
 	// Root + Top should be duplicates
-	require.True(t, g.IsDuplicate(root))
-	require.True(t, g.IsDuplicate(top))
+	require.True(t, g.IsDuplicate(root.ClaimData))
+	require.True(t, g.IsDuplicate(top.ClaimData))
 
 	// Middle + Bottom should not be a duplicate
-	require.False(t, g.IsDuplicate(middle))
-	require.False(t, g.IsDuplicate(bottom))
+	require.False(t, g.IsDuplicate(middle.ClaimData))
+	require.False(t, g.IsDuplicate(bottom.ClaimData))
 }
 
 // TestGame_Put_RootAlreadyExists tests the [Game.Put] method using a [gameState]

@@ -6,88 +6,31 @@ import (
 	"testing"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
-type actionMaker func(game types.Game) Action
-
 func TestCalculateNextActions(t *testing.T) {
 	maxDepth := 4
 	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
-
-	attackClaim := func(parentIdx int) actionMaker {
-		return func(game types.Game) Action {
-			parentClaim := game.Claims()[parentIdx]
-			return Action{
-				Type:      ActionTypeMove,
-				ParentIdx: parentIdx,
-				IsAttack:  true,
-				Value:     claimBuilder.CorrectClaimAtPosition(parentClaim.Position.Attack()),
-			}
-		}
-	}
-	defendClaim := func(parentIdx int) actionMaker {
-		return func(game types.Game) Action {
-			parentClaim := game.Claims()[parentIdx]
-			return Action{
-				Type:      ActionTypeMove,
-				ParentIdx: parentIdx,
-				IsAttack:  false,
-				Value:     claimBuilder.CorrectClaimAtPosition(parentClaim.Position.Defend()),
-			}
-		}
-	}
-	stepAttack := func(parentIdx int) actionMaker {
-		return func(game types.Game) Action {
-			parentClaim := game.Claims()[parentIdx]
-			traceIdx := parentClaim.Position.TraceIndex(maxDepth)
-			return Action{
-				Type:       ActionTypeStep,
-				ParentIdx:  parentIdx,
-				IsAttack:   true,
-				PreState:   claimBuilder.CorrectPreState(traceIdx),
-				ProofData:  claimBuilder.CorrectProofData(traceIdx),
-				OracleData: claimBuilder.CorrectOracleData(traceIdx),
-			}
-		}
-	}
-	stepDefend := func(parentIdx int) actionMaker {
-		return func(game types.Game) Action {
-			parentClaim := game.Claims()[parentIdx]
-			traceIdx := parentClaim.Position.TraceIndex(maxDepth) + 1
-			return Action{
-				Type:       ActionTypeStep,
-				ParentIdx:  parentIdx,
-				IsAttack:   false,
-				PreState:   claimBuilder.CorrectPreState(traceIdx),
-				ProofData:  claimBuilder.CorrectProofData(traceIdx),
-				OracleData: claimBuilder.CorrectOracleData(traceIdx),
-			}
-		}
-	}
 
 	tests := []struct {
 		name                string
 		agreeWithOutputRoot bool
 		rootClaimCorrect    bool
 		setupGame           func(builder *faulttest.GameBuilder)
-		expectedActions     []actionMaker
 	}{
 		{
 			name:                "AttackRootClaim",
 			agreeWithOutputRoot: true,
-			setupGame:           func(builder *faulttest.GameBuilder) {},
-			expectedActions: []actionMaker{
-				attackClaim(0),
+			setupGame: func(builder *faulttest.GameBuilder) {
+				builder.Seq().ExpectAttack()
 			},
 		},
 		{
 			name:                "DoNotAttackRootClaimWhenDisagreeWithOutputRoot",
 			agreeWithOutputRoot: false,
 			setupGame:           func(builder *faulttest.GameBuilder) {},
-			expectedActions:     nil,
 		},
 		{
 			// Note: The fault dispute game contract should prevent a correct root claim from actually being posted
@@ -96,7 +39,6 @@ func TestCalculateNextActions(t *testing.T) {
 			agreeWithOutputRoot: true,
 			rootClaimCorrect:    true,
 			setupGame:           func(builder *faulttest.GameBuilder) {},
-			expectedActions:     nil,
 		},
 		{
 			// Note: The fault dispute game contract should prevent a correct root claim from actually being posted
@@ -105,7 +47,6 @@ func TestCalculateNextActions(t *testing.T) {
 			agreeWithOutputRoot: false,
 			rootClaimCorrect:    true,
 			setupGame:           func(builder *faulttest.GameBuilder) {},
-			expectedActions:     nil,
 		},
 
 		{
@@ -115,31 +56,19 @@ func TestCalculateNextActions(t *testing.T) {
 				// Expected move has already been made.
 				builder.Seq().AttackCorrect()
 			},
-			expectedActions: nil,
 		},
 
 		{
 			name:                "RespondToAllClaimsAtDisagreeingLevel",
 			agreeWithOutputRoot: true,
 			setupGame: func(builder *faulttest.GameBuilder) {
-				honestClaim := builder.Seq().AttackCorrect() // 1
-				honestClaim.AttackCorrect()                  // 2
-				honestClaim.DefendCorrect()                  // 3
-				honestClaim.Attack(common.Hash{0xaa})        // 4
-				honestClaim.Attack(common.Hash{0xbb})        // 5
-				honestClaim.Defend(common.Hash{0xcc})        // 6
-				honestClaim.Defend(common.Hash{0xdd})        // 7
-			},
-			expectedActions: []actionMaker{
-				// Defend the correct claims
-				defendClaim(2),
-				defendClaim(3),
-
-				// Attack the incorrect claims
-				attackClaim(4),
-				attackClaim(5),
-				attackClaim(6),
-				attackClaim(7),
+				honestClaim := builder.Seq().AttackCorrect()
+				honestClaim.AttackCorrect().ExpectDefend()
+				honestClaim.DefendCorrect().ExpectDefend()
+				honestClaim.Attack(common.Hash{0xaa}).ExpectAttack()
+				honestClaim.Attack(common.Hash{0xbb}).ExpectAttack()
+				honestClaim.Defend(common.Hash{0xcc}).ExpectAttack()
+				honestClaim.Defend(common.Hash{0xdd}).ExpectAttack()
 			},
 		},
 
@@ -148,15 +77,32 @@ func TestCalculateNextActions(t *testing.T) {
 			agreeWithOutputRoot: true,
 			setupGame: func(builder *faulttest.GameBuilder) {
 				lastHonestClaim := builder.Seq().
-					AttackCorrect(). // 1 - Honest
-					AttackCorrect(). // 2 - Dishonest
-					DefendCorrect()  // 3 - Honest
-				lastHonestClaim.AttackCorrect()           // 4 - Dishonest
-				lastHonestClaim.Attack(common.Hash{0xdd}) // 5 - Dishonest
+					AttackCorrect().
+					AttackCorrect().
+					DefendCorrect()
+				lastHonestClaim.AttackCorrect().ExpectStepDefend()
+				lastHonestClaim.Attack(common.Hash{0xdd}).ExpectStepAttack()
 			},
-			expectedActions: []actionMaker{
-				stepDefend(4),
-				stepAttack(5),
+		},
+
+		{
+			name:                "PoisonedPreState",
+			agreeWithOutputRoot: true,
+			setupGame: func(builder *faulttest.GameBuilder) {
+				// A claim hash that has no pre-image
+				maliciousStateHash := common.Hash{0x01, 0xaa}
+
+				// Dishonest actor counters their own claims to set up a situation with an invalid prestate
+				// The honest actor should attack all claims that support the root claim (disagree with the output root)
+				builder.Seq().ExpectAttack(). // This expected action is the winning move.
+								Attack(maliciousStateHash).
+								Defend(maliciousStateHash).ExpectAttack().
+								Attack(maliciousStateHash).
+								Attack(maliciousStateHash).ExpectStepAttack()
+
+				// The attempt to step against our malicious leaf node will fail because the pre-state won't match our
+				// malicious state hash. However, it is the very first expected action, attacking the root claim with
+				// the correct hash that wins the game since it will be the left-most uncountered claim.
 			},
 		},
 	}
@@ -168,7 +114,8 @@ func TestCalculateNextActions(t *testing.T) {
 			test.setupGame(builder)
 			game := builder.Game
 			for i, claim := range game.Claims() {
-				t.Logf("Claim %v: Pos: %v ParentIdx: %v, Countered: %v, Value: %v", i, claim.Position.ToGIndex(), claim.ParentContractIndex, claim.Countered, claim.Value)
+				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, Countered: %v, Value: %v",
+					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.Countered, claim.Value)
 			}
 
 			solver := NewGameSolver(maxDepth, claimBuilder.CorrectTraceProvider())
@@ -177,11 +124,15 @@ func TestCalculateNextActions(t *testing.T) {
 			for i, action := range actions {
 				t.Logf("Move %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
 					i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
+				// Check that every move the solver returns meets the generic validation rules
+				require.NoError(t, checkRules(game, action), "Attempting to perform invalid action")
 			}
-			require.Len(t, actions, len(test.expectedActions))
-			for i, action := range test.expectedActions {
-				require.Containsf(t, actions, action(game), "Expected claim %v missing", i)
+			for i, action := range builder.ExpectedActions {
+				t.Logf("Expect %v: Type: %v, ParentIdx: %v, Attack: %v, Value: %v, PreState: %v, ProofData: %v",
+					i, action.Type, action.ParentIdx, action.IsAttack, action.Value, hex.EncodeToString(action.PreState), hex.EncodeToString(action.ProofData))
+				require.Containsf(t, actions, action, "Expected claim %v missing", i)
 			}
+			require.Len(t, actions, len(builder.ExpectedActions), "Incorrect number of actions")
 		})
 	}
 }

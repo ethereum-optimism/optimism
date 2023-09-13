@@ -17,7 +17,7 @@ import (
 type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve(ctx context.Context) error
-	PerformAction(ctx context.Context, action solver.Action) error
+	PerformAction(ctx context.Context, action types.Action) error
 }
 
 type ClaimLoader interface {
@@ -76,9 +76,9 @@ func (a *Agent) Act(ctx context.Context) error {
 		}
 
 		switch action.Type {
-		case solver.ActionTypeMove:
+		case types.ActionTypeMove:
 			a.metrics.RecordGameMove()
-		case solver.ActionTypeStep:
+		case types.ActionTypeStep:
 			a.metrics.RecordGameStep()
 		}
 		log.Info("Performing action")
