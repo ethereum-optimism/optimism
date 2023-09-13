@@ -12,7 +12,8 @@ var layouts = make(map[string]*solc.StorageLayout)
 var deployedBytecodes = make(map[string]string)
 
 var specialContractNames = map[string]string{
-	"BobaL2": "L2GovernanceERC20",
+	"BobaL2":           "L2GovernanceERC20",
+	"BobaTuringHelper": "BobaHCHelper",
 }
 
 func GetStorageLayout(name string) (*solc.StorageLayout, error) {

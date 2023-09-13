@@ -4,6 +4,15 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 )
 
+// The legacy system has a different set of predeploys
+// BobaTuringCredit -> 0x4200000000000000000000000000000000000020
+// BobaTuringCreditImplementation -> 0x4200000000000000000000000000000000000021
+// BobaTuringHelperImplementation -> 0x4200000000000000000000000000000000000022
+// BobaL2 -> 0x4200000000000000000000000000000000000023
+
+// The BobaTuringHelperImplementation is deployed by us and is not a proxy contract
+// To make things easier, we will use the same address as the proxy contract and keep storages
+
 const (
 	L2ToL1MessagePasser = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist   = "0x4200000000000000000000000000000000000002"
@@ -23,12 +32,15 @@ const (
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
-	// BOBA Specific
-	BobaTuringCredit = "0x4200000000000000000000000000000000000020"
-	BobaL2           = "0x4200000000000000000000000000000000000023"
-	// These contracts need to be destroyed
+	// BOBA specific
+	BobaTuringCredit               = "0x4200000000000000000000000000000000000020"
 	BobaTuringCreditImplementation = "0x4200000000000000000000000000000000000021"
-	BobaTuringHelperImplementation = "0x4200000000000000000000000000000000000022"
+	BobaTuringHelper               = "0x4200000000000000000000000000000000000022"
+	BobaL2                         = "0x4200000000000000000000000000000000000023"
+	// Special case for Boba mainnet
+	BobaTuringCredit288               = "0xF8D2f1b0292C0Eeef80D8F47661A9DaCDB4b23bf"
+	BobaTuringCreditImplementation288 = "0xd8E006702bdCbE2582dF13f900bCF750129bB449"
+	BOBAL2288                         = "0xa18bF3994C0Cc6E3b63ac420308E5383f53120D7"
 )
 
 var (
@@ -49,12 +61,15 @@ var (
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
-	// BOBA Specific
-	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
-	BobaL2Addr           = common.HexToAddress(BobaL2)
-	// Boba Legacy
+	// BOBA specific
+	BobaTuringCreditAddr               = common.HexToAddress(BobaTuringCredit)
 	BobaTuringCreditImplementationAddr = common.HexToAddress(BobaTuringCreditImplementation)
-	BobaTuringHelperImplementationAddr = common.HexToAddress(BobaTuringHelperImplementation)
+	BobaTuringHelperAddr               = common.HexToAddress(BobaTuringHelper)
+	BobaL2Addr                         = common.HexToAddress(BobaL2)
+	// Special case for Boba mainnet
+	BobaTuringCredit288Addr               = common.HexToAddress(BobaTuringCredit288)
+	BobaTuringCreditImplementation288Addr = common.HexToAddress(BobaTuringCreditImplementation288)
+	BOBAL2288Addr                         = common.HexToAddress(BOBAL2288)
 
 	Predeploys                    = make(map[string]*common.Address)
 	LegacyBobaProxyImplementation = make(map[string]*common.Address)
@@ -90,10 +105,9 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
-	// BOBA Specific
+	// BOBA specific
 	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
-	Predeploys["BobaL2"] = &BobaL2Addr
-	// Legacy
 	LegacyBobaProxyImplementation["BobaTuringCreditImplementation"] = &BobaTuringCreditImplementationAddr
-	LegacyBobaProxyImplementation["BobaTuringHelperImplementation"] = &BobaTuringHelperImplementationAddr
+	Predeploys["BobaTuringHelper"] = &BobaTuringHelperAddr
+	Predeploys["BobaL2"] = &BobaL2Addr
 }

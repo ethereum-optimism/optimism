@@ -10,7 +10,7 @@ contract BobaHCHelper { /*is Ownable*/
     //using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    address immutable HelperAddr = 0x42000000000000000000000000000000000000Fd; // Address of this predeploy
+    address immutable HelperAddr = 0x4200000000000000000000000000000000000022; // Address of this predeploy
     address immutable OffchainCaller = 0xdEAddEadDeaDDEaDDeadDeAddeadDEaddeaD9901; // special "From" address
     address immutable hcToken = 0x4200000000000000000000000000000000000023; // Boba L2 token
     address immutable legacyCreditAddr = 0x4200000000000000000000000000000000000020; // BobaTuringCredit address
@@ -22,7 +22,7 @@ contract BobaHCHelper { /*is Ownable*/
 
     // Collected balance
     uint256 public ownerRevenue;
-    address owner;
+    address public owner;
 
     mapping(address => uint256) public prepaidCredit;
     mapping(address => uint256) public pendingCharge; // Placeholder

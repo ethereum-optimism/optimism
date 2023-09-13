@@ -156,6 +156,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		},
 		{
 			Name: "BobaTuringCredit",
+			Args: []interface{}{
+				immutable["BobaTuringCredit"]["turingToken"],
+			},
+		},
+		{
+			Name: "BobaTuringHelper",
 		},
 	}
 	return BuildL2(deployments)
@@ -282,6 +288,9 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			uint8(_decimals),
 		)
 		log.Info("BobaL2 Deployment", "err", err, "addr", addr)
+	case "BobaTuringHelper":
+		addr, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
+		log.Info("BobaTuringHelper Deployment", "err", err, "addr", addr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

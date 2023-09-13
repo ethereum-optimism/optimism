@@ -254,6 +254,16 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 				return err
 			}
 
+		case predeploys.BobaTuringCreditAddr:
+			if err := checkBobaTuringCredit(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaTuringHelperAddr:
+			if err := checkBobaTuringHelper(p, client); err != nil {
+				return err
+			}
+
 		}
 		return nil
 	})
@@ -824,6 +834,46 @@ func getEIP1967AdminAddress(client *clients.RpcClient, addr libcommon.Address) (
 	}
 	admin := libcommon.BytesToAddress(slot)
 	return admin, nil
+}
+
+func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewBobaTuringCredit(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit owner should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "owner", owner.Hex())
+	turingToken, err := contract.TuringToken(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if turingToken == (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
+	return nil
+}
+
+func checkBobaTuringHelper(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewBobaHCHelper(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringHelper owner should not be set to address(0)")
+	}
+	log.Info("BobaTuringHelper", "owner", owner.Hex())
+	return nil
 }
 
 func getEIP1967ImplementationAddress(client *clients.RpcClient, addr libcommon.Address) (libcommon.Address, error) {
