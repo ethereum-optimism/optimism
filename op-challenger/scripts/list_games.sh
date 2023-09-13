@@ -22,6 +22,7 @@ do
   IFS=$SAVEIFS   # Restore original IFS
 
   GAME_ADDR="${GAME[2]}"
+  CLAIMS=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" "claimDataLen() returns(uint256)")
   STATUS=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" "status() return(uint8)" | cast to-dec)
   if [[ "${STATUS}" == "0" ]]
   then
@@ -33,5 +34,5 @@ do
   then
     STATUS="Defender Wins"
   fi
-  echo "${i}  Game: ${GAME_ADDR} Type: ${GAME[0]} Created: ${GAME[1]} Status: ${STATUS}"
+  echo "${i}  Game: ${GAME_ADDR} Type: ${GAME[0]} Created: ${GAME[1]} Claims: ${CLAIMS} Status: ${STATUS}"
 done
