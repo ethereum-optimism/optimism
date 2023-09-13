@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -82,6 +83,32 @@ func TestCalculateNextActions(t *testing.T) {
 					DefendCorrect()
 				lastHonestClaim.AttackCorrect().ExpectStepDefend()
 				lastHonestClaim.Attack(common.Hash{0xdd}).ExpectStepAttack()
+			},
+		},
+
+		{
+			name:                "PoisonedPreState",
+			agreeWithOutputRoot: true,
+			setupGame: func(builder *faulttest.GameBuilder) {
+				// Create a cannon state that is exited and resolved that the output root was invalid
+				maliciousState := mipsevm.State{
+					Memory:   mipsevm.NewMemory(),
+					ExitCode: 1,
+					Exited:   true,
+				}
+				maliciousStateHash, _ := maliciousState.EncodeWitness().StateHash()
+
+				// Dishonest actor counters their own claims to set up a situation with an invalid prestate
+				// The honest actor should attack all claims that support the root claim (disagree with the output root)
+				builder.Seq().ExpectAttack(). // This expected action is the winning move.
+								Attack(maliciousStateHash).
+								Defend(maliciousStateHash).ExpectAttack().
+								Attack(maliciousStateHash).
+								Attack(maliciousStateHash).ExpectStepAttack()
+
+				// The attempt to step against our malicious leaf node will fail because the pre-state won't match our
+				// malicious state hash. However, it is the very first expected action, attacking the root claim with
+				// the correct hash that wins the game since it will be the left-most uncountered claim.
 			},
 		},
 	}
