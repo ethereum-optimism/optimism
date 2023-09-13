@@ -29,15 +29,13 @@ contract DelayedVetoable is ISemver {
     event Vetoed(bytes32 indexed callHash, bytes data);
 
     /// @notice The address that all calls are forwarded to after the delay.
-    address internal _target;
+    address internal immutable _target;
 
-    // TODO(maurelian): move this to the new SuperChainConfig contract
     /// @notice The address that can veto a call.
-    address internal _vetoer;
+    address internal immutable _vetoer;
 
-    // TODO(maurelian): move this to the new SuperChainConfig contract
     /// @notice The address that can initiate a call.
-    address internal _initiator;
+    address internal immutable _initiator;
 
     /// @notice The time that a call was initiated.
     mapping(bytes32 => uint256) internal _queuedAt;
