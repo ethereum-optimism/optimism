@@ -29,7 +29,8 @@ determine the root claim to use when creating the game. In simple cases, where t
 arbitrary hash can be used for claim values. For more advanced cases [cannon can be used](./cannon.md) to generate a
 trace, including the claim values to use at specific steps. Note that it is not valid to create a game that disputes an
 output root, using the final hash from a trace that confirms the output root is valid. To dispute an output root
-successfully, the trace must resolve that the disputed output root is invalid.
+successfully, the trace must resolve that the disputed output root is invalid. This is indicated by the first byte of
+the claim value being set to the invalid [VM status](../../specs/cannon-fault-proof-vm.md#state-hash) (`0x01`).
 
 The game can then be created by calling the `create` method on the `DisputeGameFactory` contract. This requires three
 parameters:
