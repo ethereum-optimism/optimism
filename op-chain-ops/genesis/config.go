@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -198,6 +197,12 @@ type DeployConfig struct {
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+	// RequiredProtocolVersion indicates the protocol version that
+	// nodes are required to adopt, to stay in sync with the network.
+	RequiredProtocolVersion common.Hash `json:"requiredProtocolVersion"`
+	// RequiredProtocolVersion indicates the protocol version that
+	// nodes are recommended to adopt, to stay in sync with the network.
+	RecommendedProtocolVersion common.Hash `json:"recommendedProtocolVersion"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -522,6 +527,8 @@ type L1Deployments struct {
 	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
 	SystemConfig                      common.Address `json:"SystemConfig"`
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
+	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
+	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
 }
 
 // GetName will return the name of the contract given an address.
