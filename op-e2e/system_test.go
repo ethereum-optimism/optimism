@@ -2,6 +2,7 @@ package op_e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -1443,8 +1444,6 @@ func TestRecommendedProtocolVersionChange(t *testing.T) {
 	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
 	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
-	// and frequently report the protocol versions
-	cfg.Nodes["verifier"].ProtocolVersionReportInterval = time.Second * 5
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1485,7 +1484,6 @@ func TestRecommendedProtocolVersionChange(t *testing.T) {
 }
 
 func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
-	t.Skip() // TODO
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
@@ -1494,11 +1492,15 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
 	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
-	// and frequently report the protocol versions
-	cfg.Nodes["verifier"].ProtocolVersionReportInterval = time.Second * 5
-	// TODO: configure halt in verifier op-node
-
-	// TODO: configure halt in verifier op-geth node
+	// configure halt in verifier op-node
+	cfg.Nodes["verifier"].RollupHalt = "major"
+	// configure halt in verifier op-geth node
+	cfg.GethOptions["verifier"] = []geth.GethOption{
+		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+			ethCfg.RollupHaltOnIncompatibleProtocolVersion = "major"
+			return nil
+		},
+	}
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1520,7 +1522,7 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Change required protocol version
-	tx, err := protVersions.SetRecommended(opts, new(big.Int).SetBytes(newRequiredProtocolVersion[:]))
+	tx, err := protVersions.SetRequired(opts, new(big.Int).SetBytes(newRequiredProtocolVersion[:]))
 	require.NoError(t, err)
 
 	// wait for the change to confirm
@@ -1529,8 +1531,24 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 
 	// wait for the required protocol version to take effect by halting the verifier that opted in, and halting the op-geth node that opted in.
 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
-		// TODO: need to check if op-node and op-geth halted
+		if !sys.RollupNodes["verifier"].Closed() {
+			return struct{}{}, errors.New("verifier rollup node is not closed yet")
+		}
 		return struct{}{}, nil
 	})
 	require.NoError(t, err)
+	t.Log("verified that op-node closed!")
+	// Checking if the engine is down is not trivial in op-e2e.
+	// In op-geth we have halting tests covering the Engine API, in op-e2e we instead check if the API stops.
+	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		_, err := sys.Clients["verifier"].ChainID(ctx)
+		cancel()
+		if err != nil && !errors.Is(err, ctx.Err()) { // waiting for client to stop responding to chainID requests
+			return struct{}{}, nil
+		}
+		return struct{}{}, errors.New("verifier rollup node is not closed yet")
+	})
+	require.NoError(t, err)
+	t.Log("verified that op-geth closed!")
 }

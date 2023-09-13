@@ -2,17 +2,15 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -44,10 +42,14 @@ type OpNode struct {
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
 
+	rollupHalt string // when to halt the rollup, disabled if empty
+
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
 	resourcesClose context.CancelFunc
+
+	closed atomic.Bool
 }
 
 // The OpNode handles incoming gossip
@@ -62,6 +64,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 		log:        log,
 		appVersion: appVersion,
 		metrics:    m,
+		rollupHalt: cfg.RollupHalt,
 	}
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
@@ -87,9 +90,6 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the runtime config: %w", err)
-	}
-	if err := n.initProtocolVersionReporting(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the protocol-version reporting: %w", err)
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
@@ -197,11 +197,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			return l1Head, err
 		}
 
-		// update metrics (data may be zero if non-activated)
-		recommended := n.runCfg.RecommendedProtocolVersion()
-		required := n.runCfg.RequiredProtocolVersion()
-		engine := n.runCfg.EngineProtocolVersion()
-		n.metrics.ReportProtocolVersions(rollup.OPStackSupport, engine, recommended, required)
+		n.handleProtocolVersionsUpdate(ctx)
 
 		return l1Head, nil
 	}
@@ -236,46 +232,6 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			}
 		}
 	}(n.resourcesCtx, cfg.RuntimeConfigReloadInterval) // this keeps running after initialization
-	return nil
-}
-
-func (n *OpNode) initProtocolVersionReporting(ctx context.Context, cfg *Config) error {
-	// nothing to report if there is no reporting interval or source-data
-	if cfg.ProtocolVersionReportInterval <= 0 || cfg.Rollup.ProtocolVersionsAddress == (common.Address{}) {
-		return nil
-	}
-
-	// start a background loop to report the protocol version
-	go func(ctx context.Context, interval time.Duration) {
-		if interval <= 0 {
-			n.log.Debug("not running protocol-version reporting background loop")
-			return
-		}
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ticker.C:
-				local := rollup.OPStackSupport
-				recommended := n.runCfg.RecommendedProtocolVersion()
-				required := n.runCfg.RequiredProtocolVersion()
-				// forward to execution engine, and get back the protocol version that op-geth supports
-				engineSupport, err := n.l2Source.SignalSuperchainV1(ctx, recommended, required)
-				if err != nil {
-					engineSupport = n.runCfg.EngineProtocolVersion() // fallback to last seen version
-					n.log.Warn("failed to notify engine of protocol version", "err", err)
-				} else {
-					catalyst.LogProtocolVersionSupport(n.log.New("node", "engine"), local, recommended, "recommended")
-					catalyst.LogProtocolVersionSupport(n.log.New("node", "engine"), local, required, "required")
-				}
-				n.metrics.ReportProtocolVersions(local, engineSupport, recommended, required)
-				catalyst.LogProtocolVersionSupport(n.log.New("node", "op-node"), engineSupport, recommended, "recommended")
-				catalyst.LogProtocolVersionSupport(n.log.New("node", "op-node"), engineSupport, required, "required")
-			case <-ctx.Done():
-				return
-			}
-		}
-	}(n.resourcesCtx, cfg.ProtocolVersionReportInterval) // this keeps running after initialization
 	return nil
 }
 
@@ -500,6 +456,10 @@ func (n *OpNode) RuntimeConfig() ReadonlyRuntimeConfig {
 
 // Close closes all resources.
 func (n *OpNode) Close() error {
+	if n.closed.Load() {
+		return errors.New("node is already closed")
+	}
+
 	var result *multierror.Error
 
 	if n.server != nil {
@@ -548,7 +508,16 @@ func (n *OpNode) Close() error {
 	if n.l1Source != nil {
 		n.l1Source.Close()
 	}
+
+	if result == nil { // mark as closed if we successfully fully closed
+		n.closed.Store(true)
+	}
+
 	return result.ErrorOrNil()
+}
+
+func (n *OpNode) Closed() bool {
+	return n.closed.Load()
 }
 
 func (n *OpNode) ListenAddr() string {

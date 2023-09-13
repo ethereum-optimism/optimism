@@ -64,9 +64,6 @@ type runtimeConfigData struct {
 	// superchain protocol version signals
 	recommended params.ProtocolVersion
 	required    params.ProtocolVersion
-
-	// last seen supported protocol version of execution engine
-	engineSupport params.ProtocolVersion
 }
 
 var _ p2p.GossipRuntimeConfig = (*RuntimeConfig)(nil)
@@ -95,12 +92,6 @@ func (r *RuntimeConfig) RecommendedProtocolVersion() params.ProtocolVersion {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.recommended
-}
-
-func (r *RuntimeConfig) EngineProtocolVersion() params.ProtocolVersion {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	return r.engineSupport
 }
 
 // Load resets the runtime configuration by fetching the latest config data from L1 at the given L1 block.

@@ -130,10 +130,9 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerConfDepth: 0,
 					SequencerEnabled:   false,
 				},
-				L1EpochPollInterval:           time.Second * 4,
-				RuntimeConfigReloadInterval:   time.Minute * 10,
-				ProtocolVersionReportInterval: 0, // no need to report during tests, unless explicitly asked to
-				ConfigPersistence:             &rollupNode.DisabledConfigPersistence{},
+				L1EpochPollInterval:         time.Second * 4,
+				RuntimeConfigReloadInterval: time.Minute * 10,
+				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
 			},
 		},
 		Loggers: map[string]log.Logger{
