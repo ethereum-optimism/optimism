@@ -31,10 +31,10 @@ type Config struct {
 // L1Contracts configures deployed contracts
 type L1Contracts struct {
 	// administrative
-	AddressManager common.Address `toml:"address-manager"`
-	SystemConfig   common.Address `toml:"system-config"`
+	AddressManager    common.Address `toml:"address-manager"`
+	SystemConfigProxy common.Address `toml:"system-config"`
 
-	// rollup State
+	// rollup state
 	OptimismPortalProxy common.Address `toml:"optimism-portal"`
 	L2OutputOracleProxy common.Address `toml:"l2-output-oracle"`
 
@@ -45,6 +45,7 @@ type L1Contracts struct {
 
 	// IGNORE: legacy contracts (only settable via presets)
 	LegacyCanonicalTransactionChain common.Address `toml:"-"`
+	LegacyStateCommitmentChain      common.Address `toml:"-"`
 }
 
 func (c L1Contracts) ForEach(cb func(string, common.Address) error) error {

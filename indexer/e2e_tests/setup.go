@@ -76,7 +76,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			L2Contracts:       config.L2ContractsFromPredeploys(),
 			L1Contracts: config.L1Contracts{
 				AddressManager:              opCfg.L1Deployments.AddressManager,
-				SystemConfig:                opCfg.L1Deployments.SystemConfigProxy,
+				SystemConfigProxy:           opCfg.L1Deployments.SystemConfigProxy,
 				OptimismPortalProxy:         opCfg.L1Deployments.OptimismPortalProxy,
 				L2OutputOracleProxy:         opCfg.L1Deployments.L2OutputOracleProxy,
 				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
