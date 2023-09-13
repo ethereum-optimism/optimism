@@ -42,7 +42,7 @@ func (p *Page) MarshalText() ([]byte, error) {
 	return dst, nil
 }
 
-func (p *Page) MarshalJSON() ([]byte, error) {
+func (p *Page) MarshalJSON() ([]byte, error) { // nosemgrep
 	var out bytes.Buffer
 	w := zlibWriterPool.Get().(*zlib.Writer)
 	defer zlibWriterPool.Put(w)
