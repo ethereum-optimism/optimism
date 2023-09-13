@@ -47,3 +47,37 @@ func TestCachedPage(t *testing.T) {
 	post5 := p.MerkleRoot()
 	require.NotEqual(t, post4, post5, "and global invalidation works regardless of changed data")
 }
+
+func TestDetectEncoding(t *testing.T) {
+	tests := []struct {
+		data []byte
+		errs bool
+		t    string
+	}{
+		{
+			data: []byte("deadbeef"),
+			errs: false,
+			t:    "hex",
+		},
+		{
+			data: []byte("c3ViamVjdAc=="),
+			errs: false,
+			t:    "base64",
+		},
+		{
+			data: []byte{0x10, 0xff, 0xe5},
+			errs: true,
+			t:    "",
+		},
+	}
+	for _, tc := range tests {
+		res, err := detectEncoding(tc.data)
+		if tc.errs {
+			require.Error(t, err)
+		} else {
+			require.Equal(t, tc.t, res)
+			require.NoError(t, err)
+		}
+
+	}
+}
