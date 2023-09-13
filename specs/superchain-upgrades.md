@@ -25,6 +25,7 @@ chains following the same Superchain Target upgrade synchronously.
   - [Protocol Version Exposure](#protocol-version-exposure)
 - [Superchain Target](#superchain-target)
   - [Superchain Version signaling](#superchain-version-signaling)
+  - [`ProtocolVersions` L1 contract](#protocolversions-l1-contract)
 - [Activation rules](#activation-rules)
   - [L2 Block-number based activation (deprecated)](#l2-block-number-based-activation-deprecated)
   - [L2 Block-timestamp based activation](#l2-block-timestamp-based-activation)
@@ -75,7 +76,7 @@ version-type `0`:
 ```text
 <reserved><build><major><minor><patch><pre-release>
 <reserved> ::= <7 zeroed bytes>
-<build> ::= <big-endian uint64>
+<build> ::= <8 bytes>
 <major> ::= <big-endian uint32>
 <minor> ::= <big-endian uint32>
 <patch> ::= <big-endian uint32>
@@ -98,6 +99,10 @@ Changes to the `<build>` may be encoded in the `<build>` itself to stay aligned 
 The major/minor/patch versions should align with that of the upstream protocol that the modifications are based on.
 Users of the protocol can choose to implement custom support for the alternative `<build>`,
 but may work out of the box if the major features are consistent with that of the upstream protocol version.
+
+The 8 byte `<build>` identifier may be presented as string for human readability if the contents are alpha-numeric,
+including `-` and `.`, as outlined in the [Semver] format specs. Trailing `0` bytes can be used for padding.
+It may be presented as `0x`-prefixed hex string otherwise.
 
 #### Major versions
 
@@ -165,6 +170,19 @@ Not all components of the OP-Stack are required to directly monitor L1 however:
 cross-component APIs like the Engine API may be used to forward the Protocol Version signals,
 to keep components encapsulated from L1.
 See [`engine_signalOPStackVersionV1`](./exec-engine.md#enginesignalopstackversionv1).
+
+### `ProtocolVersions` L1 contract
+
+The `ProtocolVersions` contract on L1 enables L2 nodes to pick up on superchain protocol version signals.
+
+The interface is:
+
+- Required storage slot: `bytes32(uint256(keccak256("protocolversion.required")) - 1)`
+- Recommended storage slot: `bytes32(uint256(keccak256("protocolversion.recommended")) - 1)`
+- Required getter: `required()` returns `ProtocolVersion`
+- Recommended getter `recommended()` returns `ProtocolVersion`
+- Version updates also emit a typed event:
+  `event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data)`
 
 ## Activation rules
 
