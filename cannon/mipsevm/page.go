@@ -47,8 +47,12 @@ func (p *Page) MarshalJSON() ([]byte, error) {
 	w := zlibWriterPool.Get().(*zlib.Writer)
 	defer zlibWriterPool.Put(w)
 	w.Reset(&out)
-	w.Write(p[:])
-	w.Close()
+	if _, err := w.Write(p[:]); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
 	return json.Marshal(out.Bytes())
 }
 
