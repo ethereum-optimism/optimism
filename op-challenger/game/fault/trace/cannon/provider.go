@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	proofsDir = "proofs"
+	proofsDir      = "proofs"
+	diskStateCache = "state.json.gz"
 )
 
 type proofData struct {
@@ -142,6 +143,20 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		// If the requested index is after the last step in the actual trace, extend the final no-op step
 		return p.lastProof, nil
 	}
+	// Attempt to read the last step from disk cache
+	if p.lastProof == nil && p.lastStep == 0 {
+		step, err := ReadLastStep(p.dir)
+		if err != nil {
+			p.logger.Warn("Failed to read last step from disk cache", "err", err)
+		} else {
+			p.lastStep = step
+			// If the last step is tracked, set i to the last step
+			// to read the correct proof from disk.
+			if i > p.lastStep {
+				i = step
+			}
+		}
+	}
 	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
 	file, err := ioutil.OpenDecompressed(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -168,6 +183,9 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				if err != nil {
 					return nil, fmt.Errorf("cannot hash witness: %w", err)
 				}
+				if err := WriteLastStep(p.dir, state.Step); err != nil {
+					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
+				}
 				proof := &proofData{
 					ClaimValue:   witnessHash,
 					StateData:    hexutil.Bytes(witness),
@@ -193,4 +211,29 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		return nil, fmt.Errorf("failed to read proof (%v): %w", path, err)
 	}
 	return &proof, nil
+}
+
+type diskStateCacheObj struct {
+	Step uint64 `json:"step"`
+}
+
+// ReadLastStep reads the tracked last step from disk.
+func ReadLastStep(dir string) (uint64, error) {
+	state := diskStateCacheObj{}
+	file, err := ioutil.OpenDecompressed(filepath.Join(dir, diskStateCache))
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	err = json.NewDecoder(file).Decode(&state)
+	if err != nil {
+		return 0, err
+	}
+	return state.Step, nil
+}
+
+// WriteLastStep writes the last step to disk as a persistent cache.
+func WriteLastStep(dir string, step uint64) error {
+	state := diskStateCacheObj{Step: step}
+	return ioutil.WriteCompressedJson(filepath.Join(dir, diskStateCache), state)
 }

@@ -84,6 +84,27 @@ func TestCalculateNextActions(t *testing.T) {
 				lastHonestClaim.Attack(common.Hash{0xdd}).ExpectStepAttack()
 			},
 		},
+
+		{
+			name:                "PoisonedPreState",
+			agreeWithOutputRoot: true,
+			setupGame: func(builder *faulttest.GameBuilder) {
+				// A claim hash that has no pre-image
+				maliciousStateHash := common.Hash{0x01, 0xaa}
+
+				// Dishonest actor counters their own claims to set up a situation with an invalid prestate
+				// The honest actor should attack all claims that support the root claim (disagree with the output root)
+				builder.Seq().ExpectAttack(). // This expected action is the winning move.
+								Attack(maliciousStateHash).
+								Defend(maliciousStateHash).ExpectAttack().
+								Attack(maliciousStateHash).
+								Attack(maliciousStateHash).ExpectStepAttack()
+
+				// The attempt to step against our malicious leaf node will fail because the pre-state won't match our
+				// malicious state hash. However, it is the very first expected action, attacking the root claim with
+				// the correct hash that wins the game since it will be the left-most uncountered claim.
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -93,7 +114,8 @@ func TestCalculateNextActions(t *testing.T) {
 			test.setupGame(builder)
 			game := builder.Game
 			for i, claim := range game.Claims() {
-				t.Logf("Claim %v: Pos: %v ParentIdx: %v, Countered: %v, Value: %v", i, claim.Position.ToGIndex(), claim.ParentContractIndex, claim.Countered, claim.Value)
+				t.Logf("Claim %v: Pos: %v TraceIdx: %v ParentIdx: %v, Countered: %v, Value: %v",
+					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.Countered, claim.Value)
 			}
 
 			solver := NewGameSolver(maxDepth, claimBuilder.CorrectTraceProvider())

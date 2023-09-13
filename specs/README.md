@@ -15,7 +15,7 @@ that maintains 1:1 compatibility with Ethereum.
 - [Rollup Node](rollup-node.md)
 - [Rollup Node P2p](rollup-node-p2p.md)
 - [L2 Chain Derivation](derivation.md)
-- [Network Upgrades](network-upgrades.md)
+- [Superchain Upgrades](superchain-upgrades.md)
 - [System Config](system_config.md)
 - [Batch Submitter](batcher.md)
 - [Guaranteed Gas Market](guaranteed-gas-market.md)
