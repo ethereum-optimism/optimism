@@ -51,10 +51,12 @@ func TestL1ETLConstruction(t *testing.T) {
 				client.On("GethEthClient").Return(nil)
 
 				return &testSuite{
-					db:        db,
-					client:    client,
-					start:     testStart,
-					contracts: config.L1Contracts{},
+					db:     db,
+					client: client,
+					start:  testStart,
+
+					// utilize sample l1 contract configuration (optimism)
+					contracts: config.Presets[10].ChainConfig.L1Contracts,
 				}
 			},
 			assertion: func(etl *L1ETL, err error) {
@@ -81,10 +83,12 @@ func TestL1ETLConstruction(t *testing.T) {
 				client.On("GethEthClient").Return(nil)
 
 				return &testSuite{
-					db:        db,
-					client:    client,
-					start:     testStart,
-					contracts: config.L1Contracts{},
+					db:     db,
+					client: client,
+					start:  testStart,
+
+					// utilize sample l1 contract configuration (optimism)
+					contracts: config.Presets[10].ChainConfig.L1Contracts,
 				}
 			},
 			assertion: func(etl *L1ETL, err error) {
