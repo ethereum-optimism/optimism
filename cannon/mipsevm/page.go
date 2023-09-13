@@ -9,9 +9,17 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
+
+var zlibWriterPool = sync.Pool{
+	New: func() any {
+		var buf bytes.Buffer
+		return zlib.NewWriter(&buf)
+	},
+}
 
 func detectEncoding(data []byte) (string, error) {
 	// Regular expressions to check for base64 and hex patterns
@@ -36,7 +44,9 @@ func (p *Page) MarshalText() ([]byte, error) {
 
 func (p *Page) MarshalJSON() ([]byte, error) {
 	var out bytes.Buffer
-	w := zlib.NewWriter(&out)
+	w := zlibWriterPool.Get().(*zlib.Writer)
+	defer zlibWriterPool.Put(w)
+	w.Reset(&out)
 	w.Write(p[:])
 	w.Close()
 	return json.Marshal(out.Bytes())
