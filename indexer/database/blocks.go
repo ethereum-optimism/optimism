@@ -7,8 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/google/uuid"
-
 	"gorm.io/gorm"
 )
 
@@ -44,25 +42,6 @@ type L2BlockHeader struct {
 	BlockHeader `gorm:"embedded"`
 }
 
-type LegacyStateBatch struct {
-	// `default:0` is added since gorm would interepret 0 as NULL
-	// violating the primary key constraint.
-	Index uint64 `gorm:"primaryKey;default:0"`
-
-	Root                common.Hash `gorm:"serializer:bytes"`
-	Size                uint64
-	PrevTotal           uint64
-	L1ContractEventGUID uuid.UUID
-}
-
-type OutputProposal struct {
-	OutputRoot    common.Hash `gorm:"primaryKey;serializer:bytes"`
-	L2OutputIndex *big.Int    `gorm:"serializer:u256"`
-	L2BlockNumber *big.Int    `gorm:"serializer:u256"`
-
-	L1ContractEventGUID uuid.UUID
-}
-
 type BlocksView interface {
 	L1BlockHeader(common.Hash) (*L1BlockHeader, error)
 	L1BlockHeaderWithFilter(BlockHeader) (*L1BlockHeader, error)
@@ -72,9 +51,6 @@ type BlocksView interface {
 	L2BlockHeaderWithFilter(BlockHeader) (*L2BlockHeader, error)
 	L2LatestBlockHeader() (*L2BlockHeader, error)
 
-	LatestCheckpointedOutput() (*OutputProposal, error)
-	OutputProposal(index *big.Int) (*OutputProposal, error)
-
 	LatestEpoch() (*Epoch, error)
 }
 
@@ -83,9 +59,6 @@ type BlocksDB interface {
 
 	StoreL1BlockHeaders([]L1BlockHeader) error
 	StoreL2BlockHeaders([]L2BlockHeader) error
-
-	StoreLegacyStateBatches([]LegacyStateBatch) error
-	StoreOutputProposals([]OutputProposal) error
 }
 
 /**
@@ -104,16 +77,6 @@ func newBlocksDB(db *gorm.DB) BlocksDB {
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
 	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
-	return result.Error
-}
-
-func (db *blocksDB) StoreLegacyStateBatches(stateBatches []LegacyStateBatch) error {
-	result := db.gorm.CreateInBatches(stateBatches, batchInsertSize)
-	return result.Error
-}
-
-func (db *blocksDB) StoreOutputProposals(outputs []OutputProposal) error {
-	result := db.gorm.CreateInBatches(outputs, batchInsertSize)
 	return result.Error
 }
 
@@ -146,34 +109,6 @@ func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 	}
 
 	return &l1Header, nil
-}
-
-func (db *blocksDB) LatestCheckpointedOutput() (*OutputProposal, error) {
-	var outputProposal OutputProposal
-	result := db.gorm.Order("l2_output_index DESC").Take(&outputProposal)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-
-		return nil, result.Error
-	}
-
-	return &outputProposal, nil
-}
-
-func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
-	var outputProposal OutputProposal
-	result := db.gorm.Where(&OutputProposal{L2OutputIndex: index}).Take(&outputProposal)
-	if result.Error != nil {
-		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-
-		return nil, result.Error
-	}
-
-	return &outputProposal, nil
 }
 
 // L2
