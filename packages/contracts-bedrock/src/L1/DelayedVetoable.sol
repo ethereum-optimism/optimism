@@ -96,18 +96,8 @@ contract DelayedVetoable is ISemver {
         return _delay;
     }
 
-    // TODO(maurelian): Remove this? The contract currently cannot handle forwarding ETH and I'm
-    //   not sure the complexity is warranted.
-    //   If we do allow it:
-    //      1. the callHash will need to include the value
-    //      2. forwarding will need to be done by passing the callHash, rather than the unhashed data
-    /// @notice Used when no data is passed to the contract.
-    receive() external payable {
-        _handleCall();
-    }
-
     /// @notice Used for all calls that pass data to the contract.
-    fallback() external payable {
+    fallback() external {
         _handleCall();
     }
 
