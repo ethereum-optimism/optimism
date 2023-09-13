@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 )
@@ -27,19 +28,27 @@ func loadJSON[X any](inputPath string) (*X, error) {
 	return &state, nil
 }
 
-func writeJSON[X any](outputPath string, value X, outIfEmpty bool) error {
+func writeJSON[X any](outputPath string, value X) error {
+	if outputPath == "" {
+		return nil
+	}
 	var out io.Writer
-	if outputPath != "" {
-		f, err := ioutil.OpenCompressed(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+	finish := func() error { return nil }
+	if outputPath != "-" {
+		// Write to a tmp file but reserve the file extension if present
+		tmpPath := outputPath + "-tmp" + path.Ext(outputPath)
+		f, err := ioutil.OpenCompressed(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
 		}
 		defer f.Close()
 		out = f
-	} else if outIfEmpty {
-		out = os.Stdout
+		finish = func() error {
+			// Rename the file into place as atomically as the OS will allow
+			return os.Rename(tmpPath, outputPath)
+		}
 	} else {
-		return nil
+		out = os.Stdout
 	}
 	enc := json.NewEncoder(out)
 	if err := enc.Encode(value); err != nil {
@@ -48,6 +57,9 @@ func writeJSON[X any](outputPath string, value X, outIfEmpty bool) error {
 	_, err := out.Write([]byte{'\n'})
 	if err != nil {
 		return fmt.Errorf("failed to append new-line: %w", err)
+	}
+	if err := finish(); err != nil {
+		return fmt.Errorf("failed to finish write: %w", err)
 	}
 	return nil
 }

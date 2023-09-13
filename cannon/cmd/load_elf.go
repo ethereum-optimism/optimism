@@ -24,7 +24,7 @@ var (
 	}
 	LoadELFOutFlag = &cli.PathFlag{
 		Name:     "out",
-		Usage:    "Output path to write JSON state to. State is dumped to stdout if set to empty string.",
+		Usage:    "Output path to write JSON state to. State is dumped to stdout if set to -. Not written if empty.",
 		Value:    "state.json",
 		Required: false,
 	}
@@ -66,10 +66,10 @@ func LoadELF(ctx *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to compute program metadata: %w", err)
 	}
-	if err := writeJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, false); err != nil {
+	if err := writeJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
-	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state, true)
+	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state)
 }
 
 var LoadELFCommand = &cli.Command{
