@@ -192,9 +192,11 @@ func Test_AsSliceSuccess(t *testing.T) {
 
 	slice, err := testCfg.AsSlice()
 	require.NoError(t, err)
-	require.Equal(t, len(slice), 4)
+	require.Equal(t, len(slice), 5)
 	require.Equal(t, slice[0].String(), testCfg.OptimismPortalProxy.String())
 	require.Equal(t, slice[1].String(), testCfg.L2OutputOracleProxy.String())
 	require.Equal(t, slice[2].String(), testCfg.L1CrossDomainMessengerProxy.String())
 	require.Equal(t, slice[3].String(), testCfg.L1StandardBridgeProxy.String())
+
+	// LegacyCanonicalTransactionChain is the 4th slot
 }

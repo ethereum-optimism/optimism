@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
-import { FeeVault } from "../universal/FeeVault.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000001A
 /// @title L1FeeVault
 /// @notice The L1FeeVault accumulates the L1 portion of the transaction fees.
-contract L1FeeVault is FeeVault, Semver {
-    /// @custom:semver 1.3.1
+contract L1FeeVault is FeeVault, ISemver {
+    /// @notice Semantic version.
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
+
     /// @notice Constructs the L1FeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.
     /// @param _minWithdrawalAmount Minimum balance for withdrawals.
@@ -20,6 +23,5 @@ contract L1FeeVault is FeeVault, Semver {
         WithdrawalNetwork _withdrawalNetwork
     )
         FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
-        Semver(1, 3, 1)
     { }
 }
