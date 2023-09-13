@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -17,7 +18,7 @@ import (
 	"testing"
 )
 
-func Test_L1ETL_Construction(t *testing.T) {
+func TestL1ETLConstruction(t *testing.T) {
 	etlMetrics := NewMetrics(metrics.NewRegistry(), "l1")
 
 	type testSuite struct {
@@ -39,11 +40,10 @@ func Test_L1ETL_Construction(t *testing.T) {
 				db := database.NewMockDB()
 
 				testStart := big.NewInt(100)
-
 				db.MockBlocks.On("L1LatestBlockHeader").Return(nil, nil)
 
 				client.On("BlockHeaderByNumber", mock.MatchedBy(
-					node.BigIntMatcher(100))).Return(
+					bigint.Matcher(100))).Return(
 					&types.Header{
 						ParentHash: common.HexToHash("0x69"),
 					}, nil)

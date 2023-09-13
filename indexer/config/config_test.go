@@ -54,10 +54,10 @@ func TestLoadConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, conf.Chain.Preset, 420)
-	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), presetL1Contracts[420].OptimismPortalProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), presetL1Contracts[420].L1CrossDomainMessengerProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), presetL1Contracts[420].L1StandardBridgeProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), presetL1Contracts[420].L2OutputOracleProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), presetConfigs[420].L1Contracts.OptimismPortalProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), presetConfigs[420].L1Contracts.L1CrossDomainMessengerProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), presetConfigs[420].L1Contracts.L1StandardBridgeProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), presetConfigs[420].L1Contracts.L2OutputOracleProxy.String())
 	require.Equal(t, conf.RPCs.L1RPC, "https://l1.example.com")
 	require.Equal(t, conf.RPCs.L2RPC, "https://l2.example.com")
 	require.Equal(t, conf.DB.Host, "127.0.0.1")
@@ -192,9 +192,11 @@ func Test_AsSliceSuccess(t *testing.T) {
 
 	slice, err := testCfg.AsSlice()
 	require.NoError(t, err)
-	require.Equal(t, len(slice), 4)
+	require.Equal(t, len(slice), 5)
 	require.Equal(t, slice[0].String(), testCfg.OptimismPortalProxy.String())
 	require.Equal(t, slice[1].String(), testCfg.L2OutputOracleProxy.String())
 	require.Equal(t, slice[2].String(), testCfg.L1CrossDomainMessengerProxy.String())
 	require.Equal(t, slice[3].String(), testCfg.L1StandardBridgeProxy.String())
+
+	// LegacyCanonicalTransactionChain is the 4th slot
 }

@@ -144,11 +144,7 @@ func (s *stubResponder) Resolve(ctx context.Context) error {
 	return s.resolveErr
 }
 
-func (s *stubResponder) Respond(ctx context.Context, response types.Claim) error {
-	panic("Not implemented")
-}
-
-func (s *stubResponder) Step(ctx context.Context, stepData types.StepCallData) error {
+func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
 	panic("Not implemented")
 }
 

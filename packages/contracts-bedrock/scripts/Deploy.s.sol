@@ -44,6 +44,11 @@ import "src/libraries/DisputeTypes.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
+    /// @notice The create2 salt used for deployment of the contract implementations.
+    ///         Using this helps to reduce config across networks as the implementation
+    ///         addresses will be the same across networks when deployed with create2.
+    bytes32 constant IMPL_SALT = bytes32("ether's phoenix");
+
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
     function name() public pure override returns (string memory name_) {
@@ -288,7 +293,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger();
+        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: IMPL_SALT }();
 
         require(address(messenger.PORTAL()) == address(0));
         require(address(messenger.portal()) == address(0));
@@ -304,7 +309,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        OptimismPortal portal = new OptimismPortal();
+        OptimismPortal portal = new OptimismPortal{ salt: IMPL_SALT }();
 
         require(address(portal.L2_ORACLE()) == address(0));
         require(portal.GUARDIAN() == address(0));
@@ -319,7 +324,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        L2OutputOracle oracle = new L2OutputOracle({
+        L2OutputOracle oracle = new L2OutputOracle{ salt: IMPL_SALT }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
@@ -346,7 +351,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory();
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory{ salt: IMPL_SALT }();
 
         require(factory.BRIDGE() == address(0));
         require(factory.bridge() == address(0));
@@ -359,7 +364,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
-        DisputeGameFactory factory = new DisputeGameFactory();
+        DisputeGameFactory factory = new DisputeGameFactory{ salt: IMPL_SALT }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
@@ -368,7 +373,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the BlockOracle
     function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
-        BlockOracle oracle = new BlockOracle();
+        BlockOracle oracle = new BlockOracle{ salt: IMPL_SALT }();
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
 
@@ -377,7 +382,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
-        PreimageOracle preimageOracle = new PreimageOracle();
+        PreimageOracle preimageOracle = new PreimageOracle{ salt: IMPL_SALT }();
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
@@ -386,7 +391,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() public onlyDevnet broadcast returns (address addr_) {
-        MIPS mips = new MIPS(IPreimageOracle(mustGetAddress("PreimageOracle")));
+        MIPS mips = new MIPS{ salt: IMPL_SALT }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
@@ -395,7 +400,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        SystemConfig config = new SystemConfig();
+        SystemConfig config = new SystemConfig{ salt: IMPL_SALT }();
 
         require(config.owner() == address(0xdEaD));
         require(config.overhead() == 0);
@@ -428,7 +433,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
-        L1StandardBridge bridge = new L1StandardBridge();
+        L1StandardBridge bridge = new L1StandardBridge{ salt: IMPL_SALT }();
 
         require(address(bridge.MESSENGER()) == address(0));
         require(address(bridge.messenger()) == address(0));
@@ -443,7 +448,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        L1ERC721Bridge bridge = new L1ERC721Bridge();
+        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: IMPL_SALT }();
 
         require(address(bridge.MESSENGER()) == address(0));
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -94,12 +93,7 @@ func TestBuildFaultStepData(t *testing.T) {
 
 	resp, _ := newTestFaultResponder(t)
 
-	data, err := resp.buildStepTxData(types.StepCallData{
-		ClaimIndex: 2,
-		IsAttack:   false,
-		StateData:  []byte{0x01},
-		Proof:      []byte{0x02},
-	})
+	data, err := resp.buildStepTxData(2, false, []byte{0x01}, []byte{0x02})
 	require.NoError(t, err)
 
 	opts.GasLimit = 100_000

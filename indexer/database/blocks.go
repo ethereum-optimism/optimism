@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"errors"
 	"math/big"
 
@@ -104,17 +103,17 @@ func newBlocksDB(db *gorm.DB) BlocksDB {
 // L1
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
-	result := db.gorm.Create(&headers)
+	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
 	return result.Error
 }
 
 func (db *blocksDB) StoreLegacyStateBatches(stateBatches []LegacyStateBatch) error {
-	result := db.gorm.Create(stateBatches)
+	result := db.gorm.CreateInBatches(stateBatches, batchInsertSize)
 	return result.Error
 }
 
 func (db *blocksDB) StoreOutputProposals(outputs []OutputProposal) error {
-	result := db.gorm.Create(outputs)
+	result := db.gorm.CreateInBatches(outputs, batchInsertSize)
 	return result.Error
 }
 
@@ -180,7 +179,7 @@ func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
 // L2
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
-	result := db.gorm.Create(&headers)
+	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
 	return result.Error
 }
 
@@ -211,7 +210,6 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 		return nil, result.Error
 	}
 
-	result.Logger.Info(context.Background(), "number ", l2Header.Number)
 	return &l2Header, nil
 }
 
@@ -229,12 +227,32 @@ type Epoch struct {
 // For more, see the protocol spec:
 //   - https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md
 func (db *blocksDB) LatestEpoch() (*Epoch, error) {
-	// Since L1 blocks occur less frequently than L2, we do a INNER JOIN from L1 on
-	// L2 for a faster query. Per the protocol, the L2 block that starts a new epoch
-	// will have a matching timestamp with the L1 origin.
-	query := db.gorm.Table("l1_block_headers").Order("l1_block_headers.timestamp DESC")
-	query = query.Joins("INNER JOIN l2_block_headers ON l2_block_headers.timestamp = l1_block_headers.timestamp")
-	query = query.Select("*")
+	latestL1Header, err := db.L1LatestBlockHeader()
+	if err != nil {
+		return nil, err
+	} else if latestL1Header == nil {
+		return nil, nil
+	}
+
+	latestL2Header, err := db.L2LatestBlockHeader()
+	if err != nil {
+		return nil, err
+	} else if latestL2Header == nil {
+		return nil, nil
+	}
+
+	minTime := latestL1Header.Timestamp
+	if latestL2Header.Timestamp < minTime {
+		minTime = latestL2Header.Timestamp
+	}
+
+	// This is a faster query than doing an INNER JOIN between l1_block_headers and l2_block_headers
+	// which requires a full table scan to compute the resulting table.
+	l1Query := db.gorm.Table("l1_block_headers").Where("timestamp <= ?", minTime)
+	l2Query := db.gorm.Table("l2_block_headers").Where("timestamp <= ?", minTime)
+	query := db.gorm.Raw(`SELECT * FROM (?) AS l1_block_headers, (?) AS l2_block_headers
+		WHERE l1_block_headers.timestamp = l2_block_headers.timestamp
+		ORDER BY l2_block_headers.number DESC LIMIT 1`, l1Query, l2Query)
 
 	var epoch Epoch
 	result := query.Take(&epoch)

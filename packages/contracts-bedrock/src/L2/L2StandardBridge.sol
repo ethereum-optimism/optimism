@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { StandardBridge } from "../universal/StandardBridge.sol";
-import { Semver } from "../universal/Semver.sol";
-import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -16,7 +16,7 @@ import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L2StandardBridge is StandardBridge, Semver {
+contract L2StandardBridge is StandardBridge, ISemver {
     /// @custom:legacy
     /// @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
     /// @param l1Token   Address of the token on L1.
@@ -51,10 +51,12 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.2.1
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
+
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(StandardBridge _otherBridge) Semver(1, 2, 1) StandardBridge(_otherBridge) {
+    constructor(StandardBridge _otherBridge) StandardBridge(_otherBridge) {
         initialize();
     }
 
