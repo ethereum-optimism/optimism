@@ -52,7 +52,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-        
+
   ui:
     build:
       context: ..
@@ -67,7 +67,7 @@ services:
       postgres:
         condition: service_healthy
 
-  prisma-check: 
+  prisma-check:
     restart: "no"
     build:
       context: ..
@@ -80,6 +80,21 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    environment:
+      # TODO - Replace with ENV variables to allow for better security
+      - GF_SECURITY_ADMIN_PASSWORD=adminpassword
+    volumes:
+      - ./datesources.yml:/etc/grafana/provisioning/datasources/datasources.yaml
+    security_opt:
+      - "no-new-privileges:true"
 
   backend-goerli:
     image: ethereumoptimism/gateway-backend:latest
