@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Semver } from "../universal/Semver.sol";
+import { ISemver } from "../universal/ISemver.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, Semver {
+contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
@@ -98,11 +98,14 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
-    /// @custom:semver 1.6.0
+    /// @notice Semantic version.
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
+
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
-    constructor() Semver(1, 6, 0) {
+    constructor() {
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,

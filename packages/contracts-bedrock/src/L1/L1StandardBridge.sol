@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
-import { Semver } from "../universal/Semver.sol";
+import { ISemver } from "../universal/ISemver.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 
 /// @custom:proxied
@@ -16,7 +16,7 @@ import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L1StandardBridge is StandardBridge, Semver {
+contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -67,9 +67,12 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.2.1
+    /// @notice Semantic version.
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
+
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() Semver(1, 2, 1) StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {
+    constructor() StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 

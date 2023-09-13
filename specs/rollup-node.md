@@ -24,6 +24,7 @@ currently only concerned with the specification of the rollup driver.
   - [Derivation](#derivation)
 - [L2 Output RPC method](#l2-output-rpc-method)
   - [Output Method API](#output-method-api)
+- [Protocol Version tracking](#protocol-version-tracking)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -72,3 +73,20 @@ The input and return types here are as defined by the [engine API specs][engine-
 - returns:
   1. `version`: `DATA`, 32 Bytes - the output root version number, beginning with 0.
   1. `l2OutputRoot`: `DATA`, 32 Bytes - the output root.
+
+## Protocol Version tracking
+
+The rollup-node should monitor the recommended and required protocol version by monitoring
+the Protocol Version contract on L1, as specified in the [Superchain Version Signaling specifications].
+
+[Superchain Version Signaling specifications]: ./superchain-upgrades.md#superchain-version-signaling
+
+This can be implemented through polling in the [Driver](#driver) loop.
+After polling the Protocol Version, the rollup node SHOULD communicate it with the execution-engine through an
+[`engine_signalSuperchainV1`](./exec-engine.md#enginesignalsuperchainv1) call.
+
+The rollup node SHOULD warn the user when the recommended version is newer than
+the current version supported by the rollup node.
+
+The rollup node SHOULD take safety precautions if it does not meet the required protocol version.
+This may include halting the engine, with consent of the rollup node operator.

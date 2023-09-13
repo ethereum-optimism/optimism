@@ -24,10 +24,12 @@ type Game interface {
 	Claims() []Claim
 
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state.
-	IsDuplicate(claim Claim) bool
+	IsDuplicate(claim ClaimData) bool
 
 	// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
 	AgreeWithClaimLevel(claim Claim) bool
+
+	MaxDepth() uint64
 }
 
 type extendedClaim struct {
@@ -85,7 +87,7 @@ func (g *gameState) PutAll(claims []Claim) error {
 
 // Put adds a claim into the game state.
 func (g *gameState) Put(claim Claim) error {
-	if claim.IsRoot() || g.IsDuplicate(claim) {
+	if claim.IsRoot() || g.IsDuplicate(claim.ClaimData) {
 		return ErrClaimExists
 	}
 	parent, ok := g.claims[claim.Parent]
@@ -101,8 +103,8 @@ func (g *gameState) Put(claim Claim) error {
 	return nil
 }
 
-func (g *gameState) IsDuplicate(claim Claim) bool {
-	_, ok := g.claims[claim.ClaimData]
+func (g *gameState) IsDuplicate(claim ClaimData) bool {
+	_, ok := g.claims[claim]
 	return ok
 }
 
@@ -116,6 +118,10 @@ func (g *gameState) Claims() []Claim {
 		out = append(out, g.claims[item].self)
 	}
 	return out
+}
+
+func (g *gameState) MaxDepth() uint64 {
+	return g.depth
 }
 
 func (g *gameState) getChildren(c ClaimData) []ClaimData {

@@ -784,7 +784,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),contracts-bedrock
+          patterns: op-(.+),cannon,contracts-bedrock
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
