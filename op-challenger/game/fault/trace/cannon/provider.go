@@ -35,9 +35,6 @@ type proofData struct {
 	OracleOffset uint32        `json:"oracle-offset,omitempty"`
 }
 
-type LastStepWriter func(dir string, step uint64) error
-type LastStepReader func(dir string) (uint64, error)
-
 type CannonMetricer interface {
 	RecordCannonExecutionTime(t float64)
 }
