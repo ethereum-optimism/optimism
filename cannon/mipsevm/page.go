@@ -1,11 +1,30 @@
 package mipsevm
 
 import (
+	"bytes"
+	"compress/zlib"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
+	"regexp"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
+
+func detectEncoding(data []byte) (string, error) {
+	// Regular expressions to check for base64 and hex patterns
+	base64Pattern := "^[A-Za-z0-9+/]*={0,2}$"
+	hexPattern := "^[0-9a-fA-F]*$"
+
+	if regexp.MustCompile(hexPattern).MatchString(string(data)) {
+		return "hex", nil
+	} else if regexp.MustCompile(base64Pattern).MatchString(string(data)) {
+		return "base64", nil
+	}
+	return "", fmt.Errorf("Unable to determine encoding for data: %s", data)
+}
 
 type Page [PageSize]byte
 
@@ -13,6 +32,38 @@ func (p *Page) MarshalText() ([]byte, error) {
 	dst := make([]byte, hex.EncodedLen(len(p)))
 	hex.Encode(dst, p[:])
 	return dst, nil
+}
+
+func (p *Page) MarshalJSON() ([]byte, error) {
+	var out bytes.Buffer
+	w := zlib.NewWriter(&out)
+	w.Write(p[:])
+	w.Close()
+	return json.Marshal(out.Bytes())
+}
+
+func (p *Page) UnmarshalJSON(dat []byte) error {
+	// Strip off the `"` characters at the start & end.
+	dat = dat[1 : len(dat)-1]
+	// Detect hex or bas64 encoding. legacy hex encoding is uncompressed
+	if t, err := detectEncoding(dat); err != nil {
+		return err
+	} else if t == "hex" {
+		return p.UnmarshalText(dat)
+	}
+	// Decode b64 then decompress
+	r, err := zlib.NewReader(base64.NewDecoder(base64.StdEncoding, bytes.NewReader(dat)))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	if n, err := r.Read(p[:]); n != PageSize {
+		return fmt.Errorf("epxeted %d bytes, but got %d", PageSize, n)
+	} else if err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (p *Page) UnmarshalText(dat []byte) error {
