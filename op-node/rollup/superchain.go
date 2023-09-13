@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
+
+var OPStackSupport = params.ToProtocolVersion([8]byte{}, 3, 1, 0, 1)
 
 const (
 	opMainnet   = 10
