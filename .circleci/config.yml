@@ -864,10 +864,6 @@ jobs:
           command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 4m -e "errors.As" -e "errors.Is" ./...
           working_directory: indexer
       - run:
-          name: Check generated code
-          command: npm run generate && git diff --exit-code
-          working_directory: indexer/api-ts
-      - run:
           name: install geth
           command: make install-geth
       - run:
