@@ -25,10 +25,10 @@ const createQueryString = ({ cursor, limit }: PaginationOptions): string => {
 }
 
 export const depositEndpoint = ({ baseUrl = '', address, cursor, limit }: Options): string => {
-  return [baseUrl, 'deposits', address, createQueryString({ cursor, limit })].join('/')
+  return [baseUrl, 'deposits', `${address}${createQueryString({ cursor, limit })}`].join('/')
 }
 
 export const withdrawalEndoint = ({ baseUrl = '', address, cursor, limit }: Options): string => {
-  return [baseUrl, 'withdrawals', address, createQueryString({ cursor, limit })].join('/')
+  return [baseUrl, 'withdrawals', `${address}${createQueryString({ cursor, limit })}`].join('/')
 }
 
