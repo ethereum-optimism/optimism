@@ -259,7 +259,7 @@ jobs:
                 name: Build & Publish
                 command: |
                   gcloud auth configure-docker <<parameters.registry>>
-                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+                  IMAGE_BASE="<<parameters.registry>>/${GCP_PROJECT_ID}/<<parameters.repo>>/<<parameters.docker_name>>"
                   DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
                   docker context create buildx-build
                   docker buildx create --use buildx-build
@@ -317,7 +317,7 @@ jobs:
       - run:
           name: Build & Publish
           command: |
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            IMAGE_BASE="<<parameters.registry>>/${GCP_PROJECT_ID}/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
