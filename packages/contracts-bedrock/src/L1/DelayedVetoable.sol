@@ -3,6 +3,9 @@ pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
 
+/// @title DelayedVetoable
+/// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
+///         the call can be vetoed by the authorized vetoer.
 contract DelayedVetoable is ISemver {
     /// @notice Error for when the delay has already been set.
     error AlreadyDelayed();
@@ -36,19 +39,19 @@ contract DelayedVetoable is ISemver {
     event Vetoed(bytes32 indexed callHash, bytes data);
 
     /// @notice The address that all calls are forwarded to after the delay.
-    address internal immutable _target;
+    address internal immutable TARGET;
 
     /// @notice The address that can veto a call.
-    address internal immutable _vetoer;
+    address internal immutable VETOER;
 
     /// @notice The address that can initiate a call.
-    address internal immutable _initiator;
+    address internal immutable INITIATOR;
 
     /// @notice The current amount of time to wait before forwarding a call.
     uint256 internal _delay;
 
     /// @notice The delay which will be set after the initial system deployment is completed.
-    uint256 internal immutable _operatingDelay;
+    uint256 internal immutable OPERATING_DELAY;
 
     /// @notice The time that a call was initiated.
     mapping(bytes32 => uint256) internal _queuedAt;
@@ -76,29 +79,30 @@ contract DelayedVetoable is ISemver {
     /// @param target_ Address of the target.
     /// @param operatingDelay_ Time to delay when the system is operational.
     constructor(address vetoer_, address initiator_, address target_, uint256 operatingDelay_) {
-        _vetoer = vetoer_;
-        _initiator = initiator_;
-        _target = target_;
-        _delay = 0;
-        _operatingDelay = operatingDelay_;
+        // Note that the _delay value is not set here. Having an initial delay of 0 is helpful
+        // during the deployment of a new system.
+        VETOER = vetoer_;
+        INITIATOR = initiator_;
+        TARGET = target_;
+        OPERATING_DELAY = operatingDelay_;
     }
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
     function initiator() external virtual readOrHandle returns (address initiator_) {
-        initiator_ = _initiator;
+        initiator_ = INITIATOR;
     }
 
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
     function vetoer() external virtual readOrHandle returns (address vetoer_) {
-        vetoer_ = _vetoer;
+        vetoer_ = VETOER;
     }
 
     //// @notice Queries the target address.
     /// @return target_ Target address.
     function target() external readOrHandle returns (address target_) {
-        target_ = _target;
+        target_ = TARGET;
     }
 
     /// @notice Gets the delay
@@ -125,9 +129,9 @@ contract DelayedVetoable is ISemver {
     function _handleCall() internal {
         // The initiator and vetoer activate the delay by passing in null data.
         if (msg.data.length == 0) {
-            if (msg.sender != _initiator && msg.sender != _vetoer) {
+            if (msg.sender != INITIATOR && msg.sender != VETOER) {
                 // todo(maurelian): make this error have an expected array.
-                revert Unauthorized(_initiator, msg.sender);
+                revert Unauthorized(INITIATOR, msg.sender);
             }
             _activateDelay();
             return;
@@ -136,7 +140,7 @@ contract DelayedVetoable is ISemver {
         bytes32 callHash = keccak256(msg.data);
 
         // Case 1: The initiator is calling the contract to initiate a call.
-        if (msg.sender == _initiator && _queuedAt[callHash] == 0) {
+        if (msg.sender == INITIATOR && _queuedAt[callHash] == 0) {
             if (_delay == 0) {
                 // This forward function will halt the call frame on completion.
                 _forwardAndHalt(callHash);
@@ -149,7 +153,7 @@ contract DelayedVetoable is ISemver {
         // Case 2: The vetoer is calling the contract to veto a call.
         // Note: The vetoer retains the ability to veto even after the delay has passed. This makes censoring the vetoer
         //       more costly, as there is no time limit after which their transaction can be included.
-        if (msg.sender == _vetoer && _queuedAt[callHash] != 0) {
+        if (msg.sender == VETOER && _queuedAt[callHash] != 0) {
             delete _queuedAt[callHash];
             emit Vetoed(callHash, msg.data);
             return;
@@ -159,7 +163,7 @@ contract DelayedVetoable is ISemver {
         // passed.
         if (_queuedAt[callHash] == 0) {
             // The call has not been initiated, so we'll treat this is an unauthorized initiation attempt.
-            revert Unauthorized(_initiator, msg.sender);
+            revert Unauthorized(INITIATOR, msg.sender);
         }
 
         if (_queuedAt[callHash] + _delay < block.timestamp) {
@@ -176,7 +180,7 @@ contract DelayedVetoable is ISemver {
     function _forwardAndHalt(bytes32 callHash) internal {
         // Forward the call
         emit Forwarded(callHash, msg.data);
-        (bool success,) = _target.call(msg.data);
+        (bool success,) = TARGET.call(msg.data);
         assembly {
             // Success == 0 means a revert. We'll revert too and pass the data up.
             if iszero(success) { revert(0x0, returndatasize()) }
@@ -189,7 +193,7 @@ contract DelayedVetoable is ISemver {
     /// @notice Sets the delay to the operating delay.
     function _activateDelay() internal {
         if (_delay != 0) revert AlreadyDelayed();
-        _delay = _operatingDelay;
+        _delay = OPERATING_DELAY;
         emit DelayActivated(_delay);
     }
 }
