@@ -3,7 +3,6 @@ package game
 import (
 	"context"
 	"fmt"
-	"regexp"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -17,6 +16,7 @@ import (
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -36,10 +36,11 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
-	l1Client, err := client.DialEthClientWithTimeout(client.DefaultDialTimeout, logger, cfg.L1EthRpc)
+	rpcClient, err := client.DialRPCClientWithTimeout(client.DefaultDialTimeout, logger, cfg.L1EthRpc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}
+	l1Client := ethclient.NewClient(rpcClient)
 
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
@@ -78,11 +79,11 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, addr, txMgr, l1Client)
 		})
 
-	var rpcClient opClient.RPC = opClient.NewBaseRPCClient(l1Client.Client())
-	if regexp.MustCompile("^http(s)?://").MatchString(cfg.L1EthRpc) {
-		rpcClient = opClient.NewPollingClient(ctx, logger, rpcClient, opClient.WithPollRate(cfg.PollInterval))
+	pollClient, err := opClient.NewRPCWithClient(ctx, logger, cfg.L1EthRpc, opClient.NewBaseRPCClient(rpcClient), cfg.PollInterval)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RPC client: %w", err)
 	}
-	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, l1Client.BlockNumber, cfg.GameAllowlist, rpcClient)
+	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, l1Client.BlockNumber, cfg.GameAllowlist, pollClient)
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()
