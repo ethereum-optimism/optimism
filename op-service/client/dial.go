@@ -13,9 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// RPC is re-exported from op-node/client.
-type RPC client.RPC
-
 // DefaultDialTimeout is a default timeout for dialing a client.
 const DefaultDialTimeout = 1 * time.Minute
 const defaultRetryCount = 30
