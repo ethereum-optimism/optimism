@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"regexp"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
@@ -19,19 +18,6 @@ var zlibWriterPool = sync.Pool{
 		var buf bytes.Buffer
 		return zlib.NewWriter(&buf)
 	},
-}
-
-func detectEncoding(data []byte) (string, error) {
-	// Regular expressions to check for base64 and hex patterns
-	base64Pattern := "^[A-Za-z0-9+/]*={0,2}$"
-	hexPattern := "^[0-9a-fA-F]*$"
-
-	if regexp.MustCompile(hexPattern).MatchString(string(data)) {
-		return "hex", nil
-	} else if regexp.MustCompile(base64Pattern).MatchString(string(data)) {
-		return "base64", nil
-	}
-	return "", fmt.Errorf("Unable to determine encoding for data: %s", data)
 }
 
 type Page [PageSize]byte
@@ -53,12 +39,6 @@ func (p *Page) MarshalJSON() ([]byte, error) { // nosemgrep
 func (p *Page) UnmarshalJSON(dat []byte) error {
 	// Strip off the `"` characters at the start & end.
 	dat = dat[1 : len(dat)-1]
-	// Detect hex or bas64 encoding. legacy hex encoding is uncompressed
-	if t, err := detectEncoding(dat); err != nil {
-		return err
-	} else if t == "hex" {
-		return p.UnmarshalText(dat)
-	}
 	// Decode b64 then decompress
 	r, err := zlib.NewReader(base64.NewDecoder(base64.StdEncoding, bytes.NewReader(dat)))
 	if err != nil {
