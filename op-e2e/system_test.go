@@ -262,20 +262,20 @@ func TestPendingGasLimit(t *testing.T) {
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
-	cfg.GethOptions["sequencer"] = []geth.GethOption{
+	cfg.GethOptions["sequencer"] = append(cfg.GethOptions["sequencer"], []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 10_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
-	}
-	cfg.GethOptions["verifier"] = []geth.GethOption{
+	}...)
+	cfg.GethOptions["verifier"] = append(cfg.GethOptions["verifier"], []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 9_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
-	}
+	}...)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -1495,12 +1495,12 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	// configure halt in verifier op-node
 	cfg.Nodes["verifier"].RollupHalt = "major"
 	// configure halt in verifier op-geth node
-	cfg.GethOptions["verifier"] = []geth.GethOption{
+	cfg.GethOptions["verifier"] = append(cfg.GethOptions["verifier"], []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.RollupHaltOnIncompatibleProtocolVersion = "major"
 			return nil
 		},
-	}
+	}...)
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")

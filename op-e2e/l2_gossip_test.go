@@ -14,8 +14,8 @@ func TestTxGossip(t *testing.T) {
 	gethOpts := []geth.GethOption{
 		geth.WithP2P(),
 	}
-	cfg.GethOptions["sequencer"] = gethOpts
-	cfg.GethOptions["verifier"] = gethOpts
+	cfg.GethOptions["sequencer"] = append(cfg.GethOptions["sequencer"], gethOpts...)
+	cfg.GethOptions["verifier"] = append(cfg.GethOptions["verifier"], gethOpts...)
 	sys, err := cfg.Start(t)
 	require.NoError(t, err, "Start system")
 
