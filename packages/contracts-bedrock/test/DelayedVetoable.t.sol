@@ -63,6 +63,7 @@ contract DelayedVetoable_Getters_TestFail is DelayedVetoable_Init {
 }
 
 contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
+    /// @dev A call can be initiated by the initiator.
     function testFuzz_handleCall_initiation_succeeds(bytes memory data) external {
         // Calls with no data are used to activate the delay and are not valid otherwise,
         // so we assume a non-zero data value.
@@ -119,17 +120,17 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         assert(success);
     }
 
+    /// @dev The call cannot be forewarded until the delay has passed.
     function test_handleCall_forwardingTooSoon_reverts(bytes memory data) external {
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
-
-        // activate delay
 
         vm.expectRevert(abi.encodeWithSelector(ForwardingEarly.selector));
         (success,) = address(delayedVetoable).call(data);
         assertFalse(success);
     }
 
+    /// @dev The call cannot be forwarded a second time.
     function test_handleCall_forwardingTwice_reverts(bytes memory data) external {
         // Initiate the call
         vm.prank(initiator);
@@ -150,6 +151,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         assert(success);
     }
 
+    /// @dev If the target reverts, it is bubbled up.
     function test_handleCall_forwardingTargetReverts_reverts(bytes memory data) external {
         vm.etch(target, address(reverter).code);
 
