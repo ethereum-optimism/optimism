@@ -146,7 +146,7 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
 	}
 	if cfg.PollInterval == 0 {
-		cfg.PollInterval = 2 * time.Second
+		cfg.PollInterval = time.Second
 	}
 
 	return &cfg

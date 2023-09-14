@@ -47,16 +47,6 @@ func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url stri
 	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 }
 
-// DialPolledClientWithTimeout attempts to dial the RPC provider using the provided URL.
-// If the dial doesn't complete within timeout seconds, this method will return an error.
-func DialPolledClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string, pollInterval time.Duration) (client.RPC, error) {
-	opts := []client.RPCOption{
-		client.WithHttpPollInterval(pollInterval),
-		client.WithDialBackoff(defaultRetryCount),
-	}
-	return client.NewRPC(ctx, log, url, opts...)
-}
-
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
 	bOff := retry.Fixed(defaultRetryTime)

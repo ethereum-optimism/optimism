@@ -3,6 +3,7 @@ package game
 import (
 	"context"
 	"fmt"
+	"regexp"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
+	opClient "github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -76,12 +78,11 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, addr, txMgr, l1Client)
 		})
 
-	polledClient, err := client.DialPolledClientWithTimeout(ctx, client.DefaultDialTimeout, logger, cfg.L1EthRpc, cfg.PollInterval)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial L1: %w", err)
+	var rpcClient opClient.RPC = opClient.NewBaseRPCClient(l1Client.Client())
+	if regexp.MustCompile("^http(s)?://").MatchString(cfg.L1EthRpc) {
+		rpcClient = opClient.NewPollingClient(ctx, logger, rpcClient, opClient.WithPollRate(cfg.PollInterval))
 	}
-
-	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, l1Client.BlockNumber, cfg.GameAllowlist, polledClient)
+	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, l1Client.BlockNumber, cfg.GameAllowlist, rpcClient)
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()
