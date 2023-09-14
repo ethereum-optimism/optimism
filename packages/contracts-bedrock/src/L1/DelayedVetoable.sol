@@ -84,34 +84,34 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Gets the initiator
-    /// @return Initiator address.
-    function initiator() external virtual readOrHandle returns (address) {
-        return _initiator;
+    /// @return initiator_ Initiator address.
+    function initiator() external virtual readOrHandle returns (address initiator_) {
+        initiator_ = _initiator;
     }
 
     //// @notice Queries the vetoer address.
-    /// @return Vetoer address.
-    function vetoer() external virtual readOrHandle returns (address) {
-        return _vetoer;
+    /// @return vetoer_ Vetoer address.
+    function vetoer() external virtual readOrHandle returns (address vetoer_) {
+        vetoer_ = _vetoer;
     }
 
     //// @notice Queries the target address.
-    /// @return Target address.
-    function target() external readOrHandle returns (address) {
-        return _target;
+    /// @return target_ Target address.
+    function target() external readOrHandle returns (address target_) {
+        target_ = _target;
     }
 
     /// @notice Gets the delay
-    /// @return Delay address.
-    function delay() external readOrHandle returns (uint256) {
-        return _delay;
+    /// @return delay_ Delay address.
+    function delay() external readOrHandle returns (uint256 delay_) {
+        delay_ = _delay;
     }
 
     /// @notice Gets entries in the _queuedAt mapping.
     /// @param callHash The hash of the call data.
-    /// @return The time the callHash was recorded.
-    function queuedAt(bytes32 callHash) external readOrHandle returns (uint256) {
-        return _queuedAt[callHash];
+    /// @return queuedAt_ The time the callHash was recorded.
+    function queuedAt(bytes32 callHash) external readOrHandle returns (uint256 queuedAt_) {
+        queuedAt_ = _queuedAt[callHash];
     }
 
     /// @notice Used for all calls that pass data to the contract.
@@ -139,7 +139,7 @@ contract DelayedVetoable is ISemver {
         if (msg.sender == _initiator && _queuedAt[callHash] == 0) {
             if (_delay == 0) {
                 // This forward function will halt the call frame on completion.
-                _forwardAndHalt(callHash, msg.data);
+                _forwardAndHalt(callHash);
             }
             _queuedAt[callHash] = block.timestamp;
             emit Initiated(callHash, msg.data);
@@ -169,11 +169,11 @@ contract DelayedVetoable is ISemver {
 
         // Delete the call to prevent replays
         delete _queuedAt[callHash];
-        _forwardAndHalt(callHash, msg.data);
+        _forwardAndHalt(callHash);
     }
 
     /// @notice Forwards the call to the target and halts the call frame.
-    function _forwardAndHalt(bytes32 callHash, bytes memory data) internal {
+    function _forwardAndHalt(bytes32 callHash) internal {
         // Forward the call
         emit Forwarded(callHash, msg.data);
         (bool success,) = _target.call(msg.data);
