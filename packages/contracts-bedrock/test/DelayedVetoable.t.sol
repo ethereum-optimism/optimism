@@ -55,10 +55,8 @@ contract DelayedVetoable_Getters_Test is DelayedVetoable_Init {
 }
 
 contract DelayedVetoable_Getters_TestFail is DelayedVetoable_Init {
-    function test_getters_notVetoer() external {
-        // getter calls from addresses other than the zero address will revert in the
-        // initiation branch of the proxy.
-        vm.assume(msg.sender != address(0) && msg.sender != initiator && msg.sender != vetoer);
+    /// @dev Check that getter calls from unauthorized entities will revert.
+    function test_getters_notZeroAddress_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
         delayedVetoable.initiator();
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
@@ -126,7 +124,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     }
 
     /// @dev The call cannot be forewarded until the delay has passed.
-    function test_handleCall_forwardingTooSoon_reverts(bytes memory data) external {
+    function testFuzz_handleCall_forwardingTooSoon_reverts(bytes memory data) external {
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
 
@@ -136,7 +134,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     }
 
     /// @dev The call cannot be forwarded a second time.
-    function test_handleCall_forwardingTwice_reverts(bytes memory data) external {
+    function testFuzz_handleCall_forwardingTwice_reverts(bytes memory data) external {
         assumeNonzeroData(data);
 
         // Initiate the call
@@ -159,7 +157,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     }
 
     /// @dev If the target reverts, it is bubbled up.
-    function test_handleCall_forwardingTargetReverts_reverts(bytes memory data) external {
+    function testFuzz_handleCall_forwardingTargetReverts_reverts(bytes memory data) external {
         assumeNonzeroData(data);
 
         vm.etch(target, address(reverter).code);
