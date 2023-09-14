@@ -237,6 +237,8 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 			redsync.WithFailFast(true),
 			redsync.WithTries(1))
 
+		// nosemgrep: missing-unlock-before-return
+		// this lock is hold indefinitely, and it is extended until the leader dies
 		if err := mutex.Lock(); err != nil {
 			log.Debug("failed to obtain lock", "err", err)
 			ct.leader = false
