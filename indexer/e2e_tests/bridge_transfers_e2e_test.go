@@ -294,7 +294,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, proveReceipt.TxHash, aliceWithdrawals.Withdrawals[0].ProvenL1TransactionHash)
 	require.Equal(t, finalizeReceipt.TxHash, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
-	require.Equal(t, finalizeReceipt.BlockHash, aliceWithdrawals.Withdrawals[0].L2BlockHash)
+	require.Equal(t, withdrawReceipt.BlockHash, aliceWithdrawals.Withdrawals[0].L2BlockHash)
 
 	crossDomainBridgeMessage, err = testSuite.DB.BridgeMessages.L2BridgeMessage(*withdrawal.CrossDomainMessageHash)
 	require.NoError(t, err)
