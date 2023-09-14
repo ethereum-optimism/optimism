@@ -44,9 +44,6 @@ func NewGameLoader(caller MinimalDisputeGameFactoryCaller) *gameLoader {
 
 // FetchAllGamesAtBlock fetches all dispute games from the factory at a given block number.
 func (l *gameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]FaultDisputeGame, error) {
-	if blockNumber == nil {
-		return nil, ErrMissingBlockNumber
-	}
 	callOpts := &bind.CallOpts{
 		Context:     ctx,
 		BlockNumber: blockNumber,

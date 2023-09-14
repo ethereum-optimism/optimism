@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
@@ -120,9 +121,13 @@ type stubClaimLoader struct {
 	claims    []types.Claim
 }
 
-func (s *stubClaimLoader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
+func (s *stubClaimLoader) FetchGameState(ctx context.Context, agreeWithProposedOutput bool, maxDepth uint64) (types.Game, error) {
 	s.callCount++
-	return s.claims, nil
+	state := types.NewGameState(agreeWithProposedOutput, s.claims[0], maxDepth)
+	if err := state.PutAll(s.claims[1:]); err != nil {
+		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
+	}
+	return state, nil
 }
 
 type stubResponder struct {

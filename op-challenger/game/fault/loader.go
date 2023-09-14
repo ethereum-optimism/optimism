@@ -2,6 +2,8 @@ package fault
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -136,6 +138,21 @@ func (l *loader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 	}
 
 	return claimList, nil
+}
+
+func (l *loader) FetchGameState(ctx context.Context, agreeWithProposedOutput bool, maxDepth uint64) (types.Game, error) {
+	claims, err := l.FetchClaims(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch claims: %w", err)
+	}
+	if len(claims) == 0 {
+		return nil, errors.New("no claims")
+	}
+	game := types.NewGameState(agreeWithProposedOutput, claims[0], maxDepth)
+	if err := game.PutAll(claims[1:]); err != nil {
+		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
+	}
+	return game, nil
 }
 
 // FetchAbsolutePrestateHash fetches the hashed absolute prestate from the fault dispute game.

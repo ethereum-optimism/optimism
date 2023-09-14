@@ -2,7 +2,6 @@ package fault
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
@@ -21,7 +20,7 @@ type Responder interface {
 }
 
 type ClaimLoader interface {
-	FetchClaims(ctx context.Context) ([]types.Claim, error)
+	FetchGameState(ctx context.Context, agreeWithProposedOutput bool, maxDepth uint64) (types.Game, error)
 }
 
 type Agent struct {
@@ -122,16 +121,5 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 
 // newGameFromContracts initializes a new game state from the state in the contract
 func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
-	claims, err := a.loader.FetchClaims(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch claims: %w", err)
-	}
-	if len(claims) == 0 {
-		return nil, errors.New("no claims")
-	}
-	game := types.NewGameState(a.agreeWithProposedOutput, claims[0], uint64(a.maxDepth))
-	if err := game.PutAll(claims[1:]); err != nil {
-		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
-	}
-	return game, nil
+	return a.loader.FetchGameState(ctx, a.agreeWithProposedOutput, uint64(a.maxDepth))
 }

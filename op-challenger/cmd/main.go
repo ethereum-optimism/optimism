@@ -53,6 +53,9 @@ func run(args []string, action ConfigAction) error {
 	app.Name = "op-challenger"
 	app.Usage = "Challenge outputs"
 	app.Description = "Ensures that on chain outputs are correct."
+	app.Commands = []*cli.Command{
+		HonestMovesCommand,
+	}
 	app.Action = func(ctx *cli.Context) error {
 		logger, err := setupLogging(ctx)
 		if err != nil {

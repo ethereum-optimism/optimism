@@ -76,21 +76,18 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	var provider types.TraceProvider
+	provider, err := NewTraceProvider(ctx, logger, m, cfg, dir, addr, client, gameDepth)
+	if err != nil {
+		return nil, err
+	}
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr)
-		if err != nil {
-			return nil, fmt.Errorf("create cannon trace provider: %w", err)
-		}
-		provider = cannonProvider
 		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
 	case config.TraceTypeAlphabet:
-		provider = alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 		updater = alphabet.NewOracleUpdater(logger)
 	default:
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
@@ -112,6 +109,23 @@ func NewGamePlayer(
 		logger:                  logger,
 		status:                  status,
 	}, nil
+}
+
+func NewTraceProvider(ctx context.Context, logger log.Logger, m metrics.Metricer, cfg *config.Config, dir string, addr common.Address, client bind.ContractCaller, gameDepth uint64) (types.TraceProvider, error) {
+	var provider types.TraceProvider
+	switch cfg.TraceType {
+	case config.TraceTypeCannon:
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr)
+		if err != nil {
+			return nil, fmt.Errorf("create cannon trace provider: %w", err)
+		}
+		provider = cannonProvider
+	case config.TraceTypeAlphabet:
+		provider = alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
+	default:
+		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
+	}
+	return provider, nil
 }
 
 func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
