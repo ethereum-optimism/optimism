@@ -71,45 +71,6 @@ func TestE2EETL(t *testing.T) {
 		}
 	})
 
-	/*
-		TODO: ADD THIS BACK IN WHEN THESE MARKERS ARE INDEXED
-			t.Run("indexes L2 checkpoints", func(t *testing.T) {
-				latestOutput, err := testSuite.DB.Blocks.LatestCheckpointedOutput()
-				require.NoError(t, err)
-				require.NotNil(t, latestOutput)
-				require.GreaterOrEqual(t, latestOutput.L2BlockNumber.Int.Uint64(), uint64(9))
-
-				l2EthClient, err := node.DialEthClient(testSuite.OpSys.EthInstances["sequencer"].HTTPEndpoint())
-				require.NoError(t, err)
-
-				submissionInterval := testSuite.OpCfg.DeployConfig.L2OutputOracleSubmissionInterval
-				numOutputs := latestOutput.L2BlockNumber.Int.Uint64() / submissionInterval
-				for i := int64(0); i < int64(numOutputs); i++ {
-					blockNumber := big.NewInt((i + 1) * int64(submissionInterval))
-
-					output, err := testSuite.DB.Blocks.OutputProposal(big.NewInt(i))
-					require.NoError(t, err)
-					require.NotNil(t, output)
-					require.Equal(t, i, output.L2OutputIndex.Int.Int64())
-					require.Equal(t, blockNumber, output.L2BlockNumber.Int)
-					require.NotEmpty(t, output.L1ContractEventGUID)
-
-					// we may as well check the integrity of the output root
-					l2Block, err := testSuite.L2Client.BlockByNumber(context.Background(), blockNumber)
-					require.NoError(t, err)
-					messagePasserStorageHash, err := l2EthClient.StorageHash(predeploys.L2ToL1MessagePasserAddr, blockNumber)
-					require.NoError(t, err)
-
-					// construct and check output root
-					outputRootPreImage := [128]byte{}                                 // 4 words (first 32 are zero for version 0)
-					copy(outputRootPreImage[32:64], l2Block.Root().Bytes())           // state root
-					copy(outputRootPreImage[64:96], messagePasserStorageHash.Bytes()) // message passer storage root
-					copy(outputRootPreImage[96:128], l2Block.Hash().Bytes())          // block hash
-					require.Equal(t, crypto.Keccak256Hash(outputRootPreImage[:]), output.OutputRoot)
-				}
-			})
-	*/
-
 	t.Run("indexes L1 blocks with accompanying contract event", func(t *testing.T) {
 		l1Contracts := []common.Address{}
 		testSuite.OpCfg.L1Deployments.ForEach(func(name string, addr common.Address) { l1Contracts = append(l1Contracts, addr) })
