@@ -255,6 +255,16 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 				return err
 			}
 
+		case predeploys.SchemaRegistryAddr:
+			if err := checkSchemaRegistry(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.EASAddr:
+			if err := checkEAS(p, client); err != nil {
+				return err
+			}
+
 		case predeploys.BobaTuringCreditAddr:
 			if err := checkBobaTuringCredit(p, client); err != nil {
 				return err
@@ -835,6 +845,43 @@ func getEIP1967AdminAddress(client *clients.RpcClient, addr libcommon.Address) (
 	}
 	admin := libcommon.BytesToAddress(slot)
 	return admin, nil
+}
+
+func checkSchemaRegistry(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewSchemaRegistry(addr, client)
+	if err != nil {
+		return err
+	}
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SchemaRegistry version", "version", version)
+	return nil
+}
+
+func checkEAS(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewEAS(addr, client)
+	if err != nil {
+		return err
+	}
+
+	registry, err := contract.GetSchemaRegistry(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if registry != predeploys.SchemaRegistryAddr {
+		return fmt.Errorf("Incorrect registry address %s", registry)
+	}
+	log.Info("EAS", "registry", registry)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("EAS version", "version", version)
+	return nil
 }
 
 func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) error {

@@ -10,8 +10,9 @@ import (
 // BobaTuringHelperImplementation -> 0x4200000000000000000000000000000000000022
 // BobaL2 -> 0x4200000000000000000000000000000000000023
 
-// The BobaTuringHelperImplementation is deployed by us and is not a proxy contract
-// To make things easier, we will use the same address as the proxy contract and keep storages
+// Boba predeployed contracts will be move to the following addresses from the index 1000
+// BobaTuringCredit -> 0x42000000000000000000000000000000000003E8
+// BobaTuringHelper -> 0x42000000000000000000000000000000000003E9
 
 const (
 	L2ToL1MessagePasser = "0x4200000000000000000000000000000000000016"
@@ -32,11 +33,15 @@ const (
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
+	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
+	EAS                           = "0x4200000000000000000000000000000000000021"
+
 	// BOBA specific
-	BobaTuringCredit               = "0x4200000000000000000000000000000000000020"
+	BobaTuringCredit               = "0x42000000000000000000000000000000000003e8"
 	BobaTuringCreditImplementation = "0x4200000000000000000000000000000000000021"
-	BobaTuringHelper               = "0x4200000000000000000000000000000000000022"
+	BobaTuringHelper               = "0x42000000000000000000000000000000000003E9"
 	BobaL2                         = "0x4200000000000000000000000000000000000023"
+
 	// Special case for Boba mainnet
 	BobaTuringCredit288               = "0xF8D2f1b0292C0Eeef80D8F47661A9DaCDB4b23bf"
 	BobaTuringCreditImplementation288 = "0xd8E006702bdCbE2582dF13f900bCF750129bB449"
@@ -61,6 +66,9 @@ var (
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
+	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
+	EASAddr                           = common.HexToAddress(EAS)
+
 	// BOBA specific
 	BobaTuringCreditAddr               = common.HexToAddress(BobaTuringCredit)
 	BobaTuringCreditImplementationAddr = common.HexToAddress(BobaTuringCreditImplementation)
@@ -105,6 +113,8 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
+	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
+	Predeploys["EAS"] = &EASAddr
 	// BOBA specific
 	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
 	LegacyBobaProxyImplementation["BobaTuringCreditImplementation"] = &BobaTuringCreditImplementationAddr

@@ -154,7 +154,7 @@ contract BobaTuringCredit {
     // New for Anchorage
 
     // Could make this configurable, but for now it's hard-coded to a predeploy address
-    address public immutable HCHelperAddr = 0x4200000000000000000000000000000000000022;
+    address public immutable HCHelperAddr = 0x42000000000000000000000000000000000003E9;
 
     /**
      * @dev Interfaces this legacy contract to the new Anchorage hybrid compute system

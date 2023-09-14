@@ -80,6 +80,8 @@ func TestBuildOptimism(t *testing.T) {
 		"L2ERC721Bridge":                true,
 		"OptimismMintableERC721Factory": true,
 		"LegacyERC20ETH":                true,
+		"EAS":                           true,
+		"SchemaRegistry":                true,
 		"BobaL2":                        true,
 		"BobaTuringCredit":              true,
 		"BobaTuringHelper":              true,

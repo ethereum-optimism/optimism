@@ -10,10 +10,10 @@ contract BobaHCHelper { /*is Ownable*/
     //using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    address immutable HelperAddr = 0x4200000000000000000000000000000000000022; // Address of this predeploy
+    address immutable HelperAddr = 0x42000000000000000000000000000000000003E9; // Address of this predeploy
     address immutable OffchainCaller = 0xdEAddEadDeaDDEaDDeadDeAddeadDEaddeaD9901; // special "From" address
     address immutable hcToken = 0x4200000000000000000000000000000000000023; // Boba L2 token
-    address immutable legacyCreditAddr = 0x4200000000000000000000000000000000000020; // BobaTuringCredit address
+    address immutable legacyCreditAddr = 0x42000000000000000000000000000000000003e8; // BobaTuringCredit address
 
     // Cost (in hcToken) for various operations
     uint256 constant RegCost = 100; // Register an endpoint
