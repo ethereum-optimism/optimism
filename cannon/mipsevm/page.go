@@ -36,12 +36,6 @@ func detectEncoding(data []byte) (string, error) {
 
 type Page [PageSize]byte
 
-func (p *Page) MarshalText() ([]byte, error) {
-	dst := make([]byte, hex.EncodedLen(len(p)))
-	hex.Encode(dst, p[:])
-	return dst, nil
-}
-
 func (p *Page) MarshalJSON() ([]byte, error) { // nosemgrep
 	var out bytes.Buffer
 	w := zlibWriterPool.Get().(*zlib.Writer)
