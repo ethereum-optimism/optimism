@@ -1487,8 +1487,6 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	// activate the functionality by updating the config // TODO may need to just activate it by default in op-e2e?
-	cfg.Nodes["verifier"].Rollup.ProtocolVersionsAddress = cfg.L1Deployments.ProtocolVersions
 	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
 	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
