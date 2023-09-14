@@ -147,7 +147,9 @@ contract DelayedVetoable is ISemver {
         }
 
         // Case 2: The vetoer is calling the contract to veto a call.
-        if (msg.sender == _vetoer && _queuedAt[callHash] != 0 && block.timestamp <= _queuedAt[callHash] + _delay) {
+        // Note: The vetoer retains the ability to veto even after the delay has passed. This makes censoring the vetoer
+        //       more costly, as there is no time limit after which their transaction can be included.
+        if (msg.sender == _vetoer && _queuedAt[callHash] != 0) {
             delete _queuedAt[callHash];
             emit Vetoed(callHash, msg.data);
             return;
