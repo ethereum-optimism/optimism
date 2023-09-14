@@ -4,6 +4,9 @@ pragma solidity 0.8.15;
 import { ISemver } from "src/universal/ISemver.sol";
 
 contract DelayedVetoable is ISemver {
+    /// @notice Error for when the delay has already been set.
+    error AlreadyDelayed();
+
     /// @notice Error for when attempting to forward too early.
     error ForwardingEarly();
 
@@ -12,6 +15,10 @@ contract DelayedVetoable is ISemver {
 
     /// @notice Error for unauthorized calls.
     error Unauthorized(address expected, address actual);
+
+    /// @notice An event that is emitted when the delay is activated.
+    /// @param delay The delay that was activated.
+    event DelayActivated(uint256 delay);
 
     /// @notice An event that is emitted when a call is initiated.
     /// @param callHash The hash of the call data.
@@ -37,11 +44,14 @@ contract DelayedVetoable is ISemver {
     /// @notice The address that can initiate a call.
     address internal immutable _initiator;
 
+    /// @notice The current amount of time to wait before forwarding a call.
+    uint256 internal _delay;
+
+    /// @notice The delay which will be set after the initial system deployment is completed.
+    uint256 internal immutable _operatingDelay;
+
     /// @notice The time that a call was initiated.
     mapping(bytes32 => uint256) internal _queuedAt;
-
-    /// @notice The time to wait before forwarding a call.
-    uint256 internal _delay;
 
     /// @notice A modifier that reverts if not called by the vetoer or by address(0) to allow
     ///         eth_call to interact with this proxy without needing to use low-level storage
@@ -64,12 +74,13 @@ contract DelayedVetoable is ISemver {
     /// @param vetoer_ Address of the vetoer.
     /// @param initiator_ Address of the initiator.
     /// @param target_ Address of the target.
-    /// @param delay_ Address of the delay.
-    constructor(address vetoer_, address initiator_, address target_, uint256 delay_) {
+    /// @param operatingDelay_ Time to delay when the system is operational.
+    constructor(address vetoer_, address initiator_, address target_, uint256 operatingDelay_) {
         _vetoer = vetoer_;
         _initiator = initiator_;
         _target = target_;
-        _delay = delay_;
+        _delay = 0;
+        _operatingDelay = operatingDelay_;
     }
 
     /// @notice Gets the initiator
@@ -96,6 +107,13 @@ contract DelayedVetoable is ISemver {
         return _delay;
     }
 
+    /// @notice Gets entries in the _queuedAt mapping.
+    /// @param callHash The hash of the call data.
+    /// @return The time the callHash was recorded.
+    function queuedAt(bytes32 callHash) external readOrHandle returns (uint256) {
+        return _queuedAt[callHash];
+    }
+
     /// @notice Used for all calls that pass data to the contract.
     fallback() external {
         _handleCall();
@@ -105,10 +123,24 @@ contract DelayedVetoable is ISemver {
     ///         This enables transparent initiation and forwarding of calls to the target and avoids
     ///         the need for additional layers of abi encoding.
     function _handleCall() internal {
+        // The initiator and vetoer activate the delay by passing in null data.
+        if (msg.data.length == 0) {
+            if (msg.sender != _initiator && msg.sender != _vetoer) {
+                // todo(maurelian): make this error have an expected array.
+                revert Unauthorized(_initiator, msg.sender);
+            }
+            _activateDelay();
+            return;
+        }
+
         bytes32 callHash = keccak256(msg.data);
 
         // Case 1: The initiator is calling the contract to initiate a call.
         if (msg.sender == _initiator && _queuedAt[callHash] == 0) {
+            if (_delay == 0) {
+                // This forward function will halt the call frame on completion.
+                _forwardAndHalt(callHash, msg.data);
+            }
             _queuedAt[callHash] = block.timestamp;
             emit Initiated(callHash, msg.data);
             return;
@@ -135,7 +167,11 @@ contract DelayedVetoable is ISemver {
 
         // Delete the call to prevent replays
         delete _queuedAt[callHash];
+        _forwardAndHalt(callHash, msg.data);
+    }
 
+    /// @notice Forwards the call to the target and halts the call frame.
+    function _forwardAndHalt(bytes32 callHash, bytes memory data) internal {
         // Forward the call
         emit Forwarded(callHash, msg.data);
         (bool success,) = _target.call(msg.data);
@@ -146,5 +182,12 @@ contract DelayedVetoable is ISemver {
             // Otherwise we'll just return and pass the data up.
             return(0x0, returndatasize())
         }
+    }
+
+    /// @notice Sets the delay to the operating delay.
+    function _activateDelay() internal {
+        if (_delay != 0) revert AlreadyDelayed();
+        _delay = _operatingDelay;
+        emit DelayActivated(_delay);
     }
 }
