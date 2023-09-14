@@ -17,6 +17,7 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/clients"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common"
@@ -857,6 +858,21 @@ func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) er
 		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
 	}
 	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
+
+	slot, err := client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyOwnerSlot, nil)
+	if err != nil {
+		return err
+	}
+	if libcommon.BytesToAddress(slot) != (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit legacy proxy owner should be set to address(0)")
+	}
+	slot, err = client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyImplementationSlot, nil)
+	if err != nil {
+		return err
+	}
+	if libcommon.BytesToAddress(slot) != (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit legacy proxy implementation should be set to address(0)")
+	}
 	return nil
 }
 
