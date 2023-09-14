@@ -30,8 +30,8 @@ var (
 
 // DelayedVetoableMetaData contains all meta data concerning the DelayedVetoable contract.
 var DelayedVetoableMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"vetoer_\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"initiator_\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"target_\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"delay_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ForwardingEarly\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"TargetUnitialized\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"expected\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"actual\",\"type\":\"address\"}],\"name\":\"Unauthorized\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"Forwarded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"Initiated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"Vetoed\",\"type\":\"event\"},{\"stateMutability\":\"payable\",\"type\":\"fallback\"},{\"inputs\":[],\"name\":\"delay\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"initiator\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"target\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"vetoer\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
-	Bin: "0x60e060405234801561001057600080fd5b50604051610a27380380610a2783398101604081905261002f9161009f565b6000608081905260a0819052600160c081905280546001600160a01b03199081166001600160a01b0397881617909155600280548216958716959095179094558054909316919093161790556004556100ea565b80516001600160a01b038116811461009a57600080fd5b919050565b600080600080608085870312156100b557600080fd5b6100be85610083565b93506100cc60208601610083565b92506100da60408601610083565b6060959095015193969295505050565b60805160a05160c05161090e61011960003960006104560152600061042d01526000610404015261090e6000f3fe60806040526004361061005e5760003560e01c80636a42b8f8116100435780636a42b8f8146100da578063d4b83992146100fd578063d8bff440146101125761006d565b806354fd4d50146100755780635c39fcc1146100a05761006d565b3661006d5761006b610127565b005b61006b610127565b34801561008157600080fd5b5061008a6103fd565b6040516100979190610692565b60405180910390f35b3480156100ac57600080fd5b506100b56104a0565b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610097565b3480156100e657600080fd5b506100ef6104cf565b604051908152602001610097565b34801561010957600080fd5b506100b56104dd565b34801561011e57600080fd5b506100b5610501565b600080366040516101399291906106e3565b60405190819003902060025490915073ffffffffffffffffffffffffffffffffffffffff16331480156101785750600081815260036020526040902054155b156101cb576000818152600360205260408082204290555182917f87a332a414acbc7da074543639ce7ae02ff1ea72e88379da9f261b080beb5a13916101c0919036906106f3565b60405180910390a250565b60015473ffffffffffffffffffffffffffffffffffffffff16331480156101ff575060008181526003602052604090205415155b80156102265750600454600082815260036020526040902054610222919061076f565b4211155b1561026e576000818152600360205260408082208290555182917fbede6852c1d97d93ff557f676de76670cd0dec861e7fe8beb13aa0ba2b0ab040916101c0919036906106f3565b60008181526003602052604081205490036102db576002546040517f295a81c100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff909116600482015233602482015260440160405180910390fd5b60045460008281526003602052604090205442916102f89161076f565b1015610330576040517f43dc986d00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b6000818152600360205260408082208290555182917f4c109d85bcd0bb5c735b4be850953d652afe4cd9aa2e0b1426a65a4dcb2e122991610373919036906106f3565b60405180910390a26000805460405173ffffffffffffffffffffffffffffffffffffffff909116906103a890839036906106e3565b6000604051808303816000865af19150503d80600081146103e5576040519150601f19603f3d011682016040523d82523d6000602084013e6103ea565b606091505b50509050806103f8573d6000fd5b3d6000f35b60606104287f0000000000000000000000000000000000000000000000000000000000000000610525565b6104517f0000000000000000000000000000000000000000000000000000000000000000610525565b61047a7f0000000000000000000000000000000000000000000000000000000000000000610525565b60405160200161048c93929190610787565b604051602081830303815290604052905090565b6000336104c4575060025473ffffffffffffffffffffffffffffffffffffffff1690565b6104cc610127565b90565b6000336104c4575060045490565b6000336104c4575060005473ffffffffffffffffffffffffffffffffffffffff1690565b6000336104c4575060015473ffffffffffffffffffffffffffffffffffffffff1690565b60608160000361056857505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b8115610592578061057c816107fd565b915061058b9050600a83610864565b915061056c565b60008167ffffffffffffffff8111156105ad576105ad610878565b6040519080825280601f01601f1916602001820160405280156105d7576020820181803683370190505b5090505b841561065a576105ec6001836108a7565b91506105f9600a866108be565b61060490603061076f565b60f81b818381518110610619576106196108d2565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610653600a86610864565b94506105db565b949350505050565b60005b8381101561067d578181015183820152602001610665565b8381111561068c576000848401525b50505050565b60208152600082518060208401526106b1816040850160208701610662565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b8183823760009101908152919050565b60208152816020820152818360408301376000818301604090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0160101919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000821982111561078257610782610740565b500190565b60008451610799818460208901610662565b80830190507f2e0000000000000000000000000000000000000000000000000000000000000080825285516107d5816001850160208a01610662565b600192019182015283516107f0816002840160208801610662565b0160020195945050505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361082e5761082e610740565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261087357610873610835565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156108b9576108b9610740565b500390565b6000826108cd576108cd610835565b500690565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"vetoer_\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"initiator_\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"target_\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"operatingDelay_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"AlreadyDelayed\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"ForwardingEarly\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"TargetUnitialized\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"expected\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"actual\",\"type\":\"address\"}],\"name\":\"Unauthorized\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"delay\",\"type\":\"uint256\"}],\"name\":\"DelayActivated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"Forwarded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"Initiated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"Vetoed\",\"type\":\"event\"},{\"stateMutability\":\"nonpayable\",\"type\":\"fallback\"},{\"inputs\":[],\"name\":\"delay\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"delay_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"initiator\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"initiator_\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"callHash\",\"type\":\"bytes32\"}],\"name\":\"queuedAt\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"queuedAt_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"target\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"target_\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"vetoer\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"vetoer_\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	Bin: "0x61010060405234801561001157600080fd5b506040516108ff3803806108ff8339810160408190526100309161006e565b6001600160a01b0393841660a05291831660c05290911660805260e0526100b9565b80516001600160a01b038116811461006957600080fd5b919050565b6000806000806080858703121561008457600080fd5b61008d85610052565b935061009b60208601610052565b92506100a960408601610052565b6060959095015193969295505050565b60805160a05160c05160e0516107dc610123600039600061023f01526000818161015f01528181610205015281816102cd0152818161045801526105050152600081816101a001528181610384015261059d01526000818161057101526105ff01526107dc6000f3fe608060405234801561001057600080fd5b50600436106100725760003560e01c8063b912de5d11610050578063b912de5d14610111578063d4b8399214610124578063d8bff4401461012c57610072565b806354fd4d501461007c5780635c39fcc1146100ce5780636a42b8f8146100fb575b61007a610134565b005b6100b86040518060400160405280600581526020017f312e302e3000000000000000000000000000000000000000000000000000000081525081565b6040516100c591906106a7565b60405180910390f35b6100d66104fb565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100c5565b610103610532565b6040519081526020016100c5565b61010361011f36600461071a565b610540565b6100d6610567565b6100d6610593565b361580156101425750600054155b15610298573373ffffffffffffffffffffffffffffffffffffffff7f000000000000000000000000000000000000000000000000000000000000000016148015906101c357503373ffffffffffffffffffffffffffffffffffffffff7f00000000000000000000000000000000000000000000000000000000000000001614155b1561023d576040517f295a81c100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff7f00000000000000000000000000000000000000000000000000000000000000001660048201523360248201526044015b60405180910390fd5b7f000000000000000000000000000000000000000000000000000000000000000060008190556040519081527febf28bfb587e28dfffd9173cf71c32ba5d3f0544a0117b5539c9b274a5bba2a89060200160405180910390a1565b600080366040516102aa929190610733565b60405190819003902090503373ffffffffffffffffffffffffffffffffffffffff7f0000000000000000000000000000000000000000000000000000000000000000161480156103065750600081815260016020526040902054155b1561036c5760005460000361031e5761031e816105bf565b6000818152600160205260408082204290555182917f87a332a414acbc7da074543639ce7ae02ff1ea72e88379da9f261b080beb5a139161036191903690610743565b60405180910390a250565b3373ffffffffffffffffffffffffffffffffffffffff7f0000000000000000000000000000000000000000000000000000000000000000161480156103be575060008181526001602052604090205415155b15610406576000818152600160205260408082208290555182917fbede6852c1d97d93ff557f676de76670cd0dec861e7fe8beb13aa0ba2b0ab0409161036191903690610743565b600081815260016020526040812054900361048b576040517f295a81c100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff7f0000000000000000000000000000000000000000000000000000000000000000166004820152336024820152604401610234565b60008054828252600160205260409091205442916104a891610790565b10156104e0576040517f43dc986d00000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b6000818152600160205260408120556104f8816105bf565b50565b60003361052757507f000000000000000000000000000000000000000000000000000000000000000090565b61052f610134565b90565b600033610527575060005490565b60003361055a575060009081526001602052604090205490565b610562610134565b919050565b60003361052757507f000000000000000000000000000000000000000000000000000000000000000090565b60003361052757507f000000000000000000000000000000000000000000000000000000000000000090565b807f4c109d85bcd0bb5c735b4be850953d652afe4cd9aa2e0b1426a65a4dcb2e12296000366040516105f2929190610743565b60405180910390a26000807f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16600036604051610645929190610733565b6000604051808303816000865af19150503d8060008114610682576040519150601f19603f3d011682016040523d82523d6000602084013e610687565b606091505b50909250905081151560010361069f57805160208201f35b805160208201fd5b600060208083528351808285015260005b818110156106d4578581018301518582016040015282016106b8565b818111156106e6576000604083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016929092016040019392505050565b60006020828403121561072c57600080fd5b5035919050565b8183823760009101908152919050565b60208152816020820152818360408301376000818301604090810191909152601f9092017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0160101919050565b600082198211156107ca577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50019056fea164736f6c634300080f000a",
 }
 
 // DelayedVetoableABI is the input ABI used to generate the binding from.
@@ -43,7 +43,7 @@ var DelayedVetoableABI = DelayedVetoableMetaData.ABI
 var DelayedVetoableBin = DelayedVetoableMetaData.Bin
 
 // DeployDelayedVetoable deploys a new Ethereum contract, binding an instance of DelayedVetoable to it.
-func DeployDelayedVetoable(auth *bind.TransactOpts, backend bind.ContractBackend, vetoer_ common.Address, initiator_ common.Address, target_ common.Address, delay_ *big.Int) (common.Address, *types.Transaction, *DelayedVetoable, error) {
+func DeployDelayedVetoable(auth *bind.TransactOpts, backend bind.ContractBackend, vetoer_ common.Address, initiator_ common.Address, target_ common.Address, operatingDelay_ *big.Int) (common.Address, *types.Transaction, *DelayedVetoable, error) {
 	parsed, err := DelayedVetoableMetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
@@ -52,7 +52,7 @@ func DeployDelayedVetoable(auth *bind.TransactOpts, backend bind.ContractBackend
 		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
 	}
 
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(DelayedVetoableBin), backend, vetoer_, initiator_, target_, delay_)
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(DelayedVetoableBin), backend, vetoer_, initiator_, target_, operatingDelay_)
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
@@ -234,128 +234,262 @@ func (_DelayedVetoable *DelayedVetoableCallerSession) Version() (string, error) 
 
 // Delay is a paid mutator transaction binding the contract method 0x6a42b8f8.
 //
-// Solidity: function delay() returns(uint256)
+// Solidity: function delay() returns(uint256 delay_)
 func (_DelayedVetoable *DelayedVetoableTransactor) Delay(opts *bind.TransactOpts) (*types.Transaction, error) {
 	return _DelayedVetoable.contract.Transact(opts, "delay")
 }
 
 // Delay is a paid mutator transaction binding the contract method 0x6a42b8f8.
 //
-// Solidity: function delay() returns(uint256)
+// Solidity: function delay() returns(uint256 delay_)
 func (_DelayedVetoable *DelayedVetoableSession) Delay() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Delay(&_DelayedVetoable.TransactOpts)
 }
 
 // Delay is a paid mutator transaction binding the contract method 0x6a42b8f8.
 //
-// Solidity: function delay() returns(uint256)
+// Solidity: function delay() returns(uint256 delay_)
 func (_DelayedVetoable *DelayedVetoableTransactorSession) Delay() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Delay(&_DelayedVetoable.TransactOpts)
 }
 
 // Initiator is a paid mutator transaction binding the contract method 0x5c39fcc1.
 //
-// Solidity: function initiator() returns(address)
+// Solidity: function initiator() returns(address initiator_)
 func (_DelayedVetoable *DelayedVetoableTransactor) Initiator(opts *bind.TransactOpts) (*types.Transaction, error) {
 	return _DelayedVetoable.contract.Transact(opts, "initiator")
 }
 
 // Initiator is a paid mutator transaction binding the contract method 0x5c39fcc1.
 //
-// Solidity: function initiator() returns(address)
+// Solidity: function initiator() returns(address initiator_)
 func (_DelayedVetoable *DelayedVetoableSession) Initiator() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Initiator(&_DelayedVetoable.TransactOpts)
 }
 
 // Initiator is a paid mutator transaction binding the contract method 0x5c39fcc1.
 //
-// Solidity: function initiator() returns(address)
+// Solidity: function initiator() returns(address initiator_)
 func (_DelayedVetoable *DelayedVetoableTransactorSession) Initiator() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Initiator(&_DelayedVetoable.TransactOpts)
 }
 
+// QueuedAt is a paid mutator transaction binding the contract method 0xb912de5d.
+//
+// Solidity: function queuedAt(bytes32 callHash) returns(uint256 queuedAt_)
+func (_DelayedVetoable *DelayedVetoableTransactor) QueuedAt(opts *bind.TransactOpts, callHash [32]byte) (*types.Transaction, error) {
+	return _DelayedVetoable.contract.Transact(opts, "queuedAt", callHash)
+}
+
+// QueuedAt is a paid mutator transaction binding the contract method 0xb912de5d.
+//
+// Solidity: function queuedAt(bytes32 callHash) returns(uint256 queuedAt_)
+func (_DelayedVetoable *DelayedVetoableSession) QueuedAt(callHash [32]byte) (*types.Transaction, error) {
+	return _DelayedVetoable.Contract.QueuedAt(&_DelayedVetoable.TransactOpts, callHash)
+}
+
+// QueuedAt is a paid mutator transaction binding the contract method 0xb912de5d.
+//
+// Solidity: function queuedAt(bytes32 callHash) returns(uint256 queuedAt_)
+func (_DelayedVetoable *DelayedVetoableTransactorSession) QueuedAt(callHash [32]byte) (*types.Transaction, error) {
+	return _DelayedVetoable.Contract.QueuedAt(&_DelayedVetoable.TransactOpts, callHash)
+}
+
 // Target is a paid mutator transaction binding the contract method 0xd4b83992.
 //
-// Solidity: function target() returns(address)
+// Solidity: function target() returns(address target_)
 func (_DelayedVetoable *DelayedVetoableTransactor) Target(opts *bind.TransactOpts) (*types.Transaction, error) {
 	return _DelayedVetoable.contract.Transact(opts, "target")
 }
 
 // Target is a paid mutator transaction binding the contract method 0xd4b83992.
 //
-// Solidity: function target() returns(address)
+// Solidity: function target() returns(address target_)
 func (_DelayedVetoable *DelayedVetoableSession) Target() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Target(&_DelayedVetoable.TransactOpts)
 }
 
 // Target is a paid mutator transaction binding the contract method 0xd4b83992.
 //
-// Solidity: function target() returns(address)
+// Solidity: function target() returns(address target_)
 func (_DelayedVetoable *DelayedVetoableTransactorSession) Target() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Target(&_DelayedVetoable.TransactOpts)
 }
 
 // Vetoer is a paid mutator transaction binding the contract method 0xd8bff440.
 //
-// Solidity: function vetoer() returns(address)
+// Solidity: function vetoer() returns(address vetoer_)
 func (_DelayedVetoable *DelayedVetoableTransactor) Vetoer(opts *bind.TransactOpts) (*types.Transaction, error) {
 	return _DelayedVetoable.contract.Transact(opts, "vetoer")
 }
 
 // Vetoer is a paid mutator transaction binding the contract method 0xd8bff440.
 //
-// Solidity: function vetoer() returns(address)
+// Solidity: function vetoer() returns(address vetoer_)
 func (_DelayedVetoable *DelayedVetoableSession) Vetoer() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Vetoer(&_DelayedVetoable.TransactOpts)
 }
 
 // Vetoer is a paid mutator transaction binding the contract method 0xd8bff440.
 //
-// Solidity: function vetoer() returns(address)
+// Solidity: function vetoer() returns(address vetoer_)
 func (_DelayedVetoable *DelayedVetoableTransactorSession) Vetoer() (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Vetoer(&_DelayedVetoable.TransactOpts)
 }
 
 // Fallback is a paid mutator transaction binding the contract fallback function.
 //
-// Solidity: fallback() payable returns()
+// Solidity: fallback() returns()
 func (_DelayedVetoable *DelayedVetoableTransactor) Fallback(opts *bind.TransactOpts, calldata []byte) (*types.Transaction, error) {
 	return _DelayedVetoable.contract.RawTransact(opts, calldata)
 }
 
 // Fallback is a paid mutator transaction binding the contract fallback function.
 //
-// Solidity: fallback() payable returns()
+// Solidity: fallback() returns()
 func (_DelayedVetoable *DelayedVetoableSession) Fallback(calldata []byte) (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Fallback(&_DelayedVetoable.TransactOpts, calldata)
 }
 
 // Fallback is a paid mutator transaction binding the contract fallback function.
 //
-// Solidity: fallback() payable returns()
+// Solidity: fallback() returns()
 func (_DelayedVetoable *DelayedVetoableTransactorSession) Fallback(calldata []byte) (*types.Transaction, error) {
 	return _DelayedVetoable.Contract.Fallback(&_DelayedVetoable.TransactOpts, calldata)
 }
 
-// Receive is a paid mutator transaction binding the contract receive function.
-//
-// Solidity: receive() payable returns()
-func (_DelayedVetoable *DelayedVetoableTransactor) Receive(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _DelayedVetoable.contract.RawTransact(opts, nil) // calldata is disallowed for receive function
+// DelayedVetoableDelayActivatedIterator is returned from FilterDelayActivated and is used to iterate over the raw logs and unpacked data for DelayActivated events raised by the DelayedVetoable contract.
+type DelayedVetoableDelayActivatedIterator struct {
+	Event *DelayedVetoableDelayActivated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
 }
 
-// Receive is a paid mutator transaction binding the contract receive function.
-//
-// Solidity: receive() payable returns()
-func (_DelayedVetoable *DelayedVetoableSession) Receive() (*types.Transaction, error) {
-	return _DelayedVetoable.Contract.Receive(&_DelayedVetoable.TransactOpts)
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *DelayedVetoableDelayActivatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(DelayedVetoableDelayActivated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(DelayedVetoableDelayActivated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
 }
 
-// Receive is a paid mutator transaction binding the contract receive function.
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *DelayedVetoableDelayActivatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *DelayedVetoableDelayActivatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// DelayedVetoableDelayActivated represents a DelayActivated event raised by the DelayedVetoable contract.
+type DelayedVetoableDelayActivated struct {
+	Delay *big.Int
+	Raw   types.Log // Blockchain specific contextual infos
+}
+
+// FilterDelayActivated is a free log retrieval operation binding the contract event 0xebf28bfb587e28dfffd9173cf71c32ba5d3f0544a0117b5539c9b274a5bba2a8.
 //
-// Solidity: receive() payable returns()
-func (_DelayedVetoable *DelayedVetoableTransactorSession) Receive() (*types.Transaction, error) {
-	return _DelayedVetoable.Contract.Receive(&_DelayedVetoable.TransactOpts)
+// Solidity: event DelayActivated(uint256 delay)
+func (_DelayedVetoable *DelayedVetoableFilterer) FilterDelayActivated(opts *bind.FilterOpts) (*DelayedVetoableDelayActivatedIterator, error) {
+
+	logs, sub, err := _DelayedVetoable.contract.FilterLogs(opts, "DelayActivated")
+	if err != nil {
+		return nil, err
+	}
+	return &DelayedVetoableDelayActivatedIterator{contract: _DelayedVetoable.contract, event: "DelayActivated", logs: logs, sub: sub}, nil
+}
+
+// WatchDelayActivated is a free log subscription operation binding the contract event 0xebf28bfb587e28dfffd9173cf71c32ba5d3f0544a0117b5539c9b274a5bba2a8.
+//
+// Solidity: event DelayActivated(uint256 delay)
+func (_DelayedVetoable *DelayedVetoableFilterer) WatchDelayActivated(opts *bind.WatchOpts, sink chan<- *DelayedVetoableDelayActivated) (event.Subscription, error) {
+
+	logs, sub, err := _DelayedVetoable.contract.WatchLogs(opts, "DelayActivated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(DelayedVetoableDelayActivated)
+				if err := _DelayedVetoable.contract.UnpackLog(event, "DelayActivated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseDelayActivated is a log parse operation binding the contract event 0xebf28bfb587e28dfffd9173cf71c32ba5d3f0544a0117b5539c9b274a5bba2a8.
+//
+// Solidity: event DelayActivated(uint256 delay)
+func (_DelayedVetoable *DelayedVetoableFilterer) ParseDelayActivated(log types.Log) (*DelayedVetoableDelayActivated, error) {
+	event := new(DelayedVetoableDelayActivated)
+	if err := _DelayedVetoable.contract.UnpackLog(event, "DelayActivated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
 }
 
 // DelayedVetoableForwardedIterator is returned from FilterForwarded and is used to iterate over the raw logs and unpacked data for Forwarded events raised by the DelayedVetoable contract.
