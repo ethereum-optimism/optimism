@@ -60,7 +60,6 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
 
     /// @dev Ensures that the events are emitted during initialization.
     function test_initialize_events_succeeds() external {
-        //vm.store(address(protocolVersions), bytes32(uint256(106)), bytes32(0));
         assertEq(protocolVersionsImpl.owner(), address(0xdEad));
 
         // Wipe out the initialized slot so the proxy can be initialized again
