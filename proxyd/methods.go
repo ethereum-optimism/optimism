@@ -44,7 +44,7 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 	key := e.key(req)
 	val, err := e.cache.Get(ctx, key)
 	if err != nil {
-		log.Error("error reading update cache", "key", key, "method", req.Method, "err", err)
+		log.Error("error reading from cache", "key", key, "method", req.Method, "err", err)
 		return nil, err
 	}
 	if val == "" {
@@ -53,7 +53,7 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 
 	var result interface{}
 	if err := json.Unmarshal([]byte(val), &result); err != nil {
-		log.Error("error unmarshalling value update cache", "key", key, "method", req.Method, "err", err)
+		log.Error("error unmarshalling value from cache", "key", key, "method", req.Method, "err", err)
 		return nil, err
 	}
 	return &RPCRes{
