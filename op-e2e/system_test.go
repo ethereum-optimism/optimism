@@ -1454,7 +1454,7 @@ func TestRecommendedProtocolVersionChange(t *testing.T) {
 	l1 := sys.Clients["l1"]
 
 	_, build, major, minor, patch, preRelease := params.OPStackSupport.Parse()
-	newRecommendedProtocolVersion := params.ToProtocolVersion(build, major+1, minor, patch, preRelease)
+	newRecommendedProtocolVersion := params.ProtocolVersionV0{Build: build, Major: major + 1, Minor: minor, Patch: patch, PreRelease: preRelease}.Encode()
 	require.NotEqual(t, runtimeConfig.RecommendedProtocolVersion(), newRecommendedProtocolVersion, "changing to a different protocol version")
 
 	protVersions, err := bindings.NewProtocolVersions(cfg.L1Deployments.ProtocolVersionsProxy, l1)
@@ -1509,7 +1509,7 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	l1 := sys.Clients["l1"]
 
 	_, build, major, minor, patch, preRelease := params.OPStackSupport.Parse()
-	newRequiredProtocolVersion := params.ToProtocolVersion(build, major+1, minor, patch, preRelease)
+	newRequiredProtocolVersion := params.ProtocolVersionV0{Build: build, Major: major + 1, Minor: minor, Patch: patch, PreRelease: preRelease}.Encode()
 	require.NotEqual(t, runtimeConfig.RequiredProtocolVersion(), newRequiredProtocolVersion, "changing to a different protocol version")
 
 	protVersions, err := bindings.NewProtocolVersions(cfg.L1Deployments.ProtocolVersionsProxy, l1)

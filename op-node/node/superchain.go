@@ -36,8 +36,20 @@ func (n *OpNode) handleProtocolVersionsUpdate(ctx context.Context) {
 // HaltMaybe halts the rollup node if the runtime config indicates an incompatible required protocol change
 // and the node is configured to opt-in to halting at this protocol-change level.
 func (n *OpNode) HaltMaybe() {
+	local := rollup.OPStackSupport
+	required := n.runCfg.RequiredProtocolVersion()
+	if haltMaybe(n.rollupHalt, local.Compare(required)) { // halt if we opted in to do so at this granularity
+		n.log.Error("Opted to halt, unprepared for protocol change", "required", required, "local", local)
+		if err := n.Close(); err != nil {
+			n.log.Error("Failed to halt rollup", "err", err)
+		}
+	}
+}
+
+// haltMaybe returns true when we should halt, given the halt-option and required-version comparison
+func haltMaybe(haltOption string, reqCmp params.ProtocolVersionComparison) bool {
 	var needLevel int
-	switch n.rollupHalt {
+	switch haltOption {
 	case "major":
 		needLevel = 3
 	case "minor":
@@ -45,12 +57,10 @@ func (n *OpNode) HaltMaybe() {
 	case "patch":
 		needLevel = 1
 	default:
-		return // do not consider halting if not configured to
+		return false // do not consider halting if not configured to
 	}
 	haveLevel := 0
-	local := rollup.OPStackSupport
-	required := n.runCfg.RequiredProtocolVersion()
-	switch local.Compare(required) {
+	switch reqCmp {
 	case params.OutdatedMajor:
 		haveLevel = 3
 	case params.OutdatedMinor:
@@ -58,10 +68,5 @@ func (n *OpNode) HaltMaybe() {
 	case params.OutdatedPatch:
 		haveLevel = 1
 	}
-	if haveLevel >= needLevel { // halt if we opted in to do so at this granularity
-		n.log.Error("opted to halt, unprepared for protocol change", "required", required, "local", local)
-		if err := n.Close(); err != nil {
-			n.log.Error("failed to halt rollup", "err", err)
-		}
-	}
+	return haveLevel >= needLevel
 }

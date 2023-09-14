@@ -37,6 +37,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	if !ctx.Bool(flags.BetaRollupLoadProtocolVersions.Name) {
+		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
 		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
 
