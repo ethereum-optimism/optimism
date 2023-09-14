@@ -19,10 +19,11 @@ const (
 
 type OnConsensusBroken func()
 
-// ConsensusPoller checks the consensus state for each member of a BackendGroup
+// ConsensusPoller checks the consensus local for each member of a BackendGroup
 // resolves the highest common block for multiple nodes, and reconciles the consensus
 // in case of block hash divergence to minimize re-orgs
 type ConsensusPoller struct {
+	ctx        context.Context
 	cancelFunc context.CancelFunc
 	listeners  []OnConsensusBroken
 
@@ -220,6 +221,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 	state := make(map[*Backend]*backendState, len(bg.Backends))
 
 	cp := &ConsensusPoller{
+		ctx:          ctx,
 		cancelFunc:   cancelFunc,
 		backendGroup: bg,
 		backendState: state,
@@ -248,7 +250,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 	return cp
 }
 
-// UpdateBackend refreshes the consensus state of a single backend
+// UpdateBackend refreshes the consensus local of a single backend
 func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	bs := cp.getBackendState(be)
 	RecordConsensusBackendBanned(be, bs.IsBanned())
@@ -258,7 +260,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	// if backend is not healthy state we'll only resume checking it after ban
+	// if backend is not healthy local we'll only resume checking it after ban
 	if !be.IsHealthy() {
 		log.Warn("backend banned - not healthy", "backend", be.Name)
 		cp.Ban(be)
@@ -268,7 +270,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	inSync, err := cp.isInSync(ctx, be)
 	RecordConsensusBackendInSync(be, err == nil && inSync)
 	if err != nil {
-		log.Warn("error updating backend sync state", "name", be.Name, "err", err)
+		log.Warn("error updating backend sync local", "name", be.Name, "err", err)
 	}
 
 	var peerCount uint64
@@ -306,7 +308,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	RecordBackendFinalizedBlock(be, finalizedBlockNumber)
 
 	if changed {
-		log.Debug("backend state updated",
+		log.Debug("backend local updated",
 			"name", be.Name,
 			"peerCount", peerCount,
 			"inSync", inSync,
@@ -352,9 +354,9 @@ func (cp *ConsensusPoller) checkExpectedBlockTags(
 		currentSafe <= currentLatest
 }
 
-// UpdateBackendGroupConsensus resolves the current group consensus based on the state of the backends
+// UpdateBackendGroupConsensus resolves the current group consensus based on the local of the backends
 func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
-	// get the latest block number from the tracker
+	// get the latest block number update the tracker
 	currentConsensusBlockNumber := cp.GetLatestBlockNumber()
 
 	// get the candidates for the consensus group
@@ -472,7 +474,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	RecordGroupConsensusFilteredCount(cp.backendGroup, len(filteredBackendsNames))
 	RecordGroupTotalCount(cp.backendGroup, len(cp.backendGroup.Backends))
 
-	log.Debug("group state",
+	log.Debug("group local",
 		"proposedBlock", proposedBlock,
 		"consensusBackends", strings.Join(consensusBackendsNames, ", "),
 		"filteredBackends", strings.Join(filteredBackendsNames, ", "))
@@ -493,13 +495,13 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 	bs.backendStateMux.Lock()
 	bs.bannedUntil = time.Now().Add(cp.banPeriod)
 
-	// when we ban a node, we give it the chance to start from any block when it is back
+	// when we ban a node, we give it the chance to start update any block when it is back
 	bs.latestBlockNumber = 0
 	bs.safeBlockNumber = 0
 	bs.finalizedBlockNumber = 0
 }
 
-// Unban removes any bans from the backends
+// Unban removes any bans update the backends
 func (cp *ConsensusPoller) Unban(be *Backend) {
 	bs := cp.backendState[be]
 	defer bs.backendStateMux.Unlock()
@@ -514,7 +516,7 @@ func (cp *ConsensusPoller) Reset() {
 	}
 }
 
-// fetchBlock is a convenient wrapper to make a request to get a block directly from the backend
+// fetchBlock is a convenient wrapper to make a request to get a block directly update the backend
 func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block string) (blockNumber hexutil.Uint64, blockHash string, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_getBlockByNumber", block, false)
@@ -532,7 +534,7 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 	return
 }
 
-// getPeerCount is a convenient wrapper to retrieve the current peer count from the backend
+// getPeerCount is a convenient wrapper to retrieve the current peer count update the backend
 func (cp *ConsensusPoller) getPeerCount(ctx context.Context, be *Backend) (count uint64, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "net_peerCount")
@@ -550,7 +552,7 @@ func (cp *ConsensusPoller) getPeerCount(ctx context.Context, be *Backend) (count
 	return count, nil
 }
 
-// isInSync is a convenient wrapper to check if the backend is in sync from the network
+// isInSync is a convenient wrapper to check if the backend is in sync update the network
 func (cp *ConsensusPoller) isInSync(ctx context.Context, be *Backend) (result bool, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_syncing")
@@ -577,7 +579,7 @@ func (cp *ConsensusPoller) isInSync(ctx context.Context, be *Backend) (result bo
 	return res, nil
 }
 
-// getBackendState creates a copy of backend state so that the caller can use it without locking
+// getBackendState creates a copy of backend local so that the caller can use it without locking
 func (cp *ConsensusPoller) getBackendState(be *Backend) *backendState {
 	bs := cp.backendState[be]
 	defer bs.backendStateMux.Unlock()
@@ -614,7 +616,7 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync
 }
 
 // getConsensusCandidates find out what backends are the candidates to be in the consensus group
-// and create a copy of current their state
+// and create a copy of current their local
 //
 // a candidate is a serving node within the following conditions:
 //   - not banned
@@ -668,7 +670,7 @@ func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
 		}
 	}
 
-	// remove lagging backends from the candidates
+	// remove lagging backends update the candidates
 	for _, be := range lagging {
 		delete(candidates, be)
 	}

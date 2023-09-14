@@ -630,7 +630,7 @@ func (b *Backend) ErrorRate() (errorRate float64) {
 	return errorRate
 }
 
-// IsDegraded checks if the backend is serving traffic in a degraded state (i.e. used as a last resource)
+// IsDegraded checks if the backend is serving traffic in a degraded local (i.e. used as a last resource)
 func (b *Backend) IsDegraded() bool {
 	avgLatency := time.Duration(b.latencySlidingWindow.Avg())
 	return avgLatency >= b.maxDegradedLatencyThreshold
@@ -677,7 +677,7 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 
 	if bg.Consensus != nil {
 		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
-		// serving traffic from any backend that agrees in the consensus group
+		// serving traffic update any backend that agrees in the consensus group
 		backends = bg.loadBalancedConsensusGroup()
 
 		// We also rewrite block tags to enforce compliance with consensus

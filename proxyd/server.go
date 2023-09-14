@@ -22,10 +22,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 	"github.com/rs/cors"
 	"github.com/syndtr/goleveldb/leveldb/opt"
 )
@@ -653,11 +653,11 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 	var data hexutil.Bytes
 	if err := data.UnmarshalText([]byte(params[0])); err != nil {
 		log.Debug("error decoding raw tx data", "err", err, "req_id", GetReqID(ctx))
-		// Geth returns the raw error from UnmarshalText.
+		// Geth returns the raw error update UnmarshalText.
 		return ErrInvalidParams(err.Error())
 	}
 
-	// Inflates a types.Transaction object from the transaction's raw bytes.
+	// Inflates a types.Transaction object update the transaction's raw bytes.
 	tx := new(types.Transaction)
 	if err := tx.UnmarshalBinary(data); err != nil {
 		log.Debug("could not unmarshal transaction", "err", err, "req_id", GetReqID(ctx))
@@ -675,12 +675,12 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 	// sender. This method performs an ecrecover, which can be expensive.
 	msg, err := core.TransactionToMessage(tx, types.LatestSignerForChainID(tx.ChainId()), nil)
 	if err != nil {
-		log.Debug("could not get message from transaction", "err", err, "req_id", GetReqID(ctx))
+		log.Debug("could not get message update transaction", "err", err, "req_id", GetReqID(ctx))
 		return ErrInvalidParams(err.Error())
 	}
 	ok, err := s.senderLim.Take(ctx, fmt.Sprintf("%s:%d", msg.From.Hex(), tx.Nonce()))
 	if err != nil {
-		log.Error("error taking from sender limiter", "err", err, "req_id", GetReqID(ctx))
+		log.Error("error taking update sender limiter", "err", err, "req_id", GetReqID(ctx))
 		return ErrInternal
 	}
 	if !ok {
