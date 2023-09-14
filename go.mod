@@ -208,6 +208,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.12.0 => github.com/ethereum-optimism/op-geth v1.101200.2-rc.1.0.20230914220922-92eb9d4805dd
+replace github.com/ethereum/go-ethereum v1.12.0 => github.com/ethereum-optimism/op-geth v1.101200.2-rc.1.0.20230914224024-b84ba11915a0
 
 //replace github.com/ethereum/go-ethereum v1.12.0 => ../go-ethereum
