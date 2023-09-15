@@ -29,6 +29,11 @@ type Metricer interface {
 
 	RecordGameUpdateScheduled()
 	RecordGameUpdateCompleted()
+
+	IncActiveExecutors()
+	DecActiveExecutors()
+	IncIdleExecutors()
+	DecIdleExecutors()
 }
 
 type Metrics struct {
@@ -40,6 +45,8 @@ type Metrics struct {
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
+
+	executors prometheus.GaugeVec
 
 	moves prometheus.Counter
 	steps prometheus.Counter
@@ -74,6 +81,14 @@ func NewMetrics() *Metrics {
 			Namespace: Namespace,
 			Name:      "up",
 			Help:      "1 if the op-challenger has finished starting up",
+		}),
+		executors: *factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: Namespace,
+			Name:      "executors",
+			Help:      "Number of active and idle executors",
+		}, []string{
+			"active",
+			"idle",
 		}),
 		moves: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
@@ -147,6 +162,22 @@ func (m *Metrics) RecordGameStep() {
 
 func (m *Metrics) RecordCannonExecutionTime(t float64) {
 	m.cannonExecutionTime.Observe(t)
+}
+
+func (m *Metrics) IncActiveExecutors() {
+	m.executors.WithLabelValues("active").Inc()
+}
+
+func (m *Metrics) DecActiveExecutors() {
+	m.executors.WithLabelValues("active").Dec()
+}
+
+func (m *Metrics) IncIdleExecutors() {
+	m.executors.WithLabelValues("idle").Inc()
+}
+
+func (m *Metrics) DecIdleExecutors() {
+	m.executors.WithLabelValues("idle").Dec()
 }
 
 func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
