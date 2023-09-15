@@ -6,6 +6,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
 ///         the call can be vetoed by the authorized vetoer.
+///         This contract does not support value transfers, only data is forwarded.
 contract DelayedVetoable is ISemver {
     /// @notice Error for when the delay has already been set.
     error AlreadyDelayed();
@@ -128,11 +129,12 @@ contract DelayedVetoable is ISemver {
     ///         the need for additional layers of abi encoding.
     function _handleCall() internal {
         // The initiator and vetoer activate the delay by passing in null data.
-        if (msg.data.length == 0) {
+        if (msg.data.length == 0 && _delay == 0) {
             if (msg.sender != INITIATOR && msg.sender != VETOER) {
                 revert Unauthorized(INITIATOR, msg.sender);
             }
-            _activateDelay();
+            _delay = OPERATING_DELAY;
+            emit DelayActivated(_delay);
             return;
         }
 
@@ -189,12 +191,5 @@ contract DelayedVetoable is ISemver {
                 revert(add(returndata, 0x20), mload(returndata))
             }
         }
-    }
-
-    /// @notice Sets the delay to the operating delay.
-    function _activateDelay() internal {
-        if (_delay != 0) revert AlreadyDelayed();
-        _delay = OPERATING_DELAY;
-        emit DelayActivated(_delay);
     }
 }
