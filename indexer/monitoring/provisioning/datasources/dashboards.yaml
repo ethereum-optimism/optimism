@@ -1,0 +1,16 @@
+# This is just a placeholder until we make a grafana dashboard
+#
+# Export your Dashboard: From Grafana, after creating dashboard, go to Dashboard settings (gear icon) > JSON Model > Copy to Clipboard.
+# Save to this folder
+apiVersion: 1
+
+providers:
+  - name: 'default'
+    orgId: 1
+    folder: ''
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+

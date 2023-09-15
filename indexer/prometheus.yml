@@ -1,0 +1,12 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs: 
+  - job_name: 'indexer'
+    static_configs:
+      - targets: ['api:7300']
+  - job_name: 'api'
+    static_configs:
+      - targets: ['indexer:7300']
+rule_files:
+  - "alertrules.yml"

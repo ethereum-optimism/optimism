@@ -1,0 +1,12 @@
+# placeholder WIP
+groups:
+- name: example
+  rules:
+  - alert: HighCPUUsage
+    expr: process_cpu_seconds_total{job="api"} > 100
+    for: 5m
+    labels:
+      severity: major
+    annotations:
+      summary: "High CPU usage on {{ $labels.instance }}"
+
