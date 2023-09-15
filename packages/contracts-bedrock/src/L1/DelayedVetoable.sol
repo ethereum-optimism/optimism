@@ -71,8 +71,8 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.1
-    string public constant version = "0.0.1";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice Sets the target admin during contract deployment.
     /// @param vetoer_ Address of the vetoer.
