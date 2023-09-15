@@ -38,5 +38,6 @@
   "SchemaRegistry",
   "BOBA",
   "BobaTuringCredit",
-  "GovernanceToken"
+  "GovernanceToken",
+  "BobaHCHelper"
 ]

@@ -264,6 +264,17 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			if err := checkEAS(p, client); err != nil {
 				return err
 			}
+
+		case predeploys.BobaTuringCreditAddr:
+			if err := checkBobaTuringCredit(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaHCHelperAddr:
+			if err := checkBobaHCHelper(p, client); err != nil {
+				return err
+			}
+
 		}
 		return nil
 	})
@@ -844,6 +855,46 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 		return err
 	}
 	log.Info("EAS version", "version", version)
+	return nil
+}
+
+func checkBobaTuringCredit(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewBobaTuringCredit(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (common.Address{}) {
+		return fmt.Errorf("BobaTuringCredit owner should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "owner", owner.Hex())
+	// turingToken, err := contract.TuringToken(&bind.CallOpts{})
+	// if err != nil {
+	// 	return err
+	// }
+	// if turingToken == (common.Address{}) {
+	// 	return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
+	// }
+	// log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
+	return nil
+}
+
+func checkBobaHCHelper(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewBobaHCHelper(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (common.Address{}) {
+		return fmt.Errorf("BobaHCHelper owner should not be set to address(0)")
+	}
+	log.Info("BobaHCHelper", "owner", owner.Hex())
 	return nil
 }
 

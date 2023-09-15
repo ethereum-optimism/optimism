@@ -7,12 +7,12 @@ import (
 // The legacy system has a different set of predeploys
 // BobaTuringCredit -> 0x4200000000000000000000000000000000000020
 // BobaTuringCreditImplementation -> 0x4200000000000000000000000000000000000021
-// BobaTuringHelperImplementation -> 0x4200000000000000000000000000000000000022
+// BobaHCHelperImplementation -> 0x4200000000000000000000000000000000000022
 // BobaL2 -> 0x4200000000000000000000000000000000000023
 
 // Boba predeployed contracts will be move to the following addresses from the index 1000
 // BobaTuringCredit -> 0x42000000000000000000000000000000000003E8
-// BobaTuringHelper -> 0x42000000000000000000000000000000000003E9
+// BobaHCHelper -> 0x42000000000000000000000000000000000003E9
 
 const (
 	L2ToL1MessagePasser = "0x4200000000000000000000000000000000000016"
@@ -39,7 +39,7 @@ const (
 	// BOBA specific
 	BobaTuringCredit               = "0x42000000000000000000000000000000000003e8"
 	BobaTuringCreditImplementation = "0x4200000000000000000000000000000000000021"
-	BobaTuringHelper               = "0x42000000000000000000000000000000000003E9"
+	BobaHCHelper                   = "0x42000000000000000000000000000000000003E9"
 	BobaL2                         = "0x4200000000000000000000000000000000000023"
 
 	// Special case for Boba mainnet
@@ -72,7 +72,7 @@ var (
 	// BOBA specific
 	BobaTuringCreditAddr               = common.HexToAddress(BobaTuringCredit)
 	BobaTuringCreditImplementationAddr = common.HexToAddress(BobaTuringCreditImplementation)
-	BobaTuringHelperAddr               = common.HexToAddress(BobaTuringHelper)
+	BobaHCHelperAddr                   = common.HexToAddress(BobaHCHelper)
 	BobaL2Addr                         = common.HexToAddress(BobaL2)
 	// Special case for Boba mainnet
 	BobaTuringCredit288Addr               = common.HexToAddress(BobaTuringCredit288)
@@ -118,6 +118,6 @@ func init() {
 	// BOBA specific
 	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
 	LegacyBobaProxyImplementation["BobaTuringCreditImplementation"] = &BobaTuringCreditImplementationAddr
-	Predeploys["BobaTuringHelper"] = &BobaTuringHelperAddr
+	Predeploys["BobaHCHelper"] = &BobaHCHelperAddr
 	Predeploys["BobaL2"] = &BobaL2Addr
 }

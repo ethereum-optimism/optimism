@@ -461,7 +461,7 @@ func NewL2ImmutableConfig(config *DeployConfig, blockHeader *types.Header) (immu
 		"owner":       config.ProxyAdminOwner,
 		"turingToken": predeploys.BobaL2Addr,
 	}
-	immutable["BobaTuringHelper"] = immutables.ImmutableValues{
+	immutable["BobaHCHelper"] = immutables.ImmutableValues{
 		"owner": config.ProxyAdminOwner,
 	}
 	return immutable, nil
@@ -540,7 +540,7 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 		"owner":       config.ProxyAdminOwner,
 		"turingToken": predeploys.BobaL2Addr,
 	}
-	storage["BobaTuringHelper"] = state.StorageValues{
+	storage["BobaHCHelper"] = state.StorageValues{
 		"owner": config.ProxyAdminOwner,
 	}
 	return storage, nil

@@ -13,8 +13,6 @@ import (
 	"github.com/ledgerwatch/erigon/accounts/abi/bind/backends"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
-
-	"github.com/ledgerwatch/log/v3"
 )
 
 // ImmutableValues represents the values to be set in immutable code.
@@ -167,7 +165,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			},
 		},
 		{
-			Name: "BobaTuringHelper",
+			Name: "BobaHCHelper",
 		},
 	}
 	return BuildL2(deployments)
@@ -266,7 +264,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
 	case "BobaTuringCredit":
 		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
-		log.Info("BobaTuringCredit Deployment", "err", err, "addr", addr)
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -297,10 +294,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			_symbol,
 			uint8(_decimals),
 		)
-		log.Info("BobaL2 Deployment", "err", err, "addr", addr)
-	case "BobaTuringHelper":
+	case "BobaHCHelper":
 		addr, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
-		log.Info("BobaTuringHelper Deployment", "err", err, "addr", addr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

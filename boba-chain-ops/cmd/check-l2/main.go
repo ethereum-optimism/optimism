@@ -270,8 +270,8 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 				return err
 			}
 
-		case predeploys.BobaTuringHelperAddr:
-			if err := checkBobaTuringHelper(p, client); err != nil {
+		case predeploys.BobaHCHelperAddr:
+			if err := checkBobaHCHelper(p, client); err != nil {
 				return err
 			}
 
@@ -923,7 +923,7 @@ func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) er
 	return nil
 }
 
-func checkBobaTuringHelper(addr libcommon.Address, client *clients.RpcClient) error {
+func checkBobaHCHelper(addr libcommon.Address, client *clients.RpcClient) error {
 	contract, err := bindings.NewBobaHCHelper(addr, client)
 	if err != nil {
 		return err
@@ -933,9 +933,9 @@ func checkBobaTuringHelper(addr libcommon.Address, client *clients.RpcClient) er
 		return err
 	}
 	if owner == (libcommon.Address{}) {
-		return fmt.Errorf("BobaTuringHelper owner should not be set to address(0)")
+		return fmt.Errorf("BobaHCHelper owner should not be set to address(0)")
 	}
-	log.Info("BobaTuringHelper", "owner", owner.Hex())
+	log.Info("BobaHCHelper", "owner", owner.Hex())
 	return nil
 }
 

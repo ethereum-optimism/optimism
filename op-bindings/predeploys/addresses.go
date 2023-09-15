@@ -25,6 +25,10 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+
+	// BOBA specific
+	BobaTuringCredit = "0x42000000000000000000000000000000000003e8"
+	BobaHCHelper     = "0x42000000000000000000000000000000000003E9"
 )
 
 var (
@@ -47,6 +51,10 @@ var (
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
+
+	// BOBA specific
+	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
+	BobaHCHelperAddr     = common.HexToAddress(BobaHCHelper)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -82,4 +90,6 @@ func init() {
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
 	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
 	Predeploys["EAS"] = &EASAddr
+	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
+	Predeploys["BobaHCHelper"] = &BobaHCHelperAddr
 }

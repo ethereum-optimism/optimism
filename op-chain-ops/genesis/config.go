@@ -673,6 +673,12 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"bridge":      predeploys.L2StandardBridgeAddr,
 		"remoteToken": common.HexToAddress("0x154C5E3762FbB57427d6B03E7302BDA04C497226"),
 	}
+	immutable["BobaTuringCredit"] = immutables.ImmutableValues{
+		"owner": config.ProxyAdminOwner,
+	}
+	immutable["BobaTuringHelper"] = immutables.ImmutableValues{
+		"owner": config.ProxyAdminOwner,
+	}
 	return immutable, nil
 }
 
@@ -745,6 +751,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"bridge":        predeploys.L2StandardBridgeAddr,
 		"_initialized":  2,
 		"_initializing": false,
+	}
+	storage["BobaTuringCredit"] = state.StorageValues{
+		"owner": config.ProxyAdminOwner,
+	}
+	storage["BobaTuringHelper"] = state.StorageValues{
+		"owner": config.ProxyAdminOwner,
 	}
 	return storage, nil
 }

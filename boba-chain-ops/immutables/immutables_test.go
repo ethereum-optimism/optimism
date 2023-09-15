@@ -55,7 +55,7 @@ func TestBuildOptimism(t *testing.T) {
 			"owner":       common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			"turingToken": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
-		"BobaTuringHelper": {
+		"BobaHCHelper": {
 			"owner": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 	}
@@ -84,7 +84,7 @@ func TestBuildOptimism(t *testing.T) {
 		"SchemaRegistry":                true,
 		"BobaL2":                        true,
 		"BobaTuringCredit":              true,
-		"BobaTuringHelper":              true,
+		"BobaHCHelper":                  true,
 	}
 
 	// Only the exact contracts that we care about are being
