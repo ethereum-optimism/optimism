@@ -889,7 +889,7 @@ jobs:
           working_directory: indexer
       - run:
           name: Install node_modules
-          command: pnpm install --frozen-lockfile --offline
+          command: pnpm install --frozen-lockfile --prefer-offline
           working_directory: indexer/api-ts
       - run:
           name: Install tygo
