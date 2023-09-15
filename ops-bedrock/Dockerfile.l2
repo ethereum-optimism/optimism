@@ -1,4 +1,4 @@
-FROM us-docker.pkg.dev/bobanetwork-tools-artifacts/images/op-geth:optimism
+FROM us-docker.pkg.dev/boba-392114/bobanetwork-tools-artifacts/images/op-geth:optimism
 
 RUN apk add --no-cache jq
 
