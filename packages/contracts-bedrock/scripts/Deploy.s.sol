@@ -47,7 +47,7 @@ contract Deploy is Deployer {
     /// @notice The create2 salt used for deployment of the contract implementations.
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
-    bytes32 constant IMPL_SALT = bytes32("ether's phoenix");
+    bytes32 constant IMPL_SALT = keccak256(bytes("ether's phoenix"));
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
