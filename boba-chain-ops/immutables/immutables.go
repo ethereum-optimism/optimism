@@ -192,7 +192,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	var minimumWithdrawalAmount *big.Int
 	var withdrawalNetwork uint8
 	var err error
-	var addr common.Address
 	switch deployment.Name {
 	case "GasPriceOracle":
 		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
@@ -263,7 +262,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
 	case "BobaTuringCredit":
-		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+		_, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -285,7 +284,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		if !ok {
 			return nil, fmt.Errorf("invalid type for _decimals")
 		}
-		addr, tx, _, err = bindings.DeployL2GovernanceERC20(
+		_, tx, _, err = bindings.DeployL2GovernanceERC20(
 			opts,
 			backend,
 			l2Bridge,
@@ -295,7 +294,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			uint8(_decimals),
 		)
 	case "BobaHCHelper":
-		addr, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
+		_, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
