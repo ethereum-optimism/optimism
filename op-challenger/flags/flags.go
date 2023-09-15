@@ -230,6 +230,9 @@ func CheckRequired(ctx *cli.Context) error {
 		if err := CheckCannonFlags(ctx); err != nil {
 			return err
 		}
+		if !ctx.IsSet(RollupRpcFlag.Name) {
+			return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
+		}
 	default:
 		return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 	}
@@ -275,6 +278,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
 		MaxConcurrency:          maxConcurrency,
 		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
+		RollupRpc:               ctx.String(RollupRpcFlag.Name),
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
