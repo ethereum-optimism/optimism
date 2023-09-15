@@ -33,6 +33,7 @@ func GetDevnetPreset() (*Preset, error) {
 	return &Preset{
 		Name: "devnet",
 		ChainConfig: ChainConfig{
+			Preset:                  DEVNET_L2_CHAIN_ID,
 			L1StartingHeight:        0,
 			L1BedrockStartingHeight: 0,
 			L2BedrockStartingHeight: 0,

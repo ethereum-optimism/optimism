@@ -171,6 +171,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		log.Info("detected preset", "preset", conf.Chain.Preset, "name", preset.Name)
 		log.Info("setting L1 information from preset")
 		conf.Chain = preset.ChainConfig
+		log.Info(conf.Chain.L1Contracts.AddressManager.String())
 	}
 
 	// Setup L2Contracts from predeploys

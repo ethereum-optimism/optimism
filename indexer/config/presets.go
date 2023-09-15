@@ -16,6 +16,7 @@ var Presets = map[int]Preset{
 	10: {
 		Name: "Optimism",
 		ChainConfig: ChainConfig{
+			Preset: 10,
 			L1Contracts: L1Contracts{
 				AddressManager:              common.HexToAddress("0xdE1FCfB0851916CA5101820A69b13a4E276bd81F"),
 				SystemConfigProxy:           common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
@@ -37,6 +38,7 @@ var Presets = map[int]Preset{
 	420: {
 		Name: "Optimism Goerli",
 		ChainConfig: ChainConfig{
+			Preset: 420,
 			L1Contracts: L1Contracts{
 				AddressManager:              common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"),
 				SystemConfigProxy:           common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
@@ -58,6 +60,7 @@ var Presets = map[int]Preset{
 	8453: {
 		Name: "Base",
 		ChainConfig: ChainConfig{
+			Preset: 8453,
 			L1Contracts: L1Contracts{
 				AddressManager:              common.HexToAddress("0x8EfB6B5c4767B09Dc9AA6Af4eAA89F749522BaE2"),
 				SystemConfigProxy:           common.HexToAddress("0x73a79Fab69143498Ed3712e519A88a918e1f4072"),
@@ -73,6 +76,7 @@ var Presets = map[int]Preset{
 	84531: {
 		Name: "Base Goerli",
 		ChainConfig: ChainConfig{
+			Preset: 84531,
 			L1Contracts: L1Contracts{
 				AddressManager:              common.HexToAddress("0x4Cf6b56b14c6CFcB72A75611080514F94624c54e"),
 				SystemConfigProxy:           common.HexToAddress("0xb15eea247eCE011C68a614e4a77AD648ff495bc1"),
@@ -88,6 +92,7 @@ var Presets = map[int]Preset{
 	7777777: {
 		Name: "Zora",
 		ChainConfig: ChainConfig{
+			Preset: 7777777,
 			L1Contracts: L1Contracts{
 				AddressManager:              common.HexToAddress("0xEF8115F2733fb2033a7c756402Fc1deaa56550Ef"),
 				SystemConfigProxy:           common.HexToAddress("0xA3cAB0126d5F504B071b81a3e8A2BBBF17930d86"),
@@ -103,6 +108,7 @@ var Presets = map[int]Preset{
 	999: {
 		Name: "Zora Goerli",
 		ChainConfig: ChainConfig{
+			Preset: 999,
 			L1Contracts: L1Contracts{
 				AddressManager:              common.HexToAddress("0x54f4676203dEDA6C08E0D40557A119c602bFA246"),
 				SystemConfigProxy:           common.HexToAddress("0xF66C9A5E4fE1A8a9bc44a4aF80505a4C3620Ee64"),
