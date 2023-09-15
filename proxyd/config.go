@@ -94,6 +94,7 @@ type BackendConfig struct {
 
 	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
 	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
+	ConsensusNeverBan           bool   `toml:"consensus_never_ban"`
 	ConsensusReceiptsTarget     string `toml:"consensus_receipts_target"`
 }
 
