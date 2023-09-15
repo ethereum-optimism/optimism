@@ -33,10 +33,13 @@ type ConsensusTrackerState struct {
 	Finalized hexutil.Uint64 `json:"finalized"`
 }
 
-func (s *ConsensusTrackerState) update(o *ConsensusTrackerState) {
-	s.Latest = o.Latest
-	s.Safe = o.Safe
-	s.Finalized = o.Finalized
+func (ct *InMemoryConsensusTracker) update(o *ConsensusTrackerState) {
+	ct.mutex.Lock()
+	defer ct.mutex.Unlock()
+
+	ct.state.Latest = o.Latest
+	ct.state.Safe = o.Safe
+	ct.state.Finalized = o.Finalized
 }
 
 // InMemoryConsensusTracker store and retrieve in memory, async-safe
@@ -169,14 +172,12 @@ func NewRedisConsensusTracker(ctx context.Context,
 func (ct *RedisConsensusTracker) Init() {
 	go func() {
 		for {
-			// follow same context as backend group poller
-			ctx := ct.backendGroup.Consensus.ctx
 			timer := time.NewTimer(ct.heartbeatInterval)
 			ct.stateHeartbeat()
 
 			select {
 			case <-timer.C:
-			case <-ctx.Done():
+			case <-ct.ctx.Done():
 				timer.Stop()
 				return
 			}
@@ -242,9 +243,8 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 				log.Error("failed to unmarshal the remote state", "err", err)
 				return
 			}
-			ct.remote.mutex.Lock()
-			defer ct.remote.mutex.Unlock()
-			ct.remote.state.update(state)
+
+			ct.remote.update(state)
 			log.Debug("updated state from remote", "state", val, "leader", leaderName)
 		}
 	} else {
@@ -320,15 +320,12 @@ func (ct *RedisConsensusTracker) postPayload(mutexVal string) {
 	ct.client.Set(ct.ctx, ct.key(fmt.Sprintf("state:%s", mutexVal)), jsonState, ct.lockPeriod)
 
 	leader, _ := os.LookupEnv("HOSTNAME")
-	if leader == "" {
-
-	}
 	ct.client.Set(ct.ctx, ct.key(fmt.Sprintf("leader:%s", mutexVal)), leader, ct.lockPeriod)
 
 	log.Debug("posted state", "state", string(jsonState), "leader", leader)
 
 	ct.leaderName = leader
-	ct.remote.state.update(ct.local.state)
+	ct.remote.update(ct.local.state)
 
 	RecordGroupConsensusHALatestBlock(ct.backendGroup, leader, ct.local.state.Latest)
 	RecordGroupConsensusHASafeBlock(ct.backendGroup, leader, ct.local.state.Safe)
