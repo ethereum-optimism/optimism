@@ -4,21 +4,21 @@ import (
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
-type noopMetrics struct {
+type NoopMetricsImpl struct {
 	txmetrics.NoopTxMetrics
 }
 
-var NoopMetrics Metricer = new(noopMetrics)
+var NoopMetrics Metricer = new(NoopMetricsImpl)
 
-func (*noopMetrics) RecordInfo(version string) {}
-func (*noopMetrics) RecordUp()                 {}
+func (*NoopMetricsImpl) RecordInfo(version string) {}
+func (*NoopMetricsImpl) RecordUp()                 {}
 
-func (*noopMetrics) RecordGameMove() {}
-func (*noopMetrics) RecordGameStep() {}
+func (*NoopMetricsImpl) RecordGameMove() {}
+func (*NoopMetricsImpl) RecordGameStep() {}
 
-func (*noopMetrics) RecordCannonExecutionTime(t float64) {}
+func (*NoopMetricsImpl) RecordCannonExecutionTime(t float64) {}
 
-func (*noopMetrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
+func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {}
 
-func (*noopMetrics) RecordGameUpdateScheduled() {}
-func (*noopMetrics) RecordGameUpdateCompleted() {}
+func (*NoopMetricsImpl) RecordGameUpdateScheduled() {}
+func (*NoopMetricsImpl) RecordGameUpdateCompleted() {}

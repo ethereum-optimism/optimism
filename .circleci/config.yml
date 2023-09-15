@@ -887,6 +887,14 @@ jobs:
           name: Build
           command: make indexer
           working_directory: indexer
+      - run:
+          name: Install tygo
+          command: go install github.com/gzuidhof/tygo@latest
+          working_directory: indexer/api-ts
+      - run:
+          name: Check generated code
+          command: npm run generate && git diff --exit-code
+          working_directory: indexer/api-ts
 
   devnet:
     machine:

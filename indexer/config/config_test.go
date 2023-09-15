@@ -54,10 +54,10 @@ func TestLoadConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, conf.Chain.Preset, 420)
-	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), presetConfigs[420].L1Contracts.OptimismPortalProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), presetConfigs[420].L1Contracts.L1CrossDomainMessengerProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), presetConfigs[420].L1Contracts.L1StandardBridgeProxy.String())
-	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), presetConfigs[420].L1Contracts.L2OutputOracleProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), Presets[420].ChainConfig.L1Contracts.OptimismPortalProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), Presets[420].ChainConfig.L1Contracts.L1CrossDomainMessengerProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), Presets[420].ChainConfig.L1Contracts.L1StandardBridgeProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), Presets[420].ChainConfig.L1Contracts.L2OutputOracleProxy.String())
 	require.Equal(t, conf.RPCs.L1RPC, "https://l1.example.com")
 	require.Equal(t, conf.RPCs.L2RPC, "https://l2.example.com")
 	require.Equal(t, conf.DB.Host, "127.0.0.1")
@@ -71,7 +71,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Equal(t, conf.MetricsServer.Port, 7300)
 }
 
-func TestLoadConfig_WithoutPreset(t *testing.T) {
+func TestLoadConfigWithoutPreset(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "test_without_preset.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -103,7 +103,6 @@ func TestLoadConfig_WithoutPreset(t *testing.T) {
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
-	// Enforce default values
 	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), common.HexToAddress("0x4205Fc579115071764c7423A4f12eDde41f106Ed").String())
 	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), common.HexToAddress("0x42097868233d1aa22e815a266982f2cf17685a27").String())
 	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1").String())
@@ -117,7 +116,7 @@ func TestLoadConfig_WithoutPreset(t *testing.T) {
 	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(500))
 }
 
-func TestLoadConfig_WithUnknownPreset(t *testing.T) {
+func TestLoadConfigWithUnknownPreset(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "test_bad_preset.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -148,7 +147,7 @@ func TestLoadConfig_WithUnknownPreset(t *testing.T) {
 	require.Equal(t, fmt.Sprintf("unknown preset: %d", faultyPreset), err.Error())
 }
 
-func Test_LoadConfig_PollingValues(t *testing.T) {
+func TestLoadConfigPollingValues(t *testing.T) {
 	tmpfile, err := os.CreateTemp("", "test_user_values.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -177,26 +176,4 @@ func Test_LoadConfig_PollingValues(t *testing.T) {
 	require.Equal(t, conf.Chain.L2PollingInterval, uint(1005))
 	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(100))
 	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(105))
-}
-
-func Test_AsSliceSuccess(t *testing.T) {
-	// error cases are intentionally ignored for testing since they can only be
-	// generated when the L1Contracts struct is developer modified to hold a non-address var field
-
-	testCfg := &L1Contracts{
-		OptimismPortalProxy:         common.HexToAddress("0x4205Fc579115071764c7423A4f12eDde41f106Ed"),
-		L2OutputOracleProxy:         common.HexToAddress("0x42097868233d1aa22e815a266982f2cf17685a27"),
-		L1CrossDomainMessengerProxy: common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1"),
-		L1StandardBridgeProxy:       common.HexToAddress("0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"),
-	}
-
-	slice, err := testCfg.AsSlice()
-	require.NoError(t, err)
-	require.Equal(t, len(slice), 5)
-	require.Equal(t, slice[0].String(), testCfg.OptimismPortalProxy.String())
-	require.Equal(t, slice[1].String(), testCfg.L2OutputOracleProxy.String())
-	require.Equal(t, slice[2].String(), testCfg.L1CrossDomainMessengerProxy.String())
-	require.Equal(t, slice[3].String(), testCfg.L1StandardBridgeProxy.String())
-
-	// LegacyCanonicalTransactionChain is the 4th slot
 }

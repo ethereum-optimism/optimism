@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
 CREATE INDEX IF NOT EXISTS l1_contract_events_timestamp ON l1_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l1_contract_events_block_hash ON l1_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l1_contract_events_event_signature ON l1_contract_events(event_signature);
+CREATE INDEX IF NOT EXISTS l1_contract_events_contract_address ON l1_contract_events(contract_address);
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Searchable fields
@@ -74,51 +75,11 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
 CREATE INDEX IF NOT EXISTS l2_contract_events_timestamp ON l2_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l2_contract_events_block_hash ON l2_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l2_contract_events_event_signature ON l2_contract_events(event_signature);
-
--- Tables that index finalization markers for L2 blocks.
-
-CREATE TABLE IF NOT EXISTS legacy_state_batches (
-    index      INTEGER PRIMARY KEY,
-    root       VARCHAR NOT NULL UNIQUE,
-    size       INTEGER NOT NULL,
-    prev_total INTEGER NOT NULL,
-
-    state_batch_appended_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS output_proposals (
-    output_root     VARCHAR PRIMARY KEY,
-    l2_output_index UINT256 NOT NULL UNIQUE,
-    l2_block_number UINT256 NOT NULL UNIQUE,
-
-    output_proposed_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
-);
-
+CREATE INDEX IF NOT EXISTS l2_contract_events_contract_address ON l2_contract_events(contract_address);
 
 /**
  * BRIDGING DATA
  */
-
--- Bridged L1/L2 Tokens
-CREATE TABLE IF NOT EXISTS l1_bridged_tokens (
-    address        VARCHAR PRIMARY KEY,
-    bridge_address VARCHAR NOT NULL,
-
-    name     VARCHAR NOT NULL,
-    symbol   VARCHAR NOT NULL,
-    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
-);
-CREATE TABLE IF NOT EXISTS l2_bridged_tokens (
-    address        VARCHAR PRIMARY KEY,
-    bridge_address VARCHAR NOT NULL,
-
-    -- L1-L2 relationship is 1 to many so this is not necessarily unique
-    l1_token_address VARCHAR REFERENCES l1_bridged_tokens(address) ON DELETE CASCADE,
-
-    name     VARCHAR NOT NULL,
-    symbol   VARCHAR NOT NULL,
-    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
-);
 
 -- OptimismPortal/L2ToL1MessagePasser
 CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
@@ -202,6 +163,26 @@ CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_withdrawal_hash ON l2_
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_from_address ON l2_bridge_messages(from_address);
 
 -- StandardBridge
+CREATE TABLE IF NOT EXISTS l1_bridged_tokens (
+    address        VARCHAR PRIMARY KEY,
+    bridge_address VARCHAR NOT NULL,
+
+    name     VARCHAR NOT NULL,
+    symbol   VARCHAR NOT NULL,
+    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
+);
+CREATE TABLE IF NOT EXISTS l2_bridged_tokens (
+    address        VARCHAR PRIMARY KEY,
+    bridge_address VARCHAR NOT NULL,
+
+    -- L1-L2 relationship is 1 to many so this is not necessarily unique
+    l1_token_address VARCHAR REFERENCES l1_bridged_tokens(address) ON DELETE CASCADE,
+
+    name     VARCHAR NOT NULL,
+    symbol   VARCHAR NOT NULL,
+    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
+);
+
 CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     transaction_source_hash   VARCHAR PRIMARY KEY REFERENCES l1_transaction_deposits(source_hash) ON DELETE CASCADE,
     cross_domain_message_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_bridge_messages(message_hash) ON DELETE CASCADE,

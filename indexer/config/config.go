@@ -6,6 +6,7 @@ import (
 	"reflect"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -16,7 +17,7 @@ const (
 	defaultHeaderBufferSize = 500
 )
 
-// in future presets can just be onchain config and fetched on initialization
+// In the future, presets can just be onchain config and fetched on initialization
 
 // Config represents the `indexer.toml` file used to configure the indexer
 type Config struct {
@@ -27,50 +28,80 @@ type Config struct {
 	MetricsServer ServerConfig `toml:"metrics"`
 }
 
-// fetch this via onchain config from RPCsConfig and remove from config in future
+// L1Contracts configures deployed contracts
 type L1Contracts struct {
-	OptimismPortalProxy         common.Address `toml:"optimism-portal"`
-	L2OutputOracleProxy         common.Address `toml:"l2-output-oracle"`
+	// administrative
+	AddressManager    common.Address `toml:"address-manager"`
+	SystemConfigProxy common.Address `toml:"system-config"`
+
+	// rollup state
+	OptimismPortalProxy common.Address `toml:"optimism-portal"`
+	L2OutputOracleProxy common.Address `toml:"l2-output-oracle"`
+
+	// bridging
 	L1CrossDomainMessengerProxy common.Address `toml:"l1-cross-domain-messenger"`
 	L1StandardBridgeProxy       common.Address `toml:"l1-standard-bridge"`
+	L1ERC721BridgeProxy         common.Address `toml:"l1-erc721-bridge"`
 
-	// Pre-Bedrock Legacy Contracts
-	LegacyCanonicalTransactionChain common.Address `toml:"l1-canonical-transaction-chain"`
-
-	// Some more contracts -- L1ERC721Bridge, ProxyAdmin, SystemConfig, etc
-	// Ignore the auxiliary contracts?
-
-	// Legacy contracts? We'll add this in to index the legacy chain.
-	// Remove afterwards?
+	// IGNORE: legacy contracts (only settable via presets)
+	LegacyCanonicalTransactionChain common.Address `toml:"-"`
+	LegacyStateCommitmentChain      common.Address `toml:"-"`
 }
 
-// converts struct of to a slice of addresses for easy iteration
-// also validates that all fields are addresses
-func (c *L1Contracts) AsSlice() ([]common.Address, error) {
-	clone := *c
-	contractValue := reflect.ValueOf(clone)
-	fields := reflect.VisibleFields(reflect.TypeOf(clone))
-	l1Contracts := make([]common.Address, len(fields))
-	for i, field := range fields {
+func (c L1Contracts) ForEach(cb func(string, common.Address) error) error {
+	contracts := reflect.ValueOf(c)
+	fields := reflect.VisibleFields(reflect.TypeOf(c))
+	for _, field := range fields {
 		// ruleid: unsafe-reflect-by-name
-		addr, ok := (contractValue.FieldByName(field.Name).Interface()).(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("non-address found in L1Contracts: %s", field.Name)
+		addr := (contracts.FieldByName(field.Name).Interface()).(common.Address)
+		if err := cb(field.Name, addr); err != nil {
+			return err
 		}
-
-		l1Contracts[i] = addr
 	}
 
-	return l1Contracts, nil
+	return nil
+}
+
+// L2Contracts configures core predeploy contracts. We explicitly specify
+// fields until we can detect and backfill new addresses
+type L2Contracts struct {
+	L2ToL1MessagePasser    common.Address
+	L2CrossDomainMessenger common.Address
+	L2StandardBridge       common.Address
+	L2ERC721Bridge         common.Address
+}
+
+func L2ContractsFromPredeploys() L2Contracts {
+	return L2Contracts{
+		L2ToL1MessagePasser:    predeploys.L2ToL1MessagePasserAddr,
+		L2CrossDomainMessenger: predeploys.L2CrossDomainMessengerAddr,
+		L2StandardBridge:       predeploys.L2StandardBridgeAddr,
+		L2ERC721Bridge:         predeploys.L2ERC721BridgeAddr,
+	}
+}
+
+func (c L2Contracts) ForEach(cb func(string, common.Address) error) error {
+	contracts := reflect.ValueOf(c)
+	fields := reflect.VisibleFields(reflect.TypeOf(c))
+	for _, field := range fields {
+		// ruleid: unsafe-reflect-by-name
+		addr := (contracts.FieldByName(field.Name).Interface()).(common.Address)
+		if err := cb(field.Name, addr); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	Preset int
+	Preset           int
+	L1StartingHeight uint `toml:"l1-starting-height"`
 
-	L1Contracts      L1Contracts `toml:"l1-contracts"`
-	L1StartingHeight uint        `toml:"l1-starting-height"`
+	L1Contracts L1Contracts `toml:"l1-contracts"`
+	L2Contracts L2Contracts `toml:"-"`
 
 	// Bedrock starting heights only applicable for OP-Mainnet & OP-Goerli
 	L1BedrockStartingHeight uint `toml:"-"`
@@ -127,18 +158,24 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	}
 
 	if conf.Chain.Preset != 0 {
-		knownPreset, ok := presetConfigs[conf.Chain.Preset]
+		preset, ok := Presets[conf.Chain.Preset]
 		if !ok {
 			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
 		}
 
-		conf.Chain.L1Contracts = knownPreset.L1Contracts
-		conf.Chain.L1StartingHeight = knownPreset.L1StartingHeight
-		conf.Chain.L1BedrockStartingHeight = knownPreset.L1BedrockStartingHeight
-		conf.Chain.L2BedrockStartingHeight = knownPreset.L1BedrockStartingHeight
+		log.Info("detected preset", "preset", conf.Chain.Preset, "name", preset.Name)
+		log.Info("setting L1 information from preset")
+		conf.Chain.L1Contracts = preset.ChainConfig.L1Contracts
+		conf.Chain.L1StartingHeight = preset.ChainConfig.L1StartingHeight
+		conf.Chain.L1BedrockStartingHeight = preset.ChainConfig.L1BedrockStartingHeight
+		conf.Chain.L2BedrockStartingHeight = preset.ChainConfig.L1BedrockStartingHeight
 	}
 
-	// Set polling defaults if not set
+	// Setup L2Contracts from predeploys
+	conf.Chain.L2Contracts = L2ContractsFromPredeploys()
+
+	// Setup defaults for some unset options
+
 	if conf.Chain.L1PollingInterval == 0 {
 		log.Info("setting default L1 polling interval", "interval", defaultLoopInterval)
 		conf.Chain.L1PollingInterval = defaultLoopInterval

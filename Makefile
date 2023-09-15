@@ -145,7 +145,6 @@ clean-node-modules:
 	rm -rf node_modules
 	rm -rf packages/**/node_modules
 
-
 tag-bedrock-go-modules:
 	./ops/scripts/tag-bedrock-go-modules.sh $(BEDROCK_TAGS_REMOTE) $(VERSION)
 .PHONY: tag-bedrock-go-modules
