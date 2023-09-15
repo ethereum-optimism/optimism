@@ -229,7 +229,11 @@ func writeClaimsGraph(logger log.Logger, gameState types.Game, dir string) {
 	graph += "ordering=\"out\"\n"
 	for _, claim := range claims {
 		if !claim.IsRoot() {
-			graph = graph + fmt.Sprintf("%v->%v\n", claim.ParentContractIndex, claim.ContractIndex)
+			label := "Attack"
+			if claim.DefendsParent() {
+				label = "Defend"
+			}
+			graph = graph + fmt.Sprintf("%v->%v[label=\"%v\"]\n", claim.ParentContractIndex, claim.ContractIndex, label)
 		}
 		var color string
 		if claim.Position.Depth()%2 == 0 { // Supporting root claim
