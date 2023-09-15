@@ -65,7 +65,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 }
 
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
@@ -89,6 +89,31 @@ func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, pre
 	}
 }
 
+func (g *FaultGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
+	timedCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
+		if err != nil {
+			return false, fmt.Errorf("retrieve number of claims: %w", err)
+		}
+		// Search backwards because the new claims are at the end and more likely the ones we will fail on.
+		for i := count.Int64() - 1; i >= 0; i-- {
+			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: timedCtx}, big.NewInt(i))
+			if err != nil {
+				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
+			}
+			if predicate(claimData) {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.gameData(ctx))
+	}
+}
+
 func (g *FaultGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) common.Hash {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
@@ -105,6 +130,16 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 	return claimData
 }
 
+func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
+	g.waitForClaim(
+		ctx,
+		fmt.Sprintf("Could not find claim depth %v", depth),
+		func(claim ContractClaim) bool {
+			pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+			return pos.Depth() == depth
+		})
+}
+
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	maxDepth := g.MaxDepth(ctx)
 	g.waitForClaim(
@@ -113,6 +148,15 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 		func(claim ContractClaim) bool {
 			pos := types.NewPositionFromGIndex(claim.Position.Uint64())
 			return int64(pos.Depth()) == maxDepth && claim.Countered == countered
+		})
+}
+
+func (g *FaultGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
+	g.waitForNoClaim(
+		ctx,
+		"Did not find all claims countered",
+		func(claim ContractClaim) bool {
+			return !claim.Countered
 		})
 }
 
