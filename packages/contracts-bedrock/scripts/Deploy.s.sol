@@ -30,7 +30,7 @@ import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
-import { BOBA } from "src/boba/BOBA.sol";
+// import { BOBA } from "src/boba/BOBA.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -67,7 +67,7 @@ contract Deploy is Deployer {
 
         deployProxies();
         deployImplementations();
-        deployBOBA();
+        // deployBOBA();
 
         initializeDisputeGameFactory();
         initializeSystemConfig();
@@ -456,20 +456,20 @@ contract Deploy is Deployer {
         addr_ = address(bridge);
     }
 
-    /// @notice Deploy the BOBA
-    function deployBOBA() public broadcast returns (address addr_) {
-        BOBA bobaToken = new BOBA();
+    // /// @notice Deploy the BOBA
+    // function deployBOBA() public broadcast returns (address addr_) {
+    //     BOBA bobaToken = new BOBA();
 
-        save("BOBA", address(bobaToken));
-        console.log("BOBA deployed at %s", address(bobaToken));
+    //     save("BOBA", address(bobaToken));
+    //     console.log("BOBA deployed at %s", address(bobaToken));
 
-        addr_ = address(bobaToken);
+    //     addr_ = address(bobaToken);
 
-        // Transfer BOBA to our test account
-        address testAccount = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        bobaToken.transfer(testAccount, 100000000e18);
-        require(bobaToken.balanceOf(testAccount) == 100000000e18);
-    }
+    //     // Transfer BOBA to our test account
+    //     address testAccount = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+    //     bobaToken.transfer(testAccount, 100000000e18);
+    //     require(bobaToken.balanceOf(testAccount) == 100000000e18);
+    // }
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
     function transferAddressManagerOwnership() public broadcast {
