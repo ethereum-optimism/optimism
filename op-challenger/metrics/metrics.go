@@ -87,8 +87,7 @@ func NewMetrics() *Metrics {
 			Name:      "executors",
 			Help:      "Number of active and idle executors",
 		}, []string{
-			"active",
-			"idle",
+			"status",
 		}),
 		moves: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: Namespace,
