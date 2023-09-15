@@ -9,6 +9,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Deployer } from "./Deployer.sol";
 import { DeployConfig } from "./DeployConfig.s.sol";
 
+import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -68,7 +69,9 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts
     function run() public {
         console.log("Deploying L1 system");
-
+        deployAddressManager();
+        deployProxyAdmin();
+        deployDelayedVetoable();
         deployProxies();
         deployImplementations();
 
@@ -105,9 +108,6 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the proxies
     function deployProxies() public {
-        deployAddressManager();
-        deployProxyAdmin();
-
         deployOptimismPortalProxy();
         deployL2OutputOracleProxy();
         deploySystemConfigProxy();
@@ -162,6 +162,29 @@ contract Deploy is Deployer {
         save("ProxyAdmin", address(admin));
         console.log("ProxyAdmin deployed at %s", address(admin));
         addr_ = address(admin);
+    }
+
+    /// @notice Deploy the DelayedVetoable contract
+    function deployDelayedVetoable() public broadcast returns (address addr_) {
+        // The target of the DelayedVetoable contract is immutable, so we have to deploy the ProxyAdmin
+        // first, then update the owner of the ProxyAdmin to be DelayedVetoable, then we perform
+        // all subsequent ProxyAdmin operations through the DelayedVetoable contract.
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+
+        // First deploy delayedVetoable with the ProxyAdmin as the target
+        DelayedVetoable delayedVetoable = new DelayedVetoable({
+            // initiator_: cfg.delayedVetoableInitiator(),
+            initiator_: 0x1804c8AB1F12E6bbf3894d4083f33e07309d1f38,
+            vetoer_: cfg.delayedVetoableVetoer(),
+            target_: address(proxyAdmin),
+            operatingDelay_: cfg.delayedVetoableOperatingDelay()
+        });
+
+        // Then update the owner of the ProxyAdmin
+        ProxyAdmin(proxyAdmin).transferOwnership(address(delayedVetoable));
+        save("DelayedVetoable", address(delayedVetoable));
+        console.log("DelayedVetoable deployed at %s", address(delayedVetoable));
+        addr_ = address(delayedVetoable);
     }
 
     /// @notice Deploy the L1StandardBridgeProxy
@@ -490,14 +513,17 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the SystemConfig
     function initializeSystemConfig() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
         uint256 startBlock = cfg.systemConfigStartBlock();
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
             _data: abi.encodeCall(
@@ -559,18 +585,21 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the L1StandardBridge
     function initializeL1StandardBridge() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
-            proxyAdmin.setProxyType(l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH);
+            delayedProxyAdmin.setProxyType(l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH);
         }
         require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
             _data: abi.encodeCall(L1StandardBridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy)))
@@ -593,12 +622,15 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the L1ERC721Bridge
     function initializeL1ERC721Bridge() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
             _data: abi.encodeCall(L1ERC721Bridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy)))
@@ -614,12 +646,15 @@ contract Deploy is Deployer {
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
             _data: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
@@ -635,28 +670,31 @@ contract Deploy is Deployer {
 
     /// @notice initializeL1CrossDomainMessenger
     function initializeL1CrossDomainMessenger() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
-            proxyAdmin.setProxyType(l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED);
+            delayedProxyAdmin.setProxyType(l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED);
         }
         require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(ProxyAdmin.ProxyType.RESOLVED));
 
         string memory contractName = "OVM_L1CrossDomainMessenger";
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
         if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
-            proxyAdmin.setImplementationName(l1CrossDomainMessengerProxy, contractName);
+            delayedProxyAdmin.setImplementationName(l1CrossDomainMessengerProxy, contractName);
         }
         require(
             keccak256(bytes(proxyAdmin.implementationName(l1CrossDomainMessengerProxy)))
                 == keccak256(bytes(contractName))
         );
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _data: abi.encodeCall(L1CrossDomainMessenger.initialize, (OptimismPortal(payable(optimismPortalProxy))))
@@ -674,11 +712,14 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the L2OutputOracle
     function initializeL2OutputOracle() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _data: abi.encodeCall(
@@ -712,7 +753,10 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the OptimismPortal
     function initializeOptimismPortal() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
@@ -723,7 +767,7 @@ contract Deploy is Deployer {
             console.log("Portal guardian has no code: %s", guardian);
         }
 
-        proxyAdmin.upgradeAndCall({
+        delayedProxyAdmin.upgradeAndCall({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
             _data: abi.encodeCall(
@@ -739,16 +783,21 @@ contract Deploy is Deployer {
         require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
         require(portal.GUARDIAN() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
+        //    └─ ← "EvmError: StateChangeDuringStaticCall" ???
+        // require(portal.paused() == true);
         require(portal.paused() == false);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
     function transferProxyAdminOwnership() public broadcast {
+        // Use for read calls
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        // Use for write calls
+        ProxyAdmin delayedProxyAdmin = ProxyAdmin(mustGetAddress("DelayedVetoable"));
         address owner = proxyAdmin.owner();
         address finalSystemOwner = cfg.finalSystemOwner();
         if (owner != finalSystemOwner) {
-            proxyAdmin.transferOwnership(finalSystemOwner);
+            delayedProxyAdmin.transferOwnership(finalSystemOwner);
             console.log("ProxyAdmin ownership transferred to: %s", finalSystemOwner);
         }
     }
@@ -756,6 +805,8 @@ contract Deploy is Deployer {
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
     function transferDisputeGameFactoryOwnership() public onlyDevnet broadcast {
         DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        // ahhh shit.
         address owner = disputeGameFactory.owner();
         address finalSystemOwner = cfg.finalSystemOwner();
         if (owner != finalSystemOwner) {

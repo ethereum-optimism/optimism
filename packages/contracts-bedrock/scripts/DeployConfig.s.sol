@@ -48,6 +48,9 @@ contract DeployConfig is Script {
     uint256 public faultGameMaxDepth;
     uint256 public faultGameMaxDuration;
     uint256 public systemConfigStartBlock;
+    address public delayedVetoableInitiator;
+    address public delayedVetoableVetoer;
+    uint256 public delayedVetoableOperatingDelay;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
