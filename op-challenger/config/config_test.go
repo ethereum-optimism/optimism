@@ -28,7 +28,7 @@ func validConfig(traceType TraceType) Config {
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
-	case TraceTypeCannon:
+	case TraceTypeCannon, TraceTypeOutputCannon:
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState

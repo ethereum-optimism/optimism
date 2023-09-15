@@ -422,14 +422,12 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 	switch traceType {
 	case config.TraceTypeAlphabet:
 		args["--alphabet"] = alphabetTrace
-	case config.TraceTypeCannon:
+	case config.TraceTypeCannon, config.TraceTypeOutputCannon:
 		args["--cannon-network"] = cannonNetwork
 		args["--cannon-bin"] = cannonBin
 		args["--cannon-server"] = cannonServer
 		args["--cannon-prestate"] = cannonPreState
 		args["--cannon-l2"] = cannonL2
-	case config.TraceTypeOutput:
-		// No additional args required
 	}
 	return args
 }
