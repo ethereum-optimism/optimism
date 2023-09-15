@@ -109,6 +109,7 @@ devnet-down:
 
 devnet-clean:
 	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
+	rm -rf ./packages/contracts-bedrock/deploy-config/devnetL1.json
 	rm -rf ./.devnet
 	cd ./ops-bedrock && docker compose down
 	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
@@ -144,7 +145,6 @@ semgrep:
 clean-node-modules:
 	rm -rf node_modules
 	rm -rf packages/**/node_modules
-
 
 tag-bedrock-go-modules:
 	./ops/scripts/tag-bedrock-go-modules.sh $(BEDROCK_TAGS_REMOTE) $(VERSION)

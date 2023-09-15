@@ -158,20 +158,16 @@ func TestGetStepData(t *testing.T) {
 			Exited: true,
 		}
 		generator.proof = &proofData{
-			ClaimValue:   common.Hash{0xaa},
-			StateData:    []byte{0xbb},
-			ProofData:    []byte{0xcc},
-			OracleKey:    common.Hash{0xdd}.Bytes(),
-			OracleValue:  []byte{0xdd},
-			OracleOffset: 10,
+			ClaimValue: common.Hash{0xaa},
+			StateData:  []byte{0xbb},
+			ProofData:  []byte{0xcc},
 		}
 		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
 		require.NoError(t, err)
-		require.Contains(t, generator.generated, 10, "should have tried to generate the proof")
+		require.Empty(t, generator.generated, "should not have to generate the proof again")
 
-		witness := generator.finalState.EncodeWitness()
-		require.EqualValues(t, witness, preimage)
-		require.Equal(t, []byte{}, proof)
+		require.EqualValues(t, initGenerator.finalState.EncodeWitness(), preimage)
+		require.Empty(t, proof)
 		require.Nil(t, data)
 	})
 
