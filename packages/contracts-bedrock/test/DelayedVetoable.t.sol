@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
-import { DelayedVetoable } from "../src/L1/DelayedVetoable.sol";
+import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 
 contract DelayedVetoable_Init is CommonTest {
     error Unauthorized(address expected, address actual);
@@ -109,6 +109,11 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
 
+        // Check that the call is in the _queuedAt mapping
+        bytes32 callHash = keccak256(data);
+        vm.prank(address(0));
+        assertEq(delayedVetoable.queuedAt(callHash), block.timestamp);
+
         vm.warp(block.timestamp + operatingDelay);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
         emit Forwarded(keccak256(data), data);
@@ -124,7 +129,6 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     function test_handleCall_unauthorizedInitiation_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
         (bool success,) = address(delayedVetoable).call(NON_ZERO_DATA);
-        assertTrue(success);
     }
 
     /// @dev The call cannot be forewarded until the delay has passed.
@@ -134,7 +138,6 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
 
         vm.expectRevert(abi.encodeWithSelector(ForwardingEarly.selector));
         (success,) = address(delayedVetoable).call(data);
-        assertFalse(success);
     }
 
     /// @dev The call cannot be forwarded a second time.
