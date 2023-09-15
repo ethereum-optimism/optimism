@@ -11,7 +11,6 @@ RUN apt-get update && \
   chmod +x ./rustup.sh && \
   ./rustup.sh -y
 
-COPY ./.abigenrc ./.abigenrc
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
@@ -55,7 +54,7 @@ RUN apt-get update && \
   go install gotest.tools/gotestsum@latest && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
-
+COPY ./.abigenrc ./.abigenrc
 # Install the specific version of abigen from .abigenrc
 RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
 
