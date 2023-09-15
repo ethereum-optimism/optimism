@@ -18,7 +18,7 @@ var rules = []actionRule{
 	doNotDefendRootClaim,
 }
 
-func checkRules(game types.Game, action types.Action) error {
+func CheckRules(game types.Game, action types.Action) error {
 	var errs []error
 	for _, rule := range rules {
 		errs = append(errs, rule(game, action))

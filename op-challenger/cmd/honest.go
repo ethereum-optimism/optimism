@@ -4,9 +4,11 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
@@ -55,9 +57,16 @@ func HonestMoves(ctx *cli.Context) error {
 	loader := game.NewGameLoader(factory)
 
 	logger.Info("Fetching games", "factory", cfg.GameFactoryAddress)
-	games, err := loader.FetchAllGamesAtBlock(ctx.Context, minGameTimestamp(cfg.GameWindow), nil)
-	if err != nil {
-		return fmt.Errorf("failed to load games: %w", err)
+	var games []game.FaultDisputeGame
+	if len(cfg.GameAllowlist) == 0 {
+		games, err = loader.FetchAllGamesAtBlock(ctx.Context, minGameTimestamp(cfg.GameWindow), nil)
+		if err != nil {
+			return fmt.Errorf("failed to load games: %w", err)
+		}
+	} else {
+		for _, address := range cfg.GameAllowlist {
+			games = append(games, game.FaultDisputeGame{Proxy: address})
+		}
 	}
 
 	allData := make(map[common.Address]gameData)
@@ -78,7 +87,7 @@ func HonestMoves(ctx *cli.Context) error {
 	for addr, data := range allData {
 		logger := logger.New("game", addr)
 		logClaims(logger, data.state)
-		logActions(logger, data.missingActions)
+		logActions(logger, data.state, data.missingActions)
 		logger.Info("Game Status", "status", data.status)
 	}
 	return errors.Join(errs...)
@@ -110,12 +119,11 @@ func logGameMoves(ctx *cli.Context, logger log.Logger, addr common.Address, clie
 		return gameData{}, fmt.Errorf("failed to load state of game %v: %w", addr, err)
 	}
 	logClaims(logger, gameState)
+	writeClaimsGraph(logger, gameState, dir)
 	actions, err := gameSolver.CalculateNextActions(ctx.Context, gameState)
 	if err != nil {
 		return gameData{}, fmt.Errorf("failed to calculate actions for game %v: %w", addr, err)
 	}
-	logClaims(logger, gameState)
-	logActions(logger, actions)
 	return gameData{
 		state:          gameState,
 		missingActions: actions,
@@ -123,14 +131,65 @@ func logGameMoves(ctx *cli.Context, logger log.Logger, addr common.Address, clie
 	}, nil
 }
 
-func logActions(logger log.Logger, actions []types.Action) {
+func logActions(logger log.Logger, gameState types.Game, actions []types.Action) {
 	for _, action := range actions {
-		logger.Info("Missing honest action", "type", action.Type, "parentIdx", action.ParentIdx, "attack", action.IsAttack, "value", action.Value,
-			"prestate", hex.EncodeToString(action.PreState), "proof", hex.EncodeToString(action.ProofData))
+		logger := logger.New("type", action.Type, "parentIdx", action.ParentIdx, "attack", action.IsAttack)
+		logger.Info("Missing honest action",
+			"value", action.Value, "prestate", hex.EncodeToString(action.PreState), "proof", hex.EncodeToString(action.ProofData))
+		if err := solver.CheckRules(gameState, action); err != nil {
+			logger.Error("Invalid action proposed", "err", err)
+			continue
+		}
+		if action.Type == types.ActionTypeStep {
+			logStepInfo(logger, gameState, action)
+		}
 	}
 	if len(actions) == 0 {
 		logger.Info("All honest actions played")
 	}
+}
+
+func logStepInfo(logger log.Logger, state types.Game, action types.Action) {
+	witness := mipsevm.StateWitness(action.PreState)
+	hash, err := witness.StateHash()
+	if err != nil {
+		logger.Error("Failed to calculate pre-state hash", "err", err)
+		return
+	}
+	logger.Info("Actual pre-state hash", "hash", hash)
+	ancestorClaim := state.Claims()[action.ParentIdx]
+	var postStateClaim types.Claim
+	var preStateClaim types.Claim
+	depth := int(state.MaxDepth())
+	parentTraceIdx := ancestorClaim.Position.TraceIndex(depth)
+	var traceIdxToFind uint64
+	if action.IsAttack {
+		postStateClaim = ancestorClaim
+		traceIdxToFind = parentTraceIdx - 1
+	} else {
+		traceIdxToFind = parentTraceIdx + 1
+		preStateClaim = ancestorClaim
+	}
+	for ancestorClaim.Position.TraceIndex(depth) != traceIdxToFind {
+		if ancestorClaim.IsRoot() {
+			logger.Error("Failed to find ancestor claim for pre/post state", "requiredTraceIdx", traceIdxToFind)
+			return
+		}
+		ancestorClaim = state.Claims()[ancestorClaim.ParentContractIndex]
+	}
+	if action.IsAttack {
+		preStateClaim = ancestorClaim
+	} else {
+		postStateClaim = ancestorClaim
+	}
+	logger.Info("Required pre-state hash",
+		"hash", preStateClaim.Value,
+		"sourceClaimIdx", preStateClaim.ContractIndex,
+		"traceIdx", preStateClaim.Position.TraceIndex(depth))
+	logger.Info("Post-state hash",
+		"hash", postStateClaim.Value,
+		"sourceClaimIdx", postStateClaim.ContractIndex,
+		"traceIdx", postStateClaim.Position.TraceIndex(depth))
 }
 
 type gameData struct {
@@ -140,15 +199,57 @@ type gameData struct {
 }
 
 func logClaims(logger log.Logger, gameState types.Game) {
-	for i, claim := range gameState.Claims() {
+	claims := gameState.Claims()
+	slices.SortFunc(claims, func(a, b types.Claim) bool {
+		return a.ContractIndex < b.ContractIndex
+	})
+	for _, claim := range claims {
 		logger.Info("Claim",
-			"idx", i,
-			"pos", claim.Position.ToGIndex(),
-			"traceIdx", claim.Position.TraceIndex(int(gameState.MaxDepth())),
+			"idx", claim.ContractIndex,
 			"parentIdx", claim.ParentContractIndex,
+			"pos", claim.Position.ToGIndex(),
+			"depth", claim.Position.Depth(),
+			"traceIdx", claim.Position.TraceIndex(int(gameState.MaxDepth())),
 			"countered", claim.Countered,
 			"value", claim.Value)
 	}
+}
+
+func writeClaimsGraph(logger log.Logger, gameState types.Game, dir string) {
+	claims := gameState.Claims()
+	depth := int(gameState.MaxDepth())
+	// Order by trace index so branches are ordered based on trace index
+	slices.SortFunc(claims, func(a, b types.Claim) bool {
+		return a.Position.TraceIndex(depth) < b.Position.TraceIndex(depth)
+	})
+	graph := "digraph G {\n"
+	graph += "ordering=\"out\"\n"
+	for _, claim := range claims {
+		if !claim.IsRoot() {
+			graph = graph + fmt.Sprintf("%v->%v\n", claim.ParentContractIndex, claim.ContractIndex)
+		}
+		var color string
+		if claim.Position.Depth()%2 == 0 { // Supporting root claim
+			color = "red"
+		} else {
+			color = "green"
+		}
+		label := fmt.Sprintf("Claim: %v\\n%v\\nTrace: %v", claim.ContractIndex, claim.Value.TerminalString(), claim.Position.TraceIndex(depth))
+		var style string
+		if !claim.Countered {
+			style = "filled"
+		}
+		graph = graph + fmt.Sprintf("%v[color=\"%v\" label=\"%v\" style=\"%v\"]\n", claim.ContractIndex, color, label, style)
+	}
+	graph = graph + "}"
+
+	// Doesn't use a logger because we need this to be easy to copy/paste
+	path := filepath.Join(dir, "graph.dot")
+	if err := os.WriteFile(path, []byte(graph), 0644); err != nil {
+		logger.Error("Failed to write graph data", "err", err)
+		return
+	}
+	logger.Info("Graphviz visualisation", "path", path)
 }
 
 func minGameTimestamp(gameWindow time.Duration) uint64 {
