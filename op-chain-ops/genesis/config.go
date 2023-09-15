@@ -676,7 +676,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	immutable["BobaTuringCredit"] = immutables.ImmutableValues{
 		"owner": config.ProxyAdminOwner,
 	}
-	immutable["BobaTuringHelper"] = immutables.ImmutableValues{
+	immutable["BobaHCHelper"] = immutables.ImmutableValues{
 		"owner": config.ProxyAdminOwner,
 	}
 	return immutable, nil
@@ -755,7 +755,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["BobaTuringCredit"] = state.StorageValues{
 		"owner": config.ProxyAdminOwner,
 	}
-	storage["BobaTuringHelper"] = state.StorageValues{
+	storage["BobaHCHelper"] = state.StorageValues{
 		"owner": config.ProxyAdminOwner,
 	}
 	return storage, nil

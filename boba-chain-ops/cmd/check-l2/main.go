@@ -905,7 +905,6 @@ func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) er
 		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
 	}
 	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
-
 	slot, err := client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyOwnerSlot, nil)
 	if err != nil {
 		return err

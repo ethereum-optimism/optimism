@@ -152,9 +152,6 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		},
 		{
 			Name: "BobaTuringCredit",
-			Args: []interface{}{
-				immutable["BobaTuringCredit"]["turingToken"],
-			},
 		},
 		{
 			Name: "BobaHCHelper",
