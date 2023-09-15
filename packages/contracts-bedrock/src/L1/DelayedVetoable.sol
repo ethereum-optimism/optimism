@@ -47,11 +47,11 @@ contract DelayedVetoable is ISemver {
     /// @notice The address that can initiate a call.
     address internal immutable INITIATOR;
 
-    /// @notice The current amount of time to wait before forwarding a call.
-    uint256 internal _delay;
-
     /// @notice The delay which will be set after the initial system deployment is completed.
     uint256 internal immutable OPERATING_DELAY;
+
+    /// @notice The current amount of time to wait before forwarding a call.
+    uint256 internal _delay;
 
     /// @notice The time that a call was initiated.
     mapping(bytes32 => uint256) internal _queuedAt;
@@ -130,7 +130,6 @@ contract DelayedVetoable is ISemver {
         // The initiator and vetoer activate the delay by passing in null data.
         if (msg.data.length == 0) {
             if (msg.sender != INITIATOR && msg.sender != VETOER) {
-                // todo(maurelian): make this error have an expected array.
                 revert Unauthorized(INITIATOR, msg.sender);
             }
             _activateDelay();
@@ -180,13 +179,15 @@ contract DelayedVetoable is ISemver {
     function _forwardAndHalt(bytes32 callHash) internal {
         // Forward the call
         emit Forwarded(callHash, msg.data);
-        (bool success,) = TARGET.call(msg.data);
-        assembly {
-            // Success == 0 means a revert. We'll revert too and pass the data up.
-            if iszero(success) { revert(0x0, returndatasize()) }
-
-            // Otherwise we'll just return and pass the data up.
-            return(0x0, returndatasize())
+        (bool success, bytes memory returndata) = TARGET.call(msg.data);
+        if (success == true) {
+            assembly {
+                return(add(returndata, 0x20), mload(returndata))
+            }
+        } else {
+            assembly {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
         }
     }
 
