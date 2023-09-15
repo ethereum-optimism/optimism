@@ -15,6 +15,7 @@ import (
 	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
@@ -199,10 +200,10 @@ type DeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are required to adopt, to stay in sync with the network.
-	RequiredProtocolVersion common.Hash `json:"requiredProtocolVersion"`
+	RequiredProtocolVersion params.ProtocolVersion `json:"requiredProtocolVersion"`
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
-	RecommendedProtocolVersion common.Hash `json:"recommendedProtocolVersion"`
+	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
