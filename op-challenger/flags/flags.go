@@ -76,14 +76,22 @@ var (
 		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
 		Value:   config.DefaultPollInterval,
 	}
+	RollupRpcFlag = &cli.StringFlag{
+		Name:    "rollup-rpc",
+		Usage:   "HTTP provider URL for the rollup node",
+		EnvVars: prefixEnvVars("ROLLUP_RPC"),
+	}
 	AlphabetFlag = &cli.StringFlag{
 		Name:    "alphabet",
 		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
 		EnvVars: prefixEnvVars("ALPHABET"),
 	}
 	CannonNetworkFlag = &cli.StringFlag{
-		Name:    "cannon-network",
-		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s (cannon trace type only)", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		Name: "cannon-network",
+		Usage: fmt.Sprintf(
+			"Predefined network selection. Available networks: %s (cannon trace type only)",
+			strings.Join(chaincfg.AvailableNetworks(), ", "),
+		),
 		EnvVars: prefixEnvVars("CANNON_NETWORK"),
 	}
 	CannonRollupConfigFlag = &cli.StringFlag{
@@ -149,6 +157,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
 	HTTPPollInterval,
+	RollupRpcFlag,
 	AlphabetFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
