@@ -428,6 +428,8 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		args["--cannon-server"] = cannonServer
 		args["--cannon-prestate"] = cannonPreState
 		args["--cannon-l2"] = cannonL2
+	case config.TraceTypeOutput:
+		// No additional args required
 	}
 	return args
 }

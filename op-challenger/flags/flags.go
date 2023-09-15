@@ -210,6 +210,9 @@ func CheckRequired(ctx *cli.Context) error {
 		if !ctx.IsSet(AlphabetFlag.Name) {
 			return fmt.Errorf("flag %s is required", "alphabet")
 		}
+	case config.TraceTypeOutput:
+		// Mark the flag as unsupported for now so that we can implement downstream
+		return fmt.Errorf("flag %s is not supported", "output")
 	default:
 		return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 	}

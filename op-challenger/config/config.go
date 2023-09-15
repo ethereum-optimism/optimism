@@ -39,6 +39,7 @@ type TraceType string
 const (
 	TraceTypeAlphabet TraceType = "alphabet"
 	TraceTypeCannon   TraceType = "cannon"
+	TraceTypeOutput   TraceType = "output"
 
 	// Mainnet games
 	CannonFaultGameID = 0
@@ -47,7 +48,7 @@ const (
 	AlphabetFaultGameID = 255
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutput}
 
 // GameIdToString maps game IDs to their string representation.
 var GameIdToString = map[uint8]string{
