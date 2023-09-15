@@ -156,6 +156,17 @@ def devnet_l1_genesis(paths):
     geth.terminate()
 
 
+def add_boba_token_to_config(paths):
+    deploy_config = read_json(paths.devnet_config_path)
+    addresses = read_json(paths.addresses_json_path)
+    deploy_config['l1BobaTokenAddress'] = addresses['BOBA']
+    write_json(paths.devnet_config_path, deploy_config)
+
+def remove_boba_token_from_config(paths):
+    deploy_config = read_json(paths.devnet_config_path)
+    del deploy_config['l1BobaTokenAddress']
+    write_json(paths.devnet_config_path, deploy_config)
+
 # Bring up the devnet where the contracts are deployed to L1
 def devnet_deploy(paths):
     if os.path.exists(paths.genesis_l1_path):
@@ -186,6 +197,8 @@ def devnet_deploy(paths):
     })
     wait_up(8545)
     wait_for_rpc_server('127.0.0.1:8545')
+
+    add_boba_token_to_config(paths)
 
     if os.path.exists(paths.genesis_l2_path):
         log.info('L2 genesis and rollup configs already generated.')
@@ -221,6 +234,8 @@ def devnet_deploy(paths):
         'L2OO_ADDRESS': l2_output_oracle,
         'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
     })
+
+    remove_boba_token_from_config(paths)
 
     log.info('Devnet ready.')
 
