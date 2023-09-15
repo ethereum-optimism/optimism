@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest, Reverter } from "./CommonTest.t.sol";
+import { CommonTest } from "./CommonTest.t.sol";
 import { DelayedVetoable } from "../src/L1/DelayedVetoable.sol";
 
 contract DelayedVetoable_Init is CommonTest {
@@ -17,7 +17,6 @@ contract DelayedVetoable_Init is CommonTest {
     address vetoer = bob;
     uint256 operatingDelay = 14 days;
     DelayedVetoable delayedVetoable;
-    Reverter reverter;
 
     function setUp() public override {
         super.setUp();
@@ -27,13 +26,12 @@ contract DelayedVetoable_Init is CommonTest {
             target_: address(target),
             operatingDelay_: operatingDelay
         });
+
         // Most tests will use the operating delay, so we call as the initiator with null data
         // to set the delay. For tests that need to use the initial zero delay, we'll modify the
         // value in storage.
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(hex"");
-
-        reverter = new Reverter();
     }
 
     /// @dev This function is used to prevent initiating the delay unintentionally..
@@ -78,22 +76,29 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
 
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
-        assert(success);
+        assertTrue(success);
     }
 
     /// @dev The delay is inititially set to zero and the call is immediately forwarded.
-    function testFuzz_handleCall_initialForwardingImmediately_succeeds(bytes memory data) external {
-        assumeNonzeroData(data);
+    function testFuzz_handleCall_initialForwardingImmediately_succeeds(
+        bytes memory inData,
+        bytes memory outData
+    )
+        external
+    {
+        assumeNonzeroData(inData);
 
         // Reset the delay to zero
         vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
 
-        vm.prank(initiator);
+        vm.mockCall(target, inData, outData);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
-        vm.expectCall({ callee: target, data: data });
-        emit Forwarded(keccak256(data), data);
-        (bool success,) = address(delayedVetoable).call(data);
-        assert(success);
+        vm.expectCall({ callee: target, data: inData });
+        emit Forwarded(keccak256(inData), inData);
+        vm.prank(initiator);
+        (bool success, bytes memory returnData) = address(delayedVetoable).call(inData);
+        assertTrue(success);
+        assertEq(returnData, outData);
     }
 
     /// @dev The delay can be activated by the vetoer or initiator, and are not forwarded until the delay has passed
@@ -102,7 +107,6 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
         assumeNonzeroData(data);
 
         vm.prank(initiator);
-        // it's immediately forwarding for some reason.
         (bool success,) = address(delayedVetoable).call(data);
 
         vm.warp(block.timestamp + operatingDelay);
@@ -111,7 +115,7 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
 
         vm.expectCall({ callee: target, data: data });
         (success,) = address(delayedVetoable).call(data);
-        assert(success);
+        assertTrue(success);
     }
 }
 
@@ -120,7 +124,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     function test_handleCall_unauthorizedInitiation_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
         (bool success,) = address(delayedVetoable).call(NON_ZERO_DATA);
-        assert(success);
+        assertTrue(success);
     }
 
     /// @dev The call cannot be forewarded until the delay has passed.
@@ -148,28 +152,30 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Forward the call
         vm.expectCall({ callee: target, data: data });
         (success,) = address(delayedVetoable).call(data);
-        assert(success);
+        assertTrue(success);
 
         // Attempt to foward the same call again.
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
         (success,) = address(delayedVetoable).call(data);
-        assert(success);
+        assertTrue(success);
     }
 
     /// @dev If the target reverts, it is bubbled up.
-    function testFuzz_handleCall_forwardingTargetReverts_reverts(bytes memory data) external {
-        assumeNonzeroData(data);
+    function testFuzz_handleCall_forwardingTargetReverts_reverts(bytes memory inData, bytes memory outData) external {
+        assumeNonzeroData(inData);
 
-        vm.etch(target, address(reverter).code);
-
+        // Initiate the call
         vm.prank(initiator);
-        (bool success,) = address(delayedVetoable).call(data);
+        (bool success,) = address(delayedVetoable).call(inData);
 
         vm.warp(block.timestamp + operatingDelay);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
-        emit Forwarded(keccak256(data), data);
+        emit Forwarded(keccak256(inData), inData);
 
-        (success,) = address(delayedVetoable).call(data);
-        assertFalse(success);
+        vm.mockCallRevert(target, inData, outData);
+
+        // Forward the call
+        vm.expectRevert(outData);
+        (bool success2,) = address(delayedVetoable).call(inData);
     }
 }
