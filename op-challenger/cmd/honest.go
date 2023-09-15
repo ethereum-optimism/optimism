@@ -96,7 +96,10 @@ func HonestMoves(ctx *cli.Context) error {
 func logGameMoves(ctx *cli.Context, logger log.Logger, addr common.Address, client *ethclient.Client, cfg *config.Config) (gameData, error) {
 	logger = logger.New("game", addr)
 	logger.Info("Fetching game state")
-	dir := filepath.Join(cfg.Datadir, addr.Hex())
+	dir := filepath.Join(cfg.Datadir, fmt.Sprintf("game-%v", addr.Hex()))
+	if err := os.MkdirAll(dir, 0755); err != nil && !errors.Is(err, os.ErrExist) {
+		return gameData{}, err
+	}
 	gameLoader, err := fault.NewLoaderFromBindings(addr, client)
 	if err != nil {
 		return gameData{}, fmt.Errorf("failed to create claim loader for game %v: %w", addr, err)
