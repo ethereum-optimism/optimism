@@ -140,6 +140,10 @@ type ServerConfig struct {
 	Port int    `toml:"port"`
 }
 
+var (
+	DEVNET_CHAIN_ID = 901
+)
+
 // LoadConfig loads the `indexer.toml` config file from a given path
 func LoadConfig(log log.Logger, path string) (Config, error) {
 	log.Debug("loading config", "path", path)
@@ -157,18 +161,20 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
-	if conf.Chain.Preset != 0 {
+	if conf.Chain.Preset == DEVNET_CHAIN_ID {
+		preset, err := GetDevnetPreset()
+		if err != nil {
+			return conf, err
+		}
+		conf.Chain = preset.ChainConfig
+	} else if conf.Chain.Preset != 0 {
 		preset, ok := Presets[conf.Chain.Preset]
 		if !ok {
 			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
 		}
-
 		log.Info("detected preset", "preset", conf.Chain.Preset, "name", preset.Name)
 		log.Info("setting L1 information from preset")
-		conf.Chain.L1Contracts = preset.ChainConfig.L1Contracts
-		conf.Chain.L1StartingHeight = preset.ChainConfig.L1StartingHeight
-		conf.Chain.L1BedrockStartingHeight = preset.ChainConfig.L1BedrockStartingHeight
-		conf.Chain.L2BedrockStartingHeight = preset.ChainConfig.L1BedrockStartingHeight
+		conf.Chain = preset.ChainConfig
 	}
 
 	// Setup L2Contracts from predeploys
