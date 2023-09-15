@@ -33,21 +33,6 @@ func DialEthClientWithTimeout(timeout time.Duration, log log.Logger, url string)
 	return ethclient.NewClient(c), nil
 }
 
-// DialRPCClientWithTimeout attempts to dial the L1 provider using the provided
-// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
-// method will return an error.
-func DialRPCClientWithTimeout(timeout time.Duration, log log.Logger, url string) (*rpc.Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-
-	c, err := dialRPCClientWithBackoff(ctx, log, url)
-	if err != nil {
-		return nil, err
-	}
-
-	return c, nil
-}
-
 // DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
 // If the dial doesn't complete within timeout seconds, this method will return an error.
 func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url string) (*sources.RollupClient, error) {
