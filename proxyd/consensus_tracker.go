@@ -177,6 +177,7 @@ func (ct *RedisConsensusTracker) Init() {
 
 			select {
 			case <-timer.C:
+				continue
 			case <-ct.ctx.Done():
 				timer.Stop()
 				return
@@ -246,6 +247,10 @@ func (ct *RedisConsensusTracker) stateHeartbeat() {
 
 			ct.remote.update(state)
 			log.Debug("updated state from remote", "state", val, "leader", leaderName)
+
+			RecordGroupConsensusHALatestBlock(ct.backendGroup, leaderName, ct.remote.state.Latest)
+			RecordGroupConsensusHASafeBlock(ct.backendGroup, leaderName, ct.remote.state.Safe)
+			RecordGroupConsensusHAFinalizedBlock(ct.backendGroup, leaderName, ct.remote.state.Finalized)
 		}
 	} else {
 		if !ct.local.Valid() {
@@ -308,9 +313,6 @@ func (ct *RedisConsensusTracker) SetFinalizedBlockNumber(blockNumber hexutil.Uin
 }
 
 func (ct *RedisConsensusTracker) postPayload(mutexVal string) {
-	ct.remote.mutex.Lock()
-	defer ct.remote.mutex.Unlock()
-
 	jsonState, err := json.Marshal(ct.local.state)
 	if err != nil {
 		log.Error("failed to marshal local", "err", err)
@@ -327,7 +329,7 @@ func (ct *RedisConsensusTracker) postPayload(mutexVal string) {
 	ct.leaderName = leader
 	ct.remote.update(ct.local.state)
 
-	RecordGroupConsensusHALatestBlock(ct.backendGroup, leader, ct.local.state.Latest)
-	RecordGroupConsensusHASafeBlock(ct.backendGroup, leader, ct.local.state.Safe)
-	RecordGroupConsensusHAFinalizedBlock(ct.backendGroup, leader, ct.local.state.Finalized)
+	RecordGroupConsensusHALatestBlock(ct.backendGroup, leader, ct.remote.state.Latest)
+	RecordGroupConsensusHASafeBlock(ct.backendGroup, leader, ct.remote.state.Safe)
+	RecordGroupConsensusHAFinalizedBlock(ct.backendGroup, leader, ct.remote.state.Finalized)
 }
