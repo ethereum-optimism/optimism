@@ -19,8 +19,14 @@ WORKDIR /app/indexer
 
 RUN make indexer
 
-FROM alpine:3.18
+FROM alpine:3.18 as runner
 
-COPY --from=builder /app/indexer/indexer /usr/local/bin
+WORKDIR /app
 
-CMD ["indexer", "all", "--config", "/app/indexer/indexer.toml"]
+ENV PATH="/app:${PATH}"
+
+COPY --from=builder /app/indexer/indexer ./
+COPY --from=builder /app/indexer/indexer.toml ./configs/indexer.toml
+COPY --from=builder /app/indexer/migrations ./migrations
+
+CMD ["indexer", "all", "--config", "/app/configs/indexer.toml"]
