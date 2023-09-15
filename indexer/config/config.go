@@ -140,10 +140,6 @@ type ServerConfig struct {
 	Port int    `toml:"port"`
 }
 
-var (
-	DEVNET_CHAIN_ID = 901
-)
-
 // LoadConfig loads the `indexer.toml` config file from a given path
 func LoadConfig(log log.Logger, path string) (Config, error) {
 	log.Debug("loading config", "path", path)
@@ -161,7 +157,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		return conf, err
 	}
 
-	if conf.Chain.Preset == DEVNET_CHAIN_ID {
+	if conf.Chain.Preset == DEVNET_L2_CHAIN_ID {
 		preset, err := GetDevnetPreset()
 		if err != nil {
 			return conf, err
