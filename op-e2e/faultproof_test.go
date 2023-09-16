@@ -341,6 +341,71 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	}
 }
 
+func TestCannonDeleteInvalidOutputRoot(t *testing.T) {
+	InitParallel(t)
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	l2oo := l2oo2.NewL2OOHelper(t, sys.cfg.L1Deployments, l1Client, sys.cfg.Secrets.Proposer, sys.RollupConfig)
+
+	// Wait for one valid output root to be submitted
+	l2oo.WaitForProposals(ctx, 1)
+
+	// Stop the honest output submitter so we can publish invalid outputs
+	sys.L2OutputSubmitter.Stop()
+	sys.L2OutputSubmitter = nil
+
+	// Submit an invalid output root
+	l2oo.PublishNextOutput(ctx, common.Hash{0xaa})
+
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+
+	// Dispute the new output root by creating a new game with the correct cannon trace.
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+	require.NotNil(t, game)
+
+	// At this point the root claim of the game is honest and the defender should always win.
+
+	// First setup a sacrificial, incorrect attack on the root claim
+	game.Attack(ctx, 0, common.Hash{0xff}) // Claim Idx 1
+	// Attack and defend our own claim with the correct values to take them out of play
+	correctTrace.Attack(ctx, 1) // Claim Idx 2
+	correctTrace.Defend(ctx, 1) // Claim Idx 3
+
+	// Now attack the root with any other value which the honest challenger won't be able to counter and so will win
+	game.Attack(ctx, 0, common.Hash{0xcc})
+
+	// Start the honest challenger
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Defender",
+		// Disagree with the proposed output, so agree with the (correct) root claim
+		challenger.WithAgreeProposedOutput(false),
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+
+	// Give the challengers time to progress down the full game depth
+	depth := game.MaxDepth(ctx)
+	for i := 3; i <= int(depth); i++ {
+		game.WaitForClaimAtDepth(ctx, i)
+		game.LogGameData(ctx)
+	}
+
+	// Wait for all the leaf nodes to be countered
+	// Wait for the challengers to drive the game down to the leaf node which should be countered
+	game.WaitForAllClaimsCountered(ctx)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+	game.LogGameData(ctx)
+}
+
 func TestCannonPoisonedPostState(t *testing.T) {
 	t.Skip("Known failure case")
 	InitParallel(t)
