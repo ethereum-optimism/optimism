@@ -130,6 +130,15 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 	return claimData
 }
 
+func (g *FaultGameHelper) WaitForClaim(ctx context.Context, parentIdx uint32, value common.Hash, countered bool) {
+	g.waitForClaim(
+		ctx,
+		fmt.Sprintf("Did not find claim with parent %v, value %v and countered %v", parentIdx, value, countered),
+		func(claim ContractClaim) bool {
+			return claim.ParentIndex == parentIdx && common.Hash(claim.Claim[:]) == value && claim.Countered == countered
+		})
+}
+
 func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
 	g.waitForClaim(
 		ctx,
@@ -277,8 +286,8 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 		g.require.NoErrorf(err, "Fetch claim %v", i)
 
 		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered)
+		info = info + fmt.Sprintf("%v - Parent: %v, Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v\n",
+			i, claim.ParentIndex, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered)
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
