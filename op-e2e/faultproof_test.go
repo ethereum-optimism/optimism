@@ -371,31 +371,49 @@ func TestCannonDeleteInvalidOutputRoot(t *testing.T) {
 
 	// At this point the root claim of the game is honest and the defender should always win.
 
-	// First setup a sacrificial, incorrect attack on the root claim
-	game.Attack(ctx, 0, common.Hash{0xff}) // Claim Idx 1
-	// Attack and defend our own claim with the correct values to take them out of play
-	correctTrace.Attack(ctx, 1) // Claim Idx 2
-	correctTrace.Defend(ctx, 1) // Claim Idx 3
+	// Sacrificially play the first, correct attack. The honest challenger will defend this claim.
+	correctTrace.Attack(ctx, 0)
 
-	// Now attack the root with any other value which the honest challenger won't be able to counter and so will win
-	game.Attack(ctx, 0, common.Hash{0xcc})
+	// Also sacrificially play an incorrect attack on the root claim.  The honest challenger will attack this claim.
+	game.Attack(ctx, 0, common.Hash{0xbb})
 
+	// Once the honest challenger responds to these, the two possible honest moves at depth 3 will have been used up.
+	// Ie the correct claim will have been posted both attacking from gindex 2 and defending from gindex 2.
+
+	// Now start the honest challenger, and a dishonest challenger that always posts the correct claim value.
 	// Start the honest challenger
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Defender",
 		// Disagree with the proposed output, so agree with the (correct) root claim
 		challenger.WithAgreeProposedOutput(false),
-		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+		challenger.WithPrivKey(sys.cfg.Secrets.Bob),
 	)
+	// Start a dishonest but correct challenger
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Defender",
+		// Agree with the proposed output, so disagree with the (correct) root claim
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+	)
+
+	// Let the op-challengers play out the two existing forks in the game.
+	// This should get to the point where the maximum game depth is reached, both leaf nodes are countered
+	// and the defender is in a winning position.
 
 	// Give the challengers time to progress down the full game depth
 	depth := game.MaxDepth(ctx)
-	for i := 3; i <= int(depth); i++ {
+	for i := 2; i <= int(depth); i++ {
 		game.WaitForClaimAtDepth(ctx, i)
 		game.LogGameData(ctx)
 	}
 
-	// Wait for all the leaf nodes to be countered
-	// Wait for the challengers to drive the game down to the leaf node which should be countered
+	// Wait for the challengers to drive the game down to the leaf node which should be countered on both forks
+	// This leaves the defender in a winning position (the root claim is valid and the output root should be deleted).
+	game.WaitForAllClaimsCountered(ctx)
+
+	// Before the game resolves, post a second attack on the root claim that is completely invalid.
+	game.Attack(ctx, 0, common.Hash{0xcc})
+
+	// Since both honest responses at depth 3 have already been used, the honest challenger will be unable to counter
+	// and the test will fail here.
 	game.WaitForAllClaimsCountered(ctx)
 
 	// Time travel past when the game will be resolvable.
