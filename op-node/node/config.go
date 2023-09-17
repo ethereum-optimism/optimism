@@ -42,7 +42,7 @@ type Config struct {
 	ConfigPersistence ConfigPersistence
 
 	// RuntimeConfigReloadInterval defines the interval between runtime config reloads.
-	// Disabled if 0.
+	// Disabled if <= 0.
 	// Runtime config changes should be picked up from log-events,
 	// but if log-events are not coming in (e.g. not syncing blocks) then the reload ensures the config stays accurate.
 	RuntimeConfigReloadInterval time.Duration
@@ -52,6 +52,10 @@ type Config struct {
 	Heartbeat HeartbeatConfig
 
 	Sync sync.Config
+
+	// To halt when detecting the node does not support a signaled protocol version
+	// change of the given severity (major/minor/patch). Disabled if empty.
+	RollupHalt string
 }
 
 type RPCConfig struct {
@@ -127,6 +131,9 @@ func (cfg *Config) Check() error {
 		if err := cfg.P2P.Check(); err != nil {
 			return fmt.Errorf("p2p config error: %w", err)
 		}
+	}
+	if !(cfg.RollupHalt == "" || cfg.RollupHalt == "major" || cfg.RollupHalt == "minor" || cfg.RollupHalt == "patch") {
+		return fmt.Errorf("invalid rollup halting option: %q", cfg.RollupHalt)
 	}
 	return nil
 }
