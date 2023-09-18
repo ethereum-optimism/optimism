@@ -248,9 +248,13 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230906193026-cd3f24255785
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230915163742-fd98f9a0a12c
+
+// replace github.com/ledgerwatch/erigon => ../../erigon
 
 replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20230906160529-b1ac19ad04da
+
+// replace github.com/ledgerwatch/erigon-lib => ../../erigon-lib
 
 replace github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.12
 

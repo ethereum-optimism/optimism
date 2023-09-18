@@ -6,7 +6,6 @@
     "TestVerifyL2OutputRootEmptyBlock":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
     "TestVerifyL2OutputRootEmptyBlockDetached":"This test depends debug_dbGet, a custom geth RPC which is not generally suported by other eth clients",
     "TestPendingGasLimit":"This test requires changes that neither Geth nor Erigon support as CLI flags",
-    "TestSystemP2PAltSync":"TODO This used to work and must be fixed",
     "TestCannonDefendStep":"TODO This is a new failure that should be investigated",
     "TestMultipleCannonGames":"TODO This is a new failure that should be investigated",
     "TestCannonDisputeGame":"TODO This is a new failure that should be investigated",
