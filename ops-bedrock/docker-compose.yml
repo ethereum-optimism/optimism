@@ -131,6 +131,7 @@ services:
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
+      OP_BATCHER_BATCH_TYPE: 0
 
   artifact-server:
     depends_on:

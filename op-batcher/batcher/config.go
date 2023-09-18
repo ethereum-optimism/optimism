@@ -87,6 +87,8 @@ type CLIConfig struct {
 
 	Stopped bool
 
+	BatchType uint
+
 	TxMgrConfig      txmgr.CLIConfig
 	RPCConfig        rpc.CLIConfig
 	LogConfig        oplog.CLIConfig
@@ -129,6 +131,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MaxChannelDuration:     ctx.Uint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:            ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
 		Stopped:                ctx.Bool(flags.StoppedFlag.Name),
+		BatchType:              ctx.Uint(flags.BatchTypeFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
 		RPCConfig:              rpc.ReadCLIConfig(ctx),
 		LogConfig:              oplog.ReadCLIConfig(ctx),

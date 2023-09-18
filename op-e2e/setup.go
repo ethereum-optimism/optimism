@@ -51,6 +51,7 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -660,6 +661,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
+	batchType := derive.SingularBatchType
+	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
+		batchType = derive.SpanBatchType
+	}
+
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
@@ -680,6 +686,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  "info",
 			Format: "text",
 		},
+		BatchType: uint(batchType),
 	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
