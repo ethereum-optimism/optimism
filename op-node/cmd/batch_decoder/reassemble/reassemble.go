@@ -107,14 +107,18 @@ func processFrames(cfg *rollup.Config, id derive.ChannelID, frames []FrameWithMe
 	var batches []derive.SingularBatch
 	invalidBatches := false
 	if ch.IsReady() {
-		br, err := derive.BatchReader(cfg, ch.Reader(), eth.L1BlockRef{})
+		br, err := derive.BatchReader(ch.Reader())
 		if err == nil {
 			for batch, err := br(); err != io.EOF; batch, err = br() {
 				if err != nil {
 					fmt.Printf("Error reading batch for channel %v. Err: %v\n", id.String(), err)
 					invalidBatches = true
 				} else {
-					batches = append(batches, batch.Batch.SingularBatch)
+					if batch.BatchType != derive.SingularBatchType {
+						batches = append(batches, batch.SingularBatch)
+					} else {
+						fmt.Printf("batch-type %d is not supported", batch.BatchType)
+					}
 				}
 			}
 		} else {
