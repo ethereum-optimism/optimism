@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,11 +29,15 @@ type channelManager struct {
 	log  log.Logger
 	metr metrics.Metricer
 	cfg  ChannelConfig
+	rcfg *rollup.Config
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
 	// last block hash - for reorg detection
 	tip common.Hash
+
+	// last block added to channel. nil at first.
+	lastProcessedBlock *eth.L2BlockRef
 
 	// channel to write new block data to
 	currentChannel *channel
@@ -45,18 +50,21 @@ type channelManager struct {
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rcfg *rollup.Config) *channelManager {
 	return &channelManager{
-		log:        log,
-		metr:       metr,
-		cfg:        cfg,
-		txChannels: make(map[txID]*channel),
+		log:                log,
+		metr:               metr,
+		cfg:                cfg,
+		rcfg:               rcfg,
+		txChannels:         make(map[txID]*channel),
+		lastProcessedBlock: nil,
 	}
 }
 
 // Clear clears the entire state of the channel manager.
-// It is intended to be used after an L2 reorg.
-func (s *channelManager) Clear() {
+// It is intended to be used before launching op-batcher and after an L2 reorg.
+// Must set lastProcessedBlock as current L2 safe head fetched from L2 node.
+func (s *channelManager) Clear(safeHead *eth.L2BlockRef) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.log.Trace("clearing channel manager state")
@@ -66,6 +74,7 @@ func (s *channelManager) Clear() {
 	s.currentChannel = nil
 	s.channelQueue = nil
 	s.txChannels = make(map[txID]*channel)
+	s.lastProcessedBlock = safeHead
 }
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
@@ -195,7 +204,19 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	pc, err := newChannel(s.log, s.metr, s.cfg)
+	var spanBatchBuilder *derive.SpanBatchBuilder
+	if s.cfg.BatchType == derive.SpanBatchType {
+		if s.lastProcessedBlock == nil {
+			// TODO: we can remove "lastProcessedBlock" if we change the data-builder
+			//  to append a singular-batch *with* the L2 metadata such as the L1-block-info seq-number;
+			//  this helps determine whether or not the L1 origin changed in the first block of the span,
+			//  without having to remember the last block from before the span.
+			return errors.New("last block is not initialized")
+		}
+		// Pass the current lastProcessedBlock as the parent
+		spanBatchBuilder = derive.NewSpanBatchBuilder(s.lastProcessedBlock.L1Origin.Number, s.rcfg.Genesis.L2Time, s.rcfg.L2ChainID)
+	}
+	pc, err := newChannel(s.log, s.metr, s.cfg, spanBatchBuilder)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
@@ -241,6 +262,7 @@ func (s *channelManager) processBlocks() error {
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
 		s.metr.RecordL2BlockInChannel(block)
+		s.lastProcessedBlock = &latestL2ref
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break

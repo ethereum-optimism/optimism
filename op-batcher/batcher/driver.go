@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"io"
 	"math/big"
 	_ "net/http/pprof"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -74,7 +74,7 @@ type BatchSubmitter struct {
 func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	return &BatchSubmitter{
 		DriverSetup: setup,
-		state:       NewChannelManager(setup.Log, setup.Metr, setup.Channel),
+		state:       NewChannelManager(setup.Log, setup.Metr, setup.Channel, setup.RollupCfg),
 	}
 }
 
@@ -91,7 +91,11 @@ func (l *BatchSubmitter) StartBatchSubmitting() error {
 
 	l.shutdownCtx, l.cancelShutdownCtx = context.WithCancel(context.Background())
 	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
-	l.state.Clear()
+	syncStatus, err := fetchSyncStatus(l.shutdownCtx, l.RollupClient, l.Cfg.NetworkTimeout)
+	if err != nil {
+		return err
+	}
+	l.state.Clear(&syncStatus.SafeL2)
 	l.lastStoredBlock = eth.BlockID{}
 
 	l.wg.Add(1)
@@ -201,15 +205,9 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 // calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
 // It also takes care of initializing some local state (i.e. will modify l.lastStoredBlock in certain conditions)
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
-	defer cancel()
-	syncStatus, err := l.RollupClient.SyncStatus(ctx)
-	// Ensure that we have the sync status
+	syncStatus, err := fetchSyncStatus(ctx, l.RollupClient, l.Cfg.NetworkTimeout)
 	if err != nil {
-		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
-	}
-	if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
-		return eth.BlockID{}, eth.BlockID{}, errors.New("empty sync status")
+		return eth.BlockID{}, eth.BlockID{}, err
 	}
 
 	// Check last stored to see if it needs to be set on startup OR set if is lagged behind.
@@ -259,7 +257,12 @@ func (l *BatchSubmitter) loop() {
 					l.Log.Error("error closing the channel manager to handle a L2 reorg", "err", err)
 				}
 				l.publishStateToL1(queue, receiptsCh, true)
-				l.state.Clear()
+				if syncStatus, err := fetchSyncStatus(l.shutdownCtx, l.RollupClient, l.Cfg.NetworkTimeout); err == nil {
+					l.state.Clear(&syncStatus.SafeL2)
+				} else {
+					// if fetchSyncStatus failed, ErrReorg will be returned again
+					l.Log.Error("error fetching sync status from L2 node", "err", err)
+				}
 				continue
 			}
 			l.publishStateToL1(queue, receiptsCh, false)
@@ -394,4 +397,18 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
 	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
+}
+
+func fetchSyncStatus(ctx context.Context, rollupNode RollupClient, timeout time.Duration) (*eth.SyncStatus, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	syncStatus, err := rollupNode.SyncStatus(ctx)
+	// Ensure that we have the sync status
+	if err != nil {
+		return &eth.SyncStatus{}, fmt.Errorf("failed to get sync status: %w", err)
+	}
+	if syncStatus.SafeL2 == (eth.L2BlockRef{}) {
+		return &eth.SyncStatus{}, errors.New("empty sync status")
+	}
+	return syncStatus, nil
 }
