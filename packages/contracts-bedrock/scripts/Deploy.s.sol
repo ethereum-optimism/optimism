@@ -28,6 +28,7 @@ import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
 
@@ -47,7 +48,7 @@ contract Deploy is Deployer {
     /// @notice The create2 salt used for deployment of the contract implementations.
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
-    bytes32 constant IMPL_SALT = bytes32("ether's phoenix");
+    bytes32 constant IMPL_SALT = keccak256(bytes("ether's phoenix"));
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
@@ -80,6 +81,7 @@ contract Deploy is Deployer {
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
         initializeOptimismPortal();
+        initializeProtocolVersions();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
@@ -103,6 +105,18 @@ contract Deploy is Deployer {
         }
     }
 
+    /// @notice Modifier that will only allow a function to be called on a public
+    ///         testnet or devnet.
+    modifier onlyTestnetOrDevnet() {
+        uint256 chainid = block.chainid;
+        if (
+            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
+                || chainid == Chains.GethDevnet
+        ) {
+            _;
+        }
+    }
+
     /// @notice Deploy all of the proxies
     function deployProxies() public {
         deployAddressManager();
@@ -116,6 +130,7 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
+        deployProtocolVersionsProxy();
 
         transferAddressManagerOwnership();
     }
@@ -133,6 +148,7 @@ contract Deploy is Deployer {
         deployBlockOracle();
         deployPreimageOracle();
         deployMips();
+        deployProtocolVersions();
     }
 
     /// @notice Deploy the AddressManager
@@ -291,6 +307,22 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    /// @notice Deploy the ProtocolVersionsProxy
+    function deployProtocolVersionsProxy() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        Proxy proxy = new Proxy({
+            _admin: proxyAdmin
+        });
+
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
+
+        save("ProtocolVersionsProxy", address(proxy));
+        console.log("ProtocolVersionsProxy deployed at %s", address(proxy));
+
+        addr_ = address(proxy);
+    }
+
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: IMPL_SALT }();
@@ -378,6 +410,15 @@ contract Deploy is Deployer {
         console.log("BlockOracle deployed at %s", address(oracle));
 
         addr_ = address(oracle);
+    }
+
+    /// @notice Deploy the ProtocolVersions
+    function deployProtocolVersions() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+        ProtocolVersions versions = new ProtocolVersions{ salt: IMPL_SALT }();
+        save("ProtocolVersions", address(versions));
+        console.log("ProtocolVersions deployed at %s", address(versions));
+
+        addr_ = address(versions);
     }
 
     /// @notice Deploy the PreimageOracle
@@ -740,6 +781,37 @@ contract Deploy is Deployer {
         require(portal.GUARDIAN() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == false);
+    }
+
+    function initializeProtocolVersions() public onlyTestnetOrDevnet broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
+        address protocolVersions = mustGetAddress("ProtocolVersions");
+
+        address finalSystemOwner = cfg.finalSystemOwner();
+        uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
+        uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
+
+        proxyAdmin.upgradeAndCall({
+            _proxy: payable(protocolVersionsProxy),
+            _implementation: protocolVersions,
+            _data: abi.encodeCall(
+                ProtocolVersions.initialize,
+                (
+                    finalSystemOwner,
+                    ProtocolVersion.wrap(requiredProtocolVersion),
+                    ProtocolVersion.wrap(recommendedProtocolVersion)
+                )
+                )
+        });
+
+        ProtocolVersions versions = ProtocolVersions(protocolVersionsProxy);
+        string memory version = versions.version();
+        console.log("ProtocolVersions version: %s", version);
+
+        require(versions.owner() == finalSystemOwner);
+        require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
+        require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner

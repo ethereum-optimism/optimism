@@ -29,6 +29,8 @@ type EthClient interface {
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
 
+	TxByHash(common.Hash) (*types.Transaction, error)
+
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
 	FilterLogs(ethereum.FilterQuery) ([]types.Log, error)
 }
@@ -145,6 +147,21 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.H
 
 	headers = headers[:size]
 	return headers, nil
+}
+
+func (c *client) TxByHash(hash common.Hash) (*types.Transaction, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	var tx *types.Transaction
+	err := c.rpc.CallContext(ctxwt, &tx, "eth_getTransactionByHash", hash)
+	if err != nil {
+		return nil, err
+	} else if tx == nil {
+		return nil, ethereum.NotFound
+	}
+
+	return tx, nil
 }
 
 // StorageHash returns the sha3 of the storage root for the specified account

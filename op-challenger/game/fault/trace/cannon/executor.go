@@ -124,10 +124,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", strings.Join(args, ", "))
 	execStart := time.Now()
 	err = e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
-	if err != nil {
-		execDuration := time.Since(execStart).Seconds()
-		e.metrics.RecordCannonExecutionTime(execDuration)
-	}
+	e.metrics.RecordCannonExecutionTime(time.Since(execStart).Seconds())
 	return err
 }
 

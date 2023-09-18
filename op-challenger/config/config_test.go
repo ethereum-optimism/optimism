@@ -118,6 +118,13 @@ func TestMaxConcurrency(t *testing.T) {
 	})
 }
 
+func TestHttpPollInterval(t *testing.T) {
+	t.Run("Default", func(t *testing.T) {
+		config := validConfig(TraceTypeAlphabet)
+		require.EqualValues(t, DefaultPollInterval, config.PollInterval)
+	})
+}
+
 func TestCannonL2Required(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.CannonL2 = ""

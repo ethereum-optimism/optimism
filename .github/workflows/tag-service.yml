@@ -19,15 +19,14 @@ on:
         type: choice
         options:
           - ci-builder
-          - fault-detector
           - indexer
+          - chain-mon
           - op-node
           - op-batcher
           - op-proposer
+          - op-challenger
           - op-ufm
           - proxyd
-          - indexer
-          - ci-builder
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false
