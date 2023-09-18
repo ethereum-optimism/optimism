@@ -47,17 +47,25 @@ func TestState(t *testing.T) {
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
 			require.NoError(t, err)
-			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			state := &State{Threads: []ThreadContext{
+				{
+					State: &ThreadState{
+						FutexAddr: ^uint32(0),
+						PC:        0,
+						NextPC:    4,
+					},
+				},
+			}, Memory: NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
-			state.Registers[31] = endAddr
+			state.Threads[state.CurrentThread].State.Registers[31] = endAddr
 
 			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
-				if us.state.PC == endAddr {
+				if th := state.Thread(); th != nil && th.State.PC == endAddr {
 					break
 				}
 				if exitGroup && us.state.Exited {
@@ -68,11 +76,13 @@ func TestState(t *testing.T) {
 			}
 
 			if exitGroup {
-				require.NotEqual(t, uint32(endAddr), us.state.PC, "must not reach end")
+				require.NotNil(t, us.state.Thread())
+				require.NotEqual(t, uint32(endAddr), us.state.Thread().State.PC, "must not reach end")
 				require.True(t, us.state.Exited, "must set exited state")
 				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
 			} else {
-				require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
+				require.NotNil(t, us.state.Thread())
+				require.Equal(t, uint32(endAddr), us.state.Thread().State.PC, "must reach end")
 				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 				// inspect test result
 				require.Equal(t, done, uint32(1), "must be done")
@@ -133,6 +143,9 @@ func TestHello(t *testing.T) {
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
+	meta, err := MakeMetadata(elfProgram)
+	require.NoError(t, err)
+
 	state, err := LoadELF(elfProgram)
 	require.NoError(t, err, "load ELF into state")
 
@@ -143,18 +156,34 @@ func TestHello(t *testing.T) {
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
-	for i := 0; i < 400_000; i++ {
+	lastGCFunc := ""
+	for i := 0; i < 2000_000; i++ {
 		if us.state.Exited {
 			break
 		}
+		th := us.state.Thread()
+		if th != nil && th.State != nil {
+			s := meta.LookupSymbol(th.State.PC)
+			if i%10000 == 0 {
+				t.Logf("step %d executing %s PC: %08x insn: %08x", i, s, th.State.PC, us.state.Memory.GetMemory(th.State.PC))
+			}
+			if lastGCFunc != s && (strings.Contains(s, "gc") || strings.Contains(s, "GC")) { // yes, GC runs now
+				t.Logf("GC: %s\n", s)
+				lastGCFunc = s
+			}
+		}
+		preThread := us.state.CurrentThread
 		_, err := us.Step(false)
+		if us.state.CurrentThread != preThread {
+			t.Logf("--- changed execution from thread %d to %d ---\n", preThread, us.state.CurrentThread)
+		}
 		require.NoError(t, err)
 	}
 
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
 
-	require.Equal(t, "hello world!\n", stdOutBuf.String(), "stdout says hello")
+	require.Equal(t, "hello world!\nwaitgroup result: 42\nchannels result: 1234\nGC complete!\n", stdOutBuf.String(), "stdout says hello")
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
 }
 

@@ -39,9 +39,11 @@ const (
 	fdPreimageWrite = 6
 )
 
+// See src/syscall/zerrors_linux_mips.go
 const (
 	MipsEBADF  = 0x9
 	MipsEINVAL = 0x16
+	MipsEAGAIN = 0xb
 )
 
 func NewInstrumentedState(state *State, po PreimageOracle, stdOut, stdErr io.Writer) *InstrumentedState {
@@ -58,8 +60,10 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 	m.lastMemAccess = ^uint32(0)
 	m.lastPreimageOffset = ^uint32(0)
 
+	preThreadCount := len(m.state.Threads)
 	if proof {
-		insnProof := m.state.Memory.MerkleProof(m.state.PC)
+		insnProof := m.state.Memory.MerkleProof(m.state.Threads[m.state.CurrentThread].State.PC)
+		// TODO: current-thread witness
 		wit = &StepWitness{
 			State:    m.state.EncodeWitness(),
 			MemProof: insnProof[:],
@@ -76,6 +80,10 @@ func (m *InstrumentedState) Step(proof bool) (wit *StepWitness, err error) {
 			wit.PreimageOffset = m.lastPreimageOffset
 			wit.PreimageKey = m.lastPreimageKey
 			wit.PreimageValue = m.lastPreimage
+		}
+		// if more threads than pre-instruction, add new-thread proof
+		if len(m.state.Threads) > preThreadCount {
+			// TODO: add proof for last merkle branch, so we can append a new thread state
 		}
 	}
 	return

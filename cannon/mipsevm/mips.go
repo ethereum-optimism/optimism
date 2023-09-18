@@ -6,14 +6,45 @@ import (
 	"io"
 )
 
+// MIPS-specific syscall IDs, defined in the Go runtime:
+// - src/runtime/sys_linux_mipsx.s
+// - src/runtime/internal/syscall/defs_linux_mipsx.go
 const (
-	sysMmap      = 4090
-	sysBrk       = 4045
-	sysClone     = 4120
-	sysExitGroup = 4246
-	sysRead      = 4003
-	sysWrite     = 4004
-	sysFcntl     = 4055
+	sysExit       = 4001
+	sysMmap       = 4090
+	sysBrk        = 4045
+	sysClone      = 4120
+	sysExitGroup  = 4246
+	sysRead       = 4003
+	sysWrite      = 4004
+	sysFcntl      = 4055
+	sysFutex      = 4238
+	sysSchedYield = 4162
+	sysGetTID     = 4222
+
+	sysSchedGetaffinity = 4240
+	sysOpen             = 4005
+	sysClockGettime     = 4263
+	sysMadvise          = 4218
+	sysRtSigprocmask    = 4195
+	sysSigaltstack      = 4206
+	sysRtSigaction      = 4194
+	sysNanosleep        = 4166
+	sysPrlimit64        = 4338
+)
+
+// TODO:
+//#define SYS_timer_create	4257
+//#define SYS_timer_settime	4258
+//#define SYS_timer_delete	4261
+//#define SYS_clock_gettime	4263
+//#define SYS_tgkill		4266
+
+// as defined in src/runtime/os_linux.go#L81
+const (
+	futexPrivateFlag = 128
+	futexWaitPrivate = 0 | futexPrivateFlag
+	futexWakePrivate = 1 | futexPrivateFlag
 )
 
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
@@ -43,13 +74,15 @@ func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 }
 
 func (m *InstrumentedState) handleSyscall() error {
-	syscallNum := m.state.Registers[2] // v0
+	tc := &m.state.Threads[m.state.CurrentThread]
+	syscallNum := tc.State.Registers[2] // v0
 	v0 := uint32(0)
 	v1 := uint32(0)
 
-	a0 := m.state.Registers[4]
-	a1 := m.state.Registers[5]
-	a2 := m.state.Registers[6]
+	a0 := tc.State.Registers[4]
+	a1 := tc.State.Registers[5]
+	a2 := tc.State.Registers[6]
+	a3 := tc.State.Registers[7]
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
@@ -68,8 +101,6 @@ func (m *InstrumentedState) handleSyscall() error {
 		}
 	case sysBrk:
 		v0 = 0x40000000
-	case sysClone: // clone (not supported)
-		v0 = 1
 	case sysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
@@ -170,23 +201,114 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0xFFffFFff
 			v1 = MipsEINVAL // cmd not recognized by this kernel
 		}
-	}
-	m.state.Registers[2] = v0
-	m.state.Registers[7] = v1
+	case sysGetTID:
+		v0 = m.state.CurrentThread
+		v1 = 0
+	case sysExit: // a.k.a. thread exit
+		// args: a0 = status & 0xff
+		tc.Exited = true
+		tc.ExitCode = uint8(a0)
+		tc.State = nil // cleanup thread state
+		return nil
+	case sysFutex:
+		// args: a0 = addr, a1 = op, a2 = val, a3 = timeout
+		tc.State.FutexAddr = a0
+		switch a1 {
+		case futexWaitPrivate:
+			if m.state.Memory.GetMemory(a0) != a2 { // check if we can sleep, or if the value already changed
+				v0 = 0xFFffFFff
+				v1 = MipsEAGAIN
+			} else {
+				tc.State.FutexVal = a2
+				if a3 != 0 { // if timeout != null, then read the timeout (relative value) from the pointer to the timespec.
+					// Technically we should read the timeout, a pointer to a timespec struct in memory.
+					// timespec is just {tv_sec int32, tv_nsec int32} in mips.
+					// Since there is no concept of time, we can also just apply a fixed 10k steps timeout,
+					// to not use memory.
+					tc.State.FutexTimeoutStep = m.state.Step + 10_000
+				}
+				// leave state as-is, instruction to be completed by onWaitComplete()
+				return nil
+			}
+		case futexWakePrivate:
+			// Try to wake up the thread, by starting to search for a locked thread from thread 0
+			m.state.Wakeup = a0
+			m.state.CurrentThread = 0
+			// But don't say we have woken up anyone, as there are no guarantees.
+			// The woken up thread should tell the user in userspace.
+			v0 = 0
+			v1 = 0
+		default:
+			panic("wtf")
+			//v0 = 0xFFffFFff
+			//v1 = MipsEINVAL // cmd not recognized by this kernel
+		}
+	case sysClone: // clone
+		// args: a0 = flags, a1 = *stack, a2 = ptid (parent id), a3 = tls (thread local storage)
+		// Go runtime does not use ptid or tls, so we ignore those.
 
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
+		// determine the new thread ID, and set as return arg
+		v0 = uint32(len(m.state.Threads))
+
+		// TODO check flags, and return error if bad flags are set
+		// no error, simple in-process threads are supported
+		v1 = 0
+
+		// clone into a new thread context
+		var newThreadContext ThreadContext
+		newThreadContext.ThreadID = v0
+		newThreadContext.State = &ThreadState{}
+		newThreadContext.State.FutexAddr = ^uint32(0)
+
+		// copy all registers, but change the stack pointer
+		newThreadContext.State.LO = tc.State.LO
+		newThreadContext.State.HI = tc.State.HI
+		newThreadContext.State.Registers = tc.State.Registers
+		newThreadContext.State.Registers[29] = a1 // set stack pointer
+		// the child will perceive a 0 value as returned value instead, and no error
+		newThreadContext.State.Registers[2] = 0
+		newThreadContext.State.Registers[7] = 0
+
+		// the new thread also has to continue with the next instruction
+		newThreadContext.State.PC = tc.State.NextPC
+		newThreadContext.State.NextPC = tc.State.NextPC + 4
+
+		// add the new thread context to the state
+		m.state.Threads = append(m.state.Threads, newThreadContext)
+	case sysSchedYield:
+		m.state.CurrentThread += 1
+	case sysOpen: // open (runtime tries to read optional kernel info)
+		v0 = ^uint32(0)
+		v1 = MipsEBADF
+	case sysNanosleep: // nanosleep
+		m.state.CurrentThread += 1 // handle it like a yield, we can cycle other threads maybe
+	case sysSchedGetaffinity: // sched_getaffinity
+	case sysClockGettime: // clock_gettime
+	case sysMadvise: // madvise
+	case sysRtSigprocmask: // rt_sigprocmask
+	case sysSigaltstack: // sigaltstack
+	case sysRtSigaction: // rt_sigaction
+	case sysPrlimit64: // prlimit64
+	default:
+		return fmt.Errorf("unrecognized syscall: %d", syscallNum)
+	}
+	tc.State.Registers[2] = v0
+	tc.State.Registers[7] = v1
+
+	tc.State.PC = tc.State.NextPC
+	tc.State.NextPC = tc.State.NextPC + 4
 	return nil
 }
 
 func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
-	if m.state.NextPC != m.state.PC+4 {
+	tc := &m.state.Threads[m.state.CurrentThread]
+	if tc.State.NextPC != tc.State.PC+4 {
 		panic("branch in delay slot")
 	}
 
 	shouldBranch := false
 	if opcode == 4 || opcode == 5 { // beq/bne
-		rt := m.state.Registers[rtReg]
+		rt := tc.State.Registers[rtReg]
 		shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
 	} else if opcode == 6 {
 		shouldBranch = int32(rs) <= 0 // blez
@@ -203,61 +325,63 @@ func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint3
 		}
 	}
 
-	prevPC := m.state.PC
-	m.state.PC = m.state.NextPC // execute the delay slot first
+	prevPC := tc.State.PC
+	tc.State.PC = tc.State.NextPC // execute the delay slot first
 	if shouldBranch {
-		m.state.NextPC = prevPC + 4 + (SE(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
+		tc.State.NextPC = prevPC + 4 + (SE(insn&0xFFFF, 16) << 2) // then continue with the instruction the branch jumps to.
 	} else {
-		m.state.NextPC = m.state.NextPC + 4 // branch not taken
+		tc.State.NextPC = tc.State.NextPC + 4 // branch not taken
 	}
 	return nil
 }
 
 func (m *InstrumentedState) handleHiLo(fun uint32, rs uint32, rt uint32, storeReg uint32) error {
+	tc := &m.state.Threads[m.state.CurrentThread]
 	val := uint32(0)
 	switch fun {
 	case 0x10: // mfhi
-		val = m.state.HI
+		val = tc.State.HI
 	case 0x11: // mthi
-		m.state.HI = rs
+		tc.State.HI = rs
 	case 0x12: // mflo
-		val = m.state.LO
+		val = tc.State.LO
 	case 0x13: // mtlo
-		m.state.LO = rs
+		tc.State.LO = rs
 	case 0x18: // mult
 		acc := uint64(int64(int32(rs)) * int64(int32(rt)))
-		m.state.HI = uint32(acc >> 32)
-		m.state.LO = uint32(acc)
+		tc.State.HI = uint32(acc >> 32)
+		tc.State.LO = uint32(acc)
 	case 0x19: // multu
 		acc := uint64(uint64(rs) * uint64(rt))
-		m.state.HI = uint32(acc >> 32)
-		m.state.LO = uint32(acc)
+		tc.State.HI = uint32(acc >> 32)
+		tc.State.LO = uint32(acc)
 	case 0x1a: // div
-		m.state.HI = uint32(int32(rs) % int32(rt))
-		m.state.LO = uint32(int32(rs) / int32(rt))
+		tc.State.HI = uint32(int32(rs) % int32(rt))
+		tc.State.LO = uint32(int32(rs) / int32(rt))
 	case 0x1b: // divu
-		m.state.HI = rs % rt
-		m.state.LO = rs / rt
+		tc.State.HI = rs % rt
+		tc.State.LO = rs / rt
 	}
 
 	if storeReg != 0 {
-		m.state.Registers[storeReg] = val
+		tc.State.Registers[storeReg] = val
 	}
 
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
+	tc.State.PC = tc.State.NextPC
+	tc.State.NextPC = tc.State.NextPC + 4
 	return nil
 }
 
 func (m *InstrumentedState) handleJump(linkReg uint32, dest uint32) error {
-	if m.state.NextPC != m.state.PC+4 {
+	tc := &m.state.Threads[m.state.CurrentThread]
+	if tc.State.NextPC != tc.State.PC+4 {
 		panic("jump in delay slot")
 	}
-	prevPC := m.state.PC
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = dest
+	prevPC := tc.State.PC
+	tc.State.PC = tc.State.NextPC
+	tc.State.NextPC = dest
 	if linkReg != 0 {
-		m.state.Registers[linkReg] = prevPC + 8 // set the link-register to the instr after the delay slot instruction.
+		tc.State.Registers[linkReg] = prevPC + 8 // set the link-register to the instr after the delay slot instruction.
 	}
 	return nil
 }
@@ -266,11 +390,32 @@ func (m *InstrumentedState) handleRd(storeReg uint32, val uint32, conditional bo
 	if storeReg >= 32 {
 		panic("invalid register")
 	}
+	tc := &m.state.Threads[m.state.CurrentThread]
 	if storeReg != 0 && conditional {
-		m.state.Registers[storeReg] = val
+		tc.State.Registers[storeReg] = val
 	}
-	m.state.PC = m.state.NextPC
-	m.state.NextPC = m.state.NextPC + 4
+	tc.State.PC = tc.State.NextPC
+	tc.State.NextPC = tc.State.NextPC + 4
+	return nil
+}
+
+func (m *InstrumentedState) onWaitComplete() error {
+	tc := &m.state.Threads[m.state.CurrentThread]
+
+	// Clear the futex state
+	tc.State.FutexAddr = ^uint32(0)
+	tc.State.FutexVal = 0
+	tc.State.FutexTimeoutStep = 0
+
+	// Complete the FUTEX_WAIT syscall
+	tc.State.Registers[2] = 0 // 0 because caller is woken up
+	tc.State.Registers[7] = 0 // 0 because no error
+	tc.State.PC = tc.State.NextPC
+	tc.State.NextPC = tc.State.NextPC + 4
+
+	// if we were waking up anything, it was this thread, and thus does not have to be woken up anymore.
+	m.state.Wakeup = ^uint32(0)
+
 	return nil
 }
 
@@ -279,8 +424,53 @@ func (m *InstrumentedState) mipsStep() error {
 		return nil
 	}
 	m.state.Step += 1
+
+	if m.state.CurrentThread > uint32(len(m.state.Threads)) { // validate current thread is within bounds
+		return fmt.Errorf("invalid current thread ID: %d, only have %d threads", m.state.CurrentThread, len(m.state.Threads))
+	} else if m.state.CurrentThread == uint32(len(m.state.Threads)) { // wrap-around thread iteration
+		m.state.Wakeup = ^uint32(0) // cancel wakeup if no threads were blocked
+		m.state.CurrentThread = 0   // reset to front of threads
+		return nil
+	}
+
+	// note: onchain this thread context has to be proven to be a part of the state
+	tc := &m.state.Threads[m.state.CurrentThread]
+
+	if tc.Exited { // skip thread if it already exited
+		m.state.CurrentThread += 1
+		return nil
+	}
+
+	// Search for the first thread blocked by the wakeup call, if not -1
+	// Don't allow regular execution until we resolved if we have woken up any thread.
+	if m.state.Wakeup != ^uint32(0) && m.state.Wakeup != tc.State.FutexAddr {
+		m.state.CurrentThread += 1
+		return nil
+	}
+
+	// check if the thread is blocked on a futex
+	if tc.State.FutexAddr != ^uint32(0) { // if not -1, then check futex
+		// check timeout first
+		if tc.State.FutexTimeoutStep > m.state.Step {
+			// timeout! Allow execution
+			return m.onWaitComplete()
+		} else {
+			// check value
+			got := m.state.Memory.GetMemory(tc.State.FutexAddr)
+			if tc.State.FutexVal == got {
+				// still got expected value, continue sleeping, try next thread.
+				m.state.CurrentThread += 1
+				return nil
+			} else {
+				// wake thread up, the value at its address changed!
+				// Userspace can turn thread back to sleep if it was too sporadic.
+				return m.onWaitComplete()
+			}
+		}
+	}
+
 	// instruction fetch
-	insn := m.state.Memory.GetMemory(m.state.PC)
+	insn := m.state.Memory.GetMemory(tc.State.PC)
 	opcode := insn >> 26 // 6-bits
 
 	// j-type j/jal
@@ -290,7 +480,7 @@ func (m *InstrumentedState) mipsStep() error {
 			linkReg = 31
 		}
 		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
-		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		target := (tc.State.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
 		return m.handleJump(linkReg, target)
 	}
 
@@ -300,11 +490,11 @@ func (m *InstrumentedState) mipsStep() error {
 	rtReg := (insn >> 16) & 0x1F
 
 	// R-type or I-type (stores rt)
-	rs = m.state.Registers[(insn>>21)&0x1F]
+	rs = tc.State.Registers[(insn>>21)&0x1F]
 	rdReg := rtReg
 	if opcode == 0 || opcode == 0x1c {
 		// R-type (stores rd)
-		rt = m.state.Registers[rtReg]
+		rt = tc.State.Registers[rtReg]
 		rdReg = (insn >> 11) & 0x1F
 	} else if opcode < 0x20 {
 		// rt is SignExtImm
@@ -318,7 +508,7 @@ func (m *InstrumentedState) mipsStep() error {
 		}
 	} else if opcode >= 0x28 || opcode == 0x22 || opcode == 0x26 {
 		// store rt value with store
-		rt = m.state.Registers[rtReg]
+		rt = tc.State.Registers[rtReg]
 
 		// store actual rt with lwl and lwr
 		rdReg = rtReg
@@ -380,7 +570,7 @@ func (m *InstrumentedState) mipsStep() error {
 
 	// stupid sc, write a 1 to rt
 	if opcode == 0x38 && rtReg != 0 {
-		m.state.Registers[rtReg] = 1
+		tc.State.Registers[rtReg] = 1
 	}
 
 	// write memory
@@ -551,7 +741,7 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 		case 0x38: //  sc
 			return rt
 		default:
-			panic("invalid instruction")
+			panic(fmt.Errorf("invalid instruction: %08x", insn))
 		}
 	}
 	panic("invalid instruction")

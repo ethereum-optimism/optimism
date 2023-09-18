@@ -10,16 +10,30 @@ import (
 
 func LoadELF(f *elf.File) (*State, error) {
 	s := &State{
-		PC:        uint32(f.Entry),
-		NextPC:    uint32(f.Entry + 4),
-		HI:        0,
-		LO:        0,
-		Heap:      0x20000000,
-		Registers: [32]uint32{},
-		Memory:    NewMemory(),
-		ExitCode:  0,
-		Exited:    false,
-		Step:      0,
+		Heap:          0x20000000,
+		Memory:        NewMemory(),
+		ExitCode:      0,
+		Exited:        false,
+		Step:          0,
+		CurrentThread: 0,
+		Wakeup:        ^uint32(0),
+		Threads: []ThreadContext{
+			{
+				ThreadID: 0,
+				ExitCode: 0,
+				Exited:   false,
+				State: &ThreadState{
+					FutexAddr:        ^uint32(0),
+					FutexVal:         0,
+					FutexTimeoutStep: 0,
+					PC:               uint32(f.Entry),
+					NextPC:           uint32(f.Entry + 4),
+					HI:               0,
+					LO:               0,
+					Registers:        [32]uint32{},
+				},
+			},
+		},
 	}
 
 	for i, prog := range f.Progs {
@@ -60,11 +74,12 @@ func PatchGo(f *elf.File, st *State) error {
 	for _, s := range symbols {
 		// Disable Golang GC by patching the functions that enable the GC to a no-op function.
 		switch s.Name {
-		case "runtime.gcenable",
-			"runtime.init.5",            // patch out: init() { go forcegchelper() }
-			"runtime.main.func1",        // patch out: main.func() { newm(sysmon, ....) }
-			"runtime.deductSweepCredit", // uses floating point nums and interacts with gc we disabled
-			"runtime.(*gcControllerState).commit",
+		case
+			//"runtime.gcenable",
+			//"runtime.init.5",            // patch out: init() { go forcegchelper() }
+			//"runtime.main.func1",        // patch out: main.func() { newm(sysmon, ....) }
+			//"runtime.deductSweepCredit", // uses floating point nums and interacts with gc we disabled
+			//"runtime.(*gcControllerState).commit",
 			// these prometheus packages rely on concurrent background things. We cannot run those.
 			"github.com/prometheus/client_golang/prometheus.init",
 			"github.com/prometheus/client_golang/prometheus.init.0",
@@ -74,9 +89,9 @@ func PatchGo(f *elf.File, st *State) error {
 			"github.com/prometheus/client_model/go.init.0",
 			"github.com/prometheus/client_model/go.init.1",
 			// skip flag pkg init, we need to debug arg-processing more to see why this fails
-			"flag.init",
+			"flag.init":
 			// We need to patch this out, we don't pass float64nan because we don't support floats
-			"runtime.check":
+			//"runtime.check":
 			// MIPS32 patch: ret (pseudo instruction)
 			// 03e00008 = jr $ra = ret (pseudo instruction)
 			// 00000000 = nop (executes with delay-slot, but does nothing)
@@ -102,7 +117,7 @@ func PatchStack(st *State) error {
 	if err := st.Memory.SetMemoryRange(sp-4*PageSize, bytes.NewReader(make([]byte, 5*PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
-	st.Registers[29] = sp
+	st.Threads[st.CurrentThread].State.Registers[29] = sp
 
 	storeMem := func(addr uint32, v uint32) {
 		var dat [4]byte
