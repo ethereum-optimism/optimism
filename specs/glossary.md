@@ -645,7 +645,7 @@ blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
 
 [address-aliasing]: glossary.md#address-aliasing
 
-When a contract submits a [deposit][deposits] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`) will be
+When a contract submits a [deposit][deposits] from L1 to L2, its address (as returned by `ORIGIN` and `CALLER`) will be
 aliased with a modified representation of the address of a contract.
 
 - cf. [Deposit Specification](deposits.md#address-aliasing)
