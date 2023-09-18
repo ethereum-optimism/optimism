@@ -64,12 +64,8 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 		if j, err := c.createJob(addr); err != nil {
 			errs = append(errs, err)
 		} else if j != nil {
-			if j.status == types.GameStatusInProgress {
-				jobs = append(jobs, *j)
-				c.m.RecordGameUpdateScheduled()
-			} else {
-				c.logger.Warn("Resolved game update not scheduled", "game", addr, "status", j.status)
-			}
+			jobs = append(jobs, *j)
+			c.m.RecordGameUpdateScheduled()
 		}
 		state, ok := c.states[addr]
 		if ok {
@@ -97,7 +93,6 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 // createJob updates the state for the specified game and returns the job to enqueue for it, if any
 // Returns (nil, nil) when there is no error and no job to enqueue
 func (c *coordinator) createJob(game common.Address) (*job, error) {
-	j := &job{addr: game}
 	state, ok := c.states[game]
 	if !ok {
 		state = &gameState{}
@@ -117,9 +112,11 @@ func (c *coordinator) createJob(game common.Address) (*job, error) {
 		state.status = player.Status()
 	}
 	state.inflight = true
-	j.player = state.player
-	j.status = state.status
-	return j, nil
+	if state.status != types.GameStatusInProgress {
+		c.logger.Debug("Not rescheduling resolved game", "game", game, "status", state.status)
+		return nil, nil
+	}
+	return &job{addr: game, player: state.player, status: state.status}, nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
