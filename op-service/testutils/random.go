@@ -144,17 +144,47 @@ func RandomTx(rng *rand.Rand, baseFee *big.Int, signer types.Signer) *types.Tran
 	gas := params.TxGas + uint64(rng.Int63n(2_000_000))
 	key := InsecureRandomKey(rng)
 	tip := big.NewInt(rng.Int63n(10 * params.GWei))
-	tx, err := types.SignNewTx(key, signer, &types.DynamicFeeTx{
-		ChainID:    signer.ChainID(),
-		Nonce:      rng.Uint64(),
-		GasTipCap:  tip,
-		GasFeeCap:  new(big.Int).Add(baseFee, tip),
-		Gas:        gas,
-		To:         RandomTo(rng),
-		Value:      RandomETH(rng, 10),
-		Data:       RandomData(rng, rng.Intn(1000)),
-		AccessList: nil,
-	})
+
+	txTypeList := []int{types.LegacyTxType, types.AccessListTxType, types.DynamicFeeTxType}
+	txType := txTypeList[rng.Intn(len(txTypeList))]
+	var txData types.TxData
+	switch txType {
+	case types.LegacyTxType:
+		txData = &types.LegacyTx{
+			Nonce:    rng.Uint64(),
+			GasPrice: new(big.Int).SetUint64(rng.Uint64()),
+			Gas:      gas,
+			To:       RandomTo(rng),
+			Value:    RandomETH(rng, 10),
+			Data:     RandomData(rng, rng.Intn(1000)),
+		}
+	case types.AccessListTxType:
+		txData = &types.AccessListTx{
+			ChainID:    signer.ChainID(),
+			Nonce:      rng.Uint64(),
+			GasPrice:   new(big.Int).SetUint64(rng.Uint64()),
+			Gas:        gas,
+			To:         RandomTo(rng),
+			Value:      RandomETH(rng, 10),
+			Data:       RandomData(rng, rng.Intn(1000)),
+			AccessList: nil,
+		}
+	case types.DynamicFeeTxType:
+		txData = &types.DynamicFeeTx{
+			ChainID:    signer.ChainID(),
+			Nonce:      rng.Uint64(),
+			GasTipCap:  tip,
+			GasFeeCap:  new(big.Int).Add(baseFee, tip),
+			Gas:        gas,
+			To:         RandomTo(rng),
+			Value:      RandomETH(rng, 10),
+			Data:       RandomData(rng, rng.Intn(1000)),
+			AccessList: nil,
+		}
+	default:
+		panic("invalid tx type")
+	}
+	tx, err := types.SignNewTx(key, signer, txData)
 	if err != nil {
 		panic(err)
 	}
