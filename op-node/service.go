@@ -36,11 +36,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	if !ctx.Bool(flags.BetaRollupLoadProtocolVersions.Name) {
-		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
-		rollupConfig.ProtocolVersionsAddress = common.Address{}
-	}
-
 	configPersistence := NewConfigPersistence(ctx)
 
 	driverConfig := NewDriverConfig(ctx)
@@ -65,11 +60,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
 
 	syncConfig := NewSyncConfig(ctx)
-
-	haltOption := ctx.String(flags.BetaRollupHalt.Name)
-	if haltOption == "none" {
-		haltOption = ""
-	}
 
 	cfg := &node.Config{
 		L1:     l1Endpoint,
@@ -103,7 +93,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		},
 		ConfigPersistence: configPersistence,
 		Sync:              *syncConfig,
-		RollupHalt:        haltOption,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

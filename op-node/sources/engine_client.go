@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/eth/catalyst"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
@@ -127,13 +124,4 @@ func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) 
 	}
 	e.Trace("Received payload")
 	return &result, nil
-}
-
-func (s *EngineClient) SignalSuperchainV1(ctx context.Context, recommended, required params.ProtocolVersion) (params.ProtocolVersion, error) {
-	var result params.ProtocolVersion
-	err := s.client.CallContext(ctx, &result, "engine_signalSuperchainV1", &catalyst.SuperchainSignal{
-		Recommended: recommended,
-		Required:    required,
-	})
-	return result, err
 }
