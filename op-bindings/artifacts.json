@@ -39,5 +39,6 @@
   "BOBA",
   "BobaTuringCredit",
   "GovernanceToken",
-  "BobaHCHelper"
+  "BobaHCHelper",
+  "L2GovernanceERC20"
 ]

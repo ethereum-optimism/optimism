@@ -15,8 +15,16 @@ var layouts = make(map[string]*solc.StorageLayout)
 // in an init function.
 var deployedBytecodes = make(map[string]string)
 
+// specialContractNames represents the set of contract names that are special
+var specialContractNames = map[string]string{
+	"BobaL2": "L2GovernanceERC20",
+}
+
 // GetStorageLayout returns the storage layout of a contract by name.
 func GetStorageLayout(name string) (*solc.StorageLayout, error) {
+	if specialName, ok := specialContractNames[name]; ok {
+		name = specialName
+	}
 	layout := layouts[name]
 	if layout == nil {
 		return nil, fmt.Errorf("%s: storage layout not found", name)
@@ -26,6 +34,9 @@ func GetStorageLayout(name string) (*solc.StorageLayout, error) {
 
 // GetDeployedBytecode returns the deployed bytecode of a contract by name.
 func GetDeployedBytecode(name string) ([]byte, error) {
+	if specialName, ok := specialContractNames[name]; ok {
+		name = specialName
+	}
 	bc := deployedBytecodes[name]
 	if bc == "" {
 		return nil, fmt.Errorf("%s: deployed bytecode not found", name)

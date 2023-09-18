@@ -13,6 +13,7 @@ import (
 func TestBuildOptimism(t *testing.T) {
 	minimumWithdrawalAmountBig, _ := big.NewInt(0).SetString("8ac7230489e80000", 16)
 	minimumWithdrawalAmount := (*hexutil.Big)(minimumWithdrawalAmountBig)
+	l1Token := common.HexToAddress("0x0123456789012345678901234567890123456789")
 	results, err := immutables.BuildOptimism(immutables.ImmutableConfig{
 		"L2StandardBridge": {
 			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
@@ -43,6 +44,20 @@ func TestBuildOptimism(t *testing.T) {
 			"minimumWithdrawalAmount": minimumWithdrawalAmount,
 			"withdrawalNetwork":       uint8(0),
 		},
+		"BobaTuringCredit": {
+			"owner":       common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"turingToken": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		"BobaHCHelper": {
+			"owner": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		"BobaL2": {
+			"l2Bridge":  common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"l1Token":   &l1Token,
+			"_name":     "BOBA Token",
+			"_symbol":   "BOBA",
+			"_decimals": uint8(18),
+		},
 	})
 	require.Nil(t, err)
 	require.NotNil(t, results)
@@ -67,6 +82,7 @@ func TestBuildOptimism(t *testing.T) {
 		"SchemaRegistry":                true,
 		"BobaTuringCredit":              true,
 		"BobaHCHelper":                  true,
+		"BobaL2":                        true,
 	}
 
 	// Only the exact contracts that we care about are being

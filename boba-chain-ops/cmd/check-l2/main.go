@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
@@ -220,11 +221,6 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 				return err
 			}
 
-		case predeploys.BobaL2Addr:
-			if err := checkGovernanceToken(p, client); err != nil {
-				return err
-			}
-
 		case predeploys.L2ERC721BridgeAddr:
 			if err := checkL2ERC721Bridge(p, client); err != nil {
 				return err
@@ -262,6 +258,11 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 
 		case predeploys.EASAddr:
 			if err := checkEAS(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaL2Addr:
+			if err := checkBobaL2(p, client); err != nil {
 				return err
 			}
 
@@ -881,6 +882,51 @@ func checkEAS(addr libcommon.Address, client *clients.RpcClient) error {
 		return err
 	}
 	log.Info("EAS version", "version", version)
+	return nil
+}
+
+func checkBobaL2(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewL2GovernanceERC20(addr, client)
+	if err != nil {
+		return err
+	}
+	l2Bridge, err := contract.L2Bridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if l2Bridge == (libcommon.Address{}) {
+		return fmt.Errorf("BobaL2 l2Bridge should not be set to address(0)")
+	}
+	log.Info("BobaL2", "l2Bridge", l2Bridge.Hex())
+	l1Token, err := contract.L1Token(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if l1Token == (libcommon.Address{}) {
+		return fmt.Errorf("BobaL2 l1Token should not be set to address(0)")
+	}
+	log.Info("BobaL2", "l1Token", l1Token.Hex())
+	name, err := contract.Name(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if name != "Boba Token" {
+		return fmt.Errorf("BobaL2 name should be 'Boba Token', got %s", name)
+	}
+	log.Info("BobaL2", "name", name)
+	symbol, err := contract.Symbol(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if symbol != "BOBA" {
+		return fmt.Errorf("BobaL2 symbol should be 'BOBA', got %s", symbol)
+	}
+	decimals, err := contract.Decimals(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("BobaL2", "decimals", decimals)
+
 	return nil
 }
 
