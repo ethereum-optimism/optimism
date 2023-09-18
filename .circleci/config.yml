@@ -1234,6 +1234,10 @@ workflows:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
+      - go-e2e-test:
+          name: op-e2e-span-batch-tests
+          module: op-e2e
+          target: test-span-batch
       - bedrock-go-tests:
           requires:
             - go-mod-tidy

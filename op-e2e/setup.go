@@ -661,7 +661,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
-	batchType := derive.SingularBatchType
+	var batchType uint = derive.SingularBatchType
 	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
 		batchType = derive.SpanBatchType
 	}
@@ -686,7 +686,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  "info",
 			Format: "text",
 		},
-		BatchType: uint(batchType),
+		BatchType: batchType,
 	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
