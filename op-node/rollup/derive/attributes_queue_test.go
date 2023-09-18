@@ -42,13 +42,13 @@ func TestAttributesQueue(t *testing.T) {
 	safeHead.L1Origin = l1Info.ID()
 	safeHead.Time = l1Info.InfoTime
 
-	batch := NewSingularBatchData(SingularBatch{
+	batch := SingularBatch{
 		ParentHash:   safeHead.Hash,
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
 		Timestamp:    safeHead.Time + cfg.BlockTime,
 		Transactions: []eth.Data{eth.Data("foobar"), eth.Data("example")},
-	})
+	}
 
 	parentL1Cfg := eth.SystemConfig{
 		BatcherAddr: common.Address{42},
@@ -80,7 +80,7 @@ func TestAttributesQueue(t *testing.T) {
 
 	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, attrBuilder, nil)
 
-	actual, err := aq.createNextAttributes(context.Background(), batch, safeHead)
+	actual, err := aq.createNextAttributes(context.Background(), &batch, safeHead)
 
 	require.NoError(t, err)
 	require.Equal(t, attrs, *actual)
