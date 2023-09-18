@@ -78,6 +78,7 @@ func ValidTraceType(value TraceType) bool {
 }
 
 const (
+	DefaultPollInterval       = time.Second * 12
 	DefaultCannonSnapshotFreq = uint(1_000_000_000)
 	DefaultCannonInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
@@ -98,6 +99,7 @@ type Config struct {
 	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
 	Datadir                 string           // Data Directory
 	MaxConcurrency          uint             // Maximum number of threads to use when progressing games
+	PollInterval            time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 
 	TraceType TraceType // Type of trace
 
@@ -131,6 +133,7 @@ func NewConfig(
 		L1EthRpc:           l1EthRpc,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 

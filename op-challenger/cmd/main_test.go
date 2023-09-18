@@ -169,6 +169,26 @@ func TestMaxConcurrency(t *testing.T) {
 	})
 }
 
+func TestPollInterval(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
+		require.Equal(t, config.DefaultPollInterval, cfg.PollInterval)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		expected := 100 * time.Second
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--http-poll-interval", "100s"))
+		require.Equal(t, expected, cfg.PollInterval)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			"invalid value \"abc\" for flag -http-poll-interval",
+			addRequiredArgs(config.TraceTypeAlphabet, "--http-poll-interval", "abc"))
+	})
+}
+
 func TestCannonBin(t *testing.T) {
 	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-bin"))
