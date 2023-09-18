@@ -28,6 +28,7 @@ import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
 
@@ -43,6 +44,11 @@ import "src/libraries/DisputeTypes.sol";
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
 contract Deploy is Deployer {
     DeployConfig cfg;
+
+    /// @notice The create2 salt used for deployment of the contract implementations.
+    ///         Using this helps to reduce config across networks as the implementation
+    ///         addresses will be the same across networks when deployed with create2.
+    bytes32 constant IMPL_SALT = keccak256(bytes("ether's phoenix"));
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
@@ -75,6 +81,7 @@ contract Deploy is Deployer {
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
         initializeOptimismPortal();
+        initializeProtocolVersions();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
@@ -98,6 +105,18 @@ contract Deploy is Deployer {
         }
     }
 
+    /// @notice Modifier that will only allow a function to be called on a public
+    ///         testnet or devnet.
+    modifier onlyTestnetOrDevnet() {
+        uint256 chainid = block.chainid;
+        if (
+            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
+                || chainid == Chains.GethDevnet
+        ) {
+            _;
+        }
+    }
+
     /// @notice Deploy all of the proxies
     function deployProxies() public {
         deployAddressManager();
@@ -111,6 +130,7 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
+        deployProtocolVersionsProxy();
 
         transferAddressManagerOwnership();
     }
@@ -128,6 +148,7 @@ contract Deploy is Deployer {
         deployBlockOracle();
         deployPreimageOracle();
         deployMips();
+        deployProtocolVersions();
     }
 
     /// @notice Deploy the AddressManager
@@ -286,9 +307,25 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    /// @notice Deploy the ProtocolVersionsProxy
+    function deployProtocolVersionsProxy() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        Proxy proxy = new Proxy({
+            _admin: proxyAdmin
+        });
+
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
+
+        save("ProtocolVersionsProxy", address(proxy));
+        console.log("ProtocolVersionsProxy deployed at %s", address(proxy));
+
+        addr_ = address(proxy);
+    }
+
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger();
+        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: IMPL_SALT }();
 
         require(address(messenger.PORTAL()) == address(0));
         require(address(messenger.portal()) == address(0));
@@ -304,7 +341,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        OptimismPortal portal = new OptimismPortal();
+        OptimismPortal portal = new OptimismPortal{ salt: IMPL_SALT }();
 
         require(address(portal.L2_ORACLE()) == address(0));
         require(portal.GUARDIAN() == address(0));
@@ -319,7 +356,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        L2OutputOracle oracle = new L2OutputOracle({
+        L2OutputOracle oracle = new L2OutputOracle{ salt: IMPL_SALT }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
@@ -346,7 +383,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory();
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory{ salt: IMPL_SALT }();
 
         require(factory.BRIDGE() == address(0));
         require(factory.bridge() == address(0));
@@ -359,7 +396,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
-        DisputeGameFactory factory = new DisputeGameFactory();
+        DisputeGameFactory factory = new DisputeGameFactory{ salt: IMPL_SALT }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
@@ -368,16 +405,25 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the BlockOracle
     function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
-        BlockOracle oracle = new BlockOracle();
+        BlockOracle oracle = new BlockOracle{ salt: IMPL_SALT }();
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
 
         addr_ = address(oracle);
     }
 
+    /// @notice Deploy the ProtocolVersions
+    function deployProtocolVersions() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+        ProtocolVersions versions = new ProtocolVersions{ salt: IMPL_SALT }();
+        save("ProtocolVersions", address(versions));
+        console.log("ProtocolVersions deployed at %s", address(versions));
+
+        addr_ = address(versions);
+    }
+
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
-        PreimageOracle preimageOracle = new PreimageOracle();
+        PreimageOracle preimageOracle = new PreimageOracle{ salt: IMPL_SALT }();
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
@@ -386,7 +432,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() public onlyDevnet broadcast returns (address addr_) {
-        MIPS mips = new MIPS(IPreimageOracle(mustGetAddress("PreimageOracle")));
+        MIPS mips = new MIPS{ salt: IMPL_SALT }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
@@ -395,7 +441,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        SystemConfig config = new SystemConfig();
+        SystemConfig config = new SystemConfig{ salt: IMPL_SALT }();
 
         require(config.owner() == address(0xdEaD));
         require(config.overhead() == 0);
@@ -428,7 +474,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
-        L1StandardBridge bridge = new L1StandardBridge();
+        L1StandardBridge bridge = new L1StandardBridge{ salt: IMPL_SALT }();
 
         require(address(bridge.MESSENGER()) == address(0));
         require(address(bridge.messenger()) == address(0));
@@ -443,7 +489,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        L1ERC721Bridge bridge = new L1ERC721Bridge();
+        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: IMPL_SALT }();
 
         require(address(bridge.MESSENGER()) == address(0));
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
@@ -735,6 +781,37 @@ contract Deploy is Deployer {
         require(portal.GUARDIAN() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == false);
+    }
+
+    function initializeProtocolVersions() public onlyTestnetOrDevnet broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
+        address protocolVersions = mustGetAddress("ProtocolVersions");
+
+        address finalSystemOwner = cfg.finalSystemOwner();
+        uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
+        uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
+
+        proxyAdmin.upgradeAndCall({
+            _proxy: payable(protocolVersionsProxy),
+            _implementation: protocolVersions,
+            _data: abi.encodeCall(
+                ProtocolVersions.initialize,
+                (
+                    finalSystemOwner,
+                    ProtocolVersion.wrap(requiredProtocolVersion),
+                    ProtocolVersion.wrap(recommendedProtocolVersion)
+                )
+                )
+        });
+
+        ProtocolVersions versions = ProtocolVersions(protocolVersionsProxy);
+        string memory version = versions.version();
+        console.log("ProtocolVersions version: %s", version);
+
+        require(versions.owner() == finalSystemOwner);
+        require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
+        require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner

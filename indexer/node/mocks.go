@@ -31,6 +31,11 @@ func (m *MockEthClient) BlockHeadersByRange(from, to *big.Int) ([]types.Header, 
 	return args.Get(0).([]types.Header), args.Error(1)
 }
 
+func (m *MockEthClient) TxByHash(hash common.Hash) (*types.Transaction, error) {
+	args := m.Called(hash)
+	return args.Get(0).(*types.Transaction), args.Error(1)
+}
+
 func (m *MockEthClient) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {
 	args := m.Called(address, blockNumber)
 	return args.Get(0).(common.Hash), args.Error(1)

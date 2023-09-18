@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
+import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
-import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
-import { IOptimismMintableERC721 } from "../universal/IOptimismMintableERC721.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { Semver } from "../universal/Semver.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { IOptimismMintableERC721 } from "src/universal/IOptimismMintableERC721.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title L2ERC721Bridge
 /// @notice The L2 ERC721 bridge is a contract which works together with the L1 ERC721 bridge to
@@ -17,11 +17,13 @@ import { Semver } from "../universal/Semver.sol";
 ///         bridge ONLY supports ERC721s originally deployed on Ethereum. Users will need to
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
-contract L2ERC721Bridge is ERC721Bridge, Semver {
-    /// @custom:semver 1.2.1
+contract L2ERC721Bridge is ERC721Bridge, ISemver {
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
+
     /// @notice Constructs the L2ERC721Bridge contract.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) Semver(1, 2, 1) ERC721Bridge(_otherBridge) {
+    constructor(address _otherBridge) ERC721Bridge(_otherBridge) {
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 

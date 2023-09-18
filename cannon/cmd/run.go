@@ -28,7 +28,7 @@ var (
 	}
 	RunOutputFlag = &cli.PathFlag{
 		Name:      "output",
-		Usage:     "path of output JSON state. Stdout if left empty.",
+		Usage:     "path of output JSON state. Not written if empty, use - to write to Stdout.",
 		TakesFile: true,
 		Value:     "out.json",
 		Required:  false,
@@ -42,7 +42,7 @@ var (
 	}
 	RunProofFmtFlag = &cli.StringFlag{
 		Name:     "proof-fmt",
-		Usage:    "format for proof data output file names. Proof data is written to stdout if empty.",
+		Usage:    "format for proof data output file names. Proof data is written to stdout if -.",
 		Value:    "proof-%d.json",
 		Required: false,
 	}
@@ -66,7 +66,7 @@ var (
 	}
 	RunMetaFlag = &cli.PathFlag{
 		Name:     "meta",
-		Usage:    "path to metadata file for symbol lookup for enhanced debugging info durign execution.",
+		Usage:    "path to metadata file for symbol lookup for enhanced debugging info during execution.",
 		Value:    "meta.json",
 		Required: false,
 	}
@@ -324,7 +324,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state, false); err != nil {
+			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
@@ -360,7 +360,7 @@ func Run(ctx *cli.Context) error {
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof, true); err != nil {
+			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -371,7 +371,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state, true); err != nil {
+	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil
