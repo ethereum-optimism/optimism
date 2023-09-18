@@ -37,8 +37,9 @@ var (
 type TraceType string
 
 const (
-	TraceTypeAlphabet TraceType = "alphabet"
-	TraceTypeCannon   TraceType = "cannon"
+	TraceTypeAlphabet     TraceType = "alphabet"
+	TraceTypeCannon       TraceType = "cannon"
+	TraceTypeOutputCannon TraceType = "output_cannon"
 
 	// Mainnet games
 	CannonFaultGameID = 0
@@ -47,7 +48,7 @@ const (
 	AlphabetFaultGameID = 255
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutputCannon}
 
 // GameIdToString maps game IDs to their string representation.
 var GameIdToString = map[uint8]string{
@@ -167,7 +168,7 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceType == TraceTypeCannon {
+	if c.TraceType == TraceTypeCannon || c.TraceType == TraceTypeOutputCannon {
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
 		}
