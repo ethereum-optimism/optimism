@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/indexer-api",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "[Optimism] typescript types for the indexer service",
   "main": "indexer.cjs",
   "module": "indexer.js",
@@ -17,7 +17,8 @@
   ],
   "scripts": {
     "clean": "rm -rf generated.ts indexer.cjs indexer.js",
-    "generate": "npm run clean && tygo generate && mv ../api/routes/index.ts generated.ts && npx tsup"
+    "generate": "npm run clean && tygo generate && mv ../api/routes/index.ts generated.ts && tsup",
+    "test": "vitest"
   },
   "keywords": [
     "optimism",
@@ -30,4 +31,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/ethereum-optimism/optimism.git"
-  }}
+  },
+  "devDependencies": {
+    "tsup": "^7.2.0",
+    "vitest": "^0.34.4"
+  }
+}
