@@ -81,7 +81,6 @@ type SequencerIface interface {
 	PlanNextSequencerAction() time.Duration
 	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error)
 	BuildingOnto() eth.L2BlockRef
-	CancelBuildingBlock(ctx context.Context)
 }
 
 type Network interface {
