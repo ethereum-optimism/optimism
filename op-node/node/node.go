@@ -2,7 +2,9 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -40,10 +42,14 @@ type OpNode struct {
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
 
+	rollupHalt string // when to halt the rollup, disabled if empty
+
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
 	resourcesClose context.CancelFunc
+
+	closed atomic.Bool
 }
 
 // The OpNode handles incoming gossip
@@ -58,6 +64,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 		log:        log,
 		appVersion: appVersion,
 		metrics:    m,
+		rollupHalt: cfg.RollupHalt,
 	}
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
@@ -189,6 +196,9 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			n.log.Error("failed to fetch runtime config data", "err", err)
 			return l1Head, err
 		}
+
+		n.handleProtocolVersionsUpdate(ctx)
+
 		return l1Head, nil
 	}
 
@@ -446,6 +456,10 @@ func (n *OpNode) RuntimeConfig() ReadonlyRuntimeConfig {
 
 // Close closes all resources.
 func (n *OpNode) Close() error {
+	if n.closed.Load() {
+		return errors.New("node is already closed")
+	}
+
 	var result *multierror.Error
 
 	if n.server != nil {
@@ -494,7 +508,16 @@ func (n *OpNode) Close() error {
 	if n.l1Source != nil {
 		n.l1Source.Close()
 	}
+
+	if result == nil { // mark as closed if we successfully fully closed
+		n.closed.Store(true)
+	}
+
 	return result.ErrorOrNil()
+}
+
+func (n *OpNode) Closed() bool {
+	return n.closed.Load()
 }
 
 func (n *OpNode) ListenAddr() string {

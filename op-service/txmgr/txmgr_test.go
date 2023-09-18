@@ -93,6 +93,7 @@ type gasPricer struct {
 	mineAtEpoch   int64
 	baseGasTipFee *big.Int
 	baseBaseFee   *big.Int
+	err           error
 	mu            sync.Mutex
 }
 
@@ -206,6 +207,9 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 }
 
 func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	if b.g.err != nil {
+		return 0, b.g.err
+	}
 	return b.g.basefee().Uint64(), nil
 }
 
@@ -418,6 +422,31 @@ func TestTxMgr_EstimateGas(t *testing.T) {
 
 	// Check that the gas was estimated correctly.
 	require.Equal(t, gasEstimate, tx.Gas())
+}
+
+func TestTxMgr_EstimateGasFails(t *testing.T) {
+	t.Parallel()
+	h := newTestHarness(t)
+	candidate := h.createTxCandidate()
+
+	// Set the gas limit to zero to trigger gas estimation.
+	candidate.GasLimit = 0
+
+	// Craft a successful transaction.
+	tx, err := h.mgr.craftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	lastNonce := tx.Nonce()
+
+	// Mock gas estimation failure.
+	h.gasPricer.err = fmt.Errorf("execution error")
+	_, err = h.mgr.craftTx(context.Background(), candidate)
+	require.ErrorContains(t, err, "failed to estimate gas")
+
+	// Ensure successful craft uses the correct nonce
+	h.gasPricer.err = nil
+	tx, err = h.mgr.craftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.Equal(t, lastNonce+1, tx.Nonce())
 }
 
 // TestTxMgrOnlyOnePublicationSucceeds asserts that the tx manager will return a

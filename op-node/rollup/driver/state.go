@@ -381,6 +381,9 @@ func (s *Driver) eventLoop() {
 				}
 				s.log.Warn("Sequencer has been stopped")
 				s.driverConfig.SequencerStopped = true
+				// Cancel any inflight block building. If we don't cancel this, we can resume sequencing an old block
+				// even if we've received new unsafe heads in the interim, causing us to introduce a re-org.
+				s.sequencer.CancelBuildingBlock(ctx)
 				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}
 			}
 		case respCh := <-s.sequencerActive:
