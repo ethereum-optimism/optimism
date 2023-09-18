@@ -366,7 +366,7 @@ When decompressing a channel, we limit the amount of decompressed data to `MAX_R
 10,000,000 bytes), in order to avoid "zip-bomb" types of attack (where a small compressed input decompresses to a
 humongous amount of data). If the decompressed data exceeds the limit, things proceeds as though the channel contained
 only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes. The limit is set on RLP decoding, so all batches that
-can be decoded in `MAX_RLP_BYTES_PER_CHANNEL` will be accepted ven if the size of the channel is greater than
+can be decoded in `MAX_RLP_BYTES_PER_CHANNEL` will be accepted even if the size of the channel is greater than
 `MAX_RLP_BYTES_PER_CHANNEL`. The exact requirement is that `length(input) <= MAX_RLP_BYTES_PER_CHANNEL`.
 
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
