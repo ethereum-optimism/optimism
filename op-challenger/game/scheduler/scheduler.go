@@ -22,7 +22,6 @@ type SchedulerMetricer interface {
 }
 
 type Scheduler struct {
-	executorMutex  sync.Mutex
 	logger         log.Logger
 	coordinator    *coordinator
 	m              SchedulerMetricer
@@ -56,17 +55,13 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 }
 
 func (s *Scheduler) ThreadActive() {
-	s.executorMutex.Lock()
-	defer s.executorMutex.Unlock()
-	s.m.DecIdleExecutors()
 	s.m.IncActiveExecutors()
+	s.m.DecIdleExecutors()
 }
 
 func (s *Scheduler) ThreadIdle() {
-	s.executorMutex.Lock()
-	defer s.executorMutex.Unlock()
-	s.m.DecActiveExecutors()
 	s.m.IncIdleExecutors()
+	s.m.DecActiveExecutors()
 }
 
 func (s *Scheduler) Start(ctx context.Context) {
