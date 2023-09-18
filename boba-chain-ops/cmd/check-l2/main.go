@@ -8,10 +8,8 @@ import (
 	"math/big"
 	"os"
 
-	"golang.org/x/sync/errgroup"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
 
