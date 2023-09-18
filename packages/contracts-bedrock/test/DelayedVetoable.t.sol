@@ -81,12 +81,15 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
 
     /// @dev The delay is inititially set to zero and the call is immediately forwarded.
     function testFuzz_handleCall_initialForwardingImmediately_succeeds(
-        bytes memory inData,
-        bytes memory outData
+        bytes calldata inData,
+        bytes calldata outData
     )
         external
     {
         assumeNonzeroData(inData);
+        if (inData.length >= 4) {
+            vm.assume(bytes4(inData[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
+        }
 
         // Reset the delay to zero
         vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
@@ -180,5 +183,19 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Forward the call
         vm.expectRevert(outData);
         (bool success2,) = address(delayedVetoable).call(inData);
+    }
+
+    /// @dev A test documenting the single instance in which the contract is not 'transparent' to the initiator.
+    function testFuzz_handleCall_queuedAtClash_reverts(bytes memory outData) external {
+        // This will get us calldata with the same function selector as the queuedAt function, but
+        // with the incorrect input data length.
+        bytes memory inData = abi.encodePacked(keccak256("queuedAt(bytes32)"));
+
+        // Reset the delay to zero
+        vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        vm.prank(initiator);
+        vm.expectRevert(outData);
+        (bool success,) = address(delayedVetoable).call(inData);
     }
 }

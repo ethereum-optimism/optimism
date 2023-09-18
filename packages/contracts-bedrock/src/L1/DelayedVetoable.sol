@@ -7,6 +7,9 @@ import { ISemver } from "src/universal/ISemver.sol";
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
 ///         the call can be vetoed by the authorized vetoer.
 ///         This contract does not support value transfers, only data is forwarded.
+///         Additionally, this contract cannot be used to forward calls with data beginning with the function selector
+///         of the queuedAt(bytes32) function. This is because of input validation checks which solidity performs at
+///         runtime on functions which take an argument.
 contract DelayedVetoable is ISemver {
     /// @notice Error for when the delay has already been set.
     error AlreadyDelayed();
