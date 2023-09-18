@@ -454,53 +454,6 @@ func checkL2ERC721Bridge(addr libcommon.Address, client *clients.RpcClient) erro
 	return nil
 }
 
-func checkGovernanceToken(addr libcommon.Address, client *clients.RpcClient) error {
-	code, err := client.CodeAt(context.Background(), addr, nil)
-	if err != nil {
-		return err
-	}
-
-	if len(code) > 0 {
-		// This should also check the owner
-		contract, err := bindings.NewL2GovernanceERC20(addr, client)
-		if err != nil {
-			return err
-		}
-		name, err := contract.Name(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		log.Info("GovernanceToken", "name", name)
-		symbol, err := contract.Symbol(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		log.Info("GovernanceToken", "symbol", symbol)
-		totalSupply, err := contract.TotalSupply(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		log.Info("GovernanceToken", "totalSupply", totalSupply)
-		l2Bridge, err := contract.L2Bridge(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		if l2Bridge == (libcommon.Address{}) {
-			return errors.New("GovernanceToken.L2Bridge is zero address")
-		}
-		l1Token, err := contract.L1Token(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		if l1Token == (libcommon.Address{}) {
-			return errors.New("GovernanceToken.L1Token is zero address")
-		}
-	} else {
-		return fmt.Errorf("GovernanceToken code is empty")
-	}
-	return nil
-}
-
 func checkWETH9(addr libcommon.Address, client *clients.RpcClient) error {
 	contract, err := bindings.NewWETH9(addr, client)
 	if err != nil {

@@ -295,6 +295,12 @@ def devnet_test(paths):
          timeout=8*60,
     )
 
+    run_command(
+         ['npx', 'hardhat',  'deposit-boba', '--network',  'hardhat-local', '--l1-contracts-json-path', paths.addresses_json_path],
+         cwd=paths.sdk_dir,
+         timeout=8*60,
+    )
+
 def run_command(args, check=True, shell=False, cwd=None, env=None, timeout=None):
     env = env if env else {}
     return subprocess.run(
