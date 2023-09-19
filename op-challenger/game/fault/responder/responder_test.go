@@ -73,6 +73,40 @@ func TestResolve(t *testing.T) {
 	})
 }
 
+func TestCallResolveClaim(t *testing.T) {
+	t.Run("SendFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.callFails = true
+		err := responder.CallResolveClaim(context.Background(), 0)
+		require.ErrorIs(t, err, mockCallError)
+		require.Equal(t, 0, mockTxMgr.calls)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		err := responder.CallResolveClaim(context.Background(), 0)
+		require.NoError(t, err)
+		require.Equal(t, 1, mockTxMgr.calls)
+	})
+}
+
+func TestResolveClaim(t *testing.T) {
+	t.Run("SendFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.sendFails = true
+		err := responder.ResolveClaim(context.Background(), 0)
+		require.ErrorIs(t, err, mockSendError)
+		require.Equal(t, 0, mockTxMgr.sends)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		err := responder.ResolveClaim(context.Background(), 0)
+		require.NoError(t, err)
+		require.Equal(t, 1, mockTxMgr.sends)
+	})
+}
+
 // TestRespond tests the [Responder.Respond] method.
 func TestPerformAction(t *testing.T) {
 	t.Run("send fails", func(t *testing.T) {
