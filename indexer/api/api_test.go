@@ -1,17 +1,20 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockBridgeTransfersView mocks the BridgeTransfersView interface
@@ -70,6 +73,8 @@ func (mbv *MockBridgeTransfersView) L1BridgeDepositsByAddress(address common.Add
 			{
 				L1BridgeDeposit:   deposit,
 				L1TransactionHash: common.HexToHash("0x123"),
+				L2TransactionHash: common.HexToHash("0x555"),
+				L1BlockHash:       common.HexToHash("0x456"),
 			},
 		},
 	}, nil
@@ -79,8 +84,11 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.
 	return &database.L2BridgeWithdrawalsResponse{
 		Withdrawals: []database.L2BridgeWithdrawalWithTransactionHashes{
 			{
-				L2BridgeWithdrawal: withdrawal,
-				L2TransactionHash:  common.HexToHash("0x789"),
+				L2BridgeWithdrawal:         withdrawal,
+				L2TransactionHash:          common.HexToHash("0x789"),
+				L2BlockHash:                common.HexToHash("0x456"),
+				ProvenL1TransactionHash:    common.HexToHash("0x123"),
+				FinalizedL1TransactionHash: common.HexToHash("0x123"),
 			},
 		},
 	}, nil
@@ -107,6 +115,17 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 	api.Router.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
+
+	var resp routes.DepositResponse
+	err = json.Unmarshal(responseRecorder.Body.Bytes(), &resp)
+	assert.Nil(t, err)
+
+	require.Len(t, resp.Items, 1)
+
+	assert.Equal(t, resp.Items[0].L1BlockHash, common.HexToHash("0x456").String())
+	assert.Equal(t, resp.Items[0].L1TxHash, common.HexToHash("0x123").String())
+	assert.Equal(t, resp.Items[0].Timestamp, deposit.Tx.Timestamp)
+	assert.Equal(t, resp.Items[0].L2TxHash, common.HexToHash("555").String())
 }
 
 func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
@@ -118,5 +137,22 @@ func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	responseRecorder := httptest.NewRecorder()
 	api.Router.ServeHTTP(responseRecorder, request)
 
-	assert.Equal(t, http.StatusOK, responseRecorder.Code)
+	var resp routes.WithdrawalResponse
+	err = json.Unmarshal(responseRecorder.Body.Bytes(), &resp)
+	assert.Nil(t, err)
+
+	require.Len(t, resp.Items, 1)
+
+	assert.Equal(t, resp.Items[0].Guid, withdrawal.TransactionWithdrawalHash.String())
+	assert.Equal(t, resp.Items[0].L2BlockHash, common.HexToHash("0x456").String())
+	assert.Equal(t, resp.Items[0].From, withdrawal.Tx.FromAddress.String())
+	assert.Equal(t, resp.Items[0].To, withdrawal.Tx.ToAddress.String())
+	assert.Equal(t, resp.Items[0].TransactionHash, common.HexToHash("0x789").String())
+	assert.Equal(t, resp.Items[0].Amount, withdrawal.Tx.Amount.String())
+	assert.Equal(t, resp.Items[0].ProofTransactionHash, common.HexToHash("0x123").String())
+	assert.Equal(t, resp.Items[0].ClaimTransactionHash, common.HexToHash("0x123").String())
+	assert.Equal(t, resp.Items[0].L1TokenAddress, withdrawal.TokenPair.RemoteTokenAddress.String())
+	assert.Equal(t, resp.Items[0].L2TokenAddress, withdrawal.TokenPair.LocalTokenAddress.String())
+	assert.Equal(t, resp.Items[0].Timestamp, withdrawal.Tx.Timestamp)
+
 }

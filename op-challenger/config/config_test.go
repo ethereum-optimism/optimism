@@ -28,7 +28,7 @@ func validConfig(traceType TraceType) Config {
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
-	case TraceTypeCannon:
+	case TraceTypeCannon, TraceTypeOutputCannon:
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
@@ -115,6 +115,13 @@ func TestMaxConcurrency(t *testing.T) {
 	t.Run("DefaultToNumberOfCPUs", func(t *testing.T) {
 		config := validConfig(TraceTypeAlphabet)
 		require.EqualValues(t, runtime.NumCPU(), config.MaxConcurrency)
+	})
+}
+
+func TestHttpPollInterval(t *testing.T) {
+	t.Run("Default", func(t *testing.T) {
+		config := validConfig(TraceTypeAlphabet)
+		require.EqualValues(t, DefaultPollInterval, config.PollInterval)
 	})
 }
 

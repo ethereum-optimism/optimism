@@ -1,18 +1,57 @@
 package mipsevm
 
 import (
+	"bytes"
+	"compress/zlib"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+var zlibWriterPool = sync.Pool{
+	New: func() any {
+		var buf bytes.Buffer
+		return zlib.NewWriter(&buf)
+	},
+}
+
 type Page [PageSize]byte
 
-func (p *Page) MarshalText() ([]byte, error) {
-	dst := make([]byte, hex.EncodedLen(len(p)))
-	hex.Encode(dst, p[:])
-	return dst, nil
+func (p *Page) MarshalJSON() ([]byte, error) { // nosemgrep
+	var out bytes.Buffer
+	w := zlibWriterPool.Get().(*zlib.Writer)
+	defer zlibWriterPool.Put(w)
+	w.Reset(&out)
+	if _, err := w.Write(p[:]); err != nil {
+		return nil, err
+	}
+	if err := w.Close(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(out.Bytes())
+}
+
+func (p *Page) UnmarshalJSON(dat []byte) error {
+	// Strip off the `"` characters at the start & end.
+	dat = dat[1 : len(dat)-1]
+	// Decode b64 then decompress
+	r, err := zlib.NewReader(base64.NewDecoder(base64.StdEncoding, bytes.NewReader(dat)))
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	if n, err := r.Read(p[:]); n != PageSize {
+		return fmt.Errorf("epxeted %d bytes, but got %d", PageSize, n)
+	} else if err == io.EOF {
+		return nil
+	} else {
+		return err
+	}
 }
 
 func (p *Page) UnmarshalText(dat []byte) error {

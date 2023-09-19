@@ -155,14 +155,14 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 				for _, group := range l1BlockGroups {
 					log := l1BridgeLog.New("from_l1_block_number", group.Start, "to_l1_block_number", group.End)
 					log.Info("scanning for initiated bridge events")
-					if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(log, tx, b.chainConfig, group.Start, group.End); err != nil {
+					if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(log, tx, b.chainConfig.L1Contracts, group.Start, group.End); err != nil {
 						return err
 					}
 				}
 				for _, group := range l2BlockGroups {
 					log := l2BridgeLog.New("from_l2_block_number", group.Start, "to_l2_block_number", group.End)
 					log.Info("scanning for initiated bridge events")
-					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+					if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(log, tx, b.chainConfig.L2Contracts, group.Start, group.End); err != nil {
 						return err
 					}
 				}
@@ -171,14 +171,14 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 				for _, group := range l1BlockGroups {
 					log := l1BridgeLog.New("from_l1_block_number", group.Start, "to_l1_block_number", group.End)
 					log.Info("scanning for finalized bridge events")
-					if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(log, tx, b.l1Etl.EthClient, b.chainConfig, group.Start, group.End); err != nil {
+					if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(log, tx, b.l1Etl.EthClient, b.chainConfig.L1Contracts, group.Start, group.End); err != nil {
 						return err
 					}
 				}
 				for _, group := range l2BlockGroups {
 					log := l2BridgeLog.New("from_l2_block_number", group.Start, "to_l2_block_number", group.End)
 					log.Info("scanning for finalized bridge events")
-					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+					if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(log, tx, b.chainConfig.L2Contracts, group.Start, group.End); err != nil {
 						return err
 					}
 				}
@@ -199,14 +199,14 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			for _, group := range l1BlockGroups {
 				log := l1BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
 				log.Info("scanning for initiated bridge events")
-				if err := bridge.L1ProcessInitiatedBridgeEvents(log, tx, b.chainConfig, group.Start, group.End); err != nil {
+				if err := bridge.L1ProcessInitiatedBridgeEvents(log, tx, b.chainConfig.L1Contracts, group.Start, group.End); err != nil {
 					return err
 				}
 			}
 			for _, group := range l2BlockGroups {
 				log := l2BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
 				log.Info("scanning for initiated bridge events")
-				if err := bridge.L2ProcessInitiatedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+				if err := bridge.L2ProcessInitiatedBridgeEvents(log, tx, b.chainConfig.L2Contracts, group.Start, group.End); err != nil {
 					return err
 				}
 			}
@@ -215,14 +215,14 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 			for _, group := range l1BlockGroups {
 				log := l1BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
 				log.Info("scanning for finalized bridge events")
-				if err := bridge.L1ProcessFinalizedBridgeEvents(log, tx, b.chainConfig, group.Start, group.End); err != nil {
+				if err := bridge.L1ProcessFinalizedBridgeEvents(log, tx, b.chainConfig.L1Contracts, group.Start, group.End); err != nil {
 					return err
 				}
 			}
 			for _, group := range l2BlockGroups {
 				log := l2BridgeLog.New("from_block_number", group.Start, "to_block_number", group.End)
 				log.Info("scanning for finalized bridge events")
-				if err := bridge.L2ProcessFinalizedBridgeEvents(log, tx, group.Start, group.End); err != nil {
+				if err := bridge.L2ProcessFinalizedBridgeEvents(log, tx, b.chainConfig.L2Contracts, group.Start, group.End); err != nil {
 					return err
 				}
 			}
