@@ -57,8 +57,6 @@ func NewAgent(m metrics.Metricer, addr common.Address, loader ClaimLoader, maxDe
 // Act iterates the game & performs all of the next actions.
 func (a *Agent) Act(ctx context.Context) error {
 	if a.tryResolve(ctx) {
-		// Zero out the game claim count since the game will no longer be tracked once resolved.
-		a.metrics.RecordGameClaimCount(a.fdgAddr.String(), 0)
 		return nil
 	}
 	game, err := a.newGameFromContracts(ctx)
