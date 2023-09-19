@@ -151,12 +151,12 @@ func (s *stubResponder) Resolve(ctx context.Context) error {
 	return s.resolveErr
 }
 
-func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx int64) error {
+func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) error {
 	s.callResolveClaimCount++
 	return s.callResolveClaimErr
 }
 
-func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx int64) error {
+func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error {
 	s.resolveClaimCount++
 	return nil
 }

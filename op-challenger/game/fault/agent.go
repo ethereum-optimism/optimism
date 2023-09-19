@@ -19,8 +19,8 @@ import (
 type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve(ctx context.Context) error
-	CallResolveClaim(ctx context.Context, claimIdx int64) error
-	ResolveClaim(ctx context.Context, claimIdx int64) error
+	CallResolveClaim(ctx context.Context, claimIdx uint64) error
+	ResolveClaim(ctx context.Context, claimIdx uint64) error
 	PerformAction(ctx context.Context, action types.Action) error
 }
 
@@ -145,7 +145,7 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 	var resolvableClaims []int64
 	for _, claim := range claims {
 		a.log.Debug("checking if claim is resolvable", "claimIdx", claim.ContractIndex)
-		if err := a.responder.CallResolveClaim(ctx, int64(claim.ContractIndex)); err == nil {
+		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
 			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)
 			resolvableClaims = append(resolvableClaims, int64(claim.ContractIndex))
 		}
@@ -158,7 +158,7 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 		claimIdx := claimIdx
 		go func() {
 			defer wg.Done()
-			err := a.responder.ResolveClaim(ctx, claimIdx)
+			err := a.responder.ResolveClaim(ctx, uint64(claimIdx))
 			if err != nil {
 				a.log.Error("Failed to resolve claim", "err", err)
 			}

@@ -95,13 +95,13 @@ func (r *FaultResponder) Resolve(ctx context.Context) error {
 }
 
 // buildResolveClaimData creates the transaction data for the ResolveClaim function.
-func (r *FaultResponder) buildResolveClaimData(ctx context.Context, claimIdx int64) ([]byte, error) {
+func (r *FaultResponder) buildResolveClaimData(ctx context.Context, claimIdx uint64) ([]byte, error) {
 	return r.fdgAbi.Pack("resolveClaim", big.NewInt(int64(claimIdx)))
 }
 
 // CallResolveClaim determines if the resolveClaim function on the fault dispute game contract
 // would succeed.
-func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx int64) error {
+func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) error {
 	txData, err := r.buildResolveClaimData(ctx, claimIdx)
 	if err != nil {
 		return err
@@ -114,7 +114,7 @@ func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx int64) e
 }
 
 // ResolveClaim executes a resolveClaim transaction to resolve a fault dispute game.
-func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx int64) error {
+func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) error {
 	txData, err := r.buildResolveClaimData(ctx, claimIdx)
 	if err != nil {
 		return err
