@@ -38,5 +38,6 @@
   "SchemaRegistry",
   "ProtocolVersions",
   "Safe",
-  "SafeProxyFactory"
+  "SafeProxyFactory",
+  "DelayedVetoable"
 ]
