@@ -141,7 +141,7 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch claims: %w", err)
 	}
 	if len(claims) == 0 {
-		return nil
+		return errNoResolvableClaims
 	}
 
 	var resolvableClaims []int64
