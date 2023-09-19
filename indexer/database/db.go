@@ -50,27 +50,28 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 		Logger:                 logger.Default.LogMode(logger.Silent),
 	}
 
-	db, err := retry.Do[*DB](context.Background(), 10, retryStrategy, func() (*DB, error) {
+	gorm, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
 		gorm, err := gorm.Open(postgres.Open(dsn), &gormConfig)
 
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to connect to database")
 		}
-
-		db := &DB{
-			gorm:               gorm,
-			Blocks:             newBlocksDB(gorm),
-			ContractEvents:     newContractEventsDB(gorm),
-			BridgeTransfers:    newBridgeTransfersDB(gorm),
-			BridgeMessages:     newBridgeMessagesDB(gorm),
-			BridgeTransactions: newBridgeTransactionsDB(gorm),
-		}
-		return db, nil
+		return gorm, nil
 	})
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to database after multiple retries")
 	}
+
+	db := &DB{
+		gorm:               gorm,
+		Blocks:             newBlocksDB(gorm),
+		ContractEvents:     newContractEventsDB(gorm),
+		BridgeTransfers:    newBridgeTransfersDB(gorm),
+		BridgeMessages:     newBridgeMessagesDB(gorm),
+		BridgeTransactions: newBridgeTransactionsDB(gorm),
+	}
+
 	return db, nil
 }
 
