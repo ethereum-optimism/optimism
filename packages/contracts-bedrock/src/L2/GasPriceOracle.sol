@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { L1Block } from "../L2/L1Block.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x420000000000000000000000000000000000000F
@@ -19,13 +19,13 @@ import { L1Block } from "../L2/L1Block.sol";
 ///         - event OverheadUpdated(uint256 overhead);
 ///         - event ScalarUpdated(uint256 scalar);
 ///         - event DecimalsUpdated(uint256 decimals);
-contract GasPriceOracle is Semver {
+contract GasPriceOracle is ISemver {
     /// @notice Number of decimals used in the scalar.
     uint256 public constant DECIMALS = 6;
 
-    /// @custom:semver 1.0.2
-    /// @notice Constructs the GasPriceOracle contract.
-    constructor() Semver(1, 0, 2) { }
+    /// @notice Semantic version.
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
     ///         transaction, the current L1 base fee, and the various dynamic parameters.

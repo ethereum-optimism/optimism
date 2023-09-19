@@ -32,6 +32,12 @@ ARG TARGETOS TARGETARCH
 
 RUN make op-program-host VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
 
+WORKDIR /app/cannon
+
+ARG TARGETOS TARGETARCH
+
+RUN make cannon VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
+
 WORKDIR /app/op-challenger
 
 RUN make op-challenger VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
@@ -39,10 +45,13 @@ RUN make op-challenger VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
 FROM alpine:3.18
 
 # Make the bundled op-program the default cannon server
+COPY --from=builder /app/op-program/bin/op-program /usr/local/bin
 ENV OP_CHALLENGER_CANNON_SERVER /usr/local/bin/op-program
 
-COPY --from=builder /app/op-challenger/bin/op-challenger /usr/local/bin
+# Make the bundled cannon the default cannon executable
+COPY --from=builder /app/cannon/bin/cannon /usr/local/bin
+ENV OP_CHALLENGER_CANNON_BIN /usr/local/bin/cannon
 
-COPY --from=builder /app/op-program/bin/op-program /usr/local/bin
+COPY --from=builder /app/op-challenger/bin/op-challenger /usr/local/bin
 
 CMD ["op-challenger"]

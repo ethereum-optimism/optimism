@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -78,8 +78,8 @@ func TestPerformAction(t *testing.T) {
 	t.Run("send fails", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
-		err := responder.PerformAction(context.Background(), solver.Action{
-			Type:      solver.ActionTypeMove,
+		err := responder.PerformAction(context.Background(), types.Action{
+			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
 			IsAttack:  true,
 			Value:     common.Hash{0xaa},
@@ -90,8 +90,8 @@ func TestPerformAction(t *testing.T) {
 
 	t.Run("sends response", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
-		err := responder.PerformAction(context.Background(), solver.Action{
-			Type:      solver.ActionTypeMove,
+		err := responder.PerformAction(context.Background(), types.Action{
+			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
 			IsAttack:  true,
 			Value:     common.Hash{0xaa},
@@ -102,8 +102,8 @@ func TestPerformAction(t *testing.T) {
 
 	t.Run("attack", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
-		action := solver.Action{
-			Type:      solver.ActionTypeMove,
+		action := types.Action{
+			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
 			IsAttack:  true,
 			Value:     common.Hash{0xaa},
@@ -123,8 +123,8 @@ func TestPerformAction(t *testing.T) {
 
 	t.Run("defend", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
-		action := solver.Action{
-			Type:      solver.ActionTypeMove,
+		action := types.Action{
+			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
 			IsAttack:  false,
 			Value:     common.Hash{0xaa},
@@ -144,8 +144,8 @@ func TestPerformAction(t *testing.T) {
 
 	t.Run("step", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
-		action := solver.Action{
-			Type:      solver.ActionTypeStep,
+		action := types.Action{
+			Type:      types.ActionTypeStep,
 			ParentIdx: 123,
 			IsAttack:  true,
 			PreState:  []byte{1, 2, 3},

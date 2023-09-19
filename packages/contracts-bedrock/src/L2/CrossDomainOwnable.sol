@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 /// @title CrossDomainOwnable
 /// @notice This contract extends the OpenZeppelin `Ownable` contract for L2 contracts to be owned

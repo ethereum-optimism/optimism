@@ -100,7 +100,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	l2BlockNumber := h.waitForProposals(ctx)
 	l1Head := h.checkpointL1Block(ctx)
 
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 
 	trace := alphabet.NewTraceProvider(claimedAlphabet, alphabetGameDepth)

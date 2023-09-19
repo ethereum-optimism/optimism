@@ -80,9 +80,11 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 			return nil, fmt.Errorf("rpc option %d failed to apply to RPC config: %w", i, err)
 		}
 	}
+
 	if cfg.backoffAttempts < 1 { // default to at least 1 attempt, or it always fails to dial.
 		cfg.backoffAttempts = 1
 	}
+
 	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
 	if err != nil {
 		return nil, err
@@ -94,11 +96,15 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
 	}
 
-	if httpRegex.MatchString(addr) {
-		wrapped = NewPollingClient(ctx, lgr, wrapped, WithPollRate(cfg.httpPollInterval))
-	}
+	return NewRPCWithClient(ctx, lgr, addr, wrapped, cfg.httpPollInterval)
+}
 
-	return wrapped, nil
+// NewRPCWithClient builds a new polling client with the given underlying RPC client.
+func NewRPCWithClient(ctx context.Context, lgr log.Logger, addr string, underlying RPC, pollInterval time.Duration) (RPC, error) {
+	if httpRegex.MatchString(addr) {
+		underlying = NewPollingClient(ctx, lgr, underlying, WithPollRate(pollInterval))
+	}
+	return underlying, nil
 }
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.

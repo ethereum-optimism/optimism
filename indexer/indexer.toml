@@ -2,7 +2,6 @@
 # Can configure them manually or use a preset l2 ChainId for known chains including OP Mainnet, OP Goerli, Base, Base Goerli, Zora, and Zora goerli
 [chain]
 
-# OP Goerli
 preset = $INDEXER_CHAIN_PRESET
 
 # L1 Config

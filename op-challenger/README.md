@@ -103,6 +103,10 @@ Starts a new fault dispute game that disputes the latest output proposal in the 
 * `RPC_URL` - the RPC endpoint of the L1 endpoint to use (e.g. `http://localhost:8545`).
 * `GAME_FACTORY_ADDRESS` - the address of the dispute game factory contract on L1.
 * `ROOT_CLAIM` a hex encoded 32 byte hash to use as the root claim for the created game.
+    * The root claim must have the high-order byte set to the
+      invalid [VM status](../specs/cannon-fault-proof-vm.md#state-hash) (`0x01`) to indicate that the trace concludes
+      that the disputed output root is invalid.
+      e.g. `0x0146381068b59d2098495baa72ed2f773c1e09458610a7a208984859dff73add`
 * `SIGNER_ARGS` the remaining args are past as arguments to `cast` when sending transactions.
   These arguments must specify a way for `cast` to sign the transactions.
   See `cast send --help` for supported options.

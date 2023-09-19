@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,7 +18,7 @@ import (
 type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve(ctx context.Context) error
-	PerformAction(ctx context.Context, action solver.Action) error
+	PerformAction(ctx context.Context, action types.Action) error
 }
 
 type ClaimLoader interface {
@@ -66,7 +67,12 @@ func (a *Agent) Act(ctx context.Context) error {
 
 	// Perform the actions
 	for _, action := range actions {
-		log := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx, "value", action.Value)
+		log := a.log.New("action", action.Type, "is_attack", action.IsAttack, "parent", action.ParentIdx)
+		if action.Type == types.ActionTypeStep {
+			log = log.New("prestate", common.Bytes2Hex(action.PreState), "proof", common.Bytes2Hex(action.ProofData))
+		} else {
+			log = log.New("value", action.Value)
+		}
 
 		if action.OracleData != nil {
 			a.log.Info("Updating oracle data", "oracleKey", action.OracleData.OracleKey, "oracleData", action.OracleData.OracleData)
@@ -76,9 +82,9 @@ func (a *Agent) Act(ctx context.Context) error {
 		}
 
 		switch action.Type {
-		case solver.ActionTypeMove:
+		case types.ActionTypeMove:
 			a.metrics.RecordGameMove()
-		case solver.ActionTypeStep:
+		case types.ActionTypeStep:
 			a.metrics.RecordGameStep()
 		}
 		log.Info("Performing action")
