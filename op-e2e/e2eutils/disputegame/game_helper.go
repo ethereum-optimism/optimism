@@ -309,8 +309,6 @@ func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64)
 
 func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
-	g.LogGameData(ctx)
-	g.t.Logf("Attack. claim: %v. claimIdx: %d", claim, claimIdx)
 	g.require.NoError(err, "Attack transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
