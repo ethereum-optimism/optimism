@@ -177,12 +177,12 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 	for {
 		err := a.tryResolveClaims(ctx)
 		switch err {
-		case err:
-			return err
 		case errNoResolvableClaims:
 			return nil
-		default:
+		case nil:
 			continue
+		default:
+			return err
 		}
 	}
 }
