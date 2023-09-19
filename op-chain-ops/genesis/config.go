@@ -485,6 +485,19 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 	}, nil
 }
 
+func (d *DeployConfig) GetL1BobaTokenAddress() (*common.Address, error) {
+	var l1TokenAddr common.Address
+	if d.L1BobaToken != nil {
+		l1TokenAddr = *d.L1BobaToken
+	} else {
+		l1TokenAddr = predeploys.BobaL2Addr
+	}
+	if l1TokenAddr == (common.Address{}) {
+		return &l1TokenAddr, fmt.Errorf("L1BobaTokenAddress cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	return &l1TokenAddr, nil
+}
+
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
@@ -677,9 +690,23 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
 		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
 	}
+	immutable["BobaTuringCredit"] = immutables.ImmutableValues{
+		"owner":       config.ProxyAdminOwner,
+		"turingToken": predeploys.BobaL2Addr,
+	}
+	immutable["BobaHCHelper"] = immutables.ImmutableValues{
+		"owner": config.ProxyAdminOwner,
+	}
+	l1TokenAddr, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return immutable, err
+	}
 	immutable["BobaL2"] = immutables.ImmutableValues{
-		"bridge":      predeploys.L2StandardBridgeAddr,
-		"remoteToken": common.HexToAddress("0x154C5E3762FbB57427d6B03E7302BDA04C497226"),
+		"l2Bridge":  predeploys.L2StandardBridgeAddr,
+		"l1Token":   l1TokenAddr,
+		"_name":     "Boba Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
 	}
 	return immutable, nil
 }
@@ -739,10 +766,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
-	storage["BobaL2"] = state.StorageValues{
-		"_name":   "Boba L2",
-		"_symbol": "BOBA",
-	}
 	storage["BobaTuringCredit"] = state.StorageValues{}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
@@ -753,6 +776,24 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"bridge":        predeploys.L2StandardBridgeAddr,
 		"_initialized":  2,
 		"_initializing": false,
+	}
+	storage["BobaTuringCredit"] = state.StorageValues{
+		"owner":       config.ProxyAdminOwner,
+		"turingToken": predeploys.BobaL2Addr,
+	}
+	storage["BobaHCHelper"] = state.StorageValues{
+		"owner": config.ProxyAdminOwner,
+	}
+	l1TokenAddr, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return storage, err
+	}
+	storage["BobaL2"] = state.StorageValues{
+		"l2Bridge":  predeploys.L2StandardBridgeAddr,
+		"l1Token":   l1TokenAddr,
+		"_name":     "Boba Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
 	}
 	return storage, nil
 }

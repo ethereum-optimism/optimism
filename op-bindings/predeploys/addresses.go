@@ -25,6 +25,11 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+
+	// BOBA specific
+	BobaTuringCredit = "0x42000000000000000000000000000000000003e8"
+	BobaHCHelper     = "0x42000000000000000000000000000000000003E9"
+	BobaL2           = "0x4200000000000000000000000000000000000023"
 )
 
 var (
@@ -48,6 +53,11 @@ var (
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
 
+	// BOBA specific
+	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
+	BobaHCHelperAddr     = common.HexToAddress(BobaHCHelper)
+	BobaL2Addr           = common.HexToAddress(BobaL2)
+
 	Predeploys = make(map[string]*common.Address)
 )
 
@@ -56,6 +66,7 @@ func IsProxied(predeployAddr common.Address) bool {
 	switch predeployAddr {
 	case WETH9Addr:
 	case GovernanceTokenAddr:
+	case BobaL2Addr:
 	default:
 		return true
 	}
@@ -82,4 +93,7 @@ func init() {
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
 	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
 	Predeploys["EAS"] = &EASAddr
+	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
+	Predeploys["BobaHCHelper"] = &BobaHCHelperAddr
+	Predeploys["BobaL2"] = &BobaL2Addr
 }

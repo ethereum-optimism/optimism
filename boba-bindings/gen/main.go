@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	goast "go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
 	"os/exec"
@@ -15,6 +19,7 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/ast"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/foundry"
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 type flags struct {
@@ -167,21 +172,39 @@ func main() {
 			log.Fatalf("error running abigen: %v\n", err)
 		}
 
-		if !strings.Contains(outFile, "boba.go") {
-			bFile, err := os.ReadFile(outFile)
+		// XXX(jky) This is an absolutely horrible hack, and we should really
+		// figure out a way to make the generation right.  But, it would require
+		// modifying contracts, or the generation scheme, and I'm wary of
+		// creating conflicts and churn, so this is a benign way to handle
+		// things.
+		if filepath.Base(outFile) == "boba.go" || filepath.Base(outFile) == "l2governanceerc20.go" {
+			fSet := token.NewFileSet()
+			file, err := parser.ParseFile(fSet, outFile, nil, parser.ParseComments)
 			if err != nil {
-				log.Fatalf("error reading file: %v\n", err)
+				log.Fatalf("could not open %s for rewriting: %s", outFile, err)
 			}
-			sFile := string(bFile)
-			sFile = strings.Replace(sFile, `
-// ERC20VotesCheckpoint is an auto generated low-level Go binding around an user-defined struct.
-type ERC20VotesCheckpoint struct {
-	FromBlock uint32
-	Votes     *big.Int
-}
-`, "", -1)
-			if err := os.WriteFile(outFile, []byte(sFile), 0o600); err != nil {
-				log.Fatalf("error writing file: %v\n", err)
+			astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
+				n := c.Node()
+				switch x := n.(type) {
+				case *goast.GenDecl:
+					if x.Tok == token.TYPE {
+						spec := x.Specs[0].(*goast.TypeSpec)
+						if spec.Name.Name == "ERC20VotesCheckpoint" {
+							c.Delete()
+							return false
+						}
+					}
+				}
+
+				return true
+			})
+			out, err := os.Create(outFile)
+			if err != nil {
+				log.Fatalf("could not truncate for rewrite: %s", err)
+			}
+			defer out.Close()
+			if err := format.Node(out, fSet, file); err != nil {
+				log.Fatalf("could not rewrite: %s", err)
 			}
 		}
 

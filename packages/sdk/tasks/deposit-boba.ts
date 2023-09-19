@@ -96,7 +96,7 @@ task('deposit-boba', 'Deposits BOBA onto L2.')
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       } as OEContractsLike
 
-      l1BobaTokenAddress = json.L1BobaToken
+      l1BobaTokenAddress = json.BOBA
     }
 
     console.log(`OptimismPortal: ${contractAddrs.l1.OptimismPortal}`)

@@ -8,15 +8,15 @@ import (
 	"math/big"
 	"os"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/urfave/cli/v2"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/clients"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common"
@@ -219,11 +219,6 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 				return err
 			}
 
-		case predeploys.BobaL2Addr:
-			if err := checkGovernanceToken(p, client); err != nil {
-				return err
-			}
-
 		case predeploys.L2ERC721BridgeAddr:
 			if err := checkL2ERC721Bridge(p, client); err != nil {
 				return err
@@ -251,6 +246,31 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 
 		case predeploys.L2ToL1MessagePasserAddr:
 			if err := checkL2ToL1MessagePasser(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.SchemaRegistryAddr:
+			if err := checkSchemaRegistry(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.EASAddr:
+			if err := checkEAS(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaL2Addr:
+			if err := checkBobaL2(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaTuringCreditAddr:
+			if err := checkBobaTuringCredit(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaHCHelperAddr:
+			if err := checkBobaHCHelper(p, client); err != nil {
 				return err
 			}
 
@@ -431,53 +451,6 @@ func checkL2ERC721Bridge(addr libcommon.Address, client *clients.RpcClient) erro
 		return err
 	}
 	log.Info("L2ERC721Bridge version", "version", version)
-	return nil
-}
-
-func checkGovernanceToken(addr libcommon.Address, client *clients.RpcClient) error {
-	code, err := client.CodeAt(context.Background(), addr, nil)
-	if err != nil {
-		return err
-	}
-
-	if len(code) > 0 {
-		// This should also check the owner
-		contract, err := bindings.NewL2GovernanceERC20(addr, client)
-		if err != nil {
-			return err
-		}
-		name, err := contract.Name(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		log.Info("GovernanceToken", "name", name)
-		symbol, err := contract.Symbol(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		log.Info("GovernanceToken", "symbol", symbol)
-		totalSupply, err := contract.TotalSupply(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		log.Info("GovernanceToken", "totalSupply", totalSupply)
-		l2Bridge, err := contract.L2Bridge(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		if l2Bridge == (libcommon.Address{}) {
-			return errors.New("GovernanceToken.L2Bridge is zero address")
-		}
-		l1Token, err := contract.L1Token(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-		if l1Token == (libcommon.Address{}) {
-			return errors.New("GovernanceToken.L1Token is zero address")
-		}
-	} else {
-		return fmt.Errorf("GovernanceToken code is empty")
-	}
 	return nil
 }
 
@@ -824,6 +797,142 @@ func getEIP1967AdminAddress(client *clients.RpcClient, addr libcommon.Address) (
 	}
 	admin := libcommon.BytesToAddress(slot)
 	return admin, nil
+}
+
+func checkSchemaRegistry(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewSchemaRegistry(addr, client)
+	if err != nil {
+		return err
+	}
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SchemaRegistry version", "version", version)
+	return nil
+}
+
+func checkEAS(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewEAS(addr, client)
+	if err != nil {
+		return err
+	}
+
+	registry, err := contract.GetSchemaRegistry(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if registry != predeploys.SchemaRegistryAddr {
+		return fmt.Errorf("Incorrect registry address %s", registry)
+	}
+	log.Info("EAS", "registry", registry)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("EAS version", "version", version)
+	return nil
+}
+
+func checkBobaL2(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewL2GovernanceERC20(addr, client)
+	if err != nil {
+		return err
+	}
+	l2Bridge, err := contract.L2Bridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if l2Bridge == (libcommon.Address{}) {
+		return fmt.Errorf("BobaL2 l2Bridge should not be set to address(0)")
+	}
+	log.Info("BobaL2", "l2Bridge", l2Bridge.Hex())
+	l1Token, err := contract.L1Token(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if l1Token == (libcommon.Address{}) {
+		return fmt.Errorf("BobaL2 l1Token should not be set to address(0)")
+	}
+	log.Info("BobaL2", "l1Token", l1Token.Hex())
+	name, err := contract.Name(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if name != "Boba Token" {
+		return fmt.Errorf("BobaL2 name should be 'Boba Token', got %s", name)
+	}
+	log.Info("BobaL2", "name", name)
+	symbol, err := contract.Symbol(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if symbol != "BOBA" {
+		return fmt.Errorf("BobaL2 symbol should be 'BOBA', got %s", symbol)
+	}
+	decimals, err := contract.Decimals(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("BobaL2", "decimals", decimals)
+
+	return nil
+}
+
+func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewBobaTuringCredit(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit owner should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "owner", owner.Hex())
+	turingToken, err := contract.TuringToken(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if turingToken == (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
+	slot, err := client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyOwnerSlot, nil)
+	if err != nil {
+		return err
+	}
+	if libcommon.BytesToAddress(slot) != (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit legacy proxy owner should be set to address(0)")
+	}
+	slot, err = client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyImplementationSlot, nil)
+	if err != nil {
+		return err
+	}
+	if libcommon.BytesToAddress(slot) != (libcommon.Address{}) {
+		return fmt.Errorf("BobaTuringCredit legacy proxy implementation should be set to address(0)")
+	}
+	return nil
+}
+
+func checkBobaHCHelper(addr libcommon.Address, client *clients.RpcClient) error {
+	contract, err := bindings.NewBobaHCHelper(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (libcommon.Address{}) {
+		return fmt.Errorf("BobaHCHelper owner should not be set to address(0)")
+	}
+	log.Info("BobaHCHelper", "owner", owner.Hex())
+	return nil
 }
 
 func getEIP1967ImplementationAddress(client *clients.RpcClient, addr libcommon.Address) (libcommon.Address, error) {

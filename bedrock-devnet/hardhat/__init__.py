@@ -236,7 +236,7 @@ def devnet_store_addresses(paths):
         'ProxyAdmin': 'ProxyAdmin.json',
         'SystemConfig': 'SystemConfig.json',
         'SystemConfigProxy': 'SystemConfigProxy.json',
-        'L1BobaToken': 'BOBA.json',
+        'BOBA': 'BOBA.json',
     }
 
     for k, v in addresses_name.items():

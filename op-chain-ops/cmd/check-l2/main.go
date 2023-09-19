@@ -264,6 +264,22 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			if err := checkEAS(p, client); err != nil {
 				return err
 			}
+
+		case predeploys.BobaTuringCreditAddr:
+			if err := checkBobaTuringCredit(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaHCHelperAddr:
+			if err := checkBobaHCHelper(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.BobaL2Addr:
+			if err := checkBobaL2(p, client); err != nil {
+				return err
+			}
+
 		}
 		return nil
 	})
@@ -844,6 +860,91 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 		return err
 	}
 	log.Info("EAS version", "version", version)
+	return nil
+}
+
+func checkBobaTuringCredit(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewBobaTuringCredit(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (common.Address{}) {
+		return fmt.Errorf("BobaTuringCredit owner should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "owner", owner.Hex())
+	turingToken, err := contract.TuringToken(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if turingToken == (common.Address{}) {
+		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
+	}
+	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
+	return nil
+}
+
+func checkBobaL2(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL2GovernanceERC20(addr, client)
+	if err != nil {
+		return err
+	}
+	l2Bridge, err := contract.L2Bridge(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if l2Bridge == (common.Address{}) {
+		return fmt.Errorf("BobaL2 l2Bridge should not be set to address(0)")
+	}
+	log.Info("BobaL2", "l2Bridge", l2Bridge.Hex())
+	l1Token, err := contract.L1Token(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if l1Token == (common.Address{}) {
+		return fmt.Errorf("BobaL2 l1Token should not be set to address(0)")
+	}
+	log.Info("BobaL2", "l1Token", l1Token.Hex())
+	name, err := contract.Name(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if name != "Boba Token" {
+		return fmt.Errorf("BobaL2 name should be 'Boba Token', got %s", name)
+	}
+	log.Info("BobaL2", "name", name)
+	symbol, err := contract.Symbol(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if symbol != "BOBA" {
+		return fmt.Errorf("BobaL2 symbol should be 'BOBA', got %s", symbol)
+	}
+	decimals, err := contract.Decimals(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("BobaL2", "decimals", decimals)
+
+	return nil
+}
+
+func checkBobaHCHelper(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewBobaHCHelper(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner == (common.Address{}) {
+		return fmt.Errorf("BobaHCHelper owner should not be set to address(0)")
+	}
+	log.Info("BobaHCHelper", "owner", owner.Hex())
 	return nil
 }
 

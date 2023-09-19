@@ -457,6 +457,13 @@ func NewL2ImmutableConfig(config *DeployConfig, blockHeader *types.Header) (immu
 		"_symbol":   "BOBA",
 		"_decimals": uint8(18),
 	}
+	immutable["BobaTuringCredit"] = immutables.ImmutableValues{
+		"owner":       config.ProxyAdminOwner,
+		"turingToken": predeploys.BobaL2Addr,
+	}
+	immutable["BobaHCHelper"] = immutables.ImmutableValues{
+		"owner": config.ProxyAdminOwner,
+	}
 	return immutable, nil
 }
 
@@ -508,9 +515,6 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
-	storage["ProxyAdmin"] = state.StorageValues{
-		"_owner": config.ProxyAdminOwner,
-	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"_initialized":  2,
@@ -532,7 +536,13 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 		"_symbol":   "BOBA",
 		"_decimals": uint8(18),
 	}
-	storage["BobaTuringCredit"] = state.StorageValues{}
+	storage["BobaTuringCredit"] = state.StorageValues{
+		"owner":       config.ProxyAdminOwner,
+		"turingToken": predeploys.BobaL2Addr,
+	}
+	storage["BobaHCHelper"] = state.StorageValues{
+		"owner": config.ProxyAdminOwner,
+	}
 	return storage, nil
 }
 

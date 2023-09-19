@@ -13,8 +13,6 @@ import (
 	"github.com/ledgerwatch/erigon/accounts/abi/bind/backends"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
-
-	"github.com/ledgerwatch/log/v3"
 )
 
 // ImmutableValues represents the values to be set in immutable code.
@@ -145,6 +143,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			Name: "LegacyERC20ETH",
 		},
 		{
+			Name: "EAS",
+		},
+		{
+			Name: "SchemaRegistry",
+		},
+		{
 			Name: "BobaL2",
 			Args: []interface{}{
 				immutable["BobaL2"]["l2Bridge"],
@@ -158,7 +162,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			Name: "BobaTuringCredit",
 		},
 		{
-			Name: "BobaGasPriceOracle",
+			Name: "BobaHCHelper",
 		},
 	}
 	return BuildL2(deployments)
@@ -185,7 +189,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	var minimumWithdrawalAmount *big.Int
 	var withdrawalNetwork uint8
 	var err error
-	var addr common.Address
 	switch deployment.Name {
 	case "GasPriceOracle":
 		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
@@ -251,9 +254,12 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "LegacyERC20ETH":
 		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
+	case "EAS":
+		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "SchemaRegistry":
+		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
 	case "BobaTuringCredit":
-		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
-		log.Info("BobaTuringCredit Deployment", "err", err, "addr", addr)
+		_, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -275,7 +281,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		if !ok {
 			return nil, fmt.Errorf("invalid type for _decimals")
 		}
-		addr, tx, _, err = bindings.DeployL2GovernanceERC20(
+		_, tx, _, err = bindings.DeployL2GovernanceERC20(
 			opts,
 			backend,
 			l2Bridge,
@@ -284,10 +290,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			_symbol,
 			uint8(_decimals),
 		)
-		log.Info("BobaL2 Deployment", "err", err, "addr", addr)
-	case "BobaGasPriceOracle":
-		addr, tx, _, err = bindings.DeployBobaGasPriceOracle(opts, backend)
-		log.Info("BobaGasPriceOracle Deployment", "err", err, "addr", addr)
+	case "BobaHCHelper":
+		_, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

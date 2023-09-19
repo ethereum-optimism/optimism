@@ -44,8 +44,7 @@ var (
 	// BobaUntouchablePredeploys are addresses in the predeploy namespace
 	// that should be removed the old proxy slot and append to the new proxy slot
 	BobaUntouchablePredeploys = map[common.Address]bool{
-		predeploys.BobaGasPriceOracleAddr: true,
-		predeploys.BobaTuringCreditAddr:   true,
+		predeploys.BobaTuringCreditAddr: true,
 	}
 
 	// FrozenStoragePredeploys represents the set of predeploys that

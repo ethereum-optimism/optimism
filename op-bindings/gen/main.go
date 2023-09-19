@@ -170,7 +170,7 @@ func main() {
 		// modifying contracts, or the generation scheme, and I'm wary of
 		// creating conflicts and churn, so this is a benign way to handle
 		// things.
-		if filepath.Base(outFile) == "boba.go" {
+		if filepath.Base(outFile) == "boba.go" || filepath.Base(outFile) == "l2governanceerc20.go" {
 			fSet := token.NewFileSet()
 			file, err := parser.ParseFile(fSet, outFile, nil, parser.ParseComments)
 			if err != nil {
