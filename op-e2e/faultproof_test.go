@@ -341,6 +341,66 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	}
 }
 
+func TestCannonPoisonedPostState(t *testing.T) {
+	t.Skip("Known failure case")
+	InitParallel(t)
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+	require.NotNil(t, game)
+	game.LogGameData(ctx)
+
+	// Honest first attack at "honest" level
+	correctTrace.Attack(ctx, 0)
+
+	// Honest defense at "dishonest" level
+	correctTrace.Defend(ctx, 1)
+
+	// Dishonest attack at "honest" level - honest move would be to defend
+	game.Attack(ctx, 2, common.Hash{0x03, 0xaa})
+
+	// Start the honest challenger
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Honest",
+		// Agree with the proposed output, so disagree with the root claim
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithPrivKey(sys.cfg.Secrets.Bob),
+	)
+
+	// Start dishonest challenger that posts correct claims
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "DishonestCorrect",
+		// Disagree with the proposed output, so agree with the root claim
+		challenger.WithAgreeProposedOutput(false),
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+
+	// Give the challengers time to progress down the full game depth
+	depth := game.MaxDepth(ctx)
+	for i := 3; i <= int(depth); i++ {
+		game.WaitForClaimAtDepth(ctx, i)
+		game.LogGameData(ctx)
+	}
+
+	// Wait for all the leaf nodes to be countered
+	// Wait for the challengers to drive the game down to the leaf node which should be countered
+	game.WaitForAllClaimsCountered(ctx)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
+}
+
 // setupDisputeGameForInvalidOutputRoot sets up an L2 chain with at least one valid output root followed by an invalid output root.
 // A cannon dispute game is started to dispute the invalid output root with the correct root claim provided.
 // An honest challenger is run to defend the root claim (ie disagree with the invalid output root).

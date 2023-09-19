@@ -211,14 +211,8 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
 
-	nonce, err := m.nextNonce(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
-		Nonce:     nonce,
 		To:        candidate.To,
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
@@ -246,6 +240,13 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		}
 		rawTx.Gas = gas
 	}
+
+	// Avoid bumping the nonce if the gas estimation fails.
+	nonce, err := m.nextNonce(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rawTx.Nonce = nonce
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()

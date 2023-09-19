@@ -1,6 +1,7 @@
 package ioutil
 
 import (
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
@@ -44,6 +45,46 @@ func TestReadWriteWithOptionalCompression(t *testing.T) {
 			readData, err := io.ReadAll(in)
 			require.NoError(t, err)
 			require.Equal(t, data, readData)
+		})
+	}
+}
+
+func TestWriteReadCompressedJson(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		err      string
+	}{
+		{"Uncompressed", "test.notgz", "does not have .gz extension"},
+		{"Gzipped", "test.gz", ""},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, test.filename)
+			err := WriteCompressedJson(path, struct {
+				A int
+				B string
+			}{A: 1, B: "test"})
+			if test.err != "" {
+				require.ErrorContains(t, err, test.err)
+				return
+			}
+			require.NoError(t, err)
+
+			var read struct {
+				A int
+				B string
+			}
+			in, err := OpenDecompressed(path)
+			require.NoError(t, err)
+			err = json.NewDecoder(in).Decode(&read)
+			require.NoError(t, err)
+			require.Equal(t, struct {
+				A int
+				B string
+			}{A: 1, B: "test"}, read)
 		})
 	}
 }

@@ -70,6 +70,12 @@ var (
 		EnvVars: prefixEnvVars("MAX_CONCURRENCY"),
 		Value:   uint(runtime.NumCPU()),
 	}
+	HTTPPollInterval = &cli.DurationFlag{
+		Name:    "http-poll-interval",
+		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider.",
+		EnvVars: prefixEnvVars("HTTP_POLL_INTERVAL"),
+		Value:   config.DefaultPollInterval,
+	}
 	AlphabetFlag = &cli.StringFlag{
 		Name:    "alphabet",
 		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
@@ -142,6 +148,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	MaxConcurrencyFlag,
+	HTTPPollInterval,
 	AlphabetFlag,
 	GameAllowlistFlag,
 	CannonNetworkFlag,
@@ -247,6 +254,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
 		MaxConcurrency:          maxConcurrency,
+		PollInterval:            ctx.Duration(HTTPPollInterval.Name),
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
