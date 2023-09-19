@@ -455,7 +455,7 @@ We can restore the legacy system by resetting the addresses in `Lib_AddressManag
 
 # Hybrid Compute
 
-We will move the `BobeTuringCredit` contract from address `0x4200000000000000000000000000000000000020` to `0x42000000000000000000000000000000000003e8`. The new `BobaHCHelper` contract will be pre-deployed at `0x42000000000000000000000000000000000003E9`. The legacy storage of `BobaTuringHelper` at `0x4200000000000000000000000000000000000021` will be destroyed and replaced by the standard proxy contract.
+We will move the `BobaTuringCredit` contract from address `0x4200000000000000000000000000000000000020` to `0x42000000000000000000000000000000000003e8`. The new `BobaHCHelper` contract will be pre-deployed at `0x42000000000000000000000000000000000003E9`. The legacy storage of `BobaTuringHelper` at `0x4200000000000000000000000000000000000021` will be destroyed and replaced by the standard proxy contract.
 
-To maintain consistency in storage between the old and new `BobeTuringCredit` contracts, we will migrate the storage from the old contract to the new one.
+To maintain consistency in storage between the old and new `BobaTuringCredit` contracts, we will migrate the storage from the old contract to the new one.
 
