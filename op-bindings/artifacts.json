@@ -36,5 +36,7 @@
   "BlockOracle",
   "EAS",
   "SchemaRegistry",
-  "ProtocolVersions"
+  "ProtocolVersions",
+  "Safe",
+  "SafeProxyFactory"
 ]
