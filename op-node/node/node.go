@@ -49,6 +49,9 @@ type OpNode struct {
 	resourcesCtx   context.Context
 	resourcesClose context.CancelFunc
 
+	// Indicates when it's safe to close data sources used by the runtimeConfig bg loader
+	runtimeConfigReloaderDone chan struct{}
+
 	closed atomic.Bool
 }
 
@@ -197,9 +200,8 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			return l1Head, err
 		}
 
-		n.handleProtocolVersionsUpdate(ctx)
-
-		return l1Head, nil
+		err = n.handleProtocolVersionsUpdate(ctx)
+		return l1Head, err
 	}
 
 	// initialize the runtime config before unblocking
@@ -210,10 +212,10 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	}
 
 	// start a background loop, to keep reloading it at the configured reload interval
-	go func(ctx context.Context, reloadInterval time.Duration) {
+	reloader := func(ctx context.Context, reloadInterval time.Duration) bool {
 		if reloadInterval <= 0 {
 			n.log.Debug("not running runtime-config reloading background loop")
-			return
+			return false
 		}
 		ticker := time.NewTicker(reloadInterval)
 		defer ticker.Stop()
@@ -222,13 +224,30 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			case <-ticker.C:
 				// If the reload fails, we will try again the next interval.
 				// Missing a runtime-config update is not critical, and we do not want to overwhelm the L1 RPC.
-				if l1Head, err := reload(ctx); err != nil {
-					n.log.Warn("failed to reload runtime config", "err", err)
-				} else {
+				l1Head, err := reload(ctx)
+				switch err {
+				case errNodeHalt, nil:
 					n.log.Debug("reloaded runtime config", "l1_head", l1Head)
+					if err == errNodeHalt {
+						return true
+					}
+				default:
+					n.log.Warn("failed to reload runtime config", "err", err)
 				}
 			case <-ctx.Done():
-				return
+				return false
+			}
+		}
+	}
+
+	n.runtimeConfigReloaderDone = make(chan struct{})
+	// Manages the lifetime of reloader. In order to safely Close the OpNode
+	go func(ctx context.Context, reloadInterval time.Duration) {
+		halt := reloader(ctx, reloadInterval)
+		close(n.runtimeConfigReloaderDone)
+		if halt {
+			if err := n.Close(); err != nil {
+				n.log.Error("Failed to halt rollup", "err", err)
 			}
 		}
 	}(n.resourcesCtx, cfg.RuntimeConfigReloadInterval) // this keeps running after initialization
@@ -497,6 +516,11 @@ func (n *OpNode) Close() error {
 				result = multierror.Append(result, fmt.Errorf("failed to close L2 engine backup sync client cleanly: %w", err))
 			}
 		}
+	}
+
+	// Wait for the runtime config loader to be done using the data sources before closing them
+	if n.runtimeConfigReloaderDone != nil {
+		<-n.runtimeConfigReloaderDone
 	}
 
 	// close L2 engine RPC client
