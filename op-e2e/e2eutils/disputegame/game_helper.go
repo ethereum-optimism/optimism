@@ -312,7 +312,6 @@ func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim comm
 	g.LogGameData(ctx)
 	g.t.Logf("Attack. claim: %v. claimIdx: %d", claim, claimIdx)
 	g.require.NoError(err, "Attack transaction did not send")
-	g.t.Logf("Attack tx: %x. claim: %v. claimIdx: %d", tx.Hash(), claim, claimIdx)
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
 }
