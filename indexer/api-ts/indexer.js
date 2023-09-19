@@ -13,10 +13,10 @@ var createQueryString = ({ cursor, limit }) => {
   return `?${queries.join("&")}`;
 };
 var depositEndpoint = ({ baseUrl = "", address, cursor, limit }) => {
-  return [baseUrl, "deposits", address, createQueryString({ cursor, limit })].join("/");
+  return [baseUrl, "deposits", `${address}${createQueryString({ cursor, limit })}`].join("/");
 };
 var withdrawalEndoint = ({ baseUrl = "", address, cursor, limit }) => {
-  return [baseUrl, "withdrawals", address, createQueryString({ cursor, limit })].join("/");
+  return [baseUrl, "withdrawals", `${address}${createQueryString({ cursor, limit })}`].join("/");
 };
 export {
   depositEndpoint,

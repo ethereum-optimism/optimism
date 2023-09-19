@@ -175,6 +175,32 @@ func init() {
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
+func CheckCannonFlags(ctx *cli.Context) error {
+	if !ctx.IsSet(CannonNetworkFlag.Name) &&
+		!(ctx.IsSet(CannonRollupConfigFlag.Name) && ctx.IsSet(CannonL2GenesisFlag.Name)) {
+		return fmt.Errorf("flag %v or %v and %v is required",
+			CannonNetworkFlag.Name, CannonRollupConfigFlag.Name, CannonL2GenesisFlag.Name)
+	}
+	if ctx.IsSet(CannonNetworkFlag.Name) &&
+		(ctx.IsSet(CannonRollupConfigFlag.Name) || ctx.IsSet(CannonL2GenesisFlag.Name)) {
+		return fmt.Errorf("flag %v can not be used with %v and %v",
+			CannonNetworkFlag.Name, CannonRollupConfigFlag.Name, CannonL2GenesisFlag.Name)
+	}
+	if !ctx.IsSet(CannonBinFlag.Name) {
+		return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
+	}
+	if !ctx.IsSet(CannonServerFlag.Name) {
+		return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
+	}
+	if !ctx.IsSet(CannonPreStateFlag.Name) {
+		return fmt.Errorf("flag %s is required", CannonPreStateFlag.Name)
+	}
+	if !ctx.IsSet(CannonL2Flag.Name) {
+		return fmt.Errorf("flag %s is required", CannonL2Flag.Name)
+	}
+	return nil
+}
+
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
@@ -184,31 +210,16 @@ func CheckRequired(ctx *cli.Context) error {
 	gameType := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 	switch gameType {
 	case config.TraceTypeCannon:
-		if !ctx.IsSet(CannonNetworkFlag.Name) &&
-			!(ctx.IsSet(CannonRollupConfigFlag.Name) && ctx.IsSet(CannonL2GenesisFlag.Name)) {
-			return fmt.Errorf("flag %v or %v and %v is required",
-				CannonNetworkFlag.Name, CannonRollupConfigFlag.Name, CannonL2GenesisFlag.Name)
-		}
-		if ctx.IsSet(CannonNetworkFlag.Name) &&
-			(ctx.IsSet(CannonRollupConfigFlag.Name) || ctx.IsSet(CannonL2GenesisFlag.Name)) {
-			return fmt.Errorf("flag %v can not be used with %v and %v",
-				CannonNetworkFlag.Name, CannonRollupConfigFlag.Name, CannonL2GenesisFlag.Name)
-		}
-		if !ctx.IsSet(CannonBinFlag.Name) {
-			return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
-		}
-		if !ctx.IsSet(CannonServerFlag.Name) {
-			return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
-		}
-		if !ctx.IsSet(CannonPreStateFlag.Name) {
-			return fmt.Errorf("flag %s is required", CannonPreStateFlag.Name)
-		}
-		if !ctx.IsSet(CannonL2Flag.Name) {
-			return fmt.Errorf("flag %s is required", CannonL2Flag.Name)
+		if err := CheckCannonFlags(ctx); err != nil {
+			return err
 		}
 	case config.TraceTypeAlphabet:
 		if !ctx.IsSet(AlphabetFlag.Name) {
 			return fmt.Errorf("flag %s is required", "alphabet")
+		}
+	case config.TraceTypeOutputCannon:
+		if err := CheckCannonFlags(ctx); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)

@@ -38,10 +38,10 @@ var createQueryString = ({ cursor, limit }) => {
   return `?${queries.join("&")}`;
 };
 var depositEndpoint = ({ baseUrl = "", address, cursor, limit }) => {
-  return [baseUrl, "deposits", address, createQueryString({ cursor, limit })].join("/");
+  return [baseUrl, "deposits", `${address}${createQueryString({ cursor, limit })}`].join("/");
 };
 var withdrawalEndoint = ({ baseUrl = "", address, cursor, limit }) => {
-  return [baseUrl, "withdrawals", address, createQueryString({ cursor, limit })].join("/");
+  return [baseUrl, "withdrawals", `${address}${createQueryString({ cursor, limit })}`].join("/");
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
