@@ -13,7 +13,6 @@ var rules = []actionRule{
 	parentMustExist,
 	onlyStepAtMaxDepth,
 	onlyMoveBeforeMaxDepth,
-	onlyCounterClaimsAtDisagreeingLevels,
 	doNotDuplicateExistingMoves,
 	doNotDefendRootClaim,
 }
@@ -57,20 +56,12 @@ func onlyMoveBeforeMaxDepth(game types.Game, action types.Action) error {
 	return nil
 }
 
-func onlyCounterClaimsAtDisagreeingLevels(game types.Game, action types.Action) error {
-	parentClaim := game.Claims()[action.ParentIdx]
-	if game.AgreeWithClaimLevel(parentClaim) {
-		return fmt.Errorf("countering a claim at depth %v that supports our view of the root", parentClaim.Position.Depth())
-	}
-	return nil
-}
-
 func doNotDuplicateExistingMoves(game types.Game, action types.Action) error {
 	newClaimData := types.ClaimData{
 		Value:    action.Value,
 		Position: resultingPosition(game, action),
 	}
-	if game.IsDuplicate(newClaimData) {
+	if game.IsDuplicate(types.Claim{ClaimData: newClaimData, ParentContractIndex: action.ParentIdx}) {
 		return fmt.Errorf("creating duplicate claim at %v with value %v", newClaimData.Position.ToGIndex(), newClaimData.Value)
 	}
 	return nil
