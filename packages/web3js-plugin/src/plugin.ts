@@ -36,7 +36,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getBaseFee<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(returnFormat?: ReturnFormat) {
+  >(returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance().methods.baseFee().call(),
@@ -56,7 +56,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getDecimals<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(returnFormat?: ReturnFormat) {
+  >(returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance().methods.decimals().call(),
@@ -76,7 +76,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getGasPrice<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(returnFormat?: ReturnFormat) {
+  >(returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance().methods.gasPrice().call(),
@@ -98,7 +98,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getL1Fee<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(transaction: Transaction, returnFormat?: ReturnFormat) {
+  >(transaction: Transaction, returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance()
@@ -124,7 +124,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getL1GasUsed<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(transaction: Transaction, returnFormat?: ReturnFormat) {
+  >(transaction: Transaction, returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance()
@@ -148,7 +148,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getL1BaseFee<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(returnFormat?: ReturnFormat) {
+  >(returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance().methods.l1BaseFee().call(),
@@ -168,7 +168,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getOverhead<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(returnFormat?: ReturnFormat) {
+  >(returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance().methods.overhead().call(),
@@ -188,7 +188,7 @@ export class OptimismPlugin extends Web3PluginBase {
    */
   public async getScalar<
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(returnFormat?: ReturnFormat) {
+  >(returnFormat?: ReturnFormat): Promise<bigint> {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance().methods.scalar().call(),
