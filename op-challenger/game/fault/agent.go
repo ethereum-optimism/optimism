@@ -133,7 +133,9 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 	return true
 }
 
-func (a *Agent) resolveClaims(ctx context.Context) error {
+var errNoResolvableClaims = errors.New("no resolvable claims")
+
+func (a *Agent) tryResolveClaims(ctx context.Context) error {
 	claims, err := a.loader.FetchClaims(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch claims: %w", err)
@@ -151,6 +153,9 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 		}
 	}
 	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
+	if len(resolvableClaims) == 0 {
+		return errNoResolvableClaims
+	}
 
 	var wg sync.WaitGroup
 	wg.Add(len(resolvableClaims))
@@ -166,6 +171,20 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 	}
 	wg.Wait()
 	return nil
+}
+
+func (a *Agent) resolveClaims(ctx context.Context) error {
+	for {
+		err := a.tryResolveClaims(ctx)
+		switch err {
+		case err:
+			return err
+		case errNoResolvableClaims:
+			return nil
+		default:
+			continue
+		}
+	}
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract
