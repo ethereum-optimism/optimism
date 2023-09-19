@@ -77,7 +77,7 @@ func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 			require.NoError(t, agent.Act(ctx))
 
 			require.Equal(t, 1, responder.callResolveCount, "should check if game is resolvable")
-			require.Zero(t, claimLoader.callCount, "should not fetch claims for resolvable game")
+			require.Equal(t, 1, claimLoader.callCount, "should fetch claims once for resolveClaim")
 
 			if test.shouldResolve {
 				require.EqualValues(t, 1, responder.resolveCount, "should resolve winning game")
@@ -92,6 +92,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	// Checks that if the game isn't resolvable, that the agent continues on to start checking claims
 	agent, claimLoader, responder := setupTestAgent(t, false)
 	responder.callResolveErr = errors.New("game is not resolvable")
+	responder.callResolveClaimErr = errors.New("claim is not resolvable")
 	depth := 4
 	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider("abcdefg", uint64(depth)))
 
@@ -101,7 +102,9 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 
 	require.NoError(t, agent.Act(context.Background()))
 
-	require.EqualValues(t, 1, claimLoader.callCount, "should load claims for unresolvable game")
+	require.EqualValues(t, 2, claimLoader.callCount, "should load claims for unresolvable game")
+	require.EqualValues(t, responder.callResolveClaimCount, 1, "should check if claim is resolvable")
+	require.Zero(t, responder.resolveClaimCount, "should not send resolveClaim")
 }
 
 func setupTestAgent(t *testing.T, agreeWithProposedOutput bool) (*Agent, *stubClaimLoader, *stubResponder) {
@@ -132,6 +135,10 @@ type stubResponder struct {
 
 	resolveCount int
 	resolveErr   error
+
+	callResolveClaimCount int
+	callResolveClaimErr   error
+	resolveClaimCount     int
 }
 
 func (s *stubResponder) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
@@ -144,8 +151,18 @@ func (s *stubResponder) Resolve(ctx context.Context) error {
 	return s.resolveErr
 }
 
+func (s *stubResponder) CallResolveClaim(ctx context.Context, clainIdx uint64) error {
+	s.callResolveClaimCount++
+	return s.callResolveClaimErr
+}
+
+func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error {
+	s.resolveClaimCount++
+	return nil
+}
+
 func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
-	panic("Not implemented")
+	return nil
 }
 
 type stubUpdater struct {

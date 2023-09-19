@@ -24,14 +24,18 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
 			Position: NewPosition(1, 0),
 		},
-		Parent: root.ClaimData,
+		Parent:              root.ClaimData,
+		ContractIndex:       1,
+		ParentContractIndex: 0,
 	}
 	middle := Claim{
 		ClaimData: ClaimData{
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
 			Position: NewPosition(2, 2),
 		},
-		Parent: top.ClaimData,
+		Parent:              top.ClaimData,
+		ContractIndex:       2,
+		ParentContractIndex: 1,
 	}
 
 	bottom := Claim{
@@ -39,7 +43,9 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
 			Position: NewPosition(3, 4),
 		},
-		Parent: middle.ClaimData,
+		Parent:              middle.ClaimData,
+		ContractIndex:       3,
+		ParentContractIndex: 2,
 	}
 
 	return root, top, middle, bottom
@@ -52,12 +58,12 @@ func TestIsDuplicate(t *testing.T) {
 	require.NoError(t, g.Put(top))
 
 	// Root + Top should be duplicates
-	require.True(t, g.IsDuplicate(root.ClaimData))
-	require.True(t, g.IsDuplicate(top.ClaimData))
+	require.True(t, g.IsDuplicate(root))
+	require.True(t, g.IsDuplicate(top))
 
 	// Middle + Bottom should not be a duplicate
-	require.False(t, g.IsDuplicate(middle.ClaimData))
-	require.False(t, g.IsDuplicate(bottom.ClaimData))
+	require.False(t, g.IsDuplicate(middle))
+	require.False(t, g.IsDuplicate(bottom))
 }
 
 // TestGame_Put_RootAlreadyExists tests the [Game.Put] method using a [gameState]
@@ -104,20 +110,20 @@ func TestGame_PutAll_ParentsAndChildren(t *testing.T) {
 	g := NewGameState(false, root, testMaxDepth)
 
 	// We should not be able to get the parent of the root claim.
-	parent, err := g.getParent(root)
+	parent, err := g.GetParent(root)
 	require.ErrorIs(t, err, ErrClaimNotFound)
 	require.Equal(t, parent, Claim{})
 
 	// Put the rest of the claims in the state.
 	err = g.PutAll([]Claim{top, middle, bottom})
 	require.NoError(t, err)
-	parent, err = g.getParent(top)
+	parent, err = g.GetParent(top)
 	require.NoError(t, err)
 	require.Equal(t, parent, root)
-	parent, err = g.getParent(middle)
+	parent, err = g.GetParent(middle)
 	require.NoError(t, err)
 	require.Equal(t, parent, top)
-	parent, err = g.getParent(bottom)
+	parent, err = g.GetParent(bottom)
 	require.NoError(t, err)
 	require.Equal(t, parent, middle)
 }
@@ -145,28 +151,28 @@ func TestGame_Put_ParentsAndChildren(t *testing.T) {
 	g := NewGameState(false, root, testMaxDepth)
 
 	// We should not be able to get the parent of the root claim.
-	parent, err := g.getParent(root)
+	parent, err := g.GetParent(root)
 	require.ErrorIs(t, err, ErrClaimNotFound)
 	require.Equal(t, parent, Claim{})
 
 	// Put + Check Top
 	err = g.Put(top)
 	require.NoError(t, err)
-	parent, err = g.getParent(top)
+	parent, err = g.GetParent(top)
 	require.NoError(t, err)
 	require.Equal(t, parent, root)
 
 	// Put + Check Top Middle
 	err = g.Put(middle)
 	require.NoError(t, err)
-	parent, err = g.getParent(middle)
+	parent, err = g.GetParent(middle)
 	require.NoError(t, err)
 	require.Equal(t, parent, top)
 
 	// Put + Check Top Bottom
 	err = g.Put(bottom)
 	require.NoError(t, err)
-	parent, err = g.getParent(bottom)
+	parent, err = g.GetParent(bottom)
 	require.NoError(t, err)
 	require.Equal(t, parent, middle)
 }
@@ -193,28 +199,4 @@ func TestGame_ClaimPairs(t *testing.T) {
 	expected := []Claim{root, top, middle, bottom}
 	claims := g.Claims()
 	require.ElementsMatch(t, expected, claims)
-}
-
-func TestAgreeWithClaimLevelDisagreeWithOutput(t *testing.T) {
-	// Setup the game state.
-	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(false, root, testMaxDepth)
-	require.NoError(t, g.PutAll([]Claim{top, middle, bottom}))
-
-	require.True(t, g.AgreeWithClaimLevel(root))
-	require.False(t, g.AgreeWithClaimLevel(top))
-	require.True(t, g.AgreeWithClaimLevel(middle))
-	require.False(t, g.AgreeWithClaimLevel(bottom))
-}
-
-func TestAgreeWithClaimLevelAgreeWithOutput(t *testing.T) {
-	// Setup the game state.
-	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(true, root, testMaxDepth)
-	require.NoError(t, g.PutAll([]Claim{top, middle, bottom}))
-
-	require.False(t, g.AgreeWithClaimLevel(root))
-	require.True(t, g.AgreeWithClaimLevel(top))
-	require.False(t, g.AgreeWithClaimLevel(middle))
-	require.True(t, g.AgreeWithClaimLevel(bottom))
 }

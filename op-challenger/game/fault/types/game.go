@@ -23,8 +23,12 @@ type Game interface {
 	// Claims returns all of the claims in the game.
 	Claims() []Claim
 
-	// IsDuplicate returns true if the provided [Claim] already exists in the game state.
-	IsDuplicate(claim ClaimData) bool
+	// GetParent returns the parent of the provided claim.
+	GetParent(claim Claim) (Claim, error)
+
+	// IsDuplicate returns true if the provided [Claim] already exists in the game state
+	// referencing the same parent claim
+	IsDuplicate(claim Claim) bool
 
 	// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
 	AgreeWithClaimLevel(claim Claim) bool
@@ -32,31 +36,37 @@ type Game interface {
 	MaxDepth() uint64
 }
 
+type claimEntry struct {
+	ClaimData
+	ParentContractIndex int
+}
+
 type extendedClaim struct {
 	self     Claim
-	children []ClaimData
+	children []claimEntry
 }
 
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
 	agreeWithProposedOutput bool
-	root                    ClaimData
-	claims                  map[ClaimData]*extendedClaim
+	root                    claimEntry
+	claims                  map[claimEntry]*extendedClaim
 	depth                   uint64
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameState {
-	claims := make(map[ClaimData]*extendedClaim)
-	claims[root.ClaimData] = &extendedClaim{
+	claims := make(map[claimEntry]*extendedClaim)
+	rootClaimEntry := makeClaimEntry(root)
+	claims[rootClaimEntry] = &extendedClaim{
 		self:     root,
-		children: make([]ClaimData, 0),
+		children: make([]claimEntry, 0),
 	}
 	return &gameState{
 		agreeWithProposedOutput: agreeWithProposedOutput,
-		root:                    root.ClaimData,
+		root:                    rootClaimEntry,
 		claims:                  claims,
 		depth:                   depth,
 	}
@@ -87,29 +97,29 @@ func (g *gameState) PutAll(claims []Claim) error {
 
 // Put adds a claim into the game state.
 func (g *gameState) Put(claim Claim) error {
-	if claim.IsRoot() || g.IsDuplicate(claim.ClaimData) {
+	if claim.IsRoot() || g.IsDuplicate(claim) {
 		return ErrClaimExists
 	}
-	parent, ok := g.claims[claim.Parent]
-	if !ok {
+
+	parent := g.getParent(claim)
+	if parent == nil {
 		return errors.New("no parent claim")
-	} else {
-		parent.children = append(parent.children, claim.ClaimData)
 	}
-	g.claims[claim.ClaimData] = &extendedClaim{
+	parent.children = append(parent.children, makeClaimEntry(claim))
+	g.claims[makeClaimEntry(claim)] = &extendedClaim{
 		self:     claim,
-		children: make([]ClaimData, 0),
+		children: make([]claimEntry, 0),
 	}
 	return nil
 }
 
-func (g *gameState) IsDuplicate(claim ClaimData) bool {
-	_, ok := g.claims[claim]
+func (g *gameState) IsDuplicate(claim Claim) bool {
+	_, ok := g.claims[makeClaimEntry(claim)]
 	return ok
 }
 
 func (g *gameState) Claims() []Claim {
-	queue := []ClaimData{g.root}
+	queue := []claimEntry{g.root}
 	var out []Claim
 	for len(queue) > 0 {
 		item := queue[0]
@@ -124,17 +134,34 @@ func (g *gameState) MaxDepth() uint64 {
 	return g.depth
 }
 
-func (g *gameState) getChildren(c ClaimData) []ClaimData {
+func (g *gameState) getChildren(c claimEntry) []claimEntry {
 	return g.claims[c].children
 }
 
-func (g *gameState) getParent(claim Claim) (Claim, error) {
-	if claim.IsRoot() {
+func (g *gameState) GetParent(claim Claim) (Claim, error) {
+	parent := g.getParent(claim)
+	if parent == nil {
 		return Claim{}, ErrClaimNotFound
 	}
-	if parent, ok := g.claims[claim.Parent]; !ok {
-		return Claim{}, ErrClaimNotFound
-	} else {
-		return parent.self, nil
+	return parent.self, nil
+}
+
+func (g *gameState) getParent(claim Claim) *extendedClaim {
+	if claim.IsRoot() {
+		return nil
+	}
+	// TODO(inphi): refactor gameState for faster parent lookups
+	for _, c := range g.claims {
+		if c.self.ContractIndex == claim.ParentContractIndex {
+			return c
+		}
+	}
+	return nil
+}
+
+func makeClaimEntry(claim Claim) claimEntry {
+	return claimEntry{
+		ClaimData:           claim.ClaimData,
+		ParentContractIndex: claim.ParentContractIndex,
 	}
 }
