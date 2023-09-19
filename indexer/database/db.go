@@ -34,29 +34,30 @@ type DB struct {
 }
 
 func NewDB(dbConfig config.DBConfig) (*DB, error) {
-	var db *DB
-
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 
-	_, err := retry.Do[interface{}](context.Background(), 10, retryStrategy, func() (interface{}, error) {
-		dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
-		if dbConfig.User != "" {
-			dsn += fmt.Sprintf(" user=%s", dbConfig.User)
-		}
-		if dbConfig.Password != "" {
-			dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
-		}
-		gorm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-			// The indexer will explicitly manage the transactions
-			SkipDefaultTransaction: true,
-			Logger:                 logger.Default.LogMode(logger.Silent),
-		})
+	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+	if dbConfig.User != "" {
+		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
+	}
+	if dbConfig.Password != "" {
+		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
+	}
+
+	gormConfig := gorm.Config{
+		// The indexer will explicitly manage the transactions
+		SkipDefaultTransaction: true,
+		Logger:                 logger.Default.LogMode(logger.Silent),
+	}
+
+	db, err := retry.Do[*DB](context.Background(), 10, retryStrategy, func() (*DB, error) {
+		gorm, err := gorm.Open(postgres.Open(dsn), &gormConfig)
 
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to connect to database")
 		}
 
-		db = &DB{
+		db := &DB{
 			gorm:               gorm,
 			Blocks:             newBlocksDB(gorm),
 			ContractEvents:     newContractEventsDB(gorm),
@@ -64,7 +65,7 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 			BridgeMessages:     newBridgeMessagesDB(gorm),
 			BridgeTransactions: newBridgeTransactionsDB(gorm),
 		}
-		return nil, nil
+		return db, nil
 	})
 
 	if err != nil {
