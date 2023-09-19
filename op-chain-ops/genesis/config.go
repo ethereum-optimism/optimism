@@ -660,6 +660,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
 		PlasmaConfig:           plasma,
+		Cel2Time:               d.RegolithTime(l1StartBlock.Time()),
 	}, nil
 }
 
