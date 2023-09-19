@@ -43,7 +43,6 @@ contract DelayedVetoable_Init is CommonTest {
 
     /// @dev This function is used to ensure that the data does not clash with the queuedAt function selector.
     /// @param data The data to be used in the call.
-
     function assumeNoClash(bytes calldata data) internal pure {
         if (data.length >= 4) {
             vm.assume(bytes4(data[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
