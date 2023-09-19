@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,4 +57,12 @@ func (h *HonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack b
 	prestate, proofData, _, err := h.correctTrace.GetStepData(ctx, traceIdx)
 	h.require.NoError(err, "Get step data")
 	h.game.StepFails(claimIdx, isAttack, prestate, proofData)
+}
+
+func (h *HonestHelper) Get(ctx context.Context, traceIdx uint64) (common.Hash, error) {
+	return h.correctTrace.Get(ctx, traceIdx)
+}
+
+func (h *HonestHelper) GetStepData(ctx context.Context, traceIdx uint64) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+	return h.correctTrace.GetStepData(ctx, traceIdx)
 }

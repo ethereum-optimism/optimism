@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
@@ -556,6 +557,61 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
 	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+}
+
+func TestDiffFullOpProgramExecution(t *testing.T) {
+	t.Skip("This test cannot be run in CI; It requires a full execution of the op program on-chain, which is very slow.")
+	InitParallel(t)
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+
+	// Create a dispute game for the input data to cannon.
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+	require.NotNil(t, game)
+	game.LogGameData(ctx)
+
+	contracts, addrs := mipsevm.TestContractsSetup(t)
+	env := mipsevm.NewMIPSEVM(contracts, addrs)
+
+	// Step through every instruction in the op-program trace and check that the EVM state matches
+	// what was expected.
+	for i := uint64(0); ; i++ {
+		stateHash, err := correctTrace.Get(ctx, i)
+		require.NoError(t, err)
+
+		if stateHash[0] != mipsevm.VMStatusUnfinished {
+			require.NotEqual(t, stateHash[0], mipsevm.VMStatusPanic, "Panic in trace")
+			require.NotEqual(t, stateHash[0], mipsevm.VMStatusInvalid, "Output should have been valid")
+			break
+		}
+
+		prestate, proofData, preimageData, err := correctTrace.GetStepData(ctx, i)
+		require.NoError(t, err)
+
+		stepWitness := mipsevm.StepWitness{
+			State:    prestate,
+			MemProof: proofData,
+		}
+
+		if preimageData != nil {
+			stepWitness.PreimageKey = ([32]byte)(preimageData.OracleKey)
+			stepWitness.PreimageValue = preimageData.OracleData
+			stepWitness.PreimageOffset = preimageData.OracleOffset
+		}
+
+		wit := (mipsevm.StateWitness)(env.Step(t, &stepWitness))
+		postState, err := wit.StateHash()
+		require.NoError(t, err)
+		require.Equal(t, postState, stateHash, "State hash mismatch at step %d", i)
+	}
 }
 
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {

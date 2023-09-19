@@ -14,7 +14,7 @@ import (
 const syscallInsn = uint32(0x00_00_00_0c)
 
 func FuzzStateSyscallBrk(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -64,7 +64,7 @@ func FuzzStateSyscallBrk(f *testing.F) {
 }
 
 func FuzzStateSyscallClone(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, pc uint32, step uint64, preimageOffset uint32) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -113,7 +113,7 @@ func FuzzStateSyscallClone(f *testing.F) {
 }
 
 func FuzzStateSyscallMmap(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, addr uint32, siz uint32, heap uint32) {
 		state := &State{
 			PC:             0,
@@ -172,7 +172,7 @@ func FuzzStateSyscallMmap(f *testing.F) {
 }
 
 func FuzzStateSyscallExitGroup(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, exitCode uint8, pc uint32, step uint64) {
 		pc = pc & 0xFF_FF_FF_FC // align PC
 		nextPC := pc + 4
@@ -220,7 +220,7 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 }
 
 func FuzzStateSyscallFnctl(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, fd uint32, cmd uint32) {
 		state := &State{
 			PC:             0,
@@ -283,7 +283,7 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 }
 
 func FuzzStateHintRead(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &State{
@@ -332,7 +332,7 @@ func FuzzStateHintRead(f *testing.F) {
 }
 
 func FuzzStatePreimageRead(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
 		preimageData := []byte("hello world")
 		if preimageOffset >= uint32(len(preimageData)) {
@@ -396,7 +396,7 @@ func FuzzStatePreimageRead(f *testing.F) {
 }
 
 func FuzzStateHintWrite(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &State{
@@ -449,7 +449,7 @@ func FuzzStateHintWrite(f *testing.F) {
 }
 
 func FuzzStatePreimageWrite(f *testing.F) {
-	contracts, addrs := testContractsSetup(f)
+	contracts, addrs := TestContractsSetup(f)
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
 		preimageData := []byte("hello world")
 		state := &State{
