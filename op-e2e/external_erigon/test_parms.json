@@ -13,6 +13,6 @@
     "TestMissingGasLimit": "TODO This is a new failure that should be investigated",
     "TestGethOnlyPendingBlockIsLatest": "TODO This is a new failure that should be investigated",
     "TestPreregolith": "TODO This is a new failure that should be investigated",
-    "TestRegolith": "TODO This is a new failure that should be investigated",
+    "TestRegolith": "TODO This is a new failure that should be investigated"
   }
 }
