@@ -75,6 +75,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
+    /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
+    mapping(uint256 => uint256[]) internal subgames;
+
+    /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
+    bool internal subgameAtRootResolved;
+
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
@@ -232,9 +238,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
-        // INVARIANT: A claim may only exist at a given position once. Multiple claims may exist
-        //            at the same position, however they must have different values.
-        ClaimHash claimHash = _claim.hashClaimPos(nextPosition);
+        // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
+        // claims
+        //            at the same position may dispute the same challengeIndex. However, the must have different values.
+        ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
 
@@ -251,6 +258,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
         // Set the parent claim as countered.
         claimData[_challengeIndex].countered = true;
+
+        // Update the subgame rooted at the parent claim.
+        subgames[_challengeIndex].push(claimData.length - 1);
 
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
@@ -348,67 +358,64 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        // Search for the left-most dangling non-bottom node
-        // The most recent claim is always a dangling, non-bottom node so we start with that
-        uint256 leftMostIndex = claimData.length - 1;
-        uint256 leftMostTraceIndex = type(uint128).max;
-        for (uint256 i = leftMostIndex; i < type(uint64).max;) {
-            // Fetch the claim at the current index.
-            ClaimData storage claim = claimData[i];
+        // INVARIANT: Resolution cannot occur unless the absolute root subgame has been resolved.
+        if (!subgameAtRootResolved) revert OutOfOrderResolution();
 
-            // Decrement the loop counter; If it underflows, we've reached the root
-            // claim and can stop searching.
-            unchecked {
-                --i;
-            }
+        status_ = claimData[0].countered ? GameStatus.CHALLENGER_WINS : GameStatus.DEFENDER_WINS;
+        emit Resolved(status = status_);
+    }
 
-            // INVARIANT: A claim can never be considered as the leftMostIndex or leftMostTraceIndex
-            //            if it has been countered.
-            if (claim.countered) continue;
+    /// @inheritdoc IFaultDisputeGame
+    function resolveClaim(uint256 _claimIndex) external payable {
+        // INVARIANT: Resolution cannot occur unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-            // If the claim is a dangling node, we can check if it is the left-most
-            // dangling node we've come across so far. If it is, we can update the
-            // left-most trace index.
-            uint256 traceIndex = claim.position.traceIndex(MAX_GAME_DEPTH);
-            if (traceIndex < leftMostTraceIndex) {
-                leftMostTraceIndex = traceIndex;
-                unchecked {
-                    leftMostIndex = i + 1;
-                }
-            }
-        }
+        ClaimData storage parent = claimData[_claimIndex];
 
-        // Create a reference to the left most uncontested claim and its parent.
-        ClaimData storage leftMostUncontested = claimData[leftMostIndex];
-
-        // INVARIANT: The game may never be resolved unless the clock of the left-most uncontested
-        //            claim's parent has expired. If the left-most uncontested claim is the root
-        //            claim, it is uncountered, and we check if 3.5 days has passed since its
-        //            creation.
-        uint256 parentIndex = leftMostUncontested.parentIndex;
-        Clock opposingClock = parentIndex == type(uint32).max ? leftMostUncontested.clock : claimData[parentIndex].clock;
+        // INVARIANT: Cannot resolve a subgame unless the clock of its root has expired
         if (
-            Duration.unwrap(opposingClock.duration()) + (block.timestamp - Timestamp.unwrap(opposingClock.timestamp()))
+            Duration.unwrap(parent.clock.duration()) + (block.timestamp - Timestamp.unwrap(parent.clock.timestamp()))
                 <= Duration.unwrap(GAME_DURATION) >> 1
         ) {
             revert ClockNotExpired();
         }
 
-        // If the left-most dangling node is at an even depth, the defender wins.
-        // Otherwise, the challenger wins and the root claim is deemed invalid.
-        if (
-            leftMostUncontested
-                .position
-                // slither-disable-next-line weak-prng
-                .depth() % 2 == 0 && leftMostTraceIndex != type(uint128).max
-        ) {
-            status_ = GameStatus.DEFENDER_WINS;
-        } else {
-            status_ = GameStatus.CHALLENGER_WINS;
+        uint256[] storage challengeIndices = subgames[_claimIndex];
+
+        // INVARIANT: Cannot resolve subgames twice
+        // Uncontested claims are resolved implicitly unless they are the root claim
+        if (_claimIndex == 0 && subgameAtRootResolved) revert ClaimAlreadyResolved();
+        if (challengeIndices.length == 0 && _claimIndex != 0) revert ClaimAlreadyResolved();
+
+        // Assume parent is honest until proven otherwise
+        bool countered = false;
+
+        for (uint256 i = 0; i < challengeIndices.length; ++i) {
+            uint256 challengeIndex = challengeIndices[i];
+
+            // INVARIANT: Cannot resolve a subgame containing an unresolved claim
+            if (subgames[challengeIndex].length != 0) revert OutOfOrderResolution();
+
+            ClaimData storage claim = claimData[challengeIndex];
+
+            // Ignore false claims
+            if (!claim.countered) {
+                countered = true;
+                break;
+            }
         }
 
-        // Update the game status
-        emit Resolved(status = status_);
+        // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
+        // resolveClaim will not need to traverse this subgame.
+        parent.countered = countered;
+
+        // Resolved subgames have no entries
+        delete subgames[_claimIndex];
+
+        // Indicate the game is ready to be resolved
+        if (_claimIndex == 0) {
+            subgameAtRootResolved = true;
+        }
     }
 
     /// @inheritdoc IDisputeGame
