@@ -51,23 +51,30 @@ type extendedClaim struct {
 type gameState struct {
 	agreeWithProposedOutput bool
 	root                    claimEntry
-	claims                  map[claimEntry]*extendedClaim
-	depth                   uint64
+	// contractIndicies maps a contract index to it's extended claim.
+	// This is used to perform O(1) parent lookups.
+	contractIndicies map[int]*extendedClaim
+	// claims maps a claim entry to it's extended claim.
+	claims map[claimEntry]*extendedClaim
+	depth  uint64
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameState {
 	claims := make(map[claimEntry]*extendedClaim)
+	parents := make(map[int]*extendedClaim)
 	rootClaimEntry := makeClaimEntry(root)
 	claims[rootClaimEntry] = &extendedClaim{
 		self:     root,
 		children: make([]claimEntry, 0),
 	}
+	parents[root.ContractIndex] = claims[rootClaimEntry]
 	return &gameState{
 		agreeWithProposedOutput: agreeWithProposedOutput,
 		root:                    rootClaimEntry,
 		claims:                  claims,
+		contractIndicies:        parents,
 		depth:                   depth,
 	}
 }
@@ -106,10 +113,12 @@ func (g *gameState) Put(claim Claim) error {
 		return errors.New("no parent claim")
 	}
 	parent.children = append(parent.children, makeClaimEntry(claim))
-	g.claims[makeClaimEntry(claim)] = &extendedClaim{
+	claimWithExtension := &extendedClaim{
 		self:     claim,
 		children: make([]claimEntry, 0),
 	}
+	g.claims[makeClaimEntry(claim)] = claimWithExtension
+	g.contractIndicies[claim.ContractIndex] = claimWithExtension
 	return nil
 }
 
@@ -150,11 +159,8 @@ func (g *gameState) getParent(claim Claim) *extendedClaim {
 	if claim.IsRoot() {
 		return nil
 	}
-	// TODO(inphi): refactor gameState for faster parent lookups
-	for _, c := range g.claims {
-		if c.self.ContractIndex == claim.ParentContractIndex {
-			return c
-		}
+	if parent, ok := g.contractIndicies[claim.ParentContractIndex]; ok {
+		return parent
 	}
 	return nil
 }
