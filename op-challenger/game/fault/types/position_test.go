@@ -85,7 +85,7 @@ func TestGINConversions(t *testing.T) {
 		pos := NewPosition(test.Depth, test.IndexAtDepth)
 		require.Equal(t, pos, from)
 		to := pos.ToGIndex()
-		require.Equal(t, test.GIndex, to)
+		require.Equal(t, test.GIndex, to.Uint64())
 	}
 }
 
@@ -105,7 +105,7 @@ func TestAttack(t *testing.T) {
 		}
 		pos := NewPosition(test.Depth, test.IndexAtDepth)
 		result := pos.Attack()
-		require.Equalf(t, test.AttackGIndex, result.ToGIndex(), "Attack from GIndex %v", pos.ToGIndex())
+		require.Equalf(t, test.AttackGIndex, result.ToGIndex().Uint64(), "Attack from GIndex %v", pos.ToGIndex())
 	}
 }
 
@@ -116,6 +116,6 @@ func TestDefend(t *testing.T) {
 		}
 		pos := NewPosition(test.Depth, test.IndexAtDepth)
 		result := pos.Defend()
-		require.Equalf(t, test.DefendGIndex, result.ToGIndex(), "Defend from GIndex %v", pos.ToGIndex())
+		require.Equalf(t, test.DefendGIndex, result.ToGIndex().Uint64(), "Defend from GIndex %v", pos.ToGIndex())
 	}
 }

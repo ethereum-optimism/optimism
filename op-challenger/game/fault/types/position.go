@@ -1,15 +1,21 @@
 package types
 
-import "fmt"
+import (
+	"fmt"
+	"math/big"
+)
 
 // Position is a golang wrapper around the dispute game Position type.
 type Position struct {
 	depth        int
-	indexAtDepth int
+	indexAtDepth *big.Int
 }
 
-func NewPosition(depth, indexAtDepth int) Position {
-	return Position{depth, indexAtDepth}
+func NewPosition(depth int, indexAtDepth int) Position {
+	return Position{
+		depth:        depth,
+		indexAtDepth: big.NewInt(int64(indexAtDepth)),
+	}
 }
 
 func NewPositionFromGIndex(x uint64) Position {
@@ -22,12 +28,19 @@ func (p Position) Depth() int {
 	return p.depth
 }
 
-func (p Position) IndexAtDepth() int {
+func (p Position) IndexAtDepth() *big.Int {
+	if p.indexAtDepth == nil {
+		return big.NewInt(0)
+	}
 	return p.indexAtDepth
 }
 
 func (p Position) IsRootPosition() bool {
-	return p.depth == 0 && p.indexAtDepth == 0
+	return p.depth == 0 && big.NewInt(0).Cmp(p.indexAtDepth) == 0
+}
+
+func (p Position) lshIndex(amount int) *big.Int {
+	return new(big.Int).Lsh(p.IndexAtDepth(), uint(amount))
 }
 
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
@@ -36,14 +49,16 @@ func (p Position) TraceIndex(maxDepth int) uint64 {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
 	rd := maxDepth - p.depth
-	return uint64(p.indexAtDepth<<rd | ((1 << rd) - 1))
+	rhs := ((1 << rd) - 1)
+	ti := new(big.Int).Or(p.lshIndex(rd), big.NewInt(int64(rhs)))
+	return ti.Uint64()
 }
 
 // move returns a new position at the left or right child.
 func (p Position) move(right bool) Position {
 	return Position{
 		depth:        p.depth + 1,
-		indexAtDepth: (p.indexAtDepth << 1) | boolToInt(right),
+		indexAtDepth: big.NewInt(0).Or(p.lshIndex(1), big.NewInt(int64(boolToInt(right)))),
 	}
 }
 
@@ -55,11 +70,19 @@ func boolToInt(b bool) int {
 	}
 }
 
+func (p Position) parentIndexAtDepth() *big.Int {
+	return big.NewInt(0).Div(p.IndexAtDepth(), big.NewInt(2))
+}
+
+func (p Position) DefendsParent(parentIndex *big.Int) bool {
+	return p.parentIndexAtDepth().Cmp(parentIndex) != 0
+}
+
 // parent return a new position that is the parent of this Position.
 func (p Position) parent() Position {
 	return Position{
 		depth:        p.depth - 1,
-		indexAtDepth: p.indexAtDepth >> 1,
+		indexAtDepth: p.parentIndexAtDepth(),
 	}
 }
 
@@ -74,11 +97,11 @@ func (p Position) Defend() Position {
 }
 
 func (p Position) Print(maxDepth int) {
-	fmt.Printf("GIN: %4b\tTrace Position is %4b\tTrace Depth is: %d\tTrace Index is: %d\n", p.ToGIndex(), p.indexAtDepth, p.depth, p.TraceIndex(maxDepth))
+	fmt.Printf("GIN: %4b\tTrace Position is %4b\tTrace Depth is: %d\tTrace Index is: %d\n", p.ToGIndex(), p.indexAtDepth.Uint64(), p.depth, p.TraceIndex(maxDepth))
 }
 
-func (p Position) ToGIndex() uint64 {
-	return uint64(1<<p.depth | p.indexAtDepth)
+func (p Position) ToGIndex() *big.Int {
+	return big.NewInt(0).Or(big.NewInt(1<<p.depth), p.IndexAtDepth())
 }
 
 // MSBIndex returns the index of the most significant bit
