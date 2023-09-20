@@ -79,6 +79,10 @@ func (ic *IndexerClient) GetWithdrawalsByAddress(l2Address string, cursor string
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
 	if err := json.Unmarshal(body, &wResponse); err != nil {
 		return nil, err
 	}
