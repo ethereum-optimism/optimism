@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -37,9 +38,17 @@ var (
 
 // OpGeth is an actor that functions as a l2 op-geth node
 // It provides useful functions for advancing and querying the chain
+
+type Node interface {
+	Close() error
+}
+
 type OpGeth struct {
-	node          *gn.Node
+	node          Node
+	opNode        *gn.Node
+	erigonNode    *ExternalEthClient
 	l2Engine      *sources.EngineClient
+	L2RpcCleint   *rpc.Client
 	L2Client      *ethclient.Client
 	SystemConfig  eth.SystemConfig
 	L1ChainConfig *params.ChainConfig
@@ -73,12 +82,34 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
-	require.Nil(t, err)
-	require.Nil(t, node.Start())
+	var (
+		node         Node
+		opNode       *gn.Node
+		erigonNode   *ExternalEthClient
+		wssEndpoint  string
+		HTTPEndpoint string
+	)
+	if cfg.ExternalL2Shim == "" || !strings.Contains(cfg.ExternalL2Shim, "erigon") {
+		opNode, _, err = geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		require.Nil(t, err)
+		require.Nil(t, opNode.Start())
+		node = opNode
+		wssEndpoint = opNode.WSEndpoint()
+		HTTPEndpoint = opNode.HTTPEndpoint()
+	} else {
+		erigonNode = (&ExternalRunner{
+			Name:    "Sequencer",
+			BinPath: cfg.ExternalL2Shim,
+			Genesis: l2Genesis,
+			JWTPath: cfg.JWTFilePath,
+		}).Run(t)
+		node = erigonNode
+		wssEndpoint = erigonNode.WSAuthEndpoint()
+		HTTPEndpoint = erigonNode.HTTPEndpoint()
+	}
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
-	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
+	l2Node, err := client.NewRPC(ctx, logger, wssEndpoint, client.WithGethRPCOptions(auth))
 	require.Nil(t, err)
 
 	// Finally create the engine client
@@ -90,7 +121,10 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	)
 	require.Nil(t, err)
 
-	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
+	l2Client, err := ethclient.Dial(HTTPEndpoint)
+	require.Nil(t, err)
+
+	l2RpcClient, err := rpc.Dial(HTTPEndpoint)
 	require.Nil(t, err)
 
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
@@ -98,7 +132,10 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	require.Nil(t, err)
 	return &OpGeth{
 		node:          node,
+		opNode:        opNode,
+		erigonNode:    erigonNode,
 		L2Client:      l2Client,
+		L2RpcCleint:   l2RpcClient,
 		l2Engine:      l2Engine,
 		SystemConfig:  rollupGenesis.SystemConfig,
 		L1ChainConfig: l1Genesis.Config,
@@ -109,9 +146,10 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 }
 
 func (d *OpGeth) Close() {
-	_ = d.node.Close()
+	d.node.Close()
 	d.l2Engine.Close()
 	d.L2Client.Close()
+	d.L2RpcCleint.Close()
 }
 
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions

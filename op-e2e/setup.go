@@ -224,8 +224,9 @@ func (gi *GethInstance) HTTPAuthEndpoint() string {
 	return gi.Node.HTTPAuthEndpoint()
 }
 
-func (gi *GethInstance) Close() {
+func (gi *GethInstance) Close() error {
 	gi.Node.Close()
+	return nil
 }
 
 // EthInstance is either an in process Geth or external process exposing its
@@ -235,7 +236,7 @@ type EthInstance interface {
 	WSEndpoint() string
 	HTTPAuthEndpoint() string
 	WSAuthEndpoint() string
-	Close()
+	Close() error
 }
 
 type System struct {
