@@ -93,7 +93,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		require.Nil(t, err)
 		require.Nil(t, opNode.Start())
 		node = opNode
-		wssEndpoint = opNode.WSEndpoint()
+		wssEndpoint = opNode.WSAuthEndpoint()
 		HTTPEndpoint = opNode.HTTPEndpoint()
 	} else {
 		erigonNode = (&ExternalRunner{
