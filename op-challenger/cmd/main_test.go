@@ -24,6 +24,7 @@ var (
 	cannonPreState          = "./pre.json"
 	datadir                 = "./test_data"
 	cannonL2                = "http://example.com:9545"
+	rollupRpc               = "http://example.com:8555"
 	alphabetTrace           = "abcdefghijz"
 	agreeWithProposedOutput = "true"
 )
@@ -169,6 +170,26 @@ func TestMaxConcurrency(t *testing.T) {
 	})
 }
 
+func TestPollInterval(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
+		require.Equal(t, config.DefaultPollInterval, cfg.PollInterval)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		expected := 100 * time.Second
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--http-poll-interval", "100s"))
+		require.Equal(t, expected, cfg.PollInterval)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			"invalid value \"abc\" for flag -http-poll-interval",
+			addRequiredArgs(config.TraceTypeAlphabet, "--http-poll-interval", "abc"))
+	})
+}
+
 func TestCannonBin(t *testing.T) {
 	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-bin"))
@@ -226,6 +247,25 @@ func TestDataDir(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--datadir", "--datadir=/foo/bar/cannon"))
 		require.Equal(t, "/foo/bar/cannon", cfg.Datadir)
+	})
+}
+
+func TestRollupRpc(t *testing.T) {
+	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--rollup-rpc"))
+	})
+
+	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--rollup-rpc"))
+	})
+
+	t.Run("RequiredForOutputCannonTrace", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(config.TraceTypeOutputCannon, "--rollup-rpc"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeOutputCannon))
+		require.Equal(t, rollupRpc, cfg.RollupRpc)
 	})
 }
 
@@ -402,12 +442,15 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 	switch traceType {
 	case config.TraceTypeAlphabet:
 		args["--alphabet"] = alphabetTrace
-	case config.TraceTypeCannon:
+	case config.TraceTypeCannon, config.TraceTypeOutputCannon:
 		args["--cannon-network"] = cannonNetwork
 		args["--cannon-bin"] = cannonBin
 		args["--cannon-server"] = cannonServer
 		args["--cannon-prestate"] = cannonPreState
 		args["--cannon-l2"] = cannonL2
+	}
+	if traceType == config.TraceTypeOutputCannon {
+		args["--rollup-rpc"] = rollupRpc
 	}
 	return args
 }

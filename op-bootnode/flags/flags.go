@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/urfave/cli/v2"
 )
 
@@ -36,5 +37,7 @@ var Flags = []cli.Flag{
 }
 
 func init() {
+	Flags = append(Flags, flags.P2pFlags...)
+	Flags = append(Flags, opmetrics.CLIFlags(envVarPrefix)...)
 	Flags = append(Flags, oplog.CLIFlags(envVarPrefix)...)
 }

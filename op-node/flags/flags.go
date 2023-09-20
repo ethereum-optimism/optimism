@@ -244,6 +244,18 @@ var (
 		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
 		Hidden:  true,
 	}
+	BetaRollupHalt = &cli.StringFlag{
+		Name:    "beta.rollup.halt",
+		Usage:   "Beta feature: opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
+		EnvVars: prefixEnvVars("BETA_ROLLUP_HALT"),
+		Hidden:  true,
+	}
+	BetaRollupLoadProtocolVersions = &cli.BoolFlag{
+		Name:    "beta.rollup.load-protocol-versions",
+		Usage:   "Beta feature: load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
+		EnvVars: prefixEnvVars("BETA_ROLLUP_LOAD_PROTOCOL_VERSIONS"),
+		Hidden:  true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -286,13 +298,15 @@ var optionalFlags = []cli.Flag{
 	L2EngineSyncEnabled,
 	SkipSyncStartCheck,
 	BetaExtraNetworks,
+	BetaRollupHalt,
+	BetaRollupLoadProtocolVersions,
 }
 
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
 func init() {
-	optionalFlags = append(optionalFlags, p2pFlags...)
+	optionalFlags = append(optionalFlags, P2pFlags...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }

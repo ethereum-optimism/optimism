@@ -68,6 +68,12 @@ func WithAlphabet(alphabet string) Option {
 	}
 }
 
+func WithPollInterval(pollInterval time.Duration) Option {
+	return func(c *config.Config) {
+		c.PollInterval = pollInterval
+	}
+}
+
 func WithCannon(
 	t *testing.T,
 	rollupCfg *rollup.Config,
@@ -98,7 +104,7 @@ func WithCannon(
 }
 
 func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
-	log := testlog.Logger(t, log.LvlInfo).New("role", name)
+	log := testlog.Logger(t, log.LvlDebug).New("role", name)
 	log.Info("Creating challenger", "l1", l1Endpoint)
 	cfg := NewChallengerConfig(t, l1Endpoint, options...)
 
@@ -145,6 +151,10 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
 		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
 	}
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = time.Second
+	}
+
 	return &cfg
 }
 
