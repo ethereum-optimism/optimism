@@ -68,7 +68,7 @@ func (ic *IndexerClient) GetAllWithdrawalsByAddress(l2Address string) ([]databas
 func (ic *IndexerClient) GetWithdrawalsByAddress(l2Address string, cursor string) (*database.L2BridgeWithdrawalsResponse, error) {
 	var wResponse *database.L2BridgeWithdrawalsResponse
 
-	endpoint := fmt.Sprintf(ic.cfg.URL+api.WithdrawalsPath+urlParams, l2Address, cursor, ic.cfg.PaginationLimit)
+	endpoint := fmt.Sprintf(ic.cfg.URL+api.WithdrawalsPath+l2Address+urlParams, cursor, ic.cfg.PaginationLimit)
 	resp, err := ic.c.Get(endpoint)
 	if err != nil {
 		return nil, err

@@ -30,8 +30,9 @@ type Api struct {
 
 const (
 	MetricsNamespace = "op_indexer"
-	DepositsPath     = "/api/v0/deposits/{address:%s}"
-	WithdrawalsPath  = "/api/v0/withdrawals/{address:%s}"
+	addressParam = "{address:%s}"
+	DepositsPath     = "/api/v0/deposits/"
+	WithdrawalsPath  = "/api/v0/withdrawals/"
 )
 
 func chiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Handler {
@@ -51,8 +52,8 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 	apiRouter.Use(middleware.Recoverer)
 	apiRouter.Use(middleware.Heartbeat("/healthz"))
 
-	apiRouter.Get(fmt.Sprintf(DepositsPath, ethereumAddressRegex), h.L1DepositsHandler)
-	apiRouter.Get(fmt.Sprintf(WithdrawalsPath, ethereumAddressRegex), h.L2WithdrawalsHandler)
+	apiRouter.Get(fmt.Sprintf(DepositsPath + addressParam, ethereumAddressRegex), h.L1DepositsHandler)
+	apiRouter.Get(fmt.Sprintf(WithdrawalsPath + addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
 
 	return &Api{log: logger, Router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }
