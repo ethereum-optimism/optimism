@@ -11,7 +11,7 @@ const deployFn: DeployFunction = async (hre) => {
       await assertContractVariable(
         contract,
         'owner',
-        "0x000000000000000000000000000000000000dEaD"
+        '0x000000000000000000000000000000000000dEaD'
       )
     },
   })

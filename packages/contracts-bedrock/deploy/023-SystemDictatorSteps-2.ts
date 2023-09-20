@@ -91,7 +91,7 @@ const deployFn: DeployFunction = async (hre) => {
       name: 'ProtocolVersionsProxy',
       iface: 'ProtocolVersions',
       signerOrProvider: deployer,
-    }
+    },
   ])
 
   // If we have the key for the controller then we don't need to wait for external txns.

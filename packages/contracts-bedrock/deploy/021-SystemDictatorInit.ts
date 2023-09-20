@@ -18,12 +18,14 @@ const deployFn: DeployFunction = async (hre) => {
   // format protocol version to uint256
   const requiredProtocolVersion = BigNumber.from(
     Buffer.from(
-      hre.deployConfig.requiredProtocolVersion.replace(/^0x/, ''), 'hex'
+      hre.deployConfig.requiredProtocolVersion.replace(/^0x/, ''),
+      'hex'
     )
   ).toString()
   const recommendedProtocolVersion = BigNumber.from(
     Buffer.from(
-      hre.deployConfig.recommendedProtocolVersion.replace(/^0x/, ''), 'hex'
+      hre.deployConfig.recommendedProtocolVersion.replace(/^0x/, ''),
+      'hex'
     )
   ).toString()
 
@@ -86,7 +88,10 @@ const deployFn: DeployFunction = async (hre) => {
         'L1ERC721BridgeProxy'
       ),
       systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
-      protocolVersionsProxy: await getDeploymentAddress(hre, 'ProtocolVersionsProxy'),
+      protocolVersionsProxy: await getDeploymentAddress(
+        hre,
+        'ProtocolVersionsProxy'
+      ),
     },
     implementationAddressConfig: {
       l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
@@ -150,7 +155,7 @@ const deployFn: DeployFunction = async (hre) => {
     protocolVersionConfig: {
       requiredProtocolVersion,
       recommendedProtocolVersion,
-    }
+    },
   }
 
   // Update the implementation if necessary.

@@ -239,10 +239,7 @@ contract SystemDictator is OwnableUpgradeable {
                         optimismMintableERC20Factory: zero
                     })
                 ),
-                ProtocolVersionConfig(
-                    ProtocolVersion.wrap(uint256(0)),
-                    ProtocolVersion.wrap(uint256(0))
-                )
+                ProtocolVersionConfig(ProtocolVersion.wrap(uint256(0)), ProtocolVersion.wrap(uint256(0)))
             )
         );
     }
