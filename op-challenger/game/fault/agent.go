@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -18,6 +19,8 @@ import (
 type Responder interface {
 	CallResolve(ctx context.Context) (gameTypes.GameStatus, error)
 	Resolve(ctx context.Context) error
+	CallResolveClaim(ctx context.Context, claimIdx uint64) error
+	ResolveClaim(ctx context.Context, claimIdx uint64) error
 	PerformAction(ctx context.Context, action types.Action) error
 }
 
@@ -112,6 +115,10 @@ func (a *Agent) shouldResolve(status gameTypes.GameStatus) bool {
 // tryResolve resolves the game if it is in a winning state
 // Returns true if the game is resolvable (regardless of whether it was actually resolved)
 func (a *Agent) tryResolve(ctx context.Context) bool {
+	if err := a.resolveClaims(ctx); err != nil {
+		a.log.Error("Failed to resolve claims", "err", err)
+		return false
+	}
 	status, err := a.responder.CallResolve(ctx)
 	if err != nil || status == gameTypes.GameStatusInProgress {
 		return false
@@ -124,6 +131,60 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 		a.log.Error("Failed to resolve the game", "err", err)
 	}
 	return true
+}
+
+var errNoResolvableClaims = errors.New("no resolvable claims")
+
+func (a *Agent) tryResolveClaims(ctx context.Context) error {
+	claims, err := a.loader.FetchClaims(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch claims: %w", err)
+	}
+	if len(claims) == 0 {
+		return errNoResolvableClaims
+	}
+
+	var resolvableClaims []int64
+	for _, claim := range claims {
+		a.log.Debug("checking if claim is resolvable", "claimIdx", claim.ContractIndex)
+		if err := a.responder.CallResolveClaim(ctx, uint64(claim.ContractIndex)); err == nil {
+			a.log.Info("Resolving claim", "claimIdx", claim.ContractIndex)
+			resolvableClaims = append(resolvableClaims, int64(claim.ContractIndex))
+		}
+	}
+	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
+	if len(resolvableClaims) == 0 {
+		return errNoResolvableClaims
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(resolvableClaims))
+	for _, claimIdx := range resolvableClaims {
+		claimIdx := claimIdx
+		go func() {
+			defer wg.Done()
+			err := a.responder.ResolveClaim(ctx, uint64(claimIdx))
+			if err != nil {
+				a.log.Error("Failed to resolve claim", "err", err)
+			}
+		}()
+	}
+	wg.Wait()
+	return nil
+}
+
+func (a *Agent) resolveClaims(ctx context.Context) error {
+	for {
+		err := a.tryResolveClaims(ctx)
+		switch err {
+		case errNoResolvableClaims:
+			return nil
+		case nil:
+			continue
+		default:
+			return err
+		}
+	}
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract

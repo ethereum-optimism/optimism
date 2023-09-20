@@ -3,7 +3,9 @@ package op_e2e
 import (
 	"context"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	l2oo2 "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -62,8 +64,12 @@ func TestMultipleCannonGames(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(gameDuration)
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game1.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
-	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game1.WaitForInactivity(ctx, 10, true)
+	game2.WaitForInactivity(ctx, 10, true)
+	game1.LogGameData(ctx)
+	game2.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game1.Status(ctx))
+	require.EqualValues(t, disputegame.StatusChallengerWins, game2.Status(ctx))
 
 	// Check that the game directories are removed
 	challenger.WaitForGameDataDeletion(ctx, game1, game2)
@@ -168,9 +174,70 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(gameDuration)
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, test.expectedResult)
+			game.WaitForInactivity(ctx, 10, true)
+			game.LogGameData(ctx)
+			require.EqualValues(t, test.expectedResult, game.Status(ctx))
 		})
 	}
+}
+
+func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
+	InitParallel(t)
+
+	testCase := func(t *testing.T, isRootCorrect bool) {
+		ctx := context.Background()
+		sys, l1Client := startFaultDisputeSystem(t)
+		t.Cleanup(sys.Close)
+
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+		rootClaimedAlphabet := disputegame.CorrectAlphabet
+		if !isRootCorrect {
+			rootClaimedAlphabet = "abcdexyz"
+		}
+		game := disputeGameFactory.StartAlphabetGame(ctx, rootClaimedAlphabet)
+		require.NotNil(t, game)
+		gameDuration := game.GameDuration(ctx)
+
+		// Start honest challenger
+		game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
+			challenger.WithAgreeProposedOutput(!isRootCorrect),
+			challenger.WithAlphabet(disputegame.CorrectAlphabet),
+			challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+			// Ensures the challenger responds to all claims before test timeout
+			challenger.WithPollInterval(time.Millisecond*400),
+		)
+
+		// Start dishonest challenger
+		correctTrace := game.CreateHonestActor(ctx, disputegame.CorrectAlphabet, 4)
+		dishonestHelper := disputegame.NewDishonestHelper(&game.FaultGameHelper, correctTrace, !isRootCorrect)
+		dishonestHelper.ExhaustDishonestClaims(ctx)
+
+		// Wait until we've reached max depth before checking for inactivity
+		game.WaitForClaimAtDepth(ctx, int(game.MaxDepth(ctx)))
+
+		// Wait for 4 blocks of no challenger responses. The challenger may still be stepping on invalid claims at max depth
+		game.WaitForInactivity(ctx, 4, false)
+
+		sys.TimeTravelClock.AdvanceTime(gameDuration)
+		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+		expectedStatus := disputegame.StatusChallengerWins
+		if isRootCorrect {
+			expectedStatus = disputegame.StatusDefenderWins
+		}
+		game.WaitForInactivity(ctx, 10, true)
+		game.LogGameData(ctx)
+		require.EqualValues(t, expectedStatus, game.Status(ctx))
+	}
+
+	t.Run("RootCorrect", func(t *testing.T) {
+		InitParallel(t)
+		testCase(t, true)
+	})
+	t.Run("RootIncorrect", func(t *testing.T) {
+		InitParallel(t)
+		testCase(t, false)
+	})
 }
 
 func TestCannonDisputeGame(t *testing.T) {
@@ -217,8 +284,9 @@ func TestCannonDisputeGame(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.WaitForInactivity(ctx, 10, true)
 			game.LogGameData(ctx)
+			require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 		})
 	}
 }
@@ -260,8 +328,9 @@ func TestCannonDefendStep(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
@@ -335,14 +404,14 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+			game.WaitForInactivity(ctx, 10, true)
 			game.LogGameData(ctx)
+			require.EqualValues(t, disputegame.StatusDefenderWins, game.Status(ctx))
 		})
 	}
 }
 
 func TestCannonPoisonedPostState(t *testing.T) {
-	t.Skip("Known failure case")
 	InitParallel(t)
 
 	ctx := context.Background()
@@ -365,8 +434,11 @@ func TestCannonPoisonedPostState(t *testing.T) {
 	// Honest defense at "dishonest" level
 	correctTrace.Defend(ctx, 1)
 
-	// Dishonest attack at "honest" level - honest move would be to defend
+	// Dishonest attack at "honest" level - honest move would be to ignore
 	game.Attack(ctx, 2, common.Hash{0x03, 0xaa})
+
+	// Honest attack at "dishonest" level - honest move would be to ignore
+	correctTrace.Attack(ctx, 3)
 
 	// Start the honest challenger
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Honest",
@@ -376,29 +448,40 @@ func TestCannonPoisonedPostState(t *testing.T) {
 	)
 
 	// Start dishonest challenger that posts correct claims
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "DishonestCorrect",
-		// Disagree with the proposed output, so agree with the root claim
-		challenger.WithAgreeProposedOutput(false),
-		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
-	)
+	// It participates in the subgame root the honest claim index 4
+	func() {
+		claimCount := int64(5)
+		depth := game.MaxDepth(ctx)
+		for {
+			game.LogGameData(ctx)
+			claimCount++
+			// Wait for the challenger to counter
+			game.WaitForClaimCount(ctx, claimCount)
 
-	// Give the challengers time to progress down the full game depth
-	depth := game.MaxDepth(ctx)
-	for i := 3; i <= int(depth); i++ {
-		game.WaitForClaimAtDepth(ctx, i)
-		game.LogGameData(ctx)
-	}
+			// Respond with our own move
+			correctTrace.Defend(ctx, claimCount-1)
+			claimCount++
+			game.WaitForClaimCount(ctx, claimCount)
 
-	// Wait for all the leaf nodes to be countered
-	// Wait for the challengers to drive the game down to the leaf node which should be countered
-	game.WaitForAllClaimsCountered(ctx)
+			// Defender moves last. If we're at max depth, then we're done
+			dishonestClaim := game.GetClaimUnsafe(ctx, claimCount-1)
+			pos := types.NewPositionFromGIndex(dishonestClaim.Position.Uint64())
+			if int64(pos.Depth()) == depth {
+				break
+			}
+		}
+	}()
+
+	// Wait for the challenger to drive the subgame at 4 to the leaf node, which should be countered
+	game.WaitForClaimAtMaxDepth(ctx, true)
 
 	// Time travel past when the game will be resolvable.
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
 // setupDisputeGameForInvalidOutputRoot sets up an L2 chain with at least one valid output root followed by an invalid output root.
@@ -470,8 +553,9 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
