@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -22,7 +23,7 @@ import (
 type Config struct {
 	log        log.Logger
 	metr       metrics.Metricer
-	L1Client   *ethclient.Client
+	L1Client   client.EthClient
 	L2Client   *ethclient.Client
 	RollupNode *sources.RollupClient
 	TxManager  txmgr.TxManager

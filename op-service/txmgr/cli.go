@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"math/big"
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	service_client "github.com/ethereum-optimism/optimism/op-service/client"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-signer/client"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
@@ -201,14 +202,14 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	}
 }
 
-func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
+func NewConfig(cfg CLIConfig, l log.Logger, m txmetrics.TxMetricer) (Config, error) {
 	if err := cfg.Check(); err != nil {
 		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
-	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
+	l1, err := service_client.DialEthClientWithTimeoutAndFallback(ctx, cfg.L1RPCURL, service_client.DefaultDialTimeout, l, service_client.TxmgrFallbackThreshold, m)
 	if err != nil {
 		return Config{}, fmt.Errorf("could not dial eth client: %w", err)
 	}

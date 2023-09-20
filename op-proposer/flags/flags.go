@@ -24,7 +24,7 @@ var (
 	// Required Flags
 	L1EthRpcFlag = &cli.StringFlag{
 		Name:    "l1-eth-rpc",
-		Usage:   "HTTP provider URL for L1",
+		Usage:   "HTTP provider URL for L1. Multiple alternative addresses are supported, separated by commas, and the first address is used by default",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{

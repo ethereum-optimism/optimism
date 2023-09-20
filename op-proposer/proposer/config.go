@@ -1,10 +1,10 @@
 package proposer
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -24,7 +24,7 @@ type Config struct {
 	PollInterval       time.Duration
 	NetworkTimeout     time.Duration
 	TxManager          txmgr.TxManager
-	L1Client           *ethclient.Client
+	L1Client           client.EthClient
 	RollupClient       *sources.RollupClient
 	AllowNonFinalized  bool
 }

@@ -2,10 +2,10 @@ package metrics
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -185,7 +185,7 @@ func (m *Metrics) Document() []opmetrics.DocumentedMetric {
 }
 
 func (m *Metrics) StartBalanceMetrics(ctx context.Context,
-	l log.Logger, client *ethclient.Client, account common.Address) {
+	l log.Logger, client ethereum.ChainStateReader, account common.Address) {
 	opmetrics.LaunchBalanceMetrics(ctx, l, m.registry, m.ns, client, account)
 }
 

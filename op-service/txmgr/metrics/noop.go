@@ -11,3 +11,4 @@ func (*NoopTxMetrics) RecordTxConfirmationLatency(int64) {}
 func (*NoopTxMetrics) TxConfirmed(*types.Receipt)        {}
 func (*NoopTxMetrics) TxPublished(string)                {}
 func (*NoopTxMetrics) RPCError()                         {}
+func (m *NoopTxMetrics) RecordL1UrlSwitchEvt(url string) {}
