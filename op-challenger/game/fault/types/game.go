@@ -51,9 +51,9 @@ type extendedClaim struct {
 type gameState struct {
 	agreeWithProposedOutput bool
 	root                    claimEntry
-	// parents maps a contract index to it's extended claim.
+	// contractIndicies maps a contract index to it's extended claim.
 	// This is used to perform O(1) parent lookups.
-	parents map[int]*extendedClaim
+	contractIndicies map[int]*extendedClaim
 	// claims maps a claim entry to it's extended claim.
 	claims map[claimEntry]*extendedClaim
 	depth  uint64
@@ -74,7 +74,7 @@ func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameS
 		agreeWithProposedOutput: agreeWithProposedOutput,
 		root:                    rootClaimEntry,
 		claims:                  claims,
-		parents:                 parents,
+		contractIndicies:        parents,
 		depth:                   depth,
 	}
 }
@@ -118,7 +118,7 @@ func (g *gameState) Put(claim Claim) error {
 		children: make([]claimEntry, 0),
 	}
 	g.claims[makeClaimEntry(claim)] = claimWithExtension
-	g.parents[claim.ContractIndex] = claimWithExtension
+	g.contractIndicies[claim.ContractIndex] = claimWithExtension
 	return nil
 }
 
@@ -159,7 +159,7 @@ func (g *gameState) getParent(claim Claim) *extendedClaim {
 	if claim.IsRoot() {
 		return nil
 	}
-	if parent, ok := g.parents[claim.ParentContractIndex]; ok {
+	if parent, ok := g.contractIndicies[claim.ParentContractIndex]; ok {
 		return parent
 	}
 	return nil
