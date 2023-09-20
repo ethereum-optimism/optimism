@@ -173,4 +173,11 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, event)
 	require.Equal(t, event.TransactionHash, finalizedReceipt.TxHash)
+
+	// (3) Validate that withdrawal is extractable via API
+	withdrawalsResponse, err := testSuite.IClient.GetWithdrawalsByAddress(aliceAddr.String(), "")
+	require.NoError(t, err)
+
+	require.Equal(t, 1, len(withdrawalsResponse.Withdrawals))
+
 }

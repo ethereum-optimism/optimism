@@ -10,6 +10,7 @@ type Routes struct {
 	Logger              log.Logger
 	BridgeTransfersView database.BridgeTransfersView
 	Router              *chi.Mux
+	v                   *Validator
 }
 
 func NewRoutes(logger log.Logger, bv database.BridgeTransfersView, r *chi.Mux) Routes {

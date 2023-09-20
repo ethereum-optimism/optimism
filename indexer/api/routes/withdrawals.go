@@ -2,7 +2,6 @@ package routes
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
@@ -60,22 +59,20 @@ func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 	limitQuery := r.URL.Query().Get("limit")
 
-	defaultLimit := 100
-	limit := defaultLimit
-	if limitQuery != "" {
-		parsedLimit, err := strconv.Atoi(limitQuery)
-		if err != nil {
-			http.Error(w, "Limit could not be parsed into a number", http.StatusBadRequest)
-			h.Logger.Error("Invalid limit")
-			h.Logger.Error(err.Error())
-		}
-		limit = parsedLimit
+	limit, err := h.v.ValidateLimit(limitQuery)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.Logger.Error("Invalid query params")
+		h.Logger.Error(err.Error())
+		return
 	}
+
 	withdrawals, err := h.BridgeTransfersView.L2BridgeWithdrawalsByAddress(address, cursor, limit)
 	if err != nil {
 		http.Error(w, "Internal server error reading withdrawals", http.StatusInternalServerError)
 		h.Logger.Error("Unable to read withdrawals from DB")
 		h.Logger.Error(err.Error())
+		return
 	}
 	response := newWithdrawalResponse(withdrawals)
 

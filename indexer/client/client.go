@@ -2,7 +2,7 @@ package client
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 
 	"encoding/json"
@@ -31,8 +31,8 @@ type IndexerClient struct {
 	m   node.Metricer
 }
 
-// DialIndexerClient ... Dials indexer API URL
-func DialIndexerClient(cfg *Config, m node.Metricer) (*IndexerClient, error) {
+// NewClient ... Construct a new indexer client
+func NewClient(cfg *Config, m node.Metricer) (*IndexerClient, error) {
 	if cfg.PaginationLimit == 0 {
 		cfg.PaginationLimit = defaultPagingLimit
 	}
@@ -74,7 +74,7 @@ func (ic *IndexerClient) GetWithdrawalsByAddress(l2Address string, cursor string
 		return nil, err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}

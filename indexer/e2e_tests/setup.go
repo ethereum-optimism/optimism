@@ -10,7 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/api"
+
 	"github.com/ethereum-optimism/optimism/indexer"
+	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 
@@ -29,6 +32,10 @@ type E2ETestSuite struct {
 	// Indexer
 	DB      *database.DB
 	Indexer *indexer.Indexer
+
+	// API
+	API     *api.Api
+	IClient *client.IndexerClient
 
 	// Rollup
 	OpCfg *op_e2e.SystemConfig
@@ -84,7 +91,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
 			},
 		},
-		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
+		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 8080},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
@@ -97,15 +104,36 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	require.NoError(t, err)
 
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
-	t.Cleanup(func() { indexerStop() })
+
 	go func() {
 		err := indexer.Run(indexerCtx)
 		require.NoError(t, err)
 	}()
 
+	api := api.NewApi(indexerLog, db.BridgeTransfers, indexerCfg.HTTPServer, indexerCfg.MetricsServer)
+
+	go func() {
+		err := api.Start(indexerCtx)
+		require.NoError(t, err)
+	}()
+
+	t.Cleanup(func() {
+		indexerStop()
+	})
+
+	cfg := &client.Config{
+		PaginationLimit: 100,
+		URL:             fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
+	}
+
+	ic, err := client.NewClient(cfg, nil)
+	require.NoError(t, err)
+
 	return E2ETestSuite{
 		t:        t,
 		DB:       db,
+		API:      api,
+		IClient:  ic,
 		Indexer:  indexer,
 		OpCfg:    &opCfg,
 		OpSys:    opSys,

@@ -2,7 +2,6 @@ package routes
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
@@ -58,16 +57,12 @@ func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 	limitQuery := r.URL.Query().Get("limit")
 
-	defaultLimit := 100
-	limit := defaultLimit
-	if limitQuery != "" {
-		parsedLimit, err := strconv.Atoi(limitQuery)
-		if err != nil {
-			http.Error(w, "Limit could not be parsed into a number", http.StatusBadRequest)
-			h.Logger.Error("Invalid limit")
-			h.Logger.Error(err.Error())
-		}
-		limit = parsedLimit
+	limit, err := h.v.ValidateLimit(limitQuery)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.Logger.Error("Invalid limit param")
+		h.Logger.Error(err.Error())
+		return
 	}
 
 	deposits, err := h.BridgeTransfersView.L1BridgeDepositsByAddress(address, cursor, limit)
