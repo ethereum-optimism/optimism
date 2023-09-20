@@ -222,7 +222,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 		}
 		state.SetBalance(from, BytesToBigInt([]byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff}))
 		state.SetCode(addr, common.FromHex(bindings.OptimismPortalDeployedBin))
-		_, err = state.Commit(false)
+		_, err = state.Commit(0, false)
 		if err != nil {
 			t.Fatal(err)
 		}

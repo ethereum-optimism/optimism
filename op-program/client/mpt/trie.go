@@ -51,7 +51,10 @@ func ReadTrie(root common.Hash, getPreimage func(key common.Hash) []byte) []hexu
 	if err != nil {
 		panic(err)
 	}
-	iter := tr.NodeIterator(nil)
+	iter, err := tr.NodeIterator(nil)
+	if err != nil {
+		panic(err)
+	}
 
 	// With small lists the iterator seems to use 0x80 (RLP empty string, unlike the others)
 	// as key for item 0, causing it to come last.
