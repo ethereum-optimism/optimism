@@ -64,6 +64,9 @@ type Config struct {
 	// ServerMode indicates that the program should run in pre-image server mode and wait for requests.
 	// No client program is run.
 	ServerMode bool
+
+	// IsCustomChainConfig indicates that the program uses a custom chain configuration
+	IsCustomChainConfig bool
 }
 
 func (c *Config) Check() error {
@@ -117,15 +120,18 @@ func NewConfig(
 	l2Claim common.Hash,
 	l2ClaimBlockNum uint64,
 ) *Config {
+	_, err := params.LoadOPStackChainConfig(l2Genesis.ChainID.Uint64())
+	isCustomConfig := err != nil
 	return &Config{
-		Rollup:             rollupCfg,
-		L2ChainConfig:      l2Genesis,
-		L1Head:             l1Head,
-		L2Head:             l2Head,
-		L2OutputRoot:       l2OutputRoot,
-		L2Claim:            l2Claim,
-		L2ClaimBlockNumber: l2ClaimBlockNum,
-		L1RPCKind:          sources.RPCKindBasic,
+		Rollup:              rollupCfg,
+		L2ChainConfig:       l2Genesis,
+		L1Head:              l1Head,
+		L2Head:              l2Head,
+		L2OutputRoot:        l2OutputRoot,
+		L2Claim:             l2Claim,
+		L2ClaimBlockNumber:  l2ClaimBlockNum,
+		L1RPCKind:           sources.RPCKindBasic,
+		IsCustomChainConfig: isCustomConfig,
 	}
 }
 
@@ -156,6 +162,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	}
 	l2GenesisPath := ctx.String(flags.L2GenesisPath.Name)
 	var l2ChainConfig *params.ChainConfig
+	var isCustomConfig bool
 	if l2GenesisPath == "" {
 		networkName := ctx.String(flags.Network.Name)
 		ch := chaincfg.ChainByName(networkName)
@@ -169,25 +176,27 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		l2ChainConfig = cfg
 	} else {
 		l2ChainConfig, err = loadChainConfigFromGenesis(l2GenesisPath)
+		isCustomConfig = true
 	}
 	if err != nil {
 		return nil, fmt.Errorf("invalid genesis: %w", err)
 	}
 	return &Config{
-		Rollup:             rollupCfg,
-		DataDir:            ctx.String(flags.DataDir.Name),
-		L2URL:              ctx.String(flags.L2NodeAddr.Name),
-		L2ChainConfig:      l2ChainConfig,
-		L2Head:             l2Head,
-		L2OutputRoot:       l2OutputRoot,
-		L2Claim:            l2Claim,
-		L2ClaimBlockNumber: l2ClaimBlockNum,
-		L1Head:             l1Head,
-		L1URL:              ctx.String(flags.L1NodeAddr.Name),
-		L1TrustRPC:         ctx.Bool(flags.L1TrustRPC.Name),
-		L1RPCKind:          sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
-		ExecCmd:            ctx.String(flags.Exec.Name),
-		ServerMode:         ctx.Bool(flags.Server.Name),
+		Rollup:              rollupCfg,
+		DataDir:             ctx.String(flags.DataDir.Name),
+		L2URL:               ctx.String(flags.L2NodeAddr.Name),
+		L2ChainConfig:       l2ChainConfig,
+		L2Head:              l2Head,
+		L2OutputRoot:        l2OutputRoot,
+		L2Claim:             l2Claim,
+		L2ClaimBlockNumber:  l2ClaimBlockNum,
+		L1Head:              l1Head,
+		L1URL:               ctx.String(flags.L1NodeAddr.Name),
+		L1TrustRPC:          ctx.Bool(flags.L1TrustRPC.Name),
+		L1RPCKind:           sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
+		ExecCmd:             ctx.String(flags.Exec.Name),
+		ServerMode:          ctx.Bool(flags.Server.Name),
+		IsCustomChainConfig: isCustomConfig,
 	}, nil
 }
 

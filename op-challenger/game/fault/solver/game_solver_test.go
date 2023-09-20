@@ -48,7 +48,6 @@ func TestCalculateNextActions(t *testing.T) {
 			rootClaimCorrect:    true,
 			setupGame:           func(builder *faulttest.GameBuilder) {},
 		},
-
 		{
 			name:                "DoNotPerformDuplicateMoves",
 			agreeWithOutputRoot: true,
@@ -93,16 +92,15 @@ func TestCalculateNextActions(t *testing.T) {
 				maliciousStateHash := common.Hash{0x01, 0xaa}
 
 				// Dishonest actor counters their own claims to set up a situation with an invalid prestate
-				// The honest actor should attack all claims that support the root claim (disagree with the output root)
-				builder.Seq().ExpectAttack(). // This expected action is the winning move.
-								Attack(maliciousStateHash).
-								Defend(maliciousStateHash).ExpectAttack().
-								Attack(maliciousStateHash).
-								Attack(maliciousStateHash).ExpectStepAttack()
-
-				// The attempt to step against our malicious leaf node will fail because the pre-state won't match our
-				// malicious state hash. However, it is the very first expected action, attacking the root claim with
-				// the correct hash that wins the game since it will be the left-most uncountered claim.
+				// The honest actor should ignore path created by the dishonest actor, only supporting its own attack on the root claim
+				honestMove := builder.Seq().AttackCorrect() // This expected action is the winning move.
+				dishonestMove := honestMove.Attack(maliciousStateHash)
+				// The expected action by the honest actor
+				dishonestMove.ExpectAttack()
+				// The honest actor will ignore this poisoned path
+				dishonestMove.
+					Defend(maliciousStateHash).
+					Attack(maliciousStateHash)
 			},
 		},
 	}

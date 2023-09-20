@@ -48,7 +48,10 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim t
 	if game.AgreeWithClaimLevel(claim) {
 		return nil, nil
 	}
-	step, err := s.claimSolver.AttemptStep(ctx, claim, game.AgreeWithClaimLevel(claim))
+	step, err := s.claimSolver.AttemptStep(ctx, game, claim)
+	if err == ErrStepIgnoreInvalidPath {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -63,11 +66,14 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim t
 }
 
 func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim types.Claim) (*types.Action, error) {
-	move, err := s.claimSolver.NextMove(ctx, claim, game.AgreeWithClaimLevel(claim))
+	if game.AgreeWithClaimLevel(claim) {
+		return nil, nil
+	}
+	move, err := s.claimSolver.NextMove(ctx, claim, game)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate next move for claim index %v: %w", claim.ContractIndex, err)
 	}
-	if move == nil || game.IsDuplicate(move.ClaimData) {
+	if move == nil || game.IsDuplicate(*move) {
 		return nil, nil
 	}
 	return &types.Action{

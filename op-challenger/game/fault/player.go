@@ -114,6 +114,10 @@ func NewGamePlayer(
 	}, nil
 }
 
+func (g *GamePlayer) Status() gameTypes.GameStatus {
+	return g.status
+}
+
 func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 	if g.status != gameTypes.GameStatusInProgress {
 		// Game is already complete so don't try to perform further actions.
