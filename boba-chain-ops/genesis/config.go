@@ -125,10 +125,10 @@ type DeployConfig struct {
 	L1BobaTokenAddress *common.Address `json:"l1BobaTokenAddress,omitempty"`
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are required to adopt, to stay in sync with the network.
-	RequiredProtocolVersion ProtocolVersion `json:"requiredProtocolVersion"`
+	RequiredProtocolVersion Bytes32 `json:"requiredProtocolVersion"`
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
-	RecommendedProtocolVersion ProtocolVersion `json:"recommendedProtocolVersion"`
+	RecommendedProtocolVersion Bytes32 `json:"recommendedProtocolVersion"`
 }
 
 // Check will ensure that the config is sane and return an error when it is not
