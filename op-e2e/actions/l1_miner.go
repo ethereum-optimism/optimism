@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -67,7 +67,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			MixDigest:  common.Hash{}, // TODO: maybe randomize this (prev-randao value)
 		}
 		if s.l1Cfg.Config.IsLondon(header.Number) {
-			header.BaseFee = misc.CalcBaseFee(s.l1Cfg.Config, parent)
+			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
@@ -151,7 +151,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	}
 
 	// Write state changes to db
-	root, err := s.l1BuildingState.Commit(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
+	root, err := s.l1BuildingState.Commit(s.l1BuildingHeader.Number.Uint64(), s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}

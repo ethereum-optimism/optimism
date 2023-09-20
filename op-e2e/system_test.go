@@ -720,8 +720,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	_, err = sys.Mocknet.ConnectPeers(sys.RollupNodes["bob"].P2P().Host().ID(), syncerNode.P2P().Host().ID())
 	require.NoError(t, err)
 
-	rpc, err := syncerL2Engine.Attach()
-	require.NoError(t, err)
+	rpc := syncerL2Engine.Attach()
 	l2Verif := ethclient.NewClient(rpc)
 
 	// It may take a while to sync, but eventually we should see the sequenced data show up
