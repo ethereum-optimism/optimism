@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -89,7 +88,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		wssEndpoint  string
 		HTTPEndpoint string
 	)
-	if cfg.ExternalL2Shim == "" || !strings.Contains(cfg.ExternalL2Shim, "erigon") {
+	if cfg.ExternalL2Shim == "" {
 		opNode, _, err = geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 		require.Nil(t, err)
 		require.Nil(t, opNode.Start())
