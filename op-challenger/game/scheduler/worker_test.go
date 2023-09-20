@@ -47,6 +47,10 @@ func (s *stubPlayer) ProgressGame(ctx context.Context) types.GameStatus {
 	return s.status
 }
 
+func (s *stubPlayer) Status() types.GameStatus {
+	return s.status
+}
+
 func readWithTimeout[T any](t *testing.T, ch <-chan T) T {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

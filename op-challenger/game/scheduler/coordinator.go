@@ -109,9 +109,14 @@ func (c *coordinator) createJob(game common.Address) (*job, error) {
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
 		state.player = player
+		state.status = player.Status()
 	}
 	state.inflight = true
-	return &job{addr: game, player: state.player}, nil
+	if state.status != types.GameStatusInProgress {
+		c.logger.Debug("Not rescheduling resolved game", "game", game, "status", state.status)
+		return nil, nil
+	}
+	return &job{addr: game, player: state.player, status: state.status}, nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
