@@ -89,10 +89,8 @@ devnet-up:
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi
-	$(shell ./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock)
-	if [ $(.SHELLSTATUS) -ne 0 ]; then \
-		make devnet-allocs; \
-	fi
+	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
+		|| make devnet-allocs
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 

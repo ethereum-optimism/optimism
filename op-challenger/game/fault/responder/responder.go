@@ -94,6 +94,34 @@ func (r *FaultResponder) Resolve(ctx context.Context) error {
 	return r.sendTxAndWait(ctx, txData)
 }
 
+// buildResolveClaimData creates the transaction data for the ResolveClaim function.
+func (r *FaultResponder) buildResolveClaimData(ctx context.Context, claimIdx uint64) ([]byte, error) {
+	return r.fdgAbi.Pack("resolveClaim", big.NewInt(int64(claimIdx)))
+}
+
+// CallResolveClaim determines if the resolveClaim function on the fault dispute game contract
+// would succeed.
+func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) error {
+	txData, err := r.buildResolveClaimData(ctx, claimIdx)
+	if err != nil {
+		return err
+	}
+	_, err = r.txMgr.Call(ctx, ethereum.CallMsg{
+		To:   &r.fdgAddr,
+		Data: txData,
+	}, nil)
+	return err
+}
+
+// ResolveClaim executes a resolveClaim transaction to resolve a fault dispute game.
+func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) error {
+	txData, err := r.buildResolveClaimData(ctx, claimIdx)
+	if err != nil {
+		return err
+	}
+	return r.sendTxAndWait(ctx, txData)
+}
+
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	var txData []byte
 	var err error
