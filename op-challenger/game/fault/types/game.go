@@ -38,7 +38,7 @@ type claimID common.Hash
 
 func computeClaimID(claim Claim) claimID {
 	return claimID(crypto.Keccak256Hash(
-		new(big.Int).SetUint64(claim.Position.ToGIndex()).Bytes(),
+		claim.Position.ToGIndex().Bytes(),
 		claim.Value.Bytes(),
 		big.NewInt(int64(claim.ParentContractIndex)).Bytes(),
 	))

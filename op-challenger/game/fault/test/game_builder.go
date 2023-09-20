@@ -1,6 +1,8 @@
 package test
 
 import (
+	"math/big"
+
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -120,7 +122,7 @@ func (s *GameBuilderSeq) ExpectStepAttack() *GameBuilderSeq {
 }
 
 func (s *GameBuilderSeq) ExpectStepDefend() *GameBuilderSeq {
-	traceIdx := s.lastClaim.TraceIndex(s.builder.maxDepth) + 1
+	traceIdx := new(big.Int).Add(s.lastClaim.TraceIndex(s.builder.maxDepth), big.NewInt(1))
 	s.gameBuilder.ExpectedActions = append(s.gameBuilder.ExpectedActions, types.Action{
 		Type:       types.ActionTypeStep,
 		ParentIdx:  s.lastClaim.ContractIndex,
