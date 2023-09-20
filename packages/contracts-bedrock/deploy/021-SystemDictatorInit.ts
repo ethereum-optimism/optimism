@@ -15,6 +15,18 @@ import {
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
+  // format protocol version to uint256
+  const requiredProtocolVersion = BigNumber.from(
+    Buffer.from(
+      hre.deployConfig.requiredProtocolVersion.replace(/^0x/, ''), 'hex'
+    )
+  ).toString()
+  const recommendedProtocolVersion = BigNumber.from(
+    Buffer.from(
+      hre.deployConfig.recommendedProtocolVersion.replace(/^0x/, ''), 'hex'
+    )
+  ).toString()
+
   // Load the contracts we need to interact with.
   const [
     SystemDictator,
@@ -74,6 +86,7 @@ const deployFn: DeployFunction = async (hre) => {
         'L1ERC721BridgeProxy'
       ),
       systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
+      protocolVersionsProxy: await getDeploymentAddress(hre, 'ProtocolVersionsProxy'),
     },
     implementationAddressConfig: {
       l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
@@ -90,6 +103,7 @@ const deployFn: DeployFunction = async (hre) => {
       l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
+      protocolVersionsImpl: await getDeploymentAddress(hre, 'ProtocolVersions'),
     },
     systemConfigConfig: {
       owner: hre.deployConfig.finalSystemOwner,
@@ -133,6 +147,10 @@ const deployFn: DeployFunction = async (hre) => {
         ),
       },
     },
+    protocolVersionConfig: {
+      requiredProtocolVersion,
+      recommendedProtocolVersion,
+    }
   }
 
   // Update the implementation if necessary.

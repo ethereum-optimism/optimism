@@ -233,3 +233,5 @@ func (g GenesisOutput) PerformOutput(genesis *types.Genesis) GenesisOutput {
 		ParentHash: genesis.ParentHash,
 	}
 }
+
+type ProtocolVersion [32]byte

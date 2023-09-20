@@ -14,6 +14,7 @@ import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ProtocolVersions, ProtocolVersion } from "../L1/ProtocolVersions.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Constants } from "../libraries/Constants.sol";
 
@@ -45,6 +46,7 @@ contract SystemDictator is OwnableUpgradeable {
         address optimismMintableERC20FactoryProxy;
         address l1ERC721BridgeProxy;
         address systemConfigProxy;
+        address protocolVersionsProxy;
     }
 
     /**
@@ -59,6 +61,7 @@ contract SystemDictator is OwnableUpgradeable {
         L1ERC721Bridge l1ERC721BridgeImpl;
         PortalSender portalSenderImpl;
         SystemConfig systemConfigImpl;
+        ProtocolVersions protocolVersionsImpl;
     }
 
     /**
@@ -107,6 +110,7 @@ contract SystemDictator is OwnableUpgradeable {
         ProxyAddressConfig proxyAddressConfig;
         ImplementationAddressConfig implementationAddressConfig;
         SystemConfigConfig systemConfigConfig;
+        ProtocolVersionConfig protocolVersionConfig;
     }
 
     /**
@@ -117,6 +121,14 @@ contract SystemDictator is OwnableUpgradeable {
         address portalGuardian;
         address systemConfig;
         bool paused;
+    }
+
+    /**
+     * @notice ProtocalVersions configuration.
+     */
+    struct ProtocolVersionConfig {
+        ProtocolVersion requiredProtocolVersion;
+        ProtocolVersion recommendedProtocolVersion;
     }
 
     /**
@@ -196,7 +208,7 @@ contract SystemDictator is OwnableUpgradeable {
         initialize(
             DeployConfig(
                 GlobalConfig(AddressManager(zero), ProxyAdmin(zero), zero, zero),
-                ProxyAddressConfig(zero, zero, zero, zero, zero, zero, zero),
+                ProxyAddressConfig(zero, zero, zero, zero, zero, zero, zero, zero),
                 ImplementationAddressConfig(
                     L2OutputOracle(zero),
                     OptimismPortal(payable(zero)),
@@ -205,7 +217,8 @@ contract SystemDictator is OwnableUpgradeable {
                     OptimismMintableERC20Factory(zero),
                     L1ERC721Bridge(zero),
                     PortalSender(zero),
-                    SystemConfig(zero)
+                    SystemConfig(zero),
+                    ProtocolVersions(zero)
                 ),
                 SystemConfigConfig(
                     zero,
@@ -225,6 +238,10 @@ contract SystemDictator is OwnableUpgradeable {
                         optimismPortal: zero,
                         optimismMintableERC20Factory: zero
                     })
+                ),
+                ProtocolVersionConfig(
+                    ProtocolVersion.wrap(uint256(0)),
+                    ProtocolVersion.wrap(uint256(0))
                 )
             )
         );
@@ -456,6 +473,12 @@ contract SystemDictator is OwnableUpgradeable {
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
 
+        // Uprade the ProtocolVersions (no initializer).
+        config.globalConfig.proxyAdmin.upgrade(
+            payable(config.proxyAddressConfig.protocolVersionsProxy),
+            address(config.implementationAddressConfig.protocolVersionsImpl)
+        );
+
         // Try to initialize the L1StandardBridge, only fail if it's already been initialized.
         try L1StandardBridge(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).initialize(
             L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
@@ -505,6 +528,25 @@ contract SystemDictator is OwnableUpgradeable {
             );
         } catch {
             revert("SystemDictator: unexpected error initializing L1ERC721Bridge (no reason)");
+        }
+
+        // Try to initialize the ProtocolVersions, only fail if it's already been initialized.
+        try ProtocolVersions(config.proxyAddressConfig.protocolVersionsProxy).initialize(
+            address(config.globalConfig.proxyAdmin),
+            config.protocolVersionConfig.requiredProtocolVersion,
+            config.protocolVersionConfig.recommendedProtocolVersion
+        ) {
+            // ProtocolVersions is the one annoying edge case difference between existing
+            // networks and fresh networks because in existing networks it'll already be
+            // initialized but in fresh networks it won't be. Try/catch is the easiest and most
+            // consistent way to handle this because initialized() is not exposed publicly.
+        } catch Error(string memory reason) {
+            require(
+                keccak256(abi.encodePacked(reason)) == keccak256("Initializable: contract is already initialized"),
+                string.concat("SystemDictator: unexpected error initializing ProtocolVersions: ", reason)
+            );
+        } catch {
+            revert("SystemDictator: unexpected error initializing ProtocolVersions (no reason)");
         }
     }
 
