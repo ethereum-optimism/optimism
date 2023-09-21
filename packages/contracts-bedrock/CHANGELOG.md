@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.16.1
+
+### Patch Changes
+
+- [#7244](https://github.com/ethereum-optimism/optimism/pull/7244) [`2440f5e7a`](https://github.com/ethereum-optimism/optimism/commit/2440f5e7ab6577f2d2e9c8b0c78c014290dde8e7) Thanks [@nitaliano](https://github.com/nitaliano)! - bumps sdk version to have access to sepolia deployments
+
 ## 0.16.0
 
 ### Minor Changes
