@@ -81,28 +81,26 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 
 	var (
 		node         Node
-		opNode       *gn.Node
-		erigonNode   *ExternalEthClient
 		wssEndpoint  string
 		HTTPEndpoint string
 	)
 	if cfg.ExternalL2Shim == "" {
-		opNode, _, err = geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 		require.Nil(t, err)
-		require.Nil(t, opNode.Start())
-		node = opNode
-		wssEndpoint = opNode.WSAuthEndpoint()
-		HTTPEndpoint = opNode.HTTPEndpoint()
+		require.Nil(t, gethNode.Start())
+		node = gethNode
+		wssEndpoint = gethNode.WSAuthEndpoint()
+		HTTPEndpoint = gethNode.HTTPEndpoint()
 	} else {
-		erigonNode = (&ExternalRunner{
+		externalNode := (&ExternalRunner{
 			Name:    "Sequencer",
 			BinPath: cfg.ExternalL2Shim,
 			Genesis: l2Genesis,
 			JWTPath: cfg.JWTFilePath,
 		}).Run(t)
-		node = erigonNode
-		wssEndpoint = erigonNode.WSAuthEndpoint()
-		HTTPEndpoint = erigonNode.HTTPEndpoint()
+		node = externalNode
+		wssEndpoint = externalNode.WSAuthEndpoint()
+		HTTPEndpoint = externalNode.HTTPEndpoint()
 	}
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
