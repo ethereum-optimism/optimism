@@ -15,7 +15,6 @@ import (
 var (
 	GetStepDataErr      = fmt.Errorf("GetStepData not supported")
 	AbsolutePreStateErr = fmt.Errorf("AbsolutePreState not supported")
-	PreStateRequestErr  = fmt.Errorf("Requested trace index is before prestate block")
 )
 
 var _ types.TraceProvider = (*OutputTraceProvider)(nil)
@@ -27,31 +26,33 @@ type OutputRollupClient interface {
 // OutputTraceProvider is a [types.TraceProvider] implementation that uses
 // output roots for given L2 Blocks as a trace.
 type OutputTraceProvider struct {
-	logger        log.Logger
-	rollupClient  OutputRollupClient
-	prestateBlock uint64
+	logger         log.Logger
+	rollupClient   OutputRollupClient
+	prestateBlock  uint64
+	poststateBlock uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, prestateBlock uint64) (*OutputTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
 	rollupClient, err := client.DialRollupClientWithTimeout(client.DefaultDialTimeout, logger, rollupRpc)
 	if err != nil {
 		return nil, err
 	}
-	return NewTraceProviderFromInputs(logger, rollupClient, prestateBlock), nil
+	return NewTraceProviderFromInputs(logger, rollupClient, prestateBlock, poststateBlock), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClient, prestateBlock uint64) *OutputTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClient, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
-		logger:        logger,
-		rollupClient:  rollupClient,
-		prestateBlock: prestateBlock,
+		logger:         logger,
+		rollupClient:   rollupClient,
+		prestateBlock:  prestateBlock,
+		poststateBlock: poststateBlock,
 	}
 }
 
 func (o *OutputTraceProvider) Get(ctx context.Context, traceIndex uint64) (common.Hash, error) {
-	outputBlock := traceIndex + 1
-	if outputBlock < o.prestateBlock {
-		return common.Hash{}, PreStateRequestErr
+	outputBlock := traceIndex + o.prestateBlock + 1
+	if outputBlock > o.poststateBlock {
+		outputBlock = o.poststateBlock
 	}
 	output, err := o.rollupClient.OutputAtBlock(ctx, outputBlock)
 	if err != nil {

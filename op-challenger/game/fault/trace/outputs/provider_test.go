@@ -14,43 +14,54 @@ import (
 )
 
 var (
-	prestateBlock      = uint64(100)
-	prestateOutputRoot = common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-	firstOutputRoot    = common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	prestateBlock       = uint64(100)
+	poststateBlock      = uint64(200)
+	prestateOutputRoot  = common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+	firstOutputRoot     = common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	poststateOutputRoot = common.HexToHash("0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 )
 
 func TestGet(t *testing.T) {
-	t.Run("TraceIndexBeforePrestate", func(t *testing.T) {
-		provider, _ := setupWithTestData(t, prestateBlock)
-		_, err := provider.Get(context.Background(), 0)
-		require.ErrorIs(t, err, PreStateRequestErr)
+	t.Run("FirstBlockAfterPrestate", func(t *testing.T) {
+		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
+		value, err := provider.Get(context.Background(), 0)
+		require.NoError(t, err)
+		require.Equal(t, value, firstOutputRoot)
 	})
 
 	t.Run("MissingOutputAtBlock", func(t *testing.T) {
-		provider, _ := setupWithTestData(t, prestateBlock)
-		traceIndex := 101
-		_, err := provider.Get(context.Background(), uint64(traceIndex))
-		require.ErrorAs(t, fmt.Errorf("no output at block %d", uint64(traceIndex+1)), &err)
+		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
+		_, err := provider.Get(context.Background(), 1)
+		require.ErrorAs(t, fmt.Errorf("no output at block %d", prestateBlock+2), &err)
 	})
 
-	t.Run("Success", func(t *testing.T) {
-		provider, _ := setupWithTestData(t, prestateBlock)
-		value, err := provider.Get(context.Background(), 100)
+	t.Run("PostStateBlock", func(t *testing.T) {
+		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
+		traceIndex := poststateBlock - prestateBlock
+		value, err := provider.Get(context.Background(), traceIndex)
 		require.NoError(t, err)
-		require.Equal(t, value, firstOutputRoot)
+		require.Equal(t, value, poststateOutputRoot)
+	})
+
+	t.Run("AfterPostStateBlock", func(t *testing.T) {
+		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
+		traceIndex := poststateBlock - prestateBlock + 1
+		value, err := provider.Get(context.Background(), traceIndex)
+		require.NoError(t, err)
+		require.Equal(t, value, poststateOutputRoot)
 	})
 }
 
 func TestAbsolutePreStateCommitment(t *testing.T) {
 	t.Run("FailedToFetchOutput", func(t *testing.T) {
-		provider, rollupClient := setupWithTestData(t, prestateBlock)
+		provider, rollupClient := setupWithTestData(t, prestateBlock, poststateBlock)
 		rollupClient.errorsOnPrestateFetch = true
 		_, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorAs(t, fmt.Errorf("no output at block %d", prestateBlock), &err)
 	})
 
-	t.Run("Success", func(t *testing.T) {
-		provider, _ := setupWithTestData(t, prestateBlock)
+	t.Run("ReturnsCorrectPrestateOutput", func(t *testing.T) {
+		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
 		value, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, value, prestateOutputRoot)
@@ -58,32 +69,36 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 }
 
 func TestGetStepData(t *testing.T) {
-	provider, _ := setupWithTestData(t, prestateBlock)
+	provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
 	_, _, _, err := provider.GetStepData(context.Background(), 0)
 	require.ErrorIs(t, err, GetStepDataErr)
 }
 
 func TestAbsolutePreState(t *testing.T) {
-	provider, _ := setupWithTestData(t, prestateBlock)
+	provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
 	_, err := provider.AbsolutePreState(context.Background())
 	require.ErrorIs(t, err, AbsolutePreStateErr)
 }
 
-func setupWithTestData(t *testing.T, prestateBlock uint64) (*OutputTraceProvider, *stubRollupClient) {
+func setupWithTestData(t *testing.T, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, *stubRollupClient) {
 	rollupClient := stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
-			100: {
+			prestateBlock: {
 				OutputRoot: eth.Bytes32(prestateOutputRoot),
 			},
 			101: {
 				OutputRoot: eth.Bytes32(firstOutputRoot),
 			},
+			poststateBlock: {
+				OutputRoot: eth.Bytes32(poststateOutputRoot),
+			},
 		},
 	}
 	return &OutputTraceProvider{
-		logger:        testlog.Logger(t, log.LvlInfo),
-		rollupClient:  &rollupClient,
-		prestateBlock: prestateBlock,
+		logger:         testlog.Logger(t, log.LvlInfo),
+		rollupClient:   &rollupClient,
+		prestateBlock:  prestateBlock,
+		poststateBlock: poststateBlock,
 	}, &rollupClient
 }
 
