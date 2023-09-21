@@ -63,41 +63,68 @@ contract DeployPeriphery is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
-        ProxyAdmin admin = new ProxyAdmin{ salt: keccak256(bytes("ProxyAdmin")) }({
-            _owner: msg.sender
-        });
-        require(admin.owner() == msg.sender);
+        bytes32 salt = keccak256(bytes("ProxyAdmin"));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(ProxyAdmin).creationCode, abi.encode(msg.sender)));
+        address preComputedAddress = computeCreate2Address(salt, initCodeHash);
+        if (preComputedAddress.code.length > 0) {
+            console.log("ProxyAdmin already deployed at %s", preComputedAddress);
+            save("ProxyAdmin", preComputedAddress);
+            addr_ = preComputedAddress;
+        } else {
+            ProxyAdmin admin = new ProxyAdmin{ salt: salt }({
+              _owner: msg.sender
+            });
+            require(admin.owner() == msg.sender);
 
-        save("ProxyAdmin", address(admin));
-        console.log("ProxyAdmin deployed at %s", address(admin));
-        addr_ = address(admin);
+            save("ProxyAdmin", address(admin));
+            console.log("ProxyAdmin deployed at %s", address(admin));
+
+            addr_ = address(admin);
+        }
     }
 
     /// @notice Deploy the FaucetProxy
     function deployFaucetProxy() public broadcast returns (address addr_) {
+        bytes32 salt = keccak256(bytes("FaucetProxy"));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy{ salt: keccak256(bytes("FaucetProxy")) }({
-            _admin: proxyAdmin
-        });
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(Proxy).creationCode, abi.encode(proxyAdmin)));
+        address preComputedAddress = computeCreate2Address(salt, initCodeHash);
+        if (preComputedAddress.code.length > 0) {
+            console.log("FaucetProxy already deployed at %s", preComputedAddress);
+            save("FaucetProxy", preComputedAddress);
+            addr_ = preComputedAddress;
+        } else {
+            Proxy proxy = new Proxy{ salt: salt }({
+              _admin: proxyAdmin
+            });
+            address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+            require(admin == proxyAdmin);
 
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
+            save("FaucetProxy", address(proxy));
+            console.log("FaucetProxy deployed at %s", address(proxy));
 
-        save("FaucetProxy", address(proxy));
-        console.log("FaucetProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
+            addr_ = address(proxy);
+        }
     }
 
     /// @notice Deploy the faucet contract.
-    function deployFaucet() public broadcast returns (address) {
-        Faucet faucet = new Faucet{ salt: keccak256(bytes("Faucet")) }(cfg.faucetAdmin());
-        require(faucet.ADMIN() == cfg.faucetAdmin());
+    function deployFaucet() public broadcast returns (address addr_) {
+        bytes32 salt = keccak256(bytes("Faucet"));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(Faucet).creationCode, abi.encode(cfg.faucetAdmin())));
+        address preComputedAddress = computeCreate2Address(salt, initCodeHash);
+        if (preComputedAddress.code.length > 0) {
+            console.log("Faucet already deployed at %s", preComputedAddress);
+            save("Faucet", preComputedAddress);
+            addr_ = preComputedAddress;
+        } else {
+            Faucet faucet = new Faucet{ salt: salt }(cfg.faucetAdmin());
+            require(faucet.ADMIN() == cfg.faucetAdmin());
 
-        save("Faucet", address(faucet));
-        console.log("Faucet deployed at %s", address(faucet));
+            save("Faucet", address(faucet));
+            console.log("Faucet deployed at %s", address(faucet));
 
-        return address(faucet);
+            addr_ = address(faucet);
+        }
     }
 
     /// @notice Initialize the Faucet
@@ -105,8 +132,13 @@ contract DeployPeriphery is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address faucetProxy = mustGetAddress("FaucetProxy");
         address faucet = mustGetAddress("Faucet");
+        address implementationAddress = proxyAdmin.getProxyImplementation(faucetProxy);
+        if (implementationAddress == faucet) {
+            console.log("Faucet proxy implementation already set");
+        } else {
+            proxyAdmin.upgrade({ _proxy: payable(faucetProxy), _implementation: faucet });
+        }
 
-        proxyAdmin.upgrade({ _proxy: payable(faucetProxy), _implementation: faucet });
         require(Faucet(payable(faucetProxy)).ADMIN() == Faucet(payable(faucet)).ADMIN());
     }
 }
