@@ -104,7 +104,7 @@ func dbFromGormTx(tx *gorm.DB) *DB {
 }
 
 func (db *DB) ExecuteSQLMigration() error {
-	err := filepath.Walk("migrations", func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk("./migrations", func(path string, info os.FileInfo, err error) error {
 		// Check for any walking error
 		if err != nil {
 			return errors.Wrap(err, fmt.Sprintf("Failed to process migration file: %s", path))
