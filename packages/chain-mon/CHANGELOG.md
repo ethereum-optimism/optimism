@@ -1,5 +1,19 @@
 # @eth-optimism/drippie-mon
 
+## 0.5.0
+
+### Minor Changes
+
+- [#7178](https://github.com/ethereum-optimism/optimism/pull/7178) [`85d1622df`](https://github.com/ethereum-optimism/optimism/commit/85d1622dfdc16f220f7df0be42ba8cbc5dea31c5) Thanks [@tynes](https://github.com/tynes)! - Use node.js v18
+
+### Patch Changes
+
+- Updated dependencies [[`210b2c81d`](https://github.com/ethereum-optimism/optimism/commit/210b2c81dd383bad93480aa876b283d9a0c991c2), [`679207751`](https://github.com/ethereum-optimism/optimism/commit/6792077510fd76553c179d8b8d068262cda18db6), [`2440f5e7a`](https://github.com/ethereum-optimism/optimism/commit/2440f5e7ab6577f2d2e9c8b0c78c014290dde8e7)]:
+  - @eth-optimism/core-utils@0.13.0
+  - @eth-optimism/sdk@3.1.3
+  - @eth-optimism/contracts-bedrock@0.16.1
+  - @eth-optimism/common-ts@0.8.6
+
 ## 0.4.4
 
 ### Patch Changes
