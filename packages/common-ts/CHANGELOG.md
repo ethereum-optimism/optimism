@@ -1,5 +1,12 @@
 # @eth-optimism/common-ts
 
+## 0.8.6
+
+### Patch Changes
+
+- Updated dependencies [[`210b2c81d`](https://github.com/ethereum-optimism/optimism/commit/210b2c81dd383bad93480aa876b283d9a0c991c2)]:
+  - @eth-optimism/core-utils@0.13.0
+
 ## 0.8.5
 
 ### Patch Changes
