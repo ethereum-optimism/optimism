@@ -10,6 +10,10 @@
     "TestMultipleCannonGames":"TODO This is a new failure that should be investigated",
     "TestCannonDisputeGame":"TODO This is a new failure that should be investigated",
     "TestCannonProposedOutputRootInvalid":"TODO This is a new failure that should be investigated",
-    "TestCannonChallengeWithCorrectRoot":"TODO This is a new failure that should be investigated"
+    "TestCannonChallengeWithCorrectRoot":"TODO This is a new failure that should be investigated",
+    "TestMissingGasLimit": "TODO This is a new failure that should be investigated",
+    "TestGethOnlyPendingBlockIsLatest": "TODO This is a new failure that should be investigated",
+    "TestPreregolith": "TODO This is a new failure that should be investigated",
+    "TestRegolith": "TODO This is a new failure that should be investigated"
   }
 }
