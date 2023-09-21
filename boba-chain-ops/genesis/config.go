@@ -73,10 +73,8 @@ type DeployConfig struct {
 
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
-
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-
 	// Owner of the system on L1
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 	// GUARDIAN account in the OptimismPortal
@@ -113,15 +111,24 @@ type DeployConfig struct {
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// The initial value of the gas scalar
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
-
+	// DeploymentWaitConfirmations is the number of confirmations to wait during
+	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
-
-	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
+	// EIP1559Elasticity is the elasticity of the EIP1559 fee market.
+	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
+	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
-
+	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
+	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
-
+	// L1 Boba token address
 	L1BobaTokenAddress *common.Address `json:"l1BobaTokenAddress,omitempty"`
+	// RequiredProtocolVersion indicates the protocol version that
+	// nodes are required to adopt, to stay in sync with the network.
+	RequiredProtocolVersion Bytes32 `json:"requiredProtocolVersion"`
+	// RequiredProtocolVersion indicates the protocol version that
+	// nodes are recommended to adopt, to stay in sync with the network.
+	RecommendedProtocolVersion Bytes32 `json:"recommendedProtocolVersion"`
 }
 
 // Check will ensure that the config is sane and return an error when it is not

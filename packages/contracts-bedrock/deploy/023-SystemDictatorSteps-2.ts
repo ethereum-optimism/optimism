@@ -36,6 +36,7 @@ const deployFn: DeployFunction = async (hre) => {
     OptimismMintableERC20Factory,
     L1ERC721BridgeProxy,
     L1ERC721Bridge,
+    ProtocolVersionsProxy,
   ] = await getContractsFromArtifacts(hre, [
     {
       name: 'SystemDictatorProxy',
@@ -84,6 +85,11 @@ const deployFn: DeployFunction = async (hre) => {
     {
       name: 'L1ERC721BridgeProxy',
       iface: 'L1ERC721Bridge',
+      signerOrProvider: deployer,
+    },
+    {
+      name: 'ProtocolVersionsProxy',
+      iface: 'ProtocolVersions',
       signerOrProvider: deployer,
     },
   ])
@@ -329,6 +335,23 @@ const deployFn: DeployFunction = async (hre) => {
         L1ERC721Bridge,
         'messenger',
         L1CrossDomainMessenger.address
+      )
+
+      // Check ProtocolVersions was initialized properly.
+      await assertContractVariable(
+        ProtocolVersionsProxy,
+        'owner',
+        ProxyAdmin.address
+      )
+      await assertContractVariable(
+        ProtocolVersionsProxy,
+        'recommended',
+        hre.deployConfig.requiredProtocolVersion
+      )
+      await assertContractVariable(
+        ProtocolVersionsProxy,
+        'required',
+        hre.deployConfig.recommendedProtocolVersion
       )
 
       // finalize checks
