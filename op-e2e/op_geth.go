@@ -38,9 +38,10 @@ var (
 // OpGeth is an actor that functions as a l2 op-geth node
 // It provides useful functions for advancing and querying the chain
 type OpGeth struct {
-	node          *gn.Node
+	node          EthInstance
 	l2Engine      *sources.EngineClient
 	L2Client      *ethclient.Client
+	L2RpcClient   *rpc.Client
 	SystemConfig  eth.SystemConfig
 	L1ChainConfig *params.ChainConfig
 	L2ChainConfig *params.ChainConfig
@@ -73,9 +74,21 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
-	require.Nil(t, err)
-	require.Nil(t, node.Start())
+	var node EthInstance
+	if cfg.ExternalL2Shim == "" {
+		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		require.Nil(t, err)
+		require.Nil(t, gethNode.Start())
+		node = gethNode
+	} else {
+		externalNode := (&ExternalRunner{
+			Name:    "Sequencer",
+			BinPath: cfg.ExternalL2Shim,
+			Genesis: l2Genesis,
+			JWTPath: cfg.JWTFilePath,
+		}).Run(t)
+		node = externalNode
+	}
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
@@ -93,12 +106,16 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
 	require.Nil(t, err)
 
+	l2RpcClient, err := rpc.Dial(node.HTTPEndpoint())
+	require.Nil(t, err)
+
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
 
 	require.Nil(t, err)
 	return &OpGeth{
 		node:          node,
 		L2Client:      l2Client,
+		L2RpcClient:   l2RpcClient,
 		l2Engine:      l2Engine,
 		SystemConfig:  rollupGenesis.SystemConfig,
 		L1ChainConfig: l1Genesis.Config,
@@ -112,6 +129,7 @@ func (d *OpGeth) Close() {
 	_ = d.node.Close()
 	d.l2Engine.Close()
 	d.L2Client.Close()
+	d.L2RpcClient.Close()
 }
 
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
