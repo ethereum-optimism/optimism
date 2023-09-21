@@ -44,8 +44,6 @@ type Node interface {
 
 type OpGeth struct {
 	node          Node
-	opNode        *gn.Node
-	erigonNode    *ExternalEthClient
 	l2Engine      *sources.EngineClient
 	L2RpcCleint   *rpc.Client
 	L2Client      *ethclient.Client
@@ -131,8 +129,6 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	require.Nil(t, err)
 	return &OpGeth{
 		node:          node,
-		opNode:        opNode,
-		erigonNode:    erigonNode,
 		L2Client:      l2Client,
 		L2RpcCleint:   l2RpcClient,
 		l2Engine:      l2Engine,
