@@ -33,6 +33,21 @@ func NewEvent(factory Factory, ns string, subsystem string, name string, display
 	}
 }
 
+func NewEventLight(factory Factory, ns string, name string, displayName string) *Event {
+	return &Event{
+		Total: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      fmt.Sprintf("%s_total", name),
+			Help:      fmt.Sprintf("Count of %s events", displayName),
+		}),
+		LastTime: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      fmt.Sprintf("last_%s_unix", name),
+			Help:      fmt.Sprintf("Timestamp of last %s event", displayName),
+		}),
+	}
+}
+
 type EventVec struct {
 	Total    prometheus.CounterVec
 	LastTime prometheus.GaugeVec
