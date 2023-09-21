@@ -52,7 +52,7 @@ func (c *Config) Check() error {
 
 type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc string
+	L1EthRpc []string
 
 	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
 	L2EthRpc string
@@ -119,7 +119,7 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		/* Required Flags */
-		L1EthRpc:        ctx.String(flags.L1EthRpcFlag.Name),
+		L1EthRpc:        ctx.StringSlice(flags.L1EthRpcFlag.Name),
 		L2EthRpc:        ctx.String(flags.L2EthRpcFlag.Name),
 		RollupRpc:       ctx.String(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.Uint64(flags.SubSafetyMarginFlag.Name),

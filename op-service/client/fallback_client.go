@@ -10,18 +10,10 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 )
-
-func MultiUrlParse(url string) (isMultiUrl bool, urlList []string) {
-	if strings.Contains(url, ",") {
-		return true, strings.Split(url, ",")
-	}
-	return false, []string{}
-}
 
 type FallbackClientMetricer interface {
 	RecordL1UrlSwitchEvt(url string)

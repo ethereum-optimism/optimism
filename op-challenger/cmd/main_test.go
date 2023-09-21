@@ -68,7 +68,7 @@ func TestL1ETHRPCAddress(t *testing.T) {
 		url := "http://example.com:8888"
 		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--l1-eth-rpc", "--l1-eth-rpc="+url))
 		require.Equal(t, url, cfg.L1EthRpc)
-		require.Equal(t, url, cfg.TxMgrConfig.L1RPCURL)
+		require.Equal(t, url, cfg.TxMgrConfig.L1RPCURL[0])
 	})
 }
 

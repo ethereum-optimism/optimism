@@ -73,16 +73,15 @@ const TxmgrFallbackThreshold int64 = 3
 
 // DialEthClientWithTimeoutAndFallback will try to dial within the timeout period and create an EthClient.
 // If the URL is a multi URL, then a fallbackClient will be created to add the fallback capability to the client
-func DialEthClientWithTimeoutAndFallback(ctx context.Context, url string, timeout time.Duration, l log.Logger, fallbackThreshold int64, m FallbackClientMetricer) (EthClient, error) {
+func DialEthClientWithTimeoutAndFallback(ctx context.Context, url []string, timeout time.Duration, l log.Logger, fallbackThreshold int64, m FallbackClientMetricer) (EthClient, error) {
 	ctxt, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	isMultiUrl, urlList := MultiUrlParse(url)
-	if isMultiUrl {
-		firstEthClient, err := dialRPCClientWithBackoff(ctxt, l, urlList[0])
+	if len(url) > 1 {
+		firstEthClient, err := dialRPCClientWithBackoff(ctxt, l, url[0])
 		if err != nil {
 			return nil, err
 		}
-		fallbackClient := NewFallbackClient(ethclient.NewClient(firstEthClient), urlList, l, fallbackThreshold, m, func(url string) (EthClient, error) {
+		fallbackClient := NewFallbackClient(ethclient.NewClient(firstEthClient), url, l, fallbackThreshold, m, func(url string) (EthClient, error) {
 			ctxtIn, cancelIn := context.WithTimeout(ctx, timeout)
 			defer cancelIn()
 			ethClientNew, err := ethclient.DialContext(ctxtIn, url)
@@ -94,7 +93,7 @@ func DialEthClientWithTimeoutAndFallback(ctx context.Context, url string, timeou
 		return fallbackClient, nil
 	}
 
-	return DialEthClientWithTimeout(timeout, l, url)
+	return DialEthClientWithTimeout(timeout, l, url[0])
 }
 
 type EthClient interface {

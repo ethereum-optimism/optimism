@@ -125,7 +125,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 }
 
 type CLIConfig struct {
-	L1RPCURL                  string
+	L1RPCURL                  []string
 	Mnemonic                  string
 	HDPath                    string
 	SequencerHDPath           string
@@ -143,7 +143,7 @@ type CLIConfig struct {
 
 func NewCLIConfig(l1RPCURL string) CLIConfig {
 	return CLIConfig{
-		L1RPCURL:                  l1RPCURL,
+		L1RPCURL:                  []string{l1RPCURL},
 		NumConfirmations:          defaultNumConfirmations,
 		SafeAbortNonceTooLowCount: defaultSafeAbortNonceTooLowCount,
 		ResubmissionTimeout:       defaultResubmissionTimeout,
@@ -156,7 +156,7 @@ func NewCLIConfig(l1RPCURL string) CLIConfig {
 }
 
 func (m CLIConfig) Check() error {
-	if m.L1RPCURL == "" {
+	if len(m.L1RPCURL) == 0 || m.L1RPCURL[0] == "" {
 		return errors.New("must provide a L1 RPC url")
 	}
 	if m.NumConfirmations == 0 {
@@ -185,7 +185,7 @@ func (m CLIConfig) Check() error {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		L1RPCURL:                  ctx.String(L1RPCFlagName),
+		L1RPCURL:                  ctx.StringSlice(L1RPCFlagName),
 		Mnemonic:                  ctx.String(MnemonicFlagName),
 		HDPath:                    ctx.String(HDPathFlagName),
 		SequencerHDPath:           ctx.String(SequencerHDPathFlag.Name),
