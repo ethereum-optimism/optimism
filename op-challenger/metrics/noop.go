@@ -27,3 +27,5 @@ func (*NoopMetricsImpl) IncActiveExecutors() {}
 func (*NoopMetricsImpl) DecActiveExecutors() {}
 func (*NoopMetricsImpl) IncIdleExecutors()   {}
 func (*NoopMetricsImpl) DecIdleExecutors()   {}
+
+func (*NoopMetricsImpl) RecordGameClaimCount(addr string, count int) {}
