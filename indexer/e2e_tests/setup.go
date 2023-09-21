@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io/fs"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -132,31 +130,20 @@ func setupTestDatabase(t *testing.T) string {
 		pg.Close()
 	})
 
-	// setup schema, migration files ware walked in lexical order
-	t.Logf("created database %s", dbName)
-	db, err := sql.Open("pgx", fmt.Sprintf("postgres://%s@localhost:5432/%s?sslmode=disable", user, dbName))
+	dbConfig := config.DBConfig{
+		Host:     "127.0.0.1",
+		Port:     5432,
+		Name:     dbName,
+		User:     user,
+		Password: "",
+	}
+	// NewDB will create the database schema
+	db, err := database.NewDB(dbConfig)
 	require.NoError(t, err)
-	require.NoError(t, db.Ping())
 	defer db.Close()
+	err = db.ExecuteSQLMigration("../migrations")
+	require.NoError(t, err)
 
-	t.Logf("running schema migrations...")
-	require.NoError(t, filepath.Walk("../migrations", func(path string, info fs.FileInfo, err error) error {
-		if err != nil {
-			return err
-		} else if info.IsDir() {
-			return nil
-		}
-
-		t.Logf("running schema migration: %s", path)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-
-		_, err = db.Exec(string(data))
-		return err
-	}))
-
-	t.Logf("schema loaded")
+	t.Logf("database %s setup and migrations executed", dbName)
 	return dbName
 }
