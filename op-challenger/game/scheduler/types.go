@@ -10,6 +10,7 @@ import (
 
 type GamePlayer interface {
 	ProgressGame(ctx context.Context) types.GameStatus
+	Status() types.GameStatus
 }
 
 type DiskManager interface {

@@ -1,6 +1,7 @@
 package proxyd
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -10,8 +11,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -313,8 +314,28 @@ func Start(config *Config) (*Server, func(), error) {
 				copts = append(copts, WithMaxBlockRange(bgcfg.ConsensusMaxBlockRange))
 			}
 
+			var tracker ConsensusTracker
+			if bgcfg.ConsensusHA {
+				if redisClient == nil {
+					log.Crit("cant start - consensus high availability requires redis")
+				}
+				topts := make([]RedisConsensusTrackerOpt, 0)
+				if bgcfg.ConsensusHALockPeriod > 0 {
+					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHALockPeriod)))
+				}
+				if bgcfg.ConsensusHAHeartbeatInterval > 0 {
+					topts = append(topts, WithLockPeriod(time.Duration(bgcfg.ConsensusHAHeartbeatInterval)))
+				}
+				tracker = NewRedisConsensusTracker(context.Background(), redisClient, bg, bg.Name, topts...)
+				copts = append(copts, WithTracker(tracker))
+			}
+
 			cp := NewConsensusPoller(bg, copts...)
 			bg.Consensus = cp
+
+			if bgcfg.ConsensusHA {
+				tracker.(*RedisConsensusTracker).Init()
+			}
 		}
 	}
 

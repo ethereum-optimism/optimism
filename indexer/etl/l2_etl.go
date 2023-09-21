@@ -2,11 +2,12 @@ package etl
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,14 +20,25 @@ type L2ETL struct {
 	db *database.DB
 }
 
-func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient) (*L2ETL, error) {
+func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient, contracts config.L2Contracts) (*L2ETL, error) {
 	log = log.New("etl", "l2")
 
-	// allow predeploys to be overridable
+	zeroAddr := common.Address{}
 	l2Contracts := []common.Address{}
-	for name, addr := range predeploys.Predeploys {
+	if err := contracts.ForEach(func(name string, addr common.Address) error {
+		// Since we dont have backfill support yet, we want to make sure all expected
+		// contracts are specified to ensure consistent behavior. Once backfill support
+		// is ready, we can relax this requirement.
+		if addr == zeroAddr {
+			log.Error("address not configured", "name", name)
+			return errors.New("all L2Contracts must be configured")
+		}
+
 		log.Info("configured contract", "name", name, "addr", addr)
-		l2Contracts = append(l2Contracts, *addr)
+		l2Contracts = append(l2Contracts, addr)
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	latestHeader, err := db.Blocks.L2LatestBlockHeader()

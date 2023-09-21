@@ -38,6 +38,7 @@ type L1BridgeDeposit struct {
 type L1BridgeDepositWithTransactionHashes struct {
 	L1BridgeDeposit L1BridgeDeposit `gorm:"embedded"`
 
+	L1BlockHash       common.Hash `gorm:"serializer:bytes"`
 	L1TransactionHash common.Hash `gorm:"serializer:bytes"`
 	L2TransactionHash common.Hash `gorm:"serializer:bytes"`
 }
@@ -50,6 +51,7 @@ type L2BridgeWithdrawal struct {
 type L2BridgeWithdrawalWithTransactionHashes struct {
 	L2BridgeWithdrawal L2BridgeWithdrawal `gorm:"embedded"`
 	L2TransactionHash  common.Hash        `gorm:"serializer:bytes"`
+	L2BlockHash        common.Hash        `gorm:"serializer:bytes"`
 
 	ProvenL1TransactionHash    common.Hash `gorm:"serializer:bytes"`
 	FinalizedL1TransactionHash common.Hash `gorm:"serializer:bytes"`
@@ -154,7 +156,7 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, c
 	ethTransactionDeposits = ethTransactionDeposits.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = initiated_l1_event_guid")
 	ethTransactionDeposits = ethTransactionDeposits.Select(`
 from_address, to_address, amount, data, source_hash AS transaction_source_hash,
-l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
+l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash, l1_contract_events.block_hash as l1_block_hash,
 l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 	ethTransactionDeposits = ethTransactionDeposits.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -166,7 +168,7 @@ l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
 	depositsQuery = depositsQuery.Select(`
 l1_bridge_deposits.from_address, l1_bridge_deposits.to_address, l1_bridge_deposits.amount, l1_bridge_deposits.data, transaction_source_hash,
-l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
+l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash, l1_contract_events.block_hash as l1_block_hash,
 l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 	depositsQuery = depositsQuery.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -269,7 +271,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("LEFT JOIN l1_contract_events AS finalized_l1_events ON finalized_l1_events.guid = l2_transaction_withdrawals.finalized_l1_event_guid")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Select(`
 from_address, to_address, amount, data, withdrawal_hash AS transaction_withdrawal_hash,
-l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
+l2_contract_events.transaction_hash AS l2_transaction_hash, l2_contract_events.block_hash as l2_block_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -283,7 +285,7 @@ l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS lo
 	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS finalized_l1_events ON finalized_l1_events.guid = l2_transaction_withdrawals.finalized_l1_event_guid")
 	withdrawalsQuery = withdrawalsQuery.Select(`
 l2_bridge_withdrawals.from_address, l2_bridge_withdrawals.to_address, l2_bridge_withdrawals.amount, l2_bridge_withdrawals.data, transaction_withdrawal_hash,
-l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
+l2_contract_events.transaction_hash AS l2_transaction_hash, l2_contract_events.block_hash as l2_block_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 	withdrawalsQuery = withdrawalsQuery.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {

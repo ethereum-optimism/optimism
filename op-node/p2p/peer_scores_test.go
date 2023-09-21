@@ -10,6 +10,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
+	//nolint:all
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -23,7 +26,6 @@ import (
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/blank"
-	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
 	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 
 	"github.com/stretchr/testify/mock"

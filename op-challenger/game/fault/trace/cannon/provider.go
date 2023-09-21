@@ -22,7 +22,8 @@ import (
 )
 
 const (
-	proofsDir = "proofs"
+	proofsDir      = "proofs"
+	diskStateCache = "state.json.gz"
 )
 
 type proofData struct {
@@ -52,8 +53,6 @@ type CannonTraceProvider struct {
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
-	// lastProof stores the proof data to use for all steps extended beyond lastStep
-	lastProof *proofData
 }
 
 func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address) (*CannonTraceProvider, error) {
@@ -138,9 +137,18 @@ func (p *CannonTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (c
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
 func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {
-	if p.lastProof != nil && i > p.lastStep {
-		// If the requested index is after the last step in the actual trace, extend the final no-op step
-		return p.lastProof, nil
+	// Attempt to read the last step from disk cache
+	if p.lastStep == 0 {
+		step, err := readLastStep(p.dir)
+		if err != nil {
+			p.logger.Warn("Failed to read last step from disk cache", "err", err)
+		} else {
+			p.lastStep = step
+		}
+	}
+	// If the last step is tracked, set i to the last step to generate or load the final proof
+	if p.lastStep != 0 && i > p.lastStep {
+		i = p.lastStep
 	}
 	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json.gz", i))
 	file, err := ioutil.OpenDecompressed(path)
@@ -176,7 +184,9 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 					OracleValue:  nil,
 					OracleOffset: 0,
 				}
-				p.lastProof = proof
+				if err := writeLastStep(p.dir, proof, p.lastStep); err != nil {
+					p.logger.Warn("Failed to write last step to disk cache", "step", p.lastStep)
+				}
 				return proof, nil
 			} else {
 				return nil, fmt.Errorf("expected proof not generated but final state was not exited, requested step %v, final state at step %v", i, state.Step)
@@ -193,4 +203,36 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		return nil, fmt.Errorf("failed to read proof (%v): %w", path, err)
 	}
 	return &proof, nil
+}
+
+type diskStateCacheObj struct {
+	Step uint64 `json:"step"`
+}
+
+// readLastStep reads the tracked last step from disk.
+func readLastStep(dir string) (uint64, error) {
+	state := diskStateCacheObj{}
+	file, err := ioutil.OpenDecompressed(filepath.Join(dir, diskStateCache))
+	if err != nil {
+		return 0, err
+	}
+	defer file.Close()
+	err = json.NewDecoder(file).Decode(&state)
+	if err != nil {
+		return 0, err
+	}
+	return state.Step, nil
+}
+
+// writeLastStep writes the last step and proof to disk as a persistent cache.
+func writeLastStep(dir string, proof *proofData, step uint64) error {
+	state := diskStateCacheObj{Step: step}
+	lastStepFile := filepath.Join(dir, diskStateCache)
+	if err := ioutil.WriteCompressedJson(lastStepFile, state); err != nil {
+		return fmt.Errorf("failed to write last step to %v: %w", lastStepFile, err)
+	}
+	if err := ioutil.WriteCompressedJson(filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", step)), proof); err != nil {
+		return fmt.Errorf("failed to write proof: %w", err)
+	}
+	return nil
 }
