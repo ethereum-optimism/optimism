@@ -16,28 +16,28 @@ import (
 )
 
 type FallbackClientMetricer interface {
-	RecordL1UrlSwitchEvt(url string)
+	RecordUrlSwitchEvt(url string)
 }
 
 type FallbackClientMetrics struct {
-	l1UrlSwitchEvt opmetrics.EventVec
+	urlSwitchEvt opmetrics.EventVec
 }
 
-func (f *FallbackClientMetrics) RecordL1UrlSwitchEvt(url string) {
-	f.l1UrlSwitchEvt.Record(url)
+func (f *FallbackClientMetrics) RecordUrlSwitchEvt(url string) {
+	f.urlSwitchEvt.Record(url)
 }
 
 func NewFallbackClientMetrics(ns string, factory opmetrics.Factory) *FallbackClientMetrics {
 	return &FallbackClientMetrics{
-		l1UrlSwitchEvt: opmetrics.NewEventVec(factory, ns, "", "l1_url_switch", "l1 url switch", []string{"url_idx"}),
+		urlSwitchEvt: opmetrics.NewEventVec(factory, ns, "", "url_switch", "url switch", []string{"url_idx"}),
 	}
 }
 
-// FallbackClient is an EthClient, it can automatically switch to the next l1 endpoint
-// when there is a problem with the current l1 endpoint
-// and automatically switch back after the first l1 endpoint recovers.
+// FallbackClient is an EthClient, it can automatically switch to the next endpoint
+// when there is a problem with the current endpoint
+// and automatically switch back after the first endpoint recovers.
 type FallbackClient struct {
-	// firstClient is created by the first of the l1 urls, it should be used first in a healthy state
+	// firstClient is created by the first of the urls, it should be used first in a healthy state
 	firstClient       EthClient
 	urlList           []string
 	clientInitFunc    func(url string) (EthClient, error)
@@ -221,7 +221,7 @@ func (l *FallbackClient) switchCurrentClient() {
 		l.log.Error("the fallback client has tried all urls")
 		return
 	}
-	l.metrics.RecordL1UrlSwitchEvt(strconv.Itoa(l.currentIndex))
+	l.metrics.RecordUrlSwitchEvt(strconv.Itoa(l.currentIndex))
 	url := l.urlList[l.currentIndex]
 	newClient, err := l.clientInitFunc(url)
 	if err != nil {

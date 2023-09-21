@@ -18,11 +18,11 @@ import (
 	"time"
 )
 
-// FallbackClient is an RPC client, it can automatically switch to the next l1 endpoint
-// when there is a problem with the current l1 endpoint
-// and automatically switch back after the first l1 endpoint recovers.
+// FallbackClient is an RPC client, it can automatically switch to the next endpoint
+// when there is a problem with the current endpoint
+// and automatically switch back after the first endpoint recovers.
 type FallbackClient struct {
-	// firstRpc is created by the first of the l1 urls, it should be used first in a healthy state
+	// firstRpc is created by the first of the urls, it should be used first in a healthy state
 	firstRpc          client.RPC
 	urlList           []string
 	rpcInitFunc       func(url string) (client.RPC, error)
@@ -33,9 +33,9 @@ type FallbackClient struct {
 	log               log.Logger
 	isInFallbackState bool
 	subscribeFunc     func() (event.Subscription, error)
-	l1HeadsSub        *ethereum.Subscription
-	l1ChainId         *big.Int
-	l1Block           eth.BlockID
+	headsSub          *ethereum.Subscription
+	chainId           *big.Int
+	genesisBlock      eth.BlockID
 	ctx               context.Context
 	isClose           chan struct{}
 	metrics           metrics.Metricer
@@ -43,9 +43,9 @@ type FallbackClient struct {
 
 const threshold int64 = 20
 
-// NewFallbackClient returns a new FallbackClient. l1ChainId and l1Block are used to check
+// NewFallbackClient returns a new FallbackClient. chainId and genesisBlock are used to check
 // whether the newly switched rpc is legal.
-func NewFallbackClient(ctx context.Context, rpc client.RPC, urlList []string, log log.Logger, l1ChainId *big.Int, l1Block eth.BlockID, rpcInitFunc func(url string) (client.RPC, error)) client.RPC {
+func NewFallbackClient(ctx context.Context, rpc client.RPC, urlList []string, log log.Logger, chainId *big.Int, genesisBlock eth.BlockID, rpcInitFunc func(url string) (client.RPC, error)) client.RPC {
 	fallbackClient := &FallbackClient{
 		ctx:          ctx,
 		firstRpc:     rpc,
@@ -53,8 +53,8 @@ func NewFallbackClient(ctx context.Context, rpc client.RPC, urlList []string, lo
 		log:          log,
 		rpcInitFunc:  rpcInitFunc,
 		currentIndex: 0,
-		l1ChainId:    l1ChainId,
-		l1Block:      l1Block,
+		chainId:      chainId,
+		genesisBlock: genesisBlock,
 	}
 	fallbackClient.currentRpc.Store(&rpc)
 	go func() {
@@ -134,7 +134,7 @@ func (l *FallbackClient) switchCurrentRpc() {
 		return
 	}
 	if l.metrics != nil {
-		l.metrics.RecordL1UrlSwitchEvent()
+		l.metrics.RecordUrlSwitchEvent()
 	}
 	for {
 		l.currentIndex++
@@ -182,13 +182,13 @@ func (l *FallbackClient) switchCurrentRpcLogic() error {
 }
 
 func (l *FallbackClient) reSubscribeNewRpc(url string) error {
-	(*l.l1HeadsSub).Unsubscribe()
+	(*l.headsSub).Unsubscribe()
 	subscriptionNew, err := l.subscribeFunc()
 	if err != nil {
 		l.log.Error("can not subscribe new url", "url", url, "err", err)
 		return err
 	} else {
-		*l.l1HeadsSub = subscriptionNew
+		*l.headsSub = subscriptionNew
 	}
 	return nil
 }
@@ -230,9 +230,9 @@ func (l *FallbackClient) recoverIfFirstRpcHealth() {
 	}()
 }
 
-func (l *FallbackClient) RegisterSubscribeFunc(f func() (event.Subscription, error), l1HeadsSub *ethereum.Subscription) {
+func (l *FallbackClient) RegisterSubscribeFunc(f func() (event.Subscription, error), headsSub *ethereum.Subscription) {
 	l.subscribeFunc = f
-	l.l1HeadsSub = l1HeadsSub
+	l.headsSub = headsSub
 }
 
 func (l *FallbackClient) validateRpc(newRpc client.RPC) error {
@@ -240,15 +240,15 @@ func (l *FallbackClient) validateRpc(newRpc client.RPC) error {
 	if err != nil {
 		return err
 	}
-	if l.l1ChainId.Cmp(chainID) != 0 {
-		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", chainID, l.l1ChainId)
+	if l.chainId.Cmp(chainID) != 0 {
+		return fmt.Errorf("incorrect RPC chain id %d, expected %d", chainID, l.chainId)
 	}
-	l1GenesisBlockRef, err := l.l1BlockRefByNumber(l.ctx, l.l1Block.Number, newRpc)
+	genesisBlockRef, err := l.blockRefByNumber(l.ctx, l.genesisBlock.Number, newRpc)
 	if err != nil {
 		return err
 	}
-	if l1GenesisBlockRef.Hash != l.l1Block.Hash {
-		return fmt.Errorf("incorrect L1 genesis block hash %s, expected %s", l1GenesisBlockRef.Hash, l.l1Block.Hash)
+	if genesisBlockRef.Hash != l.genesisBlock.Hash {
+		return fmt.Errorf("incorrect genesis block hash %s, expected %s", genesisBlockRef.Hash, l.genesisBlock.Hash)
 	}
 	return nil
 }
@@ -262,7 +262,7 @@ func (l *FallbackClient) ChainID(ctx context.Context, rpc client.RPC) (*big.Int,
 	return (*big.Int)(&id), nil
 }
 
-func (l *FallbackClient) l1BlockRefByNumber(ctx context.Context, number uint64, newRpc client.RPC) (*rpcHeader, error) {
+func (l *FallbackClient) blockRefByNumber(ctx context.Context, number uint64, newRpc client.RPC) (*rpcHeader, error) {
 	var header *rpcHeader
 	err := newRpc.CallContext(ctx, &header, "eth_getBlockByNumber", numberID(number).Arg(), false) // headers are just blocks without txs
 	if err != nil {

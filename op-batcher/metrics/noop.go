@@ -36,5 +36,5 @@ func (*noopMetrics) RecordBatchTxSubmitted() {}
 func (*noopMetrics) RecordBatchTxSuccess()   {}
 func (*noopMetrics) RecordBatchTxFailed()    {}
 
-func (m *noopMetrics) RecordL1UrlSwitchEvt(url string) {
+func (m *noopMetrics) RecordUrlSwitchEvt(url string) {
 }
