@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/redis/go-redis/v9"
 
-	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -78,7 +78,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	start := time.Now()
-	err := c.rdb.SetEX(ctx, c.namespaced(key), value, redisTTL).Err()
+	err := c.rdb.SetEx(ctx, c.namespaced(key), value, redisTTL).Err()
 	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err != nil {

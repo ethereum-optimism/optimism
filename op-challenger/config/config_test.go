@@ -20,6 +20,7 @@ var (
 	validCannonAbsolutPreState = "pre.json"
 	validDatadir               = "/tmp/data"
 	validCannonL2              = "http://localhost:9545"
+	validRollupRpc             = "http://localhost:8555"
 	agreeWithProposedOutput    = true
 )
 
@@ -28,12 +29,15 @@ func validConfig(traceType TraceType) Config {
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
-	case TraceTypeCannon:
+	case TraceTypeCannon, TraceTypeOutputCannon:
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 		cfg.CannonL2 = validCannonL2
 		cfg.CannonNetwork = validCannonNetwork
+	}
+	if traceType == TraceTypeOutputCannon {
+		cfg.RollupRpc = validRollupRpc
 	}
 	return cfg
 }
@@ -123,6 +127,12 @@ func TestHttpPollInterval(t *testing.T) {
 		config := validConfig(TraceTypeAlphabet)
 		require.EqualValues(t, DefaultPollInterval, config.PollInterval)
 	})
+}
+
+func TestRollupRpcRequired(t *testing.T) {
+	config := validConfig(TraceTypeOutputCannon)
+	config.RollupRpc = ""
+	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
 
 func TestCannonL2Required(t *testing.T) {

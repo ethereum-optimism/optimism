@@ -23,6 +23,7 @@ type OnConsensusBroken func()
 // resolves the highest common block for multiple nodes, and reconciles the consensus
 // in case of block hash divergence to minimize re-orgs
 type ConsensusPoller struct {
+	ctx        context.Context
 	cancelFunc context.CancelFunc
 	listeners  []OnConsensusBroken
 
@@ -220,6 +221,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 	state := make(map[*Backend]*backendState, len(bg.Backends))
 
 	cp := &ConsensusPoller{
+		ctx:          ctx,
 		cancelFunc:   cancelFunc,
 		backendGroup: bg,
 		backendState: state,

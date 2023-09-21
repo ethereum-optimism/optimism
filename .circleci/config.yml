@@ -888,6 +888,10 @@ jobs:
           command: make indexer
           working_directory: indexer
       - run:
+          name: Install node_modules
+          command: pnpm install --frozen-lockfile --prefer-offline
+          working_directory: indexer/api-ts
+      - run:
           name: Install tygo
           command: go install github.com/gzuidhof/tygo@latest
           working_directory: indexer/api-ts

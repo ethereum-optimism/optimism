@@ -2,16 +2,19 @@ package disputegame
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	gethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -130,6 +133,10 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 	return claimData
 }
 
+func (g *FaultGameHelper) GetClaimUnsafe(ctx context.Context, claimIdx int64) ContractClaim {
+	return g.getClaim(ctx, claimIdx)
+}
+
 func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
 	g.waitForClaim(
 		ctx,
@@ -169,6 +176,12 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 	g.require.NoError(err)
 }
 
+func (g *FaultGameHelper) Status(ctx context.Context) Status {
+	status, err := g.game.Status(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err)
+	return Status(status)
+}
+
 func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
 	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
@@ -184,6 +197,46 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 		return expected == Status(status), nil
 	})
 	g.require.NoErrorf(err, "wait for game status. Game state: \n%v", g.gameData(ctx))
+}
+
+func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlocks int, untilGameEnds bool) {
+	g.t.Logf("Waiting for game %v to have no activity for %v blocks", g.addr, numInactiveBlocks)
+	headCh := make(chan *gethtypes.Header, 100)
+	headSub, err := g.client.SubscribeNewHead(ctx, headCh)
+	g.require.NoError(err)
+	defer headSub.Unsubscribe()
+
+	var lastActiveBlock uint64
+	for {
+		if untilGameEnds && g.Status(ctx) != StatusInProgress {
+			break
+		}
+		select {
+		case head := <-headCh:
+			if lastActiveBlock == 0 {
+				lastActiveBlock = head.Number.Uint64()
+				continue
+			} else if lastActiveBlock+uint64(numInactiveBlocks) < head.Number.Uint64() {
+				return
+			}
+			block, err := g.client.BlockByNumber(ctx, head.Number)
+			g.require.NoError(err)
+			numActions := 0
+			for _, tx := range block.Transactions() {
+				if tx.To().Hex() == g.addr.Hex() {
+					numActions++
+				}
+			}
+			if numActions != 0 {
+				g.t.Logf("Game %v has %v actions in block %d. Resetting inactivity timeout", g.addr, numActions, block.NumberU64())
+				lastActiveBlock = head.Number.Uint64()
+			}
+		case err := <-headSub.Err():
+			g.require.NoError(err)
+		case <-ctx.Done():
+			g.require.Fail("Context canceled", ctx.Err())
+		}
+	}
 }
 
 // Mover is a function that either attacks or defends the claim at parentClaimIdx
@@ -239,6 +292,21 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 	attemptStep(maxDepth)
 }
 
+func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
+	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
+	var newClaimLen int64
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return false, err
+		}
+		newClaimLen = actual.Int64()
+		return actual.Cmp(big.NewInt(checkPoint)) > 0, nil
+	})
+	return newClaimLen, err
+}
+
 func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Attack transaction did not send")
@@ -266,6 +334,33 @@ func (g *FaultGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []b
 	g.require.Equal("0xfb4e40dd", errData.ErrorData(), "Revert reason should be abi encoded ValidStep()")
 }
 
+// ResolveClaim resolves a single subgame
+func (g *FaultGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
+	tx, err := g.game.ResolveClaim(g.opts, big.NewInt(claimIdx))
+	g.require.NoError(err, "ResolveClaim transaction did not send")
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
+	g.require.NoError(err, "ResolveClaim transaction was not OK")
+}
+
+// ResolveAllClaims resolves all subgames
+// This function does not resolve the game. That's the responsibility of challengers
+func (g *FaultGameHelper) ResolveAllClaims(ctx context.Context) {
+	loader := fault.NewLoader(g.game)
+	claims, err := loader.FetchClaims(ctx)
+	g.require.NoError(err, "Failed to fetch claims")
+	subgames := make(map[int]bool)
+	for i := len(claims) - 1; i > 0; i-- {
+		subgames[claims[i].ParentContractIndex] = true
+		// Subgames containing only one node are implicitly resolved
+		// i.e. uncountered and claims at MAX_DEPTH
+		if !subgames[i] {
+			continue
+		}
+		g.ResolveClaim(ctx, int64(i))
+	}
+	g.ResolveClaim(ctx, 0)
+}
+
 func (g *FaultGameHelper) gameData(ctx context.Context) string {
 	opts := &bind.CallOpts{Context: ctx}
 	maxDepth := int(g.MaxDepth(ctx))
@@ -277,8 +372,8 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 		g.require.NoErrorf(err, "Fetch claim %v", i)
 
 		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered)
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex)
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
@@ -287,4 +382,107 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 
 func (g *FaultGameHelper) LogGameData(ctx context.Context) {
 	g.t.Log(g.gameData(ctx))
+}
+
+type dishonestClaim struct {
+	ParentIndex int64
+	IsAttack    bool
+	Valid       bool
+}
+type DishonestHelper struct {
+	*FaultGameHelper
+	*HonestHelper
+	claims   map[dishonestClaim]bool
+	defender bool
+}
+
+func NewDishonestHelper(g *FaultGameHelper, correctTrace *HonestHelper, defender bool) *DishonestHelper {
+	return &DishonestHelper{g, correctTrace, make(map[dishonestClaim]bool), defender}
+}
+
+func (t *DishonestHelper) Attack(ctx context.Context, claimIndex int64) {
+	c := dishonestClaim{claimIndex, true, false}
+	if t.claims[c] {
+		return
+	}
+	t.claims[c] = true
+	t.FaultGameHelper.Attack(ctx, claimIndex, common.Hash{byte(claimIndex)})
+}
+
+func (t *DishonestHelper) Defend(ctx context.Context, claimIndex int64) {
+	c := dishonestClaim{claimIndex, false, false}
+	if t.claims[c] {
+		return
+	}
+	t.claims[c] = true
+	t.FaultGameHelper.Defend(ctx, claimIndex, common.Hash{byte(claimIndex)})
+}
+
+func (t *DishonestHelper) AttackCorrect(ctx context.Context, claimIndex int64) {
+	c := dishonestClaim{claimIndex, true, true}
+	if t.claims[c] {
+		return
+	}
+	t.claims[c] = true
+	t.HonestHelper.Attack(ctx, claimIndex)
+}
+
+func (t *DishonestHelper) DefendCorrect(ctx context.Context, claimIndex int64) {
+	c := dishonestClaim{claimIndex, false, true}
+	if t.claims[c] {
+		return
+	}
+	t.claims[c] = true
+	t.HonestHelper.Defend(ctx, claimIndex)
+}
+
+// ExhaustDishonestClaims makes all possible significant moves (mod honest challenger's) in a game.
+// It is very inefficient and should NOT be used on games with large depths
+func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
+	depth := d.MaxDepth(ctx)
+
+	move := func(claimIndex int64, claimData ContractClaim) {
+		// dishonest level, valid attack
+		// dishonest level, invalid attack
+		// dishonest level, valid defense
+		// dishonest level, invalid defense
+		// honest level, invalid attack
+		// honest level, invalid defense
+
+		pos := types.NewPositionFromGIndex(claimData.Position.Uint64())
+		if int64(pos.Depth()) == depth {
+			return
+		}
+
+		d.LogGameData(ctx)
+		d.FaultGameHelper.t.Logf("Dishonest moves against claimIndex %d", claimIndex)
+		agreeWithLevel := d.defender == (pos.Depth()%2 == 0)
+		if !agreeWithLevel {
+			d.AttackCorrect(ctx, claimIndex)
+			if claimIndex != 0 {
+				d.DefendCorrect(ctx, claimIndex)
+			}
+		}
+		d.Attack(ctx, claimIndex)
+		if claimIndex != 0 {
+			d.Defend(ctx, claimIndex)
+		}
+	}
+
+	var numClaimsSeen int64
+	for {
+		newCount, err := d.WaitForNewClaim(ctx, numClaimsSeen)
+		if errors.Is(err, context.DeadlineExceeded) {
+			// we assume that the honest challenger has stopped responding
+			// There's nothing to respond to.
+			break
+		}
+		d.FaultGameHelper.require.NoError(err)
+
+		for i := numClaimsSeen; i < newCount; i++ {
+			claimData := d.getClaim(ctx, numClaimsSeen)
+			move(numClaimsSeen, claimData)
+			numClaimsSeen++
+		}
+	}
 }

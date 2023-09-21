@@ -106,12 +106,16 @@ func NewGamePlayer(
 	}
 
 	return &GamePlayer{
-		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     NewAgent(m, addr, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
 		status:                  status,
 	}, nil
+}
+
+func (g *GamePlayer) Status() gameTypes.GameStatus {
+	return g.status
 }
 
 func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
