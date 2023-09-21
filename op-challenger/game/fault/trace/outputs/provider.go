@@ -18,6 +18,8 @@ var (
 	PreStateRequestErr  = fmt.Errorf("Requested trace index is before prestate block")
 )
 
+var _ types.TraceProvider = (*OutputTraceProvider)(nil)
+
 type OutputRollupClient interface {
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 }
