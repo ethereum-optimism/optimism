@@ -309,9 +309,15 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    address internal constant DEPLOYER_WORKAROUND_ADDR = 0x0a08E04c73f22C65D6dBFF20f87171240df6E519;
+
+    function checkDeployerWorkaround() public view {
+        require(msg.sender == DEPLOYER_WORKAROUND_ADDR, "message sender should be deployer");
+    }
+
     /// @notice Deploy the ProtocolVersionsProxy
     function deployProtocolVersionsProxy() public onlyTestnetOrDevnet broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        address proxyAdmin = DEPLOYER_WORKAROUND_ADDR;
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
         });
@@ -786,26 +792,23 @@ contract Deploy is Deployer {
     }
 
     function initializeProtocolVersions() public onlyTestnetOrDevnet broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         address protocolVersions = mustGetAddress("ProtocolVersions");
 
-        address finalSystemOwner = cfg.finalSystemOwner();
+        address finalSystemOwner = DEPLOYER_WORKAROUND_ADDR;
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(protocolVersionsProxy),
-            _implementation: protocolVersions,
-            _data: abi.encodeCall(
+        Proxy(payable(protocolVersionsProxy)).upgradeToAndCall{ value: 0 }(protocolVersions,
+            abi.encodeCall(
                 ProtocolVersions.initialize,
                 (
                     finalSystemOwner,
                     ProtocolVersion.wrap(requiredProtocolVersion),
                     ProtocolVersion.wrap(recommendedProtocolVersion)
                 )
-                )
-        });
+            )
+        );
 
         ProtocolVersions versions = ProtocolVersions(protocolVersionsProxy);
         string memory version = versions.version();
