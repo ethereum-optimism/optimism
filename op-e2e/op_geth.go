@@ -37,13 +37,8 @@ var (
 
 // OpGeth is an actor that functions as a l2 op-geth node
 // It provides useful functions for advancing and querying the chain
-
-type Node interface {
-	Close() error
-}
-
 type OpGeth struct {
-	node          Node
+	node          EthInstance
 	l2Engine      *sources.EngineClient
 	L2RpcCleint   *rpc.Client
 	L2Client      *ethclient.Client
@@ -79,18 +74,12 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	var (
-		node         Node
-		wssEndpoint  string
-		HTTPEndpoint string
-	)
+	var node EthInstance
 	if cfg.ExternalL2Shim == "" {
 		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 		require.Nil(t, err)
 		require.Nil(t, gethNode.Start())
 		node = gethNode
-		wssEndpoint = gethNode.WSAuthEndpoint()
-		HTTPEndpoint = gethNode.HTTPEndpoint()
 	} else {
 		externalNode := (&ExternalRunner{
 			Name:    "Sequencer",
@@ -99,12 +88,10 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 			JWTPath: cfg.JWTFilePath,
 		}).Run(t)
 		node = externalNode
-		wssEndpoint = externalNode.WSAuthEndpoint()
-		HTTPEndpoint = externalNode.HTTPEndpoint()
 	}
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
-	l2Node, err := client.NewRPC(ctx, logger, wssEndpoint, client.WithGethRPCOptions(auth))
+	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
 	require.Nil(t, err)
 
 	// Finally create the engine client
@@ -116,10 +103,10 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	)
 	require.Nil(t, err)
 
-	l2Client, err := ethclient.Dial(HTTPEndpoint)
+	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
 	require.Nil(t, err)
 
-	l2RpcClient, err := rpc.Dial(HTTPEndpoint)
+	l2RpcClient, err := rpc.Dial(node.HTTPEndpoint())
 	require.Nil(t, err)
 
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
@@ -139,7 +126,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 }
 
 func (d *OpGeth) Close() {
-	d.node.Close()
+	_ = d.node.Close()
 	d.l2Engine.Close()
 	d.L2Client.Close()
 	d.L2RpcCleint.Close()
