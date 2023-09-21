@@ -308,7 +308,7 @@ var (
 
 // None of these flags are strictly required.
 // Some are hidden if they are too technical, or not recommended.
-var p2pFlags = []cli.Flag{
+var P2pFlags = []cli.Flag{
 	DisableP2P,
 	NoDiscovery,
 	P2PPrivPath,

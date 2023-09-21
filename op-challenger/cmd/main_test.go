@@ -24,6 +24,7 @@ var (
 	cannonPreState          = "./pre.json"
 	datadir                 = "./test_data"
 	cannonL2                = "http://example.com:9545"
+	rollupRpc               = "http://example.com:8555"
 	alphabetTrace           = "abcdefghijz"
 	agreeWithProposedOutput = "true"
 )
@@ -249,6 +250,25 @@ func TestDataDir(t *testing.T) {
 	})
 }
 
+func TestRollupRpc(t *testing.T) {
+	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--rollup-rpc"))
+	})
+
+	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--rollup-rpc"))
+	})
+
+	t.Run("RequiredForOutputCannonTrace", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag rollup-rpc is required", addRequiredArgsExcept(config.TraceTypeOutputCannon, "--rollup-rpc"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeOutputCannon))
+		require.Equal(t, rollupRpc, cfg.RollupRpc)
+	})
+}
+
 func TestCannonL2(t *testing.T) {
 	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-l2"))
@@ -428,6 +448,9 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		args["--cannon-server"] = cannonServer
 		args["--cannon-prestate"] = cannonPreState
 		args["--cannon-l2"] = cannonL2
+	}
+	if traceType == config.TraceTypeOutputCannon {
+		args["--rollup-rpc"] = rollupRpc
 	}
 	return args
 }

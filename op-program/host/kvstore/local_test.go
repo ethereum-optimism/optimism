@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
-	"github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -33,7 +32,7 @@ func TestLocalPreimageSource(t *testing.T) {
 		{"L2OutputRoot", l2OutputRootKey, cfg.L2OutputRoot.Bytes()},
 		{"L2Claim", l2ClaimKey, cfg.L2Claim.Bytes()},
 		{"L2ClaimBlockNumber", l2ClaimBlockNumberKey, binary.BigEndian.AppendUint64(nil, cfg.L2ClaimBlockNumber)},
-		{"L2ChainID", l2ChainIDKey, binary.BigEndian.AppendUint64(nil, client.CustomChainIDIndicator)},
+		{"L2ChainID", l2ChainIDKey, binary.BigEndian.AppendUint64(nil, cfg.L2ChainConfig.ChainID.Uint64())},
 		{"Rollup", rollupKey, asJson(t, cfg.Rollup)},
 		{"ChainConfig", l2ChainConfigKey, asJson(t, cfg.L2ChainConfig)},
 		{"Unknown", preimage.LocalIndexKey(1000).PreimageKey(), nil},
