@@ -139,6 +139,7 @@ func setupTestDatabase(t *testing.T) string {
 	}
 	// NewDB will create the database schema
 	db, err := database.NewDB(dbConfig)
+	err = db.ExecuteSQLMigration()
 	require.NoError(t, err)
 	err = db.Close()
 	require.NoError(t, err)
