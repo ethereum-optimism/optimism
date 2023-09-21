@@ -96,5 +96,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		DepositContractAddress: depositContractAddress,
 		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
 	}
+	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
+		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
+	}
 	return cfg, nil
 }
