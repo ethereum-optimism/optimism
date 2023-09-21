@@ -34,5 +34,5 @@
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
-  "l1BlockTime": 15
+  "l1BlockTime": 12
 }
