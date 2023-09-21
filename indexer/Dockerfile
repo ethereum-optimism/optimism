@@ -21,11 +21,12 @@ RUN make indexer
 
 FROM alpine:3.18
 
-COPY --from=builder /app/indexer/indexer /app/indexer/indexer
+COPY --from=builder /app/indexer/indexer /usr/local/bin
+COPY --from=builder /app/indexer/indexer.toml /app/indexer/indexer.toml
 COPY --from=builder /app/indexer/migrations /app/indexer/migrations
 
 WORKDIR /app
 
-ENV PATH="/app:${PATH}"
+ENV INDEXER_MIGRATIONS_DIR="/app/indexer/migrations"
 
 CMD ["indexer", "index", "--config", "/app/indexer/indexer.toml"]

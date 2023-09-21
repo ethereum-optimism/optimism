@@ -17,6 +17,27 @@ services:
       - postgres_data:/data/postgres
       - ./migrations:/docker-entrypoint-initdb.d/
 
+  migrations:
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    command: ["indexer", "migrate"]
+    environment:
+      - INDEXER_RPC_URL_L1=$INDEXER_RPC_URL_L1
+      - INDEXER_RPC_URL_L2=$INDEXER_RPC_URL_L2
+      - INDEXER_CONFIG=/indexer/indexer.toml
+      - INDEXER_CHAIN_PRESET=$INDEXER_CHAIN_PRESET
+      - INDEXER_DB_PORT=5432
+      - INDEXER_DB_HOST=postgres
+      - INDEXER_DB_USER=db_username 
+      - INDEXER_DB_PASS=db_password 
+      - INDEXER_DB_NAME=db_name
+    volumes:
+      - ./indexer.toml:/indexer/indexer.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   indexer:
     build:
       context: ..
@@ -37,6 +58,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    depends_on:
+      migrations:
+        condition: service_started
+
 
   api:
     build:

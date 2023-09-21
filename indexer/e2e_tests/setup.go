@@ -141,7 +141,7 @@ func setupTestDatabase(t *testing.T) string {
 	db, err := database.NewDB(dbConfig)
 	require.NoError(t, err)
 	defer db.Close()
-	err = db.ExecuteSQLMigration()
+	err = db.ExecuteSQLMigration("../migrations")
 	require.NoError(t, err)
 
 	t.Logf("database %s setup and migrations executed", dbName)
