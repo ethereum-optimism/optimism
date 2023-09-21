@@ -33,8 +33,8 @@ func GetDevnetPreset() (*Preset, error) {
 	return &Preset{
 		Name: "devnet",
 		ChainConfig: ChainConfig{
-			Preset:                  DEVNET_L2_CHAIN_ID,
-			L1Contracts:             l1Contracts,
+			Preset:      DEVNET_L2_CHAIN_ID,
+			L1Contracts: l1Contracts,
 		},
 	}, nil
 }
