@@ -149,6 +149,16 @@ interface RequiredDeployConfig {
    * L1 address which receives tip fees for the L2 network.
    */
   sequencerFeeVaultRecipient: string
+
+  /**
+   * The minimum protocol version that is required for the bedrock to sync.
+   */
+  requiredProtocolVersion?: string
+
+  /**
+   * The recommended protocol version that is required for the bedrock to sync.
+   */
+  recommendedProtocolVersion?: string
 }
 
 /**
@@ -377,5 +387,15 @@ export const deployConfigSpec: {
   },
   l1BobaTokenAddress: {
     type: 'string',
+  },
+  requiredProtocolVersion: {
+    type: 'string',
+    default:
+      '0x0000000000000000000000000000000000000000000000000000000000000000',
+  },
+  recommendedProtocolVersion: {
+    type: 'string',
+    default:
+      '0x0000000000000000000000000000000000000000000000000000000000000000',
   },
 }
