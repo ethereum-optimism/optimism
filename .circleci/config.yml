@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  go: circleci/go@1.5.0
+  go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
 commands:
@@ -737,7 +737,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     steps:
       - checkout
       - run:
@@ -912,9 +912,9 @@ jobs:
       - run:
           name: Install latest golang
           command: |
-            wget https://go.dev/dl/go1.20.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.21.1.linux-amd64.tar.gz
             sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf go1.20.linux-amd64.tar.gz
+            sudo tar -C /usr/local -xzf go1.21.1.linux-amd64.tar.gz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
@@ -1048,14 +1048,14 @@ jobs:
 
   bedrock-go-tests:
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     resource_class: medium
     steps:
       - run: echo Done
 
   fpp-verify:
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     steps:
       - checkout
       - run:
