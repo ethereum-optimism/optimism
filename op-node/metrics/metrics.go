@@ -248,14 +248,14 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "1 if the derivation pipeline is idle",
 		}),
 
-		PipelineResets:   metrics.NewEventLight(factory, ns, "pipeline_resets", "derivation pipeline resets"),
-		UnsafePayloads:   metrics.NewEventLight(factory, ns, "unsafe_payloads", "unsafe payloads"),
-		DerivationErrors: metrics.NewEventLight(factory, ns, "derivation_errors", "derivation errors"),
-		SequencingErrors: metrics.NewEventLight(factory, ns, "sequencing_errors", "sequencing errors"),
-		PublishingErrors: metrics.NewEventLight(factory, ns, "publishing_errors", "p2p publishing errors"),
+		PipelineResets:   metrics.NewEvent(factory, ns, "", "pipeline_resets", "derivation pipeline resets"),
+		UnsafePayloads:   metrics.NewEvent(factory, ns, "", "unsafe_payloads", "unsafe payloads"),
+		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
+		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
+		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
 
-		SequencerInconsistentL1Origin: metrics.NewEventLight(factory, ns, "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
-		SequencerResets:               metrics.NewEventLight(factory, ns, "sequencer_resets", "sequencer resets"),
+		SequencerInconsistentL1Origin: metrics.NewEvent(factory, ns, "", "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
+		SequencerResets:               metrics.NewEvent(factory, ns, "", "sequencer_resets", "sequencer resets"),
 
 		UnsafePayloadsBufferLen: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -381,9 +381,9 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Count of incoming dial attempts to accept, with label to filter to allowed attempts",
 		}, []string{"allow"}),
 
-		headChannelOpenedEvent: metrics.NewEventLight(factory, ns, "head_channel", "New channel at the front of the channel bank"),
-		channelTimedOutEvent:   metrics.NewEventLight(factory, ns, "channel_timeout", "Channel has timed out"),
-		frameAddedEvent:        metrics.NewEventLight(factory, ns, "frame_added", "New frame ingested in the channel bank"),
+		headChannelOpenedEvent: metrics.NewEvent(factory, ns, "", "head_channel", "New channel at the front of the channel bank"),
+		channelTimedOutEvent:   metrics.NewEvent(factory, ns, "", "channel_timeout", "Channel has timed out"),
+		frameAddedEvent:        metrics.NewEvent(factory, ns, "", "frame_added", "New frame ingested in the channel bank"),
 
 		ChannelInputBytes: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
