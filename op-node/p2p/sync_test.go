@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"context"
+	"github.com/libp2p/go-libp2p/core/event"
 	"math/big"
 	"sync"
 	"testing"
@@ -287,4 +288,56 @@ func TestMultiPeerSync(t *testing.T) {
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
+}
+
+func TestUseEvtPeerConnectednessChangedEvent(t *testing.T) {
+	t.Parallel()
+	log := testlog.Logger(t, log.LvlDebug)
+
+	cfg, _ := setupSyncTestData(25)
+
+	confA := TestingConfig(t)
+	confB := TestingConfig(t)
+	hostA, err := confA.Host(log.New("host", "A"), nil, metrics.NoopMetrics)
+	require.NoError(t, err, "failed to launch host A")
+	defer hostA.Close()
+	hostB, err := confB.Host(log.New("host", "B"), nil, metrics.NoopMetrics)
+	require.NoError(t, err, "failed to launch host B")
+	defer hostB.Close()
+
+	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
+		return nil
+	}, metrics.NoopMetrics, &NoopApplicationScorer{})
+	subscribe, err := hostA.EventBus().Subscribe(&event.EvtPeerConnectednessChanged{})
+	require.NoError(t, err, "subscribe peerConnectednessChanged fail")
+	go func() {
+		for evt := range subscribe.Out() {
+			evto := evt.(event.EvtPeerConnectednessChanged)
+			if evto.Connectedness == network.Connected {
+				log.Info("event: connect peer", "peer", evto.Peer)
+				syncCl.AddPeer(evto.Peer)
+			} else if evto.Connectedness == network.NotConnected {
+				log.Info("event: disconnect peer", "peer", evto.Peer)
+				syncCl.RemovePeer(evto.Peer)
+			}
+		}
+	}()
+	syncCl.Start()
+
+	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
+	require.NoError(t, err, "failed to connect to peer B from peer A")
+	require.Equal(t, hostA.Network().Connectedness(hostB.ID()), network.Connected)
+	//wait for async add process done
+	time.Sleep(100 * time.Millisecond)
+	_, ok := syncCl.peers[hostB.ID()]
+	require.True(t, ok, "peerB should exist in syncClient")
+
+	err = hostA.Network().ClosePeer(hostB.ID())
+	require.NoError(t, err, "close peer fail")
+
+	//wait for async removing process done
+	time.Sleep(100 * time.Millisecond)
+	_, peerBExist3 := syncCl.peers[hostB.ID()]
+	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
+
 }
