@@ -51,6 +51,10 @@ func (c *Client) HealthCheck() error {
 		return err
 	}
 
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("health check failed with status code %d", resp.StatusCode)
 	}
