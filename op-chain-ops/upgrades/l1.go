@@ -1,13 +1,9 @@
 package upgrades
 
 import (
-	//"context"
-	//"encoding/json"
 	"fmt"
 	"math/big"
-	//		"strings"
 
-	//"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
