@@ -389,6 +389,7 @@ contract Deploy is Deployer {
         OptimismPortal portal = new OptimismPortal{ salt: implSalt() }();
 
         require(address(portal.L2_ORACLE()) == address(0));
+        require(portal.guardian() == address(0));
         require(address(portal.SYSTEM_CONFIG()) == address(0));
         require(address(portal.superchainConfig()) == address(0));
 
@@ -862,7 +863,7 @@ contract Deploy is Deployer {
         console.log("OptimismPortal version: %s", version);
 
         require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
-        require(portal.GUARDIAN() == cfg.portalGuardian());
+        require(portal.guardian() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == false);
     }

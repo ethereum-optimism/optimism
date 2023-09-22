@@ -12,7 +12,7 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { SuperchainConfig} from "src/L1/SuperchainConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @custom:proxied
 /// @title OptimismPortal
@@ -143,12 +143,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:legacy
     function SYSTEM_CONFIG() external view returns (SystemConfig) {
         return systemConfig;
-    }
-
-    /// @notice Getter for the Guardian
-    /// @custom:legacy
-    function GUARDIAN() external view returns (address) {
-        return superchainConfig.guardian();
     }
 
     /// @notice Getter for the Guardian

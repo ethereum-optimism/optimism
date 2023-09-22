@@ -30,13 +30,11 @@ contract OptimismPortal_Pausability_Test is Portal_Initializer {
     }
 }
 
-
 contract OptimismPortal_Test is Portal_Initializer {
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(address(op.l2Oracle()), address(oracle));
-        assertEq(op.GUARDIAN(), guardian);
         assertEq(op.guardian(), guardian);
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(op.paused(), false);
@@ -342,7 +340,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
-        vm.prank(op.GUARDIAN());
+        vm.prank(op.guardian());
         supConf.pause();
 
         vm.expectRevert("OptimismPortal: paused");
@@ -492,7 +490,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
-        vm.prank(op.GUARDIAN());
+        vm.prank(op.guardian());
         supConf.pause();
 
         vm.expectRevert("OptimismPortal: paused");
