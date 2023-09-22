@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Types as T } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 
+
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
 /// @custom:audit none
-contract SuperchainConfig is OwnableUpgradeable, ISemver {
+contract SuperchainConfig is Initializable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value INITIATOR           Represents an update to the initiator.
     /// @custom:value VETOER              Represents an update to the vetoer.
@@ -31,24 +32,31 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
     /// @notice Event version identifier.
     uint256 public constant VERSION = 0;
 
-    // todo(maurelian): We can change these vars to EIP 1967 style storage slots later, but
-    //    during the mock up phase this is easier to work with.
+    /// @notice The address of the systemOwner who may trigger an upgrade or change to critical config values.
+    ///         This will be a DelayedVetoable contract.
+    ///         It can only be modified by an upgrade.
+    address public systemOwner;
 
-    /// @notice The address of the initiator who may initiate an upgrade or change to critical config values.
-    ///         This is expected to be the security council.
+    /// @notice The address of the initiator who may initiate an upgrade or change to critical config values, via the
+    ///         systemOwner contract.
+    ///         It can only be modified by an upgrade.
     address public initiator;
 
-    /// @notice The address of the vetoer.
-    ///         This is expected to the foundation.
+    /// @notice The address of the vetoer, who may veto an upgrade or change to critical config values.
+    ///         This is expected to be the foundation.
+    ///         It can only be modified by an upgrade.
     address public vetoer;
 
     /// @notice The address of the guardian, can pause the OptimismPortal.
+    ///         It can only be modified by an upgrade.
     address public guardian;
 
     /// @notice The delay time in seconds between when an upgrade is initiated and when it can be finalized.
+    ///         It can only be modified by an upgrade.
     uint256 public delay;
 
     /// @notice The pause status of withdrawals from an chain in the superchain.
+    ///         Set by the guardian role.
     bool public paused;
 
     /// @notice Mapping of allowed sequencers.
@@ -71,12 +79,10 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
-    /// @notice Constructs the SuperchainConfig contract. Cannot set
-    ///         the owner to `address(0)` due to the Ownable contract's
-    ///         implementation, so set it to `address(0xdEaD)`
+    /// @notice Constructs the SuperchainConfig contract.
     constructor() {
         initialize({
-            _owner: address(0xdEaD),
+            _systemOwner: address(0),
             _initiator: address(0),
             _vetoer: address(0),
             _guardian: address(0),
@@ -87,14 +93,14 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
 
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
-    /// @param _owner     Initial owner of the contract.
+    /// @param _systemOwner     Initial owner of the contract.
     /// @param _initiator Address of the initiator who may initiate an upgrade or change to critical config values.
     /// @param _vetoer    Address of the vetoer.
     /// @param _guardian  Address of the guardian, can pause the OptimismPortal.
     /// @param _delay     The delay time in seconds between when an upgrade is initiated and when it can be finalized.
     /// @param _sequencers The initial list of allowed sequencers
     function initialize(
-        address _owner,
+        address _systemOwner,
         address _initiator,
         address _vetoer,
         address _guardian,
@@ -104,9 +110,7 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
         public
         reinitializer(2)
     {
-        __Ownable_init();
-        transferOwnership(_owner);
-
+        systemOwner = _systemOwner;
         initiator = _initiator;
         vetoer = _vetoer;
         guardian = _guardian;

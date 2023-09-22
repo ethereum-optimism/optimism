@@ -312,7 +312,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(Types.SequencerKeys calldata sequencer) external {
         // Add to the allowed sequencers list
-        vm.prank(supConf.owner());
+        vm.prank(supConf.initiator());
         supConf.addSequencer(sequencer);
 
         vm.expectEmit(true, true, true, true);
