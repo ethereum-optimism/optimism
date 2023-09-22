@@ -100,13 +100,7 @@
 |-------------------|--------------------------|------|--------|-------|----------------------------------------------|
 | _initialized      | uint8                    | 0    | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
 | _initializing     | bool                     | 0    | 1      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| systemOwner       | address                  | 0    | 2      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| initiator         | address                  | 1    | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| vetoer            | address                  | 2    | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| guardian          | address                  | 3    | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| delay             | uint256                  | 4    | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| paused            | bool                     | 5    | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| allowedSequencers | mapping(bytes32 => bool) | 6    | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| allowedSequencers | mapping(bytes32 => bool) | 1    | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
 
 =======================
 ➡ src/legacy/DeployerWhitelist.sol:DeployerWhitelist

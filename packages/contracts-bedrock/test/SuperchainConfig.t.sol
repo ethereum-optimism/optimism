@@ -15,6 +15,21 @@ import { Proxy } from "src/universal/Proxy.sol";
 // Target contract
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
+contract SuperchainConfig_Init_Test is SuperchainConfig_Initializer {
+    /// @dev Tests that initialization sets the correct values. These are defined in CommonTest.sol.
+    function test_initialize_values_succeeds() external {
+        assertEq(supConf.systemOwner(), systemOwner);
+        assertEq(supConf.initiator(), initiator);
+        assertEq(supConf.vetoer(), vetoer);
+        assertEq(supConf.guardian(), guardian);
+        assertEq(supConf.delay(), delay);
+        assertEq(supConf.paused(), false);
+        bytes32 sequencerHash = Hashing.hashSequencerKeys(dummySequencer);
+        assertEq(supConf.allowedSequencers(sequencerHash), true);
+        assertEq(supConf.isAllowedSequencer(dummySequencer), true);
+    }
+}
+
 contract SuperchainConfig_Pause_TestFail is SuperchainConfig_Initializer {
     /// @dev Tests that `pause` reverts when called by a non-GUARDIAN.
     function test_pause_onlyGuardian_reverts() external {
