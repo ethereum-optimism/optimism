@@ -67,7 +67,7 @@ var (
 
 func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	return txmgr.CLIConfig{
-		L1RPCURL:                  []string{l1Addr},
+		L1RPCURL:                  l1Addr,
 		PrivateKey:                hexPriv(privKey),
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
@@ -639,7 +639,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:          []string{sys.EthInstances["l1"].WSEndpoint()},
+		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
 		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
 		PollInterval:      50 * time.Millisecond,
@@ -660,7 +660,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:               []string{sys.EthInstances["l1"].WSEndpoint()},
+		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxPendingTransactions: 0,
@@ -750,7 +750,7 @@ func selectEndpoint(node EthInstance) string {
 func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
-		L1NodeAddr:       []string{l1EndpointConfig},
+		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,
 		L1RPCKind:        sources.RPCKindBasic,
 		RateLimit:        0,

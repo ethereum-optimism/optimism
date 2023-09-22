@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"math/big"
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	service_client "github.com/ethereum-optimism/optimism/op-service/client"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-signer/client"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
@@ -125,7 +124,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 }
 
 type CLIConfig struct {
-	L1RPCURL                  []string
+	L1RPCURL                  string
 	Mnemonic                  string
 	HDPath                    string
 	SequencerHDPath           string
@@ -143,7 +142,7 @@ type CLIConfig struct {
 
 func NewCLIConfig(l1RPCURL string) CLIConfig {
 	return CLIConfig{
-		L1RPCURL:                  []string{l1RPCURL},
+		L1RPCURL:                  l1RPCURL,
 		NumConfirmations:          defaultNumConfirmations,
 		SafeAbortNonceTooLowCount: defaultSafeAbortNonceTooLowCount,
 		ResubmissionTimeout:       defaultResubmissionTimeout,
@@ -156,7 +155,7 @@ func NewCLIConfig(l1RPCURL string) CLIConfig {
 }
 
 func (m CLIConfig) Check() error {
-	if len(m.L1RPCURL) == 0 || m.L1RPCURL[0] == "" {
+	if m.L1RPCURL == "" {
 		return errors.New("must provide a L1 RPC url")
 	}
 	if m.NumConfirmations == 0 {
@@ -185,7 +184,7 @@ func (m CLIConfig) Check() error {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		L1RPCURL:                  ctx.StringSlice(L1RPCFlagName),
+		L1RPCURL:                  ctx.String(L1RPCFlagName),
 		Mnemonic:                  ctx.String(MnemonicFlagName),
 		HDPath:                    ctx.String(HDPathFlagName),
 		SequencerHDPath:           ctx.String(SequencerHDPathFlag.Name),
@@ -202,14 +201,14 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	}
 }
 
-func NewConfig(cfg CLIConfig, l log.Logger, m txmetrics.TxMetricer) (Config, error) {
+func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 	if err := cfg.Check(); err != nil {
 		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
-	l1, err := service_client.DialEthClientWithTimeoutAndFallback(ctx, cfg.L1RPCURL, service_client.DefaultDialTimeout, l, service_client.TxmgrFallbackThreshold, m)
+	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
 	if err != nil {
 		return Config{}, fmt.Errorf("could not dial eth client: %w", err)
 	}

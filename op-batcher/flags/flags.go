@@ -24,9 +24,9 @@ func prefixEnvVars(name string) []string {
 
 var (
 	// Required flags
-	L1EthRpcFlag = &cli.StringSliceFlag{
+	L1EthRpcFlag = &cli.StringFlag{
 		Name:    "l1-eth-rpc",
-		Usage:   "HTTP provider URL for L1. Multiple alternative addresses are supported, separated by commas, and the first address is used by default",
+		Usage:   "HTTP provider URL for L1",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
 	L2EthRpcFlag = &cli.StringFlag{

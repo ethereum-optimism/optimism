@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -133,7 +134,7 @@ func (cfg *PreparedL2SyncEndpoint) Check() error {
 }
 
 type L1EndpointConfig struct {
-	L1NodeAddr []string // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
+	L1NodeAddr string // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
 
 	// L1TrustRPC: if we trust the L1 RPC we do not have to validate L1 response contents like headers
 	// against block hashes, or cached transaction sender addresses.
@@ -178,27 +179,10 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
 	}
 
-	if len(cfg.L1NodeAddr) > 1 {
-		return fallbackClientWrap(ctx, log, cfg.L1NodeAddr, cfg, rollupCfg, opts...)
-	}
-
-	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr[0], opts...)
+	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr[0], err)
+		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
-	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
-	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize
-	return l1Node, rpcCfg, nil
-}
-
-func fallbackClientWrap(ctx context.Context, logger log.Logger, urlList []string, cfg *L1EndpointConfig, rollupCfg *rollup.Config, opts ...client.RPCOption) (client.RPC, *sources.L1ClientConfig, error) {
-	l1Node, err := client.NewRPC(ctx, logger, urlList[0], opts...)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", urlList[0], err)
-	}
-	l1Node = sources.NewFallbackClient(ctx, l1Node, urlList, logger, rollupCfg.L1ChainID, rollupCfg.Genesis.L1, func(url string) (client.RPC, error) {
-		return client.NewRPC(ctx, logger, url, opts...)
-	})
 	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
 	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize
 	return l1Node, rpcCfg, nil

@@ -23,10 +23,10 @@ func prefixEnvVars(name string) []string {
 
 var (
 	/* Required Flags */
-	L1NodeAddr = &cli.StringSliceFlag{
+	L1NodeAddr = &cli.StringFlag{
 		Name:    "l1",
-		Usage:   "Address of L1 User JSON-RPC endpoint to use (eth namespace required). Multiple alternative addresses are supported, separated by commas, and the first address is used by default",
-		Value:   cli.NewStringSlice("http://127.0.0.1:8545"),
+		Usage:   "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
+		Value:   "http://127.0.0.1:8545",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
 	L2EngineAddr = &cli.StringFlag{

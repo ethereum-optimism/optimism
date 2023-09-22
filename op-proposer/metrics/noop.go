@@ -17,6 +17,3 @@ func (*noopMetrics) RecordInfo(version string) {}
 func (*noopMetrics) RecordUp()                 {}
 
 func (*noopMetrics) RecordL2BlocksProposed(l2ref eth.L2BlockRef) {}
-
-func (m *noopMetrics) RecordUrlSwitchEvt(url string) {
-}

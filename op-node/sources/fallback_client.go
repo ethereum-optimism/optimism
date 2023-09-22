@@ -5,18 +5,37 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 )
+
+type FallbackClientMetricer interface {
+	RecordUrlSwitchEvt(url string)
+}
+
+type FallbackClientMetrics struct {
+	urlSwitchEvt opmetrics.EventVec
+}
+
+func (f *FallbackClientMetrics) RecordUrlSwitchEvt(url string) {
+	f.urlSwitchEvt.Record(url)
+}
+
+func NewFallbackClientMetrics(ns string, factory opmetrics.Factory) *FallbackClientMetrics {
+	return &FallbackClientMetrics{
+		urlSwitchEvt: opmetrics.NewEventVec(factory, ns, "", "url_switch", "url switch", []string{"url_idx"}),
+	}
+}
 
 // FallbackClient is an RPC client, it can automatically switch to the next endpoint
 // when there is a problem with the current endpoint
@@ -38,7 +57,7 @@ type FallbackClient struct {
 	genesisBlock      eth.BlockID
 	ctx               context.Context
 	isClose           chan struct{}
-	metrics           metrics.Metricer
+	metrics           FallbackClientMetricer
 }
 
 const threshold int64 = 20
@@ -134,7 +153,7 @@ func (l *FallbackClient) switchCurrentRpc() {
 		return
 	}
 	if l.metrics != nil {
-		l.metrics.RecordUrlSwitchEvent()
+		l.metrics.RecordUrlSwitchEvt(strconv.Itoa(l.currentIndex))
 	}
 	for {
 		l.currentIndex++
@@ -271,7 +290,7 @@ func (l *FallbackClient) blockRefByNumber(ctx context.Context, number uint64, ne
 	return header, nil
 }
 
-func (l *FallbackClient) RegisterMetrics(metrics metrics.Metricer) {
+func (l *FallbackClient) RegisterMetrics(metrics FallbackClientMetricer) {
 	l.metrics = metrics
 }
 

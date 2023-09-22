@@ -2,11 +2,11 @@ package metrics
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -80,7 +80,7 @@ func (m *Metrics) Serve(ctx context.Context, host string, port int) error {
 }
 
 func (m *Metrics) StartBalanceMetrics(ctx context.Context,
-	l log.Logger, client ethereum.ChainStateReader, account common.Address) {
+	l log.Logger, client *ethclient.Client, account common.Address) {
 	opmetrics.LaunchBalanceMetrics(ctx, l, m.registry, m.ns, client, account)
 }
 

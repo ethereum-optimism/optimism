@@ -1,10 +1,10 @@
 package proposer
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -24,7 +24,7 @@ type Config struct {
 	PollInterval       time.Duration
 	NetworkTimeout     time.Duration
 	TxManager          txmgr.TxManager
-	L1Client           client.EthClient
+	L1Client           *ethclient.Client
 	RollupClient       *sources.RollupClient
 	AllowNonFinalized  bool
 }
@@ -36,7 +36,7 @@ type CLIConfig struct {
 	/* Required Params */
 
 	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc []string
+	L1EthRpc string
 
 	// RollupRpc is the HTTP provider URL for the rollup node.
 	RollupRpc string
@@ -86,7 +86,7 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		// Required Flags
-		L1EthRpc:     ctx.StringSlice(flags.L1EthRpcFlag.Name),
+		L1EthRpc:     ctx.String(flags.L1EthRpcFlag.Name),
 		RollupRpc:    ctx.String(flags.RollupRpcFlag.Name),
 		L2OOAddress:  ctx.String(flags.L2OOAddressFlag.Name),
 		PollInterval: ctx.Duration(flags.PollIntervalFlag.Name),

@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
@@ -17,7 +16,6 @@ type TxMetricer interface {
 	TxConfirmed(*types.Receipt)
 	TxPublished(string)
 	RPCError()
-	client.FallbackClientMetricer
 }
 
 type TxMetrics struct {
@@ -32,7 +30,6 @@ type TxMetrics struct {
 	publishEvent       metrics.Event
 	confirmEvent       metrics.EventVec
 	rpcError           prometheus.Counter
-	*client.FallbackClientMetrics
 }
 
 func receiptStatusString(receipt *types.Receipt) string {
@@ -107,7 +104,6 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 			Help:      "Temporary: Count of RPC errors (like timeouts) that have occurred",
 			Subsystem: "txmgr",
 		}),
-		FallbackClientMetrics: client.NewFallbackClientMetrics(ns, factory),
 	}
 }
 

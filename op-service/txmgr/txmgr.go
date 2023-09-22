@@ -108,7 +108,7 @@ type SimpleTxManager struct {
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
 func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig) (*SimpleTxManager, error) {
-	conf, err := NewConfig(cfg, l, m)
+	conf, err := NewConfig(cfg, l)
 	if err != nil {
 		return nil, err
 	}
