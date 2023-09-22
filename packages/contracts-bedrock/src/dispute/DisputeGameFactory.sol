@@ -3,10 +3,10 @@ pragma solidity ^0.8.15;
 
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
-import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
-import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IDisputeGameFactory } from "src/dispute/interfaces/IDisputeGameFactory.sol";
 
 import { LibGameId } from "src/dispute/lib/LibGameId.sol";
 
@@ -19,7 +19,7 @@ import "src/libraries/DisputeErrors.sol";
 ///         time of the dispute game is packed tightly into the storage slot with the address of
 ///         the dispute game. This is to make offchain discoverability of playable dispute games
 ///         easier.
-contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
+contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, ISemver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using ClonesWithImmutableArgs for address;
 
@@ -36,8 +36,12 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     ///      track dispute games
     GameId[] internal _disputeGameList;
 
+    /// @notice Semantic version.
+    /// @custom:semver 0.0.6
+    string public constant version = "0.0.6";
+
     /// @notice constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() Semver(0, 0, 5) {
+    constructor() OwnableUpgradeable() {
         initialize(address(0));
     }
 
