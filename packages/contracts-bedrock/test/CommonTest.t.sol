@@ -174,6 +174,8 @@ contract SuperchainConfig_Initializer is L2OutputOracle_Initializer {
     SuperchainConfig supConf;
     SuperchainConfig SuperchainConfigImpl;
 
+    event Paused();
+    event Unpaused();
     event ConfigUpdate(uint256 indexed version, SuperchainConfig.UpdateType indexed updateType, bytes data);
 
     address systemOwner = makeAddr("SystemOwner");

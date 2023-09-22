@@ -191,6 +191,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    supConf, // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -215,9 +216,11 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
 
 contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
-    function test_setBatcherHash_notOwner_reverts() external {
+    function test_setSequencer_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        sysConf.setBatcherHash(bytes32(hex""));
+        Types.SequencerKeys memory sequencer =
+            Types.SequencerKeys({ batcherHash: bytes32(uint256(0)), unsafeBlockSigner: address(0) });
+        sysConf.setSequencer(sequencer);
     }
 
     /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
@@ -230,12 +233,6 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setGasLimit(0);
-    }
-
-    /// @dev Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
-    function test_setUnsafeBlockSigner_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        sysConf.setUnsafeBlockSigner(address(0x20));
     }
 
     /// @dev Tests that `setResourceConfig` reverts if the caller is not the owner.
@@ -313,13 +310,20 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
 
 contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
-    function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
+    function testFuzz_setBatcherHash_succeeds(Types.SequencerKeys calldata sequencer) external {
+        // Add to the allowed sequencers list
+        vm.prank(supConf.owner());
+        supConf.addSequencer(sequencer);
+
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(sequencer.unsafeBlockSigner));
+        vm.expectEmit(true, true, true, true);
+        emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(sequencer.batcherHash));
 
         vm.prank(sysConf.owner());
-        sysConf.setBatcherHash(newBatcherHash);
-        assertEq(sysConf.batcherHash(), newBatcherHash);
+        sysConf.setSequencer(sequencer);
+        assertEq(sysConf.batcherHash(), sequencer.batcherHash);
+        assertEq(sysConf.unsafeBlockSigner(), sequencer.unsafeBlockSigner);
     }
 
     /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
@@ -344,15 +348,5 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
         vm.prank(sysConf.owner());
         sysConf.setGasLimit(newGasLimit);
         assertEq(sysConf.gasLimit(), newGasLimit);
-    }
-
-    /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
-    function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
-        vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
-
-        vm.prank(sysConf.owner());
-        sysConf.setUnsafeBlockSigner(newUnsafeSigner);
-        assertEq(sysConf.unsafeBlockSigner(), newUnsafeSigner);
     }
 }

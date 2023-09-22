@@ -56,6 +56,12 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
     ///         The initiator should be able to add to it instantly, but removing is subject to delay.
     mapping(bytes32 => bool) public allowedSequencers;
 
+    /// @notice Emitted when the pause is triggered.
+    event Paused();
+
+    /// @notice Emitted when the pause is lifted.
+    event Unpaused();
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
@@ -113,6 +119,27 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
         }
     }
 
-    // todo(maurelian): Add a bunch of getters and setters in the style of the SystemConfig contract.
-    //   This is straightforward work, so can defer until the arch is fully sketched out.
+    /// @notice Pauses withdrawals.
+    function pause() external {
+        require(msg.sender == guardian, "SuperchainConfig: only guardian can pause");
+        paused = true;
+        emit Paused();
+    }
+
+    /// @notice Unpauses withdrawals.
+    function unpause() external {
+        require(msg.sender == guardian, "SuperchainConfig: only guardian can unpause");
+        paused = false;
+        emit Unpaused();
+    }
+
+    /// @notice Adds a new sequencer to the allowed list.
+    /// @param _sequencer The sequencer to be added.
+    function addSequencer(Types.SequencerKeys memory _sequencer) external onlyOwner {
+        bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
+        require(!allowedSequencers[sequencerHash], "SuperchainConfig: sequencer already allowed");
+
+        allowedSequencers[sequencerHash] = true;
+        emit ConfigUpdate(VERSION, UpdateType.ADD_SEQUENCER, abi.encode(_sequencer));
+    }
 }
