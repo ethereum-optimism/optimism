@@ -66,8 +66,12 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 
 	log.Info("Filtered withdrawals", "filtered", len(filteredWithdrawals))
 
-	// At this point we've fully verified the witness data for the migration, so we can begin the
-	// actual migration process.
+	// We need to retrieve the legacy credit from the genesis so that we can rebuild the credit in
+	// new turingCredit contract
+	legacyTuringCredit := RetrieveLegacyTuringCredit(genesis)
+
+	// At this point, we have verified that the witness data is correct and retrieved the legacy
+	// credit from the genesis. We can now start to mutate the genesis to prepare it for the
 
 	// We need to wipe the legacy contracts from the genesis, because the legacy contracts are the
 	// legacy implementation of the predeployed contracts. We want to replace the legacy contracts
@@ -120,13 +124,21 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 		return fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
 
-	// Finally we migrate the balances held inside the LegacyERC20ETH contract into the state trie.
+	//  We migrate the balances held inside the LegacyERC20ETH contract into the state trie.
 	// We also delete the balances from the LegacyERC20ETH contract. Unlike the steps above, this step
 	// combines the check and mutation steps into one in order to reduce migration time.
 	log.Info("Starting to migrate ERC20 ETH")
 	err = ether.MigrateBalances(genesis, migrationData.Addresses(), migrationData.OvmAllowances, noCheck)
 	if err != nil {
 		return fmt.Errorf("failed to migrate OVM_ETH: %w", err)
+	}
+
+	// Finally, we need to migrate the legacy credit from the LegacyTuringCredit contract to the
+	// new TuringCredit contract.
+	log.Info("Starting to migrate TuringCredit")
+	err = ether.MigrateTuringCredit(genesis, legacyTuringCredit, noCheck)
+	if err != nil {
+		return fmt.Errorf("failed to migrate TuringCredit: %w", err)
 	}
 
 	if !commit {

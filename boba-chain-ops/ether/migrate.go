@@ -290,3 +290,15 @@ func GetBalance(g *types.Genesis, addr common.Address) *big.Int {
 	}
 	return g.Alloc[addr].Balance
 }
+
+func MigrateTuringCredit(g *types.Genesis, legacyTuringCredit map[common.Hash]common.Hash, noCheck bool) error {
+	for addr, balance := range legacyTuringCredit {
+		if !noCheck {
+			if g.Alloc[predeploys.BobaTuringCreditAddr].Storage[addr] != (common.Hash{}) {
+				return fmt.Errorf("duplicate address %s", addr.String())
+			}
+		}
+		g.Alloc[predeploys.BobaTuringCreditAddr].Storage[addr] = balance
+	}
+	return nil
+}

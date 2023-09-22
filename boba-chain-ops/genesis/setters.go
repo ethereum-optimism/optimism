@@ -63,6 +63,21 @@ var (
 	}
 )
 
+// Retrieve all turing credit storage from the legacy predeploy
+func RetrieveLegacyTuringCredit(g *types.Genesis) map[common.Hash]common.Hash {
+	storage := make(map[common.Hash]common.Hash)
+	for k, v := range g.Alloc[predeploys.BobaLegacyTuringCreditAddr].Storage {
+		storage[k] = v
+	}
+	if _, ok := storage[ether.BobaLegacyProxyImplementationSlot]; ok {
+		delete(storage, ether.BobaLegacyProxyImplementationSlot)
+	}
+	if _, ok := storage[ether.BobaLegacyProxyOwnerSlot]; ok {
+		delete(storage, ether.BobaLegacyProxyOwnerSlot)
+	}
+	return storage
+}
+
 // SetL2Proxies will set each of the proxies in the state. It requires
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
 // can be set in state and the ProxyAdmin can be set as the admin of the
