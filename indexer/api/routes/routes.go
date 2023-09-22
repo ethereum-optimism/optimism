@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// Routes ... Route handler struct
 type Routes struct {
 	Logger              log.Logger
 	BridgeTransfersView database.BridgeTransfersView
@@ -13,6 +14,7 @@ type Routes struct {
 	v                   *Validator
 }
 
+// NewRoutes ... Construct a new route handler instance
 func NewRoutes(logger log.Logger, bv database.BridgeTransfersView, r *chi.Mux) Routes {
 	return Routes{
 		Logger:              logger,

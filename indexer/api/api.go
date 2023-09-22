@@ -20,9 +20,11 @@ import (
 
 const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 
+// Api ... Indexer API struct
+// TODO : Structured error responses
 type Api struct {
 	log             log.Logger
-	Router          *chi.Mux
+	router          *chi.Mux
 	serverConfig    config.ServerConfig
 	metricsConfig   config.ServerConfig
 	metricsRegistry *prometheus.Registry
@@ -31,37 +33,48 @@ type Api struct {
 const (
 	MetricsNamespace = "op_indexer"
 	addressParam     = "{address:%s}"
-	DepositsPath     = "/api/v0/deposits/"
-	WithdrawalsPath  = "/api/v0/withdrawals/"
+
+	// Endpoint paths
+	HealthPath      = "/healthz"
+	DepositsPath    = "/api/v0/deposits/"
+	WithdrawalsPath = "/api/v0/withdrawals/"
 )
 
+// chiMetricsMiddleware ... Injects a metrics recorder into request processing middleware
 func chiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return metrics.NewHTTPRecordingMiddleware(rec, next)
 	}
 }
 
+// NewApi ... Construct a new api instance
 func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig config.ServerConfig, metricsConfig config.ServerConfig) *Api {
+	// (1) Initialize dependencies
 	apiRouter := chi.NewRouter()
 	h := routes.NewRoutes(logger, bv, apiRouter)
 
 	mr := metrics.NewRegistry()
 	promRecorder := metrics.NewPromHTTPRecorder(mr, MetricsNamespace)
 
+	// (2) Inject routing middleware
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
 	apiRouter.Use(middleware.Recoverer)
-	apiRouter.Use(middleware.Heartbeat("/healthz"))
+	apiRouter.Use(middleware.Heartbeat(HealthPath))
 
+	// (3) Set GET routes
 	apiRouter.Get(fmt.Sprintf(DepositsPath+addressParam, ethereumAddressRegex), h.L1DepositsHandler)
 	apiRouter.Get(fmt.Sprintf(WithdrawalsPath+addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
 
-	return &Api{log: logger, Router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
+	return &Api{log: logger, router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }
 
+// Start ... Starts the API server routines
 func (a *Api) Start(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
 
+	// (1) Construct an inner function that will start a goroutine
+	//    and handle any panics that occur on a shared error channel
 	processCtx, processCancel := context.WithCancel(ctx)
 	runProcess := func(start func(ctx context.Context) error) {
 		wg.Add(1)
@@ -81,9 +94,11 @@ func (a *Api) Start(ctx context.Context) error {
 		}()
 	}
 
+	// (2) Start the API and metrics servers
 	runProcess(a.startServer)
 	runProcess(a.startMetricsServer)
 
+	// (3) Wait for all processes to complete
 	wg.Wait()
 
 	err := <-errCh
@@ -96,9 +111,10 @@ func (a *Api) Start(ctx context.Context) error {
 	return err
 }
 
+// startServer ... Starts the API server
 func (a *Api) startServer(ctx context.Context) error {
 	a.log.Info("api server listening...", "port", a.serverConfig.Port)
-	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.Router}
+	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.router}
 	err := httputil.ListenAndServeContext(ctx, &server)
 	if err != nil {
 		a.log.Error("api server stopped", "err", err)
@@ -108,6 +124,7 @@ func (a *Api) startServer(ctx context.Context) error {
 	return err
 }
 
+// startMetricsServer ... Starts the metrics server
 func (a *Api) startMetricsServer(ctx context.Context) error {
 	a.log.Info("starting metrics server...", "port", a.metricsConfig.Port)
 	err := metrics.ListenAndServe(ctx, a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)

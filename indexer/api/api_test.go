@@ -100,7 +100,7 @@ func TestHealthz(t *testing.T) {
 	assert.Nil(t, err)
 
 	responseRecorder := httptest.NewRecorder()
-	api.Router.ServeHTTP(responseRecorder, request)
+	api.router.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 }
@@ -112,7 +112,7 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 	assert.Nil(t, err)
 
 	responseRecorder := httptest.NewRecorder()
-	api.Router.ServeHTTP(responseRecorder, request)
+	api.router.ServeHTTP(responseRecorder, request)
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
@@ -135,7 +135,7 @@ func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	assert.Nil(t, err)
 
 	responseRecorder := httptest.NewRecorder()
-	api.Router.ServeHTTP(responseRecorder, request)
+	api.router.ServeHTTP(responseRecorder, request)
 
 	var resp routes.WithdrawalResponse
 	err = json.Unmarshal(responseRecorder.Body.Bytes(), &resp)

@@ -34,8 +34,8 @@ type E2ETestSuite struct {
 	Indexer *indexer.Indexer
 
 	// API
-	API     *api.Api
-	IClient *client.IndexerClient
+	API    *api.Api
+	Client *client.Client
 
 	// Rollup
 	OpCfg *op_e2e.SystemConfig
@@ -91,7 +91,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
 			},
 		},
-		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 8080},
+		HTTPServer:    config.ServerConfig{Host: "http://localhost", Port: 8777},
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
@@ -123,17 +123,17 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	cfg := &client.Config{
 		PaginationLimit: 100,
-		URL:             fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
+		URL:             fmt.Sprintf("%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
 	}
+	client, err := client.NewClient(cfg, nil)
 
-	ic, err := client.NewClient(cfg, nil)
 	require.NoError(t, err)
 
 	return E2ETestSuite{
 		t:        t,
 		DB:       db,
 		API:      api,
-		IClient:  ic,
+		Client:   client,
 		Indexer:  indexer,
 		OpCfg:    &opCfg,
 		OpSys:    opSys,

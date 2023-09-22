@@ -54,6 +54,7 @@ func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) Wi
 	}
 }
 
+// L2WithdrawalsHandler ... Handles /api/v0/withdrawals/{address} GET requests
 func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	address := common.HexToAddress(chi.URLParam(r, "address"))
 	cursor := r.URL.Query().Get("cursor")

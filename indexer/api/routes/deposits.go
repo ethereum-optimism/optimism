@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// DepositItem ... Deposit item model for API responses
 type DepositItem struct {
 	Guid           string `json:"guid"`
 	From           string `json:"from"`
@@ -27,6 +28,7 @@ type DepositResponse struct {
 	Items       []DepositItem `json:"items"`
 }
 
+// newDepositResponse ... Converts a database.L1BridgeDepositsResponse to an api.DepositResponse
 func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResponse {
 	items := make([]DepositItem, len(deposits.Deposits))
 	for i, deposit := range deposits.Deposits {
@@ -52,6 +54,7 @@ func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResp
 	}
 }
 
+// L1DepositsHandler ... Handles /api/v0/deposits/{address} GET requests
 func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	address := common.HexToAddress(chi.URLParam(r, "address"))
 	cursor := r.URL.Query().Get("cursor")
@@ -60,7 +63,7 @@ func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	limit, err := h.v.ValidateLimit(limitQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.Logger.Error("Invalid limit param")
+		h.Logger.Error("Invalid limit param", "param", limitQuery)
 		h.Logger.Error(err.Error())
 		return
 	}
