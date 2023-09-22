@@ -42,22 +42,33 @@ func NewFallbackClientMetrics(ns string, factory opmetrics.Factory) *FallbackCli
 // and automatically switch back after the first endpoint recovers.
 type FallbackClient struct {
 	// firstRpc is created by the first of the urls, it should be used first in a healthy state
-	firstRpc          client.RPC
-	urlList           []string
-	rpcInitFunc       func(url string) (client.RPC, error)
-	lastMinuteFail    atomic.Int64
-	currentRpc        atomic.Pointer[client.RPC]
-	currentIndex      int
-	mx                sync.Mutex
-	log               log.Logger
+	firstRpc    client.RPC
+	urlList     []string
+	rpcInitFunc func(url string) (client.RPC, error)
+	// lastMinuteFail is used to record the number of errors in the last minute
+	lastMinuteFail atomic.Int64
+	// currentRpc always points to the rpc currently being used
+	currentRpc atomic.Pointer[client.RPC]
+	// currentIndex is the index of the current rpc in the urlList
+	currentIndex int
+	mx           sync.Mutex
+	log          log.Logger
+	// isInFallbackState is used to record whether the current rpc is in a fallback state,
+	// Used to ensure that only one recoverIfFirstRpcHealth process is started at the same time
 	isInFallbackState bool
-	subscribeFunc     func() (event.Subscription, error)
-	headsSub          *ethereum.Subscription
-	chainId           *big.Int
-	genesisBlock      eth.BlockID
-	ctx               context.Context
-	isClose           chan struct{}
-	metrics           FallbackClientMetricer
+	// subscribeFunc is used when switching to an alternative rpc, we need to re-subscribe to the content subscribed by
+	//the previous rpc, such as the subscription action in WatchHeadChanges, which needs to be triggered again
+	subscribeFunc func() (event.Subscription, error)
+	// headsSub is used to record the subscription of the previous rpc, so that we can unsubscribe when switching to
+	// the new rpc
+	headsSub *ethereum.Subscription
+	// chainId and genesisBlock are used to check whether the newly switched rpc is legal.
+	chainId      *big.Int
+	genesisBlock eth.BlockID
+	ctx          context.Context
+	// isClose is used to close the goroutine that monitors the number of errors in the last minute
+	isClose chan struct{}
+	metrics FallbackClientMetricer
 }
 
 const threshold int64 = 20
@@ -76,6 +87,7 @@ func NewFallbackClient(ctx context.Context, rpc client.RPC, urlList []string, lo
 		genesisBlock: genesisBlock,
 	}
 	fallbackClient.currentRpc.Store(&rpc)
+	// monitor the number of errors in the last minute
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)
 		for {
@@ -86,6 +98,7 @@ func NewFallbackClient(ctx context.Context, rpc client.RPC, urlList []string, lo
 			case <-fallbackClient.isClose:
 				return
 			default:
+				// if the number of errors in the last minute exceeds the threshold, switch to the next rpc
 				if fallbackClient.lastMinuteFail.Load() >= threshold {
 					fallbackClient.switchCurrentRpc()
 				}
@@ -142,6 +155,7 @@ func (l *FallbackClient) EthSubscribe(ctx context.Context, channel any, args ...
 	return subscribe, err
 }
 
+// switchCurrentRpc switches to the next rpc
 func (l *FallbackClient) switchCurrentRpc() {
 	if l.currentIndex >= len(l.urlList) {
 		l.log.Error("the fallback client has tried all urls, but all failed")
@@ -149,12 +163,11 @@ func (l *FallbackClient) switchCurrentRpc() {
 	}
 	l.mx.Lock()
 	defer l.mx.Unlock()
+	// double check to avoid switching to the next rpc at the same time
 	if l.lastMinuteFail.Load() <= threshold {
 		return
 	}
-	if l.metrics != nil {
-		l.metrics.RecordUrlSwitchEvt(strconv.Itoa(l.currentIndex))
-	}
+	// iterate through the urlList to find the next available rpc
 	for {
 		l.currentIndex++
 		if l.currentIndex >= len(l.urlList) {
@@ -165,6 +178,9 @@ func (l *FallbackClient) switchCurrentRpc() {
 		if err != nil {
 			l.log.Warn("the fallback client failed to switch the current client", "err", err)
 		} else {
+			if l.metrics != nil {
+				l.metrics.RecordUrlSwitchEvt(strconv.Itoa(l.currentIndex))
+			}
 			break
 		}
 	}
@@ -181,10 +197,13 @@ func (l *FallbackClient) switchCurrentRpcLogic() error {
 		return vErr
 	}
 	lastRpc := *l.currentRpc.Load()
+	// switch to the new rpc
 	l.currentRpc.Store(&newRpc)
+	// we don't close first rpc, the first rpc need to be recovered when it is healthy
 	if lastRpc != l.firstRpc {
 		lastRpc.Close()
 	}
+	// clear the number of errors in the last minute
 	l.lastMinuteFail.Store(0)
 	if l.subscribeFunc != nil {
 		err := l.reSubscribeNewRpc(url)
@@ -193,6 +212,7 @@ func (l *FallbackClient) switchCurrentRpcLogic() error {
 		}
 	}
 	l.log.Info("switched current rpc to new url", "url", url)
+	// start the process of recovering the first rpc if it has not been started
 	if !l.isInFallbackState {
 		l.isInFallbackState = true
 		l.recoverIfFirstRpcHealth()
@@ -200,6 +220,7 @@ func (l *FallbackClient) switchCurrentRpcLogic() error {
 	return nil
 }
 
+// reSubscribeNewRpc re-subscribe to the content subscribed by the previous rpc and unsubscribe the previous rpc
 func (l *FallbackClient) reSubscribeNewRpc(url string) error {
 	(*l.headsSub).Unsubscribe()
 	subscriptionNew, err := l.subscribeFunc()
@@ -212,11 +233,13 @@ func (l *FallbackClient) reSubscribeNewRpc(url string) error {
 	return nil
 }
 
+// recoverIfFirstRpcHealth recovers the first rpc if it is healthy
 func (l *FallbackClient) recoverIfFirstRpcHealth() {
 	go func() {
 		count := 0
 		for {
 			var id hexutil.Big
+			// use eth_chainId to check whether the first rpc is healthy
 			err := l.firstRpc.CallContext(l.ctx, &id, "eth_chainId")
 			if err != nil {
 				count = 0
@@ -224,12 +247,15 @@ func (l *FallbackClient) recoverIfFirstRpcHealth() {
 				continue
 			}
 			count++
+			// rpc is considered healthy if it succeeds in 3 consecutive requests.
 			if count >= 3 {
 				break
 			}
 		}
+		// lock to avoid switching to the next rpc at the same time
 		l.mx.Lock()
 		defer l.mx.Unlock()
+		// double check
 		if !l.isInFallbackState {
 			return
 		}
@@ -237,8 +263,10 @@ func (l *FallbackClient) recoverIfFirstRpcHealth() {
 		l.currentRpc.Store(&l.firstRpc)
 		lastRpc.Close()
 		l.lastMinuteFail.Store(0)
+		// go back to the first index
 		l.currentIndex = 0
 		l.isInFallbackState = false
+		// re-subscribe to the content subscribed by the previous rpc
 		if l.subscribeFunc != nil {
 			err := l.reSubscribeNewRpc(l.urlList[0])
 			if err != nil {
@@ -249,11 +277,14 @@ func (l *FallbackClient) recoverIfFirstRpcHealth() {
 	}()
 }
 
+// RegisterSubscribeFunc registers the function to be called when switching to the next rpc. It is not in the New
+// function because this process and creating the fallback client are in two different code locations.
 func (l *FallbackClient) RegisterSubscribeFunc(f func() (event.Subscription, error), headsSub *ethereum.Subscription) {
 	l.subscribeFunc = f
 	l.headsSub = headsSub
 }
 
+// validateRpc checks whether the newly switched rpc is legal.
 func (l *FallbackClient) validateRpc(newRpc client.RPC) error {
 	chainID, err := l.ChainID(l.ctx, newRpc)
 	if err != nil {
@@ -290,6 +321,7 @@ func (l *FallbackClient) blockRefByNumber(ctx context.Context, number uint64, ne
 	return header, nil
 }
 
+// RegisterMetrics registers the metricer to record the url switch event
 func (l *FallbackClient) RegisterMetrics(metrics FallbackClientMetricer) {
 	l.metrics = metrics
 }
