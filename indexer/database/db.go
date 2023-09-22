@@ -38,7 +38,10 @@ type DB struct {
 func NewDB(dbConfig config.DBConfig) (*DB, error) {
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 
-	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
+	if dbConfig.Port != 0 {
+		dsn += fmt.Sprintf(" port=%d", dbConfig.Port)
+	}
 	if dbConfig.User != "" {
 		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
 	}
