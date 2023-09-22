@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"golang.org/x/exp/maps"
 	"os"
 	"slices"
+
+	"golang.org/x/exp/maps"
+
 	//"strings"
 
 	"github.com/ethereum/go-ethereum/ethclient"
