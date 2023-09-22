@@ -29,9 +29,6 @@ contract SuperchainConfig is Initializable, ISemver {
         REMOVE_SEQUENCER
     }
 
-    /// @notice Event version identifier.
-    uint256 public constant VERSION = 0;
-
     /// @notice The address of the systemOwner who may trigger an upgrade or change to critical config values.
     ///         This will be a DelayedVetoable contract.
     ///         It can only be modified by an upgrade.
@@ -70,10 +67,9 @@ contract SuperchainConfig is Initializable, ISemver {
     event Unpaused();
 
     /// @notice Emitted when configuration is updated.
-    /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
-    event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
+    event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -154,7 +150,7 @@ contract SuperchainConfig is Initializable, ISemver {
         bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
 
         allowedSequencers[sequencerHash] = true;
-        emit ConfigUpdate(VERSION, UpdateType.ADD_SEQUENCER, abi.encode(_sequencer));
+        emit ConfigUpdate(UpdateType.ADD_SEQUENCER, abi.encode(_sequencer));
     }
 
     /// @notice Removes a sequencer from the allowed list.
@@ -165,6 +161,6 @@ contract SuperchainConfig is Initializable, ISemver {
         bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
 
         delete allowedSequencers[sequencerHash];
-        emit ConfigUpdate(VERSION, UpdateType.REMOVE_SEQUENCER, abi.encode(_sequencer));
+        emit ConfigUpdate(UpdateType.REMOVE_SEQUENCER, abi.encode(_sequencer));
     }
 }

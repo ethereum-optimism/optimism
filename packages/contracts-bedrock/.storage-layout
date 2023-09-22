@@ -71,8 +71,7 @@
 | spacer_53_0_1        | bool                                                       | 53   | 0      | 1     | src/L1/OptimismPortal.sol:OptimismPortal |
 | l2Oracle             | contract L2OutputOracle                                    | 53   | 1      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 | systemConfig         | contract SystemConfig                                      | 54   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
-| spacer_55_0_20       | address                                                    | 55   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
-| superchainConfig     | contract SuperchainConfig                                  | 56   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
+| superchainConfig     | contract SuperchainConfig                                  | 55   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 
 =======================
 ➡ src/L1/SystemConfig.sol:SystemConfig
@@ -101,15 +100,13 @@
 |-------------------|--------------------------|------|--------|-------|----------------------------------------------|
 | _initialized      | uint8                    | 0    | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
 | _initializing     | bool                     | 0    | 1      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| __gap             | uint256[50]              | 1    | 0      | 1600  | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| _owner            | address                  | 51   | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| __gap             | uint256[49]              | 52   | 0      | 1568  | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| initiator         | address                  | 101  | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| vetoer            | address                  | 102  | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| guardian          | address                  | 103  | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| delay             | uint256                  | 104  | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| paused            | bool                     | 105  | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
-| allowedSequencers | mapping(bytes32 => bool) | 106  | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| systemOwner       | address                  | 0    | 2      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| initiator         | address                  | 1    | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| vetoer            | address                  | 2    | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| guardian          | address                  | 3    | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| delay             | uint256                  | 4    | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| paused            | bool                     | 5    | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| allowedSequencers | mapping(bytes32 => bool) | 6    | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
 
 =======================
 ➡ src/legacy/DeployerWhitelist.sol:DeployerWhitelist

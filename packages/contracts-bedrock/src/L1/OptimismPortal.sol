@@ -60,13 +60,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:network-specific
     SystemConfig public systemConfig;
 
-    /// @custom:legacy
-    /// @custom:spacer guardian
-    /// @custom:network-specific
-    // Note: I'm using a spacer for now, but IMO we should just overwrite it with the superchainconfig address.
-    address private spacer_55_0_20;
-
     /// @notice Address of the SuperchainConfig contract.
+    /// @custom:legacy-overwrite guardian
     /// @custom:network-specific
     SuperchainConfig public superchainConfig;
 
@@ -126,10 +121,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Sender = Constants.DEFAULT_L2_SENDER;
         l2Oracle = _l2Oracle;
         systemConfig = _systemConfig;
-        superchainConfig = _superchainConfig;
 
-        // zero out the unused slots
-        spacer_55_0_20 = address(0);
+        // For a system being upgraded, this will overwrite the guardian address
+        // with a new superchaiConfig contract address. This is OK because the guardian address is
+        // no longer stored here, and it saves us from having to keep an additional spacer around.
+        superchainConfig = _superchainConfig;
         __ResourceMetering_init();
     }
 

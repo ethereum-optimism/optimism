@@ -87,7 +87,7 @@ contract SuperchainConfig_AddSequencer_Test is SuperchainConfig_Initializer {
     function testFuzz_addSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
         // Add to the allowed sequencers list
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SuperchainConfig.UpdateType.ADD_SEQUENCER, abi.encode(sequencer));
+        emit ConfigUpdate(SuperchainConfig.UpdateType.ADD_SEQUENCER, abi.encode(sequencer));
 
         vm.prank(supConf.initiator());
         supConf.addSequencer(sequencer);
@@ -109,7 +109,7 @@ contract SuperchainConfig_RemoveSequencer_Test is SuperchainConfig_Initializer {
     function testFuzz_removeSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
         // Remove from the allowed sequencers list
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SuperchainConfig.UpdateType.REMOVE_SEQUENCER, abi.encode(sequencer));
+        emit ConfigUpdate(SuperchainConfig.UpdateType.REMOVE_SEQUENCER, abi.encode(sequencer));
 
         vm.prank(supConf.systemOwner());
         supConf.removeSequencer(sequencer);
