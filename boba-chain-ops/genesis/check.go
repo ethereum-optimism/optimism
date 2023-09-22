@@ -198,6 +198,9 @@ func PostCheckMigratedDB(
 // legacy proxy slots. This is because the legacy slots are affected by the migration process.
 func PostCheckBobaProxyContracts(g *types.Genesis) error {
 	for addr := range BobaUntouchablePredeploys {
+		if addr == predeploys.BobaTuringCreditAddr {
+			addr = predeploys.BobaLegacyTuringCreditAddr
+		}
 		for key, val := range g.Alloc[addr].Storage {
 			if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
 				continue

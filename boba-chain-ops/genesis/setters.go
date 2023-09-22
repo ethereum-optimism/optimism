@@ -69,12 +69,8 @@ func RetrieveLegacyTuringCredit(g *types.Genesis) map[common.Hash]common.Hash {
 	for k, v := range g.Alloc[predeploys.BobaLegacyTuringCreditAddr].Storage {
 		storage[k] = v
 	}
-	if _, ok := storage[ether.BobaLegacyProxyImplementationSlot]; ok {
-		delete(storage, ether.BobaLegacyProxyImplementationSlot)
-	}
-	if _, ok := storage[ether.BobaLegacyProxyOwnerSlot]; ok {
-		delete(storage, ether.BobaLegacyProxyOwnerSlot)
-	}
+	delete(storage, ether.BobaLegacyProxyImplementationSlot)
+	delete(storage, ether.BobaLegacyProxyOwnerSlot)
 	return storage
 }
 
