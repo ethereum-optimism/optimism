@@ -81,7 +81,9 @@ func initialize(binPath string, config external.Config) error {
 		"init", config.GenesisPath,
 	)
 	if err := cmd.Run(); err != nil {
-		cmd.Process.Kill()
+		if err := cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("could not kill process: %w", err)
+		}
 		return err
 	}
 	return nil
