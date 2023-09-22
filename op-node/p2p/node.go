@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/libp2p/go-libp2p/core/event"
 	"net"
 	"strconv"
 	"time"
@@ -107,14 +108,20 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() {
 			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
-			n.host.Network().Notify(&network.NotifyBundle{
-				ConnectedF: func(nw network.Network, conn network.Conn) {
-					n.syncCl.AddPeer(conn.RemotePeer())
-				},
-				DisconnectedF: func(nw network.Network, conn network.Conn) {
-					n.syncCl.RemovePeer(conn.RemotePeer())
-				},
-			})
+			subscribe, err := n.host.EventBus().Subscribe(&event.EvtPeerConnectednessChanged{})
+			if err != nil {
+				return fmt.Errorf("failed to subscribe peer connectedness changed event: %w", err)
+			}
+			go func() {
+				for evt := range subscribe.Out() {
+					evto := evt.(event.EvtPeerConnectednessChanged)
+					if evto.Connectedness == network.Connected {
+						n.syncCl.AddPeer(evto.Peer)
+					} else if evto.Connectedness == network.NotConnected {
+						n.syncCl.RemovePeer(evto.Peer)
+					}
+				}
+			}()
 			n.syncCl.Start()
 			// the host may already be connected to peers, add them all to the sync client
 			for _, peerID := range n.host.Network().Peers() {
