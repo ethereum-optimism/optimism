@@ -136,7 +136,7 @@ func TestUpdateState(t *testing.T) {
 	require.Equal(t, []byte{1}, statedb.GetCode(codeAccount))
 
 	// Changes should be available under the new state root after committing
-	newRoot, err := statedb.Commit(false)
+	newRoot, err := statedb.Commit(genesisBlock.NumberU64()+1, false)
 	require.NoError(t, err)
 	err = statedb.Database().TrieDB().Commit(newRoot, true)
 	require.NoError(t, err)
