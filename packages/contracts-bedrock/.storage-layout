@@ -68,28 +68,30 @@
 | l2Sender             | address                                                    | 50   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 | finalizedWithdrawals | mapping(bytes32 => bool)                                   | 51   | 0      | 32    | src/L1/OptimismPortal.sol:OptimismPortal |
 | provenWithdrawals    | mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal) | 52   | 0      | 32    | src/L1/OptimismPortal.sol:OptimismPortal |
-| paused               | bool                                                       | 53   | 0      | 1     | src/L1/OptimismPortal.sol:OptimismPortal |
+| spacer_53_0_1        | bool                                                       | 53   | 0      | 1     | src/L1/OptimismPortal.sol:OptimismPortal |
 | l2Oracle             | contract L2OutputOracle                                    | 53   | 1      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 | systemConfig         | contract SystemConfig                                      | 54   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
-| guardian             | address                                                    | 55   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
+| spacer_55_0_20       | address                                                    | 55   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
+| superchainConfig     | contract SuperchainConfig                                  | 56   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 
 =======================
 ➡ src/L1/SystemConfig.sol:SystemConfig
 =======================
 
-| Name            | Type                                   | Slot | Offset | Bytes | Contract                             |
-|-----------------|----------------------------------------|------|--------|-------|--------------------------------------|
-| _initialized    | uint8                                  | 0    | 0      | 1     | src/L1/SystemConfig.sol:SystemConfig |
-| _initializing   | bool                                   | 0    | 1      | 1     | src/L1/SystemConfig.sol:SystemConfig |
-| __gap           | uint256[50]                            | 1    | 0      | 1600  | src/L1/SystemConfig.sol:SystemConfig |
-| _owner          | address                                | 51   | 0      | 20    | src/L1/SystemConfig.sol:SystemConfig |
-| __gap           | uint256[49]                            | 52   | 0      | 1568  | src/L1/SystemConfig.sol:SystemConfig |
-| overhead        | uint256                                | 101  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
-| scalar          | uint256                                | 102  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
-| batcherHash     | bytes32                                | 103  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
-| gasLimit        | uint64                                 | 104  | 0      | 8     | src/L1/SystemConfig.sol:SystemConfig |
-| _resourceConfig | struct ResourceMetering.ResourceConfig | 105  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
-| startBlock      | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| Name             | Type                                   | Slot | Offset | Bytes | Contract                             |
+|------------------|----------------------------------------|------|--------|-------|--------------------------------------|
+| _initialized     | uint8                                  | 0    | 0      | 1     | src/L1/SystemConfig.sol:SystemConfig |
+| _initializing    | bool                                   | 0    | 1      | 1     | src/L1/SystemConfig.sol:SystemConfig |
+| __gap            | uint256[50]                            | 1    | 0      | 1600  | src/L1/SystemConfig.sol:SystemConfig |
+| _owner           | address                                | 51   | 0      | 20    | src/L1/SystemConfig.sol:SystemConfig |
+| __gap            | uint256[49]                            | 52   | 0      | 1568  | src/L1/SystemConfig.sol:SystemConfig |
+| overhead         | uint256                                | 101  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| scalar           | uint256                                | 102  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| batcherHash      | bytes32                                | 103  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| gasLimit         | uint64                                 | 104  | 0      | 8     | src/L1/SystemConfig.sol:SystemConfig |
+| _resourceConfig  | struct ResourceMetering.ResourceConfig | 105  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| startBlock       | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| superchainConfig | contract SuperchainConfig              | 107  | 0      | 20    | src/L1/SystemConfig.sol:SystemConfig |
 
 =======================
 ➡ src/L1/SuperchainConfig.sol:SuperchainConfig

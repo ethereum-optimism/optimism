@@ -2,10 +2,11 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { SystemConfig } from "../../src/L1/SystemConfig.sol";
-import { Proxy } from "../../src/universal/Proxy.sol";
-import { ResourceMetering } from "../../src/L1/ResourceMetering.sol";
-import { Constants } from "../../src/libraries/Constants.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
@@ -21,6 +22,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                 configImpl.initialize,
                 (
                     address(0xbeef), // owner
+                    SuperchainConfig(address(0)), // _superchainConfig
                     2100, // overhead
                     1000000, // scalar
                     bytes32(hex"abcd"), // batcher hash

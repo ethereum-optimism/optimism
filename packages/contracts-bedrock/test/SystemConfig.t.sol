@@ -5,14 +5,15 @@ pragma solidity 0.8.15;
 import { SystemConfig_Initializer } from "./CommonTest.t.sol";
 
 // Libraries
-import { Constants } from "../src/libraries/Constants.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
     /// @dev Tests that initailization sets the correct values.
@@ -62,6 +63,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    supConf, // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -108,6 +110,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    supConf, // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -147,6 +150,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    supConf, // _superchainConfig
                     2100, // _overhead,
                     1000000, // _scalar,
                     bytes32(hex"abcd"), // _batcherHash,

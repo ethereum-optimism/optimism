@@ -2,8 +2,11 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -89,18 +92,22 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     ResourceMetering.ResourceConfig internal _resourceConfig;
 
+    /// @notice The block at which the op-node can start searching for logs from.
+    uint256 public startBlock;
+
+    /// @notice SuperchainConfig address
+    ///         This can only be set via upgrade.
+    SuperchainConfig public superchainConfig;
+
+    /// @notice Semantic version.
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
-
-    /// @notice The block at which the op-node can start searching for logs from.
-    uint256 public startBlock;
-
-    /// @notice Semantic version.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -108,6 +115,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     constructor() {
         initialize({
             _owner: address(0xdEaD),
+            _superchainConfig: SuperchainConfig(address(0)),
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(0),
@@ -137,6 +145,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
     /// @param _owner             Initial owner of the contract.
+    /// @param _superchainConfig  Initial superchainConfig address.
     /// @param _overhead          Initial overhead value.
     /// @param _scalar            Initial scalar value.
     /// @param _batcherHash       Initial batcher hash.
@@ -152,6 +161,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
+        SuperchainConfig _superchainConfig,
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
@@ -167,6 +177,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     {
         __Ownable_init();
         transferOwnership(_owner);
+        superchainConfig = _superchainConfig;
 
         // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
@@ -286,9 +297,16 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
-    /// @param _unsafeBlockSigner New unsafe block signer address.
-    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
-        _setUnsafeBlockSigner(_unsafeBlockSigner);
+    /// @param _sequencer New sequencer key.
+    function setSequencer(Types.SequencerKeys calldata _sequencer) external onlyOwner {
+        _setUnsafeBlockSigner(_sequencer.unsafeBlockSigner);
+        _setBatcherHash(_sequencer.batcherHash);
+
+        bytes32 seqHash = Hashing.hashSequencerKeys(_sequencer);
+        require(
+            superchainConfig.allowedSequencers(seqHash),
+            "SystemConfig: Sequencer hash not found in Superchain allow list"
+        );
     }
 
     /// @notice Updates the unsafe block signer address.
@@ -298,12 +316,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
-    }
-
-    /// @notice Updates the batcher hash. Can only be called by the owner.
-    /// @param _batcherHash New batcher hash.
-    function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
-        _setBatcherHash(_batcherHash);
     }
 
     /// @notice Internal function for updating the batcher hash.

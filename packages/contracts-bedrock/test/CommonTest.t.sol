@@ -233,6 +233,7 @@ contract SystemConfig_Initializer is SuperchainConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    supConf, // superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -273,7 +274,7 @@ contract Portal_Initializer is SystemConfig_Initializer {
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
-            address(opImpl), abi.encodeCall(OptimismPortal.initialize, (oracle, guardian, sysConf, false))
+            address(opImpl), abi.encodeCall(OptimismPortal.initialize, (oracle, sysConf, supConf))
         );
         op = OptimismPortal(payable(address(proxy)));
         vm.label(address(op), "OptimismPortal");
