@@ -561,4 +561,22 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             hex"1111"
         );
     }
+
+    /// @dev Tests that relayMessage cannot be called when the system is paused.
+    function test_relayMessage_systemPaused_reverts() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+
+        vm.expectRevert("L1CrossDomainMessenger: system is paused");
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            hex"1111"
+        );
+    }
 }

@@ -173,6 +173,57 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
     }
 }
 
+contract OptimismPortal_CannotProveWhenPaused is OptimismPortal_Invariant_Harness {
+    function setUp() public override {
+        super.setUp();
+
+        // Set the target contract to the portal proxy
+        targetContract(address(op));
+        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
+        excludeSender(address(multisig));
+
+        // Pause the system
+        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+    }
+
+    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
+    ///                   period has not elapsed.
+    ///
+    ///                   A withdrawal that has been proven should not be able to be finalized
+    ///                   until after the finalization period has elapsed.
+    function invariant_cannotFinalizeWhenPaused() external {
+        vm.expectRevert("OptimismPortal: paused");
+        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+    }
+}
+
+contract OptimismPortal_CannotFinalizeWhenPaused is OptimismPortal_Invariant_Harness {
+    function setUp() public override {
+        super.setUp();
+
+        // Prove the withdrawal transaction
+        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+
+        // Set the target contract to the portal proxy
+        targetContract(address(op));
+        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
+        excludeSender(address(multisig));
+
+        // Pause the system
+        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+    }
+
+    /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
+    ///                   period has not elapsed.
+    ///
+    ///                   A withdrawal that has been proven should not be able to be finalized
+    ///                   until after the finalization period has elapsed.
+    function invariant_cannotFinalizeWhenPaused() external {
+        vm.expectRevert("OptimismPortal: paused");
+        op.finalizeWithdrawalTransaction(_defaultTx);
+    }
+}
+
 contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness {
     function setUp() public override {
         super.setUp();

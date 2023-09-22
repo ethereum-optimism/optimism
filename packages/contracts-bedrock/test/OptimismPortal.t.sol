@@ -20,13 +20,12 @@ import { SuperchainConfig } from "../src/L1/SuperchainConfig.sol";
 // Target contract
 import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
 
-// todo(maurelian): restore some pause testing here
 contract OptimismPortal_Pausability_Test is Portal_Initializer {
     /// @dev Tests that the Portal returns the correct paused value from the superchainConfig.
     function test_paused_succeeds() external {
         vm.prank(guardian);
         supConf.pause();
-        assertEq(op.paused(), supConf.paused());
+        assertTrue(op.paused());
     }
 }
 
@@ -834,6 +833,13 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
         op.finalizeWithdrawalTransaction(_tx);
         assertTrue(op.finalizedWithdrawals(withdrawalHash));
+    }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts when the system is paused.
+    function test_finalizeWithdrawalTransaction_systemPaused_reverts() external {
+        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+        vm.expectRevert("OptimismPortal: paused");
+        op.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
 

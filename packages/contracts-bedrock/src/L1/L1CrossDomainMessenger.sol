@@ -53,4 +53,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
         return _target == address(this) || _target == address(PORTAL);
     }
+
+    /// @inheritdoc CrossDomainMessenger
+    function paused() public view override returns (bool) {
+        return PORTAL.paused();
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function _revertWhenPaused() internal view override {
+        if (paused()) {
+            revert("L1CrossDomainMessenger: system is paused");
+        }
+    }
 }
