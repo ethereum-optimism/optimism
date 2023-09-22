@@ -63,20 +63,20 @@ func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	limit, err := h.v.ValidateLimit(limitQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.Logger.Error("Invalid limit param", "param", limitQuery)
-		h.Logger.Error(err.Error())
+		h.logger.Error("Invalid limit param", "param", limitQuery)
+		h.logger.Error(err.Error())
 		return
 	}
 
-	deposits, err := h.BridgeTransfersView.L1BridgeDepositsByAddress(address, cursor, limit)
+	deposits, err := h.view.L1BridgeDepositsByAddress(address, cursor, limit)
 	if err != nil {
 		http.Error(w, "Internal server error reading deposits", http.StatusInternalServerError)
-		h.Logger.Error("Unable to read deposits from DB")
-		h.Logger.Error(err.Error())
+		h.logger.Error("Unable to read deposits from DB")
+		h.logger.Error(err.Error())
 		return
 	}
 
 	response := newDepositResponse(deposits)
 
-	jsonResponse(w, h.Logger, response, http.StatusOK)
+	jsonResponse(w, h.logger, response, http.StatusOK)
 }

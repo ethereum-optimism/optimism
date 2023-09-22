@@ -63,19 +63,19 @@ func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	limit, err := h.v.ValidateLimit(limitQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.Logger.Error("Invalid query params")
-		h.Logger.Error(err.Error())
+		h.logger.Error("Invalid query params")
+		h.logger.Error(err.Error())
 		return
 	}
 
-	withdrawals, err := h.BridgeTransfersView.L2BridgeWithdrawalsByAddress(address, cursor, limit)
+	withdrawals, err := h.view.L2BridgeWithdrawalsByAddress(address, cursor, limit)
 	if err != nil {
 		http.Error(w, "Internal server error reading withdrawals", http.StatusInternalServerError)
-		h.Logger.Error("Unable to read withdrawals from DB")
-		h.Logger.Error(err.Error())
+		h.logger.Error("Unable to read withdrawals from DB")
+		h.logger.Error(err.Error())
 		return
 	}
 	response := newWithdrawalResponse(withdrawals)
 
-	jsonResponse(w, h.Logger, response, http.StatusOK)
+	jsonResponse(w, h.logger, response, http.StatusOK)
 }
