@@ -14,6 +14,7 @@ MIN_VERSIONS = {
     'indexer': '0.5.0',
     'op-node': '0.10.14',
     'op-batcher': '0.10.14',
+    'op-challenger': '0.0.4',
     'op-proposer': '0.10.14',
     'op-ufm': '0.1.0',
     'proxyd': '3.16.0'

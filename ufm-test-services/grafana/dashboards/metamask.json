@@ -90,7 +90,7 @@
           "useBackend": false
         }
       ],
-      "title": "Number of Successful Transaction Since Last Failure",
+      "title": "Successful Transaction Since Last Failure",
       "type": "gauge"
     },
     {
@@ -158,7 +158,7 @@
           "useBackend": false
         }
       ],
-      "title": "Number of Failed Transactions Since Last Success",
+      "title": "Failed Transactions Since Last Success",
       "type": "gauge"
     }
   ],

@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	//nolint:all
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/log"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
 	"github.com/stretchr/testify/require"
 )
 
