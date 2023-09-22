@@ -7,6 +7,7 @@ import { SystemConfig_Initializer } from "./CommonTest.t.sol";
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Target contract dependencies
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -348,5 +349,46 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
         vm.prank(sysConf.owner());
         sysConf.setGasLimit(newGasLimit);
         assertEq(sysConf.gasLimit(), newGasLimit);
+    }
+}
+
+
+contract SystemConfig_CheckSequencer_Test is SystemConfig_Initializer {
+    /// @dev Tests that `checkSequencer` successfully removes a sequencer if it's not in the allow list.
+    function test_checkSequencer_succeeds() external {
+        Types.SequencerKeys memory sequencer = Types.SequencerKeys({
+            unsafeBlockSigner: address(0),
+            batcherHash: bytes32(0)
+        });
+        bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
+        assertFalse(supConf.allowedSequencers(seqHash));
+
+        sysConf.checkSequencer();
+
+        assertEq(sysConf.unsafeBlockSigner(), address(0));
+        assertEq(sysConf.batcherHash(), bytes32(0));
+    }
+}
+
+contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
+    /// @dev Tests that `checkSequencer` reverts if the sequencer is in the allow list.
+    function test_checkSequencer_reverts() external {
+        Types.SequencerKeys memory sequencer = Types.SequencerKeys({
+            unsafeBlockSigner: makeAddr('someUnsafeBlockSigner'),
+            batcherHash: bytes32(0)
+        });
+        bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
+
+        // Add a new allowed sequencer
+        vm.prank(supConf.initiator());
+        supConf.addSequencer(sequencer);
+        assertTrue(supConf.allowedSequencers(seqHash));
+
+        // Set that as the system's sequencer
+        vm.prank(sysConf.owner());
+        sysConf.setSequencer(sequencer);
+
+        vm.expectRevert("SystemConfig: cannot remove allowed sequencer.");
+        sysConf.checkSequencer();
     }
 }

@@ -214,7 +214,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         key corresponding to this address.
     /// @return addr_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address addr_) {
+    function unsafeBlockSigner() public view returns (address addr_) {
         addr_ = _getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }
 
@@ -307,6 +307,21 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             superchainConfig.allowedSequencers(seqHash),
             "SystemConfig: Sequencer hash not found in Superchain allow list"
         );
+    }
+
+    /// @notice Checks the SuperchainConfig's allow list for the current sequencer. If it is not allowed,
+    ///         the sequencer is removed. Anyone may call this function.
+    function checkSequencer() external {
+        Types.SequencerKeys memory sequencer = Types.SequencerKeys({
+            unsafeBlockSigner: unsafeBlockSigner(),
+            batcherHash: batcherHash
+        });
+        bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
+        if(superchainConfig.allowedSequencers(seqHash)) {
+            revert("SystemConfig: cannot remove allowed sequencer.");
+        }
+        _setUnsafeBlockSigner(address(0));
+        _setBatcherHash(bytes32(0));
     }
 
     /// @notice Updates the unsafe block signer address.

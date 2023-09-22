@@ -117,5 +117,3 @@ contract SuperchainConfig_RemoveSequencer_Test is SuperchainConfig_Initializer {
         assertFalse(supConf.allowedSequencers(sequencerHash));
     }
 }
-
-

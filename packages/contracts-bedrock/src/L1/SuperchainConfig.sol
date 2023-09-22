@@ -130,6 +130,7 @@ contract SuperchainConfig is Initializable, ISemver {
     }
 
     /// @notice Unpauses withdrawals.
+    // todo(maurelian): Check this, but I think it should be the initiator (security council)?
     function unpause() external {
         require(msg.sender == guardian, "SuperchainConfig: only guardian can unpause");
         paused = false;
