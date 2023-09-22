@@ -15,11 +15,16 @@ type SchedulerMetricer interface {
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 	RecordGameUpdateScheduled()
 	RecordGameUpdateCompleted()
+	IncActiveExecutors()
+	DecActiveExecutors()
+	IncIdleExecutors()
+	DecIdleExecutors()
 }
 
 type Scheduler struct {
 	logger         log.Logger
 	coordinator    *coordinator
+	m              SchedulerMetricer
 	maxConcurrency uint
 	scheduleQueue  chan []common.Address
 	jobQueue       chan job
@@ -40,6 +45,7 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 
 	return &Scheduler{
 		logger:         logger,
+		m:              m,
 		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk),
 		maxConcurrency: maxConcurrency,
 		scheduleQueue:  scheduleQueue,
@@ -48,13 +54,24 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 	}
 }
 
+func (s *Scheduler) ThreadActive() {
+	s.m.IncActiveExecutors()
+	s.m.DecIdleExecutors()
+}
+
+func (s *Scheduler) ThreadIdle() {
+	s.m.IncIdleExecutors()
+	s.m.DecActiveExecutors()
+}
+
 func (s *Scheduler) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
 	for i := uint(0); i < s.maxConcurrency; i++ {
+		s.m.IncIdleExecutors()
 		s.wg.Add(1)
-		go progressGames(ctx, s.jobQueue, s.resultQueue, &s.wg)
+		go progressGames(ctx, s.jobQueue, s.resultQueue, &s.wg, s.ThreadActive, s.ThreadIdle)
 	}
 
 	s.wg.Add(1)

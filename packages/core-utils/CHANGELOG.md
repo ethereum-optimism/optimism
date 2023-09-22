@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.13.0
+
+### Minor Changes
+
+- [#7336](https://github.com/ethereum-optimism/optimism/pull/7336) [`210b2c81d`](https://github.com/ethereum-optimism/optimism/commit/210b2c81dd383bad93480aa876b283d9a0c991c2) Thanks [@tynes](https://github.com/tynes)! - Delete unmaintained geth types
+
 ## 0.12.3
 
 ### Patch Changes
