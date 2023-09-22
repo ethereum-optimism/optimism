@@ -41,7 +41,9 @@ contract SemverLock is Script {
             // Handle the case where there are multiple artifacts for a contract. This happens
             // when the same contract is compiled with multiple compiler versions.
             string memory contractArtifactDir = string.concat(artifactsDir, "/", contractName, ".sol");
-            commands[2] = string.concat("ls -1 --color=never ", contractArtifactDir, " | jq -R -s -c 'split(\"\n\") | map(select(length > 0))'");
+            commands[2] = string.concat(
+                "ls -1 --color=never ", contractArtifactDir, " | jq -R -s -c 'split(\"\n\") | map(select(length > 0))'"
+            );
             string memory artifactFiles = string(vm.ffi(commands));
 
             string[] memory files = stdJson.readStringArray(artifactFiles, "");
@@ -49,8 +51,7 @@ contract SemverLock is Script {
             string memory fileName = files[0];
 
             // Parse the artifact to get the contract's initcode hash.
-            bytes memory initCode =
-                vm.getCode(string.concat(artifactsDir, "/", contractName, ".sol/", fileName));
+            bytes memory initCode = vm.getCode(string.concat(artifactsDir, "/", contractName, ".sol/", fileName));
 
             // Serialize the source hash in JSON.
             string memory j = vm.serializeBytes32(out, _files[i], keccak256(abi.encodePacked(fileContents, initCode)));
