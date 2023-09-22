@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -68,7 +68,7 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 		return nil, fmt.Errorf("get parent state: %w", err)
 	}
 	header.Number = new(big.Int).Add(parentHeader.Number, common.Big1)
-	header.BaseFee = misc.CalcBaseFee(provider.Config(), parentHeader)
+	header.BaseFee = eip1559.CalcBaseFee(provider.Config(), parentHeader)
 	header.GasUsed = 0
 	gasPool := new(core.GasPool).AddGas(header.GasLimit)
 	return &BlockProcessor{
@@ -107,7 +107,7 @@ func (b *BlockProcessor) Assemble() (*types.Block, error) {
 }
 
 func (b *BlockProcessor) Commit() error {
-	root, err := b.state.Commit(b.dataProvider.Config().IsEIP158(b.header.Number))
+	root, err := b.state.Commit(b.header.Number.Uint64(), b.dataProvider.Config().IsEIP158(b.header.Number))
 	if err != nil {
 		return fmt.Errorf("state write error: %w", err)
 	}

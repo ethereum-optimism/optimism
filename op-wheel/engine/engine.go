@@ -296,7 +296,7 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 	if err != nil {
 		return err
 	}
-	payloadEnv := engine.BlockToExecutableData(copyHead, nil)
+	payloadEnv := engine.BlockToExecutableData(copyHead, nil, nil, nil, nil)
 	if err := updateForkchoice(ctx, copyTo, copyHead.ParentHash(), copySafe.Hash(), copyFinalized.Hash()); err != nil {
 		return err
 	}
