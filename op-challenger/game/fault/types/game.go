@@ -38,44 +38,37 @@ type Game interface {
 	MaxDepth() uint64
 }
 
-type claimEntry struct {
-	GIndex              uint64
-	Value               common.Hash
-	ParentContractIndex int
-}
-
 type extendedClaim struct {
 	self     Claim
-	children []claimEntry
+	children []common.Hash
 }
 
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
 	agreeWithProposedOutput bool
-	root                    claimEntry
+	root                    common.Hash
 	// contractIndicies maps a contract index to it's extended claim.
 	// This is used to perform O(1) parent lookups.
 	contractIndicies map[int]*extendedClaim
 	// claims maps a claim entry to it's extended claim.
-	claims map[claimEntry]*extendedClaim
+	claims map[common.Hash]*extendedClaim
 	depth  uint64
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameState {
-	claims := make(map[claimEntry]*extendedClaim)
+	claims := make(map[common.Hash]*extendedClaim)
 	parents := make(map[int]*extendedClaim)
-	rootClaimEntry := makeClaimEntry(root)
-	claims[rootClaimEntry] = &extendedClaim{
+	claims[root.Entry()] = &extendedClaim{
 		self:     root,
-		children: make([]claimEntry, 0),
+		children: make([]common.Hash, 0),
 	}
-	parents[root.ContractIndex] = claims[rootClaimEntry]
+	parents[root.ContractIndex] = claims[root.Entry()]
 	return &gameState{
 		agreeWithProposedOutput: agreeWithProposedOutput,
-		root:                    rootClaimEntry,
+		root:                    root.Entry(),
 		claims:                  claims,
 		contractIndicies:        parents,
 		depth:                   depth,
@@ -115,28 +108,28 @@ func (g *gameState) Put(claim Claim) error {
 	if parent == nil {
 		return errors.New("no parent claim")
 	}
-	parent.children = append(parent.children, makeClaimEntry(claim))
+	parent.children = append(parent.children, claim.Entry())
 	claimWithExtension := &extendedClaim{
 		self:     claim,
-		children: make([]claimEntry, 0),
+		children: make([]common.Hash, 0),
 	}
-	g.claims[makeClaimEntry(claim)] = claimWithExtension
+	g.claims[claim.Entry()] = claimWithExtension
 	g.contractIndicies[claim.ContractIndex] = claimWithExtension
 	return nil
 }
 
 func (g *gameState) IsDuplicate(claim Claim) bool {
-	_, ok := g.claims[makeClaimEntry(claim)]
+	_, ok := g.claims[claim.Entry()]
 	return ok
 }
 
 func (g *gameState) Claims() []Claim {
-	queue := []claimEntry{g.root}
+	queue := []common.Hash{g.root}
 	var out []Claim
 	for len(queue) > 0 {
 		item := queue[0]
 		queue = queue[1:]
-		queue = append(queue, g.getChildren(item)...)
+		queue = append(queue, g.claims[item].children...)
 		out = append(out, g.claims[item].self)
 	}
 	return out
@@ -144,10 +137,6 @@ func (g *gameState) Claims() []Claim {
 
 func (g *gameState) MaxDepth() uint64 {
 	return g.depth
-}
-
-func (g *gameState) getChildren(c claimEntry) []claimEntry {
-	return g.claims[c].children
 }
 
 func (g *gameState) GetParent(claim Claim) (Claim, error) {
@@ -166,12 +155,4 @@ func (g *gameState) getParent(claim Claim) *extendedClaim {
 		return parent
 	}
 	return nil
-}
-
-func makeClaimEntry(claim Claim) claimEntry {
-	return claimEntry{
-		GIndex:              claim.ToGIndex().Uint64(),
-		Value:               claim.Value,
-		ParentContractIndex: claim.ParentContractIndex,
-	}
 }

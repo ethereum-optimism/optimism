@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
@@ -109,6 +110,14 @@ type Claim struct {
 	// for claims that have not made it to the contract.
 	ContractIndex       int
 	ParentContractIndex int
+}
+
+// Entry creates a hash of the claim.
+func (c *Claim) Entry() common.Hash {
+	gindex := c.ToGIndex().Bytes()
+	valueBytes := c.Value.Bytes()
+	parentContractIndex := big.NewInt(int64(c.ParentContractIndex)).Bytes()
+	return common.Hash(crypto.Keccak256(append(gindex, append(valueBytes, parentContractIndex...)...)))
 }
 
 // IsRoot returns true if this claim is the root claim.

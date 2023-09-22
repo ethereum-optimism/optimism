@@ -3,6 +3,7 @@ package types
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,4 +109,36 @@ func TestDefendsParent(t *testing.T) {
 			require.Equal(t, test.expected, test.claim.DefendsParent())
 		})
 	}
+}
+
+func TestEntry(t *testing.T) {
+	defaultClaim := Claim{
+		ClaimData: ClaimData{
+			Value:    common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+			Position: NewPositionFromGIndex(1),
+		},
+		ParentContractIndex: 2,
+	}
+
+	t.Run("EntriesAreEqual", func(t *testing.T) {
+		require.Equal(t, defaultClaim.Entry(), defaultClaim.Entry())
+	})
+
+	t.Run("DifferentParentContractIndices", func(t *testing.T) {
+		modified := defaultClaim
+		modified.ParentContractIndex = 3
+		require.NotEqual(t, defaultClaim.Entry(), modified.Entry())
+	})
+
+	t.Run("DifferentValues", func(t *testing.T) {
+		modified := defaultClaim
+		modified.Value = common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+		require.NotEqual(t, defaultClaim.Entry(), modified.Entry())
+	})
+
+	t.Run("DifferentPositions", func(t *testing.T) {
+		modified := defaultClaim
+		modified.Position = NewPositionFromGIndex(2)
+		require.NotEqual(t, defaultClaim.Entry(), modified.Entry())
+	})
 }
