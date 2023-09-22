@@ -19,8 +19,8 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
     function test_constructor_succeeds() external {
         assertEq(oracle.PROPOSER(), proposer);
         assertEq(oracle.proposer(), proposer);
-        assertEq(oracle.CHALLENGER(), owner);
-        assertEq(oracle.challenger(), owner);
+        assertEq(oracle.CHALLENGER(), oracleChallenger);
+        assertEq(oracle.challenger(), oracleChallenger);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.submissionInterval(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
@@ -299,7 +299,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
         uint256 latestOutputIndex = oracle.latestOutputIndex();
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(latestOutputIndex - 1);
 
-        vm.prank(owner);
+        vm.prank(oracleChallenger);
         vm.expectEmit(true, true, false, false);
         emit OutputsDeleted(latestOutputIndex + 1, latestOutputIndex);
         oracle.deleteL2Outputs(latestOutputIndex);
@@ -326,7 +326,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
         uint256 latestOutputIndex = oracle.latestOutputIndex();
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(latestOutputIndex - 3);
 
-        vm.prank(owner);
+        vm.prank(oracleChallenger);
         vm.expectEmit(true, true, false, false);
         emit OutputsDeleted(latestOutputIndex + 1, latestOutputIndex - 2);
         oracle.deleteL2Outputs(latestOutputIndex - 2);
@@ -356,7 +356,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
-        vm.prank(owner);
+        vm.prank(oracleChallenger);
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         oracle.deleteL2Outputs(latestBlockNumber + 1);
     }
@@ -370,11 +370,11 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
 
         // Delete the latest two outputs
         uint256 latestOutputIndex = oracle.latestOutputIndex();
-        vm.prank(owner);
+        vm.prank(oracleChallenger);
         oracle.deleteL2Outputs(latestOutputIndex - 2);
 
         // Now try to delete the same output again
-        vm.prank(owner);
+        vm.prank(oracleChallenger);
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         oracle.deleteL2Outputs(latestOutputIndex - 2);
     }
@@ -389,7 +389,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
         uint256 latestOutputIndex = oracle.latestOutputIndex();
 
         // Try to delete a finalized output
-        vm.prank(owner);
+        vm.prank(oracleChallenger);
         vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
         oracle.deleteL2Outputs(latestOutputIndex);
     }
@@ -414,8 +414,8 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(oracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(oracle.PROPOSER(), proposer);
         assertEq(oracle.proposer(), proposer);
-        assertEq(oracle.CHALLENGER(), owner);
-        assertEq(oracle.challenger(), owner);
+        assertEq(oracle.CHALLENGER(), oracleChallenger);
+        assertEq(oracle.challenger(), oracleChallenger);
     }
 
     /// @dev Tests that the impl is created with the correct values.

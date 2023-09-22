@@ -908,7 +908,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = p.params();
 
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = sysConf.resourceConfig();
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);
@@ -980,7 +980,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         external
     {
         // Get the set system gas limit
-        uint64 gasLimit = systemConfig.gasLimit();
+        uint64 gasLimit = sysConf.gasLimit();
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
@@ -1004,9 +1004,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
             systemTxMaxGas: _systemTxMaxGas,
             maximumBaseFee: _maximumBaseFee
         });
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSelector(systemConfig.resourceConfig.selector), abi.encode(rcfg)
-        );
+        vm.mockCall(address(sysConf), abi.encodeWithSelector(sysConf.resourceConfig.selector), abi.encode(rcfg));
 
         // Set the resource params
         uint256 _prevBlockNum = block.number - _blockDiff;

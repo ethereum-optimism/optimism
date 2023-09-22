@@ -92,6 +92,24 @@
 | startBlock      | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 
 =======================
+➡ src/L1/SuperchainConfig.sol:SuperchainConfig
+=======================
+
+| Name              | Type                     | Slot | Offset | Bytes | Contract                                     |
+|-------------------|--------------------------|------|--------|-------|----------------------------------------------|
+| _initialized      | uint8                    | 0    | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| _initializing     | bool                     | 0    | 1      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| __gap             | uint256[50]              | 1    | 0      | 1600  | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| _owner            | address                  | 51   | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| __gap             | uint256[49]              | 52   | 0      | 1568  | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| initiator         | address                  | 101  | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| vetoer            | address                  | 102  | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| guardian          | address                  | 103  | 0      | 20    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| delay             | uint256                  | 104  | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| paused            | bool                     | 105  | 0      | 1     | src/L1/SuperchainConfig.sol:SuperchainConfig |
+| allowedSequencers | mapping(bytes32 => bool) | 106  | 0      | 32    | src/L1/SuperchainConfig.sol:SuperchainConfig |
+
+=======================
 ➡ src/legacy/DeployerWhitelist.sol:DeployerWhitelist
 =======================
 

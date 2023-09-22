@@ -15,6 +15,7 @@ contracts=(
   src/L1/L2OutputOracle.sol:L2OutputOracle
   src/L1/OptimismPortal.sol:OptimismPortal
   src/L1/SystemConfig.sol:SystemConfig
+  src/L1/SuperchainConfig.sol:SuperchainConfig
   src/legacy/DeployerWhitelist.sol:DeployerWhitelist
   src/L2/L1Block.sol:L1Block
   src/legacy/L1BlockNumber.sol:L1BlockNumber

@@ -2,7 +2,9 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "../universal/ISemver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
@@ -24,15 +26,6 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
         PAUSED,
         ADD_SEQUENCER,
         REMOVE_SEQUENCER
-    }
-
-    /// @title SequencerKeys
-    /// @notice The SequencerKeys struct is used to store the batcherHash and unsafeBlockSigner keys for sequencers.
-    struct SequencerKeys {
-        /// @notice The batcherHash key for a sequencer.
-        bytes32 batcherHash;
-        /// @notice The unsafeBlockSigner key for a sequencer.
-        bytes32 unsafeBlockSigner;
     }
 
     /// @notice Event version identifier.
@@ -79,12 +72,11 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
     constructor() {
         initialize({
             _owner: address(0xdEaD),
-            initiator: address(0),
-            vetoer: address(0),
-            guardian: address(0),
-            delay: 0,
-            paused: false,
-            sequencers: new SequencerKeys[](0)
+            _initiator: address(0),
+            _vetoer: address(0),
+            _guardian: address(0),
+            _delay: 0,
+            _sequencers: new Types.SequencerKeys[](0)
         });
     }
 
@@ -95,7 +87,6 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
     /// @param _vetoer    Address of the vetoer.
     /// @param _guardian  Address of the guardian, can pause the OptimismPortal.
     /// @param _delay     The delay time in seconds between when an upgrade is initiated and when it can be finalized.
-    /// @param _paused    The pause status of withdrawals from an chain in the superchain.
     /// @param _sequencers The initial list of allowed sequencers
     function initialize(
         address _owner,
@@ -103,8 +94,7 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
         address _vetoer,
         address _guardian,
         uint256 _delay,
-        bool _paused,
-        SequencerKeys[] calldata _sequencers
+        Types.SequencerKeys[] memory _sequencers
     )
         public
         reinitializer(2)
@@ -116,11 +106,10 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
         vetoer = _vetoer;
         guardian = _guardian;
         delay = _delay;
-        paused = false;
 
         for (uint256 i = 0; i < _sequencers.length; i++) {
-            bytes32 fingerprint = keccak256(abi.encode(_sequencers[i]));
-            allowedSequencers[fingerprint] = true;
+            bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencers[i]);
+            allowedSequencers[sequencerHash] = true;
         }
     }
 

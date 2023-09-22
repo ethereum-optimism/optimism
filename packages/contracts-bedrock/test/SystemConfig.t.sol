@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { SystemConfig_Initializer } from "./CommonTest.t.sol";
 
 // Libraries
 import { Constants } from "../src/libraries/Constants.sol";
@@ -14,64 +14,7 @@ import { Proxy } from "../src/universal/Proxy.sol";
 // Target contract
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
 
-contract SystemConfig_Init is CommonTest {
-    SystemConfig sysConf;
-    SystemConfig systemConfigImpl;
-
-    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
-
-    // Dummy addresses used to test getters
-    address constant batchInbox = address(0x18);
-    address constant l1CrossDomainMessenger = address(0x20);
-    address constant l1ERC721Bridge = address(0x21);
-    address constant l1StandardBridge = address(0x22);
-    address constant l2OutputOracle = address(0x23);
-    address constant optimismPortal = address(0x24);
-    address constant optimismMintableERC20Factory = address(0x25);
-    uint256 constant overhead = 2100;
-    uint256 constant scalar = 1000000;
-    bytes32 constant batcherHash = bytes32(hex"abcd");
-    uint64 constant gasLimit = 30_000_000;
-    address constant unsafeBlockSigner = address(1);
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        Proxy proxy = new Proxy(multisig);
-        systemConfigImpl = new SystemConfig();
-
-        vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    0, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
-                    })
-                )
-            )
-        );
-
-        sysConf = SystemConfig(address(proxy));
-    }
-}
-
-contract SystemConfig_Initialize_Test is SystemConfig_Init {
+contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
     /// @dev Tests that initailization sets the correct values.
     function test_initialize_values_succeeds() external {
         assertEq(sysConf.l1CrossDomainMessenger(), l1CrossDomainMessenger);
@@ -187,7 +130,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
+contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
@@ -266,7 +209,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Setters_TestFail is SystemConfig_Init {
+contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setBatcherHash_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
@@ -364,7 +307,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Setters_Test is SystemConfig_Init {
+contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(true, true, true, true);
