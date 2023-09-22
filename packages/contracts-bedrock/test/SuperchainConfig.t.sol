@@ -74,6 +74,14 @@ contract SuperchainConfig_Pause_Test is SuperchainConfig_Initializer {
     }
 }
 
+contract SuperchainConfig_AddSequencer_TestFail is SuperchainConfig_Initializer {
+    /// @dev Tests that `addSequencer` successfully adds a sequencer
+    function testFuzz_addSequencer_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        supConf.addSequencer(dummySequencer);
+    }
+}
+
 contract SuperchainConfig_AddSequencer_Test is SuperchainConfig_Initializer {
     /// @dev Tests that `addSequencer` successfully adds a sequencer
     function testFuzz_addSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
@@ -87,4 +95,27 @@ contract SuperchainConfig_AddSequencer_Test is SuperchainConfig_Initializer {
         assertTrue(supConf.allowedSequencers(sequencerHash));
     }
 }
+
+contract SuperchainConfig_RemoveSequencer_TestFail is SuperchainConfig_Initializer {
+    /// @dev Tests that `removeSequencer` successfully removes a sequencer
+    function testFuzz_removeSequencer_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        supConf.removeSequencer(dummySequencer);
+    }
+}
+
+contract SuperchainConfig_RemoveSequencer_Test is SuperchainConfig_Initializer {
+    /// @dev Tests that `removeSequencer` successfully removes a sequencer
+    function testFuzz_removeSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
+        // Remove from the allowed sequencers list
+        vm.expectEmit(true, true, true, true);
+        emit ConfigUpdate(0, SuperchainConfig.UpdateType.REMOVE_SEQUENCER, abi.encode(sequencer));
+
+        vm.prank(supConf.owner());
+        supConf.removeSequencer(sequencer);
+        bytes32 sequencerHash = Hashing.hashSequencerKeys(sequencer);
+        assertFalse(supConf.allowedSequencers(sequencerHash));
+    }
+}
+
 

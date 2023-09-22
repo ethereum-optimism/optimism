@@ -34,7 +34,6 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
     // todo(maurelian): We can change these vars to EIP 1967 style storage slots later, but
     //    during the mock up phase this is easier to work with.
 
-    // todo(maurelian): I believe we will want to replace the initator with the owner of this contract.
     /// @notice The address of the initiator who may initiate an upgrade or change to critical config values.
     ///         This is expected to be the security council.
     address public initiator;
@@ -148,7 +147,6 @@ contract SuperchainConfig is OwnableUpgradeable, ISemver {
         // Adding a new a sequencer is not subject to delay, so can be called by the initiator.
         require(msg.sender == initiator, "SuperchainConfig: only initiator can add sequencer");
         bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
-        require(!allowedSequencers[sequencerHash], "SuperchainConfig: sequencer already allowed");
 
         allowedSequencers[sequencerHash] = true;
         emit ConfigUpdate(VERSION, UpdateType.ADD_SEQUENCER, abi.encode(_sequencer));
