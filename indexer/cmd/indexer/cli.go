@@ -19,6 +19,12 @@ var (
 		Usage:   "path to config file",
 		EnvVars: []string{"INDEXER_CONFIG"},
 	}
+	MigrationsFlag = &cli.StringFlag{
+		Name:    "migrations-dir",
+		Value:   "./migrations",
+		Usage:   "path to migrations folder",
+		EnvVars: []string{"INDEXER_MIGRATIONS_DIR"},
+	}
 )
 
 func runIndexer(ctx *cli.Context) error {
@@ -64,9 +70,30 @@ func runApi(ctx *cli.Context) error {
 	return api.Start(ctx.Context)
 }
 
+func runMigrations(ctx *cli.Context) error {
+	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
+	migrationsDir := ctx.String(MigrationsFlag.Name)
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return err
+	}
+
+	db, err := database.NewDB(cfg.DB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return err
+	}
+	defer db.Close()
+
+	return db.ExecuteSQLMigration(migrationsDir)
+}
+
 func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
 	flags = append(flags, log.CLIFlags("INDEXER")...)
+	migrationFlags := []cli.Flag{MigrationsFlag, ConfigFlag}
+	migrationFlags = append(migrationFlags, log.CLIFlags("INDEXER")...)
 	return &cli.App{
 		Version:              params.VersionWithCommit(GitCommit, GitDate),
 		Description:          "An indexer of all optimism events with a serving api layer",
@@ -83,6 +110,12 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Flags:       flags,
 				Description: "Runs the indexing service",
 				Action:      runIndexer,
+			},
+			{
+				Name:        "migrate",
+				Flags:       migrationFlags,
+				Description: "Runs the database migrations",
+				Action:      runMigrations,
 			},
 			{
 				Name:        "version",

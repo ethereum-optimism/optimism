@@ -253,6 +253,11 @@ var (
 		Usage:   "Beta feature: load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
 		EnvVars: prefixEnvVars("BETA_ROLLUP_LOAD_PROTOCOL_VERSIONS"),
 	}
+	CanyonOverrideFlag = &cli.Uint64Flag{
+		Name:   "override.canyon",
+		Usage:  "Manually specify the Canyon fork timestamp, overriding the bundled setting",
+		Hidden: true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -297,6 +302,7 @@ var optionalFlags = []cli.Flag{
 	BetaExtraNetworks,
 	BetaRollupHalt,
 	BetaRollupLoadProtocolVersions,
+	CanyonOverrideFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

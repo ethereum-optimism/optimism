@@ -81,7 +81,7 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 			c.logger.Warn("Game not found in states map", "game", addr)
 		}
 	}
-	c.m.RecordGamesStatus(gamesInProgress, gamesChallengerWon, gamesDefenderWon)
+	c.m.RecordGamesStatus(gamesInProgress, gamesDefenderWon, gamesChallengerWon)
 
 	// Finally, enqueue the jobs
 	for _, j := range jobs {
