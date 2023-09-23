@@ -18,8 +18,6 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    depends_on:
-      - pushgateway
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     read_only: true
@@ -31,8 +29,6 @@ services:
     container_name: grafana
     ports:
       - "3000:3000"
-    depends_on:
-      - prometheus
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PWD}
     volumes:
@@ -42,23 +38,25 @@ services:
       - "no-new-privileges:true"
 
   metamask:
-    build: ./metamask
+    build:
+      context: ./metamask
+      dockerfile: Dockerfile
+      args:
+        - METAMASK_RUN_HEADLESS=${METAMASK_RUN_HEADLESS}
     container_name: test-service-metamask
-    profiles: ["30minute"]
-    depends_on:
-      - prometheus
+    profiles: ["5minute"]
     environment:
-      DISPLAY: ${MM_DISPLAY:-:0}
-      CI: ${CI:-true}
+      CI: ${CI}
+      DISPLAY: ${METAMASK_DISPLAY}
+      GRAFANA_ADMIN_PWD: ${GRAFANA_ADMIN_PWD}
+      PROMETHEUS_SERVER_URL: ${PROMETHEUS_SERVER_URL}
+      PROMETHEUS_PUSHGATEWAY_URL: ${PROMETHEUS_PUSHGATEWAY_URL}
+      METAMASK_RUN_HEADLESS: ${METAMASK_RUN_HEADLESS}
+      METAMASK_SECRET_WORDS_OR_PRIVATEKEY: ${METAMASK_SECRET_WORDS_OR_PRIVATEKEY}
+      METAMASK_NETWORK: ${METAMASK_NETWORK}
+      METAMASK_PASSWORD: ${METAMASK_PASSWORD}
+      METAMASK_DAPP_URL: ${METAMASK_DAPP_URL}
+      METAMASK_OP_GOERLI_RPC_URL: ${METAMASK_OP_GOERLI_RPC_URL}
     volumes:
-      - ${MM_DISPLAY_VOLUME}
-    restart: no
-
-  # Example Test Service Config
-  # my_test_service:
-  #   build: ./my_test_service_dir
-  #   container_name: my_test_service
-  #   profiles: ["1minute"]
-  #   depends_on:
-  #     - prometheus
-  #   restart: no
+      - ${METAMASK_DISPLAY_VOLUME:-/path/in/container/if/no/env/set}
+    restart: "no"
