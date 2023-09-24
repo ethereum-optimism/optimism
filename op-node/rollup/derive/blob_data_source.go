@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -34,8 +33,7 @@ type BlobDataSource struct {
 	log          log.Logger
 }
 
-// NewBlobDataSource creates a new blob-data source. It suppresses errors in fetching the L1 block if they occur.
-// If there is an error, it will attempt to fetch the result on the next call to `Next`.
+// NewBlobDataSource creates a new blob-data source.
 func NewBlobDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, blobsFetcher L1BlobsFetcher, ref eth.L1BlockRef, batcherAddr common.Address) DataIter {
 	return &BlobDataSource{
 		open:         false,
@@ -48,9 +46,9 @@ func NewBlobDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, 
 	}
 }
 
-// Next returns the next piece of data if it has it. If the constructor failed, this
-// will attempt to reinitialize itself. If it cannot find the block it returns a ResetError
-// otherwise it returns a temporary error if fetching the block returns an error.
+// Next returns the next piece of data if any remains. It returns ResetError if it cannot find the
+// referenced block or a referenced blob, or TemporaryError for any other failure to fetch a block
+// or blob.
 func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 	if !ds.open {
 		if _, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.ref.Hash); err == nil {
@@ -79,22 +77,13 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 			ds.blobs = blobs
 		}
 		if len(ds.blobs) > 0 { // parse the next blob, if any
-			// TODO: can optimize this to get a bit more data from the blobs by using the top byte partially
-			blob := ds.blobs[0]
-			data := make(eth.Data, 4096*31)
-			// field elems are big endian uint256 in BLS modulus range, thus can't full use the first byte each
-			for i := 0; i < 4096; i++ {
-				// All field elements are encoded big-endian, and the low-end byte cannot be fully used,
-				// since the field-element doesn't cover the full 256 bit range.
-				copy(data[i*31:i*31+31], blob[i*32+1:i*32+32])
-			}
-			// TODO better versioning of blob data extraction method
-			datLen := binary.LittleEndian.Uint32(data[:4])
-			data = data[4:]
-			if datLen < uint32(len(data)) {
-				data = data[:datLen]
-			}
+			b := ds.blobs[0]
 			ds.blobs = ds.blobs[1:]
+			data, err := b.ToData()
+			if err != nil {
+				ds.log.Error("ignoring blob due to parse failure", "err", err)
+				return ds.Next(ctx)
+			}
 			return data, nil
 		}
 	}
