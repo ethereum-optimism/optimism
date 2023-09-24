@@ -97,7 +97,7 @@ type Driver struct {
 func (s *Driver) Start() error {
 	s.derivation.Reset()
 
-	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped)
+	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped, "sequencerFencingCheckEndpoint", s.driverConfig.SequencerFencingCheckEndpoint)
 	if s.driverConfig.SequencerEnabled {
 		// Notify the initial sequencer state
 		// This ensures persistence can write the state correctly and that the state file exists
@@ -269,9 +269,16 @@ func (s *Driver) eventLoop() {
 		case <-sequencerCh:
 			if s.driverConfig.SequencerFencingCheckEndpoint != "" {
 				// Do a fence check to ensure that we're the leader, if this is defined.
-				resp, err := http.Get(s.driverConfig.SequencerFencingCheckEndpoint)
+				fenceCtx, _ := context.WithTimeout(ctx, time.Second)
+				req, err := http.NewRequestWithContext(fenceCtx, "GET", s.driverConfig.SequencerFencingCheckEndpoint, nil)
 				if err != nil {
-					// Clear any intermediate state
+					s.sequencer.CancelBuildingBlock(ctx)
+					s.log.Error("failed to check fencing endpoint, unable to sequence")
+					return
+				}
+
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
 					s.sequencer.CancelBuildingBlock(ctx)
 					s.log.Error("failed to check fencing endpoint, unable to sequence")
 					return
