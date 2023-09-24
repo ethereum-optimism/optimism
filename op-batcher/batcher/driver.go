@@ -2,7 +2,6 @@ package batcher
 
 import (
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -358,7 +357,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
-		l.log.Error("Failed to query L1 tip", "error", err)
+		l.log.Error("Failed to query L1 tip", "err", err)
 		return err
 	}
 	l.recordL1Tip(l1tip)
@@ -377,7 +376,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	return nil
 }
 
-// sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// sendTransaction creates & submits a transaction to the batch inbox address with the given `txData`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
@@ -386,30 +385,12 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 
 	var blobs []*eth.Blob
 	if l.Rollup.BlobsEnabledL1Timestamp != nil && *l.Rollup.BlobsEnabledL1Timestamp <= uint64(time.Now().Unix()) {
-		// encode to blob data
-		if len(data) > 4096*31-4 {
-			l.log.Error("data is too large for blob", len(txdata.frame.data))
+		var b eth.Blob
+		if err := b.FromData(data); err != nil {
+			l.log.Error("data could not be converted to blob", "err", err)
 			return
 		}
-		// reverse of derivation process:
-		// - encode 4-byte little-endian length-prefix
-		// - pack data in 32 byte slices with last byte per slice == 0 to handle field-elem
-		//   (KZG_ENDIANNESS = big-endian) limited range
-		var blob eth.Blob
-		binary.LittleEndian.PutUint32(blob[1:5], uint32(len(data)))
-		offset := copy(blob[5:32], data)
-		for i := 1; i < 4096; i += 1 {
-			offset += copy(blob[i*32+1:i*32+32], data[offset:])
-			if offset == len(data) {
-				break
-			}
-		}
-		if offset < len(data) {
-			l.log.Error("failed to fit all data into blob", "remaining", len(data)-offset)
-			return
-		}
-		// add blob
-		blobs = append(blobs, &blob)
+		blobs = append(blobs, &b)
 
 		// no calldata
 		data = []byte{}
@@ -417,7 +398,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
-		l.log.Error("Failed to calculate intrinsic gas", "error", err)
+		l.log.Error("Failed to calculate intrinsic gas", "err", err)
 		return
 	}
 
