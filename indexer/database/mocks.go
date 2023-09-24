@@ -1,6 +1,8 @@
 package database
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/stretchr/testify/mock"
@@ -51,7 +53,7 @@ func (m *MockBlocksView) L2LatestBlockHeader() (*L2BlockHeader, error) {
 	return args.Get(0).(*L2BlockHeader), args.Error(1)
 }
 
-func (m *MockBlocksView) LatestEpoch() (*Epoch, error) {
+func (m *MockBlocksView) LatestObservedEpoch(*big.Int, uint64) (*Epoch, error) {
 	args := m.Called()
 	return args.Get(0).(*Epoch), args.Error(1)
 }
