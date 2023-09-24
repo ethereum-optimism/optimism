@@ -139,6 +139,13 @@ var (
 		Required: false,
 		Value:    4,
 	}
+	SequencerFencingCheckEndpoint = &cli.StringFlag{
+		Name:     "sequencer.fencing-check-endpoint",
+		Usage:    "Optional endpoint that must return 200 when the sequencer should sequence blocks, otherwise return non-200.",
+		EnvVars:  prefixEnvVars("SEQUENCER_FENCING_CHECK_ENDPOINT"),
+		Required: false,
+		Value:    "",
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -281,6 +288,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerFencingCheckEndpoint,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,

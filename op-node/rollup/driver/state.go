@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	gosync "sync"
 	"time"
 
@@ -266,6 +267,25 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
+			if s.driverConfig.SequencerFencingCheckEndpoint != "" {
+				// Do a fence check to ensure that we're the leader, if this is defined.
+				resp, err := http.Get(s.driverConfig.SequencerFencingCheckEndpoint)
+				if err != nil {
+					// Clear any intermediate state
+					s.sequencer.CancelBuildingBlock(ctx)
+					s.log.Error("failed to check fencing endpoint, unable to sequence")
+					return
+				}
+
+				if resp.StatusCode != 200 {
+					s.sequencer.CancelBuildingBlock(ctx)
+					s.log.Error("failed to check fencing endpoint, unable to sequence")
+					return
+				}
+
+				s.log.Debug("successfully checked fencing endpoint")
+			}
+
 			payload, err := s.sequencer.RunNextSequencerAction(ctx)
 			if err != nil {
 				s.log.Error("Sequencer critical error", "err", err)
