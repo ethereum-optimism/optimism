@@ -52,6 +52,9 @@ type Driver struct {
 	// true when the sequencer is active, false when it is not.
 	sequencerActive chan chan bool
 
+	// Upon receiving a channel in this channel, set the log level.
+	seLogLevel chan stringAndErrorChannel
+
 	// sequencerNotifs is notified when the sequencer is started or stopped
 	sequencerNotifs SequencerStateListener
 
@@ -388,6 +391,16 @@ func (s *Driver) eventLoop() {
 			}
 		case respCh := <-s.sequencerActive:
 			respCh <- !s.driverConfig.SequencerStopped
+		case respCh := <-s.seLogLevel:
+			lvlStr := respCh.str
+			h := s.log.GetHandler()
+			lvl, err := log.LvlFromString(lvlStr)
+			if err != nil {
+				respCh.err <- err
+				continue
+			}
+			h = log.LvlFilterHandler(lvl, h)
+			s.log.SetHandler(h)
 		case <-s.done:
 			return
 		}
@@ -469,6 +482,22 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 	}
 }
 
+func (s *Driver) SetLogLevel(ctx context.Context, lvl string) error {
+	sCh := stringAndErrorChannel{
+		str: lvl,
+		err: make(chan error, 1),
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.seLogLevel <- sCh:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
 // syncStatus returns the current sync status, and should only be called synchronously with
 // the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {
@@ -544,6 +573,11 @@ type hashAndError struct {
 type hashAndErrorChannel struct {
 	hash common.Hash
 	err  chan error
+}
+
+type stringAndErrorChannel struct {
+	str string
+	err chan error
 }
 
 // checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from an alt-sync method.

@@ -28,6 +28,7 @@ type driverClient interface {
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
+	SetLogLevel(ctx context.Context, lvl string) error
 }
 
 type rpcMetrics interface {
@@ -69,6 +70,12 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 	recordDur := n.m.RecordRPCServerRequest("admin_sequencerActive")
 	defer recordDur()
 	return n.dr.SequencerActive(ctx)
+}
+
+func (n *adminAPI) SetLogLevel(ctx context.Context, lvl string) error {
+	recordDur := n.m.RecordRPCServerRequest("admin_setLogLevel")
+	defer recordDur()
+	return n.dr.SetLogLevel(ctx, lvl)
 }
 
 type nodeAPI struct {
