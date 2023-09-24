@@ -274,20 +274,20 @@ func (s *Driver) eventLoop() {
 				if err != nil {
 					s.sequencer.CancelBuildingBlock(ctx)
 					s.log.Error("failed to check fencing endpoint, unable to sequence")
-					return
+					continue
 				}
 
 				resp, err := http.DefaultClient.Do(req)
 				if err != nil {
 					s.sequencer.CancelBuildingBlock(ctx)
 					s.log.Error("failed to check fencing endpoint, unable to sequence")
-					return
+					continue
 				}
 
 				if resp.StatusCode != 200 {
 					s.sequencer.CancelBuildingBlock(ctx)
 					s.log.Error("failed to check fencing endpoint, unable to sequence")
-					return
+					continue
 				}
 
 				s.log.Debug("successfully checked fencing endpoint")
