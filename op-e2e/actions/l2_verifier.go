@@ -88,7 +88,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cf
 		{
 			Namespace:     "admin",
 			Version:       "",
-			Service:       node.NewAdminAPI(backend, m),
+			Service:       node.NewAdminAPI(backend, m, log),
 			Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
 			Authenticated: false,
 		},

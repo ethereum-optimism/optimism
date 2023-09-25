@@ -37,14 +37,16 @@ type rpcMetrics interface {
 }
 
 type adminAPI struct {
-	dr driverClient
-	m  rpcMetrics
+	dr  driverClient
+	m   rpcMetrics
+	log log.Logger
 }
 
-func NewAdminAPI(dr driverClient, m rpcMetrics) *adminAPI {
+func NewAdminAPI(dr driverClient, m rpcMetrics, log log.Logger) *adminAPI {
 	return &adminAPI{
-		dr: dr,
-		m:  m,
+		dr:  dr,
+		m:   m,
+		log: log,
 	}
 }
 
@@ -72,10 +74,20 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 	return n.dr.SequencerActive(ctx)
 }
 
-func (n *adminAPI) SetLogLevel(ctx context.Context, lvl string) error {
+func (n *adminAPI) SetLogLevel(ctx context.Context, lvlStr string) error {
 	recordDur := n.m.RecordRPCServerRequest("admin_setLogLevel")
 	defer recordDur()
-	return n.dr.SetLogLevel(ctx, lvl)
+
+	h := n.log.GetHandler()
+
+	lvl, err := log.LvlFromString(lvlStr)
+	if err != nil {
+		return err
+	}
+
+	h = log.LvlFilterHandler(lvl, h)
+	n.log.SetHandler(h)
+	return nil
 }
 
 type nodeAPI struct {
