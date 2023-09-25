@@ -1,7 +1,8 @@
 # This Dockerfile builds all the dependencies needed by the monorepo, and should
 # be used to build any of the follow-on services
 #
-
+ARG GCP_PROJECT_ID
+ARG GCP_ARTIFACT_REPOSITORY
 # Stage 0 (named `manifests`) collects
 # dependency manifest files (`package.json` and `pnpm-lock.yaml`) which are then
 # used by stage 1 to install these dependencies
@@ -30,7 +31,7 @@ RUN mkdir manifests && \
   # .nvmrc
   cp .nvmrc ../manifests/
 
-FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
+FROM us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
 # we use it rather than alpine because it's not much
 # bigger and alpine is often missing packages for node applications

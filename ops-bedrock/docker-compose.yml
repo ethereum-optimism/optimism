@@ -28,6 +28,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.l2
+      args:
+         - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+         - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-oplabs-tools-artifacts}
     ports:
       - "9545:8545"
       - "8060:6060"
@@ -47,6 +50,9 @@ services:
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
+      args:
+         - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+         - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-oplabs-tools-artifacts}
     command: >
       op-node
       --l1=ws://l1:8546

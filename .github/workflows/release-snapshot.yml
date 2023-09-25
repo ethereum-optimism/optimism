@@ -12,7 +12,6 @@ on:
 jobs:
   snapshot-snapshot:
     name: Publish snapshot release to npm
-    if: github.repository == 'ethereum-optimism/optimism'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,7 +19,16 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
-
+      - name: Set current project env vars
+        run: cat .env >> $GITHUB_ENV
+      - name: Check current repo
+        run: |
+          if [ '${{github.repository}}' == ${{ env.REPO }} ]
+          then
+              exit 0
+          else
+              exit 1
+          fi
       - name: Setup
         uses: ./.github/actions/setup
 
