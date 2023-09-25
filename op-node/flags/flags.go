@@ -245,12 +245,12 @@ var (
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:    "rollup.halt",
-		Usage:   "Beta feature: opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
+		Usage:   "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
 		EnvVars: prefixEnvVars("BETA_ROLLUP_HALT"),
 	}
 	RollupLoadProtocolVersions = &cli.BoolFlag{
 		Name:    "rollup.load-protocol-versions",
-		Usage:   "Beta feature: load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
+		Usage:   "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
 		EnvVars: prefixEnvVars("BETA_ROLLUP_LOAD_PROTOCOL_VERSIONS"),
 	}
 	CanyonOverrideFlag = &cli.Uint64Flag{
