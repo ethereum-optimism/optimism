@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
-	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -35,7 +34,6 @@ func SendWithdrawal(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, 
 	l2opts, err := bind.NewKeyedTransactorWithChainID(privKey, cfg.L2ChainIDBig())
 	require.Nil(t, err)
 	l2opts.Value = opts.Value
-	fmt.Printf("JKY!!! withdrawing\n")
 	tx, err := l2withdrawer.InitiateWithdrawal(l2opts, l2opts.From, big.NewInt(int64(opts.Gas)), opts.Data)
 	require.Nil(t, err, "sending initiate withdraw tx")
 
