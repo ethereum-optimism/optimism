@@ -85,7 +85,7 @@ contract Deploy is Deployer {
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
     function setupOpChain(address supConf) public {
         console.log("Deploying an Opchain only");
-        if(getAddress("SuperchainConfig") == address(0)) {
+        if (getAddress("SuperchainConfig") == address(0)) {
             save("SuperchainConfig", supConf);
         }
 

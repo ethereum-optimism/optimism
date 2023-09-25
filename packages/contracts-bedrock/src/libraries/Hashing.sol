@@ -126,11 +126,6 @@ library Hashing {
     /// @param _sequencer A set of sequencer keys.
     /// @return Hash of the sequencer keys
     function hashSequencerKeys(Types.SequencerKeys memory _sequencer) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(
-                _sequencer.batcherHash,
-                _sequencer.unsafeBlockSigner
-            )
-        );
+        return keccak256(abi.encode(_sequencer.batcherHash, _sequencer.unsafeBlockSigner));
     }
 }

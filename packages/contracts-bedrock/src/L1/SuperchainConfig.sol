@@ -91,12 +91,12 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
-    /// @param _systemOwner     Initial owner of the contract.
-    /// @param _initiator Address of the initiator who may initiate an upgrade or change to critical config values.
-    /// @param _vetoer    Address of the vetoer.
-    /// @param _guardian  Address of the guardian, can pause the OptimismPortal.
-    /// @param _delay     The delay time in seconds between when an upgrade is initiated and when it can be finalized.
-    /// @param _sequencers The initial list of allowed sequencers
+    /// @param _systemOwner Owner of the contract.
+    /// @param _initiator   Address of the initiator who may initiate an upgrade or change to critical config values.
+    /// @param _vetoer      Address of the vetoer.
+    /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
+    /// @param _delay       The delay time in seconds between when an upgrade is initiated and when it can be finalized.
+    /// @param _sequencers  The initial list of allowed sequencers
     function initialize(
         address _systemOwner,
         address _initiator,
