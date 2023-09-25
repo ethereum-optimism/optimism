@@ -91,7 +91,7 @@ func (r *FaultResponder) Resolve(ctx context.Context) error {
 		return err
 	}
 
-	return r.sendTxAndWait(ctx, txData)
+	return r.sendTxAndWait(ctx, txData, big.NewInt(0))
 }
 
 // buildResolveClaimData creates the transaction data for the ResolveClaim function.
@@ -119,12 +119,13 @@ func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) erro
 	if err != nil {
 		return err
 	}
-	return r.sendTxAndWait(ctx, txData)
+	return r.sendTxAndWait(ctx, txData, big.NewInt(0))
 }
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	var txData []byte
 	var err error
+	bond := big.NewInt(0)
 	switch action.Type {
 	case types.ActionTypeMove:
 		if action.IsAttack {
@@ -138,16 +139,17 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 	if err != nil {
 		return err
 	}
-	return r.sendTxAndWait(ctx, txData)
+	return r.sendTxAndWait(ctx, txData, bond)
 }
 
 // sendTxAndWait sends a transaction through the [txmgr] and waits for a receipt.
 // This sets the tx GasLimit to 0, performing gas estimation online through the [txmgr].
-func (r *FaultResponder) sendTxAndWait(ctx context.Context, txData []byte) error {
+func (r *FaultResponder) sendTxAndWait(ctx context.Context, txData []byte, bond *big.Int) error {
 	receipt, err := r.txMgr.Send(ctx, txmgr.TxCandidate{
 		To:       &r.fdgAddr,
 		TxData:   txData,
 		GasLimit: 0,
+		Value:    bond,
 	})
 	if err != nil {
 		return err
