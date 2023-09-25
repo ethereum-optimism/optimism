@@ -79,7 +79,7 @@ contract EAS is IEAS, ISemver, EIP1271Verifier {
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 3] private __gap;
 
-    // @notice Semantic version.
+    /// @notice Semantic version.
     /// @custom:semver 1.3.0
     string public constant version = "1.3.0";
 
