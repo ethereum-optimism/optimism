@@ -25,6 +25,15 @@ func (p Position) MoveRight() Position {
 	}
 }
 
+// Localize returns a new position for a subtree.
+// reduced is the number of levels to reduce the depth by.
+func (p Position) Localize(reduced uint64) Position {
+	newPosDepth := uint64(p.depth) - reduced
+	nodesAtDepth := 1 << newPosDepth
+	newIndexAtDepth := p.indexAtDepth % nodesAtDepth
+	return NewPosition(int(newPosDepth), newIndexAtDepth)
+}
+
 func (p Position) Depth() int {
 	return p.depth
 }

@@ -2,7 +2,7 @@ package split
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	mockGetError   = fmt.Errorf("mock get error")
+	mockGetError   = errors.New("mock get error")
 	mockOutput     = common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	mockCommitment = common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 )
@@ -38,9 +38,10 @@ func TestGet(t *testing.T) {
 			providers:  []types.TraceProvider{&mockOutputProvider},
 			depthTiers: []uint64{40, 20},
 		}
-		output, err := splitProvider.Get(context.Background(), types.NewPosition(1, 0))
+		output, err := splitProvider.Get(context.Background(), types.NewPosition(6, 3))
 		require.NoError(t, err)
-		require.Equal(t, mockOutput, output)
+		expectedGIndex := types.NewPosition(6, 3).ToGIndex()
+		require.Equal(t, common.BytesToHash([]byte{byte(expectedGIndex)}), output)
 	})
 
 	t.Run("ReturnsCorrectOutputWithMultipleProviders", func(t *testing.T) {
@@ -51,9 +52,10 @@ func TestGet(t *testing.T) {
 			providers:  []types.TraceProvider{&firstOutputProvider, &secondOutputProvider},
 			depthTiers: []uint64{40, 20},
 		}
-		output, err := splitProvider.Get(context.Background(), types.NewPosition(41, 0))
+		output, err := splitProvider.Get(context.Background(), types.NewPosition(42, 17))
 		require.NoError(t, err)
-		require.Equal(t, mockOutput, output)
+		expectedGIndex := types.NewPosition(2, 1).ToGIndex()
+		require.Equal(t, common.BytesToHash([]byte{byte(expectedGIndex)}), output)
 	})
 }
 
@@ -121,7 +123,7 @@ func (m *mockTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, err
 	if m.getError != nil {
 		return common.Hash{}, m.getError
 	}
-	return m.getOutput, nil
+	return common.BytesToHash([]byte{byte(i)}), nil
 }
 
 func (m *mockTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error) {

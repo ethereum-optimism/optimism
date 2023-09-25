@@ -35,13 +35,17 @@ func NewTraceProvider(logger log.Logger, providers []types.TraceProvider, depthT
 	}
 }
 
-func (s *SplitTraceProvider) providerForDepth(depth uint64) types.TraceProvider {
+func (s *SplitTraceProvider) providerForDepth(depth uint64) (uint64, types.TraceProvider) {
+	reduced := uint64(0)
 	for i, tier := range s.depthTiers {
 		if depth <= tier {
-			return s.providers[i]
+			return reduced, s.providers[i]
+		}
+		if i < len(s.providers)-1 {
+			reduced += tier
 		}
 	}
-	return s.providers[len(s.providers)-1]
+	return reduced, s.providers[len(s.providers)-1]
 }
 
 // Get routes the Get request to the internal [types.TraceProvider] that
@@ -50,7 +54,10 @@ func (s *SplitTraceProvider) Get(ctx context.Context, pos types.Position) (commo
 	if len(s.providers) == 0 {
 		return common.Hash{}, NoProvidersErr
 	}
-	return s.providerForDepth(uint64(pos.Depth())).Get(ctx, pos.TraceIndex(pos.Depth()))
+	reduced, provider := s.providerForDepth(uint64(pos.Depth()))
+	localizedPosition := pos.Localize(reduced)
+	// todo(refcell): we should just pass the localized position once `Get` is updated to accept a Position
+	return provider.Get(ctx, localizedPosition.ToGIndex())
 }
 
 // AbsolutePreStateCommitment returns the absolute prestate from the lowest internal [types.TraceProvider]
