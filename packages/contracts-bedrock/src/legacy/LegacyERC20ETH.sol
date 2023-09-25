@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 /// @custom:legacy
 /// @custom:proxied
