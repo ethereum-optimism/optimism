@@ -91,11 +91,11 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initL1(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L1: %w", err)
 	}
-	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the runtime config: %w", err)
-	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
+	}
+	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
+		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
 	if err := n.initRPCSync(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init RPC sync: %w", err)

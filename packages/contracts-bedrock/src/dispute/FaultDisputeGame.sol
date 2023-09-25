@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
-import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
-import { IInitializable } from "./interfaces/IInitializable.sol";
-import { IBondManager } from "./interfaces/IBondManager.sol";
-import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
+import { IBondManager } from "src/dispute/interfaces/IBondManager.sol";
+import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { BlockOracle } from "./BlockOracle.sol";
+import { BlockOracle } from "src/dispute/BlockOracle.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
-import { Semver } from "src/universal/Semver.sol";
-import { LibHashing } from "./lib/LibHashing.sol";
-import { LibPosition } from "./lib/LibPosition.sol";
-import { LibClock } from "./lib/LibClock.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { LibHashing } from "src/dispute/lib/LibHashing.sol";
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { LibClock } from "src/dispute/lib/LibClock.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
-contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
+contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////
@@ -81,6 +81,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
     bool internal subgameAtRootResolved;
 
+    /// @notice Semantic version.
+    /// @custom:semver 0.0.10
+    string public constant version = "0.0.10";
+
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
@@ -91,7 +95,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.9
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -100,9 +103,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         IBigStepper _vm,
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
-    )
-        Semver(0, 0, 9)
-    {
+    ) {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;

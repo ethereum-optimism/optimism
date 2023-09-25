@@ -106,7 +106,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 	cfg, err := sysCfg.ResourceConfig(&bind.CallOpts{})
 	require.NoError(t, err)
-	require.Equal(t, cfg, defaultResourceConfig)
+	require.Equal(t, cfg, DefaultResourceConfig)
 	owner, err = sysCfg.Owner(&bind.CallOpts{})
 	require.NoError(t, err)
 	require.Equal(t, owner, config.FinalSystemOwner)
