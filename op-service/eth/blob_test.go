@@ -55,8 +55,13 @@ func TestInvalidBlobDecoding(t *testing.T) {
 		t.Fatalf("failed to encode bytes: %v", err)
 	}
 	b[32] = 0x80 // field elements should never have their highest order bit set
-	_, err := b.ToData()
-	if err == nil {
+	if _, err := b.ToData(); err == nil {
+		t.Errorf("expected error, got none")
+	}
+
+	b[32] = 0x00
+	b[4] = 0xFF // encode an invalid (much too long) length prefix
+	if _, err := b.ToData(); err == nil {
 		t.Errorf("expected error, got none")
 	}
 }
