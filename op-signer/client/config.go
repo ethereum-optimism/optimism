@@ -1,8 +1,6 @@
 package client
 
 import (
-	"errors"
-
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -32,37 +30,15 @@ func CLIFlags(envPrefix string) []cli.Flag {
 	return flags
 }
 
-type CLIConfig struct {
-	Endpoint  string
-	Address   string
-	TLSConfig optls.CLIConfig
-}
-
-func NewCLIConfig() CLIConfig {
-	return CLIConfig{
+func NewCLIConfig() optls.SignerCLIConfig {
+	return optls.SignerCLIConfig{
 		TLSConfig: optls.NewCLIConfig(),
 	}
 }
 
-func (c CLIConfig) Check() error {
-	if err := c.TLSConfig.Check(); err != nil {
-		return err
-	}
-	if !((c.Endpoint == "" && c.Address == "") || (c.Endpoint != "" && c.Address != "")) {
-		return errors.New("signer endpoint and address must both be set or not set")
-	}
-	return nil
-}
 
-func (c CLIConfig) Enabled() bool {
-	if c.Endpoint != "" && c.Address != "" {
-		return true
-	}
-	return false
-}
-
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
-	cfg := CLIConfig{
+func ReadCLIConfig(ctx *cli.Context) optls.SignerCLIConfig {
+	cfg := optls.SignerCLIConfig{
 		Endpoint:  ctx.String(EndpointFlagName),
 		Address:   ctx.String(AddressFlagName),
 		TLSConfig: optls.ReadCLIConfigWithPrefix(ctx, "signer"),

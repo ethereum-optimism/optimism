@@ -78,7 +78,7 @@ func NewSignerClient(logger log.Logger, endpoint string, tlsConfig optls.CLIConf
 	return signer, nil
 }
 
-func NewSignerClientFromConfig(logger log.Logger, config CLIConfig) (*SignerClient, error) {
+func NewSignerClientFromConfig(logger log.Logger, config optls.SignerCLIConfig) (*SignerClient, error) {
 	return NewSignerClient(logger, config.Endpoint, config.TLSConfig)
 }
 

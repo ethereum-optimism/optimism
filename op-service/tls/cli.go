@@ -108,3 +108,26 @@ func ReadCLIConfigWithPrefix(ctx *cli.Context, flagPrefix string) CLIConfig {
 		TLSKey:    ctx.String(prefixFunc(TLSKeyFlagName)),
 	}
 }
+
+type SignerCLIConfig struct {
+	Endpoint  string
+	Address   string
+	TLSConfig CLIConfig
+}
+
+func (c SignerCLIConfig) Check() error {
+	if err := c.TLSConfig.Check(); err != nil {
+		return err
+	}
+	if !((c.Endpoint == "" && c.Address == "") || (c.Endpoint != "" && c.Address != "")) {
+		return errors.New("signer endpoint and address must both be set or not set")
+	}
+	return nil
+}
+
+func (c SignerCLIConfig) Enabled() bool {
+	if c.Endpoint != "" && c.Address != "" {
+		return true
+	}
+	return false
+}
