@@ -94,7 +94,7 @@ and avoids unnecessary contract redeployments per dispute.
 
 This global store contract should be non-upgradeable.
 
-Since `keccak256` is a safe 32-byte hash input, the first bit is overwritten with a `2` to derive the key,
+Since `keccak256` is a safe 32-byte hash input, the first byte is overwritten with a `2` to derive the key,
 while keeping the rest of the key "readable" (matching the original hash).
 
 #### Type `3`: Global generic key
@@ -130,7 +130,7 @@ as there is no way to revert it to the original commitment without knowing said 
 
 #### Type `4-128`: reserved range
 
-Range start and and both inclusive.
+Range start and end both inclusive.
 
 This range of key types is reserved for future usage by the core protocol.
 E.g. version changes, contract migrations, chain-data, additional core features, etc.
@@ -302,7 +302,7 @@ Using these data-sources, the derivation pipeline is processed till we hit one o
 
 - `EOF`: when we run out of L1 data, the L2 chain will not change further, and the epilogue can start.
 - Eager epilogue condition: depending on the type of claim to verify,
-  if the L2 result irreversible (i.e. no later L1 inputs can override it),
+  if the L2 result is irreversible (i.e. no later L1 inputs can override it),
   the processing may end early when the result is ready.
   E.g. when asserting state at a specific L2 block, rather than the very tip of the L2 chain.
 
