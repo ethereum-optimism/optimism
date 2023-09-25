@@ -78,6 +78,12 @@ func (ch *Cheater) Close() error {
 	return ch.DB.Close()
 }
 
+func openStorageTrie(s *state.StateDB, addr common.Address) (state.Trie, error) {
+	stateRoot := s.IntermediateRoot(true)
+	storageRoot := s.GetStorageRoot(addr)
+	return s.Database().OpenStorageTrie(stateRoot, addr, storageRoot)
+}
+
 type HeadFn func(header *types.Header, headState *state.StateDB) error
 
 // RunAndClose runs the given function on the head-state, and then persists any changes (if not ReadOnly),
@@ -192,7 +198,7 @@ func StorageGet(address common.Address, key common.Hash, w io.Writer) HeadFn {
 // to another account (maybe even in a different database!).
 func StorageReadAll(address common.Address, w io.Writer) HeadFn {
 	return func(_ *types.Header, headState *state.StateDB) error {
-		storage, err := headState.StorageTrie(address)
+		storage, err := openStorageTrie(headState, address)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr %s: %w", address, err)
 		}
@@ -229,14 +235,14 @@ func dbValueToHash(enc []byte) common.Hash {
 // Each difference is expressed with 1 character + or - to indicate the change from a to b, followed by key = value.
 func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
 	return func(_ *types.Header, headState *state.StateDB) error {
-		aStorage, err := headState.StorageTrie(addressA)
+		aStorage, err := openStorageTrie(headState, addressA)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr A %s: %w", addressA, err)
 		}
 		if aStorage == nil {
 			return fmt.Errorf("no storage trie in state for account A %s", addressA)
 		}
-		bStorage, err := headState.StorageTrie(addressB)
+		bStorage, err := openStorageTrie(headState, addressB)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr B %s: %w", addressB, err)
 		}
