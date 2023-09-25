@@ -3,8 +3,6 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -15,20 +13,20 @@ const (
 )
 
 // jsonResponse ... Marshals and writes a JSON response provided arbitrary data
-func jsonResponse(w http.ResponseWriter, logger log.Logger, data interface{}, statusCode int) {
+func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) error {
 	w.Header().Set("Content-Type", "application/json")
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, InternalServerError, http.StatusInternalServerError)
-		logger.Error("Failed to marshal JSON: %v", err)
-		return
+		return err
 	}
 
 	w.WriteHeader(statusCode)
 	_, err = w.Write(jsonData)
 	if err != nil {
 		http.Error(w, InternalServerError, http.StatusInternalServerError)
-		logger.Error("Failed to write JSON data", err)
-		return
+		return err
 	}
+
+	return nil
 }

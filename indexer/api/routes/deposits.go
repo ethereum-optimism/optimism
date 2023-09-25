@@ -78,5 +78,8 @@ func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 
 	response := newDepositResponse(deposits)
 
-	jsonResponse(w, h.logger, response, http.StatusOK)
+	err = jsonResponse(w, response, http.StatusOK)
+	if err != nil {
+		h.logger.Error("Error writing response", "err", err)
+	}
 }

@@ -71,11 +71,13 @@ func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	withdrawals, err := h.view.L2BridgeWithdrawalsByAddress(address, cursor, limit)
 	if err != nil {
 		http.Error(w, "Internal server error reading withdrawals", http.StatusInternalServerError)
-		h.logger.Error("Unable to read withdrawals from DB")
-		h.logger.Error(err.Error())
+		h.logger.Error("Unable to read withdrawals from DB", "err", err.Error())
 		return
 	}
 	response := newWithdrawalResponse(withdrawals)
 
-	jsonResponse(w, h.logger, response, http.StatusOK)
+	err = jsonResponse(w, response, http.StatusOK)
+	if err != nil {
+		h.logger.Error("Error writing response", "err", err.Error())
+	}
 }
