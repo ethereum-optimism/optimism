@@ -29,8 +29,7 @@ type CallDataSource struct {
 	log     log.Logger
 }
 
-// NewCallDataSource creates a new call-data source. It suppresses errors in fetching the L1 block if they occur.
-// If there is an error, it will attempt to fetch the result on the next call to `Next`.
+// NewCallDataSource creates a new call-data source.
 func NewCallDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, ref eth.L1BlockRef, batcherAddr common.Address) DataIter {
 	return &CallDataSource{
 		open:        false,
@@ -42,9 +41,8 @@ func NewCallDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, 
 	}
 }
 
-// Next returns the next piece of data if it has it. If the constructor failed, this
-// will attempt to reinitialize itself. If it cannot find the block it returns a ResetError
-// otherwise it returns a temporary error if fetching the block returns an error.
+// Next returns the next piece of data if any remains. It returns ResetError if it cannot find the
+// referenced block, or TemporaryError for any other failure to fetch the block.
 func (ds *CallDataSource) Next(ctx context.Context) (eth.Data, error) {
 	if !ds.open {
 		if _, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.ref.Hash); err == nil {
