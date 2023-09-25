@@ -294,7 +294,7 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 		BaseFeePerGas: payload.BaseFeePerGas.ToBig(),
 		BlockHash:     payload.BlockHash,
 		Transactions:  txs,
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		log.Debug("Invalid NewPayload params", "params", payload, "error", err)
 		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalidBlockHash}, nil

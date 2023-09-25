@@ -19,6 +19,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 )
 
@@ -229,9 +231,10 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	chainCfg := l2Genesis.Config
 	consensus := beacon.New(nil)
 	db := rawdb.NewMemoryDatabase()
+	trieDB := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
 
 	// Set minimal amount of stuff to avoid nil references later
-	genesisBlock := l2Genesis.MustCommit(db)
+	genesisBlock := l2Genesis.MustCommit(db, trieDB)
 	blocks, _ := core.GenerateChain(chainCfg, genesisBlock, consensus, db, blockCount, func(i int, gen *core.BlockGen) {})
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
 
