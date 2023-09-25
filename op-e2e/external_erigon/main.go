@@ -80,7 +80,13 @@ func initialize(binPath string, config external.Config) error {
 		"--datadir", config.DataDir,
 		"init", config.GenesisPath,
 	)
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		if err := cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("could not kill process: %w", err)
+		}
+		return err
+	}
+	return nil
 }
 
 type erigonSession struct {
