@@ -31,17 +31,6 @@ contract PreimageOracle is IPreimageOracle {
         dat_ = preimageParts[_key][_offset];
     }
 
-    /// TODO(CLI-4104):
-    /// we need to mix-in the ID of the dispute for local-type keys to avoid collisions,
-    /// and restrict local pre-image insertion to the dispute-managing contract.
-    /// For now we permit anyone to write any pre-image unchecked, to make testing easy.
-    /// This method is DANGEROUS. And NOT FOR PRODUCTION.
-    function cheat(uint256 partOffset, bytes32 key, bytes32 part, uint256 size) external {
-        preimagePartOk[key][partOffset] = true;
-        preimageParts[key][partOffset] = part;
-        preimageLengths[key] = size;
-    }
-
     /// @inheritdoc IPreimageOracle
     function loadLocalData(
         uint256 _ident,
