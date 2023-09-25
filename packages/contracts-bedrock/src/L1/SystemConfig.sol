@@ -297,11 +297,14 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
-    /// @param _sequencer New sequencer key.
-    function setSequencer(Types.SequencerKeys calldata _sequencer) external onlyOwner {
-        _setUnsafeBlockSigner(_sequencer.unsafeBlockSigner);
-        _setBatcherHash(_sequencer.batcherHash);
+    /// @param _batcherHash New batch hash.
+    /// @param _unsafeBlockSigner New unsafe block signer address.
+    function setSequencer(bytes32 _batcherHash, address _unsafeBlockSigner) external onlyOwner {
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setBatcherHash(_batcherHash);
 
+        Types.SequencerKeys memory _sequencer =
+            Types.SequencerKeys({ unsafeBlockSigner: _unsafeBlockSigner, batcherHash: _batcherHash });
         bytes32 seqHash = Hashing.hashSequencerKeys(_sequencer);
         require(
             superchainConfig.allowedSequencers(seqHash),
@@ -312,12 +315,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Checks the SuperchainConfig's allow list for the current sequencer. If it is not allowed,
     ///         the sequencer is removed. Anyone may call this function.
     function checkSequencer() external {
-        Types.SequencerKeys memory sequencer = Types.SequencerKeys({
-            unsafeBlockSigner: unsafeBlockSigner(),
-            batcherHash: batcherHash
-        });
+        Types.SequencerKeys memory sequencer =
+            Types.SequencerKeys({ unsafeBlockSigner: unsafeBlockSigner(), batcherHash: batcherHash });
         bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
-        if(superchainConfig.allowedSequencers(seqHash)) {
+        if (superchainConfig.allowedSequencers(seqHash)) {
             revert("SystemConfig: cannot remove allowed sequencer.");
         }
         _setUnsafeBlockSigner(address(0));

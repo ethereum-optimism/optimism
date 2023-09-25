@@ -219,9 +219,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setSequencer_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        Types.SequencerKeys memory sequencer =
-            Types.SequencerKeys({ batcherHash: bytes32(uint256(0)), unsafeBlockSigner: address(0) });
-        sysConf.setSequencer(sequencer);
+        sysConf.setSequencer(bytes32(uint256(0)), address(0));
     }
 
     /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
@@ -310,8 +308,8 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Initializer {
-    /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
-    function testFuzz_setBatcherHash_succeeds(Types.SequencerKeys calldata sequencer) external {
+    /// @dev Tests that `setSequencer` updates the batcher hash successfully.
+    function testFuzz_setSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
         // Add to the allowed sequencers list
         vm.prank(supConf.initiator());
         supConf.addSequencer(sequencer);
@@ -322,7 +320,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
         emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(sequencer.batcherHash));
 
         vm.prank(sysConf.owner());
-        sysConf.setSequencer(sequencer);
+        sysConf.setSequencer({ _batcherHash: sequencer.batcherHash, _unsafeBlockSigner: sequencer.unsafeBlockSigner });
         assertEq(sysConf.batcherHash(), sequencer.batcherHash);
         assertEq(sysConf.unsafeBlockSigner(), sequencer.unsafeBlockSigner);
     }
@@ -352,14 +350,11 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     }
 }
 
-
 contract SystemConfig_CheckSequencer_Test is SystemConfig_Initializer {
     /// @dev Tests that `checkSequencer` successfully removes a sequencer if it's not in the allow list.
     function test_checkSequencer_succeeds() external {
-        Types.SequencerKeys memory sequencer = Types.SequencerKeys({
-            unsafeBlockSigner: address(0),
-            batcherHash: bytes32(0)
-        });
+        Types.SequencerKeys memory sequencer =
+            Types.SequencerKeys({ unsafeBlockSigner: address(0), batcherHash: bytes32(0) });
         bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
         assertFalse(supConf.allowedSequencers(seqHash));
 
@@ -373,10 +368,8 @@ contract SystemConfig_CheckSequencer_Test is SystemConfig_Initializer {
 contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `checkSequencer` reverts if the sequencer is in the allow list.
     function test_checkSequencer_reverts() external {
-        Types.SequencerKeys memory sequencer = Types.SequencerKeys({
-            unsafeBlockSigner: makeAddr('someUnsafeBlockSigner'),
-            batcherHash: bytes32(0)
-        });
+        Types.SequencerKeys memory sequencer =
+            Types.SequencerKeys({ unsafeBlockSigner: makeAddr("someUnsafeBlockSigner"), batcherHash: bytes32(0) });
         bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
 
         // Add a new allowed sequencer
@@ -386,7 +379,7 @@ contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
 
         // Set that as the system's sequencer
         vm.prank(sysConf.owner());
-        sysConf.setSequencer(sequencer);
+        sysConf.setSequencer({ _batcherHash: sequencer.batcherHash, _unsafeBlockSigner: sequencer.unsafeBlockSigner });
 
         vm.expectRevert("SystemConfig: cannot remove allowed sequencer.");
         sysConf.checkSequencer();
