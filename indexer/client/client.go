@@ -47,7 +47,7 @@ func WithTimeout(t time.Duration) Option {
 // Config ... Indexer client config struct
 type Config struct {
 	PaginationLimit int
-	URL             string
+	BaseURL         string
 }
 
 // Client ... Indexer client struct
@@ -113,7 +113,7 @@ func (c *Client) doRecordRequest(method string, endpoint string) ([]byte, error)
 // HealthCheck ... Checks the health of the indexer API
 func (c *Client) HealthCheck() error {
 
-	_, err := c.doRecordRequest(healthz, c.cfg.URL+api.HealthPath)
+	_, err := c.doRecordRequest(healthz, c.cfg.BaseURL+api.HealthPath)
 
 	if err != nil {
 		return err
@@ -125,7 +125,7 @@ func (c *Client) HealthCheck() error {
 // GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
 func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*database.L1BridgeDepositsResponse, error) {
 	var dResponse *database.L1BridgeDepositsResponse
-	url := c.cfg.URL + api.DepositsPath + l1Address.String() + urlParams
+	url := c.cfg.BaseURL + api.DepositsPath + l1Address.String() + urlParams
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 
 	resp, err := c.doRecordRequest(deposits, endpoint)
@@ -190,7 +190,7 @@ func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]databas
 // GetWithdrawalsByAddress ... Gets a withdrawal response object provided an L2 address and cursor
 func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string) (*database.L2BridgeWithdrawalsResponse, error) {
 	var wResponse *database.L2BridgeWithdrawalsResponse
-	url := c.cfg.URL + api.WithdrawalsPath + l2Address.String() + urlParams
+	url := c.cfg.BaseURL + api.WithdrawalsPath + l2Address.String() + urlParams
 
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 	resp, err := c.doRecordRequest(withdrawals, endpoint)

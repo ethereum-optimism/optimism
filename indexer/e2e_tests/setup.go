@@ -138,7 +138,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	client, err := client.NewClient(&client.Config{
 		PaginationLimit: 100,
-		URL:             fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
+		BaseURL:         fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
 	})
 
 	require.NoError(t, err)
