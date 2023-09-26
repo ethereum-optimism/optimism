@@ -60,7 +60,7 @@ func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 	limitQuery := r.URL.Query().Get("limit")
 
-	limit, err := h.v.ValidateLimit(limitQuery)
+	limit, err := h.v.ParseValidateLimit(limitQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		h.logger.Error("Invalid query params")

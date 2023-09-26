@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"encoding/json"
 
@@ -17,7 +18,31 @@ const (
 	urlParams = "?cursor=%s&limit=%d"
 
 	defaultPagingLimit = 100
+
+	// method names
+	healthz     = "get_health"
+	deposits    = "get_deposits"
+	withdrawals = "get_withdrawals"
 )
+
+// Option ... Provides configuration through callback injection
+type Option func(*Client) error
+
+// WithMetrics ... Triggers metric optionality
+func WithMetrics(m node.Metricer) Option {
+	return func(c *Client) error {
+		c.metrics = m
+		return nil
+	}
+}
+
+// WithTimeout ... Embeds a timeout limit to request
+func WithTimeout(t time.Duration) Option {
+	return func(c *Client) error {
+		c.c.Timeout = t
+		return nil
+	}
+}
 
 // Config ... Indexer client config struct
 type Config struct {
@@ -26,49 +51,43 @@ type Config struct {
 }
 
 // Client ... Indexer client struct
-// TODO: Add metrics
-// TODO: Add injectable context support
 type Client struct {
-	cfg *Config
-	c   *http.Client
-	m   node.Metricer
+	cfg     *Config
+	c       *http.Client
+	metrics node.Metricer
 }
 
 // NewClient ... Construct a new indexer client
-func NewClient(cfg *Config, m node.Metricer) (*Client, error) {
+func NewClient(cfg *Config, opts ...Option) (*Client, error) {
 	if cfg.PaginationLimit <= 0 {
 		cfg.PaginationLimit = defaultPagingLimit
 	}
 
 	c := &http.Client{}
-	return &Client{cfg: cfg, c: c, m: m}, nil
-}
+	client := &Client{cfg: cfg, c: c}
 
-// HealthCheck ... Checks the health of the indexer
-func (c *Client) HealthCheck() error {
-	resp, err := c.c.Get(c.cfg.URL + api.HealthPath)
-	if err != nil {
-		return err
+	for _, opt := range opts {
+		err := opt(client)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("health check failed with status code %d", resp.StatusCode)
-	}
-
-	return nil
+	return client, nil
 }
 
-// GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
-func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*database.L1BridgeDepositsResponse, error) {
-	var dResponse *database.L1BridgeDepositsResponse
-	url := c.cfg.URL + api.DepositsPath + l1Address.String() + urlParams
+// doRecordRequest ... Performs a read request on a provided endpoint w/ telemetry
+func (c *Client) doRecordRequest(method string, endpoint string) ([]byte, error) {
+	var record func(error) = nil
+	if c.metrics != nil {
+		record = c.metrics.RecordRPCClientRequest(method)
+	}
 
-	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 	resp, err := c.c.Get(endpoint)
+	if record != nil {
+		record(err)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -78,11 +97,43 @@ func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	err = resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
 
-	if err := json.Unmarshal(body, &dResponse); err != nil {
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("endpoint failed with status code %d", resp.StatusCode)
+
+	}
+
+	return body, resp.Body.Close()
+}
+
+// HealthCheck ... Checks the health of the indexer API
+func (c *Client) HealthCheck() error {
+
+	_, err := c.doRecordRequest(healthz, c.cfg.URL+api.HealthPath)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
+func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*database.L1BridgeDepositsResponse, error) {
+	var dResponse *database.L1BridgeDepositsResponse
+	url := c.cfg.URL + api.DepositsPath + l1Address.String() + urlParams
+	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
+
+	resp, err := c.doRecordRequest(deposits, endpoint)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := json.Unmarshal(resp, &dResponse); err != nil {
 		return nil, err
 	}
 
@@ -142,21 +193,12 @@ func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string
 	url := c.cfg.URL + api.WithdrawalsPath + l2Address.String() + urlParams
 
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
-	resp, err := c.c.Get(endpoint)
+	resp, err := c.doRecordRequest(withdrawals, endpoint)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if err := json.Unmarshal(body, &wResponse); err != nil {
+	if err := json.Unmarshal(resp, &wResponse); err != nil {
 		return nil, err
 	}
 

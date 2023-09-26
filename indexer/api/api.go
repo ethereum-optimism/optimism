@@ -22,7 +22,7 @@ const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 
 // Api ... Indexer API struct
 // TODO : Structured error responses
-type Api struct {
+type API struct {
 	log             log.Logger
 	router          *chi.Mux
 	serverConfig    config.ServerConfig
@@ -48,7 +48,7 @@ func chiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Hand
 }
 
 // NewApi ... Construct a new api instance
-func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig config.ServerConfig, metricsConfig config.ServerConfig) *Api {
+func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig config.ServerConfig, metricsConfig config.ServerConfig) *API {
 	// (1) Initialize dependencies
 	apiRouter := chi.NewRouter()
 	h := routes.NewRoutes(logger, bv, apiRouter)
@@ -65,11 +65,11 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 	apiRouter.Get(fmt.Sprintf(DepositsPath+addressParam, ethereumAddressRegex), h.L1DepositsHandler)
 	apiRouter.Get(fmt.Sprintf(WithdrawalsPath+addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
 
-	return &Api{log: logger, router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
+	return &API{log: logger, router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }
 
 // Start ... Starts the API server routines
-func (a *Api) Start(ctx context.Context) error {
+func (a *API) Start(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
 
@@ -112,7 +112,7 @@ func (a *Api) Start(ctx context.Context) error {
 }
 
 // startServer ... Starts the API server
-func (a *Api) startServer(ctx context.Context) error {
+func (a *API) startServer(ctx context.Context) error {
 	a.log.Info("api server listening...", "port", a.serverConfig.Port)
 	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.router}
 	err := httputil.ListenAndServeContext(ctx, &server)
@@ -125,7 +125,7 @@ func (a *Api) startServer(ctx context.Context) error {
 }
 
 // startMetricsServer ... Starts the metrics server
-func (a *Api) startMetricsServer(ctx context.Context) error {
+func (a *API) startMetricsServer(ctx context.Context) error {
 	a.log.Info("starting metrics server...", "port", a.metricsConfig.Port)
 	err := metrics.ListenAndServe(ctx, a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)
 	if err != nil {

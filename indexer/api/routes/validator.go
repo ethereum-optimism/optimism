@@ -4,14 +4,16 @@ import (
 	"strconv"
 
 	"errors"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Validator ... Validates API user request parameters
 type Validator struct {
 }
 
-// ValidateQueryParams ... Validates the limit and cursor query parameters
-func (v *Validator) ValidateLimit(limit string) (int, error) {
+// ParseValidateLimit ... Validates and parses the limit query parameters
+func (v *Validator) ParseValidateLimit(limit string) (int, error) {
 	if limit == "" {
 		return defaultPageLimit, nil
 	}
@@ -27,4 +29,18 @@ func (v *Validator) ValidateLimit(limit string) (int, error) {
 
 	// TODO - Add a check against a max limit value
 	return val, nil
+}
+
+// ParseValidateAddress ... Validates and parses the address query parameter
+func (v *Validator) ParseValidateAddress(addr string) (common.Address, error) {
+	if common.IsHexAddress(addr) {
+		return common.Address{}, errors.New("address must be represented as a valid hexadecimal string")
+	}
+
+	parsedAddr := common.HexToAddress(addr)
+	if parsedAddr == common.HexToAddress("0x0") {
+		return common.Address{}, errors.New("address cannot be the zero address")
+	}
+
+	return parsedAddr, nil
 }

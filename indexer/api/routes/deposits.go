@@ -22,6 +22,7 @@ type DepositItem struct {
 	L2TokenAddress string `json:"l2TokenAddress"`
 }
 
+// DepositResponse ... Data model for API JSON response
 type DepositResponse struct {
 	Cursor      string        `json:"cursor"`
 	HasNextPage bool          `json:"hasNextPage"`
@@ -60,7 +61,7 @@ func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 	limitQuery := r.URL.Query().Get("limit")
 
-	limit, err := h.v.ValidateLimit(limitQuery)
+	limit, err := h.v.ParseValidateLimit(limitQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		h.logger.Error("Invalid limit param", "param", limitQuery)
