@@ -115,6 +115,10 @@ abstract contract Deployer is Script {
             string memory deploymentName = deployments[i].name;
 
             string memory deployTx = _getDeployTransactionByContractAddress(addr);
+            if (bytes(deployTx).length == 0) {
+                console.log("Deploy Tx not found for %s skipping deployment artifact generation", deploymentName);
+                continue;
+            }
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
             console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
