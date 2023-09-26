@@ -114,7 +114,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	apiCfg := config.ServerConfig{
 		Host: "127.0.0.1",
-		Port: 6669,
+		Port: 4321,
 	}
 
 	mCfg := config.ServerConfig{
