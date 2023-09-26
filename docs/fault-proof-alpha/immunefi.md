@@ -47,7 +47,7 @@ Going past alpha, we have a number of plans for improving the system and fixing 
 1. The pre-image oracle limitations related to pre-image size and typing support will be addressed to cover the full scope of valid onchain L1 and L2 activity.
 ## Bounty Scope
 The scope of the bounty is limited to the fault proof alpha system. This includes the following components, in order of security review priority:
-1. **Cannon**: The [Cannon][cannon] binary and its dependencies.
+1. **Cannon**: The [Cannon][cannon] binary and its dependencies, as defined in the monorepo. The archived legacy version, and alternative implementations, do not qualify.
 1. **op-program**: The [`op-program`][op-program] binary and its dependencies.
 1. **Smart Contracts**
     1. The [Cannon][cannon-contracts] contracts and their dependencies.
