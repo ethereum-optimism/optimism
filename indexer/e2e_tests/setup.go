@@ -88,8 +88,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
 			},
 		},
-		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 8080},
-		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 7081},
+		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
+		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
 	db, err := database.NewDB(indexerCfg.DB)
