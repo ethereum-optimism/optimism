@@ -43,6 +43,12 @@ var (
 
 	// sequencerEntrypointAddr is the address of the OVM sequencer entrypoint contract.
 	sequencerEntrypointAddr = common.HexToAddress("0x4200000000000000000000000000000000000005")
+
+	// Admin slots of turing credit contract
+	ignoreTuringCreditSlots = map[common.Hash]bool{
+		common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"): true,
+		common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"): true,
+	}
 )
 
 // accountData is a wrapper struct that contains the balance and address of an account.
@@ -292,13 +298,16 @@ func GetBalance(g *types.Genesis, addr common.Address) *big.Int {
 }
 
 func MigrateTuringCredit(g *types.Genesis, legacyTuringCredit map[common.Hash]common.Hash, noCheck bool) error {
-	for addr, balance := range legacyTuringCredit {
+	for addr, storage := range legacyTuringCredit {
 		if !noCheck {
+			if ignoreTuringCreditSlots[addr] {
+				continue
+			}
 			if g.Alloc[predeploys.BobaTuringCreditAddr].Storage[addr] != (common.Hash{}) {
 				return fmt.Errorf("duplicate address %s", addr.String())
 			}
 		}
-		g.Alloc[predeploys.BobaTuringCreditAddr].Storage[addr] = balance
+		g.Alloc[predeploys.BobaTuringCreditAddr].Storage[addr] = storage
 	}
 	return nil
 }

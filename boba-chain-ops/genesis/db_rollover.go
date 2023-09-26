@@ -25,7 +25,7 @@ func RolloverDB(chaindb kv.RwDB, genesis *types.Genesis, migrationData *crossdom
 		return nil
 	}
 
-	if err = WriteGenesis(chaindb, genesis); err != nil {
+	if _, err = WriteGenesis(chaindb, genesis); err != nil {
 		return err
 	}
 

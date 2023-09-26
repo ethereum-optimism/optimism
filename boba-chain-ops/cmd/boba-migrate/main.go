@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +18,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/memdb"
-	"github.com/ledgerwatch/erigon/core"
+	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/node"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
@@ -282,8 +283,9 @@ func main() {
 			dryRun := ctx.Bool("dry-run")
 			noCheck := ctx.Bool("no-check")
 
-			if err := genesis.MigrateDB(chaindb, genesisBlock, config, header, &migrationData, !dryRun, noCheck); err != nil {
-				if err.Error() != "genesis block already exists" {
+			block, err := genesis.MigrateDB(chaindb, genesisBlock, config, header, &migrationData, !dryRun, noCheck)
+			if err != nil {
+				if err.Error() != "cannot write genesis: genesis block already exists" {
 					log.Error("failed to migrate db", "err", err)
 					return err
 				} else {
@@ -325,9 +327,20 @@ func main() {
 			db := memdb.New("")
 			defer db.Close()
 			genesis.SetBalanceToZero(genesisBlock)
-			_, block, err := core.CommitGenesisBlock(db, genesisBlock, "", logger)
-			if err != nil {
-				return err
+
+			if block == nil {
+				tx, err := postChaindb.BeginRo(context.Background())
+				if err != nil {
+					log.Error("failed to read DB", "err", err)
+					return err
+				}
+				defer tx.Rollback()
+
+				block, err = rawdb.ReadBlockByNumber(tx, 0)
+				if err != nil {
+					log.Error("failed to read genesis block to generate rollup file", "err", err)
+					return err
+				}
 			}
 
 			rollupConfig, err := config.RollupConfig(header, block.Hash(), block.Number().Uint64())

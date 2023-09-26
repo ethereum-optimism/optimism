@@ -52,6 +52,7 @@ func CreateHeader(g *types.Genesis) (*types.Header, error) {
 	head.Extra = common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
 	head.Coinbase = libcommon.HexToAddress(chain.GetBobaGenesisCoinbase(g.Config.ChainID))
 	head.Root = libcommon.HexToHash(chain.GetBobaGenesisRoot(g.Config.ChainID))
+	head.BaseFee = nil
 
 	return head, nil
 }

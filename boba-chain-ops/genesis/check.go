@@ -84,28 +84,55 @@ var (
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
 		},
-		predeploys.L2StandardBridgeAddr:             eip1967Slots(predeploys.L2StandardBridgeAddr),
-		predeploys.SequencerFeeVaultAddr:            eip1967Slots(predeploys.SequencerFeeVaultAddr),
-		predeploys.OptimismMintableERC20FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC20FactoryAddr),
-		predeploys.L1BlockNumberAddr:                eip1967Slots(predeploys.L1BlockNumberAddr),
-		predeploys.GasPriceOracleAddr:               eip1967Slots(predeploys.GasPriceOracleAddr),
-		//predeploys.L1BlockAddr:                       eip1967Slots(predeploys.L1BlockAddr),
-		predeploys.L2ERC721BridgeAddr:                eip1967Slots(predeploys.L2ERC721BridgeAddr),
+		predeploys.L2StandardBridgeAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			// L2CrossDomainMessengerAddr
+			libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"): libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30010"),
+		},
+		predeploys.SequencerFeeVaultAddr: eip1967Slots(predeploys.SequencerFeeVaultAddr),
+		predeploys.OptimismMintableERC20FactoryAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000042000000000000000000000000000000000000100002"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30012"),
+		},
+		predeploys.L1BlockNumberAddr:  eip1967Slots(predeploys.L1BlockNumberAddr),
+		predeploys.GasPriceOracleAddr: eip1967Slots(predeploys.GasPriceOracleAddr),
+		predeploys.L2ERC721BridgeAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000042000000000000000000000000000000000000070002"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30014"),
+		},
 		predeploys.OptimismMintableERC721FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC721FactoryAddr),
 		// ProxyAdmin is not a proxy, and only has the _owner slot set.
 		predeploys.ProxyAdminAddr: {
 			// Slot 0x00 (0) is _owner. Requires custom check, so set to a garbage value
 			ProxyAdminOwnerSlot: libcommon.HexToHash("0xbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad0"),
-
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30018"),
 		},
-		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
-		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
+		predeploys.BaseFeeVaultAddr:   eip1967Slots(predeploys.BaseFeeVaultAddr),
+		predeploys.L1FeeVaultAddr:     eip1967Slots(predeploys.L1FeeVaultAddr),
+		predeploys.EASAddr:            eip1967Slots(predeploys.EASAddr),
+		predeploys.SchemaRegistryAddr: eip1967Slots(predeploys.SchemaRegistryAddr),
+
 		// Boba contracts
 		predeploys.BobaTuringCreditAddr: eip1967Slots(predeploys.BobaTuringCreditAddr),
-		predeploys.BobaHCHelperAddr:     eip1967Slots(predeploys.BobaHCHelperAddr),
+		predeploys.BobaHCHelperAddr: {
+			// Slot 0x00 (0) is _owner.
+			libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"): libcommon.HexToHash("0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d303e9"),
+		},
 	}
 )
 
@@ -198,14 +225,23 @@ func PostCheckMigratedDB(
 // legacy proxy slots. This is because the legacy slots are affected by the migration process.
 func PostCheckBobaProxyContracts(g *types.Genesis) error {
 	for addr := range BobaUntouchablePredeploys {
+		var originAddr libcommon.Address
 		if addr == predeploys.BobaTuringCreditAddr {
-			addr = predeploys.BobaLegacyTuringCreditAddr
+			originAddr = predeploys.BobaLegacyTuringCreditAddr
 		}
 		for key, val := range g.Alloc[addr].Storage {
 			if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
 				continue
 			}
 			ExpectedStorageSlots[addr][key] = val
+		}
+		if originAddr != (libcommon.Address{}) {
+			for key, val := range g.Alloc[originAddr].Storage {
+				if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
+					continue
+				}
+				ExpectedStorageSlots[addr][key] = val
+			}
 		}
 	}
 	return nil
