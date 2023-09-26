@@ -116,7 +116,7 @@ importers:
         version: 1.0.0-beta.18(prettier@2.8.8)
       rimraf:
         specifier: ^5.0.1
-        version: 5.0.2
+        version: 5.0.4
       ts-mocha:
         specifier: ^10.0.0
         version: 10.0.0(mocha@10.2.0)
@@ -2792,7 +2792,7 @@ packages:
       hardhat: ^2.0.0
     dependencies:
       ethers: 5.7.2
-      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.1.6)
+      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
     dev: true
 
   /@nomiclabs/hardhat-waffle@2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2):
@@ -13003,8 +13003,8 @@ packages:
       glob: 7.2.3
     dev: true
 
-  /rimraf@5.0.2:
-    resolution: {integrity: sha512-SeHT0IRkQNIhWL7O5qrCt8MfJagJ2ZOemGMIx2NXS7MP1GldYpWSw3mCLbnjA0Ac6eadZMcDFZjynCWGJmwO6A==}
+  /rimraf@5.0.4:
+    resolution: {integrity: sha512-rizQI/o/YAMM1us0Zyax0uRfIK39XR52EAjjOi0fzMolpGp0onj6CWzBAXuOx6+6Xi9Rgi0d9tUZojhJerLUmQ==}
     engines: {node: '>=14'}
     hasBin: true
     dependencies:
