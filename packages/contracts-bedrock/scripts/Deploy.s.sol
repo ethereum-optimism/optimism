@@ -97,7 +97,7 @@ contract Deploy is Deployer {
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
     function implSalt() public returns (bytes32) {
-        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ether's phoenix"))));
+        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
     }
 
     /// @notice Modifier that wraps a function in broadcasting.
