@@ -75,7 +75,7 @@ There are several key invariants that must be maintained in order for the system
     1. The honest `op-challenger` must never make a claim that does not support the honest outcome of the dispute game (i.e., the outcome which favors the honest L2 state being considered canonical).
         1. *Note:* Because of the rules in the current solving / resolution mechanism, the challenger will counter all claims that have a different view of the root claim's validity. While this is an inefficiency, it is not considered a violation of this invariant, as this behavior is necessary to ensure that all invalid claims have been countered.
 
-Any bug reports in the form of a PoC `op-e2e` test that demonstrates a violation of any of the above invariants will be considered valid bug reports and elligible for a reward.
+Any bug reports in the form of a proof-of-concept `op-e2e` test that demonstrates a violation of any of the above invariants will be considered valid bug reports and eligible for a reward.
 
 ### Bounty Rewards
 All valid bug reports for Fault Proof Alpha qualify as a low-severity report. See [immunefi][immunefi]
