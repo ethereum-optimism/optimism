@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L1Block } from "../L2/L1Block.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { Semver } from "../universal/Semver.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @custom:legacy
 /// @custom:proxied
@@ -13,9 +13,10 @@ import { Semver } from "../universal/Semver.sol";
 ///        in the old version of the Optimism system. Only necessary for backwards compatibility.
 ///        If you want to access the L1 block number going forward, you should use the L1Block
 ///        contract instead.
-contract L1BlockNumber is Semver {
-    /// @custom:semver 1.0.2
-    constructor() Semver(1, 0, 2) { }
+contract L1BlockNumber is ISemver {
+    /// @notice Semantic version.
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Returns the L1 block number.
     receive() external payable {

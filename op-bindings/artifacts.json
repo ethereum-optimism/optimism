@@ -39,5 +39,6 @@
   "ProtocolVersions",
   "Safe",
   "SafeProxyFactory",
-  "DelayedVetoable"
+  "DelayedVetoable",
+  "ISemver"
 ]
