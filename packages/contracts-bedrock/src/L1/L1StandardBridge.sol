@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { StandardBridge } from "../universal/StandardBridge.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -68,8 +68,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.3.1
+    string public constant version = "1.3.1";
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {

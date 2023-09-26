@@ -2,16 +2,16 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { SafeCall } from "../libraries/SafeCall.sol";
-import { L2OutputOracle } from "./L2OutputOracle.sol";
-import { SystemConfig } from "./SystemConfig.sol";
-import { Constants } from "../libraries/Constants.sol";
-import { Types } from "../libraries/Types.sol";
-import { Hashing } from "../libraries/Hashing.sol";
-import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
-import { ISemver } from "../universal/ISemver.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @custom:proxied
 /// @title OptimismPortal
@@ -98,8 +98,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.9.0
-    string public constant version = "1.9.0";
+    /// @custom:semver 1.9.1
+    string public constant version = "1.9.1";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
