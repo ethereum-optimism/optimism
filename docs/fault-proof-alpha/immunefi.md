@@ -64,7 +64,7 @@ There are several key invariants that must be maintained in order for the system
         1. Both [Cannon][cannon] and the on-chain [MIPS thread context][cannon-contracts] must produce the same output given an identical setup state and input data.
     1. Both [Cannon][cannon] and the on-chain [MIPS thread context][cannon-contracts] must produce a deterministic output given an identical setup state and input data.
     1. Both [Cannon][cannon] and the on-chain [MIPS thread context][cannon-contracts] must never panic on a state transition with honest input data / setup state.
-        1. Note: There are a number of instructions from MIPS that Cannon does not support. Specifically, this invariant covers panic conditions within the realm of supported instructions and valid honest input data / setup state where cannon otherwise should have completed execution and produced a valid/invalid opinion about the state transition.
+        1. Note: There are a number of instructions from MIPS, and system calls in Linux, that Cannon does not support. Specifically, this invariant covers panic conditions within the realm of supported instructions and valid honest input data / setup state where cannon otherwise should have completed execution and produced a valid/invalid opinion about the state transition. The op-program may contain "dead code", non-reachable invalid instructions that do not affect the output.
     1. The `PreimageOracle` contract's local data storage must not be able to be corrupted by an external party.
 1. **op-program**
     1. The [`op-program`][op-program] must produce a deterministic output given an identical setup state and input data.
