@@ -94,11 +94,11 @@ func (p *DB) ModifyAncients(f func(ethdb.AncientWriteOp) error) (int64, error) {
 	panic("not supported")
 }
 
-func (p *DB) TruncateHead(n uint64) error {
+func (p *DB) TruncateHead(n uint64) (uint64, error) {
 	panic("not supported")
 }
 
-func (p *DB) TruncateTail(n uint64) error {
+func (p *DB) TruncateTail(n uint64) (uint64, error) {
 	panic("not supported")
 }
 
@@ -114,4 +114,4 @@ func (p *DB) AncientDatadir() (string, error) {
 	panic("not supported")
 }
 
-var _ ethdb.KeyValueStore = (*DB)(nil)
+var _ ethdb.Database = (*DB)(nil)

@@ -161,12 +161,12 @@ func (s *L1Replica) MockL1RPCErrors(fn func() error) {
 }
 
 func (s *L1Replica) EthClient() *ethclient.Client {
-	cl, _ := s.node.Attach() // never errors
+	cl := s.node.Attach()
 	return ethclient.NewClient(cl)
 }
 
 func (s *L1Replica) RPCClient() client.RPC {
-	cl, _ := s.node.Attach() // never errors
+	cl := s.node.Attach()
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {

@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 )
 
 // ReadTrie takes a Merkle Patricia Trie (MPT) root of a "DerivableList", and a pre-image oracle getter,
@@ -46,12 +47,15 @@ func ReadTrie(root common.Hash, getPreimage func(key common.Hash) []byte) []hexu
 	//
 	// For now we just use the state DB trie approach.
 
-	tdb := trie.NewDatabase(odb)
+	tdb := trie.NewDatabase(odb, &trie.Config{HashDB: hashdb.Defaults})
 	tr, err := trie.New(trie.TrieID(root), tdb)
 	if err != nil {
 		panic(err)
 	}
-	iter := tr.NodeIterator(nil)
+	iter, err := tr.NodeIterator(nil)
+	if err != nil {
+		panic(err)
+	}
 
 	// With small lists the iterator seems to use 0x80 (RLP empty string, unlike the others)
 	// as key for item 0, causing it to come last.

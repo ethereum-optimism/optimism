@@ -2,10 +2,15 @@
 package database
 
 import (
+	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	_ "github.com/ethereum-optimism/optimism/indexer/database/serializers"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/pkg/errors"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -31,26 +36,37 @@ type DB struct {
 }
 
 func NewDB(dbConfig config.DBConfig) (*DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
+
+	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
+	if dbConfig.Port != 0 {
+		dsn += fmt.Sprintf(" port=%d", dbConfig.Port)
+	}
 	if dbConfig.User != "" {
 		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
 	}
 	if dbConfig.Password != "" {
 		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
 	}
-	gorm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+
+	gormConfig := gorm.Config{
 		// The indexer will explicitly manage the transactions
 		SkipDefaultTransaction: true,
+		Logger:                 logger.Default.LogMode(logger.Silent),
+	}
 
-		// We may choose to create an adapter such that the
-		// logger emits to the geth logger when on DEBUG mode
-		Logger: logger.Default.LogMode(logger.Silent),
+	gorm, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
+		gorm, err := gorm.Open(postgres.Open(dsn), &gormConfig)
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to connect to database")
+		}
+		return gorm, nil
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to connect to database after multiple retries")
 	}
-
 	db := &DB{
 		gorm:               gorm,
 		Blocks:             newBlocksDB(gorm),
@@ -59,7 +75,6 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 		BridgeMessages:     newBridgeMessagesDB(gorm),
 		BridgeTransactions: newBridgeTransactionsDB(gorm),
 	}
-
 	return db, nil
 }
 
@@ -89,4 +104,34 @@ func dbFromGormTx(tx *gorm.DB) *DB {
 		BridgeMessages:     newBridgeMessagesDB(tx),
 		BridgeTransactions: newBridgeTransactionsDB(tx),
 	}
+}
+
+func (db *DB) ExecuteSQLMigration(migrationsFolder string) error {
+	err := filepath.Walk(migrationsFolder, func(path string, info os.FileInfo, err error) error {
+		// Check for any walking error
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Failed to process migration file: %s", path))
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Read the migration file content
+		fileContent, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return errors.Wrap(readErr, fmt.Sprintf("Error reading SQL file: %s", path))
+		}
+
+		// Execute the migration
+		execErr := db.gorm.Exec(string(fileContent)).Error
+		if execErr != nil {
+			return errors.Wrap(execErr, fmt.Sprintf("Error executing SQL script: %s", path))
+		}
+
+		return nil
+	})
+
+	return err
 }

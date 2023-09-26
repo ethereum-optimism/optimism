@@ -17,10 +17,10 @@ type WithdrawalItem struct {
 	Timestamp            uint64 `json:"timestamp"`
 	L2BlockHash          string `json:"l2BlockHash"`
 	Amount               string `json:"amount"`
-	ProofTransactionHash string `json:"proof"`
-	ClaimTransactionHash string `json:"claim"`
-	L1TokenAddress       string `json:"l1Token"`
-	L2TokenAddress       string `json:"l2Token"`
+	ProofTransactionHash string `json:"proofTransactionHash"`
+	ClaimTransactionHash string `json:"claimTransactionHash"`
+	L1TokenAddress       string `json:"l1TokenAddress"`
+	L2TokenAddress       string `json:"l2TokenAddress"`
 }
 
 type WithdrawalResponse struct {

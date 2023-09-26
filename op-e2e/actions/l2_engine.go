@@ -132,17 +132,17 @@ func (e *engineApiBackend) Genesis() *core.Genesis {
 }
 
 func (s *L2Engine) EthClient() *ethclient.Client {
-	cl, _ := s.node.Attach() // never errors
+	cl := s.node.Attach()
 	return ethclient.NewClient(cl)
 }
 
 func (s *L2Engine) GethClient() *gethclient.Client {
-	cl, _ := s.node.Attach() // never errors
+	cl := s.node.Attach()
 	return gethclient.New(cl)
 }
 
 func (e *L2Engine) RPCClient() client.RPC {
-	cl, _ := e.node.Attach() // never errors
+	cl := e.node.Attach()
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {
