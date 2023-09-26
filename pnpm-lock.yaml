@@ -2792,7 +2792,7 @@ packages:
       hardhat: ^2.0.0
     dependencies:
       ethers: 5.7.2
-      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.1.6)
+      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
     dev: true
 
   /@nomiclabs/hardhat-waffle@2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2):
