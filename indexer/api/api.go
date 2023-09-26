@@ -31,10 +31,12 @@ type API struct {
 }
 
 const (
-	MetricsNamespace = "op_indexer"
+	MetricsNamespace = "op_indexer_api"
 	addressParam     = "{address:%s}"
 
 	// Endpoint paths
+	// NOTE - This can be further broken out over time as new version iterations
+	// are implemented
 	HealthPath      = "/healthz"
 	DepositsPath    = "/api/v0/deposits/"
 	WithdrawalsPath = "/api/v0/withdrawals/"
