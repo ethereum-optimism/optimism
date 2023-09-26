@@ -148,16 +148,16 @@ func buildE2ETestSuite(t *testing.T, withAPI bool) E2ETestSuite {
 			}
 		}()
 
-		t.Cleanup(func() {
-			appStop()
-		})
-
 		indexerClient, err = client.NewClient(&client.Config{
 			PaginationLimit: 100,
 			BaseURL:         fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
 		})
 		require.NoError(t, err)
 	}
+
+	t.Cleanup(func() {
+		appStop()
+	})
 
 	return E2ETestSuite{
 		t:        t,
