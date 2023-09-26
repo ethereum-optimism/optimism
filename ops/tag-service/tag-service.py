@@ -16,7 +16,8 @@ MIN_VERSIONS = {
     'op-batcher': '0.10.14',
     'op-proposer': '0.10.14',
     'op-ufm': '0.1.0',
-    'proxyd': '3.16.0'
+    'proxyd': '3.16.0',
+    'op-heartbeat': '0.1.0'
 }
 
 VALID_BUMPS = ('major', 'minor', 'patch', 'prerelease', 'finalize-prerelease')

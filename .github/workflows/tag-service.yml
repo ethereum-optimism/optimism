@@ -20,6 +20,7 @@ on:
         options:
           - ci-builder
           - indexer
+          - op-heartbeat
           - chain-mon
           - op-node
           - op-batcher
