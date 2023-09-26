@@ -99,15 +99,10 @@ func entrypoint(ctx *cli.Context) error {
 	batch := safe.Batch{}
 
 	for _, chainConfig := range targets {
-		name, err := toDeployConfigName(chainConfig)
-		if err != nil {
-			log.Warn("Skipping unsupported network", "name", chainConfig.Name)
-			continue
-		}
-
+		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
 		if err != nil {
-			return err
+			log.Warn("Cannot find deploy config for network", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig)
 		}
 
 		clients, err := clients.NewClients(ctx.String("l1-rpc-url"), chainConfig.PublicRPC)
@@ -168,7 +163,7 @@ func entrypoint(ctx *cli.Context) error {
 			return fmt.Errorf("error checking L1: %w", err)
 		}
 
-		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig); err != nil {
+		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
 			return err
 		}
 	}
@@ -206,6 +201,9 @@ func toDeployConfigName(cfg *superchain.ChainConfig) (string, error) {
 	}
 	if cfg.Name == "OP-Mainnet" {
 		return "mainnet", nil
+	}
+	if cfg.Name == "Zora Goerli" {
+		return "zora-goerli", nil
 	}
 	return "", fmt.Errorf("unsupported chain name %s", cfg.Name)
 }
