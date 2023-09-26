@@ -19,7 +19,7 @@ import (
 )
 
 func TestE2EETL(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	l2OutputOracle, err := bindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
 	require.NoError(t, err)

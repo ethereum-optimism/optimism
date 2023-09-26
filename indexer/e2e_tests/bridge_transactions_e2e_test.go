@@ -21,7 +21,7 @@ import (
 )
 
 func TestE2EBridgeTransactionsOptimismPortalDeposits(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -70,7 +70,7 @@ func TestE2EBridgeTransactionsOptimismPortalDeposits(t *testing.T) {
 }
 
 func TestE2EBridgeTransactionsL2ToL1MessagePasserWithdrawal(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestE2EBridgeTransactionsL2ToL1MessagePasserWithdrawal(t *testing.T) {
 }
 
 func TestE2EBridgeTransactionsL2ToL1MessagePasserFailedWithdrawal(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	l2ToL1MessagePasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, testSuite.L2Client)
 	require.NoError(t, err)

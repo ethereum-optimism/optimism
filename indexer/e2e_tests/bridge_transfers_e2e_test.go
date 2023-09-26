@@ -25,7 +25,7 @@ import (
 )
 
 func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	l1StandardBridge, err := bindings.NewL1StandardBridge(testSuite.OpCfg.L1Deployments.L1StandardBridgeProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 }
 
 func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 }
 
 func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	l1StandardBridge, err := bindings.NewL1StandardBridge(testSuite.OpCfg.L1Deployments.L1StandardBridgeProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
 }
 
 func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -305,7 +305,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 }
 
 func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -379,7 +379,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 }
 
 func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createIndexerTestSuite(t)
 
 	l2StandardBridge, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, testSuite.L2Client)
 	require.NoError(t, err)
@@ -449,7 +449,7 @@ func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
 }
 
 func Test_ClientGetWithdrawals(t *testing.T) {
-	testSuite := createE2ETestSuite(t)
+	testSuite := createAPITestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)
