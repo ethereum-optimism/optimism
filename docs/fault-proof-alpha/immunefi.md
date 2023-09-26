@@ -44,7 +44,7 @@ Going past alpha, we have a number of plans for improving the system and fixing 
 1. Improving the [Dispute Game][dispute-game]'s resolution algorithm to reduce the number of interactions that the off-chain challenge agents need to have with the on-chain dispute game. This will reduce the cost of running the off-chain challenge
    agent, ensure that an honest challenger's participation always results in a profitable move, and possibly prevent the need for challengers to respond to every invalid claim within the game.
 1. The fault proof system will be integrated into the bridge contracts, specifically the `OptimismPortal`, in order to enable the system to be used in production and verify the correctness of output roots that withdrawals are proven against.
-
+1. The pre-image oracle limitations related to pre-image size and typing support will be addressed to cover the full scope of valid onchain L1 and L2 activity.
 ## Bounty Scope
 The scope of the bounty is limited to the fault proof alpha system. This includes the following components, in order of security review priority:
 1. **Cannon**: The [Cannon][cannon] binary and its dependencies.
