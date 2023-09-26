@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
+import { RingLib, RING_SIZE } from "src/libraries/RingLib.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000015
@@ -11,6 +12,8 @@ import { ISemver } from "src/universal/ISemver.sol";
 ///         set by the "depositor" account, a special system address. Depositor account transactions
 ///         are created by the protocol whenever we move to a new epoch.
 contract L1Block is ISemver {
+    using RingLib for bytes32[RING_SIZE];
+
     /// @notice Address of the special depositor account.
     address public constant DEPOSITOR_ACCOUNT = 0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001;
 
@@ -38,8 +41,11 @@ contract L1Block is ISemver {
     /// @notice The scalar value applied to the L1 portion of the transaction fee.
     uint256 public l1FeeScalar;
 
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
+
+    /// @notice An array of L1 blockhashes used as a ring buffer.
+    bytes32[RING_SIZE] internal hashes;
 
     /// @notice Updates the L1 block values.
     /// @param _number         L1 blocknumber.
@@ -72,5 +78,26 @@ contract L1Block is ISemver {
         batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
+
+        hashes.set(_number, _hash);
+    }
+
+    /// @notice Returns the hash of the L1 block at the specified block number.
+    /// @dev Requires the block number to be within the range of stored block hashes.
+    /// @param _number The number of the block for which to return the hash.
+    /// @return hash_ The hash of the L1 block.
+    function getL1BlockHash(uint64 _number) external view returns (bytes32 hash_) {
+        uint64 lastNumber = number;
+
+        /// @dev It handles the case where the block is in the future.
+        require(_number <= lastNumber, "L1Block: hash number out of bounds");
+
+        /// @dev It handles the case where the block is no longer in the ring buffer.
+        require(lastNumber - _number < RING_SIZE, "L1Block: hash number out of bounds");
+
+        hash_ = hashes.get(_number);
+
+        /// @dev The zero hash means the block hash is not yet set.
+        require(hash_ != bytes32(0), "L1Block: hash number out of bounds");
     }
 }
