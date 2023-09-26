@@ -139,7 +139,6 @@ type Backend struct {
 
 	skipPeerCountCheck bool
 	forcedCandidate    bool
-	neverBan           bool
 
 	maxDegradedLatencyThreshold time.Duration
 	maxLatencyThreshold         time.Duration
@@ -225,12 +224,6 @@ func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
 	return func(b *Backend) {
 		b.forcedCandidate = forcedCandidate
-	}
-}
-
-func WithConsensusNeverBan(neverBan bool) BackendOpt {
-	return func(b *Backend) {
-		b.neverBan = neverBan
 	}
 }
 
