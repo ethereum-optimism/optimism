@@ -116,7 +116,7 @@ importers:
         version: 1.0.0-beta.18(prettier@2.8.8)
       rimraf:
         specifier: ^5.0.1
-        version: 5.0.1
+        version: 5.0.2
       ts-mocha:
         specifier: ^10.0.0
         version: 10.0.0(mocha@10.2.0)
@@ -12899,8 +12899,8 @@ packages:
       glob: 7.2.3
     dev: true
 
-  /rimraf@5.0.1:
-    resolution: {integrity: sha512-OfFZdwtd3lZ+XZzYP/6gTACubwFcHdLRqS9UX3UwpU2dnGQYkPFISRwvM3w9IiB2w7bW5qGo/uAwE4SmXXSKvg==}
+  /rimraf@5.0.2:
+    resolution: {integrity: sha512-SeHT0IRkQNIhWL7O5qrCt8MfJagJ2ZOemGMIx2NXS7MP1GldYpWSw3mCLbnjA0Ac6eadZMcDFZjynCWGJmwO6A==}
     engines: {node: '>=14'}
     hasBin: true
     dependencies:
