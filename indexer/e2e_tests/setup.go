@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/api"
-
 	"github.com/ethereum-optimism/optimism/indexer"
+	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -27,13 +26,13 @@ import (
 type E2ETestSuite struct {
 	t *testing.T
 
+	// API
+	Client *client.Client
+	API    *api.API
+
 	// Indexer
 	DB      *database.DB
 	Indexer *indexer.Indexer
-
-	// API
-	API    *api.Api
-	Client *client.Client
 
 	// Rollup
 	OpCfg *op_e2e.SystemConfig
@@ -89,8 +88,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1ERC721BridgeProxy:         opCfg.L1Deployments.L1ERC721BridgeProxy,
 			},
 		},
-		HTTPServer:    config.ServerConfig{Host: "http://localhost", Port: 8777},
-		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
+		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 8080},
+		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 7081},
 	}
 
 	db, err := database.NewDB(indexerCfg.DB)
@@ -102,36 +101,52 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	require.NoError(t, err)
 
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
-
 	go func() {
 		err := indexer.Run(indexerCtx)
-		require.NoError(t, err)
+		if err != nil { // panicking here ensures that the test will exit
+			// during service failure. Using t.Fail() wouldn't be caught
+			// until all awaiting routines finish which would never happen.
+			panic(err)
+		}
 	}()
 
-	api := api.NewApi(indexerLog, db.BridgeTransfers, indexerCfg.HTTPServer, indexerCfg.MetricsServer)
+	apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
 
+	apiCfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 6669,
+	}
+
+	mCfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 0,
+	}
+
+	api := api.NewApi(apiLog, db.BridgeTransfers, apiCfg, mCfg)
+	apiCtx, apiStop := context.WithCancel(context.Background())
 	go func() {
-		err := api.Start(indexerCtx)
-		require.NoError(t, err)
+		err := api.Start(apiCtx)
+		if err != nil {
+			panic(err)
+		}
 	}()
 
 	t.Cleanup(func() {
+		apiStop()
 		indexerStop()
 	})
 
-	cfg := &client.Config{
+	client, err := client.NewClient(&client.Config{
 		PaginationLimit: 100,
-		URL:             fmt.Sprintf("%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
-	}
-	client, err := client.NewClient(cfg, nil)
+		URL:             fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
+	})
 
 	require.NoError(t, err)
 
 	return E2ETestSuite{
 		t:        t,
-		DB:       db,
-		API:      api,
 		Client:   client,
+		DB:       db,
 		Indexer:  indexer,
 		OpCfg:    &opCfg,
 		OpSys:    opSys,

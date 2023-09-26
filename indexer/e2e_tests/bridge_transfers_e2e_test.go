@@ -423,13 +423,13 @@ func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
 	require.False(t, aliceWithdrawals.HasNextPage)
 
 	// Respects Limits & Supplied Cursors
-	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 100)
+	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 2)
 	require.NotNil(t, aliceWithdrawals)
 	require.NoError(t, err)
 	require.Len(t, aliceWithdrawals.Withdrawals, 2)
 	require.True(t, aliceWithdrawals.HasNextPage)
 
-	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, aliceWithdrawals.Cursor, 100)
+	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, aliceWithdrawals.Cursor, 1)
 	require.NotNil(t, aliceWithdrawals)
 	require.NoError(t, err)
 	require.Len(t, aliceWithdrawals.Withdrawals, 1)
@@ -464,7 +464,9 @@ func Test_ClientGetWithdrawals(t *testing.T) {
 	type actor struct {
 		addr common.Address
 		priv *ecdsa.PrivateKey
-		hash common.Hash
+
+		depositHash    common.Hash
+		withdrawalHash common.Hash
 	}
 
 	actors := []actor{
@@ -478,13 +480,13 @@ func Test_ClientGetWithdrawals(t *testing.T) {
 		},
 	}
 
-	// Iterate over each actor and deposit / withdraw
+	// (1) Iterate over each actor and deposit / withdraw
 	for _, actor := range actors {
 		l2Opts, err := bind.NewKeyedTransactorWithChainID(actor.priv, testSuite.OpCfg.L2ChainIDBig())
 		require.NoError(t, err)
 		l2Opts.Value = big.NewInt(params.Ether)
 
-		// (1) Deposit user funds into L2 via OptimismPortal contract
+		// (1.a) Deposit user funds into L2 via OptimismPortal contract
 		l1Opts, err := bind.NewKeyedTransactorWithChainID(actor.priv, testSuite.OpCfg.L1ChainIDBig())
 		require.NoError(t, err)
 		l1Opts.Value = l2Opts.Value
@@ -493,30 +495,41 @@ func Test_ClientGetWithdrawals(t *testing.T) {
 		_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
 		require.NoError(t, err)
 
-		// (2) Initiate withdrawal transaction via L2ToL1MessagePasser contract
+		// (1.b) Initiate withdrawal transaction via L2ToL1MessagePasser contract
 		l2ToL1MessagePasserWithdrawTx, err := l2ToL1MessagePasser.Receive(l2Opts)
 		require.NoError(t, err)
 		l2ToL1WithdrawReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, l2ToL1MessagePasserWithdrawTx.Hash())
 		require.NoError(t, err)
 
-		// wait for processor catchup
+		// (1.c) wait for indexer processor to catchup with the L2 block containing the withdrawal tx
 		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 			l2Header := testSuite.Indexer.BridgeProcessor.LatestL2Header
 			return l2Header != nil && l2Header.Number.Uint64() >= l2ToL1WithdrawReceipt.BlockNumber.Uint64(), nil
 		}))
 
-		actor.hash = l2ToL1MessagePasserWithdrawTx.Hash()
+		actor.withdrawalHash = l2ToL1MessagePasserWithdrawTx.Hash()
 	}
 
-	// (2) Test that Alice's tx can be retrieved via API client
+	// (2) Test that Alice's withdrawal and deposit txs can be retrieved via API client
 	aliceWithdrawals, err := testSuite.Client.GetAllWithdrawalsByAddress(aliceAddr)
 	require.NoError(t, err)
 	require.Len(t, aliceWithdrawals, 1)
-	require.Equal(t, actors[0], aliceWithdrawals[0].L2TransactionHash[0])
+	require.Equal(t, actors[0].withdrawalHash, aliceWithdrawals[0].L2TransactionHash[0])
 
-	// (3) Test that Bob's tx can be retrieved via API client
+	aliceDeposits, err := testSuite.Client.GetAllDepositsByAddress(aliceAddr)
+	require.NoError(t, err)
+	require.Len(t, aliceDeposits, 1)
+	require.Equal(t, actors[0].depositHash, aliceDeposits[0].L1TransactionHash[0])
+
+	// (3) Test that Bob's withdrawal and deposit txs can be retrieved via API client
 	bobWithdrawals, err := testSuite.Client.GetAllWithdrawalsByAddress(bobAddr)
 	require.NoError(t, err)
 	require.Len(t, bobWithdrawals, 1)
-	require.Equal(t, actors[1], bobWithdrawals[0].L2TransactionHash[0])
+	require.Equal(t, actors[1].withdrawalHash, bobWithdrawals[0].L2TransactionHash[0])
+
+	bobDeposits, err := testSuite.Client.GetAllDepositsByAddress(bobAddr)
+	require.NoError(t, err)
+	require.Equal(t, actors[0].depositHash, aliceDeposits[0].L1TransactionHash[0])
+	require.Equal(t, actors[1].depositHash, bobDeposits[0].L2TransactionHash[0])
+
 }
