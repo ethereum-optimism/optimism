@@ -24,7 +24,11 @@ The alpha system is not prepared for mainnet, and as such, there are a number of
 
 1. DoS attacks are currently likely to occur due to the lack of bonds in the alpha system as well as the lack of an extra layer of bisection in the dispute game to reduce the running time of [Cannon][cannon]. It is possible to
     DoS the network of honest challengers by creating a large number of invalid challenges.
-
+1. Limitations of pre-image oracle inputs. The pre-image oracle currently does not support the full specified set of inputs.
+    In particular, arbitrary pre-image value size and preimage key types other than `local` (type 1) `keccak256` (type 2) are not supported.
+    The pre-image value size is limited to what the current oracle can verify: gas and calldata limits constrain this more than the pre-images are, rendering some state-transitions that include large pre-images impossible to prove with the oracle as-is. This does not affect most proofs. L1/L2 activity that breaks this pre-image size limitation does not qualify for the bounty.
+    The remaining pre-images types are not supported, as the types are not used by the current op-program, but may be supported for future program proving, e.g. type 3 for application-specific proofs, and new types 4, 5, etc. for ethereum extensions like SHA2 and KZG point verification.
+1. Non-standard rollup chain configurations do not qualify. Output roots span a range of L2 blocks derived from a range of L1 blocks, built on top of the previous agreed upon L2 state. By breaking time or input-range chain parameters, the proof program may not complete or fail in undefined ways.
 ### Reviewer Notes
 1. **Any bug report without a PoC in the form of a test in `op-e2e` will not be considered a valid bug report.**
     1. A guide on creating an e2e test with an invalid output proposal to dispute can be found [here][invalid-proposal-doc].
