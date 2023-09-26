@@ -55,3 +55,65 @@ func configForArgs(args ...string) CLIConfig {
 	_ = app.Run(args)
 	return config
 }
+
+func TestDefaultSignerCLIOptionsMatchDefaultConfig(t *testing.T) {
+	cfg := signerConfigForArgs()
+	defaultCfg := NewSignerCLIConfig()
+	require.Equal(t, defaultCfg, cfg)
+}
+
+func TestDefaultSignerConfigIsValid(t *testing.T) {
+	err := NewSignerCLIConfig().Check()
+	require.NoError(t, err)
+}
+
+func TestInvalidSignerConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		expected     string
+		configChange func(config *SignerCLIConfig)
+	}{
+		{
+			name:     "MissingEndpoint",
+			expected: "signer endpoint and address must both be set or not set",
+			configChange: func(config *SignerCLIConfig) {
+				config.Address = "0x1234"
+			},
+		},
+		{
+			name:     "MissingAddress",
+			expected: "signer endpoint and address must both be set or not set",
+			configChange: func(config *SignerCLIConfig) {
+				config.Endpoint = "http://localhost"
+			},
+		},
+		{
+			name:     "InvalidTLSConfig",
+			expected: "all tls flags must be set if at least one is set",
+			configChange: func(config *SignerCLIConfig) {
+				config.TLSConfig.TLSKey = ""
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := NewSignerCLIConfig()
+			test.configChange(&cfg)
+			err := cfg.Check()
+			require.ErrorContains(t, err, test.expected)
+		})
+	}
+}
+
+func signerConfigForArgs(args ...string) SignerCLIConfig {
+	app := cli.NewApp()
+	app.Flags = CLIFlags("TEST_")
+	app.Name = "test"
+	var config SignerCLIConfig
+	app.Action = func(ctx *cli.Context) error {
+		config = ReadSignerCLIConfig(ctx)
+		return nil
+	}
+	_ = app.Run(args)
+	return config
+}

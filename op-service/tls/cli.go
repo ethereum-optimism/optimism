@@ -109,10 +109,39 @@ func ReadCLIConfigWithPrefix(ctx *cli.Context, flagPrefix string) CLIConfig {
 	}
 }
 
+const (
+	EndpointFlagName = "signer.endpoint"
+	AddressFlagName  = "signer.address"
+)
+
+func SignerCLIFlags(envPrefix string) []cli.Flag {
+	envPrefix += "_SIGNER"
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:    EndpointFlagName,
+			Usage:   "Signer endpoint the client will connect to",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "ENDPOINT"),
+		},
+		&cli.StringFlag{
+			Name:    AddressFlagName,
+			Usage:   "Address the signer is signing transactions for",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "ADDRESS"),
+		},
+	}
+	flags = append(flags, CLIFlagsWithFlagPrefix(envPrefix, "signer")...)
+	return flags
+}
+
 type SignerCLIConfig struct {
 	Endpoint  string
 	Address   string
 	TLSConfig CLIConfig
+}
+
+func NewSignerCLIConfig() SignerCLIConfig {
+	return SignerCLIConfig{
+		TLSConfig: NewCLIConfig(),
+	}
 }
 
 func (c SignerCLIConfig) Check() error {
@@ -130,4 +159,13 @@ func (c SignerCLIConfig) Enabled() bool {
 		return true
 	}
 	return false
+}
+
+func ReadSignerCLIConfig(ctx *cli.Context) SignerCLIConfig {
+	cfg := SignerCLIConfig{
+		Endpoint:  ctx.String(EndpointFlagName),
+		Address:   ctx.String(AddressFlagName),
+		TLSConfig: ReadCLIConfigWithPrefix(ctx, "signer"),
+	}
+	return cfg
 }
