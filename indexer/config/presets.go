@@ -121,4 +121,52 @@ var Presets = map[int]Preset{
 			L1StartingHeight: 8942381,
 		},
 	},
+	11155420: {
+		Name: "OP Sepolia",
+		ChainConfig: ChainConfig{
+			Preset: 11155420,
+			L1Contracts: L1Contracts{
+				AddressManager:              common.HexToAddress("0x9bFE9c5609311DF1c011c47642253B78a4f33F4B"),
+				SystemConfigProxy:           common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+				OptimismPortalProxy:         common.HexToAddress("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
+				L2OutputOracleProxy:         common.HexToAddress("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F"),
+				L1CrossDomainMessengerProxy: common.HexToAddress("0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef"),
+				L1StandardBridgeProxy:       common.HexToAddress("0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1"),
+				L1ERC721BridgeProxy:         common.HexToAddress("0xd83e03D576d23C9AEab8cC44Fa98d058D2176D1f"),
+			},
+			L1StartingHeight: 4071408,
+		},
+	},
+	424: {
+		Name: "PGN",
+		ChainConfig: ChainConfig{
+			Preset: 424,
+			L1Contracts: L1Contracts{
+				AddressManager:              common.HexToAddress("0x09d5DbA52F0ee2C4A5E94FD5C802bD74Ca9cAD3e"),
+				SystemConfigProxy:           common.HexToAddress("0x7Df716EAD1d83a2BF35B416B7BC84bd0700357C9"),
+				OptimismPortalProxy:         common.HexToAddress("0xb26Fd985c5959bBB382BAFdD0b879E149e48116c"),
+				L2OutputOracleProxy:         common.HexToAddress("0xA38d0c4E6319F9045F20318BA5f04CDe94208608"),
+				L1CrossDomainMessengerProxy: common.HexToAddress("0x97BAf688E5d0465E149d1d5B497Ca99392a6760e"),
+				L1StandardBridgeProxy:       common.HexToAddress("0xD0204B9527C1bA7bD765Fa5CCD9355d38338272b"),
+				L1ERC721BridgeProxy:         common.HexToAddress("0xaFF0F8aaB6Cc9108D34b3B8423C76d2AF434d115"),
+			},
+			L1StartingHeight: 17672702,
+		},
+	},
+	58008: {
+		Name: "PGN Sepolia",
+		ChainConfig: ChainConfig{
+			Preset: 58008,
+			L1Contracts: L1Contracts{
+				AddressManager:              common.HexToAddress("0x0Ad91488288BBe60ff38258785568A6D1EB3B983"),
+				SystemConfigProxy:           common.HexToAddress("0x4BCCC52151f0ad7C62D45Ce0aA77d9d8ffCE534e"),
+				OptimismPortalProxy:         common.HexToAddress("0xF04BdD5353Bb0EFF6CA60CfcC78594278eBfE179"),
+				L2OutputOracleProxy:         common.HexToAddress("0xD5bAc3152ffC25318F848B3DD5dA6C85171BaEEe"),
+				L1CrossDomainMessengerProxy: common.HexToAddress("0x97f3558Ce48FE71B8CeFA5497708A49531D5A8E1"),
+				L1StandardBridgeProxy:       common.HexToAddress("0xFaE6abCAF30D23e233AC7faF747F2fC3a5a6Bfa3"),
+				L1ERC721BridgeProxy:         common.HexToAddress("0xBA8397B6f255618D5985d0fB427D8c0496F3a5FA"),
+			},
+			L1StartingHeight: 17672702,
+		},
+	},
 }

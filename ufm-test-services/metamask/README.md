@@ -20,7 +20,7 @@ Apple’s operating system doesn’t include a built-in XServer, but we can use 
 4. Start XQuartz by executing `xhost +localhost` in your terminal
 5. Open Docker Desktop and edit settings to give access to `/tmp/.X11-unix` in `Preferences -> Resources -> File sharing`
 
-Once XQuartz is running with the right permissions, you can populate the environment variable and socket Docker args:
+Once XQuartz is running with the right permissions, you can populate the environment variable and socket Docker args (these envs are defaulted to the below values in `ufm-test-services/.env.example`):
 
 ```bash
 docker run --rm -it \

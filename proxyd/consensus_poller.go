@@ -261,7 +261,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	}
 
 	// if backend is not healthy state we'll only resume checking it after ban
-	if !be.IsHealthy() {
+	if !be.IsHealthy() && !be.forcedCandidate {
 		log.Warn("backend banned - not healthy", "backend", be.Name)
 		cp.Ban(be)
 		return
@@ -327,7 +327,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 	RecordBackendUnexpectedBlockTags(be, !expectedBlockTags)
 
-	if !expectedBlockTags {
+	if !expectedBlockTags && !be.forcedCandidate {
 		log.Warn("backend banned - unexpected block tags",
 			"backend", be.Name,
 			"oldFinalized", bs.finalizedBlockNumber,
@@ -490,6 +490,10 @@ func (cp *ConsensusPoller) IsBanned(be *Backend) bool {
 
 // Ban bans a specific backend
 func (cp *ConsensusPoller) Ban(be *Backend) {
+	if be.forcedCandidate {
+		return
+	}
+
 	bs := cp.backendState[be]
 	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()

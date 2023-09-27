@@ -99,7 +99,11 @@ func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, requir
 		return RewriteNone, nil
 	}
 
-	val, rw, err := rewriteTag(rctx, p[pos].(string))
+	s, ok := p[pos].(string)
+	if !ok {
+		return RewriteOverrideError, errors.New("expected string")
+	}
+	val, rw, err := rewriteTag(rctx, s)
 	if err != nil {
 		return RewriteOverrideError, err
 	}

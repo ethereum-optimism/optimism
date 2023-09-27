@@ -13,14 +13,16 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestL2EngineAPI(gt *testing.T) {
@@ -32,7 +34,8 @@ func TestL2EngineAPI(gt *testing.T) {
 	genesisBlock := sd.L2Cfg.ToBlock()
 	consensus := beacon.New(ethash.NewFaker())
 	db := rawdb.NewMemoryDatabase()
-	sd.L2Cfg.MustCommit(db)
+	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 
@@ -94,7 +97,8 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	log := testlog.Logger(t, log.LvlDebug)
 	genesisBlock := sd.L2Cfg.ToBlock()
 	db := rawdb.NewMemoryDatabase()
-	sd.L2Cfg.MustCommit(db)
+	tdb := trie.NewDatabase(db, &trie.Config{HashDB: hashdb.Defaults})
+	sd.L2Cfg.MustCommit(db, tdb)
 
 	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	t.Cleanup(func() {

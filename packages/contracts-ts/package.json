@@ -60,7 +60,7 @@
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^22.1.0",
     "tsup": "^7.1.0",
-    "typescript": "^5.1.6",
+    "typescript": "^5.2.2",
     "vite": "^4.4.6",
     "vitest": "^0.34.2"
   },

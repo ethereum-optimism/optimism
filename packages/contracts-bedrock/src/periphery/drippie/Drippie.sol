@@ -244,4 +244,11 @@ contract Drippie is AssetReceiver {
 
         emit DripExecuted(_name, _name, msg.sender, block.timestamp);
     }
+
+    /// @notice Returns the status of a given drip.
+    /// @param _name Drip to check.
+    /// @return DripStatus of the given drip.
+    function getDripStatus(string calldata _name) public view returns (DripStatus) {
+        return drips[_name].status;
+    }
 }
