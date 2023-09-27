@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { OptimismPortal } from "./OptimismPortal.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { ISemver } from "../universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -19,8 +19,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     OptimismPortal public PORTAL;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.6.0
-    string public constant version = "1.6.0";
+    /// @custom:semver 1.6.1
+    string public constant version = "1.6.1";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {

@@ -58,7 +58,7 @@ func main() {
 
 // entrypoint is the entrypoint for the check-l2 script
 func entrypoint(ctx *cli.Context) error {
-	clients, err := clients.NewClients(ctx)
+	clients, err := clients.NewClientsFromContext(ctx)
 	if err != nil {
 		return err
 	}

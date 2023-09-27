@@ -21,7 +21,7 @@ var (
 	uint128Max = new(big.Int)
 	// The default values for the ResourceConfig, used as part of
 	// an EIP-1559 curve for deposit gas.
-	defaultResourceConfig = bindings.ResourceMeteringResourceConfig{
+	DefaultResourceConfig = bindings.ResourceMeteringResourceConfig{
 		MaxResourceLimit:            20_000_000,
 		ElasticityMultiplier:        10,
 		BaseFeeMaxChangeDenominator: 8,
@@ -37,7 +37,7 @@ func init() {
 		panic("bad uint128Max")
 	}
 	// Set the maximum base fee on the default config.
-	defaultResourceConfig.MaximumBaseFee = uint128Max
+	DefaultResourceConfig.MaximumBaseFee = uint128Max
 }
 
 // BuildL1DeveloperGenesis will create a L1 genesis block after creating

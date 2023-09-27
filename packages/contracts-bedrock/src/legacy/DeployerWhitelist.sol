@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @custom:legacy
 /// @custom:proxied
@@ -12,7 +12,7 @@ import { Semver } from "../universal/Semver.sol";
 ///         disabled, but the code is kept in state for the sake of full backwards compatibility.
 ///         As of the Bedrock upgrade, the DeployerWhitelist is completely unused by the Optimism
 ///         system and could, in theory, be removed entirely.
-contract DeployerWhitelist is Semver {
+contract DeployerWhitelist is ISemver {
     /// @notice Address of the owner of this contract. Note that when this address is set to
     ///         address(0), the whitelist is disabled.
     address public owner;
@@ -40,8 +40,9 @@ contract DeployerWhitelist is Semver {
         _;
     }
 
-    /// @custom:semver 1.0.2
-    constructor() Semver(1, 0, 2) { }
+    /// @notice Semantic version.
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Adds or removes an address from the deployment whitelist.
     /// @param _deployer      Address to update permissions for.

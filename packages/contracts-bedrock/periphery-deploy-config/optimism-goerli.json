@@ -1,3 +1,18 @@
 {
-  "faucetAdmin": "0xf2C22a95bBA6F35545269183D8d1751a27F047F6"
+  "faucetAdmin": "0xf2C22a95bBA6F35545269183D8d1751a27F047F6",
+  "faucetDrippieOwner": "0xEa193Fd9565284E7534dDDA15b07B119e7792644",
+  "faucetDripV1Value": 20000000000000000000,
+  "faucetDripV1Interval": 3600,
+  "faucetDripV1Threshold": 100000000000000000000,
+  "faucetDripV2Interval": 604800,
+  "faucetDripV2Threshold": 20000000000000000000,
+  "faucetDripV2Value": 500000000000000000000,
+  "faucetAdminDripV1Interval": 86400,
+  "faucetAdminDripV1Threshold": 100000000000000000,
+  "faucetAdminDripV1Value": 1000000000000000000,
+  "faucetGelatoTreasury": "0x644CB00854EDC55FE8CCC9c1967BABb22F08Ad2f",
+  "faucetGelatoRecipient": "0x789e58a4B08A23a7f60141959C6ABbdC0D0C4Aba",
+  "faucetGelatoBalanceV1DripInterval": 86400,
+  "faucetGelatoBalanceV1Value": 1000000000000000000,
+  "faucetGelatoThreshold": 100000000000000000
 }
