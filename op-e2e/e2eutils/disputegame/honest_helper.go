@@ -44,8 +44,7 @@ func (h *HonestHelper) Defend(ctx context.Context, claimIdx int64) {
 func (h *HonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	claim := h.game.getClaim(ctx, claimIdx)
-	pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+	pos := h.game.getClaimPosition(ctx, claimIdx)
 	if !isAttack {
 		// If we're defending, then the step will be from the trace to the next one
 		pos = pos.MoveRight()
