@@ -27,7 +27,7 @@ type TxMetrics struct {
 	currentNonce       prometheus.Gauge
 	pendingTxs         prometheus.Gauge
 	txPublishError     *prometheus.CounterVec
-	publishEvent       metrics.Event
+	publishEvent       *metrics.Event
 	confirmEvent       metrics.EventVec
 	rpcError           prometheus.Counter
 }

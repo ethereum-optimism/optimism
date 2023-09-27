@@ -10,7 +10,7 @@ const env = z
   .parse(process.env)
 
 const txSuccessMetricName = 'metamask_tx_success'
-const txFailureMetricName = 'metamask_tx_failuree'
+const txFailureMetricName = 'metamask_tx_failure'
 
 const txSuccessCounter = new Counter({
   name: txSuccessMetricName,

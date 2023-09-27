@@ -12,9 +12,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/pkg/errors"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -35,7 +36,7 @@ type DB struct {
 	BridgeTransactions BridgeTransactionsDB
 }
 
-func NewDB(dbConfig config.DBConfig) (*DB, error) {
+func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 
 	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
@@ -52,21 +53,22 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 	gormConfig := gorm.Config{
 		// The indexer will explicitly manage the transactions
 		SkipDefaultTransaction: true,
-		Logger:                 logger.Default.LogMode(logger.Silent),
+		Logger:                 newLogger(log),
 	}
 
 	gorm, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
 		gorm, err := gorm.Open(postgres.Open(dsn), &gormConfig)
-
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to connect to database")
+			return nil, fmt.Errorf("failed to connect to database: %w", err)
 		}
+
 		return gorm, nil
 	})
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to database after multiple retries")
+		return nil, fmt.Errorf("failed to connect to database after multiple retries: %w", err)
 	}
+
 	db := &DB{
 		gorm:               gorm,
 		Blocks:             newBlocksDB(gorm),
@@ -75,6 +77,7 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 		BridgeMessages:     newBridgeMessagesDB(gorm),
 		BridgeTransactions: newBridgeTransactionsDB(gorm),
 	}
+
 	return db, nil
 }
 

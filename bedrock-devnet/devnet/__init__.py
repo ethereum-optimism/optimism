@@ -156,19 +156,21 @@ def devnet_l1_genesis(paths):
         '--rpc.allow-unprotected-txs'
     ])
 
-    forge = ChildProcess(deploy_contracts, paths)
-    forge.start()
-    forge.join()
-    err = forge.get_error()
-    if err:
-        raise Exception(f"Exception occurred in child process: {err}")
+    try:
+        forge = ChildProcess(deploy_contracts, paths)
+        forge.start()
+        forge.join()
+        err = forge.get_error()
+        if err:
+            raise Exception(f"Exception occurred in child process: {err}")
 
-    res = debug_dumpBlock('127.0.0.1:8545')
-    response = json.loads(res)
-    allocs = response['result']
+        res = debug_dumpBlock('127.0.0.1:8545')
+        response = json.loads(res)
+        allocs = response['result']
 
-    write_json(paths.allocs_path, allocs)
-    geth.terminate()
+        write_json(paths.allocs_path, allocs)
+    finally:
+        geth.terminate()
 
 
 # Bring up the devnet where the contracts are deployed to L1

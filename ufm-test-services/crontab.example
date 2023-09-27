@@ -1,8 +1,11 @@
 # Needs to point to docker, otherwise you'll get the error: exec: "docker": executable file not found in $PATH
 PATH=/
 
-# Runs every minute
-# * * * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.yml --profile 1minute up -d
+# Runs every 1 hour
+0 * * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.local.yml --profile 1hour up -d
 
-# Runs every 5 minutes
-*/5 * * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.yml --profile 5minute up -d
+# Runs every 1 day
+0 12 * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.local.yml --profile 1day up -d
+
+# Runs every 7 day
+0 12 */7 * * /usr/local/bin/docker-compose -f /path/to/docker-compose.local.yml --profile 7day up -d

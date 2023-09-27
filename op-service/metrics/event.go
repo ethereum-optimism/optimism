@@ -16,8 +16,8 @@ func (e *Event) Record() {
 	e.LastTime.SetToCurrentTime()
 }
 
-func NewEvent(factory Factory, ns string, subsystem string, name string, displayName string) Event {
-	return Event{
+func NewEvent(factory Factory, ns string, subsystem string, name string, displayName string) *Event {
+	return &Event{
 		Total: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      fmt.Sprintf("%s_total", name),
