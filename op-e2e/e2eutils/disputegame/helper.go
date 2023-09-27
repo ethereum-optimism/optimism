@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -175,16 +174,24 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
 
-	maxDepth := uint64(math.MaxUint64)
+	cannonTypeAddr, err := h.factory.GameImpls(opts, cannonGameType)
+	h.require.NoError(err, "fetch cannon game type impl")
+
+	gameImpl, err := bindings.NewFaultDisputeGameCaller(cannonTypeAddr, h.client)
+	h.require.NoError(err, "bind fault dispute game caller")
+
+	maxDepth, err := gameImpl.MAXGAMEDEPTH(opts)
+	h.require.NoError(err, "fetch max game depth")
+
 	provider := cannon.NewTraceProviderFromInputs(
 		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
 		metrics.NoopMetrics,
 		cfg,
 		inputs,
 		cfg.Datadir,
-		maxDepth,
+		maxDepth.Uint64(),
 	)
-	pos := faultTypes.NewPosition(int(maxDepth), int(maxDepth))
+	pos := faultTypes.NewPosition(int(maxDepth.Uint64()), int(maxDepth.Uint64()))
 	rootClaim, err := provider.Get(ctx, pos)
 	h.require.NoError(err, "Compute correct root hash")
 	// Override the VM status to claim the root is invalid
