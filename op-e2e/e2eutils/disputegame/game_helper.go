@@ -38,6 +38,9 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 	return time.Duration(duration) * time.Second
 }
 
+// WaitForClaimCount waits until there are at least count claims in the game.
+// This does not check that the number of claims is exactly the specified count to avoid intermittent failures
+// where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -47,7 +50,7 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 			return false, err
 		}
 		g.t.Log("Waiting for claim count", "current", actual, "expected", count, "game", g.addr)
-		return actual.Cmp(big.NewInt(count)) == 0, nil
+		return actual.Cmp(big.NewInt(count)) >= 0, nil
 	})
 	g.require.NoErrorf(err, "Did not find expected claim count %v", count)
 }
@@ -122,6 +125,12 @@ func (g *FaultGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) com
 	return claim.Claim
 }
 
+func (g *FaultGameHelper) GetClaimPosition(ctx context.Context, claimIdx int64) types.Position {
+	g.WaitForClaimCount(ctx, claimIdx+1)
+	claim := g.getClaim(ctx, claimIdx)
+	return types.NewPositionFromGIndex(claim.Position.Uint64())
+}
+
 // getClaim retrieves the claim data for a specific index.
 // Note that it is deliberately not exported as tests should use WaitForClaim to avoid race conditions.
 func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
@@ -130,10 +139,6 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 		g.require.NoErrorf(err, "retrieve claim %v", claimIdx)
 	}
 	return claimData
-}
-
-func (g *FaultGameHelper) GetClaimUnsafe(ctx context.Context, claimIdx int64) ContractClaim {
-	return g.getClaim(ctx, claimIdx)
 }
 
 func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
