@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -57,4 +58,8 @@ func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
 	var result bool
 	err := r.rpc.CallContext(ctx, &result, "admin_sequencerActive")
 	return result, err
+}
+
+func (r *RollupClient) SetLogLevel(ctx context.Context, lvl log.Lvl) error {
+	return r.rpc.CallContext(ctx, nil, "admin_setLogLevel", lvl.String())
 }

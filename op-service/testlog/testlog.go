@@ -43,8 +43,8 @@ type Testing interface {
 }
 
 // Handler returns a log handler which logs to the unit test log of t.
-func Handler(t Testing, level log.Lvl) log.Handler {
-	return log.LvlFilterHandler(level, &handler{t, log.TerminalFormat(false)})
+func Handler(t Testing, level log.Lvl, format log.Format) log.Handler {
+	return log.LvlFilterHandler(level, &handler{t, format})
 }
 
 type handler struct {

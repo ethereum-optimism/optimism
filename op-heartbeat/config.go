@@ -28,9 +28,6 @@ func (c Config) Check() error {
 	if c.HTTPPort <= 0 {
 		return errors.New("must specify a valid HTTP port")
 	}
-	if err := c.Log.Check(); err != nil {
-		return err
-	}
 	if err := c.Metrics.Check(); err != nil {
 		return err
 	}
