@@ -208,8 +208,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 		)
 
 		// Start dishonest challenger
-		correctTrace := game.CreateHonestActor(ctx, disputegame.CorrectAlphabet, 4)
-		dishonestHelper := disputegame.NewDishonestHelper(&game.FaultGameHelper, correctTrace, !isRootCorrect)
+		dishonestHelper := game.CreateDishonestHelper(disputegame.CorrectAlphabet, 4, !isRootCorrect)
 		dishonestHelper.ExhaustDishonestClaims(ctx)
 
 		// Wait until we've reached max depth before checking for inactivity
