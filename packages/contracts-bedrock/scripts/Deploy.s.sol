@@ -71,28 +71,31 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
-        address supConf = setupSuperchainConfig();
-        setupOpChain(supConf);
+        address systemOwnerSafe = deploySafe();
+        address supConfProxy = setupSuperchainConfig();
+        setupOpChain({ supConfProxy: supConfProxy, systemOwnerSafe: systemOwnerSafe });
     }
 
     /// @notice Deploy a full system with a new SuperchainConfig
-    function setupSuperchainConfig() public returns (address supConf_) {
-        supConf_ = deploySuperchainConfigProxy();
+    function setupSuperchainConfig() public returns (address supConfProxy_) {
+        supConfProxy_ = deploySuperchainConfigProxy();
         deploySuperchainConfig();
         initializeSuperchainConfig();
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
-    function setupOpChain(address supConf) public {
+    function setupOpChain(address supConfProxy, address systemOwnerSafe) public {
         console.log("Deploying an Opchain only");
-        if (getAddress("SuperchainConfig") == address(0)) {
-            save("SuperchainConfig", supConf);
+        if (getAddress("SuperchainConfigProxy") == address(0)) {
+            save("SuperchainConfigProxy", supConfProxy);
+        }
+        if (getAddress("SystemOwnerSafe") == address(0)) {
+            save("SystemOwnerSafe", systemOwnerSafe);
         }
 
         deployProxies();
         deployImplementations();
 
-        deploySafe();
         transferProxyAdminOwnership(); // to the Safe
 
         initializeDisputeGameFactory();
@@ -146,8 +149,9 @@ contract Deploy is Deployer {
     }
 
     function deploySuperchainConfigProxy() public broadcast returns (address addr_) {
+        address safe = mustGetAddress("SystemOwnerSafe");
         Proxy proxy = new Proxy({
-            _admin: msg.sender
+            _admin: safe
         });
 
         save("SuperchainConfigProxy", address(proxy));
@@ -646,21 +650,27 @@ contract Deploy is Deployer {
 
     function initializeSuperchainConfig() public broadcast {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        address superchainConfig = mustGetAddress("SuperchainConfig");
+        address payable superchainConfig = mustGetAddress("SuperchainConfig");
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
-        Proxy(superchainConfigProxy).upgradeToAndCall({
-            _implementation: superchainConfig,
+        _callViaSafe({
+            _target: superchainConfigProxy,
             _data: abi.encodeCall(
-                SuperchainConfig.initialize,
+                Proxy.upgradeToAndCall,
                 (
-                    cfg.finalSystemOwner(), // systemOwner
-                    cfg.updateInitiator(), // initiator
-                    cfg.updateVetoer(), // vetoer
-                    cfg.portalGuardian(), // guardian
-                    cfg.updateDelay(), // delay
-                    cfg.getSequencerKeys() // sequencers
+                    superchainConfig,
+                    abi.encodeCall(
+                        SuperchainConfig.initialize,
+                        (
+                            cfg.finalSystemOwner(), // systemOwner
+                            cfg.updateInitiator(), // initiator
+                            cfg.updateVetoer(), // vetoer
+                            cfg.portalGuardian(), // guardian
+                            cfg.updateDelay(), // delay
+                            cfg.getSequencerKeys() // sequencers
+                        )
+                    )
                 )
                 )
         });
