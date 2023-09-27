@@ -91,6 +91,8 @@ func TestL1Deployments(t *testing.T) {
 	require.NotEqual(t, deployments.SystemConfigProxy, common.Address{})
 	require.NotEqual(t, deployments.ProtocolVersions, common.Address{})
 	require.NotEqual(t, deployments.ProtocolVersionsProxy, common.Address{})
+	require.NotEqual(t, deployments.SuperchainConfig, common.Address{})
+	require.NotEqual(t, deployments.SuperchainConfigProxy, common.Address{})
 
 	require.Equal(t, "AddressManager", deployments.GetName(deployments.AddressManager))
 	require.Equal(t, "OptimismPortalProxy", deployments.GetName(deployments.OptimismPortalProxy))

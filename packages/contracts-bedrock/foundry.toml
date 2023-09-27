@@ -24,6 +24,9 @@ bytecode_hash = 'none'
 build_info = true
 build_info_path = 'artifacts/build-info'
 
+# Accomodate the Deploy script's memory intensive sync() method
+memory_limit = 67108864
+
 # Test / Script Runner Settings
 ffi = true
 fs_permissions = [

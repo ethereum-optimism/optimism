@@ -1417,7 +1417,7 @@ func TestRuntimeConfigReload(t *testing.T) {
 	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
 	require.Nil(t, err)
 	// the unsafe signer address is part of the runtime config
-	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
+	tx, err := sysCfgContract.SetSequencer(opts, common.Address{}.Hash(), newUnsafeBlocksSigner)
 	require.NoError(t, err)
 
 	// wait for the change to confirm

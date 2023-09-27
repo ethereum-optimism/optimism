@@ -64,7 +64,6 @@ contract Deploy is Deployer {
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
         cfg = new DeployConfig(path);
-
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
     }
@@ -651,25 +650,17 @@ contract Deploy is Deployer {
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
-        // todo(maurelian): Add a new config type for this
-        Types.SequencerKeys memory sequencer = Types.SequencerKeys({ batcherHash: batcherHash, unsafeBlockSigner: cfg.p2pSequencerAddress()});
-        Types.SequencerKeys[] memory sequencers = new Types.SequencerKeys[](1);
-        sequencers[0] = sequencer;
-
         Proxy(superchainConfigProxy).upgradeToAndCall({
             _implementation: superchainConfig,
             _data: abi.encodeCall(
                 SuperchainConfig.initialize,
                 (
-                    cfg.finalSystemOwner(), // todo(maurelian): Update to a DelayedVetoable contract
-                    // todo(maurelian): the zero values below will be defined when DelayedVetoable is added to the deploy scripts.
-                    // This is dependent on running the initialization steps via a Safe, because it is not possible
-                    // to transfer the ownership of DelayedVetoable.
-                    address(0), // initiator
-                    address(0), // vetoer
-                    cfg.portalGuardian(),
-                    0, // delay
-                    sequencers
+                    cfg.finalSystemOwner(), // systemOwner
+                    cfg.updateInitiator(), // initiator
+                    cfg.updateVetoer(), // vetoer
+                    cfg.portalGuardian(), // guardian
+                    cfg.updateDelay(), // delay
+                    cfg.getSequencerKeys() // sequencers
                 )
                 )
         });
@@ -679,7 +670,7 @@ contract Deploy is Deployer {
     function initializeSystemConfig() public broadcast {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
-
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
         uint256 startBlock = cfg.systemConfigStartBlock();
 
@@ -690,7 +681,7 @@ contract Deploy is Deployer {
                 SystemConfig.initialize,
                 (
                     cfg.finalSystemOwner(),
-                    SuperchainConfig(mustGetAddress("SuperchainConfigProxy")),
+                    superchainConfigProxy,
                     cfg.gasPriceOracleOverhead(),
                     cfg.gasPriceOracleScalar(),
                     batcherHash,
@@ -916,7 +907,6 @@ contract Deploy is Deployer {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        // todo(maurelian): rename this config value
         address guardian = cfg.portalGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
@@ -927,8 +917,11 @@ contract Deploy is Deployer {
             _implementation: optimismPortal,
             _innerCallData: abi.encodeCall(
                 OptimismPortal.initialize,
-                // todo use real impl
-                (L2OutputOracle(l2OutputOracleProxy), SystemConfig(systemConfigProxy), SuperchainConfig(superchainConfigProxy))
+                (
+                    L2OutputOracle(l2OutputOracleProxy),
+                    SystemConfig(systemConfigProxy),
+                    SuperchainConfig(superchainConfigProxy)
+                )
                 )
         });
 
@@ -939,6 +932,7 @@ contract Deploy is Deployer {
         require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
         require(address(portal.superchainConfig()) == superchainConfigProxy);
         require(portal.guardian() == cfg.portalGuardian());
+        require(portal.GUARDIAN() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == false);
 
