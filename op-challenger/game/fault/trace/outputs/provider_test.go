@@ -22,6 +22,18 @@ var (
 )
 
 func TestGet(t *testing.T) {
+	t.Run("PrePrestateErrors", func(t *testing.T) {
+		provider, _ := setupWithTestData(t, 0, poststateBlock)
+		_, err := provider.Get(context.Background(), 0)
+		require.ErrorAs(t, fmt.Errorf("no output at block %d", 1), &err)
+	})
+
+	t.Run("MisconfiguredPoststateErrors", func(t *testing.T) {
+		provider, _ := setupWithTestData(t, 0, 0)
+		_, err := provider.Get(context.Background(), 0)
+		require.ErrorAs(t, fmt.Errorf("no output at block %d", 0), &err)
+	})
+
 	t.Run("FirstBlockAfterPrestate", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
 		value, err := provider.Get(context.Background(), 0)

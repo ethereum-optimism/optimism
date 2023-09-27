@@ -63,7 +63,6 @@ func (o *OutputTraceProvider) Get(ctx context.Context, traceIndex uint64) (commo
 }
 
 // AbsolutePreStateCommitment returns the absolute prestate at the configured prestateBlock.
-// For Optimism Mainnet, this is the first block after bedrock.
 func (o *OutputTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error) {
 	output, err := o.rollupClient.OutputAtBlock(ctx, o.prestateBlock)
 	if err != nil {
