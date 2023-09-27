@@ -63,6 +63,8 @@ type CLIConfig struct {
 	Format string // Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'
 }
 
+// NewLogger creates a new configured logger.
+// The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
 func NewLogger(ctx *cli.Context, cfg CLIConfig) log.Logger {
 	var wr io.Writer = os.Stdout
 	if ctx != nil && ctx.App != nil {
@@ -70,7 +72,7 @@ func NewLogger(ctx *cli.Context, cfg CLIConfig) log.Logger {
 	}
 	handler := log.StreamHandler(wr, Format(cfg.Format, cfg.Color))
 	handler = log.SyncHandler(handler)
-	handler = log.LvlFilterHandler(Level(cfg.Level), handler)
+	handler = NewDynamicLogHandler(Level(cfg.Level), handler)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger
