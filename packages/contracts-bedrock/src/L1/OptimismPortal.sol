@@ -143,6 +143,12 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Getter for the Guardian
     /// @custom:legacy
+    function GUARDIAN() external view returns (address) {
+        return superchainConfig.guardian();
+    }
+
+    /// @notice Getter for the Guardian
+    /// @custom:legacy
     function guardian() external view returns (address) {
         return superchainConfig.guardian();
     }
