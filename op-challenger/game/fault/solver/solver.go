@@ -110,7 +110,7 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 	} else {
 		// We agree with the claim so Defend and use this claim as the starting point to
 		// execute the step after. Thus we need the pre-state of the next step.
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.NextStepPosition(s.gameDepth))
+		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.MoveRight())
 		if err != nil {
 			return StepData{}, err
 		}
