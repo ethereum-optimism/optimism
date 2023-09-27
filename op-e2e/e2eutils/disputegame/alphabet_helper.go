@@ -35,11 +35,15 @@ func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint str
 	return c
 }
 
-func (g *AlphabetGameHelper) CreateHonestActor(ctx context.Context, alphabetTrace string, depth uint64) *HonestHelper {
+func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth uint64) *HonestHelper {
 	return &HonestHelper{
 		t:            g.t,
 		require:      g.require,
 		game:         &g.FaultGameHelper,
 		correctTrace: alphabet.NewTraceProvider(alphabetTrace, depth),
 	}
+}
+
+func (g *AlphabetGameHelper) CreateDishonestHelper(alphabetTrace string, depth uint64, defender bool) *DishonestHelper {
+	return newDishonestHelper(&g.FaultGameHelper, g.CreateHonestActor(alphabetTrace, depth), defender)
 }
