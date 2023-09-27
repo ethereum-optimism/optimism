@@ -107,7 +107,7 @@ func TestInvalidSignerConfig(t *testing.T) {
 
 func signerConfigForArgs(args ...string) SignerCLIConfig {
 	app := cli.NewApp()
-	app.Flags = CLIFlags("TEST_")
+	app.Flags = SignerCLIFlags("TEST_")
 	app.Name = "test"
 	var config SignerCLIConfig
 	app.Action = func(ctx *cli.Context) error {
