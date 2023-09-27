@@ -29,7 +29,7 @@ func main() {
 	app.Before = func(c *cli.Context) error {
 		log.Root().SetHandler(
 			log.LvlFilterHandler(
-				oplog.Level(c.String(wheel.GlobalGethLogLvlFlag.Name)),
+				c.Generic(wheel.GlobalGethLogLvlFlag.Name).(*oplog.LvlFlagValue).LogLvl(),
 				log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
 			),
 		)

@@ -5,7 +5,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/urfave/cli/v2"
@@ -28,7 +28,8 @@ var (
 )
 
 func runIndexer(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "indexer")
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "indexer")
+	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
@@ -52,7 +53,8 @@ func runIndexer(ctx *cli.Context) error {
 }
 
 func runApi(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
+	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
@@ -71,7 +73,8 @@ func runApi(ctx *cli.Context) error {
 }
 
 func runMigrations(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
+	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	migrationsDir := ctx.String(MigrationsFlag.Name)
 	if err != nil {
@@ -91,9 +94,9 @@ func runMigrations(ctx *cli.Context) error {
 
 func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
-	flags = append(flags, log.CLIFlags("INDEXER")...)
+	flags = append(flags, oplog.CLIFlags("INDEXER")...)
 	migrationFlags := []cli.Flag{MigrationsFlag, ConfigFlag}
-	migrationFlags = append(migrationFlags, log.CLIFlags("INDEXER")...)
+	migrationFlags = append(migrationFlags, oplog.CLIFlags("INDEXER")...)
 	return &cli.App{
 		Version:              params.VersionWithCommit(GitCommit, GitDate),
 		Description:          "An indexer of all optimism events with a serving api layer",
