@@ -42,7 +42,7 @@
     "@nrwl/nx-cloud": "latest",
     "@types/chai": "^4.3.6",
     "@types/chai-as-promised": "^7.1.4",
-    "@types/mocha": "^10.0.1",
+    "@types/mocha": "^10.0.2",
     "@types/node": "^20.5.3",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
