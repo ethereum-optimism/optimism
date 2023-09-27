@@ -567,7 +567,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+        vm.prank(supConf.guardian());
+        supConf.pause(100);
 
         vm.expectRevert("L1CrossDomainMessenger: system is paused");
         L1Messenger.relayMessage(

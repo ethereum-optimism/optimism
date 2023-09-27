@@ -38,7 +38,7 @@ contract SuperchainConfig_Pause_TestFail is SuperchainConfig_Initializer {
         assertTrue(supConf.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
-        supConf.pause();
+        supConf.pause(100);
 
         assertEq(supConf.paused(), false);
     }
@@ -46,7 +46,7 @@ contract SuperchainConfig_Pause_TestFail is SuperchainConfig_Initializer {
     /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
     function test_unpause_onlyGuardian_reverts() external {
         vm.prank(guardian);
-        supConf.pause();
+        supConf.pause(100);
         assertEq(supConf.paused(), true);
 
         assertTrue(supConf.guardian() != alice);
@@ -68,16 +68,26 @@ contract SuperchainConfig_Pause_Test is SuperchainConfig_Initializer {
         emit Paused();
 
         vm.prank(guardian);
-        supConf.pause();
+        supConf.pause(100);
 
         assertEq(supConf.paused(), true);
+    }
+
+    /// @dev Tests that `pause` successfully unpauses automatically after 1 week
+    function test_pause_unpauses_succeeds() external {
+        vm.prank(guardian);
+        supConf.pause(100);
+        assertEq(supConf.paused(), true);
+
+        vm.warp(block.timestamp + 1 weeks);
+        assertFalse(supConf.paused());
     }
 
     /// @dev Tests that `unpause` successfully unpauses
     ///      when called by the GUARDIAN.
     function test_unpause_succeeds() external {
         vm.prank(guardian);
-        supConf.pause();
+        supConf.pause(100);
         assertEq(supConf.paused(), true);
 
         vm.expectEmit(true, true, true, true, address(supConf));

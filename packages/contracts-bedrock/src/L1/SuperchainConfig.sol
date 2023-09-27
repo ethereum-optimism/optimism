@@ -51,9 +51,12 @@ contract SuperchainConfig is Initializable, ISemver {
     ///         It can only be modified by an upgrade.
     bytes32 public constant DELAY_SLOT = bytes32(uint256(keccak256("superchainConfig.delay")) - 1);
 
-    /// @notice The pause status of withdrawals from an chain in the superchain.
-    ///         Set by the guardian role.
+    /// @notice The time until which the system is paused.
     bytes32 public constant PAUSED_SLOT = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
+
+    // todo(maurelian): make this time configurable. It was just a lot easier to mock it up by hardcoding it in.
+    /// @notice The maximum time in seconds that the system can be paused for.
+    uint256 public constant maxPause = 1 weeks;
 
     /// @notice Mapping of allowed sequencers.
     ///         The initiator should be able to add to it instantly, but removing is subject to delay.
@@ -186,13 +189,17 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Getter for the paused address.
     function paused() public view returns (bool paused_) {
-        paused_ = _getAddress(PAUSED_SLOT) != address(0);
+        paused_ = _getValue(PAUSED_SLOT) > block.timestamp;
     }
 
+    // todo(maurelian): we might need a repause() getter which is only callable by the
+    // security council. And is the only way to extend an active pause.
+    // This would enable us to distribute the one-time presigned pause tx, but restrict repausing.
     /// @notice Pauses withdrawals.
-    function pause() external {
+    function pause(uint256 duration) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
-        _setValue(PAUSED_SLOT, uint256(1));
+        require(duration <= maxPause, "SuperchainConfig: duration exceeds maxPause");
+        _setValue(PAUSED_SLOT, uint256(block.timestamp) + duration);
         emit Paused();
     }
 

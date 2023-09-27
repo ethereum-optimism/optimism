@@ -24,7 +24,7 @@ contract OptimismPortal_Pausability_Test is Portal_Initializer {
     /// @dev Tests that the Portal returns the correct paused value from the superchainConfig.
     function test_paused_succeeds() external {
         vm.prank(guardian);
-        supConf.pause();
+        supConf.pause(100);
         assertTrue(op.paused());
     }
 }
@@ -340,7 +340,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
         vm.prank(op.guardian());
-        supConf.pause();
+        supConf.pause(100);
 
         vm.expectRevert("OptimismPortal: paused");
         op.proveWithdrawalTransaction({
@@ -490,7 +490,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
         vm.prank(op.guardian());
-        supConf.pause();
+        supConf.pause(100);
 
         vm.expectRevert("OptimismPortal: paused");
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -837,7 +837,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts when the system is paused.
     function test_finalizeWithdrawalTransaction_systemPaused_reverts() external {
-        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+        vm.prank(supConf.guardian());
+        supConf.pause(100);
         vm.expectRevert("OptimismPortal: paused");
         op.finalizeWithdrawalTransaction(_defaultTx);
     }

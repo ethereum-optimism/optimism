@@ -183,7 +183,8 @@ contract OptimismPortal_CannotProveWhenPaused is OptimismPortal_Invariant_Harnes
         excludeSender(address(multisig));
 
         // Pause the system
-        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+        vm.prank(supConf.guardian());
+        supConf.pause(100);
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
@@ -210,7 +211,8 @@ contract OptimismPortal_CannotFinalizeWhenPaused is OptimismPortal_Invariant_Har
         excludeSender(address(multisig));
 
         // Pause the system
-        vm.store(address(supConf), supConf.PAUSED_SLOT(), bytes32(uint256(1)));
+        vm.prank(supConf.guardian());
+        supConf.pause(100);
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
