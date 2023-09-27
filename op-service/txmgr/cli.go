@@ -19,7 +19,7 @@ import (
 const (
 	// Duplicated L1 RPC flag
 	L1RPCFlagName = "l1-eth-rpc"
-	// Key Management Flags (also have op-signer client flags)
+	// Key Management Flags (also have signer client flags)
 	MnemonicFlagName   = "mnemonic"
 	HDPathFlagName     = "hd-path"
 	PrivateKeyFlagName = "private-key"
