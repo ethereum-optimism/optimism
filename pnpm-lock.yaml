@@ -25,8 +25,8 @@ importers:
         specifier: latest
         version: 16.4.0
       '@types/chai':
-        specifier: ^4.2.18
-        version: 4.3.5
+        specifier: ^4.3.6
+        version: 4.3.6
       '@types/chai-as-promised':
         specifier: ^7.1.4
         version: 7.1.5
@@ -43,8 +43,8 @@ importers:
         specifier: ^6.7.0
         version: 6.7.3(eslint@8.49.0)(typescript@5.1.6)
       chai:
-        specifier: ^4.2.0
-        version: 4.3.7
+        specifier: ^4.3.9
+        version: 4.3.9
       depcheck:
         specifier: ^1.4.3
         version: 1.4.6
@@ -159,7 +159,7 @@ importers:
         version: 5.0.0
       chai-as-promised:
         specifier: ^7.1.1
-        version: 7.1.1(chai@4.3.8)
+        version: 7.1.1(chai@4.3.9)
       dateformat:
         specifier: ^4.5.1
         version: 4.5.1
@@ -259,8 +259,8 @@ importers:
         specifier: ^5.1.3
         version: 5.1.3
       chai:
-        specifier: ^4.3.7
-        version: 4.3.7
+        specifier: ^4.3.9
+        version: 4.3.9
       supertest:
         specifier: ^6.3.3
         version: 6.3.3
@@ -383,8 +383,8 @@ importers:
         specifier: ^5.7.1
         version: 5.7.1
       chai:
-        specifier: ^4.3.7
-        version: 4.3.7
+        specifier: ^4.3.9
+        version: 4.3.9
       ethers:
         specifier: ^5.7.2
         version: 5.7.2
@@ -478,8 +478,8 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2)
       '@types/chai':
-        specifier: ^4.3.5
-        version: 4.3.5
+        specifier: ^4.3.6
+        version: 4.3.6
       '@types/chai-as-promised':
         specifier: ^7.1.5
         version: 7.1.5
@@ -491,7 +491,7 @@ importers:
         version: 20.5.0
       chai-as-promised:
         specifier: ^7.1.1
-        version: 7.1.1(chai@4.3.8)
+        version: 7.1.1(chai@4.3.9)
       ethereum-waffle:
         specifier: ^4.0.10
         version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.2)(typescript@5.1.6)
@@ -1683,7 +1683,7 @@ packages:
       '@ethersproject/transactions': 5.7.0
       '@ethersproject/web': 5.7.1
       bufio: 1.2.0
-      chai: 4.3.8
+      chai: 4.3.9
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -3754,10 +3754,6 @@ packages:
       '@types/chai': 4.3.6
     dev: true
 
-  /@types/chai@4.3.5:
-    resolution: {integrity: sha512-mEo1sAde+UCE6b2hxn332f1g1E8WfYRu6p5SvTKr2ZKC1f7gFJXk4h5PyGP9Dt6gCaG8y8XhwnXWC6Iy2cmBng==}
-    dev: true
-
   /@types/chai@4.3.6:
     resolution: {integrity: sha512-VOVRLM1mBxIRxydiViqPcKn6MIxZytrbMpd6RJLIWKxUNr3zux8no0Oc7kJx0WAPIitgZ0gkrDS+btlqQpubpw==}
     dev: true
@@ -4407,7 +4403,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.1
       '@vitest/utils': 0.34.1
-      chai: 4.3.8
+      chai: 4.3.9
     dev: true
 
   /@vitest/expect@0.34.2:
@@ -4415,7 +4411,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.2
       '@vitest/utils': 0.34.2
-      chai: 4.3.8
+      chai: 4.3.9
     dev: true
 
   /@vitest/expect@0.34.4:
@@ -4423,7 +4419,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.4
       '@vitest/utils': 0.34.4
-      chai: 4.3.8
+      chai: 4.3.9
     dev: true
 
   /@vitest/runner@0.34.1:
@@ -6243,16 +6239,16 @@ packages:
     resolution: {integrity: sha512-vlNK021QdI7PNeiUh/lKkC/mNHHfV0m/Ad5JoI0TYtlBnJAslM/JIkm/tGC88bkLIwO6OQ5uV6ztS6kVAtCDlg==}
     dev: true
 
-  /chai-as-promised@7.1.1(chai@4.3.8):
+  /chai-as-promised@7.1.1(chai@4.3.9):
     resolution: {integrity: sha512-azL6xMoi+uxu6z4rhWQ1jbdUhOMhis2PvscD/xjLqNMkv3BPPp2JyyuTHOrf9BOosGpNQ11v6BKv/g57RXbiaA==}
     peerDependencies:
       chai: '>= 2.1.2 < 5'
     dependencies:
-      chai: 4.3.8
+      chai: 4.3.9
       check-error: 1.0.2
 
-  /chai@4.3.7:
-    resolution: {integrity: sha512-HLnAzZ2iupm25PlN0xFreAlBA5zaBSv3og0DdeGA4Ar6h6rJ3A0rolRUKJhSF2V10GZKDgWF/VmAEsNWjCRB+A==}
+  /chai@4.3.8:
+    resolution: {integrity: sha512-vX4YvVVtxlfSZ2VecZgFUTU5qPCYsobVI2O9FmwEXBhDigYGQA6jRXCycIs1yJnnWbZ6/+a2zNIF5DfVCcJBFQ==}
     engines: {node: '>=4'}
     dependencies:
       assertion-error: 1.1.0
@@ -6262,13 +6258,14 @@ packages:
       loupe: 2.3.6
       pathval: 1.1.1
       type-detect: 4.0.8
+    dev: true
 
-  /chai@4.3.8:
-    resolution: {integrity: sha512-vX4YvVVtxlfSZ2VecZgFUTU5qPCYsobVI2O9FmwEXBhDigYGQA6jRXCycIs1yJnnWbZ6/+a2zNIF5DfVCcJBFQ==}
+  /chai@4.3.9:
+    resolution: {integrity: sha512-tH8vhfA1CfuYMkALXj+wmZcqiwqOfshU9Gry+NYiiLqIddrobkBhALv6XD4yDz68qapphYI4vSaqhqAdThCAAA==}
     engines: {node: '>=4'}
     dependencies:
       assertion-error: 1.1.0
-      check-error: 1.0.2
+      check-error: 1.0.3
       deep-eql: 4.1.3
       get-func-name: 2.0.0
       loupe: 2.3.6
@@ -6338,6 +6335,11 @@ packages:
 
   /check-error@1.0.2:
     resolution: {integrity: sha512-BrgHpW9NURQgzoNyjfq0Wu6VFO6D7IZEmJNdtgNqpzGG8RuNFHt2jQxWlAs4HMe119chBnv+34syEZtc6IhLtA==}
+
+  /check-error@1.0.3:
+    resolution: {integrity: sha512-iKEoDYaRmd1mxM90a2OEfWhjsjPpYPuQ+lMYsoxB126+t8fw7ySEO48nmDg5COTjxDI65/Y2OWpeEHk3ZOe8zg==}
+    dependencies:
+      get-func-name: 2.0.2
 
   /chokidar@3.5.3:
     resolution: {integrity: sha512-Dr3sfKRP6oTcjf2JmUmFJfeVMvXBdegxB0iVQ5eb2V10uFJUCAS8OByZdVAyVb8xXNz3GjjTgj9kLWsZTqE6kw==}
@@ -8909,6 +8911,9 @@ packages:
   /get-func-name@2.0.0:
     resolution: {integrity: sha512-Hm0ixYtaSZ/V7C8FJrtZIuBBI+iSgL+1Aq82zSu8VQNB4S3Gk8e7Qs3VwBDJAhmRZcFqkl3tQu36g/Foh5I5ig==}
 
+  /get-func-name@2.0.2:
+    resolution: {integrity: sha512-8vXOvuE167CtIc3OyItco7N/dpRtBbYOsPsXCz7X/PMnlGjYjSGuZJgM1Y7mmew7BKf9BqvLX2tnOVy1BBUsxQ==}
+
   /get-intrinsic@1.2.1:
     resolution: {integrity: sha512-2DcsyfABl+gVHEfCOaTrWgyt+tb6MSEGmKq+kI5HwLbIYgjgmMcV8KQ41uaKz1xxUcn9tJtgFbQUEVcEbd0FYw==}
     dependencies:
@@ -10699,7 +10704,7 @@ packages:
   /loupe@2.3.6:
     resolution: {integrity: sha512-RaPMZKiMy8/JruncMU5Bt6na1eftNoo++R4Y+N2FrxkDVTrGvcyzFTsaGif4QTeKESheMGegbhw6iUAq+5A8zA==}
     dependencies:
-      get-func-name: 2.0.0
+      get-func-name: 2.0.2
 
   /lower-case@2.0.2:
     resolution: {integrity: sha512-7fm3l3NAF9WfN6W3JOmf5drwpVqX78JtoGJ3A6W0a6ZnldM41w2fV5D490psKFTpMds8TJse/eHLFFsNHHjHgg==}
@@ -14975,7 +14980,7 @@ packages:
       acorn: 8.10.0
       acorn-walk: 8.2.0
       cac: 6.7.14
-      chai: 4.3.8
+      chai: 4.3.9
       debug: 4.3.4(supports-color@8.1.1)
       local-pkg: 0.4.3
       magic-string: 0.30.1
@@ -15040,7 +15045,7 @@ packages:
       acorn: 8.10.0
       acorn-walk: 8.2.0
       cac: 6.7.14
-      chai: 4.3.8
+      chai: 4.3.9
       debug: 4.3.4(supports-color@8.1.1)
       jsdom: 22.1.0
       local-pkg: 0.4.3
