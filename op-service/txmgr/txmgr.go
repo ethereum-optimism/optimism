@@ -260,7 +260,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 				return nil, fmt.Errorf("cannot compute KZG proof for fast commitment verification of blob %d in tx candidate: %w", i, err)
 			}
 			sidecar.Proofs = append(sidecar.Proofs, proof)
-			blobHashes = append(blobHashes, eth.KzgToVersionedHash(commitment))
+			blobHashes = append(blobHashes, eth.KZGToVersionedHash(eth.Bytes48(commitment)))
 		}
 		log.Info("crafted blob tx sidecar")
 	}

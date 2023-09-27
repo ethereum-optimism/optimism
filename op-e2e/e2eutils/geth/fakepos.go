@@ -134,7 +134,7 @@ func (f *fakePoS) Start() error {
 						f.log.Error("got malformed kzg commitment from engine", "commitment", commitment)
 						break
 					}
-					blobHashes = append(blobHashes, opeth.KzgToVersionedHash(*(*[48]byte)(commitment)))
+					blobHashes = append(blobHashes, opeth.KZGToVersionedHash(*(*[48]byte)(commitment)))
 				}
 				if len(blobHashes) != len(envelope.BlobsBundle.Commitments) {
 					f.log.Error("invalid or incomplete blob data", "collected", len(blobHashes), "engine", len(envelope.BlobsBundle.Commitments))
