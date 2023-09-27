@@ -399,6 +399,7 @@ var (
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
 			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+			oplog.SetGlobalLogHandler(l.GetHandler())
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag

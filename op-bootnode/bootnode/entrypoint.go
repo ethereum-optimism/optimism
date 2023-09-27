@@ -44,6 +44,7 @@ func Main(cliCtx *cli.Context) error {
 	log.Info("Initializing bootnode")
 	logCfg := oplog.ReadCLIConfig(cliCtx)
 	logger := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
+	oplog.SetGlobalLogHandler(logger.GetHandler())
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
 

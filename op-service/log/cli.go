@@ -159,6 +159,15 @@ func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 	return logger
 }
 
+// SetGlobalLogHandler sets the log handles as the handler of the global default logger.
+// The usage of this logger is strongly discouraged,
+// as it does makes it difficult to distinguish different services in the same process, e.g. during tests.
+// Geth and other components may use the global logger however,
+// and it is thus recommended to set the global log handler to catch these logs.
+func SetGlobalLogHandler(h log.Handler) {
+	log.Root().SetHandler(h)
+}
+
 // DefaultCLIConfig creates a default log configuration.
 // Color defaults to true if terminal is detected.
 func DefaultCLIConfig() CLIConfig {

@@ -17,5 +17,6 @@ func main() {
 		Format: oplog.FormatLogFmt,
 		Color:  false,
 	})
+	oplog.SetGlobalLogHandler(logger.GetHandler())
 	client.Main(logger)
 }

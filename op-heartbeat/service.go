@@ -38,6 +38,7 @@ func Main(version string) func(ctx *cli.Context) error {
 		}
 
 		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.Log)
+		oplog.SetGlobalLogHandler(l.GetHandler())
 		l.Info("starting heartbeat monitor", "version", version)
 
 		ctx, cancel := context.WithCancel(context.Background())
