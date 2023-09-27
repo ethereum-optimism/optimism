@@ -127,10 +127,6 @@ func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *l2VerifierBackend) SetLogLevel(ctx context.Context, lvl string) error {
-	return nil
-}
-
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
 	return s.derivation.Finalized()
 }

@@ -121,7 +121,7 @@ func (fv *FormatFlagValue) Set(value string) error {
 		*fv = FormatFlagValue(value)
 		return nil
 	default:
-		return fmt.Errorf("unrecognized flag format: %q", value)
+		return fmt.Errorf("unrecognized log-format: %q", value)
 	}
 }
 

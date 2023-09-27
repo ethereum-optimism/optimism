@@ -469,10 +469,6 @@ func (s *Driver) SequencerActive(ctx context.Context) (bool, error) {
 	}
 }
 
-func (s *Driver) SetLogLevel(ctx context.Context, lvl string) error {
-	return nil
-}
-
 // syncStatus returns the current sync status, and should only be called synchronously with
 // the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {

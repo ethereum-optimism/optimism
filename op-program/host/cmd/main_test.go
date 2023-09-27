@@ -45,7 +45,7 @@ func TestLogLevel(t *testing.T) {
 
 func TestLogFormat(t *testing.T) {
 	t.Run("RejectInvalid", func(t *testing.T) {
-		verifyArgsInvalid(t, "unrecognized log format: foo", addRequiredArgs("--log.format=foo"))
+		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
 	})
 
 	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {

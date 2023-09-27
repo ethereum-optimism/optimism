@@ -224,7 +224,3 @@ func (c *mockDriverClient) StopSequencer(ctx context.Context) (common.Hash, erro
 func (c *mockDriverClient) SequencerActive(ctx context.Context) (bool, error) {
 	return c.Mock.MethodCalled("SequencerActive").Get(0).(bool), nil
 }
-
-func (c *mockDriverClient) SetLogLevel(ctx context.Context, lvl string) error {
-	return c.Mock.MethodCalled("SetLogLevel").Get(0).(error)
-}

@@ -29,7 +29,6 @@ type driverClient interface {
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
-	SetLogLevel(ctx context.Context, lvl string) error
 }
 
 type rpcMetrics interface {
