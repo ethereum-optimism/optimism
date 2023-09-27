@@ -105,25 +105,14 @@ contract SuperchainConfig is Initializable, ISemver {
         public
         reinitializer(2)
     {
-        _setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
-        emit ConfigUpdate(UpdateType.SYSTEM_OWNER, abi.encode(_systemOwner));
-
-        _setAddress(INITIATOR_SLOT, _initiator);
-        emit ConfigUpdate(UpdateType.INITIATOR, abi.encode(_initiator));
-
-        _setAddress(VETOER_SLOT, _vetoer);
-        emit ConfigUpdate(UpdateType.VETOER, abi.encode(_vetoer));
-
-        _setAddress(GUARDIAN_SLOT, _guardian);
-        emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
-
-        _setValue(DELAY_SLOT, _delay);
-        emit ConfigUpdate(UpdateType.DELAY, abi.encode(_delay));
+        _setSystemOwner(_systemOwner);
+        _setInitiator(_initiator);
+        _setVetoer(_vetoer);
+        _setGuardian(_guardian);
+        _setDelay(_delay);
 
         for (uint256 i = 0; i < _sequencers.length; i++) {
-            bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencers[i]);
-            allowedSequencers[sequencerHash] = true;
-            emit ConfigUpdate(UpdateType.ADD_SEQUENCER, abi.encode(_sequencers[i]));
+            _addSequencer(_sequencers[i]);
         }
     }
 
@@ -228,7 +217,13 @@ contract SuperchainConfig is Initializable, ISemver {
     function addSequencer(T.SequencerKeys memory _sequencer) external {
         // Adding a new a sequencer is not subject to delay, so can be called by the initiator.
         require(msg.sender == initiator(), "SuperchainConfig: only initiator can add sequencer");
-        bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
+        _addSequencer(_sequencer);
+    }
+
+    /// @notice Adds a new sequencer to the allowed list.
+    /// @param _sequencer The sequencer to be added.
+    function _addSequencer(Types.SequencerKeyPair memory _sequencer) internal {
+        bytes32 sequencerHash = Hashing.hashSequencerKeyPair(_sequencer);
 
         allowedSequencers[sequencerHash] = true;
         emit ConfigUpdate(UpdateType.ADD_SEQUENCER, abi.encode(_sequencer));
@@ -243,5 +238,40 @@ contract SuperchainConfig is Initializable, ISemver {
 
         delete allowedSequencers[sequencerHash];
         emit ConfigUpdate(UpdateType.REMOVE_SEQUENCER, abi.encode(_sequencer));
+    }
+
+    /// @notice Sets the system owner address.
+    /// @param _systemOwner The new system owner address.
+    function _setSystemOwner(address _systemOwner) internal {
+        _setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
+        emit ConfigUpdate(UpdateType.SYSTEM_OWNER, abi.encode(_systemOwner));
+    }
+
+    /// @notice Sets the initiator address.
+    /// @param _initiator The new initiator address.
+    function _setInitiator(address _initiator) internal {
+        _setAddress(INITIATOR_SLOT, _initiator);
+        emit ConfigUpdate(UpdateType.INITIATOR, abi.encode(_initiator));
+    }
+
+    /// @notice Sets the vetoer address.
+    /// @param _vetoer The new vetoer address.
+    function _setVetoer(address _vetoer) internal {
+        _setAddress(VETOER_SLOT, _vetoer);
+        emit ConfigUpdate(UpdateType.VETOER, abi.encode(_vetoer));
+    }
+
+    /// @notice Sets the guardian address.
+    /// @param _guardian The new guardian address.
+    function _setGuardian(address _guardian) internal {
+        _setAddress(GUARDIAN_SLOT, _guardian);
+        emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
+    }
+
+    /// @notice Sets the delay.
+    /// @param _delay The new delay.
+    function _setDelay(uint256 _delay) internal {
+        _setValue(DELAY_SLOT, _delay);
+        emit ConfigUpdate(UpdateType.DELAY, abi.encode(_delay));
     }
 }
