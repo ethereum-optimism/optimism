@@ -352,6 +352,8 @@ func main() {
 				return err
 			}
 
+			log.Info("Successfully migrated database. The genesis block hash is", "hash", block.Hash().String())
+
 			return nil
 		},
 	}

@@ -183,7 +183,7 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) (*types.Block, error)
 		return nil, err
 	}
 
-	block := types.NewBlock(header, nil, nil, nil, []*types.Withdrawal{})
+	block := types.NewBlock(header, nil, nil, nil, nil)
 
 	var stateWriter state.StateWriter
 	for addr, account := range genesis.Alloc {
