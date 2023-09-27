@@ -5,6 +5,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ISemver } from "src/universal/ISemver.sol";
 import { Types as T } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
+import { Slot } from "src/libraries/Slot.sol";
 
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
@@ -119,77 +120,34 @@ contract SuperchainConfig is Initializable, ISemver {
         }
     }
 
-    /// @notice Returns an address stored in an arbitrary storage slot.
-    ///         These storage slots decouple the storage layout from
-    ///         solc's automation.
-    /// @param _slot The storage slot to retrieve the address from.
-    function _getAddress(bytes32 _slot) internal view returns (address addr_) {
-        assembly {
-            addr_ := sload(_slot)
-        }
-    }
-
-    /// @notice Stores an address in an arbitrary storage slot, `_slot`.
-    /// @param _slot The storage slot to store the address in.
-    /// @param _address The protocol version to store
-    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting addresses
-    ///      in arbitrary storage slots.
-    function _setAddress(bytes32 _slot, address _address) internal {
-        assembly {
-            sstore(_slot, _address)
-        }
-    }
-
-    /// @notice Returns a uint256 stored in an arbitrary storage slot.
-    ///         These storage slots decouple the storage layout from
-    ///         solc's automation.
-    /// @param _slot The storage slot to retrieve the address from.
-    function _getValue(bytes32 _slot) internal view returns (uint256 value_) {
-        assembly {
-            value_ := sload(_slot)
-        }
-    }
-
-    /// @notice Stores a value in an arbitrary storage slot, `_slot`.
-    /// @param _slot The storage slot to store the address in.
-    /// @param _value The protocol version to store
-    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
-    ///      in arbitrary storage slots.
-    function _setValue(bytes32 _slot, uint256 _value) internal {
-        assembly {
-            sstore(_slot, _value)
-        }
-    }
-
     /// @notice Getter for the systemOwner address.
     function systemOwner() public view returns (address systemOwner_) {
-        systemOwner_ = _getAddress(SYSTEM_OWNER_SLOT);
+        systemOwner_ = Slot.getAddress(SYSTEM_OWNER_SLOT);
     }
 
     /// @notice Getter for the initiator address.
     function initiator() public view returns (address initiator_) {
-        initiator_ = _getAddress(INITIATOR_SLOT);
+        initiator_ = Slot.getAddress(INITIATOR_SLOT);
     }
 
     /// @notice Getter for the vetoer address.
     function vetoer() public view returns (address vetoer_) {
-        vetoer_ = _getAddress(VETOER_SLOT);
+        vetoer_ = Slot.getAddress(VETOER_SLOT);
     }
 
     /// @notice Getter for the guardian address.
     function guardian() public view returns (address guardian_) {
-        guardian_ = _getAddress(GUARDIAN_SLOT);
+        guardian_ = Slot.getAddress(GUARDIAN_SLOT);
     }
 
     /// @notice Getter for the delay address.
     function delay() public view returns (uint256 delay_) {
-        // We do some casting rather than define a new getter.
-        delay_ = uint256(uint160(_getAddress(DELAY_SLOT)));
+        delay_ = Slot.getUint(DELAY_SLOT);
     }
 
     /// @notice Getter for the paused address.
     function paused() public view returns (bool paused_) {
-        paused_ = _getValue(PAUSED_SLOT) > block.timestamp;
+        paused_ = Slot.getUint(PAUSED_SLOT) > block.timestamp;
     }
 
     // todo(maurelian): we might need a repause() getter which is only callable by the
@@ -199,14 +157,14 @@ contract SuperchainConfig is Initializable, ISemver {
     function pause(uint256 duration) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
         require(duration <= maxPause, "SuperchainConfig: duration exceeds maxPause");
-        _setValue(PAUSED_SLOT, uint256(block.timestamp) + duration);
+        Slot.setUint(PAUSED_SLOT, uint256(block.timestamp) + duration);
         emit Paused();
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can unpause");
-        _setValue(PAUSED_SLOT, uint256((0)));
+        Slot.setUint(PAUSED_SLOT, uint256((0)));
         emit Unpaused();
     }
 
@@ -250,35 +208,35 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Sets the system owner address.
     /// @param _systemOwner The new system owner address.
     function _setSystemOwner(address _systemOwner) internal {
-        _setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
+        Slot.setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
         emit ConfigUpdate(UpdateType.SYSTEM_OWNER, abi.encode(_systemOwner));
     }
 
     /// @notice Sets the initiator address.
     /// @param _initiator The new initiator address.
     function _setInitiator(address _initiator) internal {
-        _setAddress(INITIATOR_SLOT, _initiator);
+        Slot.setAddress(INITIATOR_SLOT, _initiator);
         emit ConfigUpdate(UpdateType.INITIATOR, abi.encode(_initiator));
     }
 
     /// @notice Sets the vetoer address.
     /// @param _vetoer The new vetoer address.
     function _setVetoer(address _vetoer) internal {
-        _setAddress(VETOER_SLOT, _vetoer);
+        Slot.setAddress(VETOER_SLOT, _vetoer);
         emit ConfigUpdate(UpdateType.VETOER, abi.encode(_vetoer));
     }
 
     /// @notice Sets the guardian address.
     /// @param _guardian The new guardian address.
     function _setGuardian(address _guardian) internal {
-        _setAddress(GUARDIAN_SLOT, _guardian);
+        Slot.setAddress(GUARDIAN_SLOT, _guardian);
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
     }
 
     /// @notice Sets the delay.
     /// @param _delay The new delay.
     function _setDelay(uint256 _delay) internal {
-        _setValue(DELAY_SLOT, _delay);
+        Slot.setUint(DELAY_SLOT, _delay);
         emit ConfigUpdate(UpdateType.DELAY, abi.encode(_delay));
     }
 }
