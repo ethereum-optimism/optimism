@@ -35,7 +35,7 @@ func runIndexer(ctx *cli.Context) error {
 		return err
 	}
 
-	db, err := database.NewDB(cfg.DB)
+	db, err := database.NewDB(log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
@@ -59,7 +59,7 @@ func runApi(ctx *cli.Context) error {
 		return err
 	}
 
-	db, err := database.NewDB(cfg.DB)
+	db, err := database.NewDB(log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
@@ -79,7 +79,7 @@ func runMigrations(ctx *cli.Context) error {
 		return err
 	}
 
-	db, err := database.NewDB(cfg.DB)
+	db, err := database.NewDB(log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
