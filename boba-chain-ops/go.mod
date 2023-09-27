@@ -175,7 +175,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230601162022-2ff12130f6f2
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230927004118-41592790adc1
 
 replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20230523234422-1a0c1393d03a
 

@@ -101,8 +101,8 @@ github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6r
 github.com/bits-and-blooms/bitset v1.2.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
 github.com/bits-and-blooms/bitset v1.5.0 h1:NpE8frKRLGHIcEzkR+gZhiioW1+WbYV6fKwD6ZIpQT8=
 github.com/bits-and-blooms/bitset v1.5.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
-github.com/bobanetwork/v3-erigon v1.9.7-0.20230601162022-2ff12130f6f2 h1:Y6nZZixcP/bCaRLAz+Xd6k8WrNEm/Y0bj2xh5S+zJh4=
-github.com/bobanetwork/v3-erigon v1.9.7-0.20230601162022-2ff12130f6f2/go.mod h1:HmTP04bnhMvEu63M2xM2JXjDLbZb20/V9UCYOWc43z0=
+github.com/bobanetwork/v3-erigon v1.9.7-0.20230927004118-41592790adc1 h1:JEOpTdjlwNfdLGLfqo+ZotOPSzQjkuwUIeulgb4t7Jw=
+github.com/bobanetwork/v3-erigon v1.9.7-0.20230927004118-41592790adc1/go.mod h1:HmTP04bnhMvEu63M2xM2JXjDLbZb20/V9UCYOWc43z0=
 github.com/bobanetwork/v3-erigon-lib v0.0.0-20230523234422-1a0c1393d03a h1:pfHVGmDimUKsXJWEG8wXe6A7JHoAlplSMB28ip0qC+I=
 github.com/bobanetwork/v3-erigon-lib v0.0.0-20230523234422-1a0c1393d03a/go.mod h1:3Gn5y5hpxEEiudbiPg5n25jzOSK0QQRg+GJHetuveEc=
 github.com/bradfitz/iter v0.0.0-20140124041915-454541ec3da2/go.mod h1:PyRFw1Lt2wKX4ZVSQ2mk+PeDa1rxyObEDlApuIsUKuo=
