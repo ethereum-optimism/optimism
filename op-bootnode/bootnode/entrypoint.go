@@ -43,7 +43,7 @@ func (l *l2Chain) PayloadByNumber(_ context.Context, _ uint64) (*eth.ExecutionPa
 func Main(cliCtx *cli.Context) error {
 	log.Info("Initializing bootnode")
 	logCfg := oplog.ReadCLIConfig(cliCtx)
-	logger := oplog.NewLogger(cliCtx, logCfg)
+	logger := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
 

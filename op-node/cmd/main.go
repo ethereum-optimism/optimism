@@ -83,7 +83,7 @@ func main() {
 func RollupNodeMain(ctx *cli.Context) error {
 	log.Info("Initializing Rollup Node")
 	logCfg := oplog.ReadCLIConfig(ctx)
-	log := oplog.NewLogger(ctx, logCfg)
+	log := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
 	m := metrics.NewMetrics("default")
 

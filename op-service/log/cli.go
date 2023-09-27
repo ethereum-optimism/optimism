@@ -139,13 +139,18 @@ type CLIConfig struct {
 	Format FormatType
 }
 
+// AppOut returns an io.Writer to write app output to, like logs.
+// This falls back to os.Stdout if the ctx, ctx.App or ctx.App.Writer are nil.
+func AppOut(ctx *cli.Context) io.Writer {
+	if ctx == nil || ctx.App == nil || ctx.App.Writer == nil {
+		return os.Stdout
+	}
+	return ctx.App.Writer
+}
+
 // NewLogger creates a new configured logger.
 // The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
-func NewLogger(ctx *cli.Context, cfg CLIConfig) log.Logger {
-	var wr io.Writer = os.Stdout
-	if ctx != nil && ctx.App != nil {
-		wr = ctx.App.Writer
-	}
+func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
 	handler := log.StreamHandler(wr, cfg.Format.Formatter(cfg.Color))
 	handler = log.SyncHandler(handler)
 	handler = NewDynamicLogHandler(cfg.Level, handler)

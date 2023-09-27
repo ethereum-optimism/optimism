@@ -398,7 +398,7 @@ var (
 		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
-			l := oplog.NewLogger(ctx, logCfg)
+			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag

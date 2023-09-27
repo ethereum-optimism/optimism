@@ -28,7 +28,7 @@ var (
 )
 
 func runIndexer(ctx *cli.Context) error {
-	log := log.NewLogger(ctx, log.ReadCLIConfig(ctx)).New("role", "indexer")
+	log := log.NewLogger(log.AppOut(ctx), log.ReadCLIConfig(ctx)).New("role", "indexer")
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
@@ -52,7 +52,7 @@ func runIndexer(ctx *cli.Context) error {
 }
 
 func runApi(ctx *cli.Context) error {
-	log := log.NewLogger(ctx, log.ReadCLIConfig(ctx)).New("role", "api")
+	log := log.NewLogger(log.AppOut(ctx), log.ReadCLIConfig(ctx)).New("role", "api")
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
@@ -71,7 +71,7 @@ func runApi(ctx *cli.Context) error {
 }
 
 func runMigrations(ctx *cli.Context) error {
-	log := log.NewLogger(ctx, log.ReadCLIConfig(ctx)).New("role", "api")
+	log := log.NewLogger(log.AppOut(ctx), log.ReadCLIConfig(ctx)).New("role", "api")
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	migrationsDir := ctx.String(MigrationsFlag.Name)
 	if err != nil {

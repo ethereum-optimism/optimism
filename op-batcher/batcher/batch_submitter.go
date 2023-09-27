@@ -28,7 +28,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 	cfg := NewConfig(cliCtx)
 
-	l := oplog.NewLogger(cliCtx, cfg.LogConfig)
+	l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing Batch Submitter")
