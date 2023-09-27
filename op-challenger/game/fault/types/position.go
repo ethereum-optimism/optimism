@@ -18,6 +18,13 @@ func NewPositionFromGIndex(x uint64) Position {
 	return NewPosition(depth, int(indexAtDepth))
 }
 
+func (p Position) NextStepPosition(gameDepth int) Position {
+	return Position{
+		depth:        gameDepth,
+		indexAtDepth: int(p.TraceIndex(gameDepth) + 1),
+	}
+}
+
 func (p Position) Depth() int {
 	return p.depth
 }
