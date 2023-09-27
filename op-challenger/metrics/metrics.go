@@ -25,8 +25,6 @@ type Metricer interface {
 	RecordGameMove()
 	RecordCannonExecutionTime(t float64)
 
-	RecordGameClaimCount(addr string, count int)
-
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 
 	RecordGameUpdateScheduled()
@@ -54,8 +52,6 @@ type Metrics struct {
 	steps prometheus.Counter
 
 	cannonExecutionTime prometheus.Histogram
-
-	gameClaimCount prometheus.GaugeVec
 
 	trackedGames  prometheus.GaugeVec
 	inflightGames prometheus.Gauge
@@ -110,13 +106,6 @@ func NewMetrics() *Metrics {
 			Buckets: append(
 				[]float64{1.0, 10.0},
 				prometheus.ExponentialBuckets(30.0, 2.0, 14)...),
-		}),
-		gameClaimCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: Namespace,
-			Name:      "game_claim_count",
-			Help:      "Number of claims in the game",
-		}, []string{
-			"game_address",
 		}),
 		trackedGames: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -188,10 +177,6 @@ func (m *Metrics) IncIdleExecutors() {
 
 func (m *Metrics) DecIdleExecutors() {
 	m.executors.WithLabelValues("idle").Dec()
-}
-
-func (m *Metrics) RecordGameClaimCount(addr string, count int) {
-	m.gameClaimCount.With(prometheus.Labels{"game_address": addr}).Set(float64(count))
 }
 
 func (m *Metrics) RecordGamesStatus(inProgress, defenderWon, challengerWon int) {
