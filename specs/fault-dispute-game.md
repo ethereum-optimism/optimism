@@ -259,7 +259,97 @@ root game are recursively resolved, we can resolve the root to countered due to 
 
 <!-- https://gist.github.com/clabby/e98bdd80ef3c038424f3372b70e34e08 -->
 <!-- markdownlint-disable no-inline-html -->
-<https://github.com/ethereum-optimism/optimism/assets/8406232/c2e35d5e-c2d7-423e-9350-91c2240a9e70>
+<https://github.com/ethereum-optimism/optimism/assets/8406232/d2b708a0-539e-439d-96bd-c2f66f3a45f8>
+
+Another example is this game, which has a slightly different structure. Here, the root claim will also
+be countered due to `b0` remaining uncountered.
+
+<!--
+digraph G {
+    rankdir=LR
+    newrank=true
+  node [shape=plaintext]
+  subgraph cluster_01 {
+    label = "Legend";
+    key [label=<<table border="0" cellpadding="2" cellspacing="0" cellborder="0">
+      <tr><td align="right" port="i1">bisection</td></tr>
+      <tr><td align="right" port="i2">resolution</td></tr>
+      </table>>]
+    key2 [label=<<table border="0" cellpadding="" cellspacing="0" cellborder="0">
+      <tr><td port="i1">&nbsp;</td></tr>
+      <tr><td port="i2">&nbsp;</td></tr>
+      </table>>]
+    key:i1:e -> key2:i1:w [color=green]
+    key:i2:e -> key2:i2:w [color=coral1, style=dotted]
+  }
+  subgraph cluster_0 {
+    color=cornflowerblue;
+    node [style=filled];
+    a0 -> a1 [color=green];
+    a1 -> a0 [color=coral1, style=dotted];
+    subgraph cluster_0_0 {
+        label = "subgame #5";
+        color=purple;
+        a1 -> a2 [color=green];
+        a2 -> a1 [color=coral1, style=dotted];
+        subgraph cluster_0_1 {
+            label = "subgame #6";
+            color=magenta;
+            a2 -> a3 [color=green];
+            a3 -> a2 [color=coral1, style=dotted];
+            a2 -> a4 [color=green];
+            a4 -> a2 [color=coral1, style=dotted];
+            subgraph cluster_0_2 {
+                label = "subgame #7";
+                color=lightpink;
+                a3
+            }
+            subgraph cluster_0_3 {
+                label = "subgame #8";
+                color=lightpink;
+                a4 -> a5 [color=green];
+                a5 -> a4 [color=coral1, style=dotted];
+                subgraph cluster_0_4 {
+                    label = "subgame #9";
+                    color=palegreen;
+                    a5
+                }
+            }
+        }
+    }
+    label = "subgame #4";
+  }
+  subgraph cluster_1 {
+    node [style=filled];
+    label = "subgame #1";
+    color=cornflowerblue
+    b0 -> b1 [color=green];
+    b1 -> b0 [color=coral1, style=dotted];
+    subgraph cluster_1_0 {
+        label = "subgame #2";
+        color=purple;
+        b1 -> b2 [color=green];
+        b2 -> b1 [color=coral1, style=dotted];
+        subgraph cluster_1_1 {
+            label = "subgame #3";
+            edge [style=invis]
+            color=magenta;
+            b2
+        }
+    }
+  }
+  Root -> a0 [color=green];
+  Root -> b0 [color=green];
+  a0 -> Root [color=coral1, style=dotted];
+  b0 -> Root [color=coral1, style=dotted];
+  Root [shape=Mdiamond];
+}
+-->
+
+<!-- markdownlint-disable no-inline-html -->
+<p align="center">
+<img src="https://github.com/ethereum-optimism/optimism/assets/8406232/9b20ba8d-0b64-47b3-9962-5533f7eb4ef7" width=60%>
+</p>
 
 Given these rules, players are motivated to move quickly to challenge all dishonest claims.
 Each move bisects the execution trace and eventually, `MAX_GAME_DEPTH` is reached where disputes
