@@ -580,7 +580,6 @@ contract Deploy is Deployer {
 
     /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
     function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
 
         bytes memory data =
