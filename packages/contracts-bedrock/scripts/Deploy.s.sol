@@ -96,8 +96,6 @@ contract Deploy is Deployer {
         deployProxies();
         deployImplementations();
 
-        transferProxyAdminOwnership(); // to the Safe
-
         initializeDisputeGameFactory();
         initializeSystemConfig();
         initializeL1StandardBridge();
@@ -239,14 +237,18 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
+        address systemOwnerSafe = mustGetAddress("SystemOwnerSafe");
         ProxyAdmin admin = new ProxyAdmin({
-            _owner: msg.sender
+            _owner: systemOwnerSafe
         });
-        require(admin.owner() == msg.sender);
+        require(admin.owner() == systemOwnerSafe);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         if (admin.addressManager() != addressManager) {
-            admin.setAddressManager(addressManager);
+            _callViaSafe({
+                _target: address(admin),
+                _data: abi.encodeWithSelector(admin.setAddressManager.selector, addressManager)
+            });
         }
 
         require(admin.addressManager() == addressManager);
@@ -399,6 +401,7 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    /// @notice Deploy the SuperchainConfig contract
     function deploySuperchainConfig() public broadcast {
         SuperchainConfig superchainConfig = new SuperchainConfig{ salt: implSalt() }();
 
@@ -648,6 +651,7 @@ contract Deploy is Deployer {
         console.log("DisputeGameFactory version: %s", version);
     }
 
+    /// @notice Initialize the SuperchainConfig
     function initializeSuperchainConfig() public broadcast {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
@@ -670,7 +674,7 @@ contract Deploy is Deployer {
                             cfg.updateDelay(), // delay
                             cfg.getSequencerKeys() // sequencers
                         )
-                    )
+                        )
                 )
                 )
         });
@@ -979,17 +983,6 @@ contract Deploy is Deployer {
         require(versions.owner() == finalSystemOwner);
         require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
-    }
-
-    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-        address owner = proxyAdmin.owner();
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            proxyAdmin.transferOwnership(safe);
-            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
-        }
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
