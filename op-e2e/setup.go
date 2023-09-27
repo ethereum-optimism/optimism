@@ -646,8 +646,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
-			Level:  "info",
-			Format: "text",
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
 		},
 	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
 	if err != nil {
@@ -675,8 +675,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		PollInterval:    50 * time.Millisecond,
 		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
-			Level:  "info",
-			Format: "text",
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
 		},
 	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
 	if err != nil {

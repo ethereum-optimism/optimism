@@ -11,12 +11,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -33,11 +35,11 @@ func prefixEnvVars(name string) []string {
 }
 
 var (
-	GlobalGethLogLvlFlag = &cli.StringFlag{
+	GlobalGethLogLvlFlag = &cli.GenericFlag{
 		Name:    "geth-log-level",
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
-		Value:   "error",
+		Value:   oplog.NewLvlFlagValue(log.LvlError),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:      "data-dir",
