@@ -254,8 +254,15 @@ the potential opponent's chess clock has run out. Because each claim is the root
 truth percolates upwards towards the root claim by resolving each individual sub-game bottom-up.
 
 In a game like the one below, we can resolve up from the deepest subgames. Here, we'd resolve `b0`
-to uncountered and `a0` to countered by walking up from their deepest children, and now that all children of the
-root game are resolved, we can resolve the root to countered due to `b0` remaining uncountered.
+to uncountered and `a0` to countered by walking up from their deepest children, and once all children of the
+root game are recursively resolved, we can resolve the root to countered due to `b0` remaining uncountered.
+
+<!-- https://gist.github.com/clabby/e98bdd80ef3c038424f3372b70e34e08 -->
+<!-- markdownlint-disable no-inline-html -->
+<https://github.com/ethereum-optimism/optimism/assets/8406232/d2b708a0-539e-439d-96bd-c2f66f3a45f8>
+
+Another example is this game, which has a slightly different structure. Here, the root claim will also
+be countered due to `b0` remaining uncountered.
 
 <!--
 digraph G {
@@ -275,7 +282,6 @@ digraph G {
     key:i1:e -> key2:i1:w [color=green]
     key:i2:e -> key2:i2:w [color=coral1, style=dotted]
   }
-
   subgraph cluster_0 {
     color=cornflowerblue;
     node [style=filled];
@@ -284,37 +290,28 @@ digraph G {
     subgraph cluster_0_0 {
         label = "subgame #5";
         color=purple;
-
         a1 -> a2 [color=green];
         a2 -> a1 [color=coral1, style=dotted];
-
         subgraph cluster_0_1 {
             label = "subgame #6";
             color=magenta;
-
             a2 -> a3 [color=green];
             a3 -> a2 [color=coral1, style=dotted];
             a2 -> a4 [color=green];
             a4 -> a2 [color=coral1, style=dotted];
-
             subgraph cluster_0_2 {
                 label = "subgame #7";
                 color=lightpink;
-
                 a3
             }
-
             subgraph cluster_0_3 {
                 label = "subgame #8";
                 color=lightpink;
-
                 a4 -> a5 [color=green];
                 a5 -> a4 [color=coral1, style=dotted];
-
                 subgraph cluster_0_4 {
                     label = "subgame #9";
                     color=palegreen;
-
                     a5
                 }
             }
@@ -322,40 +319,33 @@ digraph G {
     }
     label = "subgame #4";
   }
-
   subgraph cluster_1 {
     node [style=filled];
-
     label = "subgame #1";
     color=cornflowerblue
-
     b0 -> b1 [color=green];
     b1 -> b0 [color=coral1, style=dotted];
     subgraph cluster_1_0 {
         label = "subgame #2";
         color=purple;
-
         b1 -> b2 [color=green];
         b2 -> b1 [color=coral1, style=dotted];
-
         subgraph cluster_1_1 {
             label = "subgame #3";
             edge [style=invis]
             color=magenta;
-
             b2
         }
     }
   }
-
   Root -> a0 [color=green];
   Root -> b0 [color=green];
   a0 -> Root [color=coral1, style=dotted];
   b0 -> Root [color=coral1, style=dotted];
-
   Root [shape=Mdiamond];
 }
 -->
+
 <!-- markdownlint-disable no-inline-html -->
 <p align="center">
 <img src="https://github.com/ethereum-optimism/optimism/assets/8406232/9b20ba8d-0b64-47b3-9962-5533f7eb4ef7" width=60%>
