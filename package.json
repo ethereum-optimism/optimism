@@ -40,13 +40,13 @@
     "@babel/eslint-parser": "^7.18.2",
     "@changesets/changelog-github": "^0.4.8",
     "@nrwl/nx-cloud": "latest",
-    "@types/chai": "^4.2.18",
+    "@types/chai": "^4.3.6",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^10.0.1",
     "@types/node": "^20.5.3",
     "@typescript-eslint/eslint-plugin": "^6.7.0",
     "@typescript-eslint/parser": "^6.7.0",
-    "chai": "^4.2.0",
+    "chai": "^4.3.9",
     "depcheck": "^1.4.3",
     "doctoc": "^2.2.0",
     "eslint": "^8.43.0",
@@ -72,7 +72,7 @@
     "prettier-plugin-solidity": "^1.0.0-beta.13",
     "rimraf": "^5.0.1",
     "ts-mocha": "^10.0.0",
-    "typescript": "^5.1.6"
+    "typescript": "^5.2.2"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.0",
