@@ -17,8 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
-	optls "github.com/ethereum-optimism/optimism/op-service/tls"
-	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 )
 
 func PrivateKeySignerFn(key *ecdsa.PrivateKey, chainID *big.Int) bind.SignerFn {
@@ -44,9 +43,9 @@ type SignerFn func(context.Context, common.Address, *types.Transaction) (*types.
 type SignerFactory func(chainID *big.Int) SignerFn
 
 // SignerFactoryFromConfig considers three ways that signers are created & then creates single factory from those config options.
-// It can either take a remote signer (via optls.SignerCLIConfig) or it can be provided either a mnemonic + derivation path or a private key.
+// It can either take a remote signer (via opsigner.CLIConfig) or it can be provided either a mnemonic + derivation path or a private key.
 // It prefers the remote signer, then the mnemonic or private key (only one of which can be provided).
-func SignerFactoryFromConfig(l log.Logger, privateKey, mnemonic, hdPath string, signerConfig optls.SignerCLIConfig) (SignerFactory, common.Address, error) {
+func SignerFactoryFromConfig(l log.Logger, privateKey, mnemonic, hdPath string, signerConfig opsigner.CLIConfig) (SignerFactory, common.Address, error) {
 	var signer SignerFactory
 	var fromAddress common.Address
 	if signerConfig.Enabled() {

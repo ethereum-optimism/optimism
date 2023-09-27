@@ -9,7 +9,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	optls "github.com/ethereum-optimism/optimism/op-service/tls"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -120,7 +120,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Value:   defaultReceiptQueryInterval,
 			EnvVars: prefixEnvVars("TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
-	}, optls.SignerCLIFlags(envPrefix)...)
+	}, opsigner.CLIFlags(envPrefix)...)
 }
 
 type CLIConfig struct {
@@ -130,7 +130,7 @@ type CLIConfig struct {
 	SequencerHDPath           string
 	L2OutputHDPath            string
 	PrivateKey                string
-	SignerCLIConfig           optls.SignerCLIConfig
+	SignerCLIConfig           opsigner.CLIConfig
 	NumConfirmations          uint64
 	SafeAbortNonceTooLowCount uint64
 	ResubmissionTimeout       time.Duration
@@ -150,7 +150,7 @@ func NewCLIConfig(l1RPCURL string) CLIConfig {
 		TxSendTimeout:             defaultTxSendTimeout,
 		TxNotInMempoolTimeout:     defaultTxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaultReceiptQueryInterval,
-		SignerCLIConfig:           optls.NewSignerCLIConfig(),
+		SignerCLIConfig:           opsigner.NewCLIConfig(),
 	}
 }
 
@@ -190,7 +190,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		SequencerHDPath:           ctx.String(SequencerHDPathFlag.Name),
 		L2OutputHDPath:            ctx.String(L2OutputHDPathFlag.Name),
 		PrivateKey:                ctx.String(PrivateKeyFlagName),
-		SignerCLIConfig:           optls.ReadSignerCLIConfig(ctx),
+		SignerCLIConfig:           opsigner.ReadCLIConfig(ctx),
 		NumConfirmations:          ctx.Uint64(NumConfirmationsFlagName),
 		SafeAbortNonceTooLowCount: ctx.Uint64(SafeAbortNonceTooLowCountFlagName),
 		ResubmissionTimeout:       ctx.Duration(ResubmissionTimeoutFlagName),

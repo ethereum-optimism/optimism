@@ -1,4 +1,4 @@
-package tls
+package signer
 
 import (
 	"testing"
@@ -21,35 +21,48 @@ func TestDefaultConfigIsValid(t *testing.T) {
 func TestInvalidConfig(t *testing.T) {
 	tests := []struct {
 		name         string
+		expected     string
 		configChange func(config *CLIConfig)
 	}{
-		{"MissingCaCert", func(config *CLIConfig) {
-			config.TLSCaCert = ""
-		}},
-		{"MissingCert", func(config *CLIConfig) {
-			config.TLSCert = ""
-		}},
-		{"MissingKey", func(config *CLIConfig) {
-			config.TLSKey = ""
-		}},
+		{
+			name:     "MissingEndpoint",
+			expected: "signer endpoint and address must both be set or not set",
+			configChange: func(config *CLIConfig) {
+				config.Address = "0x1234"
+			},
+		},
+		{
+			name:     "MissingAddress",
+			expected: "signer endpoint and address must both be set or not set",
+			configChange: func(config *CLIConfig) {
+				config.Endpoint = "http://localhost"
+			},
+		},
+		{
+			name:     "InvalidTLSConfig",
+			expected: "all tls flags must be set if at least one is set",
+			configChange: func(config *CLIConfig) {
+				config.TLSConfig.TLSKey = ""
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			cfg := NewCLIConfig()
 			test.configChange(&cfg)
 			err := cfg.Check()
-			require.ErrorContains(t, err, "all tls flags must be set if at least one is set")
+			require.ErrorContains(t, err, test.expected)
 		})
 	}
 }
 
 func configForArgs(args ...string) CLIConfig {
 	app := cli.NewApp()
-	app.Flags = CLIFlagsWithFlagPrefix("TEST_", "test")
+	app.Flags = CLIFlags("TEST_")
 	app.Name = "test"
 	var config CLIConfig
 	app.Action = func(ctx *cli.Context) error {
-		config = ReadCLIConfigWithPrefix(ctx, "test")
+		config = ReadCLIConfig(ctx)
 		return nil
 	}
 	_ = app.Run(args)
