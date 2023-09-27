@@ -19,6 +19,7 @@ const (
 	opGoerli    = 420
 	opSepolia   = 11155420
 	baseGoerli  = 84531
+	baseSepolia = 84532
 	baseMainnet = 8453
 	pgnMainnet  = 424
 	pgnSepolia  = 58008
