@@ -49,16 +49,23 @@ func (b *Blob) ComputeKZGCommitment() (kzg4844.Commitment, error) {
 	return kzg4844.BlobToCommitment(*b.KZGBlob())
 }
 
-// KzgToVersionedHash computes the "blob hash" (a.k.a. versioned-hash) of a blob-commitment, as used in a blob-tx.
-func KzgToVersionedHash(kzgCommitment kzg4844.Commitment) (out common.Hash) {
+// KZGToVersionedHash computes the "blob hash" (a.k.a. versioned-hash) of a blob-commitment, as used in a blob-tx.
+// We implement it here because it is unfortunately not (currently) exposed by geth.
+func KZGToVersionedHash(commitment Bytes48) (out common.Hash) {
 	// EIP-4844 spec:
 	//	def kzg_to_versioned_hash(commitment: KZGCommitment) -> VersionedHash:
 	//		return VERSIONED_HASH_VERSION_KZG + sha256(commitment)[1:]
 	h := sha256.New()
-	h.Write(kzgCommitment[:])
+	h.Write(commitment[:])
 	_ = h.Sum(out[:0])
 	out[0] = params.BlobTxHashVersion
 	return out
+}
+
+// VerifyBlobProof verifies that the given blob and proof corresponds to the given commitment,
+// returning error if the verification fails.
+func VerifyBlobProof(blob *Blob, commitment Bytes48, proof Bytes48) error {
+	return kzg4844.VerifyBlobProof(*blob.KZGBlob(), kzg4844.Commitment(commitment), kzg4844.Proof(proof))
 }
 
 // FromData encodes the given input data into this blob. The encoding scheme is as follows:

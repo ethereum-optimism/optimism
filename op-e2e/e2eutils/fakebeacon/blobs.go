@@ -67,11 +67,11 @@ func (f *FakeBeacon) Start(addr string) error {
 			f.log.Error("config handler err", "err", err)
 		}
 	})
-	mux.HandleFunc("/eth/v1/beacon/blobs_sidecars/", func(w http.ResponseWriter, r *http.Request) {
-		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blobs_sidecars/")
+	mux.HandleFunc("/eth/v1/beacon/blob_sidecars/", func(w http.ResponseWriter, r *http.Request) {
+		blockID := strings.TrimPrefix(r.URL.Path, "/eth/v1/beacon/blob_sidecars/")
 		slot, err := strconv.ParseUint(blockID, 10, 64)
 		if err != nil {
-			f.log.Error("bad request", "url", r.URL.Path)
+			f.log.Error("could not parse block id from request", "url", r.URL.Path)
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -81,19 +81,47 @@ func (f *FakeBeacon) Start(addr string) error {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+
+		query := r.URL.Query()
+		rawIndices := query["indices"]
+		indices := make([]int, 0, len(bundle.Blobs))
+		if len(rawIndices) == 0 {
+			// request is for all blobs
+			for i := range bundle.Blobs {
+				indices = append(indices, i)
+			}
+		} else {
+			for _, raw := range rawIndices {
+				ix, err := strconv.ParseUint(raw, 10, 64)
+				if err != nil {
+					f.log.Error("could not parse index from request", "url", r.URL)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				indices = append(indices, int(ix))
+			}
+		}
+
 		var mockBeaconBlockRoot [32]byte
 		mockBeaconBlockRoot[0] = 42
 		binary.LittleEndian.PutUint64(mockBeaconBlockRoot[32-8:], slot)
-		sidecar := sources.BlobsSidecarData{
-			BeaconBlockRoot: mockBeaconBlockRoot,
-			BeaconBlockSlot: eth.Uint64String(slot),
-			Blobs:           make([]eth.Blob, len(bundle.Blobs)),
-			// TODO: we can include the proof/commitment data in the response, but we don't consume that on client-side
+		sidecars := make([]*sources.BlobSidecar, len(indices))
+		for i, ix := range indices {
+			if ix < 0 || ix >= len(bundle.Blobs) {
+				f.log.Error("blob index from request is out of range", "url", r.URL)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			sidecars[i] = &sources.BlobSidecar{
+				BlockRoot:     mockBeaconBlockRoot,
+				Slot:          eth.Uint64String(slot),
+				Index:         eth.Uint64String(i),
+				KZGCommitment: eth.Bytes48(bundle.Commitments[ix]),
+				KZGProof:      eth.Bytes48(bundle.Proofs[ix]),
+			}
+			copy(sidecars[i].Blob[:], bundle.Blobs[ix])
 		}
-		for i, bl := range bundle.Blobs {
-			copy(sidecar.Blobs[i][:], bl)
-		}
-		if err := json.NewEncoder(w).Encode(&sources.APIBlobsSidecarResponse{Data: sidecar}); err != nil {
+		if err := json.NewEncoder(w).Encode(&sources.APIGetBlobSidecarsResponse{Data: sidecars}); err != nil {
 			f.log.Error("blobs handler err", "err", err)
 		}
 	})

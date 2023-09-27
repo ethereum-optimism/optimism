@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -23,17 +25,17 @@ func NewL1BeaconClient(cl client.HTTP) *L1BeaconClient {
 	return &L1BeaconClient{cl: cl}
 }
 
-type BlobsSidecarData struct {
-	BeaconBlockRoot eth.Bytes32      `json:"beacon_block_root"`
-	BeaconBlockSlot eth.Uint64String `json:"beacon_block_slot"`
-	Blobs           []eth.Blob       `json:"blobs"`
-	// Some Beacon APIs may include the 4844 KZG proof, but we do not need it,
-	// we recompute the commitment from the blob.
-	// KzgAggregatedProof eth.Bytes48       `json:"kzg_aggregated_proof"`
+type BlobSidecar struct {
+	BlockRoot     eth.Bytes32      `json:"block_root"`
+	Slot          eth.Uint64String `json:"slot"`
+	Blob          eth.Blob         `json:"blob"`
+	Index         eth.Uint64String `json:"index"`
+	KZGCommitment eth.Bytes48      `json:"kzg_commitment"`
+	KZGProof      eth.Bytes48      `json:"kzg_proof"`
 }
 
-type APIBlobsSidecarResponse struct {
-	Data BlobsSidecarData `json:"data"`
+type APIGetBlobSidecarsResponse struct {
+	Data []*BlobSidecar `json:"data"`
 }
 
 type TimeToSlotFn func(timestamp uint64) uint64
@@ -99,7 +101,8 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	return cl.timeToSlotFn, nil
 }
 
-// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the given indexed hashes.
+// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the
+// given indexed hashes. The order of the returned blobs will match the order of `dataHashes`.
 func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.Blob, error) {
 	slotFn, err := cl.GetTimeToSlotFn(ctx)
 	if err != nil {
@@ -107,28 +110,53 @@ func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, re
 	}
 	slot := slotFn(ref.Time)
 
-	// TODO: would be nice if there's a L1 API to fetch blobs 1-by-1 to avoid large requests
-	// Or even just an optional argument to filter the response data before the beacon node sends it back to us
-	var respData APIBlobsSidecarResponse
-	if err := cl.apiReq(ctx, &respData, fmt.Sprintf("eth/v1/beacon/blobs_sidecars/%d", slot)); err != nil {
-		return nil, fmt.Errorf("failed to fetch blobs sidecar of slot %d (for block %s): %w", slot, ref, err)
+	builder := strings.Builder{}
+	builder.WriteString("eth/v1/beacon/blob_sidecars/")
+	builder.WriteString(strconv.FormatUint(slot, 10))
+	for i := range dataHashes {
+		if i == 0 {
+			builder.WriteString("?indices=")
+		} else {
+			builder.WriteString("&indices=")
+		}
+		builder.WriteString(strconv.FormatUint(dataHashes[i].Index, 10))
 	}
 
-	out := make([]*eth.Blob, 0, len(dataHashes))
-	for _, ih := range dataHashes {
-		if ih.Index > uint64(len(respData.Data.Blobs)) {
-			return nil, fmt.Errorf("received less blobs than expected, expected %s at index %d in %s, but only have %d blobs", ih.DataHash, ih.Index, ref, len(respData.Data.Blobs))
+	var resp APIGetBlobSidecarsResponse
+	if err := cl.apiReq(ctx, &resp, builder.String()); err != nil {
+		return nil, fmt.Errorf("failed to fetch blob sidecars of slot %d (for block %s): %w", slot, ref, err)
+	}
+	if len(dataHashes) != len(resp.Data) {
+		return nil, fmt.Errorf("expected %v sidecars but got %v", len(dataHashes), len(resp.Data))
+	}
+
+	out := make([]*eth.Blob, len(dataHashes))
+	for i, ih := range dataHashes {
+		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
+		// search for the sidecar that matches the current indexed hash to ensure blobs are
+		// returned in the same order.
+		var sidecar *BlobSidecar
+		for _, sc := range resp.Data {
+			if uint64(sc.Index) == ih.Index {
+				sidecar = sc
+				break
+			}
 		}
-		blob := &respData.Data.Blobs[ih.Index]
-		kzgCommitment, err := blob.ComputeKZGCommitment()
-		if err != nil {
-			return nil, fmt.Errorf("failed to compute kzg commitment for blob %s at index %d in %s: %w", ih.DataHash, ih.Index, ref, err)
+		if sidecar == nil {
+			return nil, fmt.Errorf("no blob in response matches desired index: %v", ih.Index)
 		}
-		dataHash := eth.KzgToVersionedHash(kzgCommitment)
+
+		// make sure the blob's kzg commitment hashes to the expected value
+		dataHash := eth.KZGToVersionedHash(sidecar.KZGCommitment)
 		if dataHash != ih.DataHash {
-			return nil, fmt.Errorf("expected datahash %s for blob %d in %s but got blob with datahash %s", ih.DataHash, ih.Index, ref, dataHash)
+			return nil, fmt.Errorf("expected datahash %s for blob at index %d in block %s but got %s", ih.DataHash, ih.Index, ref, dataHash)
 		}
-		out = append(out, blob)
+
+		// confirm blob data is valid by verifying its proof against the commitment
+		if err := eth.VerifyBlobProof(&sidecar.Blob, sidecar.KZGCommitment, sidecar.KZGProof); err != nil {
+			return nil, fmt.Errorf("blob at index %v failed verification: %w", i, err)
+		}
+		out[i] = &sidecar.Blob
 	}
 	return out, nil
 }
