@@ -10,6 +10,7 @@ import { Types } from "../src/libraries/Types.sol";
 
 // Target contract dependencies
 import { Proxy } from "../src/universal/Proxy.sol";
+import { SystemConfig } from "../src/L1/SystemConfig.sol";
 
 // Target contract
 import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
@@ -62,7 +63,7 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
             _startingBlockNumber: 0,
             _startingTimestamp: block.timestamp + 1,
             _proposer: address(0),
-            _challenger: address(0)
+            _systemConfig: SystemConfig(address(0))
         });
     }
 }
@@ -194,6 +195,31 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
 
         // check timestamp for some other block number
         assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024);
+    }
+}
+
+contract L2OutputOracle_mayDelete_Test is L2OutputOracle_Initializer {
+    /// @dev Tests that `mayDelete` returns the correct value.
+    function test_mayDelete_succeeds() external {
+        // check if the challenger can delete an output
+        assertTrue(oracle.mayDelete(sysConf.challenger()));
+
+        // check if the initiator can delete an output
+        assertTrue(oracle.mayDelete(supConf.initiator()));
+
+        // check if the vetoer can delete an output
+        assertTrue(oracle.mayDelete(supConf.vetoer()));
+    }
+}
+
+contract L2OutputOracle_mayDelete_TestFail is L2OutputOracle_Initializer {
+    /// @dev Tests that `mayDelete` fails if the caller is not authorized
+    function testFuzz_mayDelete_randomAddress_reverts(address caller) external {
+        vm.assume(caller != sysConf.challenger());
+        vm.assume(caller != supConf.initiator());
+        vm.assume(caller != supConf.vetoer());
+
+        assertFalse(oracle.mayDelete(caller));
     }
 }
 
@@ -346,7 +372,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
     function test_deleteL2Outputs_ifNotChallenger_reverts() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
-        vm.expectRevert("L2OutputOracle: only the challenger address can delete outputs");
+        vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
         oracle.deleteL2Outputs(latestBlockNumber);
     }
 
@@ -393,6 +419,16 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
         vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
         oracle.deleteL2Outputs(latestOutputIndex);
     }
+
+    /// @dev Tests that `deleteL2Outputs` reverts for finalized outputs.
+    function test_deleteL2Outputs_unAuthed_reverts() external {
+        proposeAnotherOutput();
+        uint256 latestOutputIndex = oracle.latestOutputIndex();
+
+        // Try to delete an output
+        vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
+        oracle.deleteL2Outputs(latestOutputIndex);
+    }
 }
 
 contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
@@ -429,8 +465,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(oracleImpl.startingTimestamp(), 0);
         assertEq(oracleImpl.PROPOSER(), address(0));
         assertEq(oracleImpl.proposer(), address(0));
-        assertEq(oracleImpl.CHALLENGER(), address(0));
-        assertEq(oracleImpl.challenger(), address(0));
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
@@ -440,7 +474,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
             _proposer: address(1),
-            _challenger: address(2)
+            _systemConfig: SystemConfig(address(2))
         });
     }
 
@@ -451,7 +485,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
             _proposer: address(1),
-            _challenger: address(2)
+            _systemConfig: SystemConfig(address(2))
         });
     }
 

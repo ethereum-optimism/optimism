@@ -23,14 +23,17 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                 (
                     address(0xbeef), // owner
                     address(0), // _superchainConfig
-                    2100, // overhead
-                    1000000, // scalar
+                    SystemConfig.GasConfig({
+                        overhead: 2100, // overhead
+                        scalar: 1000000 // scalar
+                     }),
                     bytes32(hex"abcd"), // batcher hash
                     30_000_000, // gas limit
                     address(1), // unsafe block signer
                     Constants.DEFAULT_RESOURCE_CONFIG(), // resource config
                     0, //_startBlock
                     address(0), // _batchInbox
+                    address(0), // _challenger
                     SystemConfig.Addresses({ // _addrs
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),

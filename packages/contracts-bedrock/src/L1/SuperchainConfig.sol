@@ -7,9 +7,9 @@ import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Slot } from "src/libraries/Slot.sol";
 
+/// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
-/// @custom:audit none
 contract SuperchainConfig is Initializable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value SYSTEM_OWNER        Represents an update to the systemOwner.
@@ -37,16 +37,16 @@ contract SuperchainConfig is Initializable, ISemver {
     bytes32 public constant SYSTEM_OWNER_SLOT = bytes32(uint256(keccak256("superchainConfig.systemowner")) - 1);
 
     /// @notice The address of the initiator who may initiate an upgrade or change to critical config values, via the
-    ///         systemOwner contract.
+    ///         DelayedVetoable contract.
     ///         It can only be modified by an upgrade.
     bytes32 public constant INITIATOR_SLOT = bytes32(uint256(keccak256("superchainConfig.initiator")) - 1);
 
     /// @notice The address of the vetoer, who may veto an upgrade or change to critical config values.
-    ///         This is expected to be the foundation.
+    ///         This is expected to be the Foundation.
     ///         It can only be modified by an upgrade.
     bytes32 public constant VETOER_SLOT = bytes32(uint256(keccak256("superchainConfig.vetoer")) - 1);
 
-    /// @notice The address of the guardian, can pause the OptimismPortal.
+    /// @notice The address of the guardian, which can pause withdrawals from the System.
     ///         It can only be modified by an upgrade.
     bytes32 public constant GUARDIAN_SLOT = bytes32(uint256(keccak256("superchainConfig.guardian")) - 1);
 
@@ -54,8 +54,9 @@ contract SuperchainConfig is Initializable, ISemver {
     ///         It can only be modified by an upgrade.
     bytes32 public constant DELAY_SLOT = bytes32(uint256(keccak256("superchainConfig.delay")) - 1);
 
-    /// @notice The time until which the system is paused.
-    bytes32 public constant PAUSED_SLOT = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
+    /// @notice The time until which the system is paused. If set to a timestamp in the future, withdrawals
+    ///         are disabled until that time.
+    bytes32 public constant PAUSED_TIME_SLOT = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
 
     /// @notice The maximum time in seconds that the system can be paused for.
     ///         It can only be modified by an upgrade.
@@ -158,21 +159,21 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Getter for the paused address.
     function paused() public view returns (bool paused_) {
-        paused_ = Slot.getUint(PAUSED_SLOT) > block.timestamp;
+        paused_ = Slot.getUint(PAUSED_TIME_SLOT) > block.timestamp;
     }
 
     /// @notice Pauses withdrawals.
     function pause(uint256 duration) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
         require(duration <= Slot.getUint(MAX_PAUSE_SLOT), "SuperchainConfig: duration exceeds maxPause");
-        Slot.setUint(PAUSED_SLOT, uint256(block.timestamp) + duration);
+        Slot.setUint(PAUSED_TIME_SLOT, uint256(block.timestamp) + duration);
         emit Paused();
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can unpause");
-        Slot.setUint(PAUSED_SLOT, uint256((0)));
+        Slot.setUint(PAUSED_TIME_SLOT, uint256((0)));
         emit Unpaused();
     }
 

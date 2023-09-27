@@ -460,8 +460,6 @@ contract Deploy is Deployer {
         require(oracle.l2BlockTime() == cfg.l2BlockTime());
         require(oracle.PROPOSER() == address(0));
         require(oracle.proposer() == address(0));
-        require(oracle.CHALLENGER() == address(0));
-        require(oracle.challenger() == address(0));
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
         require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
         require(oracle.startingBlockNumber() == 0);
@@ -704,6 +702,7 @@ contract Deploy is Deployer {
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     startBlock,
                     cfg.batchInboxAddress(),
+                    cfg.l2OutputOracleChallenger(),
                     SystemConfig.Addresses({
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
@@ -882,6 +881,7 @@ contract Deploy is Deployer {
     function initializeL2OutputOracle() public broadcast {
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
+        SystemConfig systemConfigProxy = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
         _upgradeAndCallViaSafe({
             _proxy: payable(l2OutputOracleProxy),
@@ -892,7 +892,7 @@ contract Deploy is Deployer {
                     cfg.l2OutputOracleStartingBlockNumber(),
                     cfg.l2OutputOracleStartingTimestamp(),
                     cfg.l2OutputOracleProposer(),
-                    cfg.l2OutputOracleChallenger()
+                    systemConfigProxy
                 )
                 )
         });

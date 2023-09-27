@@ -16,6 +16,7 @@ contract DeployConfig is Script {
     string internal _json;
 
     address public finalSystemOwner;
+    // todo(maurelian): rename as this has been moved to the SuperchainConfig
     address public portalGuardian;
     uint256 public l1ChainID;
     uint256 public l2ChainID;
@@ -30,6 +31,7 @@ contract DeployConfig is Script {
     int256 internal _l2OutputOracleStartingTimestamp;
     uint256 public l2OutputOracleStartingBlockNumber;
     address public l2OutputOracleProposer;
+    // todo(maurelian): rename as this has been moved to SystemConfig
     address public l2OutputOracleChallenger;
     uint256 public finalizationPeriodSeconds;
     address public proxyAdminOwner;

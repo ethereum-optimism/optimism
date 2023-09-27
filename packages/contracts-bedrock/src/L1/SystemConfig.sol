@@ -105,6 +105,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
+    /// @notice Challenger address, the challenger can delete outputs.
+    address public challenger;
+
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
@@ -115,6 +118,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
+    /// @notice Emitted when the challenger is updated.
+    /// @param newChallenger The address of the new challenger.
+    event ChallengerUpdated(address indexed newChallenger);
+
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
@@ -122,8 +129,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         initialize({
             _owner: address(0xdEaD),
             _superchainConfig: address(0),
-            _overhead: 0,
-            _scalar: 0,
+            _gasConfig: SystemConfig.GasConfig({ overhead: 0, scalar: 0 }),
             _batcherHash: bytes32(0),
             _gasLimit: 1,
             _unsafeBlockSigner: address(0),
@@ -137,6 +143,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             }),
             _startBlock: type(uint256).max,
             _batchInbox: address(0),
+            _challenger: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
@@ -161,20 +168,21 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///                           Contracts that were deployed before this field existed
     ///                           need to have this field set manually via an override.
     ///                           Newly deployed contracts should set this value to uint256(0).
+    /// @param _challenger        Initial challenger address.
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
         address _superchainConfig,
-        uint256 _overhead,
-        uint256 _scalar,
+        GasConfig memory _gasConfig,
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
         uint256 _startBlock,
         address _batchInbox,
+        address _challenger,
         SystemConfig.Addresses memory _addresses
     )
         public
@@ -185,9 +193,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
         // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
-        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
+        _setGasConfig(_gasConfig);
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setChallenger(_challenger);
 
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
@@ -338,13 +347,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Internal function for updating the gas config.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
-        overhead = _overhead;
-        scalar = _scalar;
+    /// @param _gasConfig New gas config.
+    function _setGasConfig(GasConfig memory _gasConfig) internal {
+        overhead = _gasConfig.overhead;
+        scalar = _gasConfig.scalar;
 
-        bytes memory data = abi.encode(_overhead, _scalar);
+        bytes memory data = abi.encode(_gasConfig);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
@@ -402,5 +410,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Updates the challenger. Can only be called by the owner.
+    /// @param _challenger New challenger address.
+    function setChallenger(address _challenger) external onlyOwner {
+        _setChallenger(_challenger);
+    }
+
+    /// @notice Internal function for updating the challenger.
+    /// @param _challenger New challenger.
+    function _setChallenger(address _challenger) internal {
+        challenger = _challenger;
+        emit ChallengerUpdated(_challenger);
     }
 }

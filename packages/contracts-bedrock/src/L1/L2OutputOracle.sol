@@ -4,6 +4,8 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @custom:proxied
 /// @title L2OutputOracle
@@ -40,9 +42,10 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @notice An array of L2 output proposals.
     Types.OutputProposal[] internal l2Outputs;
 
-    /// @notice The address of the challenger. Can be updated via reinitialize.
+    /// @notice The address of the System Config. Can be updated via reinitialize.
     /// @custom:network-specific
-    address public challenger;
+    /// @custom:legacy-overwrite challenger
+    SystemConfig public systemConfig;
 
     /// @notice The address of the proposer. Can be updated via reinitialize.
     /// @custom:network-specific
@@ -79,19 +82,24 @@ contract L2OutputOracle is Initializable, ISemver {
         L2_BLOCK_TIME = _l2BlockTime;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
-        initialize({ _startingBlockNumber: 0, _startingTimestamp: 0, _proposer: address(0), _challenger: address(0) });
+        initialize({
+            _startingBlockNumber: 0,
+            _startingTimestamp: 0,
+            _proposer: address(0),
+            _systemConfig: SystemConfig(address(0))
+        });
     }
 
     /// @notice Initializer.
     /// @param _startingBlockNumber Block number for the first recoded L2 block.
     /// @param _startingTimestamp   Timestamp for the first recoded L2 block.
     /// @param _proposer            The address of the proposer.
-    /// @param _challenger          The address of the challenger.
+    /// @param _systemConfig        The address of the system config.
     function initialize(
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         address _proposer,
-        address _challenger
+        SystemConfig _systemConfig
     )
         public
         reinitializer(2)
@@ -104,7 +112,7 @@ contract L2OutputOracle is Initializable, ISemver {
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
         proposer = _proposer;
-        challenger = _challenger;
+        systemConfig = _systemConfig;
     }
 
     /// @notice Getter for the output proposal submission interval.
@@ -126,7 +134,13 @@ contract L2OutputOracle is Initializable, ISemver {
     ///         in the future, use `challenger` instead.
     /// @custom:legacy
     function CHALLENGER() external view returns (address) {
-        return challenger;
+        return systemConfig.challenger();
+    }
+
+    /// @notice Getter for the challenger address.
+    /// @custom:legacy
+    function challenger() external view returns (address) {
+        return systemConfig.challenger();
     }
 
     /// @notice Getter for the proposer address. This will be removed in the
@@ -142,7 +156,7 @@ contract L2OutputOracle is Initializable, ISemver {
     ///                       All outputs after this output will also be deleted.
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2OutputIndex) external {
-        require(msg.sender == challenger, "L2OutputOracle: only the challenger address can delete outputs");
+        require(mayDelete(msg.sender), "L2OutputOracle: caller is not allowed to delete outputs");
 
         // Make sure we're not *increasing* the length of the array.
         require(
@@ -299,5 +313,14 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @return L2 timestamp of the given block.
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
         return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
+    }
+
+    /// @notice Returns a boolean indicating whether the given address can delete an output.
+    /// @param _addr The address to check.
+    /// @return True if the address can delete an output, false otherwise.
+    function mayDelete(address _addr) public view returns (bool) {
+        SuperchainConfig superchainConfig = SuperchainConfig(systemConfig.superchainConfig());
+        return _addr == systemConfig.challenger() || _addr == superchainConfig.initiator()
+            || _addr == superchainConfig.vetoer();
     }
 }

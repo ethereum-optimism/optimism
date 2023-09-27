@@ -27,8 +27,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
         assertEq(sysConf.optimismMintableERC20Factory(), optimismMintableERC20Factory);
         assertEq(sysConf.batchInbox(), batchInbox);
         assertEq(sysConf.owner(), alice);
-        assertEq(sysConf.overhead(), overhead);
-        assertEq(sysConf.scalar(), scalar);
+        assertEq(sysConf.overhead(), gasConfig.overhead);
+        assertEq(sysConf.scalar(), gasConfig.scalar);
         assertEq(sysConf.batcherHash(), batcherHash);
         assertEq(sysConf.gasLimit(), gasLimit);
         assertEq(sysConf.unsafeBlockSigner(), unsafeBlockSigner);
@@ -65,14 +65,14 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                 (
                     alice, // _owner,
                     address(supConf), // _superchainConfig
-                    overhead, // _overhead,
-                    scalar, // _scalar,
+                    gasConfig, // _gasConfig
                     batcherHash, // _batcherHash
                     gasLimit, // _gasLimit,
                     unsafeBlockSigner, // _unsafeBlockSigner,
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     startBlock, // _startBlock
                     batchInbox, // _batchInbox
+                    oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
@@ -98,7 +98,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
         vm.expectEmit(true, true, true, true, address(sysConf));
         emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(batcherHash));
         vm.expectEmit(true, true, true, true, address(sysConf));
-        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(overhead, scalar));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(gasConfig));
         vm.expectEmit(true, true, true, true, address(sysConf));
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_LIMIT, abi.encode(gasLimit));
         vm.expectEmit(true, true, true, true, address(sysConf));
@@ -112,14 +112,14 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                 (
                     alice, // _owner,
                     address(supConf), // _superchainConfig
-                    overhead, // _overhead,
-                    scalar, // _scalar,
+                    gasConfig, // _gasConfig
                     batcherHash, // _batcherHash
                     gasLimit, // _gasLimit,
                     unsafeBlockSigner, // _unsafeBlockSigner,
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     0, // _startBlock
                     batchInbox, // _batchInbox
+                    oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
@@ -152,14 +152,14 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                 (
                     alice, // _owner,
                     address(supConf), // _superchainConfig
-                    2100, // _overhead,
-                    1000000, // _scalar,
+                    SystemConfig.GasConfig({ overhead: 2100, scalar: 1000000 }), // _gasConfig
                     bytes32(hex"abcd"), // _batcherHash,
                     minimumGasLimit - 1, // _gasLimit,
                     address(1), // _unsafeBlockSigner,
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     0, // _startBlock
                     address(0), // _batchInbox
+                    address(0), // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),
@@ -193,14 +193,14 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                 (
                     alice, // _owner,
                     address(supConf), // _superchainConfig
-                    overhead, // _overhead,
-                    scalar, // _scalar,
+                    gasConfig, // _gasConfig
                     batcherHash, // _batcherHash
                     gasLimit, // _gasLimit,
                     unsafeBlockSigner, // _unsafeBlockSigner,
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     1, // _startBlock
-                    batchInbox, // _batchInbox
+                    batchInbox, // _batchInbox,
+                    oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
@@ -225,7 +225,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
     function test_setGasConfig_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        sysConf.setGasConfig(0, 0);
+        sysConf.setGasConfig(gasConfig);
     }
 
     /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
@@ -326,14 +326,14 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     }
 
     /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
-    function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
+    function testFuzz_setGasConfig_succeeds(SystemConfig.GasConfig memory gasConfig) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(newOverhead, newScalar));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(gasConfig));
 
         vm.prank(sysConf.owner());
-        sysConf.setGasConfig(newOverhead, newScalar);
-        assertEq(sysConf.overhead(), newOverhead);
-        assertEq(sysConf.scalar(), newScalar);
+        sysConf.setGasConfig(gasConfig);
+        assertEq(sysConf.overhead(), gasConfig.overhead);
+        assertEq(sysConf.scalar(), gasConfig.scalar);
     }
 
     /// @dev Tests that `setGasLimit` updates the gas limit successfully.
