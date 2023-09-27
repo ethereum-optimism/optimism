@@ -87,8 +87,6 @@ type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
 
-	metrics.RefMetrics
-
 	RPCServerRequestsTotal          *prometheus.CounterVec
 	RPCServerRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientRequestsTotal          *prometheus.CounterVec
@@ -126,14 +124,7 @@ type Metrics struct {
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
 
-	RefsNumber  *prometheus.GaugeVec
-	RefsTime    *prometheus.GaugeVec
-	RefsHash    *prometheus.GaugeVec
-	RefsSeqNr   *prometheus.GaugeVec
-	RefsLatency *prometheus.GaugeVec
-	// hash of the last seen block per name, so we don't reduce/increase latency on updates of the same data,
-	// and only count the first occurrence
-	LatencySeen map[string]common.Hash
+	metrics.RefMetrics
 
 	L1ReorgDepth prometheus.Histogram
 
@@ -268,46 +259,7 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Total estimated memory size of buffered L2 unsafe payloads",
 		}),
 
-		RefsNumber: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "refs_number",
-			Help:      "Gauge representing the different L1/L2 reference block numbers",
-		}, []string{
-			"layer",
-			"type",
-		}),
-		RefsTime: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "refs_time",
-			Help:      "Gauge representing the different L1/L2 reference block timestamps",
-		}, []string{
-			"layer",
-			"type",
-		}),
-		RefsHash: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "refs_hash",
-			Help:      "Gauge representing the different L1/L2 reference block hashes truncated to float values",
-		}, []string{
-			"layer",
-			"type",
-		}),
-		RefsSeqNr: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "refs_seqnr",
-			Help:      "Gauge representing the different L2 reference sequence numbers",
-		}, []string{
-			"type",
-		}),
-		RefsLatency: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "refs_latency",
-			Help:      "Gauge representing the different L1/L2 reference block timestamps minus current time, in seconds",
-		}, []string{
-			"layer",
-			"type",
-		}),
-		LatencySeen: make(map[string]common.Hash),
+		RefMetrics: metrics.MakeRefMetrics(ns, factory),
 
 		L1ReorgDepth: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
