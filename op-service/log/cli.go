@@ -148,12 +148,18 @@ func AppOut(ctx *cli.Context) io.Writer {
 	return ctx.App.Writer
 }
 
-// NewLogger creates a new configured logger.
-// The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
-func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
+// NewLogHandler creates a new configured handler, compatible as LvlSetter for log-level changes during runtime.
+func NewLogHandler(wr io.Writer, cfg CLIConfig) log.Handler {
 	handler := log.StreamHandler(wr, cfg.Format.Formatter(cfg.Color))
 	handler = log.SyncHandler(handler)
 	handler = NewDynamicLogHandler(cfg.Level, handler)
+	return handler
+}
+
+// NewLogger creates a new configured logger.
+// The log handler of the logger is a LvlSetter, i.e. the log level can be changed as needed.
+func NewLogger(wr io.Writer, cfg CLIConfig) log.Logger {
+	handler := NewLogHandler(wr, cfg)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger
