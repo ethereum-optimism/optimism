@@ -36,6 +36,9 @@ const cannonGameType uint8 = 0
 const alphabetGameDepth = 4
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 
+// rootPosition is the position of the root claim.
+var rootPosition = faultTypes.NewPositionFromGIndex(1)
+
 type Status uint8
 
 const (
@@ -191,8 +194,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		cfg.Datadir,
 		maxDepth.Uint64(),
 	)
-	pos := faultTypes.NewPosition(int(maxDepth.Uint64()), int(maxDepth.Uint64()))
-	rootClaim, err := provider.Get(ctx, pos)
+	rootClaim, err := provider.Get(ctx, rootPosition)
 	h.require.NoError(err, "Compute correct root hash")
 	// Override the VM status to claim the root is invalid
 	// Otherwise creating the game will fail
