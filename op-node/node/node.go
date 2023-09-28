@@ -301,7 +301,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 		server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
 	if cfg.RPC.EnableAdmin {
-		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
+		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics, n.log))
 		n.log.Info("Admin RPC enabled")
 	}
 	n.log.Info("Starting JSON-RPC server")

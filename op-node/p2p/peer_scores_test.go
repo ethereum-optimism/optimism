@@ -15,8 +15,8 @@ import (
 
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	testlog "github.com/ethereum-optimism/optimism/op-service/testlog"
 	log "github.com/ethereum/go-ethereum/log"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
