@@ -171,13 +171,6 @@ func (e *L2Engine) ActL2RPCFail(t Testing) {
 	e.failL2RPC = errors.New("mock L2 RPC error")
 }
 
-// ActSendTx adds a transaction to the tx pool and ensures any required promotion to the pending tx queue is complete
-// before returning.
-func (e *L2Engine) ActSendTx(t Testing, tx *types.Transaction) {
-	err := errors.Join(e.eth.TxPool().Add([]*types.Transaction{tx}, true, true)...)
-	require.NoError(t, err, "Add tx to pool")
-}
-
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
 func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 	return func(t Testing) {
@@ -186,20 +179,20 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 
+		var i uint64
+		var txs []*types.Transaction
+		var q []*types.Transaction
 		// Wait for the tx to be in the pending tx queue
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		err := wait.For(ctx, 2*time.Second, func() (bool, error) {
-			i := e.engineApi.PendingIndices(from)
-			txs, _ := e.eth.TxPool().ContentFrom(from)
+		err := wait.For(ctx, time.Second, func() (bool, error) {
+			i = e.engineApi.PendingIndices(from)
+			txs, q = e.eth.TxPool().ContentFrom(from)
 			return uint64(len(txs)) > i, nil
 		})
-		require.NoError(t, err, "wait for tx to be in pending tx queue")
+		require.NoError(t, err,
+			"no pending txs from %s, and have %d unprocessable queued txs from this account: %w", from, len(q), err)
 
-		i := e.engineApi.PendingIndices(from)
-		txs, q := e.eth.TxPool().ContentFrom(from)
-		require.Greaterf(t, uint64(len(txs)), i,
-			"no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
 		tx := txs[i]
 		err = e.engineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {

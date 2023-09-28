@@ -464,7 +464,7 @@ func TestBigL2Txs(gt *testing.T) {
 				Value:     big.NewInt(0),
 				Data:      data,
 			})
-			engine.ActSendTx(t, tx)
+			require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)
