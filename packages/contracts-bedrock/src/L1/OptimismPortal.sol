@@ -85,8 +85,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param success        Whether the withdrawal transaction was successful.
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
-    // TODO: move to a new inheritable contract so that this modifier can be reused in the
-    // xDM and bridge
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
         require(paused() == false, "OptimismPortal: paused");

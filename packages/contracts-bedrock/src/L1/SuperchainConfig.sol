@@ -161,9 +161,6 @@ contract SuperchainConfig is Initializable, ISemver {
         paused_ = Slot.getUint(PAUSED_SLOT) > block.timestamp;
     }
 
-    // todo(maurelian): we might need a repause() getter which is only callable by the
-    // security council. And is the only way to extend an active pause.
-    // This would enable us to distribute the one-time presigned pause tx, but restrict repausing.
     /// @notice Pauses withdrawals.
     function pause(uint256 duration) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
