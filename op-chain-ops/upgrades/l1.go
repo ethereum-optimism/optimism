@@ -348,9 +348,16 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return fmt.Errorf("no initialize method")
 	}
 
-	var gasPriceOracleOverhead, gasPriceOracleScalar, startBlock *big.Int
+	// If we want to be able to override these based on the values in the config,
+	// the logic below will need to be updated. Right now the logic prefers the
+	// on chain values over the offchain values. This to maintain backwards compatibilty
+	// in the short term.
+	startBlock := big.NewInt(0)
+	batchInboxAddress := common.HexToAddress(chainConfig.BatchInboxAddr.String())
+
+	var gasPriceOracleOverhead, gasPriceOracleScalar *big.Int
 	var batcherHash common.Hash
-	var batchInboxAddress, p2pSequencerAddress, finalSystemOwner common.Address
+	var p2pSequencerAddress, finalSystemOwner common.Address
 	var l2GenesisBlockGasLimit uint64
 
 	if config != nil {
@@ -384,14 +391,14 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			return err
 		}
 		// StartBlock is a new property, we want to explicitly set it to 0 if there is an error fetching it
-		startBlock, err = systemConfig.StartBlock(&bind.CallOpts{})
-		if err != nil {
-			startBlock = big.NewInt(0)
+		systemConfigStartBlock, err := systemConfig.StartBlock(&bind.CallOpts{})
+		if err != nil && systemConfigStartBlock != nil {
+			startBlock = systemConfigStartBlock
 		}
 		// BatchInboxAddress is a new property, we want to set it to the offchain value if there is an error fetching it
-		batchInboxAddress, err = systemConfig.BatchInbox(&bind.CallOpts{})
-		if err != nil {
-			batchInboxAddress = common.HexToAddress(chainConfig.BatchInboxAddr.String())
+		systemConfigBatchInboxAddress, err := systemConfig.BatchInbox(&bind.CallOpts{})
+		if err != nil && systemConfigBatchInboxAddress != (common.Address{}) {
+			batchInboxAddress = systemConfigBatchInboxAddress
 		}
 		p2pSequencerAddress, err = systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
 		if err != nil {
