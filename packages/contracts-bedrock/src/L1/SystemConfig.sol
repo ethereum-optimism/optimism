@@ -38,6 +38,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address optimismMintableERC20Factory;
     }
 
+    /// @notice Struct representing the overhead, scalar, and gas limit.
+    struct GasConfig {
+        uint256 overhead;
+        uint256 scalar;
+    }
+
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -146,8 +152,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         The resource config must be set before the require check.
     /// @param _owner             Initial owner of the contract.
     /// @param _superchainConfig  Initial superchainConfig address.
-    /// @param _overhead          Initial overhead value.
-    /// @param _scalar            Initial scalar value.
+    /// @param _gasConfig         Initial gas config (overhead and scalar) values.
     /// @param _batcherHash       Initial batcher hash.
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
@@ -327,10 +332,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Updates gas config. Can only be called by the owner.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
-        _setGasConfig(_overhead, _scalar);
+    /// @param _gasConfig New gas config.
+    function setGasConfig(GasConfig memory _gasConfig) external onlyOwner {
+        _setGasConfig(_gasConfig);
     }
 
     /// @notice Internal function for updating the gas config.

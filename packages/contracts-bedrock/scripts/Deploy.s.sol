@@ -697,8 +697,7 @@ contract Deploy is Deployer {
                 (
                     cfg.finalSystemOwner(),
                     superchainConfigProxy,
-                    cfg.gasPriceOracleOverhead(),
-                    cfg.gasPriceOracleScalar(),
+                    SystemConfig.GasConfig({ overhead: cfg.gasPriceOracleOverhead(), scalar: cfg.gasPriceOracleScalar() }),
                     batcherHash,
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),

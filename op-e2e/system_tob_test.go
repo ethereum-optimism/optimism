@@ -67,7 +67,8 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 
 	// Update the gas config, wait for it to show up on L2, & verify that it was set as intended
 	opts.Context, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
-	tx, err := sysconfig.SetGasConfig(opts, overheadValue, scalarValue)
+	gasConfig := bindings.SystemConfigGasConfig{Overhead: overheadValue, Scalar: scalarValue}
+	tx, err := sysconfig.SetGasConfig(opts, gasConfig)
 	cancel()
 	require.Nil(t, err, "sending overhead update tx")
 
@@ -94,7 +95,8 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	scalarValue = big.NewInt(params.Ether)
 
 	opts.Context, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
-	tx, err = sysconfig.SetGasConfig(opts, overheadValue, scalarValue)
+	gasConfig = bindings.SystemConfigGasConfig{Overhead: overheadValue, Scalar: scalarValue}
+	tx, err = sysconfig.SetGasConfig(opts, gasConfig)
 	cancel()
 	require.Nil(t, err, "sending overhead update tx")
 

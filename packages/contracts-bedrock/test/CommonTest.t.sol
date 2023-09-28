@@ -88,7 +88,102 @@ contract CommonTest is Test {
     }
 }
 
-contract L2OutputOracle_Initializer is CommonTest {
+contract SuperchainConfig_Initializer is CommonTest {
+    SuperchainConfig supConf;
+    SuperchainConfig SuperchainConfigImpl;
+
+    event Paused();
+    event Unpaused();
+    event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
+
+    address systemOwner = makeAddr("SystemOwner");
+    address initiator = makeAddr("initiator");
+    address vetoer = makeAddr("vetoer");
+    address guardian = makeAddr("guardian");
+    uint256 delay = 100;
+    uint256 maxPause = 1 weeks;
+    Types.SequencerKeyPair dummySequencer;
+
+    function setUp() public virtual override {
+        super.setUp();
+        dummySequencer =
+            Types.SequencerKeyPair({ batcherHash: bytes32(uint256(800)), unsafeBlockSigner: address(4096) });
+        Proxy proxy = new Proxy(multisig);
+        SuperchainConfigImpl = new SuperchainConfig();
+        Types.SequencerKeyPair[] memory sequencers = new Types.SequencerKeyPair[](1);
+        sequencers[0] = dummySequencer;
+
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(SuperchainConfigImpl),
+            abi.encodeCall(
+                SuperchainConfig.initialize, (systemOwner, initiator, vetoer, guardian, delay, maxPause, sequencers)
+            )
+        );
+
+        supConf = SuperchainConfig(address(proxy));
+    }
+}
+
+contract SystemConfig_Initializer is SuperchainConfig_Initializer {
+    SystemConfig sysConf;
+    SystemConfig systemConfigImpl;
+
+    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
+
+    // Dummy addresses used to test getters
+    address constant batchInbox = address(0x18);
+    address constant l1CrossDomainMessenger = address(0x20);
+    address constant l1ERC721Bridge = address(0x21);
+    address constant l1StandardBridge = address(0x22);
+    address constant l2OutputOracle = address(0x23);
+    address constant optimismPortal = address(0x24);
+    address constant optimismMintableERC20Factory = address(0x25);
+    SystemConfig.GasConfig gasConfig = SystemConfig.GasConfig({ overhead: 2100, scalar: 1000000 });
+    bytes32 constant batcherHash = bytes32(hex"abcd");
+    uint64 constant gasLimit = 30_000_000;
+    address constant unsafeBlockSigner = address(1);
+    address internal oracleChallenger = makeAddr("Challenger");
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        systemConfigImpl = new SystemConfig();
+
+        Proxy proxy = new Proxy(multisig);
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice, // _owner,
+                    address(supConf), // superchainConfig
+                    gasConfig, // _gasConfig
+                    batcherHash, // _batcherHash
+                    gasLimit, // _gasLimit,
+                    unsafeBlockSigner, // _unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+                    0, // _startBlock
+                    batchInbox, // _batchInbox
+                    oracleChallenger, // _challenger
+                    SystemConfig.Addresses({ // _addresses
+                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1ERC721Bridge: l1ERC721Bridge,
+                        l1StandardBridge: l1StandardBridge,
+                        l2OutputOracle: l2OutputOracle,
+                        optimismPortal: optimismPortal,
+                        optimismMintableERC20Factory: optimismMintableERC20Factory
+                    })
+                )
+            )
+        );
+
+        sysConf = SystemConfig(address(proxy));
+    }
+}
+
+contract L2OutputOracle_Initializer is SystemConfig_Initializer {
     // Test target
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
