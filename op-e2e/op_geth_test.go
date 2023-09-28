@@ -38,6 +38,7 @@ func TestMissingGasLimit(t *testing.T) {
 	attrs.GasLimit = nil
 
 	res, err := opGeth.StartBlockBuilding(ctx, attrs)
+	require.Error(t, err)
 	require.ErrorIs(t, err, eth.InputError{})
 	require.Equal(t, eth.InvalidPayloadAttributes, err.(eth.InputError).Code)
 	require.Nil(t, res)
@@ -157,15 +158,12 @@ func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
 	require.NoError(t, opGeth.L2Client.SendTransaction(ctx, tx), "send tx to make pending work different")
 	checkPending("prepared", 0)
 
-	rpcClient := opGeth.node.Attach()
-	defer rpcClient.Close()
-
 	// Wait for tx to be in tx-pool, for it to be picked up in block building
 	var txPoolStatus struct {
 		Pending hexutil.Uint64 `json:"pending"`
 	}
 	for i := 0; i < 5; i++ {
-		require.NoError(t, rpcClient.CallContext(ctx, &txPoolStatus, "txpool_status"))
+		require.NoError(t, opGeth.L2Client.Client().Call(&txPoolStatus, "txpool_status"))
 		if txPoolStatus.Pending == 0 {
 			time.Sleep(time.Second)
 		} else {
