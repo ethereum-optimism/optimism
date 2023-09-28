@@ -168,6 +168,13 @@ func (e *L2Engine) ActL2RPCFail(t Testing) {
 	e.failL2RPC = errors.New("mock L2 RPC error")
 }
 
+// ActSendTx adds a transaction to the tx pool and ensures any required promotion to the pending tx queue is complete
+// before returning.
+func (e *L2Engine) ActSendTx(t Testing, tx *types.Transaction) {
+	err := errors.Join(e.eth.TxPool().Add([]*types.Transaction{tx}, true, true)...)
+	require.NoError(t, err, "Add tx to pool")
+}
+
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
 func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 	return func(t Testing) {
