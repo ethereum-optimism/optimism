@@ -178,9 +178,8 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 
 		i := e.engineApi.PendingIndices(from)
 		txs, q := e.eth.TxPool().ContentFrom(from)
-		if uint64(len(txs)) <= i {
-			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
-		}
+		require.Greaterf(t, uint64(len(txs)), i,
+			"no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
 		tx := txs[i]
 		err := e.engineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
@@ -188,7 +187,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
 			t.InvalidAction("included tx uses too much gas: %v", err)
 		} else if err != nil {
-			t.Fatalf("include tx: %v", err)
+			require.NoError(t, err, "include tx")
 		}
 	}
 }
