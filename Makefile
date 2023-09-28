@@ -86,6 +86,9 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
+	@if ! command -v geth &> /dev/null; then \
+    	echo "\ngeth binary not found in path.\nPlease run 'make install-geth' to install geth before spinning up the devnet.\n" && exit 1; \
+	fi
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi
