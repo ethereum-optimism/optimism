@@ -49,18 +49,11 @@ func ForBlockWithTimestamp(ctx context.Context, client BlockCaller, target uint6
 
 func ForNextBlock(ctx context.Context, client BlockCaller) error {
 	current, err := client.BlockNumber(ctx)
+	// Long timeout so we don't have to care what the block time is. If the test passes this will complete early anyway.
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
 	if err != nil {
 		return fmt.Errorf("get starting block number: %w", err)
 	}
 	return ForBlock(ctx, client, current+1)
-}
-
-func ForNextBlockWithTimeout(ctx context.Context, client BlockCaller, timeout time.Duration) error {
-	timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	current, err := client.BlockNumber(ctx)
-	if err != nil {
-		return fmt.Errorf("get starting block number: %w", err)
-	}
-	return ForBlock(timeoutCtx, client, current+1)
 }

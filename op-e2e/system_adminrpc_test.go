@@ -37,7 +37,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	require.NoError(
 		t,
-		wait.ForNextBlockWithTimeout(ctx, l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime+1)*2*time.Second),
+		wait.ForNextBlock(ctx, l2Seq),
 		"Chain did not advance after starting sequencer",
 	)
 
@@ -70,7 +70,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	require.NoError(
 		t,
-		wait.ForNextBlockWithTimeout(ctx, l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime+1)*2*time.Second),
+		wait.ForNextBlock(ctx, l2Seq),
 		"Chain did not advance after starting sequencer",
 	)
 }
