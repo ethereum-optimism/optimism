@@ -1,9 +1,12 @@
 package actions
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/stretchr/testify/require"
 
@@ -183,12 +186,22 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 
+		// Wait for the tx to be in the pending tx queue
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := wait.For(ctx, 2*time.Second, func() (bool, error) {
+			i := e.engineApi.PendingIndices(from)
+			txs, _ := e.eth.TxPool().ContentFrom(from)
+			return uint64(len(txs)) > i, nil
+		})
+		require.NoError(t, err, "wait for tx to be in pending tx queue")
+
 		i := e.engineApi.PendingIndices(from)
 		txs, q := e.eth.TxPool().ContentFrom(from)
 		require.Greaterf(t, uint64(len(txs)), i,
 			"no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
 		tx := txs[i]
-		err := e.engineApi.IncludeTx(tx, from)
+		err = e.engineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
 			t.InvalidAction(err.Error())
 		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
