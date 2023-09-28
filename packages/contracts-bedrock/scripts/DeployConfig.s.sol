@@ -51,10 +51,11 @@ contract DeployConfig is Script {
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
-    address public updateInitiator;
-    address public updateVetoer;
-    uint256 public updateDelay;
-    Types.SequencerKeyPair[] public sequencerKeyPairs;
+    address public superchainConfigInitiator;
+    address public superchainConfigVetoer;
+    uint256 public superchainConfigDelay;
+    uint256 public superchainConfigMaxPause;
+    Types.SequencerKeyPair[] public superchainConfigSequencerKeyPairs;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -104,15 +105,16 @@ contract DeployConfig is Script {
             requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
             recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
-            updateInitiator = stdJson.readAddress(_json, "$.updateInitiator");
-            updateVetoer = stdJson.readAddress(_json, "$.updateVetoer");
-            updateDelay = stdJson.readUint(_json, "$.updateDelay");
+            superchainConfigInitiator = stdJson.readAddress(_json, "$.superchainConfigInitiator");
+            superchainConfigVetoer = stdJson.readAddress(_json, "$.superchainConfigVetoer");
+            superchainConfigDelay = stdJson.readUint(_json, "$.superchainConfigDelay");
+            superchainConfigMaxPause = stdJson.readUint(_json, "$.superchainConfigMaxPause");
             Types.SequencerKeyPair[] memory _sequencerKeyPairs =
-                abi.decode(stdJson.parseRaw(_json, "$.sequencerKeyPairs"), (Types.SequencerKeyPair[]));
+                abi.decode(stdJson.parseRaw(_json, "$.superchainConfigSequencerKeyPairs"), (Types.SequencerKeyPair[]));
 
             // Copy the array to storage
             for (uint256 i = 0; i < _sequencerKeyPairs.length; i++) {
-                sequencerKeyPairs.push(_sequencerKeyPairs[i]);
+                superchainConfigSequencerKeyPairs.push(_sequencerKeyPairs[i]);
             }
         }
 
@@ -160,6 +162,6 @@ contract DeployConfig is Script {
     }
 
     function getSequencerKeyPairs() public view returns (Types.SequencerKeyPair[] memory) {
-        return sequencerKeyPairs;
+        return superchainConfigSequencerKeyPairs;
     }
 }

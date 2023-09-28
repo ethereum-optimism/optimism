@@ -70,10 +70,11 @@
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "updateInitiator": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
-  "updateVetoer": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
-  "updateDelay": 100,
-  "sequencerKeyPairs": [
+  "superchainConfigInitiator": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+  "superchainConfigVetoer": "0xa0ee7a142d267c1f36714e4a8f75612f20a79720",
+  "superchainConfigMaxPause": 604800,
+  "superchainConfigDelay": 100,
+  "superchainConfigSequencerKeyPairs": [
     {
       "batcherHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "unsafeBlockSigner": "0x0000000000000000000000000000000000000000"

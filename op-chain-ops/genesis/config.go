@@ -210,15 +210,17 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
-	// UpdateInitiator represents the address of the Security Council role.
-	UpdateInitiator common.Address `json:"updateInitiator"`
-	// UpdateVetoer represents the address of the UpdateVetoer role.
-	UpdateVetoer common.Address `json:"updateVetoer"`
-	// UpdateDelay represents the time after which an upgrade can occur ifit
-	UpdateDelay uint64 `json:"updateDelay"`
+	// SuperchainConfigInitiator represents the address of the Security Council role.
+	SuperchainConfigInitiator common.Address `json:"superchainConfigInitiator"`
+	// SuperchainConfigVetoer represents the address of the SuperchainConfigVetoer role.
+	SuperchainConfigVetoer common.Address `json:"superchainConfigVetoer"`
+	// SuperchainConfigDelay represents the time after which an upgrade can occur ifit
+	SuperchainConfigDelay uint64 `json:"superchainConfigDelay"`
+	// SuperchainConfigMaxPause represents the time after which an upgrade can occur ifit
+	SuperchainConfigMaxPause uint64 `json:"superchainConfigMaxPause"`
 	// SequencerKeys represents the set of allowed Sequencer key pairs (batcher hash and unsafe
 	// block signer).
-	SequencerKeyPairs []SequencerPair `json:"sequencerKeyPairs"`
+	SuperchainConfigSequencerKeyPairs []SequencerKeyPair `json:"superchainConfigSequencerKeyPairs"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy

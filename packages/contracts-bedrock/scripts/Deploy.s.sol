@@ -410,6 +410,7 @@ contract Deploy is Deployer {
         require(superchainConfig.vetoer() == address(0));
         require(superchainConfig.guardian() == address(0));
         require(superchainConfig.delay() == 0);
+        require(superchainConfig.maxPause() == 0);
 
         save("SuperchainConfig", address(superchainConfig));
         console.log("SuperchainConfig deployed at %s", address(superchainConfig));
@@ -668,10 +669,11 @@ contract Deploy is Deployer {
                         SuperchainConfig.initialize,
                         (
                             cfg.finalSystemOwner(), // systemOwner
-                            cfg.updateInitiator(), // initiator
-                            cfg.updateVetoer(), // vetoer
+                            cfg.superchainConfigInitiator(), // initiator
+                            cfg.superchainConfigVetoer(), // vetoer
                             cfg.portalGuardian(), // guardian
-                            cfg.updateDelay(), // delay
+                            cfg.superchainConfigDelay(), // delay
+                            cfg.superchainConfigMaxPause(), // delay
                             cfg.getSequencerKeyPairs() // sequencers
                         )
                         )

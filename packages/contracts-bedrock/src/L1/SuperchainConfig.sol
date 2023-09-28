@@ -17,6 +17,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @custom:value VETOER              Represents an update to the vetoer.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
     /// @custom:value DELAY               Represents an update to the delay time.
+    /// @custom:value MAX_PAUSE           Represents an update to the maximum pause time.
     /// @custom:value ADD_SEQUENCER       Represents an update to add a sequencer to the allowed list.
     /// @custom:value REMOVE_SEQUENCER    Represents an update to remove a sequencer from the allowed list.
     enum UpdateType {
@@ -25,6 +26,7 @@ contract SuperchainConfig is Initializable, ISemver {
         VETOER,
         GUARDIAN,
         DELAY,
+        MAX_PAUSE,
         ADD_SEQUENCER,
         REMOVE_SEQUENCER
     }
@@ -55,9 +57,9 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice The time until which the system is paused.
     bytes32 public constant PAUSED_SLOT = bytes32(uint256(keccak256("superchainConfig.paused")) - 1);
 
-    // todo(maurelian): make this time configurable. It was just a lot easier to mock it up by hardcoding it in.
     /// @notice The maximum time in seconds that the system can be paused for.
-    uint256 public constant maxPause = 1 weeks;
+    ///         It can only be modified by an upgrade.
+    bytes32 public constant MAX_PAUSE_SLOT = bytes32(uint256(keccak256("superchainConfig.maxPause")) - 1);
 
     /// @notice Mapping of allowed sequencers.
     ///         The initiator should be able to add to it instantly, but removing is subject to delay.
@@ -86,6 +88,7 @@ contract SuperchainConfig is Initializable, ISemver {
             _vetoer: address(0),
             _guardian: address(0),
             _delay: 0,
+            _maxPause: 0,
             _sequencers: new Types.SequencerKeyPair[](0)
         });
     }
@@ -97,6 +100,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _vetoer      Address of the vetoer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
     /// @param _delay       The delay time in seconds between when an upgrade is initiated and when it can be finalized.
+    /// @param _maxPause    The maximum time in seconds that the system can be paused for.
     /// @param _sequencers  The initial list of allowed sequencers
     function initialize(
         address _systemOwner,
@@ -104,6 +108,7 @@ contract SuperchainConfig is Initializable, ISemver {
         address _vetoer,
         address _guardian,
         uint256 _delay,
+        uint256 _maxPause,
         Types.SequencerKeyPair[] memory _sequencers
     )
         public
@@ -114,6 +119,7 @@ contract SuperchainConfig is Initializable, ISemver {
         _setVetoer(_vetoer);
         _setGuardian(_guardian);
         _setDelay(_delay);
+        _setMaxPause(_maxPause);
 
         for (uint256 i = 0; i < _sequencers.length; i++) {
             _addSequencer(_sequencers[i]);
@@ -140,9 +146,14 @@ contract SuperchainConfig is Initializable, ISemver {
         guardian_ = Slot.getAddress(GUARDIAN_SLOT);
     }
 
-    /// @notice Getter for the delay address.
+    /// @notice Getter for the delay time.
     function delay() public view returns (uint256 delay_) {
         delay_ = Slot.getUint(DELAY_SLOT);
+    }
+
+    /// @notice Getter for the maxPause time.
+    function maxPause() public view returns (uint256 maxPause_) {
+        maxPause_ = Slot.getUint(MAX_PAUSE_SLOT);
     }
 
     /// @notice Getter for the paused address.
@@ -156,7 +167,7 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Pauses withdrawals.
     function pause(uint256 duration) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
-        require(duration <= maxPause, "SuperchainConfig: duration exceeds maxPause");
+        require(duration <= Slot.getUint(MAX_PAUSE_SLOT), "SuperchainConfig: duration exceeds maxPause");
         Slot.setUint(PAUSED_SLOT, uint256(block.timestamp) + duration);
         emit Paused();
     }
@@ -238,5 +249,12 @@ contract SuperchainConfig is Initializable, ISemver {
     function _setDelay(uint256 _delay) internal {
         Slot.setUint(DELAY_SLOT, _delay);
         emit ConfigUpdate(UpdateType.DELAY, abi.encode(_delay));
+    }
+
+    /// @notice Sets the maxPause.
+    /// @param _maxPause The new maxPause.
+    function _setMaxPause(uint256 _maxPause) internal {
+        Slot.setUint(MAX_PAUSE_SLOT, _maxPause);
+        emit ConfigUpdate(UpdateType.MAX_PAUSE, abi.encode(_maxPause));
     }
 }

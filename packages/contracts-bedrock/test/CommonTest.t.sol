@@ -183,11 +183,13 @@ contract SuperchainConfig_Initializer is L2OutputOracle_Initializer {
     address vetoer = makeAddr("vetoer");
     address guardian = makeAddr("guardian");
     uint256 delay = 100;
+    uint256 maxPause = 1 weeks;
     Types.SequencerKeyPair dummySequencer;
 
     function setUp() public virtual override {
         super.setUp();
-        dummySequencer = Types.SequencerKeyPair({ batcherHash: bytes32(uint256(800)), unsafeBlockSigner: address(4096) });
+        dummySequencer =
+            Types.SequencerKeyPair({ batcherHash: bytes32(uint256(800)), unsafeBlockSigner: address(4096) });
         Proxy proxy = new Proxy(multisig);
         SuperchainConfigImpl = new SuperchainConfig();
         Types.SequencerKeyPair[] memory sequencers = new Types.SequencerKeyPair[](1);
@@ -196,7 +198,9 @@ contract SuperchainConfig_Initializer is L2OutputOracle_Initializer {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(SuperchainConfigImpl),
-            abi.encodeCall(SuperchainConfig.initialize, (systemOwner, initiator, vetoer, guardian, delay, sequencers))
+            abi.encodeCall(
+                SuperchainConfig.initialize, (systemOwner, initiator, vetoer, guardian, delay, maxPause, sequencers)
+            )
         );
 
         supConf = SuperchainConfig(address(proxy));
