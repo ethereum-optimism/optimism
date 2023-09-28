@@ -141,6 +141,11 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 	return claimData
 }
 
+// getClaimPosition retrieves the [types.Position] of a claim at a specific index.
+func (g *FaultGameHelper) getClaimPosition(ctx context.Context, claimIdx int64) types.Position {
+	return types.NewPositionFromGIndex(g.getClaim(ctx, claimIdx).Position.Uint64())
+}
+
 func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
 	g.waitForClaim(
 		ctx,
