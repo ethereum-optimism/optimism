@@ -5,6 +5,7 @@ import { Predeploys } from "../libraries/Predeploys.sol";
 import { OptimismPortal } from "./OptimismPortal.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { ISemver } from "../universal/ISemver.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -18,19 +19,24 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:legacy
     OptimismPortal public PORTAL;
 
+    /// @notice Address of the Superchain Config contracts.
+    SuperchainConfig public superchainConfig;
+
     /// @notice Semantic version.
     /// @custom:semver 1.7.0
     string public constant version = "1.7.0";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
-        initialize({ _portal: OptimismPortal(payable(0)) });
+        initialize({ _portal: OptimismPortal(payable(0)), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
-    function initialize(OptimismPortal _portal) public reinitializer(2) {
+    function initialize(OptimismPortal _portal, SuperchainConfig _superchainConfig) public reinitializer(2) {
         PORTAL = _portal;
+        superchainConfig = _superchainConfig;
+
         __CrossDomainMessenger_init();
     }
 
@@ -56,7 +62,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function paused() public view override returns (bool) {
-        return PORTAL.paused();
+        return superchainConfig.paused();
     }
 
     /// @inheritdoc CrossDomainMessenger

@@ -836,6 +836,7 @@ contract Deploy is Deployer {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
@@ -863,7 +864,8 @@ contract Deploy is Deployer {
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
-                L1CrossDomainMessenger.initialize, (OptimismPortal(payable(optimismPortalProxy)))
+                L1CrossDomainMessenger.initialize,
+                (OptimismPortal(payable(optimismPortalProxy)), SuperchainConfig(superchainConfigProxy))
                 )
         });
 

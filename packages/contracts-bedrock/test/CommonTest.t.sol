@@ -338,7 +338,7 @@ contract Messenger_Initializer is Portal_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize(op);
+        L1Messenger.initialize(op, supConf);
 
         vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(L1Messenger))).code);
 
