@@ -111,17 +111,20 @@ func For(ctx context.Context, rate time.Duration, cb func() (bool, error)) error
 	defer tick.Stop()
 
 	for {
+		// Perform the first check before any waiting.
+		done, err := cb()
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-tick.C:
-			done, err := cb()
-			if err != nil {
-				return err
-			}
-			if done {
-				return nil
-			}
+			// Allow loop to continue for next retry
 		}
 	}
 }
