@@ -434,6 +434,7 @@ func TestBigL2Txs(gt *testing.T) {
 	// build many L2 blocks filled to the brim with large txs of random data
 	for i := 0; i < 40; i++ {
 		aliceNonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+		require.NoError(t, err)
 		status := sequencer.SyncStatus()
 		// build empty L1 blocks as necessary, so the L2 sequencer can continue to include txs while not drifting too far out
 		if status.UnsafeL2.Time >= status.HeadL1.Time+12 {
@@ -444,7 +445,6 @@ func TestBigL2Txs(gt *testing.T) {
 		baseFee := engine.l2Chain.CurrentBlock().BaseFee // this will go quite high, since so many consecutive blocks are filled at capacity.
 		// fill the block with large L2 txs from alice
 		for n := aliceNonce; ; n++ {
-			require.NoError(t, err)
 			signer := types.LatestSigner(sd.L2Cfg.Config)
 			data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
 			_, err := rand.Read(data[:])  // fill with random bytes, to make compression ineffective
@@ -458,7 +458,7 @@ func TestBigL2Txs(gt *testing.T) {
 				ChainID:   sd.L2Cfg.Config.ChainID,
 				Nonce:     n,
 				GasTipCap: big.NewInt(2 * params.GWei),
-				GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
+				GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(10)), big.NewInt(2*params.GWei)),
 				Gas:       gas,
 				To:        &dp.Addresses.Bob,
 				Value:     big.NewInt(0),
