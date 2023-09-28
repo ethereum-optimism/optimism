@@ -686,7 +686,7 @@ contract Deploy is Deployer {
     function initializeSystemConfig() public broadcast {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
         uint256 startBlock = cfg.systemConfigStartBlock();
 

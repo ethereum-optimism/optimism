@@ -74,6 +74,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
+    /// @notice Storage slot that the SuperchainConfig address is stored at.
+    bytes32 public constant SUPERCHAIN_CONFIG_SLOT = bytes32(uint256(keccak256("systemconfig.superchainconfig")) - 1);
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -96,10 +99,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
-    /// @notice SuperchainConfig address
-    ///         This can only be set via upgrade.
-    SuperchainConfig public superchainConfig;
-
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
@@ -116,7 +115,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     constructor() {
         initialize({
             _owner: address(0xdEaD),
-            _superchainConfig: SuperchainConfig(address(0)),
+            _superchainConfig: address(0),
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(0),
@@ -162,7 +161,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
-        SuperchainConfig _superchainConfig,
+        address _superchainConfig,
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
@@ -178,7 +177,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     {
         __Ownable_init();
         transferOwnership(_owner);
-        superchainConfig = _superchainConfig;
 
         // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
@@ -193,6 +191,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Slot.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
         Slot.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Slot.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
+        Slot.setAddress(SUPERCHAIN_CONFIG_SLOT, _superchainConfig);
 
         _setStartBlock(_startBlock);
 
@@ -217,6 +216,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     // solhint-disable-next-line ordering
     function unsafeBlockSigner() public view returns (address addr_) {
         addr_ = Slot.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
+    }
+
+    /// @notice Getter for the SuperChainConfig address.
+    function superchainConfig() public view returns (address addr_) {
+        addr_ = Slot.getAddress(SUPERCHAIN_CONFIG_SLOT);
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
@@ -286,7 +290,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             Types.SequencerKeyPair({ unsafeBlockSigner: _unsafeBlockSigner, batcherHash: _batcherHash });
         bytes32 seqHash = Hashing.hashSequencerKeyPair(_sequencer);
         require(
-            superchainConfig.allowedSequencers(seqHash),
+            SuperchainConfig(superchainConfig()).allowedSequencers(seqHash),
             "SystemConfig: Sequencer hash not found in Superchain allow list"
         );
     }
@@ -297,7 +301,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Types.SequencerKeyPair memory sequencer =
             Types.SequencerKeyPair({ unsafeBlockSigner: unsafeBlockSigner(), batcherHash: batcherHash });
         bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
-        if (superchainConfig.allowedSequencers(seqHash)) {
+        if (SuperchainConfig(superchainConfig()).allowedSequencers(seqHash)) {
             revert("SystemConfig: cannot remove allowed sequencer.");
         }
         _setUnsafeBlockSigner(address(0));

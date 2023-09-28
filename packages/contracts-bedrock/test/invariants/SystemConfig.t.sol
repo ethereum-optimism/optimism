@@ -22,7 +22,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                 configImpl.initialize,
                 (
                     address(0xbeef), // owner
-                    SuperchainConfig(address(0)), // _superchainConfig
+                    address(0), // _superchainConfig
                     2100, // overhead
                     1000000, // scalar
                     bytes32(hex"abcd"), // batcher hash

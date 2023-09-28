@@ -240,7 +240,7 @@ contract SystemConfig_Initializer is SuperchainConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
-                    supConf, // superchainConfig
+                    address(supConf), // superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash

@@ -64,7 +64,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
-                    supConf, // _superchainConfig
+                    address(supConf), // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -111,7 +111,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
-                    supConf, // _superchainConfig
+                    address(supConf), // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -151,7 +151,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
-                    supConf, // _superchainConfig
+                    address(supConf), // _superchainConfig
                     2100, // _overhead,
                     1000000, // _scalar,
                     bytes32(hex"abcd"), // _batcherHash,
@@ -192,7 +192,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
-                    supConf, // _superchainConfig
+                    address(supConf), // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
