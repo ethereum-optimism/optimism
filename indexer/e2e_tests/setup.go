@@ -24,7 +24,7 @@ import (
 )
 
 /*
-	NOTE - Most of the current tests fetch chain data via direct database queries. These could all
+	NOTE - Most of the current bridge tests fetch chain data via direct database queries. These could all
 	be transitioned to use the API client instead to better simulate/validate real-world usage.
 	Supporting this would potentially require adding new API endpoints for the specific query lookup types.
 */
