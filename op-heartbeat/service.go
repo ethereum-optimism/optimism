@@ -37,7 +37,8 @@ func Main(version string) func(ctx *cli.Context) error {
 			return fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		l := oplog.NewLogger(cfg.Log)
+		l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.Log)
+		oplog.SetGlobalLogHandler(l.GetHandler())
 		l.Info("starting heartbeat monitor", "version", version)
 
 		ctx, cancel := context.WithCancel(context.Background())

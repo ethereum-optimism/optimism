@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -86,7 +86,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
-	db, err := database.NewDB(indexerCfg.DB)
+	// Emit debug log levels
+	db, err := database.NewDB(testlog.Logger(t, log.LvlDebug).New("role", "db"), indexerCfg.DB)
 	require.NoError(t, err)
 	t.Cleanup(func() { db.Close() })
 
@@ -138,9 +139,13 @@ func setupTestDatabase(t *testing.T) string {
 		Password: "",
 	}
 	// NewDB will create the database schema
-	db, err := database.NewDB(dbConfig)
+
+	silentLog := log.New()
+	silentLog.SetHandler(log.DiscardHandler())
+	db, err := database.NewDB(silentLog, dbConfig)
 	require.NoError(t, err)
 	defer db.Close()
+
 	err = db.ExecuteSQLMigration("../migrations")
 	require.NoError(t, err)
 

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/indexer-api",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "[Optimism] typescript types for the indexer service",
   "main": "indexer.cjs",
   "module": "indexer.js",

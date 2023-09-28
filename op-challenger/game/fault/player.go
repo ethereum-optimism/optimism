@@ -80,7 +80,7 @@ func NewGamePlayer(
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr)
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
@@ -106,7 +106,7 @@ func NewGamePlayer(
 	}
 
 	return &GamePlayer{
-		act:                     NewAgent(m, addr, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
