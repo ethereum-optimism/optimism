@@ -13,18 +13,23 @@ contract StorageWrapper {
     function getAddress(bytes32 _slot) external view returns (address) {
         return Storage.getAddress(_slot);
     }
+
     function setAddress(bytes32 _slot, address _address) external {
         Storage.setAddress(_slot, _address);
     }
+
     function getUint(bytes32 _slot) external view returns (uint256) {
         return Storage.getUint(_slot);
     }
+
     function setUint(bytes32 _slot, uint256 _value) external {
         Storage.setUint(_slot, _value);
     }
+
     function getBytes32(bytes32 _slot) external view returns (bytes32) {
         return Storage.getBytes32(_slot);
     }
+
     function setBytes32(bytes32 _slot, bytes32 _value) external {
         Storage.setBytes32(_slot, _value);
     }
