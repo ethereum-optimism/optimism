@@ -23,4 +23,13 @@ contract Slot_Getters_Test is Test {
         assertEq(Storage.getBytes32(slot), hash);
         assertEq(hash, vm.load(address(this), slot));
     }
+
+    function test_setGetBytes32_succeeds() external {
+        // honestly no idea why this fails
+        bytes32 slot = 0x0000000000000000000000000000000000000000000000000000000000000000;
+        bytes32 hash = 0xf7c008fcd8dbdd7cc5f16b63632032e60267b5b3ef0593cf7cf8ff16b65d41f0;
+        Storage.setBytes32(slot, hash);
+        assertEq(Storage.getBytes32(slot), hash);
+        assertEq(hash, vm.load(address(this), slot));
+    }
 }
