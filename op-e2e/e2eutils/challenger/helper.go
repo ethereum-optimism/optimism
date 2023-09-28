@@ -197,7 +197,7 @@ func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr)
 			if err != nil {
 				return false, fmt.Errorf("failed to check dir %v is deleted: %w", dir, err)
 			}
-			h.t.Errorf("Game data directory %v not yet deleted", dir)
+			h.t.Logf("Game data directory %v not yet deleted", dir)
 			return false, nil
 		}
 		return true, nil
