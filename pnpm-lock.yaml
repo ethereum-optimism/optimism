@@ -250,8 +250,8 @@ importers:
         specifier: ^4.17.17
         version: 4.17.17
       '@types/morgan':
-        specifier: ^1.9.4
-        version: 1.9.4
+        specifier: ^1.9.6
+        version: 1.9.6
       '@types/pino':
         specifier: ^7.0.5
         version: 7.0.5
@@ -3996,10 +3996,10 @@ packages:
     resolution: {integrity: sha512-/fvYntiO1GeICvqbQ3doGDIP97vWmvFt83GKguJ6prmQM2iXZfFcq6YE8KteFyRtX2/h5Hf91BYvPodJKFYv5Q==}
     dev: true
 
-  /@types/morgan@1.9.4:
-    resolution: {integrity: sha512-cXoc4k+6+YAllH3ZHmx4hf7La1dzUk6keTR4bF4b4Sc0mZxU/zK4wO7l+ZzezXm/jkYj/qC+uYGZrarZdIVvyQ==}
+  /@types/morgan@1.9.6:
+    resolution: {integrity: sha512-xfKogz5WcKww2DAiVT9zxMgrqQt+Shq8tDVeLT+otoj6dJnkRkyJxMF51mHtUc3JCPKGk5x1EBU0buuGpfftlQ==}
     dependencies:
-      '@types/node': 20.6.3
+      '@types/node': 20.7.0
     dev: true
 
   /@types/ms@0.7.31:
