@@ -464,7 +464,7 @@ func TestBigL2Txs(gt *testing.T) {
 				Value:     big.NewInt(0),
 				Data:      data,
 			})
-			require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+			engine.ActSendTx(t, tx)
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)
@@ -504,7 +504,7 @@ func TestBigL2Txs(gt *testing.T) {
 			if miner.l1GasPool.Gas() < tx.Gas() { // fill the L1 block with batcher txs until we run out of gas
 				break
 			}
-			log.Info("including batcher tx", "nonce", tx)
+			log.Info("including batcher tx", "nonce", tx.Nonce())
 			miner.IncludeTx(t, tx)
 			txs = txs[1:]
 		}
