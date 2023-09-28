@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -99,8 +99,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     uint256 public startBlock;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
+    /// @custom:semver 1.7.1
+    string public constant version = "1.7.1";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's

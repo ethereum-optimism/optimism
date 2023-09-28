@@ -39,7 +39,7 @@ func TestShim(t *testing.T) {
 		Name:    "TestShim",
 		BinPath: shimPath,
 	}).Run(t)
-	t.Cleanup(ec.Close)
+	t.Cleanup(func() { _ = ec.Close })
 
 	for _, endpoint := range []string{
 		ec.HTTPEndpoint(),
