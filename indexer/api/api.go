@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"sync"
@@ -10,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-chi/chi/v5"
@@ -24,6 +24,7 @@ const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 // TODO : Structured error responses
 type API struct {
 	log             log.Logger
+	listener        net.Listener
 	router          *chi.Mux
 	serverConfig    config.ServerConfig
 	metricsConfig   config.ServerConfig
@@ -70,8 +71,8 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 	return &API{log: logger, router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }
 
-// Start ... Starts the API server routines
-func (a *API) Start(ctx context.Context) error {
+// Run ... Runs the API server routines
+func (a *API) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
 
@@ -113,11 +114,32 @@ func (a *API) Start(ctx context.Context) error {
 	return err
 }
 
+// Port ... Returns the the port that server is listening on
+func (a *API) Port() int {
+	return a.serverConfig.Port
+}
+
 // startServer ... Starts the API server
 func (a *API) startServer(ctx context.Context) error {
 	a.log.Info("api server listening...", "port", a.serverConfig.Port)
 	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.router}
-	err := httputil.ListenAndServeContext(ctx, &server)
+
+	addr := fmt.Sprintf(":%d", a.serverConfig.Port)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		a.log.Error("Listen:", err)
+		return err
+	}
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("failed to get TCP address from network listener")
+	}
+
+	// Update the port in the config in case the OS chose a different port
+	// than the one we requested (e.g. port 0)
+	a.serverConfig.Port = tcpAddr.Port
+
+	http.Serve(listener, server.Handler)
 	if err != nil {
 		a.log.Error("api server stopped", "err", err)
 	} else {

@@ -19,7 +19,7 @@ import (
 )
 
 func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
-	testSuite := createIndexerTestSuite(t)
+	testSuite := createE2ETestSuite(t)
 
 	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessenger(testSuite.OpCfg.L1Deployments.L1CrossDomainMessengerProxy, testSuite.L1Client)
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 }
 
 func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
-	testSuite := createIndexerTestSuite(t)
+	testSuite := createE2ETestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
 	require.NoError(t, err)

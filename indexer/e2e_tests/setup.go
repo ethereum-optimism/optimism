@@ -23,6 +23,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+/*
+	NOTE - Most of the current tests fetch chain data via direct database queries. These could all
+	be transitioned to use the API client instead to better simulate/validate real-world usage.
+*/
+
 type E2ETestSuite struct {
 	t *testing.T
 
@@ -43,15 +48,8 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
-func createIndexerTestSuite(t *testing.T) E2ETestSuite {
-	return buildE2ETestSuite(t, false)
-}
-
-func createAPITestSuite(t *testing.T) E2ETestSuite {
-	return buildE2ETestSuite(t, true)
-}
-
-func buildE2ETestSuite(t *testing.T, withAPI bool) E2ETestSuite {
+// createE2ETestSuite ... Create a new E2E test suite
+func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
@@ -66,15 +64,9 @@ func buildE2ETestSuite(t *testing.T, withAPI bool) E2ETestSuite {
 	require.NoError(t, err)
 	t.Cleanup(func() { opSys.Close() })
 
-	if !withAPI {
-		// E2E tests can run on the order of magnitude of minutes. Once
-		// the system is running, mark this test for Parallel execution
-		// E2E API tests will not be marked for Parallel execution as they
-		// will try consuming the same port and fail. This can be fixed if a
-		// unique sport is dynamically allocated for each test.
-		t.Parallel()
-
-	}
+	// E2E tests can run on the order of magnitude of minutes. Once
+	// the system is running, mark this test for Parallel execution
+	t.Parallel()
 
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
@@ -114,9 +106,9 @@ func buildE2ETestSuite(t *testing.T, withAPI bool) E2ETestSuite {
 	indexer, err := indexer.NewIndexer(indexerLog, db, indexerCfg.Chain, indexerCfg.RPCs, indexerCfg.HTTPServer, indexerCfg.MetricsServer)
 	require.NoError(t, err)
 
-	appCtx, appStop := context.WithCancel(context.Background())
+	indexerCtx, indexerStop := context.WithCancel(context.Background())
 	go func() {
-		err := indexer.Run(appCtx)
+		err := indexer.Run(indexerCtx)
 		if err != nil { // panicking here ensures that the test will exit
 			// during service failure. Using t.Fail() wouldn't be caught
 			// until all awaiting routines finish which would never happen.
@@ -124,45 +116,45 @@ func buildE2ETestSuite(t *testing.T, withAPI bool) E2ETestSuite {
 		}
 	}()
 
-	var indexerAPI *api.API
-	var indexerClient *client.Client
+	apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
 
-	if withAPI {
-		apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
-
-		apiCfg := config.ServerConfig{
-			Host: "127.0.0.1",
-			Port: 4321,
-		}
-
-		mCfg := config.ServerConfig{
-			Host: "127.0.0.1",
-			Port: 0,
-		}
-
-		indexerAPI = api.NewApi(apiLog, db.BridgeTransfers, apiCfg, mCfg)
-		go func() {
-			err := indexerAPI.Start(appCtx)
-			if err != nil {
-				panic(err)
-			}
-		}()
-
-		indexerClient, err = client.NewClient(&client.Config{
-			PaginationLimit: 100,
-			BaseURL:         fmt.Sprintf("http://%s:%d", indexerCfg.HTTPServer.Host, indexerCfg.HTTPServer.Port),
-		})
-		require.NoError(t, err)
+	apiCfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 0,
 	}
 
+	mCfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 0,
+	}
+
+	api := api.NewApi(apiLog, db.BridgeTransfers, apiCfg, mCfg)
+	apiCtx, apiStop := context.WithCancel(context.Background())
+	go func() {
+		err := api.Run(apiCtx)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
 	t.Cleanup(func() {
-		appStop()
+		apiStop()
+		indexerStop()
 	})
+
+	// Wait for the API to start listening
+	time.Sleep(1 * time.Second)
+
+	client, err := client.NewClient(&client.Config{
+		PaginationLimit: 100,
+		BaseURL:         fmt.Sprintf("http://%s:%d", apiCfg.Host, api.Port()),
+	})
+
+	require.NoError(t, err)
 
 	return E2ETestSuite{
 		t:        t,
-		API:      indexerAPI,
-		Client:   indexerClient,
+		Client:   client,
 		DB:       db,
 		Indexer:  indexer,
 		OpCfg:    &opCfg,

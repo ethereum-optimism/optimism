@@ -13,6 +13,7 @@ type WithdrawalItem struct {
 	From                 string `json:"from"`
 	To                   string `json:"to"`
 	TransactionHash      string `json:"transactionHash"`
+	MessageHash          string `json:"messageHash"`
 	Timestamp            uint64 `json:"timestamp"`
 	L2BlockHash          string `json:"l2BlockHash"`
 	Amount               string `json:"amount"`

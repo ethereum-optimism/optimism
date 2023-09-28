@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum-optimism/optimism/indexer/api"
-	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -123,8 +123,8 @@ func (c *Client) HealthCheck() error {
 }
 
 // GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
-func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*database.L1BridgeDepositsResponse, error) {
-	var dResponse *database.L1BridgeDepositsResponse
+func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*routes.DepositResponse, error) {
+	var dResponse *routes.DepositResponse
 	url := c.cfg.BaseURL + api.DepositsPath + l1Address.String() + urlParams
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 
@@ -141,8 +141,8 @@ func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (
 }
 
 // GetAllDepositsByAddress ... Gets all deposits provided a L1 address
-func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]database.L1BridgeDepositWithTransactionHashes, error) {
-	var deposits []database.L1BridgeDepositWithTransactionHashes
+func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]routes.DepositItem, error) {
+	var deposits []routes.DepositItem
 
 	cursor := ""
 	for {
@@ -151,7 +151,7 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]database.L
 			return nil, err
 		}
 
-		deposits = append(deposits, dResponse.Deposits...)
+		deposits = append(deposits, dResponse.Items...)
 
 		if !dResponse.HasNextPage {
 			break
@@ -165,8 +165,8 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]database.L
 }
 
 // GetAllWithdrawalsByAddress ... Gets all withdrawals provided a L2 address
-func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]database.L2BridgeWithdrawalWithTransactionHashes, error) {
-	var withdrawals []database.L2BridgeWithdrawalWithTransactionHashes
+func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]routes.WithdrawalItem, error) {
+	var withdrawals []routes.WithdrawalItem
 
 	cursor := ""
 	for {
@@ -175,7 +175,7 @@ func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]databas
 			return nil, err
 		}
 
-		withdrawals = append(withdrawals, wResponse.Withdrawals...)
+		withdrawals = append(withdrawals, wResponse.Items...)
 
 		if !wResponse.HasNextPage {
 			break
@@ -188,8 +188,8 @@ func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]databas
 }
 
 // GetWithdrawalsByAddress ... Gets a withdrawal response object provided an L2 address and cursor
-func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string) (*database.L2BridgeWithdrawalsResponse, error) {
-	var wResponse *database.L2BridgeWithdrawalsResponse
+func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string) (*routes.WithdrawalResponse, error) {
+	var wResponse *routes.WithdrawalResponse
 	url := c.cfg.BaseURL + api.WithdrawalsPath + l2Address.String() + urlParams
 
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
