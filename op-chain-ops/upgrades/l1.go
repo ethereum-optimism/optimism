@@ -350,7 +350,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 
 	// If we want to be able to override these based on the values in the config,
 	// the logic below will need to be updated. Right now the logic prefers the
-	// on chain values over the offchain values. This to maintain backwards compatibilty
+	// on chain values over the offchain values. This to maintain backwards compatibility
 	// in the short term.
 	startBlock := big.NewInt(0)
 	batchInboxAddress := common.HexToAddress(chainConfig.BatchInboxAddr.String())
