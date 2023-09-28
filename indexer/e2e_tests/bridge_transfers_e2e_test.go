@@ -52,7 +52,7 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 	}))
 
 	cursor := ""
-	limit := 0
+	limit := 100
 
 	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, cursor, limit)
 
@@ -118,7 +118,7 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 		return l1Header != nil && l1Header.Number.Uint64() >= portalDepositReceipt.BlockNumber.Uint64(), nil
 	}))
 
-	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
+	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 1)
 	require.NoError(t, err)
 	require.NotNil(t, aliceDeposits)
 	require.Len(t, aliceDeposits.Deposits, 1)
@@ -145,7 +145,7 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	}))
 
 	// Still nil as the withdrawal did not occur through the standard bridge
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 1)
 	require.NoError(t, err)
 	require.Nil(t, aliceDeposits.Deposits[0].L1BridgeDeposit.CrossDomainMessageHash)
 }
@@ -187,7 +187,7 @@ func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
 	}))
 
 	// Get All
-	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
+	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 3)
 	require.NotNil(t, aliceDeposits)
 	require.NoError(t, err)
 	require.Len(t, aliceDeposits.Deposits, 3)
@@ -200,14 +200,14 @@ func TestE2EBridgeTransfersCursoredDeposits(t *testing.T) {
 	require.Len(t, aliceDeposits.Deposits, 2)
 	require.True(t, aliceDeposits.HasNextPage)
 
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, aliceDeposits.Cursor, 2)
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, aliceDeposits.Cursor, 1)
 	require.NoError(t, err)
 	require.NotNil(t, aliceDeposits)
 	require.Len(t, aliceDeposits.Deposits, 1)
 	require.False(t, aliceDeposits.HasNextPage)
 
 	// Returns the results in the right order
-	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 100)
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 3)
 	require.NotNil(t, aliceDeposits)
 	require.NoError(t, err)
 	for i := 0; i < 3; i++ {

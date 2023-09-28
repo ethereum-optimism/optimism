@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum-optimism/optimism/indexer/api"
-	"github.com/ethereum-optimism/optimism/indexer/api/routes"
+	"github.com/ethereum-optimism/optimism/indexer/api/models"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -123,8 +123,8 @@ func (c *Client) HealthCheck() error {
 }
 
 // GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
-func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*routes.DepositResponse, error) {
-	var dResponse *routes.DepositResponse
+func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*models.DepositResponse, error) {
+	var dResponse *models.DepositResponse
 	url := c.cfg.BaseURL + api.DepositsPath + l1Address.String() + urlParams
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 
@@ -141,8 +141,8 @@ func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (
 }
 
 // GetAllDepositsByAddress ... Gets all deposits provided a L1 address
-func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]routes.DepositItem, error) {
-	var deposits []routes.DepositItem
+func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]models.DepositItem, error) {
+	var deposits []models.DepositItem
 
 	cursor := ""
 	for {
@@ -165,8 +165,8 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]routes.Dep
 }
 
 // GetAllWithdrawalsByAddress ... Gets all withdrawals provided a L2 address
-func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]routes.WithdrawalItem, error) {
-	var withdrawals []routes.WithdrawalItem
+func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]models.WithdrawalItem, error) {
+	var withdrawals []models.WithdrawalItem
 
 	cursor := ""
 	for {
@@ -188,8 +188,8 @@ func (c *Client) GetAllWithdrawalsByAddress(l2Address common.Address) ([]routes.
 }
 
 // GetWithdrawalsByAddress ... Gets a withdrawal response object provided an L2 address and cursor
-func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string) (*routes.WithdrawalResponse, error) {
-	var wResponse *routes.WithdrawalResponse
+func (c *Client) GetWithdrawalsByAddress(l2Address common.Address, cursor string) (*models.WithdrawalResponse, error) {
+	var wResponse *models.WithdrawalResponse
 	url := c.cfg.BaseURL + api.WithdrawalsPath + l2Address.String() + urlParams
 
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)

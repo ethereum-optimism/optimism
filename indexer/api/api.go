@@ -135,7 +135,7 @@ func (a *API) startServer(ctx context.Context) error {
 	}
 
 	// Update the port in the config in case the OS chose a different port
-	// than the one we requested (e.g. port 0)
+	// than the one we requested (e.g. using port 0 to fetch a random open port)
 	a.serverConfig.Port = tcpAddr.Port
 
 	err = http.Serve(listener, server.Handler)

@@ -9,8 +9,7 @@ import (
 )
 
 // Validator ... Validates API user request parameters
-type Validator struct {
-}
+type Validator struct{}
 
 // ParseValidateLimit ... Validates and parses the limit query parameters
 func (v *Validator) ParseValidateLimit(limit string) (int, error) {
@@ -33,7 +32,7 @@ func (v *Validator) ParseValidateLimit(limit string) (int, error) {
 
 // ParseValidateAddress ... Validates and parses the address query parameter
 func (v *Validator) ParseValidateAddress(addr string) (common.Address, error) {
-	if common.IsHexAddress(addr) {
+	if !common.IsHexAddress(addr) {
 		return common.Address{}, errors.New("address must be represented as a valid hexadecimal string")
 	}
 
@@ -43,4 +42,21 @@ func (v *Validator) ParseValidateAddress(addr string) (common.Address, error) {
 	}
 
 	return parsedAddr, nil
+}
+
+// ValidateCursor ... Validates and parses the cursor query parameter
+func (v *Validator) ValidateCursor(cursor string) error {
+	if cursor == "" {
+		return nil
+	}
+
+	if len(cursor) != 66 { // 0x + 64 chars
+		return errors.New("cursor must be a 32 byte hex string")
+	}
+
+	if cursor[:2] != "0x" {
+		return errors.New("cursor must begin with 0x")
+	}
+
+	return nil
 }

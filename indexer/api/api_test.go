@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/indexer/api/routes"
+	"github.com/ethereum-optimism/optimism/indexer/api/models"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -116,7 +116,7 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 
-	var resp routes.DepositResponse
+	var resp models.DepositResponse
 	err = json.Unmarshal(responseRecorder.Body.Bytes(), &resp)
 	assert.Nil(t, err)
 
@@ -137,7 +137,7 @@ func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	responseRecorder := httptest.NewRecorder()
 	api.router.ServeHTTP(responseRecorder, request)
 
-	var resp routes.WithdrawalResponse
+	var resp models.WithdrawalResponse
 	err = json.Unmarshal(responseRecorder.Body.Bytes(), &resp)
 	assert.Nil(t, err)
 

@@ -3,37 +3,17 @@ package routes
 import (
 	"net/http"
 
+	"github.com/ethereum-optimism/optimism/indexer/api/models"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
 )
 
-type WithdrawalItem struct {
-	Guid                 string `json:"guid"`
-	From                 string `json:"from"`
-	To                   string `json:"to"`
-	TransactionHash      string `json:"transactionHash"`
-	MessageHash          string `json:"messageHash"`
-	Timestamp            uint64 `json:"timestamp"`
-	L2BlockHash          string `json:"l2BlockHash"`
-	Amount               string `json:"amount"`
-	ProofTransactionHash string `json:"proofTransactionHash"`
-	ClaimTransactionHash string `json:"claimTransactionHash"`
-	L1TokenAddress       string `json:"l1TokenAddress"`
-	L2TokenAddress       string `json:"l2TokenAddress"`
-}
-
-type WithdrawalResponse struct {
-	Cursor      string           `json:"cursor"`
-	HasNextPage bool             `json:"hasNextPage"`
-	Items       []WithdrawalItem `json:"items"`
-}
-
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
-func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) WithdrawalResponse {
-	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
+// newWithdrawalResponse ... Converts a database.L2BridgeWithdrawalsResponse to an api.WithdrawalResponse
+func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) models.WithdrawalResponse {
+	items := make([]models.WithdrawalItem, len(withdrawals.Withdrawals))
 	for i, withdrawal := range withdrawals.Withdrawals {
-		item := WithdrawalItem{
+		item := models.WithdrawalItem{
 			Guid:                 withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
 			L2BlockHash:          withdrawal.L2BlockHash.String(),
 			From:                 withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
@@ -48,7 +28,7 @@ func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) Wi
 		items[i] = item
 	}
 
-	return WithdrawalResponse{
+	return models.WithdrawalResponse{
 		Cursor:      withdrawals.Cursor,
 		HasNextPage: withdrawals.HasNextPage,
 		Items:       items,
@@ -57,9 +37,25 @@ func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) Wi
 
 // L2WithdrawalsHandler ... Handles /api/v0/withdrawals/{address} GET requests
 func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
-	address := common.HexToAddress(chi.URLParam(r, "address"))
+	addressValue := chi.URLParam(r, "address")
 	cursor := r.URL.Query().Get("cursor")
 	limitQuery := r.URL.Query().Get("limit")
+
+	address, err := h.v.ParseValidateAddress(addressValue)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.logger.Error("Invalid address param", "param", addressValue)
+		h.logger.Error(err.Error())
+		return
+	}
+
+	err = h.v.ValidateCursor(cursor)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.logger.Error("Invalid cursor param", "param", cursor)
+		h.logger.Error(err.Error())
+		return
+	}
 
 	limit, err := h.v.ParseValidateLimit(limitQuery)
 	if err != nil {

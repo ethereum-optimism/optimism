@@ -3,37 +3,17 @@ package routes
 import (
 	"net/http"
 
+	"github.com/ethereum-optimism/optimism/indexer/api/models"
+
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
 )
 
-// DepositItem ... Deposit item model for API responses
-type DepositItem struct {
-	Guid           string `json:"guid"`
-	From           string `json:"from"`
-	To             string `json:"to"`
-	Timestamp      uint64 `json:"timestamp"`
-	L1BlockHash    string `json:"l1BlockHash"`
-	L1TxHash       string `json:"l1TxHash"`
-	L2TxHash       string `json:"l2TxHash"`
-	Amount         string `json:"amount"`
-	L1TokenAddress string `json:"l1TokenAddress"`
-	L2TokenAddress string `json:"l2TokenAddress"`
-}
-
-// DepositResponse ... Data model for API JSON response
-type DepositResponse struct {
-	Cursor      string        `json:"cursor"`
-	HasNextPage bool          `json:"hasNextPage"`
-	Items       []DepositItem `json:"items"`
-}
-
 // newDepositResponse ... Converts a database.L1BridgeDepositsResponse to an api.DepositResponse
-func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResponse {
-	items := make([]DepositItem, len(deposits.Deposits))
+func newDepositResponse(deposits *database.L1BridgeDepositsResponse) models.DepositResponse {
+	items := make([]models.DepositItem, len(deposits.Deposits))
 	for i, deposit := range deposits.Deposits {
-		item := DepositItem{
+		item := models.DepositItem{
 			Guid:           deposit.L1BridgeDeposit.TransactionSourceHash.String(),
 			L1BlockHash:    deposit.L1BlockHash.String(),
 			Timestamp:      deposit.L1BridgeDeposit.Tx.Timestamp,
@@ -48,7 +28,7 @@ func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResp
 		items[i] = item
 	}
 
-	return DepositResponse{
+	return models.DepositResponse{
 		Cursor:      deposits.Cursor,
 		HasNextPage: deposits.HasNextPage,
 		Items:       items,
@@ -57,9 +37,25 @@ func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResp
 
 // L1DepositsHandler ... Handles /api/v0/deposits/{address} GET requests
 func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
-	address := common.HexToAddress(chi.URLParam(r, "address"))
+	addressValue := chi.URLParam(r, "address")
 	cursor := r.URL.Query().Get("cursor")
 	limitQuery := r.URL.Query().Get("limit")
+
+	address, err := h.v.ParseValidateAddress(addressValue)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.logger.Error("Invalid address param", "param", addressValue)
+		h.logger.Error(err.Error())
+		return
+	}
+
+	err = h.v.ValidateCursor(cursor)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		h.logger.Error("Invalid cursor param", "param", cursor)
+		h.logger.Error(err.Error())
+		return
+	}
 
 	limit, err := h.v.ParseValidateLimit(limitQuery)
 	if err != nil {
