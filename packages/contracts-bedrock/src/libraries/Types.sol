@@ -68,11 +68,11 @@ library Types {
         bytes data;
     }
 
-    /// @title SequencerKeys
+    /// @title SequencerKeyPair
     /// @notice Struct representing a sequencer.
     /// @custom:field batcherHash         Identifier for the batcher.
     /// @custom:field unsafeBlockSigner   Unsafe block signer address
-    struct SequencerKeys {
+    struct SequencerKeyPair {
         bytes32 batcherHash;
         address unsafeBlockSigner;
     }

@@ -37,9 +37,6 @@ type SequencerKeyPair struct {
 	UnsafeBlockSigner common.Address `json:"unsafeBlockSigner"`
 }
 
-// SequencerKeysArray is an array of SequencerKeys.
-type SequencerKeysArray []SequencerKeys
-
 // DeployConfig represents the deployment configuration for an OP Stack chain.
 // It is used to deploy the L1 contracts as well as create the L2 genesis state.
 type DeployConfig struct {
@@ -221,7 +218,7 @@ type DeployConfig struct {
 	UpdateDelay uint64 `json:"updateDelay"`
 	// SequencerKeys represents the set of allowed Sequencer key pairs (batcher hash and unsafe
 	// block signer).
-	SequencerKeys SequencerKeysArray `json:"sequencerKeys"`
+	SequencerKeyPairs []SequencerPair `json:"sequencerKeyPairs"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy

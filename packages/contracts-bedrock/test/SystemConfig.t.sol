@@ -309,7 +309,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
 
 contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     /// @dev Tests that `setSequencer` updates the batcher hash successfully.
-    function testFuzz_setSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
+    function testFuzz_setSequencer_succeeds(Types.SequencerKeyPair calldata sequencer) external {
         // Add to the allowed sequencers list
         vm.prank(supConf.initiator());
         supConf.addSequencer(sequencer);
@@ -353,9 +353,9 @@ contract SystemConfig_Setters_Test is SystemConfig_Initializer {
 contract SystemConfig_CheckSequencer_Test is SystemConfig_Initializer {
     /// @dev Tests that `checkSequencer` successfully removes a sequencer if it's not in the allow list.
     function test_checkSequencer_succeeds() external {
-        Types.SequencerKeys memory sequencer =
-            Types.SequencerKeys({ unsafeBlockSigner: address(0), batcherHash: bytes32(0) });
-        bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
+        Types.SequencerKeyPair memory sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: address(0), batcherHash: bytes32(0) });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
         assertFalse(supConf.allowedSequencers(seqHash));
 
         sysConf.checkSequencer();
@@ -368,9 +368,9 @@ contract SystemConfig_CheckSequencer_Test is SystemConfig_Initializer {
 contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `checkSequencer` reverts if the sequencer is in the allow list.
     function test_checkSequencer_reverts() external {
-        Types.SequencerKeys memory sequencer =
-            Types.SequencerKeys({ unsafeBlockSigner: makeAddr("someUnsafeBlockSigner"), batcherHash: bytes32(0) });
-        bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
+        Types.SequencerKeyPair memory sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: makeAddr("someUnsafeBlockSigner"), batcherHash: bytes32(0) });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
 
         // Add a new allowed sequencer
         vm.prank(supConf.initiator());

@@ -24,7 +24,7 @@ contract SuperchainConfig_Init_Test is SuperchainConfig_Initializer {
         assertEq(supConf.guardian(), guardian);
         assertEq(supConf.delay(), delay);
         assertEq(supConf.paused(), false);
-        bytes32 sequencerHash = Hashing.hashSequencerKeys(dummySequencer);
+        bytes32 sequencerHash = Hashing.hashSequencerKeyPair(dummySequencer);
         assertEq(supConf.allowedSequencers(sequencerHash), true);
         assertEq(supConf.isAllowedSequencer(dummySequencer), true);
     }
@@ -109,14 +109,14 @@ contract SuperchainConfig_AddSequencer_TestFail is SuperchainConfig_Initializer 
 
 contract SuperchainConfig_AddSequencer_Test is SuperchainConfig_Initializer {
     /// @dev Tests that `addSequencer` successfully adds a sequencer
-    function testFuzz_addSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
+    function testFuzz_addSequencer_succeeds(Types.SequencerKeyPair calldata sequencer) external {
         // Add to the allowed sequencers list
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(SuperchainConfig.UpdateType.ADD_SEQUENCER, abi.encode(sequencer));
 
         vm.prank(supConf.initiator());
         supConf.addSequencer(sequencer);
-        bytes32 sequencerHash = Hashing.hashSequencerKeys(sequencer);
+        bytes32 sequencerHash = Hashing.hashSequencerKeyPair(sequencer);
         assertTrue(supConf.allowedSequencers(sequencerHash));
     }
 }
@@ -131,14 +131,14 @@ contract SuperchainConfig_RemoveSequencer_TestFail is SuperchainConfig_Initializ
 
 contract SuperchainConfig_RemoveSequencer_Test is SuperchainConfig_Initializer {
     /// @dev Tests that `removeSequencer` successfully removes a sequencer
-    function testFuzz_removeSequencer_succeeds(Types.SequencerKeys calldata sequencer) external {
+    function testFuzz_removeSequencer_succeeds(Types.SequencerKeyPair calldata sequencer) external {
         // Remove from the allowed sequencers list
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(SuperchainConfig.UpdateType.REMOVE_SEQUENCER, abi.encode(sequencer));
 
         vm.prank(supConf.systemOwner());
         supConf.removeSequencer(sequencer);
-        bytes32 sequencerHash = Hashing.hashSequencerKeys(sequencer);
+        bytes32 sequencerHash = Hashing.hashSequencerKeyPair(sequencer);
         assertFalse(supConf.allowedSequencers(sequencerHash));
     }
 }

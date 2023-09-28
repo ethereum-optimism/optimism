@@ -282,9 +282,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _setUnsafeBlockSigner(_unsafeBlockSigner);
         _setBatcherHash(_batcherHash);
 
-        Types.SequencerKeys memory _sequencer =
-            Types.SequencerKeys({ unsafeBlockSigner: _unsafeBlockSigner, batcherHash: _batcherHash });
-        bytes32 seqHash = Hashing.hashSequencerKeys(_sequencer);
+        Types.SequencerKeyPair memory _sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: _unsafeBlockSigner, batcherHash: _batcherHash });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(_sequencer);
         require(
             superchainConfig.allowedSequencers(seqHash),
             "SystemConfig: Sequencer hash not found in Superchain allow list"
@@ -294,9 +294,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Checks the SuperchainConfig's allow list for the current sequencer. If it is not allowed,
     ///         the sequencer is removed. Anyone may call this function.
     function checkSequencer() external {
-        Types.SequencerKeys memory sequencer =
-            Types.SequencerKeys({ unsafeBlockSigner: unsafeBlockSigner(), batcherHash: batcherHash });
-        bytes32 seqHash = Hashing.hashSequencerKeys(sequencer);
+        Types.SequencerKeyPair memory sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: unsafeBlockSigner(), batcherHash: batcherHash });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
         if (superchainConfig.allowedSequencers(seqHash)) {
             revert("SystemConfig: cannot remove allowed sequencer.");
         }

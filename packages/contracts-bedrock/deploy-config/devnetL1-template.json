@@ -52,7 +52,7 @@
   "updateInitiator": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "updateVetoer": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "updateDelay": 100,
-  "sequencerKeys": [
+  "sequencerKeyPairs": [
     {
       "batcherHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
       "unsafeBlockSigner": "0x0000000000000000000000000000000000000000"

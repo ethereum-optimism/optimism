@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { Types as T } from "src/libraries/Types.sol";
+import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Slot } from "src/libraries/Slot.sol";
 
@@ -86,7 +86,7 @@ contract SuperchainConfig is Initializable, ISemver {
             _vetoer: address(0),
             _guardian: address(0),
             _delay: 0,
-            _sequencers: new T.SequencerKeys[](0)
+            _sequencers: new Types.SequencerKeyPair[](0)
         });
     }
 
@@ -104,7 +104,7 @@ contract SuperchainConfig is Initializable, ISemver {
         address _vetoer,
         address _guardian,
         uint256 _delay,
-        T.SequencerKeys[] memory _sequencers
+        Types.SequencerKeyPair[] memory _sequencers
     )
         public
         reinitializer(2)
@@ -169,17 +169,17 @@ contract SuperchainConfig is Initializable, ISemver {
     }
 
     /// @notice Checks if a sequencer is allowed.
-    /// @dev This is a convenience function which accepts a SequencerKeys struct as an argument,
+    /// @dev This is a convenience function which accepts a SequencerKeyPair struct as an argument,
     ///      hashes it, and checks the mapping. It can be used as an alternative to the
     ///      `allowedSequencers()` getter.
-    function isAllowedSequencer(T.SequencerKeys memory _sequencer) external view returns (bool) {
-        bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
+    function isAllowedSequencer(Types.SequencerKeyPair memory _sequencer) external view returns (bool) {
+        bytes32 sequencerHash = Hashing.hashSequencerKeyPair(_sequencer);
         return allowedSequencers[sequencerHash];
     }
 
     /// @notice Adds a new sequencer to the allowed list.
     /// @param _sequencer The sequencer to be added.
-    function addSequencer(T.SequencerKeys memory _sequencer) external {
+    function addSequencer(Types.SequencerKeyPair memory _sequencer) external {
         // Adding a new a sequencer is not subject to delay, so can be called by the initiator.
         require(msg.sender == initiator(), "SuperchainConfig: only initiator can add sequencer");
         _addSequencer(_sequencer);
@@ -196,10 +196,10 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Removes a sequencer from the allowed list.
     /// @param _sequencer The sequencer to be removed.
-    function removeSequencer(T.SequencerKeys memory _sequencer) external {
+    function removeSequencer(Types.SequencerKeyPair memory _sequencer) external {
         // Removing a sequencer is subject to the delay, so can only be called by the systemOwner.
         require(msg.sender == systemOwner(), "SuperchainConfig: only systemOwner can remove a sequencer");
-        bytes32 sequencerHash = Hashing.hashSequencerKeys(_sequencer);
+        bytes32 sequencerHash = Hashing.hashSequencerKeyPair(_sequencer);
 
         delete allowedSequencers[sequencerHash];
         emit ConfigUpdate(UpdateType.REMOVE_SEQUENCER, abi.encode(_sequencer));

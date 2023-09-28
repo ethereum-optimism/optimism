@@ -672,7 +672,7 @@ contract Deploy is Deployer {
                             cfg.updateVetoer(), // vetoer
                             cfg.portalGuardian(), // guardian
                             cfg.updateDelay(), // delay
-                            cfg.getSequencerKeys() // sequencers
+                            cfg.getSequencerKeyPairs() // sequencers
                         )
                         )
                 )

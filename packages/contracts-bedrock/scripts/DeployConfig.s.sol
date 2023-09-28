@@ -54,7 +54,7 @@ contract DeployConfig is Script {
     address public updateInitiator;
     address public updateVetoer;
     uint256 public updateDelay;
-    Types.SequencerKeys[] public sequencerKeys;
+    Types.SequencerKeyPair[] public sequencerKeyPairs;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -107,11 +107,12 @@ contract DeployConfig is Script {
             updateInitiator = stdJson.readAddress(_json, "$.updateInitiator");
             updateVetoer = stdJson.readAddress(_json, "$.updateVetoer");
             updateDelay = stdJson.readUint(_json, "$.updateDelay");
-            Types.SequencerKeys[] memory _sequencerKeys =
-                abi.decode(stdJson.parseRaw(_json, "$.sequencerKeys"), (Types.SequencerKeys[]));
+            Types.SequencerKeyPair[] memory _sequencerKeyPairs =
+                abi.decode(stdJson.parseRaw(_json, "$.sequencerKeyPairs"), (Types.SequencerKeyPair[]));
+
             // Copy the array to storage
-            for (uint256 i = 0; i < _sequencerKeys.length; i++) {
-                sequencerKeys.push(_sequencerKeys[i]);
+            for (uint256 i = 0; i < _sequencerKeyPairs.length; i++) {
+                sequencerKeyPairs.push(_sequencerKeyPairs[i]);
             }
         }
 
@@ -158,7 +159,7 @@ contract DeployConfig is Script {
         return abi.decode(res, (bytes32));
     }
 
-    function getSequencerKeys() public view returns (Types.SequencerKeys[] memory) {
-        return sequencerKeys;
+    function getSequencerKeyPairs() public view returns (Types.SequencerKeyPair[] memory) {
+        return sequencerKeyPairs;
     }
 }
