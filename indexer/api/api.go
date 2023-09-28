@@ -24,7 +24,6 @@ const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 // TODO : Structured error responses
 type API struct {
 	log             log.Logger
-	listener        net.Listener
 	router          *chi.Mux
 	serverConfig    config.ServerConfig
 	metricsConfig   config.ServerConfig
@@ -139,9 +138,9 @@ func (a *API) startServer(ctx context.Context) error {
 	// than the one we requested (e.g. port 0)
 	a.serverConfig.Port = tcpAddr.Port
 
-	http.Serve(listener, server.Handler)
+	err = http.Serve(listener, server.Handler)
 	if err != nil {
-		a.log.Error("api server stopped", "err", err)
+		a.log.Error("api server stopped with error", "err", err)
 	} else {
 		a.log.Info("api server stopped")
 	}
