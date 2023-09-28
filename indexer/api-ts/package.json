@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "clean": "rm -rf generated.ts indexer.cjs indexer.js",
-    "generate": "npm run clean && tygo generate && mv ../api/routes/index.ts generated.ts && tsup",
+    "generate": "npm run clean && tygo generate && mv ../api/models/index.ts generated.ts && tsup",
     "test": "vitest"
   },
   "keywords": [
