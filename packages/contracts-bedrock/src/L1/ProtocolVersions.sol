@@ -35,8 +35,8 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.1
-    string public constant version = "0.1.1";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     /// @notice Constructs the ProtocolVersion contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's

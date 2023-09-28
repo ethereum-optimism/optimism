@@ -100,8 +100,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     uint256 public startBlock;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.7.2
-    string public constant version = "1.7.2";
+    /// @custom:semver 1.8.0
+    string public constant version = "1.8.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
