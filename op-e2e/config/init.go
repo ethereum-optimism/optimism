@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
@@ -64,6 +65,23 @@ func init() {
 	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", int(log.LvlInfo), "The level of verbosity to use for the eth node logs")
 	testing.Init() // Register test flags before parsing
 	flag.Parse()
+
+	// Setup global logger
+	lvl := log.Lvl(EthNodeVerbosity)
+	if lvl < log.LvlCrit {
+		log.Root().SetHandler(log.DiscardHandler())
+	} else if lvl > log.LvlTrace { // clip to trace level
+		lvl = log.LvlTrace
+	}
+	// We cannot attach a testlog logger,
+	// because the global logger is shared between different independent parallel tests.
+	// Tests that write to a testlogger of another finished test fail.
+	h := oplog.NewLogHandler(os.Stdout, oplog.CLIConfig{
+		Level:  lvl,
+		Color:  false, // some CI logs do not handle colors well
+		Format: oplog.FormatTerminal,
+	})
+	oplog.SetGlobalLogHandler(h)
 
 	if err := allExist(l1AllocsPath, l1DeploymentsPath, deployConfigPath); err != nil {
 		return
