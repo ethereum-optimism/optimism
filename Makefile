@@ -86,7 +86,7 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
-	@if [ ! command -v geth ]; then \
+	@if ! command -v geth &> /dev/null then \
 		make install-geth; \
 	fi
 	@if [ ! -e op-program/bin ]; then \
