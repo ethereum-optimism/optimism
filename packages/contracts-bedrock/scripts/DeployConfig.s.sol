@@ -6,6 +6,7 @@ import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { Executables } from "./Executables.sol";
 import { Chains } from "./Chains.sol";
+import { Types } from "src/libraries/Types.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -50,6 +51,11 @@ contract DeployConfig is Script {
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
     uint256 public recommendedProtocolVersion;
+    address public superchainConfigInitiator;
+    address public superchainConfigVetoer;
+    uint256 public superchainConfigDelay;
+    uint256 public superchainConfigMaxPause;
+    Types.SequencerKeyPair[] public superchainConfigSequencerKeyPairs;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -98,6 +104,18 @@ contract DeployConfig is Script {
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
             requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
             recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
+
+            superchainConfigInitiator = stdJson.readAddress(_json, "$.superchainConfigInitiator");
+            superchainConfigVetoer = stdJson.readAddress(_json, "$.superchainConfigVetoer");
+            superchainConfigDelay = stdJson.readUint(_json, "$.superchainConfigDelay");
+            superchainConfigMaxPause = stdJson.readUint(_json, "$.superchainConfigMaxPause");
+            Types.SequencerKeyPair[] memory _sequencerKeyPairs =
+                abi.decode(stdJson.parseRaw(_json, "$.superchainConfigSequencerKeyPairs"), (Types.SequencerKeyPair[]));
+
+            // Copy the array to storage
+            for (uint256 i = 0; i < _sequencerKeyPairs.length; i++) {
+                superchainConfigSequencerKeyPairs.push(_sequencerKeyPairs[i]);
+            }
         }
 
         if (block.chainid == Chains.Goerli || block.chainid == Chains.Sepolia) {
@@ -141,5 +159,9 @@ contract DeployConfig is Script {
         cmd[2] = string.concat("cast block ", _tag, " --json | ", Executables.jq, " -r .hash");
         bytes memory res = vm.ffi(cmd);
         return abi.decode(res, (bytes32));
+    }
+
+    function getSequencerKeyPairs() public view returns (Types.SequencerKeyPair[] memory) {
+        return superchainConfigSequencerKeyPairs;
     }
 }

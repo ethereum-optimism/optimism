@@ -2,8 +2,12 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Slot } from "src/libraries/Slot.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -70,6 +74,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
+    /// @notice Storage slot that the SuperchainConfig address is stored at.
+    bytes32 public constant SUPERCHAIN_CONFIG_SLOT = bytes32(uint256(keccak256("systemconfig.superchainconfig")) - 1);
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -89,18 +96,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         Set as internal with a getter so that the struct is returned instead of a tuple.
     ResourceMetering.ResourceConfig internal _resourceConfig;
 
+    /// @notice The block at which the op-node can start searching for logs from.
+    uint256 public startBlock;
+
+    /// @notice Semantic version.
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
     /// @notice Emitted when configuration is updated.
     /// @param version    SystemConfig version.
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
-
-    /// @notice The block at which the op-node can start searching for logs from.
-    uint256 public startBlock;
-
-    /// @notice Semantic version.
-    /// @custom:semver 1.7.0
-    string public constant version = "1.7.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -108,6 +115,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     constructor() {
         initialize({
             _owner: address(0xdEaD),
+            _superchainConfig: address(0),
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(0),
@@ -137,6 +145,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
     /// @param _owner             Initial owner of the contract.
+    /// @param _superchainConfig  Initial superchainConfig address.
     /// @param _overhead          Initial overhead value.
     /// @param _scalar            Initial scalar value.
     /// @param _batcherHash       Initial batcher hash.
@@ -152,6 +161,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
+        address _superchainConfig,
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
@@ -174,13 +184,14 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
 
-        _setAddress(_batchInbox, BATCH_INBOX_SLOT);
-        _setAddress(_addresses.l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
-        _setAddress(_addresses.l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
-        _setAddress(_addresses.l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
-        _setAddress(_addresses.l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
-        _setAddress(_addresses.optimismPortal, OPTIMISM_PORTAL_SLOT);
-        _setAddress(_addresses.optimismMintableERC20Factory, OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        Slot.setAddress(BATCH_INBOX_SLOT, _batchInbox);
+        Slot.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
+        Slot.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
+        Slot.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
+        Slot.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
+        Slot.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
+        Slot.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
+        Slot.setAddress(SUPERCHAIN_CONFIG_SLOT, _superchainConfig);
 
         _setStartBlock(_startBlock);
 
@@ -203,65 +214,48 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         key corresponding to this address.
     /// @return addr_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address addr_) {
-        addr_ = _getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
+    function unsafeBlockSigner() public view returns (address addr_) {
+        addr_ = Slot.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }
 
-    /// @notice Stores an address in an arbitrary storage slot, `_slot`.
-    /// @param _addr The address to store
-    /// @param _slot The storage slot to store the address in.
-    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
-    ///      in arbitrary storage slots. Solc will add checks that the data passed as `_addr`
-    ///      is 20 bytes or less.
-    function _setAddress(address _addr, bytes32 _slot) internal {
-        assembly {
-            sstore(_slot, _addr)
-        }
-    }
-
-    /// @notice Returns an address stored in an arbitrary storage slot.
-    ///         These storage slots decouple the storage layout from
-    ///         solc's automation.
-    /// @param _slot The storage slot to retrieve the address from.
-    function _getAddress(bytes32 _slot) internal view returns (address addr_) {
-        assembly {
-            addr_ := sload(_slot)
-        }
+    /// @notice Getter for the SuperChainConfig address.
+    function superchainConfig() public view returns (address addr_) {
+        addr_ = Slot.getAddress(SUPERCHAIN_CONFIG_SLOT);
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
     function l1CrossDomainMessenger() external view returns (address addr_) {
-        addr_ = _getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
+        addr_ = Slot.getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
     }
 
     /// @notice Getter for the L1ERC721Bridge address.
     function l1ERC721Bridge() external view returns (address addr_) {
-        addr_ = _getAddress(L1_ERC_721_BRIDGE_SLOT);
+        addr_ = Slot.getAddress(L1_ERC_721_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L1StandardBridge address.
     function l1StandardBridge() external view returns (address addr_) {
-        addr_ = _getAddress(L1_STANDARD_BRIDGE_SLOT);
+        addr_ = Slot.getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L2OutputOracle address.
     function l2OutputOracle() external view returns (address addr_) {
-        addr_ = _getAddress(L2_OUTPUT_ORACLE_SLOT);
+        addr_ = Slot.getAddress(L2_OUTPUT_ORACLE_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
     function optimismPortal() external view returns (address addr_) {
-        addr_ = _getAddress(OPTIMISM_PORTAL_SLOT);
+        addr_ = Slot.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
     /// @notice Getter for the OptimismMintableERC20Factory address.
     function optimismMintableERC20Factory() external view returns (address addr_) {
-        addr_ = _getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        addr_ = Slot.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.
     function batchInbox() external view returns (address addr_) {
-        addr_ = _getAddress(BATCH_INBOX_SLOT);
+        addr_ = Slot.getAddress(BATCH_INBOX_SLOT);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
@@ -286,24 +280,41 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Updates the unsafe block signer address. Can only be called by the owner.
+    /// @param _batcherHash New batch hash.
     /// @param _unsafeBlockSigner New unsafe block signer address.
-    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+    function setSequencer(bytes32 _batcherHash, address _unsafeBlockSigner) external onlyOwner {
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setBatcherHash(_batcherHash);
+
+        Types.SequencerKeyPair memory _sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: _unsafeBlockSigner, batcherHash: _batcherHash });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(_sequencer);
+        require(
+            SuperchainConfig(superchainConfig()).allowedSequencers(seqHash),
+            "SystemConfig: Sequencer hash not found in Superchain allow list"
+        );
+    }
+
+    /// @notice Checks the SuperchainConfig's allow list for the current sequencer. If it is not allowed,
+    ///         the sequencer is removed. Anyone may call this function.
+    function checkSequencer() external {
+        Types.SequencerKeyPair memory sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: unsafeBlockSigner(), batcherHash: batcherHash });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
+        if (SuperchainConfig(superchainConfig()).allowedSequencers(seqHash)) {
+            revert("SystemConfig: cannot remove allowed sequencer.");
+        }
+        _setUnsafeBlockSigner(address(0));
+        _setBatcherHash(bytes32(0));
     }
 
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
+        Slot.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
-    }
-
-    /// @notice Updates the batcher hash. Can only be called by the owner.
-    /// @param _batcherHash New batcher hash.
-    function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
-        _setBatcherHash(_batcherHash);
     }
 
     /// @notice Internal function for updating the batcher hash.

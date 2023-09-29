@@ -15,83 +15,28 @@ import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "../src/L1/SuperchainConfig.sol";
 
 // Target contract
 import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
 
-contract OptimismPortal_Test is Portal_Initializer {
-    event Paused(address);
-    event Unpaused(address);
+contract OptimismPortal_Pausability_Test is Portal_Initializer {
+    /// @dev Tests that the Portal returns the correct paused value from the superchainConfig.
+    function test_paused_succeeds() external {
+        vm.prank(guardian);
+        supConf.pause(100);
+        assertTrue(op.paused());
+    }
+}
 
+contract OptimismPortal_Test is Portal_Initializer {
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(address(op.l2Oracle()), address(oracle));
-        assertEq(op.GUARDIAN(), guardian);
         assertEq(op.guardian(), guardian);
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(op.paused(), false);
-    }
-
-    /// @dev Tests that `pause` successfully pauses
-    ///      when called by the GUARDIAN.
-    function test_pause_succeeds() external {
-        address guardian = op.GUARDIAN();
-
-        assertEq(op.paused(), false);
-
-        vm.expectEmit(true, true, true, true, address(op));
-        emit Paused(guardian);
-
-        vm.prank(guardian);
-        op.pause();
-
-        assertEq(op.paused(), true);
-    }
-
-    /// @dev Tests that `pause` reverts when called by a non-GUARDIAN.
-    function test_pause_onlyGuardian_reverts() external {
-        assertEq(op.paused(), false);
-
-        assertTrue(op.GUARDIAN() != alice);
-        vm.expectRevert("OptimismPortal: only guardian can pause");
-        vm.prank(alice);
-        op.pause();
-
-        assertEq(op.paused(), false);
-    }
-
-    /// @dev Tests that `unpause` successfully unpauses
-    ///      when called by the GUARDIAN.
-    function test_unpause_succeeds() external {
-        address guardian = op.GUARDIAN();
-
-        vm.prank(guardian);
-        op.pause();
-        assertEq(op.paused(), true);
-
-        vm.expectEmit(true, true, true, true, address(op));
-        emit Unpaused(guardian);
-        vm.prank(guardian);
-        op.unpause();
-
-        assertEq(op.paused(), false);
-    }
-
-    /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
-    function test_unpause_onlyGuardian_reverts() external {
-        address guardian = op.GUARDIAN();
-
-        vm.prank(guardian);
-        op.pause();
-        assertEq(op.paused(), true);
-
-        assertTrue(op.GUARDIAN() != alice);
-        vm.expectRevert("OptimismPortal: only guardian can unpause");
-        vm.prank(alice);
-        op.unpause();
-
-        assertEq(op.paused(), true);
     }
 
     /// @dev Tests that `receive` successdully deposits ETH.
@@ -394,8 +339,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
-        vm.prank(op.GUARDIAN());
-        op.pause();
+        vm.prank(op.guardian());
+        supConf.pause(100);
 
         vm.expectRevert("OptimismPortal: paused");
         op.proveWithdrawalTransaction({
@@ -544,8 +489,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
-        vm.prank(op.GUARDIAN());
-        op.pause();
+        vm.prank(op.guardian());
+        supConf.pause(100);
 
         vm.expectRevert("OptimismPortal: paused");
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -889,6 +834,14 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.finalizeWithdrawalTransaction(_tx);
         assertTrue(op.finalizedWithdrawals(withdrawalHash));
     }
+
+    /// @dev Tests that `finalizeWithdrawalTransaction` reverts when the system is paused.
+    function test_finalizeWithdrawalTransaction_systemPaused_reverts() external {
+        vm.prank(supConf.guardian());
+        supConf.pause(100);
+        vm.expectRevert("OptimismPortal: paused");
+        op.finalizeWithdrawalTransaction(_defaultTx);
+    }
 }
 
 contract OptimismPortalUpgradeable_Test is Portal_Initializer {
@@ -908,7 +861,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = p.params();
 
-        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = sysConf.resourceConfig();
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);
@@ -920,8 +873,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         OptimismPortal(payable(proxy)).initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
+            _superchainConfig: SuperchainConfig(address(0))
         });
     }
 
@@ -931,8 +883,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         OptimismPortal(opImpl).initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
+            _superchainConfig: SuperchainConfig(address(0))
         });
     }
 
@@ -980,7 +931,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         external
     {
         // Get the set system gas limit
-        uint64 gasLimit = systemConfig.gasLimit();
+        uint64 gasLimit = sysConf.gasLimit();
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
@@ -1004,9 +955,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
             systemTxMaxGas: _systemTxMaxGas,
             maximumBaseFee: _maximumBaseFee
         });
-        vm.mockCall(
-            address(systemConfig), abi.encodeWithSelector(systemConfig.resourceConfig.selector), abi.encode(rcfg)
-        );
+        vm.mockCall(address(sysConf), abi.encodeWithSelector(sysConf.resourceConfig.selector), abi.encode(rcfg));
 
         // Set the resource params
         uint256 _prevBlockNum = block.number - _blockDiff;

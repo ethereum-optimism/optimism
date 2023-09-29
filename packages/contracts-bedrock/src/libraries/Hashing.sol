@@ -121,4 +121,11 @@ library Hashing {
             )
         );
     }
+
+    /// @notice Hashes a batcher hash and unsafe block signer key.
+    /// @param _sequencer A set of sequencer keys.
+    /// @return Hash of the sequencer keys
+    function hashSequencerKeyPair(Types.SequencerKeyPair memory _sequencer) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_sequencer.batcherHash, _sequencer.unsafeBlockSigner));
+    }
 }

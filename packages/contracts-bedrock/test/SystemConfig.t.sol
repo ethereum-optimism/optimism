@@ -2,76 +2,21 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { SystemConfig_Initializer } from "./CommonTest.t.sol";
 
 // Libraries
-import { Constants } from "../src/libraries/Constants.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Target contract dependencies
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-contract SystemConfig_Init is CommonTest {
-    SystemConfig sysConf;
-    SystemConfig systemConfigImpl;
-
-    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
-
-    // Dummy addresses used to test getters
-    address constant batchInbox = address(0x18);
-    address constant l1CrossDomainMessenger = address(0x20);
-    address constant l1ERC721Bridge = address(0x21);
-    address constant l1StandardBridge = address(0x22);
-    address constant l2OutputOracle = address(0x23);
-    address constant optimismPortal = address(0x24);
-    address constant optimismMintableERC20Factory = address(0x25);
-    uint256 constant overhead = 2100;
-    uint256 constant scalar = 1000000;
-    bytes32 constant batcherHash = bytes32(hex"abcd");
-    uint64 constant gasLimit = 30_000_000;
-    address constant unsafeBlockSigner = address(1);
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        Proxy proxy = new Proxy(multisig);
-        systemConfigImpl = new SystemConfig();
-
-        vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    0, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
-                    })
-                )
-            )
-        );
-
-        sysConf = SystemConfig(address(proxy));
-    }
-}
-
-contract SystemConfig_Initialize_Test is SystemConfig_Init {
+contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
     /// @dev Tests that initailization sets the correct values.
     function test_initialize_values_succeeds() external {
         assertEq(sysConf.l1CrossDomainMessenger(), l1CrossDomainMessenger);
@@ -119,6 +64,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    address(supConf), // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -165,6 +111,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    address(supConf), // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -187,7 +134,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
+contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
@@ -204,6 +151,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    address(supConf), // _superchainConfig
                     2100, // _overhead,
                     1000000, // _scalar,
                     bytes32(hex"abcd"), // _batcherHash,
@@ -244,6 +192,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
                 SystemConfig.initialize,
                 (
                     alice, // _owner,
+                    address(supConf), // _superchainConfig
                     overhead, // _overhead,
                     scalar, // _scalar,
                     batcherHash, // _batcherHash
@@ -266,11 +215,11 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Setters_TestFail is SystemConfig_Init {
+contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
-    function test_setBatcherHash_notOwner_reverts() external {
+    function test_setSequencer_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        sysConf.setBatcherHash(bytes32(hex""));
+        sysConf.setSequencer(bytes32(uint256(0)), address(0));
     }
 
     /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
@@ -283,12 +232,6 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setGasLimit(0);
-    }
-
-    /// @dev Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
-    function test_setUnsafeBlockSigner_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        sysConf.setUnsafeBlockSigner(address(0x20));
     }
 
     /// @dev Tests that `setResourceConfig` reverts if the caller is not the owner.
@@ -364,15 +307,22 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Setters_Test is SystemConfig_Init {
-    /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
-    function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
+contract SystemConfig_Setters_Test is SystemConfig_Initializer {
+    /// @dev Tests that `setSequencer` updates the batcher hash successfully.
+    function testFuzz_setSequencer_succeeds(Types.SequencerKeyPair calldata sequencer) external {
+        // Add to the allowed sequencers list
+        vm.prank(supConf.initiator());
+        supConf.addSequencer(sequencer);
+
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(sequencer.unsafeBlockSigner));
+        vm.expectEmit(true, true, true, true);
+        emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(sequencer.batcherHash));
 
         vm.prank(sysConf.owner());
-        sysConf.setBatcherHash(newBatcherHash);
-        assertEq(sysConf.batcherHash(), newBatcherHash);
+        sysConf.setSequencer({ _batcherHash: sequencer.batcherHash, _unsafeBlockSigner: sequencer.unsafeBlockSigner });
+        assertEq(sysConf.batcherHash(), sequencer.batcherHash);
+        assertEq(sysConf.unsafeBlockSigner(), sequencer.unsafeBlockSigner);
     }
 
     /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
@@ -398,14 +348,40 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         sysConf.setGasLimit(newGasLimit);
         assertEq(sysConf.gasLimit(), newGasLimit);
     }
+}
 
-    /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
-    function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
-        vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
+contract SystemConfig_CheckSequencer_Test is SystemConfig_Initializer {
+    /// @dev Tests that `checkSequencer` successfully removes a sequencer if it's not in the allow list.
+    function test_checkSequencer_succeeds() external {
+        Types.SequencerKeyPair memory sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: address(0), batcherHash: bytes32(0) });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
+        assertFalse(supConf.allowedSequencers(seqHash));
 
+        sysConf.checkSequencer();
+
+        assertEq(sysConf.unsafeBlockSigner(), address(0));
+        assertEq(sysConf.batcherHash(), bytes32(0));
+    }
+}
+
+contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
+    /// @dev Tests that `checkSequencer` reverts if the sequencer is in the allow list.
+    function test_checkSequencer_reverts() external {
+        Types.SequencerKeyPair memory sequencer =
+            Types.SequencerKeyPair({ unsafeBlockSigner: makeAddr("someUnsafeBlockSigner"), batcherHash: bytes32(0) });
+        bytes32 seqHash = Hashing.hashSequencerKeyPair(sequencer);
+
+        // Add a new allowed sequencer
+        vm.prank(supConf.initiator());
+        supConf.addSequencer(sequencer);
+        assertTrue(supConf.allowedSequencers(seqHash));
+
+        // Set that as the system's sequencer
         vm.prank(sysConf.owner());
-        sysConf.setUnsafeBlockSigner(newUnsafeSigner);
-        assertEq(sysConf.unsafeBlockSigner(), newUnsafeSigner);
+        sysConf.setSequencer({ _batcherHash: sequencer.batcherHash, _unsafeBlockSigner: sequencer.unsafeBlockSigner });
+
+        vm.expectRevert("SystemConfig: cannot remove allowed sequencer.");
+        sysConf.checkSequencer();
     }
 }

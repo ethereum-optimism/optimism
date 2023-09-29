@@ -32,6 +32,7 @@ import { IL1ChugSplashDeployer } from "../src/legacy/L1ChugSplashProxy.sol";
 import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { LegacyMintableERC20 } from "../src/legacy/LegacyMintableERC20.sol";
+import { SuperchainConfig } from "../src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
 import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 import { Constants } from "../src/libraries/Constants.sol";
@@ -96,13 +97,12 @@ contract L2OutputOracle_Initializer is CommonTest {
 
     // Constructor arguments
     address internal proposer = 0x000000000000000000000000000000000000AbBa;
-    address internal owner = 0x000000000000000000000000000000000000ACDC;
+    address internal oracleChallenger = makeAddr("Challenger");
     uint256 internal submissionInterval = 1800;
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
     uint256 internal finalizationPeriodSeconds = 7 days;
-    address guardian;
 
     // Test data
     uint256 initL1Time;
@@ -140,7 +140,6 @@ contract L2OutputOracle_Initializer is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        guardian = makeAddr("guardian");
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
@@ -157,7 +156,9 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp, proposer, owner))
+            abi.encodeCall(
+                L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp, proposer, oracleChallenger)
+            )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -169,11 +170,105 @@ contract L2OutputOracle_Initializer is CommonTest {
     }
 }
 
-contract Portal_Initializer is L2OutputOracle_Initializer {
+contract SuperchainConfig_Initializer is L2OutputOracle_Initializer {
+    SuperchainConfig supConf;
+    SuperchainConfig SuperchainConfigImpl;
+
+    event Paused();
+    event Unpaused();
+    event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
+
+    address systemOwner = makeAddr("SystemOwner");
+    address initiator = makeAddr("initiator");
+    address vetoer = makeAddr("vetoer");
+    address guardian = makeAddr("guardian");
+    uint256 delay = 100;
+    uint256 maxPause = 1 weeks;
+    Types.SequencerKeyPair dummySequencer;
+
+    function setUp() public virtual override {
+        super.setUp();
+        dummySequencer =
+            Types.SequencerKeyPair({ batcherHash: bytes32(uint256(800)), unsafeBlockSigner: address(4096) });
+        Proxy proxy = new Proxy(multisig);
+        SuperchainConfigImpl = new SuperchainConfig();
+        Types.SequencerKeyPair[] memory sequencers = new Types.SequencerKeyPair[](1);
+        sequencers[0] = dummySequencer;
+
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(SuperchainConfigImpl),
+            abi.encodeCall(
+                SuperchainConfig.initialize, (systemOwner, initiator, vetoer, guardian, delay, maxPause, sequencers)
+            )
+        );
+
+        supConf = SuperchainConfig(address(proxy));
+    }
+}
+
+contract SystemConfig_Initializer is SuperchainConfig_Initializer {
+    SystemConfig sysConf;
+    SystemConfig systemConfigImpl;
+
+    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
+
+    // Dummy addresses used to test getters
+    address constant batchInbox = address(0x18);
+    address constant l1CrossDomainMessenger = address(0x20);
+    address constant l1ERC721Bridge = address(0x21);
+    address constant l1StandardBridge = address(0x22);
+    address constant l2OutputOracle = address(0x23);
+    address constant optimismPortal = address(0x24);
+    address constant optimismMintableERC20Factory = address(0x25);
+    uint256 constant overhead = 2100;
+    uint256 constant scalar = 1000000;
+    bytes32 constant batcherHash = bytes32(hex"abcd");
+    uint64 constant gasLimit = 30_000_000;
+    address constant unsafeBlockSigner = address(1);
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        systemConfigImpl = new SystemConfig();
+
+        Proxy proxy = new Proxy(multisig);
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice, // _owner,
+                    address(supConf), // superchainConfig
+                    overhead, // _overhead,
+                    scalar, // _scalar,
+                    batcherHash, // _batcherHash
+                    gasLimit, // _gasLimit,
+                    unsafeBlockSigner, // _unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+                    0, // _startBlock
+                    batchInbox, // _batchInbox
+                    SystemConfig.Addresses({ // _addresses
+                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1ERC721Bridge: l1ERC721Bridge,
+                        l1StandardBridge: l1StandardBridge,
+                        l2OutputOracle: l2OutputOracle,
+                        optimismPortal: optimismPortal,
+                        optimismMintableERC20Factory: optimismMintableERC20Factory
+                    })
+                )
+            )
+        );
+
+        sysConf = SystemConfig(address(proxy));
+    }
+}
+
+contract Portal_Initializer is SystemConfig_Initializer {
     // Test target
     OptimismPortal internal opImpl;
     OptimismPortal internal op;
-    SystemConfig systemConfig;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
@@ -181,46 +276,11 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        Proxy systemConfigProxy = new Proxy(multisig);
-
-        SystemConfig systemConfigImpl = new SystemConfig();
-
-        vm.prank(multisig);
-        systemConfigProxy.upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    address(1), //_owner,
-                    0, //_overhead,
-                    10000, //_scalar,
-                    bytes32(0), //_batcherHash,
-                    30_000_000, //_gasLimit,
-                    address(0), //_unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), //_config,
-                    0, //_startBlock
-                    address(0xff), // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: address(0),
-                        l1ERC721Bridge: address(0),
-                        l1StandardBridge: address(0),
-                        l2OutputOracle: address(oracle),
-                        optimismPortal: address(op),
-                        optimismMintableERC20Factory: address(0)
-                    })
-                )
-            )
-        );
-
-        systemConfig = SystemConfig(address(systemConfigProxy));
-
         opImpl = new OptimismPortal();
 
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(opImpl), abi.encodeCall(OptimismPortal.initialize, (oracle, guardian, systemConfig, false))
-        );
+        proxy.upgradeToAndCall(address(opImpl), abi.encodeCall(OptimismPortal.initialize, (oracle, sysConf, supConf)));
         op = OptimismPortal(payable(address(proxy)));
         vm.label(address(op), "OptimismPortal");
     }
@@ -278,7 +338,7 @@ contract Messenger_Initializer is Portal_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize(op);
+        L1Messenger.initialize(op, supConf);
 
         vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(L1Messenger))).code);
 

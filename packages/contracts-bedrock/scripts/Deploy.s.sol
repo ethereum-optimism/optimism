@@ -26,6 +26,7 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
@@ -37,6 +38,7 @@ import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
+import { Types } from "src/libraries/Types.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
@@ -62,20 +64,37 @@ contract Deploy is Deployer {
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
         cfg = new DeployConfig(path);
-
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
     }
 
     /// @notice Deploy all of the L1 contracts
     function run() public {
-        console.log("Deploying L1 system");
+        console.log("Deploying a fresh OP Stack including SuperchainConfig");
+        address systemOwnerSafe = deploySafe();
+        address supConfProxy = setupSuperchainConfig();
+        setupOpChain({ supConfProxy: supConfProxy, systemOwnerSafe: systemOwnerSafe });
+    }
+
+    /// @notice Deploy a full system with a new SuperchainConfig
+    function setupSuperchainConfig() public returns (address supConfProxy_) {
+        supConfProxy_ = deploySuperchainConfigProxy();
+        deploySuperchainConfig();
+        initializeSuperchainConfig();
+    }
+
+    /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
+    function setupOpChain(address supConfProxy, address systemOwnerSafe) public {
+        console.log("Deploying an Opchain only");
+        if (getAddress("SuperchainConfigProxy") == address(0)) {
+            save("SuperchainConfigProxy", supConfProxy);
+        }
+        if (getAddress("SystemOwnerSafe") == address(0)) {
+            save("SystemOwnerSafe", systemOwnerSafe);
+        }
 
         deployProxies();
         deployImplementations();
-
-        deploySafe();
-        transferProxyAdminOwnership(); // to the Safe
 
         initializeDisputeGameFactory();
         initializeSystemConfig();
@@ -125,6 +144,17 @@ contract Deploy is Deployer {
         ) {
             _;
         }
+    }
+
+    function deploySuperchainConfigProxy() public broadcast returns (address addr_) {
+        address safe = mustGetAddress("SystemOwnerSafe");
+        Proxy proxy = new Proxy({
+            _admin: safe
+        });
+
+        save("SuperchainConfigProxy", address(proxy));
+        console.log("SuperchainConfigProxy deployed at %s", address(proxy));
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy all of the proxies
@@ -207,14 +237,18 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
+        address systemOwnerSafe = mustGetAddress("SystemOwnerSafe");
         ProxyAdmin admin = new ProxyAdmin({
-            _owner: msg.sender
+            _owner: systemOwnerSafe
         });
-        require(admin.owner() == msg.sender);
+        require(admin.owner() == systemOwnerSafe);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         if (admin.addressManager() != addressManager) {
-            admin.setAddressManager(addressManager);
+            _callViaSafe({
+                _target: address(admin),
+                _data: abi.encodeWithSelector(admin.setAddressManager.selector, addressManager)
+            });
         }
 
         require(admin.addressManager() == addressManager);
@@ -367,6 +401,21 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    /// @notice Deploy the SuperchainConfig contract
+    function deploySuperchainConfig() public broadcast {
+        SuperchainConfig superchainConfig = new SuperchainConfig{ salt: implSalt() }();
+
+        require(superchainConfig.systemOwner() == address(0));
+        require(superchainConfig.initiator() == address(0));
+        require(superchainConfig.vetoer() == address(0));
+        require(superchainConfig.guardian() == address(0));
+        require(superchainConfig.delay() == 0);
+        require(superchainConfig.maxPause() == 0);
+
+        save("SuperchainConfig", address(superchainConfig));
+        console.log("SuperchainConfig deployed at %s", address(superchainConfig));
+    }
+
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: implSalt() }();
@@ -388,9 +437,8 @@ contract Deploy is Deployer {
         OptimismPortal portal = new OptimismPortal{ salt: implSalt() }();
 
         require(address(portal.L2_ORACLE()) == address(0));
-        require(portal.GUARDIAN() == address(0));
         require(address(portal.SYSTEM_CONFIG()) == address(0));
-        require(portal.paused() == true);
+        require(address(portal.superchainConfig()) == address(0));
 
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
@@ -604,11 +652,41 @@ contract Deploy is Deployer {
         console.log("DisputeGameFactory version: %s", version);
     }
 
+    /// @notice Initialize the SuperchainConfig
+    function initializeSuperchainConfig() public broadcast {
+        address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        address payable superchainConfig = mustGetAddress("SuperchainConfig");
+
+        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
+
+        _callViaSafe({
+            _target: superchainConfigProxy,
+            _data: abi.encodeCall(
+                Proxy.upgradeToAndCall,
+                (
+                    superchainConfig,
+                    abi.encodeCall(
+                        SuperchainConfig.initialize,
+                        (
+                            cfg.finalSystemOwner(), // systemOwner
+                            cfg.superchainConfigInitiator(), // initiator
+                            cfg.superchainConfigVetoer(), // vetoer
+                            cfg.portalGuardian(), // guardian
+                            cfg.superchainConfigDelay(), // delay
+                            cfg.superchainConfigMaxPause(), // delay
+                            cfg.getSequencerKeyPairs() // sequencers
+                        )
+                        )
+                )
+                )
+        });
+    }
+
     /// @notice Initialize the SystemConfig
     function initializeSystemConfig() public broadcast {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
-
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
         uint256 startBlock = cfg.systemConfigStartBlock();
 
@@ -619,6 +697,7 @@ contract Deploy is Deployer {
                 SystemConfig.initialize,
                 (
                     cfg.finalSystemOwner(),
+                    superchainConfigProxy,
                     cfg.gasPriceOracleOverhead(),
                     cfg.gasPriceOracleScalar(),
                     batcherHash,
@@ -757,6 +836,7 @@ contract Deploy is Deployer {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
@@ -784,7 +864,8 @@ contract Deploy is Deployer {
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
-                L1CrossDomainMessenger.initialize, (OptimismPortal(payable(optimismPortalProxy)))
+                L1CrossDomainMessenger.initialize,
+                (OptimismPortal(payable(optimismPortalProxy)), SuperchainConfig(superchainConfigProxy))
                 )
         });
 
@@ -794,6 +875,7 @@ contract Deploy is Deployer {
 
         require(address(messenger.PORTAL()) == optimismPortalProxy);
         require(address(messenger.portal()) == optimismPortalProxy);
+
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
     }
@@ -841,6 +923,7 @@ contract Deploy is Deployer {
         address optimismPortal = mustGetAddress("OptimismPortal");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         address guardian = cfg.portalGuardian();
         if (guardian.code.length == 0) {
@@ -852,7 +935,11 @@ contract Deploy is Deployer {
             _implementation: optimismPortal,
             _innerCallData: abi.encodeCall(
                 OptimismPortal.initialize,
-                (L2OutputOracle(l2OutputOracleProxy), guardian, SystemConfig(systemConfigProxy), false)
+                (
+                    L2OutputOracle(l2OutputOracleProxy),
+                    SystemConfig(systemConfigProxy),
+                    SuperchainConfig(superchainConfigProxy)
+                )
                 )
         });
 
@@ -861,9 +948,15 @@ contract Deploy is Deployer {
         console.log("OptimismPortal version: %s", version);
 
         require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
+        require(address(portal.superchainConfig()) == superchainConfigProxy);
+        require(portal.guardian() == cfg.portalGuardian());
         require(portal.GUARDIAN() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == false);
+
+        // Now that the Portal is initialized we can also check this value in the Messenger
+        address messenger = mustGetAddress("L1CrossDomainMessengerProxy");
+        require(L1CrossDomainMessenger(messenger).paused() == false);
     }
 
     function initializeProtocolVersions() public onlyTestnetOrDevnet broadcast {
@@ -894,17 +987,6 @@ contract Deploy is Deployer {
         require(versions.owner() == finalSystemOwner);
         require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
-    }
-
-    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-        address owner = proxyAdmin.owner();
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            proxyAdmin.transferOwnership(safe);
-            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
-        }
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner

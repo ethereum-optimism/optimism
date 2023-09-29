@@ -31,6 +31,12 @@ var (
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
 )
 
+// SequencerKeyPair represents the identity of a particular sequencer
+type SequencerKeyPair struct {
+	BatcherHash       common.Hash    `json:"batcherHash"`
+	UnsafeBlockSigner common.Address `json:"unsafeBlockSigner"`
+}
+
 // DeployConfig represents the deployment configuration for an OP Stack chain.
 // It is used to deploy the L1 contracts as well as create the L2 genesis state.
 type DeployConfig struct {
@@ -204,6 +210,17 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+	// SuperchainConfigInitiator represents the address of the Security Council role.
+	SuperchainConfigInitiator common.Address `json:"superchainConfigInitiator"`
+	// SuperchainConfigVetoer represents the address of the SuperchainConfigVetoer role.
+	SuperchainConfigVetoer common.Address `json:"superchainConfigVetoer"`
+	// SuperchainConfigDelay represents the time after which an upgrade can occur ifit
+	SuperchainConfigDelay uint64 `json:"superchainConfigDelay"`
+	// SuperchainConfigMaxPause represents the time after which an upgrade can occur ifit
+	SuperchainConfigMaxPause uint64 `json:"superchainConfigMaxPause"`
+	// SequencerKeys represents the set of allowed Sequencer key pairs (batcher hash and unsafe
+	// block signer).
+	SuperchainConfigSequencerKeyPairs []SequencerKeyPair `json:"superchainConfigSequencerKeyPairs"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -335,6 +352,21 @@ func (d *DeployConfig) Check() error {
 	// L2 block time must always be smaller than L1 block time
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
+	}
+	if d.SuperchainConfigInitiator == (common.Address{}) {
+		fmt.Println("Warning: SuperchainConfigInitiator is address(0)")
+	}
+	if d.SuperchainConfigVetoer == (common.Address{}) {
+		fmt.Println("Warning: SuperchainConfigVetoer is address(0)")
+	}
+	if d.SuperchainConfigDelay == 0 {
+		fmt.Println("Warning: SuperchainConfigDelay is 0")
+	}
+	if d.SuperchainConfigMaxPause == 0 {
+		fmt.Println("Warning: SuperchainConfigMaxPause is 0")
+	}
+	if len(d.SuperchainConfigSequencerKeyPairs) == 0 {
+		fmt.Println("Warning: SuperchainConfigSequencerKeyPairs is empty")
 	}
 	return nil
 }
@@ -530,6 +562,8 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 	ProtocolVersions                  common.Address `json:"ProtocolVersions"`
 	ProtocolVersionsProxy             common.Address `json:"ProtocolVersionsProxy"`
+	SuperchainConfig                  common.Address `json:"SuperchainConfig"`
+	SuperchainConfigProxy             common.Address `json:"SuperchainConfigProxy"`
 }
 
 // GetName will return the name of the contract given an address.
