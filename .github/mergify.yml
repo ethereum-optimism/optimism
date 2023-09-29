@@ -5,6 +5,7 @@ queue_rules:
   - name: default
     queue_conditions:
       - "label!=C-urgent"
+      - author!=dependabot[bot]
   - name: lowpriority
     queue_conditions:
       - author=dependabot[bot]
