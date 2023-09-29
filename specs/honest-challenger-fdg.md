@@ -67,8 +67,8 @@ This means an honest challenger only responds to claims made by the opposing tea
 The next step is to determine if the claim, now known to be for the opposing team,
 disputes another claim the honest challenger _agrees_ with.
 An honest challenger agrees with a claim iff every other claim along its path to the
-root claim commits to a valid `ClaimHash`. Thus, an honest challenger avoids supporting
-invalid claims on the same team.
+root claim commits to a valid `ClaimHash`. Put differently, an honest challenger will
+avoid countering a claim if it disagrees with the path of claims leading to that specific claim.
 
 The last step is to determine whether the claim has a valid commitment (i.e. `ClaimHash`).
 If the `ClaimHash` matches the honest challenger's at the same trace index, then we
