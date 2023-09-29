@@ -1,6 +1,12 @@
 queue_rules:
+  - name: urgent
+    queue_conditions:
+      - label = C-urgent
   - name: default
-    conditions: []
+    queue_conditions: []
+  - name: lowpriority
+    queue_conditions:
+      - author=dependabot[bot]
 
 pull_request_rules:
   - name: Automatic merge on approval
