@@ -24,19 +24,22 @@ type FaultResponder struct {
 
 	fdgAddr common.Address
 	fdgAbi  *abi.ABI
+
+	moveBond *big.Int
 }
 
 // NewFaultResponder returns a new [FaultResponder].
-func NewFaultResponder(logger log.Logger, txManagr txmgr.TxManager, fdgAddr common.Address) (*FaultResponder, error) {
+func NewFaultResponder(logger log.Logger, txManagr txmgr.TxManager, fdgAddr common.Address, moveBond *big.Int) (*FaultResponder, error) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 	return &FaultResponder{
-		log:     logger,
-		txMgr:   txManagr,
-		fdgAddr: fdgAddr,
-		fdgAbi:  fdgAbi,
+		log:      logger,
+		txMgr:    txManagr,
+		fdgAddr:  fdgAddr,
+		fdgAbi:   fdgAbi,
+		moveBond: moveBond,
 	}, nil
 }
 
@@ -125,7 +128,7 @@ func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) erro
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	var txData []byte
 	var err error
-	bond := big.NewInt(0)
+	var bond *big.Int
 	switch action.Type {
 	case types.ActionTypeMove:
 		if action.IsAttack {
@@ -133,6 +136,7 @@ func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action)
 		} else {
 			txData, err = r.buildFaultDefendData(action.ParentIdx, action.Value)
 		}
+		bond = r.moveBond
 	case types.ActionTypeStep:
 		txData, err = r.buildStepTxData(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
 	}

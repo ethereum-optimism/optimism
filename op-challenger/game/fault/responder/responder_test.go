@@ -155,6 +155,29 @@ func TestPerformAction(t *testing.T) {
 		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
 	})
 
+	t.Run("attack with bond", func(t *testing.T) {
+		bond := big.NewInt(100)
+		responder, mockTxMgr := newTestFaultResponder(t, bond)
+		action := types.Action{
+			Type:      types.ActionTypeMove,
+			ParentIdx: 123,
+			IsAttack:  true,
+			Value:     common.Hash{0xaa},
+		}
+		err := responder.PerformAction(context.Background(), action)
+		require.NoError(t, err)
+
+		// Pack the tx data manually.
+		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
+		require.NoError(t, err)
+		expected, err := fdgAbi.Pack("attack", big.NewInt(int64(action.ParentIdx)), action.Value)
+		require.NoError(t, err)
+
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.Equal(t, bond, mockTxMgr.sent[0].Value)
+	})
+
 	t.Run("defend", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
 		action := types.Action{
@@ -174,6 +197,29 @@ func TestPerformAction(t *testing.T) {
 
 		require.Len(t, mockTxMgr.sent, 1)
 		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+	})
+
+	t.Run("defend with bond", func(t *testing.T) {
+		bond := big.NewInt(100)
+		responder, mockTxMgr := newTestFaultResponder(t, bond)
+		action := types.Action{
+			Type:      types.ActionTypeMove,
+			ParentIdx: 123,
+			IsAttack:  false,
+			Value:     common.Hash{0xaa},
+		}
+		err := responder.PerformAction(context.Background(), action)
+		require.NoError(t, err)
+
+		// Pack the tx data manually.
+		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
+		require.NoError(t, err)
+		expected, err := fdgAbi.Pack("defend", big.NewInt(int64(action.ParentIdx)), action.Value)
+		require.NoError(t, err)
+
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.Equal(t, bond, mockTxMgr.sent[0].Value)
 	})
 
 	t.Run("step", func(t *testing.T) {
@@ -199,10 +245,14 @@ func TestPerformAction(t *testing.T) {
 	})
 }
 
-func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager) {
+func newTestFaultResponder(t *testing.T, bonds ...*big.Int) (*FaultResponder, *mockTxManager) {
+	moveBond := big.NewInt(0)
+	if len(bonds) == 1 {
+		moveBond = bonds[0]
+	}
 	log := testlog.Logger(t, log.LvlError)
 	mockTxMgr := &mockTxManager{}
-	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress)
+	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress, moveBond)
 	require.NoError(t, err)
 	return responder, mockTxMgr
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -50,8 +51,11 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
 	}
 
-	loader := NewLoader(contract)
+	// todo: get bond amount from the fdg contract once the bindings are updated.
+	// bondAmount, err := bindings.FaultDisputeGameMetaData.Bond(nil)
+	bondAmount := big.NewInt(0)
 
+	loader := NewLoader(contract)
 	status, err := loader.GetGameStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game status: %w", err)
@@ -100,7 +104,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, addr)
+	responder, err := responder.NewFaultResponder(logger, txMgr, addr, bondAmount)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
