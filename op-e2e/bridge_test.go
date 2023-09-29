@@ -1,14 +1,15 @@
 package op_e2e
 
 import (
+	"context"
 	"math"
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -41,14 +42,14 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	// Deploy WETH9
 	weth9Address, tx, WETH9, err := bindings.DeployWETH9(opts, l1Client)
 	require.NoError(t, err)
-	_, err = geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err, "Waiting for deposit tx on L1")
 
 	// Get some WETH
 	opts.Value = big.NewInt(params.Ether)
 	tx, err = WETH9.Fallback(opts, []byte{})
 	require.NoError(t, err)
-	_, err = geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 	opts.Value = nil
 	wethBalance, err := WETH9.BalanceOf(&bind.CallOpts{}, opts.From)
@@ -62,7 +63,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	require.NoError(t, err)
 	tx, err = optimismMintableTokenFactory.CreateOptimismMintableERC20(l2Opts, weth9Address, "L2-WETH", "L2-WETH")
 	require.NoError(t, err)
-	_, err = geth.WaitForTransaction(tx.Hash(), l2Client, 3*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	_, err = wait.ForReceiptOK(context.Background(), l2Client, tx.Hash())
 	require.NoError(t, err)
 
 	// Get the deployment event to have access to the L2 WETH9 address
@@ -77,15 +78,17 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	// Approve WETH9 with the bridge
 	tx, err = WETH9.Approve(opts, cfg.L1Deployments.L1StandardBridgeProxy, new(big.Int).SetUint64(math.MaxUint64))
 	require.NoError(t, err)
-	_, err = geth.WaitForTransaction(tx.Hash(), l1Client, 6*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 
 	// Bridge the WETH9
 	l1StandardBridge, err := bindings.NewL1StandardBridge(cfg.L1Deployments.L1StandardBridgeProxy, l1Client)
 	require.NoError(t, err)
-	tx, err = l1StandardBridge.BridgeERC20(opts, weth9Address, event.LocalToken, big.NewInt(100), 100000, []byte{})
+	tx, err = transactions.PadGasEstimate(opts, 1.1, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return l1StandardBridge.BridgeERC20(opts, weth9Address, event.LocalToken, big.NewInt(100), 100000, []byte{})
+	})
 	require.NoError(t, err)
-	depositReceipt, err := geth.WaitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), l1Client, tx.Hash())
 	require.NoError(t, err)
 
 	t.Log("Deposit through L1StandardBridge", "gas used", depositReceipt.GasUsed)
@@ -104,7 +107,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 	require.NoError(t, err)
-	_, err = geth.WaitForTransaction(types.NewTx(depositTx).Hash(), l2Client, 3*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	_, err = wait.ForReceiptOK(context.Background(), l2Client, types.NewTx(depositTx).Hash())
 	require.NoError(t, err)
 
 	// Ensure that the deposit went through
