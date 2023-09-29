@@ -48,17 +48,42 @@ var (
 	}
 )
 
+type DefaultFlagValues struct {
+	NumConfirmations          uint64
+	SafeAbortNonceTooLowCount uint64
+	ResubmissionTimeout       time.Duration
+	NetworkTimeout            time.Duration
+	TxSendTimeout             time.Duration
+	TxNotInMempoolTimeout     time.Duration
+	ReceiptQueryInterval      time.Duration
+}
+
 var (
-	defaultNumConfirmations          = uint64(10)
-	defaultSafeAbortNonceTooLowCount = uint64(3)
-	defaultResubmissionTimeout       = 48 * time.Second
-	defaultNetworkTimeout            = 10 * time.Second
-	defaultTxSendTimeout             = 0 * time.Second
-	defaultTxNotInMempoolTimeout     = 2 * time.Minute
-	defaultReceiptQueryInterval      = 12 * time.Second
+	DefaultBatcherFlagValues = DefaultFlagValues{
+		NumConfirmations:          uint64(10),
+		SafeAbortNonceTooLowCount: uint64(3),
+		ResubmissionTimeout:       48 * time.Second,
+		NetworkTimeout:            10 * time.Second,
+		TxSendTimeout:             0 * time.Second,
+		TxNotInMempoolTimeout:     2 * time.Minute,
+		ReceiptQueryInterval:      12 * time.Second,
+	}
+	DefaultChallengerFlagValues = DefaultFlagValues{
+		NumConfirmations:          uint64(3),
+		SafeAbortNonceTooLowCount: uint64(3),
+		ResubmissionTimeout:       24 * time.Second,
+		NetworkTimeout:            10 * time.Second,
+		TxSendTimeout:             2 * time.Minute,
+		TxNotInMempoolTimeout:     1 * time.Minute,
+		ReceiptQueryInterval:      12 * time.Second,
+	}
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
+	return CLIFlagsWithDefaults(envPrefix, DefaultBatcherFlagValues)
+}
+
+func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Flag {
 	prefixEnvVars := func(name string) []string {
 		return opservice.PrefixEnvVar(envPrefix, name)
 	}
@@ -81,43 +106,43 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.Uint64Flag{
 			Name:    NumConfirmationsFlagName,
 			Usage:   "Number of confirmations which we will wait after sending a transaction",
-			Value:   defaultNumConfirmations,
+			Value:   defaults.NumConfirmations,
 			EnvVars: prefixEnvVars("NUM_CONFIRMATIONS"),
 		},
 		&cli.Uint64Flag{
 			Name:    SafeAbortNonceTooLowCountFlagName,
 			Usage:   "Number of ErrNonceTooLow observations required to give up on a tx at a particular nonce without receiving confirmation",
-			Value:   defaultSafeAbortNonceTooLowCount,
+			Value:   defaults.SafeAbortNonceTooLowCount,
 			EnvVars: prefixEnvVars("SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
 		},
 		&cli.DurationFlag{
 			Name:    ResubmissionTimeoutFlagName,
 			Usage:   "Duration we will wait before resubmitting a transaction to L1",
-			Value:   defaultResubmissionTimeout,
+			Value:   defaults.ResubmissionTimeout,
 			EnvVars: prefixEnvVars("RESUBMISSION_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    NetworkTimeoutFlagName,
 			Usage:   "Timeout for all network operations",
-			Value:   defaultNetworkTimeout,
+			Value:   defaults.NetworkTimeout,
 			EnvVars: prefixEnvVars("NETWORK_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    TxSendTimeoutFlagName,
 			Usage:   "Timeout for sending transactions. If 0 it is disabled.",
-			Value:   defaultTxSendTimeout,
+			Value:   defaults.TxSendTimeout,
 			EnvVars: prefixEnvVars("TXMGR_TX_SEND_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    TxNotInMempoolTimeoutFlagName,
 			Usage:   "Timeout for aborting a tx send if the tx does not make it to the mempool.",
-			Value:   defaultTxNotInMempoolTimeout,
+			Value:   defaults.TxNotInMempoolTimeout,
 			EnvVars: prefixEnvVars("TXMGR_TX_NOT_IN_MEMPOOL_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    ReceiptQueryIntervalFlagName,
 			Usage:   "Frequency to poll for receipts",
-			Value:   defaultReceiptQueryInterval,
+			Value:   defaults.ReceiptQueryInterval,
 			EnvVars: prefixEnvVars("TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
 	}, client.CLIFlags(envPrefix)...)
@@ -140,16 +165,16 @@ type CLIConfig struct {
 	TxNotInMempoolTimeout     time.Duration
 }
 
-func NewCLIConfig(l1RPCURL string) CLIConfig {
+func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 	return CLIConfig{
 		L1RPCURL:                  l1RPCURL,
-		NumConfirmations:          defaultNumConfirmations,
-		SafeAbortNonceTooLowCount: defaultSafeAbortNonceTooLowCount,
-		ResubmissionTimeout:       defaultResubmissionTimeout,
-		NetworkTimeout:            defaultNetworkTimeout,
-		TxSendTimeout:             defaultTxSendTimeout,
-		TxNotInMempoolTimeout:     defaultTxNotInMempoolTimeout,
-		ReceiptQueryInterval:      defaultReceiptQueryInterval,
+		NumConfirmations:          defaults.NumConfirmations,
+		SafeAbortNonceTooLowCount: defaults.SafeAbortNonceTooLowCount,
+		ResubmissionTimeout:       defaults.ResubmissionTimeout,
+		NetworkTimeout:            defaults.NetworkTimeout,
+		TxSendTimeout:             defaults.TxSendTimeout,
+		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
+		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
 		SignerCLIConfig:           client.NewCLIConfig(),
 	}
 }
