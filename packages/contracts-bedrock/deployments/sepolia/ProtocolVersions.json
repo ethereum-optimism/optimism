@@ -280,8 +280,97 @@
     "title": "ProtocolVersions"
   },
   "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"version\",\"type\":\"uint256\",\"indexed\":true},{\"internalType\":\"enum ProtocolVersions.UpdateType\",\"name\":\"updateType\",\"type\":\"uint8\",\"indexed\":true},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false}],\"type\":\"event\",\"name\":\"ConfigUpdate\",\"anonymous\":false},{\"inputs\":[{\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\",\"indexed\":false}],\"type\":\"event\",\"name\":\"Initialized\",\"anonymous\":false},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true},{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true}],\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"anonymous\":false},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"RECOMMENDED_SLOT\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}]},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"REQUIRED_SLOT\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}]},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}]},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"ProtocolVersion\",\"name\":\"_required\",\"type\":\"uint256\"},{\"internalType\":\"ProtocolVersion\",\"name\":\"_recommended\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"initialize\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}]},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"recommended\",\"outputs\":[{\"internalType\":\"ProtocolVersion\",\"name\":\"out_\",\"type\":\"uint256\"}]},{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"renounceOwnership\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"required\",\"outputs\":[{\"internalType\":\"ProtocolVersion\",\"name\":\"out_\",\"type\":\"uint256\"}]},{\"inputs\":[{\"internalType\":\"ProtocolVersion\",\"name\":\"_recommended\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"setRecommended\"},{\"inputs\":[{\"internalType\":\"ProtocolVersion\",\"name\":\"_required\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"setRequired\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\",\"name\":\"transferOwnership\"},{\"inputs\":[],\"stateMutability\":\"view\",\"type\":\"function\",\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}]}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"initialize(address,uint256,uint256)\":{\"params\":{\"_owner\":\"Initial owner of the contract.\",\"_recommended\":\"Recommended protocol version to operate on thi chain.\",\"_required\":\"Required protocol version to operate on this chain.\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"recommended()\":{\"returns\":{\"out_\":\"Recommended protocol version to sync to the head of the chain.\"}},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"required()\":{\"returns\":{\"out_\":\"Required protocol version to sync to the head of the chain.\"}},\"setRecommended(uint256)\":{\"params\":{\"_recommended\":\"New recommended protocol version.\"}},\"setRequired(uint256)\":{\"params\":{\"_required\":\"New required protocol version.\"}},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"}},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"RECOMMENDED_SLOT()\":{\"notice\":\"Storage slot that the recommended protocol version is stored at.\"},\"REQUIRED_SLOT()\":{\"notice\":\"Storage slot that the required protocol version is stored at.\"},\"VERSION()\":{\"notice\":\"Version identifier, used for upgrades.\"},\"constructor\":{\"notice\":\"Constructs the ProtocolVersion contract. Cannot set         the owner to `address(0)` due to the Ownable contract's         implementation, so set it to `address(0xdEaD)`         A zero version is considered empty and is ignored by nodes.\"},\"initialize(address,uint256,uint256)\":{\"notice\":\"Initializer.\"},\"recommended()\":{\"notice\":\"High level getter for the recommended protocol version.\"},\"required()\":{\"notice\":\"High level getter for the required protocol version.\"},\"setRecommended(uint256)\":{\"notice\":\"Updates the recommended protocol version. Can only be called by the owner.\"},\"setRequired(uint256)\":{\"notice\":\"Updates the required protocol version. Can only be called by the owner.\"},\"version()\":{\"notice\":\"Semantic version.\"}},\"version\":1}},\"settings\":{\"remappings\":[\":.ignored_clones-with-immutable-args/=node_modules/.ignored_clones-with-immutable-args/src/\",\":.ignored_forge-std/=node_modules/.ignored_forge-std/src/\",\":@cwia/=lib/clones-with-immutable-args/src/\",\":@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/\",\":@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/\",\":@rari-capital/solmate/=lib/solmate/\",\":clones-with-immutable-args/=lib/clones-with-immutable-args/src/\",\":ds-test/=lib/forge-std/lib/ds-test/src/\",\":forge-std/=lib/forge-std/src/\",\":openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/\",\":openzeppelin-contracts/=lib/openzeppelin-contracts/\",\":safe-contracts/=lib/safe-contracts/contracts/\",\":solmate/=lib/solmate/src/\"],\"optimizer\":{\"enabled\":true,\"runs\":999999},\"metadata\":{\"bytecodeHash\":\"none\"},\"compilationTarget\":{\"src/L1/ProtocolVersions.sol\":\"ProtocolVersions\"},\"libraries\":{}},\"sources\":{\"lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgradeable.sol\":{\"keccak256\":\"0x247c62047745915c0af6b955470a72d1696ebad4352d7d3011aef1a2463cd888\",\"urls\":[\"bzz-raw://d7fc8396619de513c96b6e00301b88dd790e83542aab918425633a5f7297a15a\",\"dweb:/ipfs/QmXbP4kiZyp7guuS7xe8KaybnwkRPGrBc2Kbi3vhcTfpxb\"],\"license\":\"MIT\"},\"lib/openzeppelin-contracts-upgradeable/contracts/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x0203dcadc5737d9ef2c211d6fa15d18ebc3b30dfa51903b64870b01a062b0b4e\",\"urls\":[\"bzz-raw://6eb2fd1e9894dbe778f4b8131adecebe570689e63cf892f4e21257bfe1252497\",\"dweb:/ipfs/QmXgUGNfZvrn6N2miv3nooSs7Jm34A41qz94fu2GtDFcx8\"],\"license\":\"MIT\"},\"lib/openzeppelin-contracts-upgradeable/contracts/utils/AddressUpgradeable.sol\":{\"keccak256\":\"0x611aa3f23e59cfdd1863c536776407b3e33d695152a266fa7cfb34440a29a8a3\",\"urls\":[\"bzz-raw://9b4b2110b7f2b3eb32951bc08046fa90feccffa594e1176cb91cdfb0e94726b4\",\"dweb:/ipfs/QmSxLwYjicf9zWFuieRc8WQwE4FisA1Um5jp1iSa731TGt\"],\"license\":\"MIT\"},\"lib/openzeppelin-contracts-upgradeable/contracts/utils/ContextUpgradeable.sol\":{\"keccak256\":\"0x963ea7f0b48b032eef72fe3a7582edf78408d6f834115b9feadd673a4d5bd149\",\"urls\":[\"bzz-raw://d6520943ea55fdf5f0bafb39ed909f64de17051bc954ff3e88c9e5621412c79c\",\"dweb:/ipfs/QmWZ4rAKTQbNG2HxGs46AcTXShsVytKeLs7CUCdCSv5N7a\"],\"license\":\"MIT\"},\"src/L1/ProtocolVersions.sol\":{\"keccak256\":\"0x2d5fbc4c5ba81353ec09081de2ad083c045ab4c890932f02c2dd56a45f99f40c\",\"urls\":[\"bzz-raw://eeb36817deb296e21706d2691b6e7ebcf6d633f3a712bf20f1eac0b8113ed818\",\"dweb:/ipfs/QmQHE9Jt13sc4yYdHhdv89q2iVgcEAJxSNtjJE5Dv5vKLZ\"],\"license\":\"MIT\"},\"src/libraries/Storage.sol\":{\"keccak256\":\"0x902a0a815272a5b76c647d9e82101aca765e9835a6624d0857088b9da0f58afd\",\"urls\":[\"bzz-raw://9c39a697aacb0a2eac0bf1fbd7790d835a685c61006f6d3464e19cbc96a24480\",\"dweb:/ipfs/QmV3T8ZTRWPB5CNuZjxwWQNoENd7W4SoBMnFG6Y6g6xYV4\"],\"license\":\"MIT\"},\"src/universal/ISemver.sol\":{\"keccak256\":\"0xba34562a8026f59886d2e07d1d58d90b9691d00e0788c6263cef6c22740cab44\",\"urls\":[\"bzz-raw://0826f998632f83c103c3085bf2e872db79a69022b6d2e0444c83a64ca5283c2a\",\"dweb:/ipfs/QmcJ7PNqkAfKqbjFGRordtAg1v9DvcBSKvdTkVvciLyvQR\"],\"license\":\"MIT\"}},\"version\":1}",
-  "numDeployments": 2,
-  "receipt": "",
+  "numDeployments": 1,
+  "receipt": {
+    "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
+    "transactionIndex": "0xe",
+    "blockHash": "0x85c455be2fd22bc75d4bed26fa1582b47bd4f5e052d19b3d2573df13d4afe2ce",
+    "blockNumber": "0x42f7ac",
+    "from": "0x18394B52d3Cb931dfA76F63251919D051953413d",
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "cumulativeGasUsed": "0xf6e92b",
+    "gasUsed": "0xa3523",
+    "contractAddress": "0x5A5e01E9076056Ff2a1581BC870781ff2Dd46E63",
+    "logs": [
+      {
+        "address": "0x5A5e01E9076056Ff2a1581BC870781ff2Dd46E63",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x0000000000000000000000004e59b44847b379578588920ca78fbf26c0b4956c"
+        ],
+        "data": "0x",
+        "blockHash": "0x85c455be2fd22bc75d4bed26fa1582b47bd4f5e052d19b3d2573df13d4afe2ce",
+        "blockNumber": "0x42f7ac",
+        "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
+        "transactionIndex": "0xe",
+        "logIndex": "0x15",
+        "removed": false
+      },
+      {
+        "address": "0x5A5e01E9076056Ff2a1581BC870781ff2Dd46E63",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000004e59b44847b379578588920ca78fbf26c0b4956c",
+          "0x000000000000000000000000000000000000000000000000000000000000dead"
+        ],
+        "data": "0x",
+        "blockHash": "0x85c455be2fd22bc75d4bed26fa1582b47bd4f5e052d19b3d2573df13d4afe2ce",
+        "blockNumber": "0x42f7ac",
+        "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
+        "transactionIndex": "0xe",
+        "logIndex": "0x16",
+        "removed": false
+      },
+      {
+        "address": "0x5A5e01E9076056Ff2a1581BC870781ff2Dd46E63",
+        "topics": [
+          "0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000",
+        "blockHash": "0x85c455be2fd22bc75d4bed26fa1582b47bd4f5e052d19b3d2573df13d4afe2ce",
+        "blockNumber": "0x42f7ac",
+        "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
+        "transactionIndex": "0xe",
+        "logIndex": "0x17",
+        "removed": false
+      },
+      {
+        "address": "0x5A5e01E9076056Ff2a1581BC870781ff2Dd46E63",
+        "topics": [
+          "0x1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x0000000000000000000000000000000000000000000000000000000000000001"
+        ],
+        "data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000",
+        "blockHash": "0x85c455be2fd22bc75d4bed26fa1582b47bd4f5e052d19b3d2573df13d4afe2ce",
+        "blockNumber": "0x42f7ac",
+        "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
+        "transactionIndex": "0xe",
+        "logIndex": "0x18",
+        "removed": false
+      },
+      {
+        "address": "0x5A5e01E9076056Ff2a1581BC870781ff2Dd46E63",
+        "topics": [
+          "0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498"
+        ],
+        "data": "0x0000000000000000000000000000000000000000000000000000000000000002",
+        "blockHash": "0x85c455be2fd22bc75d4bed26fa1582b47bd4f5e052d19b3d2573df13d4afe2ce",
+        "blockNumber": "0x42f7ac",
+        "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
+        "transactionIndex": "0xe",
+        "logIndex": "0x19",
+        "removed": false
+      }
+    ],
+    "status": "0x1",
+    "logsBloom": "0x00000000000010000000000000000000000000000000000000800000000000000000000000000000000000000000000000000000000008000000000000040000000000000000000000000000000000000001000000040000000000000000000000000000020000000000000002000800000000000000000000000000000000400000000000000000000024040000000000000040001080000000000000000000000000000001000000000000000400000000000000000000000000000000000000000400000000000000000000040000000000000000000000000000000060000000000000000000000000000000000080000000000000000000008000000000",
+    "type": "0x2",
+    "effectiveGasPrice": "0x4fe974141"
+  },
   "solcInputHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "storageLayout": {
     "storage": [
@@ -361,7 +450,7 @@
       }
     }
   },
-  "transactionHash": "0x119be69b8d23291cd0febdc11167a27486dd103a8fb2f44cb126a324a9e73fa8",
+  "transactionHash": "0xe1649b69de098ffa395982218bff6dd0dbaee1e8751b5c613e6c71789ede1802",
   "userdoc": {
     "version": 1,
     "kind": "user",
