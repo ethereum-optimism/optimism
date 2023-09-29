@@ -22,6 +22,8 @@ func ForReceiptFail(ctx context.Context, client *ethclient.Client, hash common.H
 }
 
 func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64) (*types.Receipt, error) {
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	defer cancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
