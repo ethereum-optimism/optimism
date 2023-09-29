@@ -2,6 +2,8 @@ package rpc
 
 import (
 	"context"
+
+	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 type batcherClient interface {
@@ -10,6 +12,7 @@ type batcherClient interface {
 }
 
 type adminAPI struct {
+	*rpc.CommonAdminAPI
 	b batcherClient
 }
 
