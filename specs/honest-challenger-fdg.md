@@ -68,7 +68,9 @@ The next step is to determine if the claim, now known to be for the opposing tea
 disputes another claim the honest challenger _agrees_ with.
 An honest challenger agrees with a claim iff every other claim along its path to the
 root claim commits to a valid `ClaimHash`. Put differently, an honest challenger will
-avoid countering a claim if it disagrees with the path of claims leading to that specific claim.
+avoid countering a claim if it disagrees with the path of claims leading to that
+specific claim. But if the honest challenger agrees with the path leading to the claim,
+then the claim is countered.
 
 The last step is to determine whether the claim has a valid commitment (i.e. `ClaimHash`).
 If the `ClaimHash` matches the honest challenger's at the same trace index, then we
