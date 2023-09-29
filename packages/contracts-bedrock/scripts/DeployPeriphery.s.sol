@@ -15,6 +15,7 @@ import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.
 import { CheckBalanceHigh } from "src/periphery/drippie/dripchecks/CheckBalanceHigh.sol";
 import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
+import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 
 /// @title DeployPeriphery
 /// @notice Script used to deploy periphery contracts.
@@ -45,6 +46,7 @@ contract DeployPeriphery is Deployer {
         deployImplementations();
 
         initializeFaucet();
+        installFaucetAuthModulesConfigs();
     }
 
     /// @notice Deploy all of the proxies
@@ -62,6 +64,8 @@ contract DeployPeriphery is Deployer {
         deployCheckBalanceLow();
         deployCheckBalanceHigh();
         deployCheckGelatoLow();
+        deployOnChainAuthModule();
+        deployOffChainAuthModule();
     }
 
     /// @notice Modifier that wraps a function in broadcasting.
@@ -402,5 +406,101 @@ contract DeployPeriphery is Deployer {
             console.log("%s activated", dripName);
             require(drippie.getDripStatus(dripName) == Drippie.DripStatus.ACTIVE);
         }
+    }
+
+    /// @notice deploys the On-Chain Authentication Module
+    function deployOnChainAuthModule() public broadcast returns (address addr_) {
+        string memory moduleName = "OnChainAuthModule";
+        string memory version = "1";
+        bytes32 salt = keccak256(bytes("OnChainAuthModule"));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(AdminFaucetAuthModule).creationCode, abi.encode(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version)));
+        address preComputedAddress = computeCreate2Address(salt, initCodeHash);
+        if (preComputedAddress.code.length > 0) {
+            console.logBytes32(initCodeHash);
+            console.log("OnChainAuthModule already deployed at %s", preComputedAddress);
+            save("OnChainAuthModule", preComputedAddress);
+            addr_ = preComputedAddress;
+        } else {
+            AdminFaucetAuthModule onChainAuthModule = new AdminFaucetAuthModule{ salt: salt }(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version);
+            require(onChainAuthModule.ADMIN() == cfg.faucetOnchainAuthModuleAdmin());
+
+            save("OnChainAuthModule", address(onChainAuthModule));
+            console.log("OnChainAuthModule deployed at %s", address(onChainAuthModule));
+
+            addr_ = address(onChainAuthModule);
+        }
+    }
+
+    /// @notice deploys the Off-Chain Authentication Module
+    function deployOffChainAuthModule() public broadcast returns (address addr_) {
+        string memory moduleName = "OffChainAuthModule";
+        string memory version = "1";
+        bytes32 salt = keccak256(bytes("OffChainAuthModule"));
+        bytes32 initCodeHash = keccak256(abi.encodePacked(type(AdminFaucetAuthModule).creationCode, abi.encode(cfg.faucetOffchainAuthModuleAdmin(), moduleName, version)));
+        address preComputedAddress = computeCreate2Address(salt, initCodeHash);
+        if (preComputedAddress.code.length > 0) {
+            console.logBytes32(initCodeHash);
+            console.log("OffChainAuthModule already deployed at %s", preComputedAddress);
+            save("OffChainAuthModule", preComputedAddress);
+            addr_ = preComputedAddress;
+        } else {
+            AdminFaucetAuthModule offChainAuthModule = new AdminFaucetAuthModule{ salt: salt }(cfg.faucetOffchainAuthModuleAdmin(), moduleName, version);
+            require(offChainAuthModule.ADMIN() == cfg.faucetOffchainAuthModuleAdmin());
+
+            save("OffChainAuthModule", address(offChainAuthModule));
+            console.log("OffChainAuthModule deployed at %s", address(offChainAuthModule));
+
+            addr_ = address(offChainAuthModule);
+        }
+    }
+
+    /// @notice installs the OnChain AuthModule on the Faucet contract.
+    function installOnChainAuthModule() public broadcast {
+        string memory moduleName = "OnChainAuthModule";
+        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        AdminFaucetAuthModule onChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
+        if (faucet.getModuleStatus(onChainAuthModule)) {
+            console.log("%s already installed.", moduleName);
+        } else {
+            console.log("Installing %s", moduleName);
+            Faucet.ModuleConfig memory myModuleConfig = Faucet.ModuleConfig({
+                name: moduleName,
+                enabled: true,
+                ttl: cfg.faucetOnchainAuthModuleAdminDripInterval(),
+                amount: cfg.faucetOnchainAuthModuleAdminDripValue()
+            });
+            faucet.configure(onChainAuthModule, myModuleConfig);
+            console.log("%s installed successfully", moduleName);
+        }
+    }
+
+    /// @notice installs the OffChain AuthModule on the Faucet contract.
+    function installOffChainAuthModule() public broadcast {
+        string memory moduleName = "OffChainAuthModule";
+        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        AdminFaucetAuthModule offChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
+        if (faucet.getModuleStatus(offChainAuthModule)) {
+            console.log("%s already installed.", moduleName);
+        } else {
+            console.log("Installing %s", moduleName);
+            Faucet.ModuleConfig memory myModuleConfig = Faucet.ModuleConfig({
+                name: moduleName,
+                enabled: true,
+                ttl: cfg.faucetOffchainAuthModuleAdminDripInterval(),
+                amount: cfg.faucetOffchainAuthModuleAdminDripValue()
+            });
+            faucet.configure(offChainAuthModule, myModuleConfig);
+            console.log("%s installed successfully", moduleName);
+        }
+    }
+
+    /// @notice installs all of the auth module in the faucet contract.
+    function installFaucetAuthModulesConfigs() public {
+        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        console.log("Installing auth modules at %s", address(faucet));
+        installOnChainAuthModule();
+        installOffChainAuthModule();
+
+        console.log("Faucet Auth Module configs successfully installed");
     }
 }

@@ -1,5 +1,5 @@
 {
-  "faucetAdmin": "0xf2C22a95bBA6F35545269183D8d1751a27F047F6",
+  "faucetAdmin": "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
   "faucetDrippieOwner": "0xEa193Fd9565284E7534dDDA15b07B119e7792644",
   "faucetDripV1Value": 20000000000000000000,
   "faucetDripV1Interval": 3600,
@@ -14,5 +14,11 @@
   "faucetGelatoRecipient": "0x789e58a4B08A23a7f60141959C6ABbdC0D0C4Aba",
   "faucetGelatoBalanceV1DripInterval": 86400,
   "faucetGelatoBalanceV1Value": 1000000000000000000,
-  "faucetGelatoThreshold": 100000000000000000
+  "faucetGelatoThreshold": 100000000000000000,
+  "faucetOnchainAuthModuleAdmin": "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
+  "faucetOnchainAuthModuleAdminDripInterval": 86400,
+  "faucetOnchainAuthModuleAdminDripValue": 1000000000000000000,
+  "faucetOffchainAuthModuleAdmin": "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
+  "faucetOffchainAuthModuleAdminDripInterval": 86400,
+  "faucetOffchainAuthModuleAdminDripValue": 50000000000000000
 }
