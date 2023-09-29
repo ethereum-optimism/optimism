@@ -152,10 +152,10 @@ func (a *Agent) tryResolveClaims(ctx context.Context) error {
 			resolvableClaims = append(resolvableClaims, int64(claim.ContractIndex))
 		}
 	}
-	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
 	if len(resolvableClaims) == 0 {
 		return errNoResolvableClaims
 	}
+	a.log.Info("Resolving claims", "numClaims", len(resolvableClaims))
 
 	var wg sync.WaitGroup
 	wg.Add(len(resolvableClaims))
