@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -16,6 +17,7 @@ import (
 var (
 	prestateBlock       = uint64(100)
 	poststateBlock      = uint64(200)
+	gameDepth           = uint64(7) // 128 leaf nodes
 	prestateOutputRoot  = common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	firstOutputRoot     = common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	poststateOutputRoot = common.HexToHash("0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
@@ -24,41 +26,39 @@ var (
 func TestGet(t *testing.T) {
 	t.Run("PrePrestateErrors", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, 0, poststateBlock)
-		_, err := provider.Get(context.Background(), 0)
+		_, err := provider.Get(context.Background(), types.NewPosition(1, 0))
 		require.ErrorAs(t, fmt.Errorf("no output at block %d", 1), &err)
 	})
 
 	t.Run("MisconfiguredPoststateErrors", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, 0, 0)
-		_, err := provider.Get(context.Background(), 0)
+		_, err := provider.Get(context.Background(), types.NewPosition(1, 0))
 		require.ErrorAs(t, fmt.Errorf("no output at block %d", 0), &err)
 	})
 
 	t.Run("FirstBlockAfterPrestate", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		value, err := provider.Get(context.Background(), 0)
+		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(128))
 		require.NoError(t, err)
-		require.Equal(t, value, firstOutputRoot)
+		require.Equal(t, firstOutputRoot, value)
 	})
 
 	t.Run("MissingOutputAtBlock", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		_, err := provider.Get(context.Background(), 1)
+		_, err := provider.Get(context.Background(), types.NewPositionFromGIndex(129))
 		require.ErrorAs(t, fmt.Errorf("no output at block %d", prestateBlock+2), &err)
 	})
 
 	t.Run("PostStateBlock", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		traceIndex := poststateBlock - prestateBlock
-		value, err := provider.Get(context.Background(), traceIndex)
+		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(228))
 		require.NoError(t, err)
 		require.Equal(t, value, poststateOutputRoot)
 	})
 
 	t.Run("AfterPostStateBlock", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		traceIndex := poststateBlock - prestateBlock + 1
-		value, err := provider.Get(context.Background(), traceIndex)
+		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(229))
 		require.NoError(t, err)
 		require.Equal(t, value, poststateOutputRoot)
 	})
@@ -82,7 +82,7 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 
 func TestGetStepData(t *testing.T) {
 	provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-	_, _, _, err := provider.GetStepData(context.Background(), 0)
+	_, _, _, err := provider.GetStepData(context.Background(), types.NewPosition(1, 0))
 	require.ErrorIs(t, err, GetStepDataErr)
 }
 
@@ -111,6 +111,7 @@ func setupWithTestData(t *testing.T, prestateBlock, poststateBlock uint64) (*Out
 		rollupClient:   &rollupClient,
 		prestateBlock:  prestateBlock,
 		poststateBlock: poststateBlock,
+		gameDepth:      gameDepth,
 	}, &rollupClient
 }
 

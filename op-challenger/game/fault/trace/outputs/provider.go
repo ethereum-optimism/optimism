@@ -30,27 +30,29 @@ type OutputTraceProvider struct {
 	rollupClient   OutputRollupClient
 	prestateBlock  uint64
 	poststateBlock uint64
+	gameDepth      uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, gameDepth, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
 	rollupClient, err := client.DialRollupClientWithTimeout(client.DefaultDialTimeout, logger, rollupRpc)
 	if err != nil {
 		return nil, err
 	}
-	return NewTraceProviderFromInputs(logger, rollupClient, prestateBlock, poststateBlock), nil
+	return NewTraceProviderFromInputs(logger, rollupClient, gameDepth, prestateBlock, poststateBlock), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClient, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClient, gameDepth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
 		logger:         logger,
 		rollupClient:   rollupClient,
 		prestateBlock:  prestateBlock,
 		poststateBlock: poststateBlock,
+		gameDepth:      gameDepth,
 	}
 }
 
-func (o *OutputTraceProvider) Get(ctx context.Context, traceIndex uint64) (common.Hash, error) {
-	outputBlock := traceIndex + o.prestateBlock + 1
+func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
+	outputBlock := pos.TraceIndex(int(o.gameDepth)) + o.prestateBlock + 1
 	if outputBlock > o.poststateBlock {
 		outputBlock = o.poststateBlock
 	}
@@ -78,6 +80,6 @@ func (o *OutputTraceProvider) AbsolutePreState(ctx context.Context) (preimage []
 }
 
 // GetStepData is not supported in the [OutputTraceProvider].
-func (o *OutputTraceProvider) GetStepData(ctx context.Context, i uint64) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+func (o *OutputTraceProvider) GetStepData(ctx context.Context, pos types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
 	return nil, nil, nil, GetStepDataErr
 }
