@@ -48,7 +48,7 @@ func DialEthClient(rpcUrl string, metrics Metricer) (EthClient, error) {
 		return nil, err
 	}
 
-	client := &client{rpc: newRPC(rpcClient, metrics)}
+	client := &client{rpc: NewRPC(rpcClient, metrics)}
 	return client, nil
 }
 
@@ -207,7 +207,7 @@ type rpcClient struct {
 	metrics Metricer
 }
 
-func newRPC(client *rpc.Client, metrics Metricer) RPC {
+func NewRPC(client *rpc.Client, metrics Metricer) RPC {
 	return &rpcClient{client, metrics}
 }
 
