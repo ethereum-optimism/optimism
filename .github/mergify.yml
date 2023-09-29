@@ -197,14 +197,6 @@ pull_request_rules:
       label:
         add:
           - A-op-service
-  - name: Add A-op-signer label
-    conditions:
-      - 'files~=^op-signer/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-op-signer
   - name: Add A-op-wheel label
     conditions:
       - 'files~=^op-wheel/'

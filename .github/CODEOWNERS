@@ -21,7 +21,6 @@
 /op-program     @ethereum-optimism/go-reviewers
 /op-proposer    @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
-/op-signer      @ethereum-optimism/go-reviewers
 /op-wheel       @ethereum-optimism/go-reviewers
 /ops-bedrock    @ethereum-optimism/go-reviewers
 
@@ -29,7 +28,6 @@
 /.circleci    @ethereum-optimism/infra-reviewers
 /.github      @ethereum-optimism/infra-reviewers
 /ops          @ethereum-optimism/infra-reviewers
-/op-signer    @ethereum-optimism/infra-reviewers
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers
