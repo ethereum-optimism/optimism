@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Storage } from "src/libraries/Storage.sol";
 
 /// @notice ProtocolVersion is a numeric identifier of the protocol version.
 type ProtocolVersion is uint256;
@@ -34,8 +35,8 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.1.0
-    string public constant version = "0.1.0";
+    /// @custom:semver 0.2.0
+    string public constant version = "0.2.0";
 
     /// @notice Constructs the ProtocolVersion contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -67,30 +68,10 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
         _setRecommended(_recommended);
     }
 
-    /// @notice Returns a ProtocolVersion stored in an arbitrary storage slot.
-    ///         These storage slots decouple the storage layout from solc's automation.
-    /// @param _slot The storage slot to retrieve the address from.
-    function _getProtocolVersion(bytes32 _slot) internal view returns (ProtocolVersion out_) {
-        assembly {
-            out_ := sload(_slot)
-        }
-    }
-
-    /// @notice Stores a ProtocolVersion in an arbitrary storage slot, `_slot`.
-    /// @param _version The protocol version to store
-    /// @param _slot The storage slot to store the address in.
-    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
-    ///      in arbitrary storage slots.
-    function _setProtocolVersion(ProtocolVersion _version, bytes32 _slot) internal {
-        assembly {
-            sstore(_slot, _version)
-        }
-    }
-
     /// @notice High level getter for the required protocol version.
     /// @return out_ Required protocol version to sync to the head of the chain.
     function required() external view returns (ProtocolVersion out_) {
-        out_ = _getProtocolVersion(REQUIRED_SLOT);
+        out_ = ProtocolVersion.wrap(Storage.getUint(REQUIRED_SLOT));
     }
 
     /// @notice Updates the required protocol version. Can only be called by the owner.
@@ -102,7 +83,7 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @notice Internal function for updating the required protocol version.
     /// @param _required New required protocol version.
     function _setRequired(ProtocolVersion _required) internal {
-        _setProtocolVersion(_required, REQUIRED_SLOT);
+        Storage.setUint(REQUIRED_SLOT, ProtocolVersion.unwrap(_required));
 
         bytes memory data = abi.encode(_required);
         emit ConfigUpdate(VERSION, UpdateType.REQUIRED_PROTOCOL_VERSION, data);
@@ -111,7 +92,7 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @notice High level getter for the recommended protocol version.
     /// @return out_ Recommended protocol version to sync to the head of the chain.
     function recommended() external view returns (ProtocolVersion out_) {
-        out_ = _getProtocolVersion(RECOMMENDED_SLOT);
+        out_ = ProtocolVersion.wrap(Storage.getUint(RECOMMENDED_SLOT));
     }
 
     /// @notice Updates the recommended protocol version. Can only be called by the owner.
@@ -123,7 +104,7 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @notice Internal function for updating the recommended protocol version.
     /// @param _recommended New recommended protocol version.
     function _setRecommended(ProtocolVersion _recommended) internal {
-        _setProtocolVersion(_recommended, RECOMMENDED_SLOT);
+        Storage.setUint(RECOMMENDED_SLOT, ProtocolVersion.unwrap(_recommended));
 
         bytes memory data = abi.encode(_recommended);
         emit ConfigUpdate(VERSION, UpdateType.RECOMMENDED_PROTOCOL_VERSION, data);
