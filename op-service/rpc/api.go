@@ -5,20 +5,16 @@ import (
 	"fmt"
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type RpcMetrics interface {
-	// RecordRPCServerRequest returns a function that records the duration of serving the given RPC method
-	RecordRPCServerRequest(method string) func()
-}
-
 type CommonAdminAPI struct {
-	M   RpcMetrics
+	M   metrics.RPCMetricer
 	log log.Logger
 }
 
-func NewCommonAdminAPI(m RpcMetrics, log log.Logger) *CommonAdminAPI {
+func NewCommonAdminAPI(m metrics.RPCMetricer, log log.Logger) *CommonAdminAPI {
 	return &CommonAdminAPI{
 		M:   m,
 		log: log,

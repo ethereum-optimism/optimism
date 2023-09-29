@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -36,7 +37,7 @@ type adminAPI struct {
 	dr driverClient
 }
 
-func NewAdminAPI(dr driverClient, m rpc.RpcMetrics, log log.Logger) *adminAPI {
+func NewAdminAPI(dr driverClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
 		dr:             dr,
 		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
@@ -72,10 +73,10 @@ type nodeAPI struct {
 	client l2EthClient
 	dr     driverClient
 	log    log.Logger
-	m      rpc.RpcMetrics
+	m      metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m rpc.RpcMetrics) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
