@@ -69,59 +69,25 @@ func printDebugTrace(ctx context.Context, client *ethclient.Client, txHash commo
 	fmt.Printf("TxTrace: %v\n", trace)
 }
 
-func ForBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
-	for {
-		height, err := client.BlockNumber(ctx)
-		if err != nil {
-			return err
-		}
-		if height < n {
-			time.Sleep(500 * time.Millisecond)
-			continue
-		}
-		break
-	}
-
-	return nil
-}
-
-func ForBlockWithTimestamp(ctx context.Context, client *ethclient.Client, target uint64) error {
-	_, err := AndGet(ctx, time.Second, func() (uint64, error) {
-		head, err := client.BlockByNumber(ctx, nil)
-		if err != nil {
-			return 0, err
-		}
-		return head.Time(), nil
-	}, func(actual uint64) bool {
-		return actual >= target
-	})
-	return err
-}
-
-func ForNextBlock(ctx context.Context, client *ethclient.Client) error {
-	current, err := client.BlockNumber(ctx)
-	if err != nil {
-		return fmt.Errorf("get starting block number: %w", err)
-	}
-	return ForBlock(ctx, client, current+1)
-}
-
 func For(ctx context.Context, rate time.Duration, cb func() (bool, error)) error {
 	tick := time.NewTicker(rate)
 	defer tick.Stop()
 
 	for {
+		// Perform the first check before any waiting.
+		done, err := cb()
+		if err != nil {
+			return err
+		}
+		if done {
+			return nil
+		}
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-tick.C:
-			done, err := cb()
-			if err != nil {
-				return err
-			}
-			if done {
-				return nil
-			}
+			// Allow loop to continue for next retry
 		}
 	}
 }
