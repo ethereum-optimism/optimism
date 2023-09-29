@@ -220,8 +220,8 @@ abstract contract CrossDomainMessenger is
         payable
     {
         // On L1 this function will check the Portal for its paused status.
-        // On L2 this function should be a no-op.
-        _revertWhenPaused();
+        // On L2 this function should be a no-op, because paused will always return false.
+        require(paused() == false, "CrossDomainMessenger: paused");
 
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
         require(version < 2, "CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
@@ -387,12 +387,5 @@ abstract contract CrossDomainMessenger is
     /// @return Whether or not the contract is paused.
     function paused() public view virtual returns (bool) {
         return false;
-    }
-
-    /// @notice This function should revert if the contract is paused.
-    /// On L1 this function will check the Portal for its paused status.
-    /// On L2 this function should be a no-op.
-    function _revertWhenPaused() internal view virtual {
-        return;
     }
 }

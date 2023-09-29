@@ -570,7 +570,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(supConf.guardian());
         supConf.pause(100);
 
-        vm.expectRevert("L1CrossDomainMessenger: system is paused");
+        vm.expectRevert("CrossDomainMessenger: paused");
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,

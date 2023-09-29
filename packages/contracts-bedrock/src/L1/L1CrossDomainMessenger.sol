@@ -64,11 +64,4 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     function paused() public view override returns (bool) {
         return superchainConfig.paused();
     }
-
-    /// @inheritdoc CrossDomainMessenger
-    function _revertWhenPaused() internal view override {
-        if (paused()) {
-            revert("L1CrossDomainMessenger: system is paused");
-        }
-    }
 }
