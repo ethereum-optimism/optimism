@@ -36,7 +36,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	if !ctx.Bool(flags.BetaRollupLoadProtocolVersions.Name) {
+	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
 		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
 		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
@@ -66,7 +66,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	syncConfig := NewSyncConfig(ctx)
 
-	haltOption := ctx.String(flags.BetaRollupHalt.Name)
+	haltOption := ctx.String(flags.RollupHalt.Name)
 	if haltOption == "none" {
 		haltOption = ""
 	}

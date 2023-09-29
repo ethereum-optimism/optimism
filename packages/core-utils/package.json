@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
@@ -44,7 +44,7 @@
     "@ethersproject/properties": "^5.7.0",
     "@ethersproject/rlp": "^5.7.0",
     "@ethersproject/web": "^5.7.1",
-    "chai": "^4.3.7",
+    "chai": "^4.3.10",
     "ethers": "^5.7.2",
     "node-fetch": "^2.6.7"
   },

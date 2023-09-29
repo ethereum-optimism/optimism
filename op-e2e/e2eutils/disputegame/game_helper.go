@@ -2,7 +2,6 @@ package disputegame
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math/big"
 	"testing"
@@ -39,6 +38,9 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 	return time.Duration(duration) * time.Second
 }
 
+// WaitForClaimCount waits until there are at least count claims in the game.
+// This does not check that the number of claims is exactly the specified count to avoid intermittent failures
+// where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -48,7 +50,7 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 			return false, err
 		}
 		g.t.Log("Waiting for claim count", "current", actual, "expected", count, "game", g.addr)
-		return actual.Cmp(big.NewInt(count)) == 0, nil
+		return actual.Cmp(big.NewInt(count)) >= 0, nil
 	})
 	g.require.NoErrorf(err, "Did not find expected claim count %v", count)
 }
@@ -123,6 +125,12 @@ func (g *FaultGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) com
 	return claim.Claim
 }
 
+func (g *FaultGameHelper) GetClaimPosition(ctx context.Context, claimIdx int64) types.Position {
+	g.WaitForClaimCount(ctx, claimIdx+1)
+	claim := g.getClaim(ctx, claimIdx)
+	return types.NewPositionFromGIndex(claim.Position.Uint64())
+}
+
 // getClaim retrieves the claim data for a specific index.
 // Note that it is deliberately not exported as tests should use WaitForClaim to avoid race conditions.
 func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
@@ -133,8 +141,9 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 	return claimData
 }
 
-func (g *FaultGameHelper) GetClaimUnsafe(ctx context.Context, claimIdx int64) ContractClaim {
-	return g.getClaim(ctx, claimIdx)
+// getClaimPosition retrieves the [types.Position] of a claim at a specific index.
+func (g *FaultGameHelper) getClaimPosition(ctx context.Context, claimIdx int64) types.Position {
+	return types.NewPositionFromGIndex(g.getClaim(ctx, claimIdx).Position.Uint64())
 }
 
 func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
@@ -382,107 +391,4 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 
 func (g *FaultGameHelper) LogGameData(ctx context.Context) {
 	g.t.Log(g.gameData(ctx))
-}
-
-type dishonestClaim struct {
-	ParentIndex int64
-	IsAttack    bool
-	Valid       bool
-}
-type DishonestHelper struct {
-	*FaultGameHelper
-	*HonestHelper
-	claims   map[dishonestClaim]bool
-	defender bool
-}
-
-func NewDishonestHelper(g *FaultGameHelper, correctTrace *HonestHelper, defender bool) *DishonestHelper {
-	return &DishonestHelper{g, correctTrace, make(map[dishonestClaim]bool), defender}
-}
-
-func (t *DishonestHelper) Attack(ctx context.Context, claimIndex int64) {
-	c := dishonestClaim{claimIndex, true, false}
-	if t.claims[c] {
-		return
-	}
-	t.claims[c] = true
-	t.FaultGameHelper.Attack(ctx, claimIndex, common.Hash{byte(claimIndex)})
-}
-
-func (t *DishonestHelper) Defend(ctx context.Context, claimIndex int64) {
-	c := dishonestClaim{claimIndex, false, false}
-	if t.claims[c] {
-		return
-	}
-	t.claims[c] = true
-	t.FaultGameHelper.Defend(ctx, claimIndex, common.Hash{byte(claimIndex)})
-}
-
-func (t *DishonestHelper) AttackCorrect(ctx context.Context, claimIndex int64) {
-	c := dishonestClaim{claimIndex, true, true}
-	if t.claims[c] {
-		return
-	}
-	t.claims[c] = true
-	t.HonestHelper.Attack(ctx, claimIndex)
-}
-
-func (t *DishonestHelper) DefendCorrect(ctx context.Context, claimIndex int64) {
-	c := dishonestClaim{claimIndex, false, true}
-	if t.claims[c] {
-		return
-	}
-	t.claims[c] = true
-	t.HonestHelper.Defend(ctx, claimIndex)
-}
-
-// ExhaustDishonestClaims makes all possible significant moves (mod honest challenger's) in a game.
-// It is very inefficient and should NOT be used on games with large depths
-func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
-	depth := d.MaxDepth(ctx)
-
-	move := func(claimIndex int64, claimData ContractClaim) {
-		// dishonest level, valid attack
-		// dishonest level, invalid attack
-		// dishonest level, valid defense
-		// dishonest level, invalid defense
-		// honest level, invalid attack
-		// honest level, invalid defense
-
-		pos := types.NewPositionFromGIndex(claimData.Position.Uint64())
-		if int64(pos.Depth()) == depth {
-			return
-		}
-
-		d.LogGameData(ctx)
-		d.FaultGameHelper.t.Logf("Dishonest moves against claimIndex %d", claimIndex)
-		agreeWithLevel := d.defender == (pos.Depth()%2 == 0)
-		if !agreeWithLevel {
-			d.AttackCorrect(ctx, claimIndex)
-			if claimIndex != 0 {
-				d.DefendCorrect(ctx, claimIndex)
-			}
-		}
-		d.Attack(ctx, claimIndex)
-		if claimIndex != 0 {
-			d.Defend(ctx, claimIndex)
-		}
-	}
-
-	var numClaimsSeen int64
-	for {
-		newCount, err := d.WaitForNewClaim(ctx, numClaimsSeen)
-		if errors.Is(err, context.DeadlineExceeded) {
-			// we assume that the honest challenger has stopped responding
-			// There's nothing to respond to.
-			break
-		}
-		d.FaultGameHelper.require.NoError(err)
-
-		for i := numClaimsSeen; i < newCount; i++ {
-			claimData := d.getClaim(ctx, numClaimsSeen)
-			move(numClaimsSeen, claimData)
-			numClaimsSeen++
-		}
-	}
 }

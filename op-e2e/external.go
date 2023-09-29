@@ -46,13 +46,14 @@ func (eec *ExternalEthClient) WSAuthEndpoint() string {
 	return eec.Endpoints.WSAuthEndpoint
 }
 
-func (eec *ExternalEthClient) Close() {
+func (eec *ExternalEthClient) Close() error {
 	eec.Session.Terminate()
 	select {
 	case <-time.After(5 * time.Second):
 		eec.Session.Kill()
 	case <-eec.Session.Exited:
 	}
+	return nil
 }
 
 func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {

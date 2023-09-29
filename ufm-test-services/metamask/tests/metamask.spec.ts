@@ -6,14 +6,12 @@ import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 import { testWithSynpress } from './testWithSynpressUtil'
 import {
-  getMetamaskTxCounterValue,
-  incrementMetamaskTxCounter,
-  setMetamaskTxCounter,
+  incrementSelfSendTxGauge,
 } from './prometheusUtils'
 
 const env = z.object({
   METAMASK_SECRET_WORDS_OR_PRIVATEKEY: z.string(),
-  OP_GOERLI_RPC_URL: z.string().url(),
+  METAMASK_OP_GOERLI_RPC_URL: z.string().url(),
   METAMASK_DAPP_URL: z.string().url()
 }).parse(process.env)
 
@@ -25,29 +23,45 @@ const expectedSender =
     : mnemonicToAccount(
         env.METAMASK_SECRET_WORDS_OR_PRIVATEKEY as string
       ).address.toLowerCase()
-const expectedRecipient = '0x8fcfbe8953433fd1f2e8375ee99057833e4e1e9e'
+const expectedRecipient = expectedSender
 
 let sharedPage: Page
+let wasSuccessful: boolean
+let handledFailure: boolean
 
 test.describe.configure({ mode: 'serial' })
 
+test.beforeAll(() => {
+  wasSuccessful = false
+  handledFailure = false
+})
+
 test.afterAll(async () => {
+  // This is handling failure scenarios such as Playwright timeouts
+  // where are not able to catch and respond to an error.
+  if (!wasSuccessful && !handledFailure) {
+    await incrementSelfSendTxGauge(false)
+  }
+
   await sharedPage.close()
 })
 
 testWithSynpress('Setup wallet and dApp', async ({ page }) => {
+  console.log('Setting up wallet and dApp...')
   sharedPage = page
   await sharedPage.goto('http://localhost:9011')
+  console.log('Setup wallet and dApp')
 })
 
 testWithSynpress('Add OP Goerli network', async () => {
+  console.log('Adding OP Goerli network...')
   const expectedChainId = '0x1a4'
 
   await metamask.addNetwork({
     name: 'op-goerli',
     rpcUrls: {
       default: {
-        http: [env.OP_GOERLI_RPC_URL],
+        http: [env.METAMASK_OP_GOERLI_RPC_URL],
       },
     },
     id: '420',
@@ -64,26 +78,30 @@ testWithSynpress('Add OP Goerli network', async () => {
   try {
     await expect(sharedPage.locator('#chainId')).toHaveText(expectedChainId)
   } catch (error) {
-    await setMetamaskTxCounter(true, 0)
-    await incrementMetamaskTxCounter(false)
+    await incrementSelfSendTxGauge(false)
+    handledFailure = true
     throw error
   }
+  console.log('Added OP Goerli network')
 })
 
 test(`Connect wallet with ${expectedSender}`, async () => {
+  console.log(`Connecting wallet with ${expectedSender}...`)
   await sharedPage.click('#connectButton')
   await metamask.acceptAccess()
 
   try {
     await expect(sharedPage.locator('#accounts')).toHaveText(expectedSender)
   } catch (error) {
-    await setMetamaskTxCounter(true, 0)
-    await incrementMetamaskTxCounter(false)
+    await incrementSelfSendTxGauge(false)
+    handledFailure = true
     throw error
   }
+  console.log(`Connected wallet with ${expectedSender}`)
 })
 
-test('Send an EIP-1559 transaciton and verfiy success', async () => {
+test('Send an EIP-1559 transaction and verify success', async () => {
+  console.log('Sending an EIP-1559 transaction and verify success...')
   const expectedTransferAmount = '0x1'
   const expectedTxType = '0x2'
 
@@ -114,7 +132,7 @@ test('Send an EIP-1559 transaciton and verfiy success', async () => {
   // Waiting for RPC response to be populated on the page
   await sharedPage.waitForTimeout(2_000)
 
-  const transaction = JSON.parse(
+  const transactionReceipt = JSON.parse(
     (await sharedPage.locator('body > main').innerText()).replace(
       'Response: ',
       ''
@@ -122,12 +140,13 @@ test('Send an EIP-1559 transaciton and verfiy success', async () => {
   )
 
   try {
-    expect(transaction.status).toBe('0x1')
-    await setMetamaskTxCounter(false, 0)
-    await incrementMetamaskTxCounter(true)
+    expect(transactionReceipt.status).toBe('0x1')
+    wasSuccessful = true
+    await incrementSelfSendTxGauge(true)
   } catch (error) {
-    await setMetamaskTxCounter(true, 0)
-    await incrementMetamaskTxCounter(false)
+    await incrementSelfSendTxGauge(false)
+    handledFailure = true
     throw error
   }
+  console.log('Sent an EIP-1559 transaction and verified success')
 })

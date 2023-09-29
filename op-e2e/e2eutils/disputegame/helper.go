@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -15,13 +14,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -35,6 +35,9 @@ const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
 const alphabetGameDepth = 4
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
+
+// rootPosition is the position of the root claim.
+var rootPosition = faultTypes.NewPositionFromGIndex(1)
 
 type Status uint8
 
@@ -104,7 +107,8 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	defer cancel()
 
 	trace := alphabet.NewTraceProvider(claimedAlphabet, alphabetGameDepth)
-	rootClaim, err := trace.Get(ctx, lastAlphabetTraceIndex)
+	pos := faultTypes.NewPosition(alphabetGameDepth, lastAlphabetTraceIndex)
+	rootClaim, err := trace.Get(ctx, pos)
 	h.require.NoError(err, "get root claim")
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
@@ -172,14 +176,33 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2Claim:       challengedOutput.OutputRoot,
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
-	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), metrics.NoopMetrics, cfg, inputs, cfg.Datadir)
-	rootClaim, err := provider.Get(ctx, math.MaxUint64)
+
+	cannonTypeAddr, err := h.factory.GameImpls(opts, cannonGameType)
+	h.require.NoError(err, "fetch cannon game type impl")
+
+	gameImpl, err := bindings.NewFaultDisputeGameCaller(cannonTypeAddr, h.client)
+	h.require.NoError(err, "bind fault dispute game caller")
+
+	maxDepth, err := gameImpl.MAXGAMEDEPTH(opts)
+	h.require.NoError(err, "fetch max game depth")
+
+	provider := cannon.NewTraceProviderFromInputs(
+		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
+		metrics.NoopMetrics,
+		cfg,
+		inputs,
+		cfg.Datadir,
+		maxDepth.Uint64(),
+	)
+	rootClaim, err := provider.Get(ctx, rootPosition)
 	h.require.NoError(err, "Compute correct root hash")
 	// Override the VM status to claim the root is invalid
 	// Otherwise creating the game will fail
 	rootClaim[0] = mipsevm.VMStatusInvalid
 
 	game := h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
+	correctMaxDepth := game.MaxDepth(ctx)
+	provider.SetMaxDepth(uint64(correctMaxDepth))
 	honestHelper := &HonestHelper{
 		t:            h.t,
 		require:      h.require,

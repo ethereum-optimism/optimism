@@ -23,7 +23,7 @@ submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
 	if [ -z "$$GITHUB_ENV" ]; then \
 		git submodule init; \
-		git submodule update; \
+		git submodule update --recursive; \
 	fi
 .PHONY: submodules
 
@@ -86,6 +86,9 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
+	@if ! [ -x "$(command -v geth)" ]; then \
+		make install-geth; \
+	fi
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi

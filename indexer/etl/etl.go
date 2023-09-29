@@ -71,10 +71,10 @@ func (etl *ETL) Start(ctx context.Context) error {
 					etl.log.Error("error querying for headers", "err", err)
 				} else if len(newHeaders) == 0 {
 					etl.log.Warn("no new headers. processor unexpectedly at head...")
+				} else {
+					headers = newHeaders
+					etl.metrics.RecordBatchHeaders(len(newHeaders))
 				}
-
-				headers = newHeaders
-				etl.metrics.RecordBatchHeaders(len(newHeaders))
 			}
 
 			// only clear the reference if we were able to process this batch
@@ -107,7 +107,7 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	headersWithLog := make(map[common.Hash]bool, len(headers))
 	logs, err := etl.EthClient.FilterLogs(ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts})
 	if err != nil {
-		batchLog.Info("unable to extract logs", "err", err)
+		batchLog.Info("failed to extract logs", "err", err)
 		return err
 	}
 	if len(logs) > 0 {
@@ -118,7 +118,8 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 		log := logs[i]
 		if _, ok := headerMap[log.BlockHash]; !ok {
 			// NOTE. Definitely an error state if the none of the headers were re-orged out in between
-			// the blocks and logs retrieval operations. However, we need to gracefully handle reorgs
+			// the blocks and logs retrieval operations. Unlikely as long as the confirmation depth has
+			// been appropriately set or when we get to natively handling reorgs.
 			batchLog.Error("log found with block hash not in the batch", "block_hash", logs[i].BlockHash, "log_index", logs[i].Index)
 			return errors.New("parsed log with a block hash not in the batch")
 		}

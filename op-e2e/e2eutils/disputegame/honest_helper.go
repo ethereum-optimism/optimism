@@ -22,10 +22,9 @@ func (h *HonestHelper) Attack(ctx context.Context, claimIdx int64) {
 	claim := h.game.getClaim(ctx, claimIdx)
 	pos := types.NewPositionFromGIndex(claim.Position.Uint64())
 	attackPos := pos.Attack()
-	traceIdx := attackPos.TraceIndex(int(h.game.MaxDepth(ctx)))
-	h.t.Logf("Attacking at position %v using correct trace from index %v", attackPos.ToGIndex(), traceIdx)
-	value, err := h.correctTrace.Get(ctx, traceIdx)
-	h.require.NoErrorf(err, "Get correct claim at trace index %v", traceIdx)
+	h.t.Logf("Attacking at position %v with g index %v", attackPos, attackPos.ToGIndex())
+	value, err := h.correctTrace.Get(ctx, attackPos)
+	h.require.NoErrorf(err, "Get correct claim at position %v with g index %v", attackPos, attackPos.ToGIndex())
 	h.t.Log("Performing attack")
 	h.game.Attack(ctx, claimIdx, value)
 	h.t.Log("Attack complete")
@@ -37,23 +36,20 @@ func (h *HonestHelper) Defend(ctx context.Context, claimIdx int64) {
 	claim := h.game.getClaim(ctx, claimIdx)
 	pos := types.NewPositionFromGIndex(claim.Position.Uint64())
 	defendPos := pos.Defend()
-	traceIdx := defendPos.TraceIndex(int(h.game.MaxDepth(ctx)))
-	value, err := h.correctTrace.Get(ctx, traceIdx)
-	h.game.require.NoErrorf(err, "Get correct claim at trace index %v", traceIdx)
+	value, err := h.correctTrace.Get(ctx, defendPos)
+	h.game.require.NoErrorf(err, "Get correct claim at position %v with g index %v", defendPos, defendPos.ToGIndex())
 	h.game.Defend(ctx, claimIdx, value)
 }
 
 func (h *HonestHelper) StepFails(ctx context.Context, claimIdx int64, isAttack bool) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	claim := h.game.getClaim(ctx, claimIdx)
-	pos := types.NewPositionFromGIndex(claim.Position.Uint64())
-	traceIdx := pos.TraceIndex(int(h.game.MaxDepth(ctx)))
+	pos := h.game.getClaimPosition(ctx, claimIdx)
 	if !isAttack {
 		// If we're defending, then the step will be from the trace to the next one
-		traceIdx += 1
+		pos = pos.MoveRight()
 	}
-	prestate, proofData, _, err := h.correctTrace.GetStepData(ctx, traceIdx)
+	prestate, proofData, _, err := h.correctTrace.GetStepData(ctx, pos)
 	h.require.NoError(err, "Get step data")
 	h.game.StepFails(claimIdx, isAttack, prestate, proofData)
 }

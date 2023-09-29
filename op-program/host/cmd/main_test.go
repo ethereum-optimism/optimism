@@ -43,6 +43,21 @@ func TestLogLevel(t *testing.T) {
 	}
 }
 
+func TestLogFormat(t *testing.T) {
+	t.Run("RejectInvalid", func(t *testing.T) {
+		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
+	})
+
+	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
+		lvl := lvl
+		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
+			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
+			require.NoError(t, err)
+			require.NotNil(t, logger)
+		})
+	}
+}
+
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
 	rollupCfg, err := chaincfg.GetRollupConfig("op-goerli")
