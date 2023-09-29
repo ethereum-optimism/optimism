@@ -1,9 +1,11 @@
 queue_rules:
   - name: urgent
     queue_conditions:
-      - label = C-urgent
+      - "label=C-urgent"
   - name: default
-    queue_conditions: []
+    queue_conditions:
+      - "label!=C-urgent"
+      - author!=dependabot[bot]
   - name: lowpriority
     queue_conditions:
       - author=dependabot[bot]
