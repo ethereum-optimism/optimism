@@ -24,9 +24,6 @@ import (
 const (
 	// Geth requires a minimum fee bump of 10% for tx resubmission
 	priceBump int64 = 10
-
-	// The multiplier applied to fee suggestions to put a hard limit on fee increases
-	feeLimitMultiplier = 5
 )
 
 // new = old * (100 + priceBump) / 100
@@ -297,19 +294,17 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
 	receiptChan := make(chan *types.Receipt, 1)
-	sendTxAsync := func(tx *types.Transaction) {
-		defer wg.Done()
-		m.publishAndWaitForTx(ctx, tx, sendState, receiptChan)
+	sendTx := func(tx *types.Transaction, bumpFees bool) *types.Transaction {
+		return m.publishAndWaitForTx(ctx, tx, sendState, receiptChan, bumpFees, wg.Done)
 	}
 
 	// Immediately publish a transaction before starting the resumbission loop
 	wg.Add(1)
-	go sendTxAsync(tx)
+	tx = sendTx(tx, false)
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
 
-	bumpCounter := 0
 	for {
 		select {
 		case <-ticker.C:
@@ -322,25 +317,14 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				m.l.Warn("Aborting transaction submission")
 				return nil, errors.New("aborted transaction sending")
 			}
-			// Increase the gas price & submit the new transaction
-			newTx, err := m.increaseGasPrice(ctx, tx)
-			if err != nil || sendState.IsWaitingForConfirmation() {
-				// there is a chance the previous tx goes into "waiting for confirmation" state
-				// during the increaseGasPrice call. In some (but not all) cases increaseGasPrice
-				// will error out during gas estimation. In either case we should continue waiting
-				// rather than resubmit the tx.
-				continue
-			}
-			tx = newTx
 			wg.Add(1)
-			bumpCounter += 1
-			go sendTxAsync(tx)
+			tx = sendTx(tx, true)
 
 		case <-ctx.Done():
 			return nil, ctx.Err()
 
 		case receipt := <-receiptChan:
-			m.metr.RecordGasBumpCount(bumpCounter)
+			m.metr.RecordGasBumpCount(sendState.bumpCount)
 			m.metr.TxConfirmed(receipt)
 			return receipt, nil
 		}
@@ -350,57 +334,101 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 // publishAndWaitForTx publishes the transaction to the transaction pool and then waits for it with [waitMined].
 // It should be called in a new go-routine. It will send the receipt to receiptChan in a non-blocking way if a receipt is found
 // for the transaction.
-func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Transaction, sendState *SendState, receiptChan chan *types.Receipt) {
-	log := m.l.New("hash", tx.Hash(), "nonce", tx.Nonce(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
-	log.Info("Publishing transaction")
+func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Transaction, sendState *SendState, receiptChan chan *types.Receipt, bumpFees bool, done func()) *types.Transaction {
+	waiting := false
+	defer func() {
+		if !waiting {
+			done()
+		}
+	}()
 
-	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
-	defer cancel()
+	updateLogFields := func(tx *types.Transaction) log.Logger {
+		return m.l.New("hash", tx.Hash(), "nonce", tx.Nonce(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
+	}
+	l := updateLogFields(tx)
+
+	l.Info("Publishing transaction")
 	t := time.Now()
-	err := m.backend.SendTransaction(cCtx, tx)
-	sendState.ProcessSendError(err)
 
-	// Properly log & exit if there is an error
-	if err != nil {
+	for {
+		if bumpFees {
+			newTx, err := m.increaseGasPrice(ctx, tx)
+			if err != nil {
+				l.Error("unable to increase gas", "err", err)
+				m.metr.TxPublished("bump_failed")
+				return tx
+			}
+			tx = newTx
+			sendState.bumpCount++
+			l = updateLogFields(tx)
+		}
+		bumpFees = true // bump fees next loop
+
+		if sendState.IsWaitingForConfirmation() {
+			// there is a chance the previous tx goes into "waiting for confirmation" state
+			// during the increaseGasPrice call; continue waiting rather than resubmit the tx
+			return tx
+		}
+
+		cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+		err := m.backend.SendTransaction(cCtx, tx)
+		cancel()
+		sendState.ProcessSendError(err)
+
+		if err == nil {
+			break
+		}
+
 		switch {
 		case errStringMatch(err, core.ErrNonceTooLow):
-			log.Warn("nonce too low", "err", err)
+			l.Warn("nonce too low", "err", err)
 			m.metr.TxPublished("nonce_to_low")
 		case errStringMatch(err, context.Canceled):
 			m.metr.RPCError()
-			log.Warn("transaction send cancelled", "err", err)
+			l.Warn("transaction send cancelled", "err", err)
 			m.metr.TxPublished("context_cancelled")
 		case errStringMatch(err, txpool.ErrAlreadyKnown):
-			log.Warn("resubmitted already known transaction", "err", err)
+			l.Warn("resubmitted already known transaction", "err", err)
 			m.metr.TxPublished("tx_already_known")
 		case errStringMatch(err, txpool.ErrReplaceUnderpriced):
-			log.Warn("transaction replacement is underpriced", "err", err)
+			l.Warn("transaction replacement is underpriced", "err", err)
 			m.metr.TxPublished("tx_replacement_underpriced")
+			continue // retry with fee bump
 		case errStringMatch(err, txpool.ErrUnderpriced):
-			log.Warn("transaction is underpriced", "err", err)
+			l.Warn("transaction is underpriced", "err", err)
 			m.metr.TxPublished("tx_underpriced")
+			continue // retry with fee bump
 		default:
 			m.metr.RPCError()
-			log.Error("unable to publish transaction", "err", err)
+			l.Error("unable to publish transaction", "err", err)
 			m.metr.TxPublished("unknown_error")
 		}
-		return
-	}
-	m.metr.TxPublished("")
 
+		// on non-underpriced error return immediately; will retry on next resubmission timeout
+		return tx
+	}
+
+	m.metr.TxPublished("")
 	log.Info("Transaction successfully published")
-	// Poll for the transaction to be ready & then send the result to receiptChan
-	receipt, err := m.waitMined(ctx, tx, sendState)
-	if err != nil {
-		// this will happen if the tx was successfully replaced by a tx with bumped fees
-		log.Info("Transaction receipt not found", "err", err)
-		return
-	}
-	select {
-	case receiptChan <- receipt:
-		m.metr.RecordTxConfirmationLatency(time.Since(t).Milliseconds())
-	default:
-	}
+
+	waiting = true
+	go func() {
+		defer done()
+		// Poll for the transaction to be ready & then send the result to receiptChan
+		receipt, err := m.waitMined(ctx, tx, sendState)
+		if err != nil {
+			// this will happen if the tx was successfully replaced by a tx with bumped fees
+			log.Info("Transaction receipt not found", "err", err)
+			return
+		}
+		select {
+		case receiptChan <- receipt:
+			m.metr.RecordTxConfirmationLatency(time.Since(t).Milliseconds())
+		default:
+		}
+	}()
+
+	return tx
 }
 
 // waitMined waits for the transaction to be mined or for the context to be cancelled.
@@ -485,15 +513,13 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
 
 	// Make sure increase is at most 5x the suggested values
-	maxTip := new(big.Int).Mul(tip, big.NewInt(feeLimitMultiplier))
+	maxTip := new(big.Int).Mul(tip, big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
 	if bumpedTip.Cmp(maxTip) > 0 {
-		m.l.Warn(fmt.Sprintf("bumped tip getting capped at %dx multiple of the suggested value", feeLimitMultiplier), "bumped", bumpedTip, "suggestion", tip)
-		bumpedTip.Set(maxTip)
+		return nil, fmt.Errorf("bumped tip 0x%s is over %dx multiple of the suggested value", bumpedTip.Text(16), m.cfg.FeeLimitMultiplier)
 	}
-	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, big.NewInt(feeLimitMultiplier)), maxTip)
+	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, big.NewInt(int64(m.cfg.FeeLimitMultiplier))), maxTip)
 	if bumpedFee.Cmp(maxFee) > 0 {
-		m.l.Warn("bumped fee getting capped at multiple of the implied suggested value", "bumped", bumpedFee, "suggestion", maxFee)
-		bumpedFee.Set(maxFee)
+		return nil, fmt.Errorf("bumped fee 0x%s is over %dx multiple of the suggested value", bumpedFee.Text(16), m.cfg.FeeLimitMultiplier)
 	}
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),

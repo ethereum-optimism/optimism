@@ -80,6 +80,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
+		FeeLimitMultiplier:        5,
 		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
@@ -766,6 +767,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
+			FeeLimitMultiplier:        5,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
@@ -867,6 +869,7 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
+			FeeLimitMultiplier:        5,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
@@ -883,23 +886,20 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	})
 
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
-	var err error
-	for i := 0; i < 30; i++ {
-		ctx := context.Background()
-		tx, err = mgr.increaseGasPrice(ctx, tx)
-		require.NoError(t, err)
+	ctx := context.Background()
+	for {
+		newTx, err := mgr.increaseGasPrice(ctx, tx)
+		if err != nil {
+			break
+		}
+		tx = newTx
 	}
 	lastTip, lastFee := tx.GasTipCap(), tx.GasFeeCap()
-	require.Equal(t, lastTip.Int64(), feeLimitMultiplier*borkedTip)
-	require.Equal(t, lastFee.Int64(), feeLimitMultiplier*(borkedTip+2*borkedFee))
+	require.Equal(t, lastTip.Int64(), int64(36))
+	require.Equal(t, lastFee.Int64(), int64(493))
 	// Confirm that fees stop rising
-	for i := 0; i < 5; i++ {
-		ctx := context.Background()
-		tx, err := mgr.increaseGasPrice(ctx, tx)
-		require.NoError(t, err)
-		require.True(t, tx.GasTipCap().Cmp(lastTip) == 0, "suggested tx tip must stop increasing")
-		require.True(t, tx.GasFeeCap().Cmp(lastFee) == 0, "suggested tx fee must stop increasing")
-	}
+	_, err := mgr.increaseGasPrice(ctx, tx)
+	require.Error(t, err)
 }
 
 func TestErrStringMatch(t *testing.T) {
