@@ -35,10 +35,6 @@ func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game type
 	if claim.Depth() == s.gameDepth {
 		return nil, types.ErrGameDepthReached
 	}
-	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
-	if err != nil {
-		return nil, err
-	}
 
 	// Before challenging this claim, first check that the move wasn't warranted.
 	// If the parent claim is on a dishonest path, then we would have moved against it anyways. So we don't move.
@@ -57,6 +53,10 @@ func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game type
 		}
 	}
 
+	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
+	if err != nil {
+		return nil, err
+	}
 	if agree {
 		return s.defend(ctx, claim)
 	} else {
