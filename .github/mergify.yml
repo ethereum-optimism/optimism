@@ -3,9 +3,9 @@ queue_rules:
     queue_conditions:
       - label = C-urgent
   - name: default
-    conditions: []
+    queue_conditions: []
   - name: lowpriority
-    conditions:
+    queue_conditions:
       - author=dependabot[bot]
 
 pull_request_rules:
