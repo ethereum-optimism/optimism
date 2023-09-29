@@ -5,7 +5,6 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 
-	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -82,10 +81,8 @@ func Main(version string, cliCtx *cli.Context) error {
 	)
 	if cfg.RPCFlag.EnableAdmin {
 		rpcMetrics := opmetrics.NewRPCMetrics(procName, metrics.Namespace)
-		server.AddAPI(gethrpc.API{
-			Namespace: "admin",
-			Service:   rpc.NewAdminAPI(batchSubmitter, rpcMetrics, l),
-		})
+		adminAPI := rpc.NewAdminAPI(batchSubmitter, rpcMetrics, l)
+		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		l.Info("Admin RPC enabled")
 	}
 	if err := server.Start(); err != nil {
