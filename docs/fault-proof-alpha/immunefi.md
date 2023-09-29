@@ -8,7 +8,7 @@ and the on-chain infrastructure for the [Dispute Game][dispute-game] are all in 
 
 ### Resources
 
-> **Note** 
+> **Note**
 > Prior to moving forward, we recommended reading into the technical documentation for the components of Fault Proof Alpha.
 
 * [Cannon][cannon] & [Cannon Contracts][cannon-contracts]
@@ -75,7 +75,10 @@ There are several key invariants that must be maintained in order for the system
     1. The honest `op-challenger` must never make a claim that does not support the honest outcome of the dispute game (i.e., the outcome which favors the honest L2 state being considered canonical).
         1. *Note:* Because of the rules in the current solving / resolution mechanism, the challenger will counter all claims that have a different view of the root claim's validity. While this is an inefficiency, it is not considered a violation of this invariant, as this behavior is necessary to ensure that all invalid claims have been countered.
 
-Any bug reports in the form of a proof-of-concept `op-e2e` test that demonstrates a violation of any of the above invariants will be considered valid bug reports and eligible for a reward.
+Bug reports in the form of a proof-of-concept `op-e2e` test that demonstrates a violation of any of the above invariants will be considered valid bug reports and eligible for a reward*.
+
+* All proof of concept reports should be configured to run against the parameters of the system deployed on the `goerli` testnet or with the environment defined in the `op-e2e` `faultproof_test.go` file. Bug reports that otherwise violate the above invariants
+but use custom configurations will be assessed on a case by case basis, and their validity is not guaranteed.
 
 ### Bounty Rewards
 All valid bug reports for Fault Proof Alpha qualify as a low-severity report. See [immunefi][immunefi]
