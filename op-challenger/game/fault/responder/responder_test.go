@@ -70,6 +70,7 @@ func TestResolve(t *testing.T) {
 		err := responder.Resolve(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
+		require.Equal(t, big.NewInt(0), mockTxMgr.sent[0].Value)
 	})
 }
 
@@ -104,6 +105,7 @@ func TestResolveClaim(t *testing.T) {
 		err := responder.ResolveClaim(context.Background(), 0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
+		require.Equal(t, big.NewInt(0), mockTxMgr.sent[0].Value)
 	})
 }
 
@@ -153,6 +155,7 @@ func TestPerformAction(t *testing.T) {
 
 		require.Len(t, mockTxMgr.sent, 1)
 		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.Equal(t, big.NewInt(0), mockTxMgr.sent[0].Value)
 	})
 
 	t.Run("attack with bond", func(t *testing.T) {
@@ -197,6 +200,7 @@ func TestPerformAction(t *testing.T) {
 
 		require.Len(t, mockTxMgr.sent, 1)
 		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.Equal(t, big.NewInt(0), mockTxMgr.sent[0].Value)
 	})
 
 	t.Run("defend with bond", func(t *testing.T) {
@@ -242,6 +246,7 @@ func TestPerformAction(t *testing.T) {
 
 		require.Len(t, mockTxMgr.sent, 1)
 		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.Nil(t, mockTxMgr.sent[0].Value)
 	})
 }
 
