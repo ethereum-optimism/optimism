@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ParseValidateLimit(t *testing.T) {
+func TestParseValidateLimit(t *testing.T) {
 	v := Validator{}
 
 	// (1) Happy case
@@ -25,7 +25,7 @@ func Test_ParseValidateLimit(t *testing.T) {
 	require.Error(t, err, "limit must be an integer value")
 }
 
-func Test_ParseValidateAddress(t *testing.T) {
+func TestParseValidateAddress(t *testing.T) {
 	v := Validator{}
 
 	// (1) Happy case

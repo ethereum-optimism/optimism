@@ -44,24 +44,21 @@ func (h Routes) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	address, err := h.v.ParseValidateAddress(addressValue)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.logger.Error("Invalid address param", "param", addressValue)
-		h.logger.Error(err.Error())
+		h.logger.Error("Invalid address param", "param", addressValue, "err", err)
 		return
 	}
 
 	err = h.v.ValidateCursor(cursor)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.logger.Error("Invalid cursor param", "param", cursor)
-		h.logger.Error(err.Error())
+		h.logger.Error("Invalid cursor param", "param", cursor, "err", err)
 		return
 	}
 
 	limit, err := h.v.ParseValidateLimit(limitQuery)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		h.logger.Error("Invalid query params")
-		h.logger.Error(err.Error())
+		h.logger.Error("Invalid query params", "err", err)
 		return
 	}
 

@@ -447,7 +447,7 @@ func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
 	}
 }
 
-func Test_ClientGetWithdrawals(t *testing.T) {
+func TestClientGetWithdrawals(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	// (1) Generate contract bindings for the L1 and L2 standard bridges
