@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -105,7 +105,7 @@ func TestGetStepData(t *testing.T) {
 			providers:  []types.TraceProvider{&mockOutputProvider},
 			depthTiers: []uint64{40},
 		}
-		_, _, _, err := splitProvider.GetStepData(context.Background(), 0)
+		_, _, _, err := splitProvider.GetStepData(context.Background(), types.NewPosition(0, 0))
 		require.ErrorIs(t, err, mockGetError)
 	})
 }
@@ -119,11 +119,11 @@ type mockTraceProvider struct {
 	getStepDataError                error
 }
 
-func (m *mockTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
+func (m *mockTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	if m.getError != nil {
 		return common.Hash{}, m.getError
 	}
-	return common.BytesToHash([]byte{byte(i)}), nil
+	return common.BytesToHash([]byte{byte(pos.ToGIndex())}), nil
 }
 
 func (m *mockTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error) {
@@ -140,7 +140,7 @@ func (m *mockTraceProvider) AbsolutePreState(ctx context.Context) (preimage []by
 	return []byte{}, nil
 }
 
-func (m *mockTraceProvider) GetStepData(ctx context.Context, i uint64) ([]byte, []byte, *types.PreimageOracleData, error) {
+func (m *mockTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	if m.getStepDataError != nil {
 		return nil, nil, nil, m.getStepDataError
 	}

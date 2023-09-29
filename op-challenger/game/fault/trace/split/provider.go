@@ -15,8 +15,7 @@ var (
 	NoProvidersErr = fmt.Errorf("no trace providers configured")
 )
 
-// todo(refcell): the Get method traceIndex is update to be a Position so we have the depth
-// var _ types.TraceProvider = (*SplitTraceProvider)(nil)
+var _ types.TraceProvider = (*SplitTraceProvider)(nil)
 
 // SplitTraceProvider is a [types.TraceProvider] implementation that
 // routes requests to the correct internal trace provider based on the
@@ -56,8 +55,7 @@ func (s *SplitTraceProvider) Get(ctx context.Context, pos types.Position) (commo
 	}
 	reduced, provider := s.providerForDepth(uint64(pos.Depth()))
 	localizedPosition := pos.Localize(reduced)
-	// todo(refcell): we should just pass the localized position once `Get` is updated to accept a Position
-	return provider.Get(ctx, localizedPosition.ToGIndex())
+	return provider.Get(ctx, localizedPosition)
 }
 
 // AbsolutePreStateCommitment returns the absolute prestate from the lowest internal [types.TraceProvider]
@@ -77,7 +75,7 @@ func (s *SplitTraceProvider) AbsolutePreState(ctx context.Context) (preimage []b
 }
 
 // GetStepData routes the GetStepData request to the lowest internal [types.TraceProvider].
-func (s *SplitTraceProvider) GetStepData(ctx context.Context, i uint64) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+func (s *SplitTraceProvider) GetStepData(ctx context.Context, i types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
 	if len(s.providers) == 0 {
 		return nil, nil, nil, NoProvidersErr
 	}
