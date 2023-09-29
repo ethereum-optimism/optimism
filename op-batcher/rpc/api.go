@@ -3,6 +3,9 @@ package rpc
 import (
 	"context"
 
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
@@ -16,9 +19,10 @@ type adminAPI struct {
 	b batcherClient
 }
 
-func NewAdminAPI(dr batcherClient) *adminAPI {
+func NewAdminAPI(dr batcherClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
-		b: dr,
+		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		b:              dr,
 	}
 }
 

@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -31,7 +32,8 @@ func Main(version string, cliCtx *cli.Context) error {
 	l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
 	oplog.SetGlobalLogHandler(l.GetHandler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
-	m := metrics.NewMetrics("default")
+	procName := "default"
+	m := metrics.NewMetrics(procName)
 	l.Info("Initializing Batch Submitter")
 
 	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l, m)
@@ -79,9 +81,10 @@ func Main(version string, cliCtx *cli.Context) error {
 		oprpc.WithLogger(l),
 	)
 	if cfg.RPCFlag.EnableAdmin {
+		rpcMetrics := opmetrics.NewRPCMetrics(procName, metrics.Namespace)
 		server.AddAPI(gethrpc.API{
 			Namespace: "admin",
-			Service:   rpc.NewAdminAPI(batchSubmitter),
+			Service:   rpc.NewAdminAPI(batchSubmitter, rpcMetrics, l),
 		})
 		l.Info("Admin RPC enabled")
 	}

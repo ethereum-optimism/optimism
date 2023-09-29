@@ -39,8 +39,8 @@ type adminAPI struct {
 
 func NewAdminAPI(dr driverClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
-		dr:             dr,
 		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		dr:             dr,
 	}
 }
 
