@@ -144,7 +144,7 @@ func NewConfig(
 
 		TraceType: traceType,
 
-		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc),
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
 

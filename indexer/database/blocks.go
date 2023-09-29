@@ -2,8 +2,10 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -51,7 +53,7 @@ type BlocksView interface {
 	L2BlockHeaderWithFilter(BlockHeader) (*L2BlockHeader, error)
 	L2LatestBlockHeader() (*L2BlockHeader, error)
 
-	LatestEpoch() (*Epoch, error)
+	LatestObservedEpoch(*big.Int, uint64) (*Epoch, error)
 }
 
 type BlocksDB interface {
@@ -155,36 +157,74 @@ type Epoch struct {
 	L2BlockHeader L2BlockHeader `gorm:"embedded"`
 }
 
-// LatestEpoch return the latest epoch, seen on  L1 & L2. In other words
-// this returns the latest indexed L1 block that has a corresponding
-// indexed L2 block with a matching L1Origin (equal timestamps).
+// LatestObservedEpoch return the marker for latest epoch, observed on  L1 & L2, within
+// the specified bounds. In other words this returns the latest indexed L1 block that has
+// a corresponding indexed L2 block with a matching L1Origin (equal timestamps).
+//
+// If `fromL1Height` (inclusive) is not specified, the search will start from genesis and
+// continue all the way to latest indexed heights if `maxL1Range == 0`.
 //
 // For more, see the protocol spec:
 //   - https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md
-func (db *blocksDB) LatestEpoch() (*Epoch, error) {
-	latestL1Header, err := db.L1LatestBlockHeader()
-	if err != nil {
-		return nil, err
-	} else if latestL1Header == nil {
-		return nil, nil
+func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64) (*Epoch, error) {
+	// We use timestamps since that translates to both L1 & L2
+	var fromTimestamp, toTimestamp uint64
+
+	if fromL1Height == nil {
+		fromL1Height = bigint.Zero
 	}
 
-	latestL2Header, err := db.L2LatestBlockHeader()
-	if err != nil {
-		return nil, err
-	} else if latestL2Header == nil {
-		return nil, nil
+	// Lower Bound (the default `fromTimestamp = 0` suffices genesis representation)
+	if fromL1Height.BitLen() > 0 {
+		var header L1BlockHeader
+		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return nil, nil
+			}
+			return nil, result.Error
+		}
+
+		fromTimestamp = header.Timestamp
 	}
 
-	minTime := latestL1Header.Timestamp
-	if latestL2Header.Timestamp < minTime {
-		minTime = latestL2Header.Timestamp
+	// Upper Bound (lowest timestamp indexed between L1/L2 bounded by `maxL1Range`)
+	{
+		l1QueryFilter := fmt.Sprintf("timestamp >= %d", fromTimestamp)
+		if maxL1Range > 0 {
+			maxHeight := new(big.Int).Add(fromL1Height, big.NewInt(int64(maxL1Range)))
+			l1QueryFilter = fmt.Sprintf("%s AND number <= %d", l1QueryFilter, maxHeight)
+		}
+
+		var l1Header L1BlockHeader
+		result := db.gorm.Where(l1QueryFilter).Order("timestamp DESC").Take(&l1Header)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return nil, nil
+			}
+			return nil, result.Error
+		}
+
+		toTimestamp = l1Header.Timestamp
+
+		var l2Header L2BlockHeader
+		result = db.gorm.Where("timestamp <= ?", toTimestamp).Order("timestamp DESC").Take(&l2Header)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return nil, nil
+			}
+			return nil, result.Error
+		}
+
+		if l2Header.Timestamp < toTimestamp {
+			toTimestamp = l2Header.Timestamp
+		}
 	}
 
-	// This is a faster query than doing an INNER JOIN between l1_block_headers and l2_block_headers
-	// which requires a full table scan to compute the resulting table.
-	l1Query := db.gorm.Table("l1_block_headers").Where("timestamp <= ?", minTime)
-	l2Query := db.gorm.Table("l2_block_headers").Where("timestamp <= ?", minTime)
+	// Search for the latest indexed epoch within range. This is a faster query than doing an INNER JOIN between
+	// l1_block_headers and l2_block_headers which requires a full table scan to compute the resulting table.
+	l1Query := db.gorm.Table("l1_block_headers").Where("timestamp >= ? AND timestamp <= ?", fromTimestamp, toTimestamp)
+	l2Query := db.gorm.Table("l2_block_headers").Where("timestamp >= ? AND timestamp <= ?", fromTimestamp, toTimestamp)
 	query := db.gorm.Raw(`SELECT * FROM (?) AS l1_block_headers, (?) AS l2_block_headers
 		WHERE l1_block_headers.timestamp = l2_block_headers.timestamp
 		ORDER BY l2_block_headers.number DESC LIMIT 1`, l1Query, l2Query)
