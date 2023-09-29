@@ -72,14 +72,13 @@ func Main(version string, cliCtx *cli.Context) error {
 		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
-	rpcCfg := cfg.RPCConfig
 	server := oprpc.NewServer(
-		rpcCfg.ListenAddr,
-		rpcCfg.ListenPort,
+		cfg.RPCFlag.ListenAddr,
+		cfg.RPCFlag.ListenPort,
 		version,
 		oprpc.WithLogger(l),
 	)
-	if rpcCfg.EnableAdmin {
+	if cfg.RPCFlag.EnableAdmin {
 		server.AddAPI(gethrpc.API{
 			Namespace: "admin",
 			Service:   rpc.NewAdminAPI(batchSubmitter),
