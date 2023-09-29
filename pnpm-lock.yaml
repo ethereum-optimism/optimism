@@ -43,8 +43,8 @@ importers:
         specifier: ^6.7.0
         version: 6.7.3(eslint@8.50.0)(typescript@5.2.2)
       chai:
-        specifier: ^4.3.9
-        version: 4.3.9
+        specifier: ^4.3.10
+        version: 4.3.10
       depcheck:
         specifier: ^1.4.3
         version: 1.4.6
@@ -159,7 +159,7 @@ importers:
         version: 5.0.0
       chai-as-promised:
         specifier: ^7.1.1
-        version: 7.1.1(chai@4.3.9)
+        version: 7.1.1(chai@4.3.10)
       dateformat:
         specifier: ^4.5.1
         version: 4.5.1
@@ -175,13 +175,13 @@ importers:
         version: 5.7.0
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
-        version: 2.2.3(ethers@5.7.2)(hardhat@2.17.2)
+        version: 2.2.3(ethers@5.7.2)(hardhat@2.17.4)
       '@nomiclabs/hardhat-waffle':
         specifier: ^2.0.6
-        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3)(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2)
+        version: 2.0.6(@nomiclabs/hardhat-ethers@2.2.3)(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.4)
       hardhat:
-        specifier: ^2.17.2
-        version: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
+        specifier: ^2.17.4
+        version: 2.17.4(ts-node@10.9.1)(typescript@5.2.2)
       ts-node:
         specifier: ^10.9.1
         version: 10.9.1(@types/node@20.7.0)(typescript@5.2.2)
@@ -247,8 +247,8 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@types/express':
-        specifier: ^4.17.17
-        version: 4.17.17
+        specifier: ^4.17.18
+        version: 4.17.18
       '@types/morgan':
         specifier: ^1.9.6
         version: 1.9.6
@@ -259,8 +259,8 @@ importers:
         specifier: ^5.1.4
         version: 5.1.4
       chai:
-        specifier: ^4.3.9
-        version: 4.3.9
+        specifier: ^4.3.10
+        version: 4.3.10
       supertest:
         specifier: ^6.3.3
         version: 6.3.3
@@ -383,8 +383,8 @@ importers:
         specifier: ^5.7.1
         version: 5.7.1
       chai:
-        specifier: ^4.3.9
-        version: 4.3.9
+        specifier: ^4.3.10
+        version: 4.3.10
       ethers:
         specifier: ^5.7.2
         version: 5.7.2
@@ -473,10 +473,10 @@ importers:
         version: 5.7.0
       '@nomiclabs/hardhat-ethers':
         specifier: ^2.2.3
-        version: 2.2.3(ethers@5.7.2)(hardhat@2.17.2)
+        version: 2.2.3(ethers@5.7.2)(hardhat@2.17.4)
       '@nomiclabs/hardhat-waffle':
         specifier: ^2.0.1
-        version: 2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2)
+        version: 2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.4)
       '@types/chai':
         specifier: ^4.3.6
         version: 4.3.6
@@ -491,7 +491,7 @@ importers:
         version: 20.5.0
       chai-as-promised:
         specifier: ^7.1.1
-        version: 7.1.1(chai@4.3.9)
+        version: 7.1.1(chai@4.3.10)
       ethereum-waffle:
         specifier: ^4.0.10
         version: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.2)(typescript@5.2.2)
@@ -499,8 +499,8 @@ importers:
         specifier: ^5.7.2
         version: 5.7.2
       hardhat:
-        specifier: ^2.17.2
-        version: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
+        specifier: ^2.17.4
+        version: 2.17.4(ts-node@10.9.1)(typescript@5.2.2)
       hardhat-deploy:
         specifier: ^0.11.4
         version: 0.11.10
@@ -1848,7 +1848,7 @@ packages:
       '@ethersproject/transactions': 5.7.0
       '@ethersproject/web': 5.7.1
       bufio: 1.2.0
-      chai: 4.3.9
+      chai: 4.3.10
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -2924,17 +2924,17 @@ packages:
       '@nomicfoundation/solidity-analyzer-win32-x64-msvc': 0.1.1
     dev: true
 
-  /@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2)(hardhat@2.17.2):
+  /@nomiclabs/hardhat-ethers@2.2.3(ethers@5.7.2)(hardhat@2.17.4):
     resolution: {integrity: sha512-YhzPdzb612X591FOe68q+qXVXGG2ANZRvDo0RRUtimev85rCrAlv/TLMEZw5c+kq9AbzocLTVX/h2jVIFPL9Xg==}
     peerDependencies:
       ethers: ^5.0.0
       hardhat: ^2.0.0
     dependencies:
       ethers: 5.7.2
-      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
+      hardhat: 2.17.4(ts-node@10.9.1)(typescript@5.2.2)
     dev: true
 
-  /@nomiclabs/hardhat-waffle@2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2):
+  /@nomiclabs/hardhat-waffle@2.0.1(@nomiclabs/hardhat-ethers@2.2.3)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.4):
     resolution: {integrity: sha512-2YR2V5zTiztSH9n8BYWgtv3Q+EL0N5Ltm1PAr5z20uAY4SkkfylJ98CIqt18XFvxTD5x4K2wKBzddjV9ViDAZQ==}
     peerDependencies:
       '@nomiclabs/hardhat-ethers': ^2.0.0
@@ -2942,15 +2942,15 @@ packages:
       ethers: ^5.0.0
       hardhat: ^2.0.0
     dependencies:
-      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.7.2)(hardhat@2.17.2)
+      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.7.2)(hardhat@2.17.4)
       '@types/sinon-chai': 3.2.5
       '@types/web3': 1.0.19
       ethereum-waffle: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.2)(typescript@5.2.2)
       ethers: 5.7.2
-      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
+      hardhat: 2.17.4(ts-node@10.9.1)(typescript@5.2.2)
     dev: true
 
-  /@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3)(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.2):
+  /@nomiclabs/hardhat-waffle@2.0.6(@nomiclabs/hardhat-ethers@2.2.3)(@types/sinon-chai@3.2.5)(ethereum-waffle@4.0.10)(ethers@5.7.2)(hardhat@2.17.4):
     resolution: {integrity: sha512-+Wz0hwmJGSI17B+BhU/qFRZ1l6/xMW82QGXE/Gi+WTmwgJrQefuBs1lIf7hzQ1hLk6hpkvb/zwcNkpVKRYTQYg==}
     peerDependencies:
       '@nomiclabs/hardhat-ethers': ^2.0.0
@@ -2959,11 +2959,11 @@ packages:
       ethers: ^5.0.0
       hardhat: ^2.0.0
     dependencies:
-      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.7.2)(hardhat@2.17.2)
+      '@nomiclabs/hardhat-ethers': 2.2.3(ethers@5.7.2)(hardhat@2.17.4)
       '@types/sinon-chai': 3.2.5
       ethereum-waffle: 4.0.10(@ensdomains/ens@0.4.5)(@ensdomains/resolver@0.2.4)(@ethersproject/abi@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.2)(typescript@5.2.2)
       ethers: 5.7.2
-      hardhat: 2.17.2(ts-node@10.9.1)(typescript@5.2.2)
+      hardhat: 2.17.4(ts-node@10.9.1)(typescript@5.2.2)
     dev: true
 
   /@nrwl/nx-cloud@16.4.0:
@@ -3902,8 +3902,8 @@ packages:
       '@types/send': 0.17.1
     dev: true
 
-  /@types/express@4.17.17:
-    resolution: {integrity: sha512-Q4FmmuLGBG58btUnfS1c1r/NQdlp3DMfGDGig8WhfpA2YRUtEkxAjkZb0yvplJGYdF1fsQ81iMDcH24sSCNC/Q==}
+  /@types/express@4.17.18:
+    resolution: {integrity: sha512-Sxv8BSLLgsBYmcnGdGjjEjqET2U+AKAdCRODmMiq02FgjwuV75Ut85DRpvFjyw/Mk0vgUOliGRU0UUmuuZHByQ==}
     dependencies:
       '@types/body-parser': 1.19.1
       '@types/express-serve-static-core': 4.17.35
@@ -4485,7 +4485,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.1
       '@vitest/utils': 0.34.1
-      chai: 4.3.9
+      chai: 4.3.10
     dev: true
 
   /@vitest/expect@0.34.2:
@@ -4493,7 +4493,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.2
       '@vitest/utils': 0.34.2
-      chai: 4.3.9
+      chai: 4.3.10
     dev: true
 
   /@vitest/expect@0.34.4:
@@ -4501,7 +4501,7 @@ packages:
     dependencies:
       '@vitest/spy': 0.34.4
       '@vitest/utils': 0.34.4
-      chai: 4.3.9
+      chai: 4.3.10
     dev: true
 
   /@vitest/runner@0.34.1:
@@ -6309,26 +6309,25 @@ packages:
     resolution: {integrity: sha512-vlNK021QdI7PNeiUh/lKkC/mNHHfV0m/Ad5JoI0TYtlBnJAslM/JIkm/tGC88bkLIwO6OQ5uV6ztS6kVAtCDlg==}
     dev: true
 
-  /chai-as-promised@7.1.1(chai@4.3.9):
+  /chai-as-promised@7.1.1(chai@4.3.10):
     resolution: {integrity: sha512-azL6xMoi+uxu6z4rhWQ1jbdUhOMhis2PvscD/xjLqNMkv3BPPp2JyyuTHOrf9BOosGpNQ11v6BKv/g57RXbiaA==}
     peerDependencies:
       chai: '>= 2.1.2 < 5'
     dependencies:
-      chai: 4.3.9
+      chai: 4.3.10
       check-error: 1.0.2
 
-  /chai@4.3.8:
-    resolution: {integrity: sha512-vX4YvVVtxlfSZ2VecZgFUTU5qPCYsobVI2O9FmwEXBhDigYGQA6jRXCycIs1yJnnWbZ6/+a2zNIF5DfVCcJBFQ==}
+  /chai@4.3.10:
+    resolution: {integrity: sha512-0UXG04VuVbruMUYbJ6JctvH0YnC/4q3/AkT18q4NaITo91CUm0liMS9VqzT9vZhVQ/1eqPanMWjBM+Juhfb/9g==}
     engines: {node: '>=4'}
     dependencies:
       assertion-error: 1.1.0
-      check-error: 1.0.2
+      check-error: 1.0.3
       deep-eql: 4.1.3
       get-func-name: 2.0.2
       loupe: 2.3.6
       pathval: 1.1.1
       type-detect: 4.0.8
-    dev: true
 
   /chai@4.3.9:
     resolution: {integrity: sha512-tH8vhfA1CfuYMkALXj+wmZcqiwqOfshU9Gry+NYiiLqIddrobkBhALv6XD4yDz68qapphYI4vSaqhqAdThCAAA==}
@@ -6341,6 +6340,7 @@ packages:
       loupe: 2.3.6
       pathval: 1.1.1
       type-detect: 4.0.8
+    dev: true
 
   /chalk@2.4.2:
     resolution: {integrity: sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ==}
@@ -8979,8 +8979,8 @@ packages:
       - utf-8-validate
     dev: true
 
-  /hardhat@2.17.2(ts-node@10.9.1)(typescript@5.2.2):
-    resolution: {integrity: sha512-oUv40jBeHw0dKpbyQ+iH9cmNMziweLoTW3MnkNxJ2Gc0KGLrQR/1n4vV4xY60zn2LdmRgnwPqy3CgtY0mfwIIA==}
+  /hardhat@2.17.4(ts-node@10.9.1)(typescript@5.2.2):
+    resolution: {integrity: sha512-YTyHjVc9s14CY/O7Dbtzcr/92fcz6AzhrMaj6lYsZpYPIPLzOrFCZHHPxfGQB6FiE6IPNE0uJaAbr7zGF79goA==}
     hasBin: true
     peerDependencies:
       ts-node: '*'
@@ -13414,7 +13414,7 @@ packages:
     dev: true
 
   /strip-hex-prefix@1.0.0:
-    resolution: {integrity: sha1-DF8VX+8RUTczd96du1iNoFUA428=}
+    resolution: {integrity: sha512-q8d4ue7JGEiVcypji1bALTos+0pWtyGlivAWyPuTkHzuTCJqrK9sWxYQZUq6Nq3cuyv3bm734IhHvHtGGURU6A==}
     engines: {node: '>=6.5.0', npm: '>=3'}
     dependencies:
       is-hex-prefixed: 1.0.0
@@ -14640,7 +14640,7 @@ packages:
       acorn: 8.10.0
       acorn-walk: 8.2.0
       cac: 6.7.14
-      chai: 4.3.9
+      chai: 4.3.10
       debug: 4.3.4(supports-color@8.1.1)
       local-pkg: 0.4.3
       magic-string: 0.30.1
@@ -14705,7 +14705,7 @@ packages:
       acorn: 8.10.0
       acorn-walk: 8.2.0
       cac: 6.7.14
-      chai: 4.3.9
+      chai: 4.3.10
       debug: 4.3.4(supports-color@8.1.1)
       jsdom: 22.1.0
       local-pkg: 0.4.3
@@ -14771,7 +14771,7 @@ packages:
       acorn: 8.10.0
       acorn-walk: 8.2.0
       cac: 6.7.14
-      chai: 4.3.8
+      chai: 4.3.9
       debug: 4.3.4(supports-color@8.1.1)
       local-pkg: 0.4.3
       magic-string: 0.30.1
