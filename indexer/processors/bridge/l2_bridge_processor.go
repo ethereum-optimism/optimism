@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,7 +18,7 @@ import (
 //  1. OptimismPortal
 //  2. L2CrossDomainMessenger
 //  3. L2StandardBridge
-func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
+func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2Metricer, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L2ToL1MessagePasser
 	l2ToL1MPMessagesPassed, err := contracts.L2ToL1MessagePasserMessagePassedEvents(l2Contracts.L2ToL1MessagePasser, db, fromHeight, toHeight)
 	if err != nil {
@@ -44,6 +45,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
 		}
+		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals))
 	}
 
 	// (2) L2CrossDomainMessenger
@@ -56,7 +58,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 	}
 
 	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
-	l2BridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
+	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
@@ -68,13 +70,13 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 			return fmt.Errorf("expected MessagePassedEvent preceding SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash.String())
 		}
 
-		l2BridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
+		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
 	}
-
-	if len(l2BridgeMessages) > 0 {
-		if err := db.BridgeMessages.StoreL2BridgeMessages(l2BridgeMessages); err != nil {
+	if len(bridgeMessages) > 0 {
+		if err := db.BridgeMessages.StoreL2BridgeMessages(bridgeMessages); err != nil {
 			return err
 		}
+		metrics.RecordL2CrossDomainSentMessages(len(bridgeMessages))
 	}
 
 	// (3) L2StandardBridge
@@ -86,7 +88,8 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 		log.Info("detected bridge withdrawals", "size", len(initiatedBridges))
 	}
 
-	l2BridgeWithdrawals := make([]database.L2BridgeWithdrawal, len(initiatedBridges))
+	bridgedTokens := make(map[common.Address]int)
+	bridgeWithdrawals := make([]database.L2BridgeWithdrawal, len(initiatedBridges))
 	for i := range initiatedBridges {
 		initiatedBridge := initiatedBridges[i]
 
@@ -103,12 +106,18 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
-		l2BridgeWithdrawals[i] = database.L2BridgeWithdrawal{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeTransfer: initiatedBridge.BridgeTransfer}
+		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+		bridgeWithdrawals[i] = database.L2BridgeWithdrawal{
+			TransactionWithdrawalHash: messagePassed.WithdrawalHash,
+			BridgeTransfer:            initiatedBridge.BridgeTransfer,
+		}
 	}
-
-	if len(l2BridgeWithdrawals) > 0 {
-		if err := db.BridgeTransfers.StoreL2BridgeWithdrawals(l2BridgeWithdrawals); err != nil {
+	if len(bridgeWithdrawals) > 0 {
+		if err := db.BridgeTransfers.StoreL2BridgeWithdrawals(bridgeWithdrawals); err != nil {
 			return err
+		}
+		for tokenAddr, size := range bridgedTokens {
+			metrics.RecordL2InitiatedBridgeTransfers(tokenAddr, size)
 		}
 	}
 
@@ -122,7 +131,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 //  2. L2StandardBridge (no-op, since this is simply a wrapper over the L2CrossDomainMEssenger)
 //
 // NOTE: Unlike L1, there's no L2ToL1MessagePasser stage since transaction deposits are apart of the block derivation process.
-func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
+func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L2Metricer, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L2CrossDomainMessenger
 	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l2", l2Contracts.L2CrossDomainMessenger, db, fromHeight, toHeight)
 	if err != nil {
@@ -149,6 +158,9 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 			return err
 		}
 	}
+	if len(relayedMessages) > 0 {
+		metrics.RecordL2CrossDomainRelayedMessages(len(relayedMessages))
+	}
 
 	// (2) L2StandardBridge
 	finalizedBridges, err := contracts.StandardBridgeFinalizedEvents("l2", l2Contracts.L2StandardBridge, db, fromHeight, toHeight)
@@ -159,6 +171,7 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 		log.Info("detected finalized bridge deposits", "size", len(finalizedBridges))
 	}
 
+	finalizedTokens := make(map[common.Address]int)
 	for i := range finalizedBridges {
 		// Nothing actionable on the database. However, we can treat the relayed message
 		// as an invariant by ensuring we can query for a deposit by the same hash
@@ -169,14 +182,20 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, l2Contracts
 			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash.String())
 		}
 
-		// Since the message hash is computed from the relayed message, this ensures the withdrawal fields must match. For good measure,
-		// we may choose to make sure `deposit.BridgeTransfer` matches with the finalized bridge
+		// Since the message hash is computed from the relayed message, this ensures the withdrawal fields must match
 		deposit, err := db.BridgeTransfers.L1BridgeDepositWithFilter(database.BridgeTransfer{CrossDomainMessageHash: &relayedMessage.MessageHash})
 		if err != nil {
 			return err
 		} else if deposit == nil {
 			log.Error("missing L1StandardBridge deposit on L2 finalization", "tx_hash", finalizedBridge.Event.TransactionHash.String())
 			return errors.New("missing L1StandardBridge deposit on L2 finalization")
+		}
+
+		finalizedTokens[finalizedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+	}
+	if len(finalizedBridges) > 0 {
+		for tokenAddr, size := range finalizedTokens {
+			metrics.RecordL2FinalizedBridgeTransfers(tokenAddr, size)
 		}
 	}
 
