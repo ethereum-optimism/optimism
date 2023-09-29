@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/etl"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processors"
+	"github.com/ethereum-optimism/optimism/indexer/processors/bridge"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 )
@@ -82,7 +83,7 @@ func NewIndexer(
 	}
 
 	// Bridge
-	bridgeProcessor, err := processors.NewBridgeProcessor(log, db, l1Etl, chainConfig)
+	bridgeProcessor, err := processors.NewBridgeProcessor(log, db, bridge.NewMetrics(metricsRegistry), l1Etl, chainConfig)
 	if err != nil {
 		return nil, err
 	}

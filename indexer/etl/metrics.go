@@ -16,7 +16,6 @@ type Metricer interface {
 	RecordInterval() (done func(err error))
 
 	// Batch Extraction
-	RecordBatchFailure()
 	RecordBatchLatestHeight(height *big.Int)
 	RecordBatchHeaders(size int)
 	RecordBatchLog(contractAddress common.Address)
@@ -108,15 +107,11 @@ func (m *etlMetrics) RecordInterval() func(error) {
 	timer := prometheus.NewTimer(m.intervalDuration)
 	return func(err error) {
 		if err != nil {
-			m.RecordBatchFailure()
+			m.batchFailures.Inc()
 		}
 
 		timer.ObserveDuration()
 	}
-}
-
-func (m *etlMetrics) RecordBatchFailure() {
-	m.batchFailures.Inc()
 }
 
 func (m *etlMetrics) RecordBatchLatestHeight(height *big.Int) {
