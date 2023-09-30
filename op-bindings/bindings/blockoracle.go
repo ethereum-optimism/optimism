@@ -36,8 +36,8 @@ type BlockOracleBlockInfo struct {
 
 // BlockOracleMetaData contains all meta data concerning the BlockOracle contract.
 var BlockOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"BlockHashNotPresent\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"Hash\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"name\":\"Checkpoint\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"checkpoint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"load\",\"outputs\":[{\"components\":[{\"internalType\":\"Hash\",\"name\":\"hash\",\"type\":\"bytes32\"},{\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"internalType\":\"structBlockOracle.BlockInfo\",\"name\":\"blockInfo_\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b5061021c806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c806399d548aa1461003b578063c2c4c5c114610078575b600080fd5b61004e6100493660046101b8565b61008e565b604080518251815260209283015167ffffffffffffffff1692810192909252015b60405180910390f35b61008061010d565b60405190815260200161006f565b604080518082018252600080825260209182018190528381528082528281208351808501909452805480855260019091015467ffffffffffffffff169284019290925203610108576040517f37cf270500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b919050565b600061011a6001436101d1565b60408051808201825282408082524267ffffffffffffffff81811660208086018281526000898152918290528782209651875551600190960180547fffffffffffffffffffffffffffffffffffffffffffffffff000000000000000016969093169590951790915593519495509093909291849186917fb67ff58b33060fd371a35ae2d9f1c3cdaec9b8197969f6efe2594a1ff4ba68c691a4505090565b6000602082840312156101ca57600080fd5b5035919050565b60008282101561020a577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[],\"name\":\"BlockHashNotPresent\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"Hash\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"name\":\"Checkpoint\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"checkpoint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"load\",\"outputs\":[{\"components\":[{\"internalType\":\"Hash\",\"name\":\"hash\",\"type\":\"bytes32\"},{\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"internalType\":\"structBlockOracle.BlockInfo\",\"name\":\"blockInfo_\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b506102e7806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c806354fd4d501461004657806399d548aa14610098578063c2c4c5c1146100d0575b600080fd5b6100826040518060400160405280600581526020017f302e302e3100000000000000000000000000000000000000000000000000000081525081565b60405161008f9190610210565b60405180910390f35b6100ab6100a6366004610283565b6100e6565b604080518251815260209283015167ffffffffffffffff16928101929092520161008f565b6100d8610165565b60405190815260200161008f565b604080518082018252600080825260209182018190528381528082528281208351808501909452805480855260019091015467ffffffffffffffff169284019290925203610160576040517f37cf270500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b919050565b600061017260014361029c565b60408051808201825282408082524267ffffffffffffffff81811660208086018281526000898152918290528782209651875551600190960180547fffffffffffffffffffffffffffffffffffffffffffffffff000000000000000016969093169590951790915593519495509093909291849186917fb67ff58b33060fd371a35ae2d9f1c3cdaec9b8197969f6efe2594a1ff4ba68c691a4505090565b600060208083528351808285015260005b8181101561023d57858101830151858201604001528201610221565b8181111561024f576000604083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016929092016040019392505050565b60006020828403121561029557600080fd5b5035919050565b6000828210156102d5577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
 }
 
 // BlockOracleABI is the input ABI used to generate the binding from.
@@ -236,6 +236,37 @@ func (_BlockOracle *BlockOracleSession) Load(_blockNumber *big.Int) (BlockOracle
 // Solidity: function load(uint256 _blockNumber) view returns((bytes32,uint64) blockInfo_)
 func (_BlockOracle *BlockOracleCallerSession) Load(_blockNumber *big.Int) (BlockOracleBlockInfo, error) {
 	return _BlockOracle.Contract.Load(&_BlockOracle.CallOpts, _blockNumber)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_BlockOracle *BlockOracleCaller) Version(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _BlockOracle.contract.Call(opts, &out, "version")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_BlockOracle *BlockOracleSession) Version() (string, error) {
+	return _BlockOracle.Contract.Version(&_BlockOracle.CallOpts)
+}
+
+// Version is a free data retrieval call binding the contract method 0x54fd4d50.
+//
+// Solidity: function version() view returns(string)
+func (_BlockOracle *BlockOracleCallerSession) Version() (string, error) {
+	return _BlockOracle.Contract.Version(&_BlockOracle.CallOpts)
 }
 
 // Checkpoint is a paid mutator transaction binding the contract method 0xc2c4c5c1.
