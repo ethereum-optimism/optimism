@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -83,8 +82,7 @@ func Main(version string, cliCtx *cli.Context) error {
 		oprpc.WithLogger(l),
 	)
 	if cfg.RPCFlag.EnableAdmin {
-		rpcMetrics := opmetrics.NewRPCMetrics(procName, metrics.Namespace)
-		adminAPI := rpc.NewAdminAPI(batchSubmitter, rpcMetrics, l)
+		adminAPI := rpc.NewAdminAPI(batchSubmitter, &m.RPCMetrics, l)
 		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		l.Info("Admin RPC enabled")
 	}

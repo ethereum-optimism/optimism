@@ -80,7 +80,7 @@ type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
 
-	*metrics.RPCMetrics
+	metrics.RPCMetrics
 
 	L1SourceCache *CacheMetrics
 	L2SourceCache *CacheMetrics
@@ -175,7 +175,7 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "1 if the op node has finished starting up",
 		}),
 
-		RPCMetrics: metrics.NewRPCMetrics(procName, Namespace),
+		RPCMetrics: metrics.MakeRPCMetrics(ns, factory),
 
 		L1SourceCache: NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
 		L2SourceCache: NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),

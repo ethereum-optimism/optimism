@@ -7,7 +7,6 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 )
 
 const (
@@ -30,20 +29,10 @@ type RPCMetrics struct {
 	RPCClientResponsesTotal         *prometheus.CounterVec
 }
 
-// NewRPCMetrics creates a new RPCMetrics instance with the given process name, and
+// MakeRPCMetrics creates a new RPCMetrics instance with the given process name, and
 // namespace for the service.
-func NewRPCMetrics(procName, namespace string) *RPCMetrics {
-	if procName == "" {
-		procName = "default"
-	}
-	ns := namespace + "_" + procName
-
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	registry.MustRegister(collectors.NewGoCollector())
-	factory := With(registry)
-
-	return &RPCMetrics{
+func MakeRPCMetrics(ns string, factory Factory) RPCMetrics {
+	return RPCMetrics{
 		RPCServerRequestsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: RPCServerSubsystem,
