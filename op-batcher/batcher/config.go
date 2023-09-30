@@ -96,6 +96,8 @@ type CLIConfig struct {
 }
 
 func (c CLIConfig) Check() error {
+	// TODO: check the sanity of flags loaded directly like MaxPendingTransactions
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -103,6 +105,9 @@ func (c CLIConfig) Check() error {
 		return err
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.RPCFlag.Check(); err != nil {
 		return err
 	}
 	return nil

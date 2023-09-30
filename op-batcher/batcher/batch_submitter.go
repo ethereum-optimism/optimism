@@ -27,6 +27,9 @@ func Main(version string, cliCtx *cli.Context) error {
 		return err
 	}
 	cfg := NewConfig(cliCtx)
+	if err := cfg.Check(); err != nil {
+		return fmt.Errorf("invalid CLI flags: %w", err)
+	}
 
 	l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
 	oplog.SetGlobalLogHandler(l.GetHandler())
