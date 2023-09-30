@@ -42,6 +42,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		}
 	}
 	if len(transactionDeposits) > 0 {
+		log.Info("storing transaction deposits", "deposits", fmt.Sprintf("%+v", transactionDeposits))
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
 		}
