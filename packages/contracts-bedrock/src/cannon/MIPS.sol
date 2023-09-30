@@ -77,7 +77,7 @@ contract MIPS {
     }
 
     /// @notice Computes the hash of the MIPS state.
-    /// @return out_ The hash of the MIPS state.
+    /// @return out_ The hashed MIPS state.
     function outputState() internal returns (bytes32 out_) {
         assembly {
             // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
@@ -141,6 +141,7 @@ contract MIPS {
     }
 
     /// @notice Handles a syscall.
+    /// @return out_ The hashed MIPS state.
     function handleSyscall() internal returns (bytes32 out_) {
         unchecked {
             // Load state from memory
@@ -372,7 +373,7 @@ contract MIPS {
     /// @param _rs The value of the RS register.
     /// @param _rt The value of the RT register.
     /// @param _storeReg The register to store the result in.
-    /// @return out_ The hash of the resulting MIPS state.
+    /// @return out_ The hashed MIPS state.
     function handleHiLo(uint32 _func, uint32 _rs, uint32 _rt, uint32 _storeReg) internal returns (bytes32 out_) {
         unchecked {
             // Load state from memory
