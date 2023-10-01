@@ -3,7 +3,7 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "forge-std/Test.sol";
 import "scripts/libraries/LibSort.sol";
-import { ModuleManager, Safe as GnosisSafe } from "safe-contracts/Safe.sol";
+import { ModuleManager, GuardManager, Safe as GnosisSafe } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
@@ -228,6 +228,22 @@ library SafeTestLib {
             address(instance.safe),
             0,
             abi.encodeWithSelector(ModuleManager.disableModule.selector, prevModule, module),
+            Enum.Operation.Call,
+            0,
+            0,
+            0,
+            address(0),
+            address(0),
+            ""
+        );
+    }
+
+    function setGuard(SafeInstance memory instance, address guard) public {
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(GuardManager.setGuard.selector, guard),
             Enum.Operation.Call,
             0,
             0,
