@@ -62,7 +62,7 @@
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
     "vite": "^4.4.6",
-    "vitest": "^0.34.2"
+    "vitest": "^0.34.6"
   },
   "peerDependencies": {
     "@wagmi/core": ">1.0.0",
