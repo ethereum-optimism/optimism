@@ -6,7 +6,7 @@ import "safe-contracts/interfaces/ERC721TokenReceiver.sol";
 import "safe-contracts/interfaces/ERC777TokensRecipient.sol";
 import "safe-contracts/interfaces/IERC165.sol";
 import "safe-contracts/interfaces/ISignatureValidator.sol";
-import "safe-contracts/GnosisSafe.sol";
+import { Safe as GnosisSafe } from "safe-contracts/Safe.sol";
 
 /// @dev NOTE: removed VERSION and NAME due to inheritance conflicts
 contract DefaultCallbackHandler is ERC1155TokenReceiver, ERC777TokensRecipient, ERC721TokenReceiver, IERC165 {
