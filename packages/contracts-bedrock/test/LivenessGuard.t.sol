@@ -27,7 +27,7 @@ contract LivnessGuard_TestInit is Test, SafeTestTools {
     function setUp() public {
         safeInstance = _setupSafe();
         livenessGuard = new LivenessGuard(safeInstance.safe);
-        safeInstance.enableModule(address(livenessGuard));
+        safeInstance.setGuard(address(livenessGuard));
     }
 }
 
@@ -37,7 +37,6 @@ contract LivnessGuard_TestCheckTx is LivnessGuard_TestInit {
     function test_checkTransaction_succeeds() external {
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
 
-        // bug signers need to be sorted from low to high
         for (uint256 i; i < safeInstance.owners.length; i++) {
             assertEq(livenessGuard.lastSigned(safeInstance.owners[i]), block.timestamp);
         }

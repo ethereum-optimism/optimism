@@ -15,12 +15,11 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
     }
 
     /// @notice We just need to satisfy the BaseGuard interfae, but we don't actually need to use this method.
-    function checkAfterExecution(bytes32 txHash, bool success) external {
+    function checkAfterExecution(bytes32, bool) external pure {
         return;
     }
 
-    /// @notice This checkTransaction implementation records the most recent time which any owner has signed a
-    /// transaction.
+    /// @notice Records the most recent time which any owner has signed a transaction.
     function checkTransaction(
         address to,
         uint256 value,
@@ -32,7 +31,7 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
         address gasToken,
         address payable refundReceiver,
         bytes memory signatures,
-        address msgSender
+        address
     )
         external
     {
@@ -43,7 +42,7 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
         }
 
         // This is a bit of a hack, maybe just replicate the functionality here rather than calling home
-        bytes memory txHashData = Safe(payable(msg.sender)).encodeTransactionData(
+        bytes32 txHash = Safe(payable(msg.sender)).getTransactionHash(
             // Transaction info
             to,
             value,
@@ -56,23 +55,22 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
             gasToken,
             refundReceiver,
             // Signature info
-            Safe(payable(msg.sender)).nonce() // check that this works
         );
-        address[] memory signers = _getNSigners(keccak256(txHashData), signatures);
+        address[] memory signers = _getNSigners(txHash, signatures);
         for (uint256 i = 0; i < signers.length; i++) {
             lastSigned[signers[i]] = block.timestamp;
         }
     }
 
-    function _getNSigners(bytes32 dataHash, bytes memory signatures) internal returns (address[] memory _owners) {
-        uint256 numSignatures = signatures.length / 65; // division OK?
+    /// @notice Exctract the signers from a set of signatures.
+    function _getNSigners(bytes32 dataHash, bytes memory signatures) internal pure returns (address[] memory _owners) {
+        uint256 numSignatures = signatures.length / 65;
         _owners = new address[](numSignatures);
 
-        // The following code is extracted from the Safe.checkNSignatures() method. It removes the signature validation
-        // code,
-        // and keeps only the parsing code necessary to extract the owner addresses from the signatures.
-        // We do not double check if the owner derived from a signature is valid. As tHis is handled in
-        // the final require statement of Safe.checkNSignatures().
+        /// The following code is extracted from the Safe.checkNSignatures() method. It removes the signature
+        /// validation code, and keeps only the parsing code necessary to extract the owner addresses from the
+        /// signatures. We do not double check if the owner derived from a signature is valid. As this is handled
+        /// in the final require statement of Safe.checkNSignatures().
         address currentOwner;
         uint8 v;
         bytes32 r;
