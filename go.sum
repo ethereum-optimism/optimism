@@ -179,6 +179,8 @@ github.com/ethereum-optimism/op-geth v1.101301.0-rc.2 h1:CoZuN0uuEqoXlKu3iirnGlf
 github.com/ethereum-optimism/op-geth v1.101301.0-rc.2/go.mod h1:N++/klTCpY0UAU9tXFOyOEtvkjgHlNZkzzXm5I/1kzM=
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20230921190252-f29074de9e36 h1:HGDz8DcAkHvZy+iPnBa8yr4MdLqKpb7oAks01P08JOg=
 github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20230921190252-f29074de9e36/go.mod h1:q0u2UbyOr1q/y94AgMOj/V8b1KO05ZwILTR/qKt7Auo=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231001123245-7b48d3818686 h1:f57hd8G96c8ORWd4ameFpveSnHcb0hA2D1VatviwoDc=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231001123245-7b48d3818686/go.mod h1:q0u2UbyOr1q/y94AgMOj/V8b1KO05ZwILTR/qKt7Auo=
 github.com/ethereum/c-kzg-4844 v0.3.1 h1:sR65+68+WdnMKxseNWxSJuAv2tsUrihTpVBTfM/U5Zg=
 github.com/ethereum/c-kzg-4844 v0.3.1/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072/go.mod h1:duJ4Jxv5lDcvg4QuQr0oowTf7dz4/CR8NtyCooz9HL8=
