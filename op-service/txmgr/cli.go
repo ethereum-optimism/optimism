@@ -9,7 +9,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-signer/client"
+	opsigner "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,7 +19,7 @@ import (
 const (
 	// Duplicated L1 RPC flag
 	L1RPCFlagName = "l1-eth-rpc"
-	// Key Management Flags (also have op-signer client flags)
+	// Key Management Flags (also have signer client flags)
 	MnemonicFlagName   = "mnemonic"
 	HDPathFlagName     = "hd-path"
 	PrivateKeyFlagName = "private-key"
@@ -145,7 +145,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Value:   defaults.ReceiptQueryInterval,
 			EnvVars: prefixEnvVars("TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
-	}, client.CLIFlags(envPrefix)...)
+	}, opsigner.CLIFlags(envPrefix)...)
 }
 
 type CLIConfig struct {
@@ -155,7 +155,7 @@ type CLIConfig struct {
 	SequencerHDPath           string
 	L2OutputHDPath            string
 	PrivateKey                string
-	SignerCLIConfig           client.CLIConfig
+	SignerCLIConfig           opsigner.CLIConfig
 	NumConfirmations          uint64
 	SafeAbortNonceTooLowCount uint64
 	ResubmissionTimeout       time.Duration
@@ -175,7 +175,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		TxSendTimeout:             defaults.TxSendTimeout,
 		TxNotInMempoolTimeout:     defaults.TxNotInMempoolTimeout,
 		ReceiptQueryInterval:      defaults.ReceiptQueryInterval,
-		SignerCLIConfig:           client.NewCLIConfig(),
+		SignerCLIConfig:           opsigner.NewCLIConfig(),
 	}
 }
 
@@ -215,7 +215,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		SequencerHDPath:           ctx.String(SequencerHDPathFlag.Name),
 		L2OutputHDPath:            ctx.String(L2OutputHDPathFlag.Name),
 		PrivateKey:                ctx.String(PrivateKeyFlagName),
-		SignerCLIConfig:           client.ReadCLIConfig(ctx),
+		SignerCLIConfig:           opsigner.ReadCLIConfig(ctx),
 		NumConfirmations:          ctx.Uint64(NumConfirmationsFlagName),
 		SafeAbortNonceTooLowCount: ctx.Uint64(SafeAbortNonceTooLowCountFlagName),
 		ResubmissionTimeout:       ctx.Duration(ResubmissionTimeoutFlagName),

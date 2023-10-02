@@ -25,6 +25,7 @@ const (
 	zoraGoerli  = 999
 	zoraMainnet = 7777777
 	labsDevnet  = 997
+	chaosnet    = 888
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -69,6 +70,8 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		regolithTime = 1679079600
 	case labsDevnet:
 		regolithTime = 1677984480
+	case chaosnet:
+		regolithTime = 1692156862
 	}
 
 	cfg := &Config{
@@ -102,7 +105,7 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
 		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
 	}
-	if chainID == labsDevnet {
+	if chainID == labsDevnet || chainID == chaosnet {
 		cfg.ChannelTimeout = 120
 		cfg.MaxSequencerDrift = 1200
 	}

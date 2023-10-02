@@ -16,7 +16,6 @@ COPY ./op-proposer /app/op-proposer
 COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-service /app/op-service
-COPY ./op-signer /app/op-signer
 COPY ./.git /app/.git
 
 WORKDIR /app/op-proposer

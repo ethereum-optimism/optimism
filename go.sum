@@ -175,10 +175,10 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
-github.com/ethereum-optimism/op-geth v1.101301.0-rc.2 h1:CoZuN0uuEqoXlKu3iirnGlfsO1nKcIvvbyFZqUVmYN4=
-github.com/ethereum-optimism/op-geth v1.101301.0-rc.2/go.mod h1:N++/klTCpY0UAU9tXFOyOEtvkjgHlNZkzzXm5I/1kzM=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20230921190252-f29074de9e36 h1:HGDz8DcAkHvZy+iPnBa8yr4MdLqKpb7oAks01P08JOg=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20230921190252-f29074de9e36/go.mod h1:q0u2UbyOr1q/y94AgMOj/V8b1KO05ZwILTR/qKt7Auo=
+github.com/ethereum-optimism/op-geth v1.101301.0-rc.2.0.20231002141926-1e6910b91798 h1:WRaF/uniRnlxTVlMfFWPtMe9NefzZWg/8Fc93Nao76w=
+github.com/ethereum-optimism/op-geth v1.101301.0-rc.2.0.20231002141926-1e6910b91798/go.mod h1:p02vxGt8jcF8pCwkUU5Oy56X8/JsM1Js+KC+fwihVgk=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231001123245-7b48d3818686 h1:f57hd8G96c8ORWd4ameFpveSnHcb0hA2D1VatviwoDc=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231001123245-7b48d3818686/go.mod h1:q0u2UbyOr1q/y94AgMOj/V8b1KO05ZwILTR/qKt7Auo=
 github.com/ethereum/c-kzg-4844 v0.3.1 h1:sR65+68+WdnMKxseNWxSJuAv2tsUrihTpVBTfM/U5Zg=
 github.com/ethereum/c-kzg-4844 v0.3.1/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072/go.mod h1:duJ4Jxv5lDcvg4QuQr0oowTf7dz4/CR8NtyCooz9HL8=

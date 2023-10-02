@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer"
+	"github.com/ethereum-optimism/optimism/indexer/api"
+	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 
@@ -21,8 +23,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+/*
+	NOTE - Most of the current bridge tests fetch chain data via direct database queries. These could all
+	be transitioned to use the API client instead to better simulate/validate real-world usage.
+	Supporting this would potentially require adding new API endpoints for the specific query lookup types.
+*/
+
 type E2ETestSuite struct {
 	t *testing.T
+
+	// API
+	Client *client.Client
+	API    *api.API
 
 	// Indexer
 	DB      *database.DB
@@ -37,6 +49,7 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
+// createE2ETestSuite ... Create a new E2E test suite
 func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
@@ -105,14 +118,54 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	require.NoError(t, err)
 
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
-	t.Cleanup(func() { indexerStop() })
 	go func() {
 		err := indexer.Run(indexerCtx)
-		require.NoError(t, err)
+		if err != nil { // panicking here ensures that the test will exit
+			// during service failure. Using t.Fail() wouldn't be caught
+			// until all awaiting routines finish which would never happen.
+			panic(err)
+		}
 	}()
+
+	apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
+
+	apiCfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 0,
+	}
+
+	mCfg := config.ServerConfig{
+		Host: "127.0.0.1",
+		Port: 0,
+	}
+
+	api := api.NewApi(apiLog, db.BridgeTransfers, apiCfg, mCfg)
+	apiCtx, apiStop := context.WithCancel(context.Background())
+	go func() {
+		err := api.Run(apiCtx)
+		if err != nil {
+			panic(err)
+		}
+	}()
+
+	t.Cleanup(func() {
+		apiStop()
+		indexerStop()
+	})
+
+	// Wait for the API to start listening
+	time.Sleep(1 * time.Second)
+
+	client, err := client.NewClient(&client.Config{
+		PaginationLimit: 100,
+		BaseURL:         fmt.Sprintf("http://%s:%d", apiCfg.Host, api.Port()),
+	})
+
+	require.NoError(t, err)
 
 	return E2ETestSuite{
 		t:        t,
+		Client:   client,
 		DB:       db,
 		Indexer:  indexer,
 		OpCfg:    &opCfg,

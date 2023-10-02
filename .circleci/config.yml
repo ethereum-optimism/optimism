@@ -1381,6 +1381,22 @@ workflows:
             branches:
               ignore: /.*/
       - docker-release:
+           name: op-heartbeat-release
+           filters:
+             tags:
+               only: /^op-heartbeat\/v.*/
+             branches:
+               ignore: /.*/
+           docker_file: op-heartbeat/Dockerfile
+           docker_name: op-heartbeat
+           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+           docker_context: .
+           platforms: "linux/amd64,linux/arm64"
+           context:
+             - oplabs-gcr-release
+           requires:
+             - hold
+      - docker-release:
           name: op-node-docker-release
           filters:
             tags:

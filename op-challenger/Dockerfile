@@ -18,7 +18,6 @@ COPY ./op-preimage /app/op-preimage
 COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-service /app/op-service
-COPY ./op-signer /app/op-signer
 COPY ./.git /app/.git
 
 # Copy cannon and its dependencies

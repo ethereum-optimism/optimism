@@ -18,6 +18,7 @@
   "src/L2/L2StandardBridge.sol": "0xfe01bcb1ddc947b9b8a7093d0971854b9fa8d49da5bd933a3dd106167907f882",
   "src/L2/L2ToL1MessagePasser.sol": "0xafc710b4d320ef450586d96a61cbd58cac814cb3b0c4fdc280eace3efdcdf321",
   "src/L2/SequencerFeeVault.sol": "0xc2f733c1128d06ad60bf1e1d98c8f684a4825b11875ccdf2376ede33f5aad4e6",
+  "src/dispute/BlockOracle.sol": "0x7e724b1ee0116dfd744f556e6237af449c2f40c6426d6f1462ae2a47589283bb",
   "src/dispute/DisputeGameFactory.sol": "0xfdfa141408d7f8de7e230ff4bef088e30d0e4d569ca743d60d292abdd21ff270",
   "src/dispute/FaultDisputeGame.sol": "0xfdf4be4d6ed4bcbf6492c43fdbfd04d0c62ebee11b8fe9ee2e7757bde8f7383d",
   "src/legacy/DeployerWhitelist.sol": "0x0a6840074734c9d167321d3299be18ef911a415e4c471fa92af7d6cfaa8336d4",
