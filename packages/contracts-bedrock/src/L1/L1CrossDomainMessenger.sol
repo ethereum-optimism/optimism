@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { OptimismPortal } from "./OptimismPortal.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { ISemver } from "../universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @custom:proxied

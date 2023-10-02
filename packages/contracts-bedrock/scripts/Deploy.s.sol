@@ -116,7 +116,7 @@ contract Deploy is Deployer {
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
     function implSalt() public returns (bytes32) {
-        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ether's phoenix"))));
+        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
     }
 
     /// @notice Modifier that wraps a function in broadcasting.
@@ -628,7 +628,6 @@ contract Deploy is Deployer {
 
     /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
     function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
 
         bytes memory data =

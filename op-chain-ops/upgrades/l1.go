@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -14,33 +15,33 @@ import (
 )
 
 // L1 will add calls for upgrading each of the L1 contracts.
-func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
-	if err := L1CrossDomainMessenger(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
+	if err := L1CrossDomainMessenger(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading L1CrossDomainMessenger: %w", err)
 	}
-	if err := L1ERC721Bridge(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+	if err := L1ERC721Bridge(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading L1ERC721Bridge: %w", err)
 	}
-	if err := L1StandardBridge(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+	if err := L1StandardBridge(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading L1StandardBridge: %w", err)
 	}
-	if err := L2OutputOracle(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+	if err := L2OutputOracle(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading L2OutputOracle: %w", err)
 	}
-	if err := OptimismMintableERC20Factory(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+	if err := OptimismMintableERC20Factory(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading OptimismMintableERC20Factory: %w", err)
 	}
-	if err := OptimismPortal(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+	if err := OptimismPortal(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading OptimismPortal: %w", err)
 	}
-	if err := SystemConfig(batch, implementations, list, config, chainConfig); err != nil {
-		return err
+	if err := SystemConfig(batch, implementations, list, config, chainConfig, backend); err != nil {
+		return fmt.Errorf("upgrading SystemConfig: %w", err)
 	}
 	return nil
 }
 
 // L1CrossDomainMessenger will add a call to the batch that upgrades the L1CrossDomainMessenger.
-func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -79,7 +80,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 }
 
 // L1ERC721Bridge will add a call to the batch that upgrades the L1ERC721Bridge.
-func L1ERC721Bridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func L1ERC721Bridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -118,7 +119,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 }
 
 // L1StandardBridge will add a call to the batch that upgrades the L1StandardBridge.
-func L1StandardBridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func L1StandardBridge(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -157,7 +158,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 }
 
 // L2OutputOracle will add a call to the batch that upgrades the L2OutputOracle.
-func L2OutputOracle(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func L2OutputOracle(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -173,17 +174,47 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return fmt.Errorf("no initialize method")
 	}
 
-	l2OutputOracleStartingBlockNumber := new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber)
-	if config.L2OutputOracleStartingTimestamp < 0 {
-		return fmt.Errorf("L2OutputOracleStartingBlockNumber must be concrete")
+	var l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp *big.Int
+	var l2OutputOracleProposer, l2OutputOracleChallenger common.Address
+	if config != nil {
+		l2OutputOracleStartingBlockNumber = new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber)
+		if config.L2OutputOracleStartingTimestamp < 0 {
+			return fmt.Errorf("L2OutputOracleStartingTimestamp must be concrete")
+		}
+		l2OutputOracleStartingTimestamp = new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp))
+		l2OutputOracleProposer = config.L2OutputOracleProposer
+		l2OutputOracleChallenger = config.L2OutputOracleChallenger
+	} else {
+		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
+		if err != nil {
+			return err
+		}
+		l2OutputOracleStartingBlockNumber, err = l2OutputOracle.StartingBlockNumber(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+
+		l2OutputOracleStartingTimestamp, err = l2OutputOracle.StartingTimestamp(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+
+		l2OutputOracleProposer, err = l2OutputOracle.PROPOSER(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+
+		l2OutputOracleChallenger, err = l2OutputOracle.CHALLENGER(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
 	}
-	l2OutputOraclesStartingTimestamp := new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp))
 
 	calldata, err := initialize.Inputs.PackValues([]any{
 		l2OutputOracleStartingBlockNumber,
-		l2OutputOraclesStartingTimestamp,
-		config.L2OutputOracleProposer,
-		config.L2OutputOracleChallenger,
+		l2OutputOracleStartingTimestamp,
+		l2OutputOracleProposer,
+		l2OutputOracleChallenger,
 	})
 	if err != nil {
 		return err
@@ -205,7 +236,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 }
 
 // OptimismMintableERC20Factory will add a call to the batch that upgrades the OptimismMintableERC20Factory.
-func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -244,7 +275,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 }
 
 // OptimismPortal will add a call to the batch that upgrades the OptimismPortal.
-func OptimismPortal(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func OptimismPortal(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -260,9 +291,24 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return fmt.Errorf("no initialize method")
 	}
 
+	var portalGuardian common.Address
+	if config != nil {
+		portalGuardian = config.PortalGuardian
+	} else {
+		optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
+		if err != nil {
+			return err
+		}
+		guardian, err := optimismPortal.GUARDIAN(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		portalGuardian = guardian
+	}
+
 	calldata, err := initialize.Inputs.PackValues([]any{
 		common.HexToAddress(list.L2OutputOracleProxy.String()),
-		config.PortalGuardian,
+		portalGuardian,
 		common.HexToAddress(chainConfig.SystemConfigAddr.String()),
 		false,
 	})
@@ -286,7 +332,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 }
 
 // SystemConfig will add a call to the batch that upgrades the SystemConfig.
-func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig) error {
+func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -302,11 +348,67 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return fmt.Errorf("no initialize method")
 	}
 
-	gasPriceOracleOverhead := new(big.Int).SetUint64(config.GasPriceOracleOverhead)
-	gasPriceOracleScalar := new(big.Int).SetUint64(config.GasPriceOracleScalar)
-	batcherHash := common.BytesToHash(config.BatchSenderAddress.Bytes())
-	l2GenesisBlockGasLimit := uint64(config.L2GenesisBlockGasLimit)
-	startBlock := new(big.Int).SetUint64(config.SystemConfigStartBlock)
+	// If we want to be able to override these based on the values in the config,
+	// the logic below will need to be updated. Right now the logic prefers the
+	// on chain values over the offchain values. This to maintain backwards compatibility
+	// in the short term.
+	startBlock := big.NewInt(0)
+	batchInboxAddress := common.HexToAddress(chainConfig.BatchInboxAddr.String())
+
+	var gasPriceOracleOverhead, gasPriceOracleScalar *big.Int
+	var batcherHash common.Hash
+	var p2pSequencerAddress, finalSystemOwner common.Address
+	var l2GenesisBlockGasLimit uint64
+
+	if config != nil {
+		gasPriceOracleOverhead = new(big.Int).SetUint64(config.GasPriceOracleOverhead)
+		gasPriceOracleScalar = new(big.Int).SetUint64(config.GasPriceOracleScalar)
+		batcherHash = common.BytesToHash(config.BatchSenderAddress.Bytes())
+		l2GenesisBlockGasLimit = uint64(config.L2GenesisBlockGasLimit)
+		startBlock = new(big.Int).SetUint64(config.SystemConfigStartBlock)
+		batchInboxAddress = config.BatchInboxAddress
+		p2pSequencerAddress = config.P2PSequencerAddress
+		finalSystemOwner = config.FinalSystemOwner
+	} else {
+		systemConfig, err := bindings.NewSystemConfigCaller(common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
+		if err != nil {
+			return err
+		}
+		gasPriceOracleOverhead, err = systemConfig.Overhead(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		gasPriceOracleScalar, err = systemConfig.Scalar(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		batcherHash, err = systemConfig.BatcherHash(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		l2GenesisBlockGasLimit, err = systemConfig.GasLimit(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		// StartBlock is a new property, we want to explicitly set it to 0 if there is an error fetching it
+		systemConfigStartBlock, err := systemConfig.StartBlock(&bind.CallOpts{})
+		if err != nil && systemConfigStartBlock != nil {
+			startBlock = systemConfigStartBlock
+		}
+		// BatchInboxAddress is a new property, we want to set it to the offchain value if there is an error fetching it
+		systemConfigBatchInboxAddress, err := systemConfig.BatchInbox(&bind.CallOpts{})
+		if err != nil && systemConfigBatchInboxAddress != (common.Address{}) {
+			batchInboxAddress = systemConfigBatchInboxAddress
+		}
+		p2pSequencerAddress, err = systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		finalSystemOwner, err = systemConfig.Owner(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+	}
 
 	addresses := bindings.SystemConfigAddresses{
 		L1CrossDomainMessenger:       common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
@@ -317,17 +419,16 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		OptimismMintableERC20Factory: common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
 	}
 
-	// This is more complex
 	calldata, err := initialize.Inputs.PackValues([]any{
-		config.FinalSystemOwner,
+		finalSystemOwner,
 		gasPriceOracleOverhead,
 		gasPriceOracleScalar,
 		batcherHash,
 		l2GenesisBlockGasLimit,
-		config.P2PSequencerAddress,
+		p2pSequencerAddress,
 		genesis.DefaultResourceConfig,
 		startBlock,
-		config.BatchInboxAddress,
+		batchInboxAddress,
 		addresses,
 	})
 	if err != nil {

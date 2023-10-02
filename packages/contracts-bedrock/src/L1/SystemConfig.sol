@@ -6,7 +6,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import { Slot } from "src/libraries/Slot.sol";
+import { Storage } from "src/libraries/Storage.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title SystemConfig
@@ -184,14 +184,14 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
 
-        Slot.setAddress(BATCH_INBOX_SLOT, _batchInbox);
-        Slot.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
-        Slot.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
-        Slot.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Slot.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
-        Slot.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
-        Slot.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
-        Slot.setAddress(SUPERCHAIN_CONFIG_SLOT, _superchainConfig);
+        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
+        Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
+        Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
+        Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
+        Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
+        Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
+        Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
+        Storage.setAddress(SUPERCHAIN_CONFIG_SLOT, _superchainConfig);
 
         _setStartBlock(_startBlock);
 
@@ -215,47 +215,47 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @return addr_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
     function unsafeBlockSigner() public view returns (address addr_) {
-        addr_ = Slot.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
+        addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }
 
     /// @notice Getter for the SuperChainConfig address.
     function superchainConfig() public view returns (address addr_) {
-        addr_ = Slot.getAddress(SUPERCHAIN_CONFIG_SLOT);
+        addr_ = Storage.getAddress(SUPERCHAIN_CONFIG_SLOT);
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
     function l1CrossDomainMessenger() external view returns (address addr_) {
-        addr_ = Slot.getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
+        addr_ = Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
     }
 
     /// @notice Getter for the L1ERC721Bridge address.
     function l1ERC721Bridge() external view returns (address addr_) {
-        addr_ = Slot.getAddress(L1_ERC_721_BRIDGE_SLOT);
+        addr_ = Storage.getAddress(L1_ERC_721_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L1StandardBridge address.
     function l1StandardBridge() external view returns (address addr_) {
-        addr_ = Slot.getAddress(L1_STANDARD_BRIDGE_SLOT);
+        addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L2OutputOracle address.
     function l2OutputOracle() external view returns (address addr_) {
-        addr_ = Slot.getAddress(L2_OUTPUT_ORACLE_SLOT);
+        addr_ = Storage.getAddress(L2_OUTPUT_ORACLE_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
     function optimismPortal() external view returns (address addr_) {
-        addr_ = Slot.getAddress(OPTIMISM_PORTAL_SLOT);
+        addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
     /// @notice Getter for the OptimismMintableERC20Factory address.
     function optimismMintableERC20Factory() external view returns (address addr_) {
-        addr_ = Slot.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.
     function batchInbox() external view returns (address addr_) {
-        addr_ = Slot.getAddress(BATCH_INBOX_SLOT);
+        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
@@ -311,7 +311,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        Slot.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
+        Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);

@@ -1,4 +1,4 @@
-package client
+package signer
 
 import (
 	"math/big"

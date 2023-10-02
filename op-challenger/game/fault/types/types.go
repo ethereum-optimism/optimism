@@ -64,13 +64,13 @@ type OracleUpdater interface {
 type TraceProvider interface {
 	// Get returns the claim value at the requested index.
 	// Get(i) = Keccak256(GetPreimage(i))
-	Get(ctx context.Context, i uint64) (common.Hash, error)
+	Get(ctx context.Context, i Position) (common.Hash, error)
 
 	// GetStepData returns the data required to execute the step at the specified trace index.
 	// This includes the pre-state of the step (not hashed), the proof data required during step execution
 	// and any pre-image data that needs to be loaded into the oracle prior to execution (may be nil)
 	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
-	GetStepData(ctx context.Context, i uint64) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+	GetStepData(ctx context.Context, i Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreState(ctx context.Context) (preimage []byte, err error)

@@ -99,29 +99,31 @@ func entrypoint(ctx *cli.Context) error {
 	batch := safe.Batch{}
 
 	for _, chainConfig := range targets {
-		name, err := toDeployConfigName(chainConfig)
-		if err != nil {
-			log.Warn("Skipping unsupported network", "name", chainConfig.Name)
-			continue
-		}
-
+		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
 		if err != nil {
-			return err
+			log.Warn("Cannot find deploy config for network", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig)
+		}
+
+		if config != nil {
+			log.Info("Checking deploy config validity", "name", chainConfig.Name)
+			if err := config.Check(); err != nil {
+				return fmt.Errorf("error checking deploy config: %w", err)
+			}
 		}
 
 		clients, err := clients.NewClients(ctx.String("l1-rpc-url"), chainConfig.PublicRPC)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot create RPC clients: %w", err)
 		}
 
 		l1ChainID, err := clients.L1Client.ChainID(ctx.Context)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot fetch L1 chain ID: %w", err)
 		}
 		l2ChainID, err := clients.L2Client.ChainID(ctx.Context)
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot fetch L2 chain ID: %w", err)
 		}
 		log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
 
@@ -164,15 +166,19 @@ func entrypoint(ctx *cli.Context) error {
 		log.Info("OptimismPortal", "version", list.OptimismPortal.Version, "address", list.OptimismPortal.Address)
 		log.Info("SystemConfig", "version", list.SystemConfig.Version, "address", list.SystemConfig.Address)
 
+		// Ensure that the superchain registry information is correct by checking the
+		// actual versions based on what the registry says is true.
 		if err := upgrades.CheckL1(ctx.Context, &list, clients.L1Client); err != nil {
 			return fmt.Errorf("error checking L1: %w", err)
 		}
 
-		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig); err != nil {
+		// Build the batch
+		if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
 			return err
 		}
 	}
 
+	// Write the batch to disk or stdout
 	if outfile := ctx.Path("outfile"); outfile != "" {
 		if err := writeJSON(outfile, batch); err != nil {
 			return err
@@ -206,6 +212,9 @@ func toDeployConfigName(cfg *superchain.ChainConfig) (string, error) {
 	}
 	if cfg.Name == "OP-Mainnet" {
 		return "mainnet", nil
+	}
+	if cfg.Name == "Zora Goerli" {
+		return "zora-goerli", nil
 	}
 	return "", fmt.Errorf("unsupported chain name %s", cfg.Name)
 }

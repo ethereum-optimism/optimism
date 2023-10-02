@@ -98,8 +98,6 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
 github.com/ethereum-optimism/optimism/op-service v0.10.14 h1:MC+rVwtPfX1aPAKA3855DQaCnhjjp4uFcSr8PY7HmaE=
 github.com/ethereum-optimism/optimism/op-service v0.10.14/go.mod h1:8ay6Bs3YHaX+FbJRUGSbxBnXRtEbKXNHMhtJqATrBmY=
-github.com/ethereum-optimism/optimism/op-signer v0.1.1 h1:Ts6aWd5/nTQ8ZRFZhpOrrcWpnVmdp4fRfff1mvybnGs=
-github.com/ethereum-optimism/optimism/op-signer v0.1.1/go.mod h1:HK+9do1IJmDr9aEc44ECweYbCLDfGGYO7PBwTqDNrqI=
 github.com/ethereum/c-kzg-4844 v0.3.0 h1:3Y3hD6l5i0dEYsBL50C+Om644kve3pNqoAcvE26o9zI=
 github.com/ethereum/c-kzg-4844 v0.3.0/go.mod h1:WI2Nd82DMZAAZI1wV2neKGost9EKjvbpQR9OqE5Qqa8=
 github.com/ethereum/go-ethereum v1.12.1 h1:1kXDPxhLfyySuQYIfRxVBGYuaHdxNNxevA73vjIwsgk=

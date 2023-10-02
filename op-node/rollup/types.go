@@ -79,6 +79,8 @@ type Config struct {
 	// Active if CanyonTime != nil && L2 block timestamp >= *CanyonTime, inactive otherwise.
 	CanyonTime *uint64 `json:"canyon_time,omitempty"`
 
+	SpanBatchTime *uint64 `json:"span_batch_time,omitempty"`
+
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
@@ -268,6 +270,10 @@ func (c *Config) IsCanyon(timestamp uint64) bool {
 	return c.CanyonTime != nil && timestamp >= *c.CanyonTime
 }
 
+func (c *Config) IsSpanBatch(timestamp uint64) bool {
+	return c.SpanBatchTime != nil && timestamp >= *c.SpanBatchTime
+}
+
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
@@ -296,6 +302,7 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += "Post-Bedrock Network Upgrades (timestamp based):\n"
 	banner += fmt.Sprintf("  - Regolith: %s\n", fmtForkTimeOrUnset(c.RegolithTime))
 	banner += fmt.Sprintf("  - Canyon: %s\n", fmtForkTimeOrUnset(c.CanyonTime))
+	banner += fmt.Sprintf("  - SpanBatch: %s\n", fmtForkTimeOrUnset(c.SpanBatchTime))
 	// Report the protocol version
 	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
 	return banner
@@ -321,7 +328,9 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l1_network", networkL1, "l2_start_time", c.Genesis.L2Time, "l2_block_hash", c.Genesis.L2.Hash.String(),
 		"l2_block_number", c.Genesis.L2.Number, "l1_block_hash", c.Genesis.L1.Hash.String(),
 		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime),
-		"canyon_time", fmtForkTimeOrUnset(c.CanyonTime))
+		"canyon_time", fmtForkTimeOrUnset(c.CanyonTime),
+		"span_batch_time", fmtForkTimeOrUnset(c.SpanBatchTime),
+	)
 }
 
 func fmtForkTimeOrUnset(v *uint64) string {

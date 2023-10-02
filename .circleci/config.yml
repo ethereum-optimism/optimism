@@ -875,14 +875,14 @@ jobs:
       - run:
           name: generate L1 state
           command: make devnet-allocs
-      - store_test_results:
-          path: /test-results
       - run:
           name: Test
           command: |
             mkdir -p /test-results
-            DB_USER=postgres gotestsum --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=4 ./...
+            DB_USER=postgres gotestsum --format=standard-verbose --junitfile=/test-results/indexer_tests.xml -- -parallel=4 ./...
           working_directory: indexer
+      - store_test_results:
+          path: /test-results
       - run:
           name: Build
           command: make indexer
@@ -1380,6 +1380,22 @@ workflows:
               only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
+      - docker-release:
+           name: op-heartbeat-release
+           filters:
+             tags:
+               only: /^op-heartbeat\/v.*/
+             branches:
+               ignore: /.*/
+           docker_file: op-heartbeat/Dockerfile
+           docker_name: op-heartbeat
+           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+           docker_context: .
+           platforms: "linux/amd64,linux/arm64"
+           context:
+             - oplabs-gcr-release
+           requires:
+             - hold
       - docker-release:
           name: op-node-docker-release
           filters:
