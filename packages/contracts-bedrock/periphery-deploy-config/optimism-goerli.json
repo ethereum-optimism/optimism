@@ -16,9 +16,9 @@
   "faucetGelatoBalanceV1Value": 1000000000000000000,
   "faucetGelatoThreshold": 100000000000000000,
   "faucetOnchainAuthModuleAdmin": "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
-  "faucetOnchainAuthModuleAdminDripInterval": 86400,
-  "faucetOnchainAuthModuleAdminDripValue": 1000000000000000000,
+  "faucetOnchainAuthModuleTtl": 86400,
+  "faucetOnchainAuthModuleAmount": 1000000000000000000,
   "faucetOffchainAuthModuleAdmin": "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
-  "faucetOffchainAuthModuleAdminDripInterval": 86400,
-  "faucetOffchainAuthModuleAdminDripValue": 50000000000000000
+  "faucetOffchainAuthModuleTtl": 86400,
+  "faucetOffchainAuthModuleAmount": 50000000000000000
 }

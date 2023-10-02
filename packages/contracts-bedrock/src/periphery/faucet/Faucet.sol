@@ -125,10 +125,10 @@ contract Faucet {
         emit Drip(config.name, _auth.id, config.amount, _params.recipient);
     }
 
-    /// @notice Returns the enable status of a given auth module.
+    /// @notice Returns the enable value of a given auth module.
     /// @param _module module to check.
     /// @return bool enabled status of auth modulew.
-    function getModuleStatus(IFaucetAuthModule _module) public view returns (bool) {
+    function isModuleEnabled(IFaucetAuthModule _module) public view returns (bool) {
         return modules[_module].enabled;
     }
 }

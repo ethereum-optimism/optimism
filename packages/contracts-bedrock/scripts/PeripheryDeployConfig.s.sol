@@ -29,11 +29,11 @@ contract PeripheryDeployConfig is Script {
     uint256 public faucetGelatoBalanceV1Value;
     uint256 public faucetGelatoThreshold;
     address public faucetOnchainAuthModuleAdmin;
-    uint256 public faucetOnchainAuthModuleAdminDripInterval;
-    uint256 public faucetOnchainAuthModuleAdminDripValue;
+    uint256 public faucetOnchainAuthModuleTtl;
+    uint256 public faucetOnchainAuthModuleAmount;
     address public faucetOffchainAuthModuleAdmin;
-    uint256 public faucetOffchainAuthModuleAdminDripInterval;
-    uint256 public faucetOffchainAuthModuleAdminDripValue;
+    uint256 public faucetOffchainAuthModuleTtl;
+    uint256 public faucetOffchainAuthModuleAmount;
 
     constructor(string memory _path) {
         console.log("PeripheryDeployConfig: reading file %s", _path);
@@ -61,10 +61,10 @@ contract PeripheryDeployConfig is Script {
         faucetGelatoBalanceV1Value = stdJson.readUint(_json, "$.faucetGelatoBalanceV1Value");
         faucetGelatoThreshold = stdJson.readUint(_json, "$.faucetGelatoThreshold");
         faucetOnchainAuthModuleAdmin = stdJson.readAddress(_json, "$.faucetOnchainAuthModuleAdmin");
-        faucetOnchainAuthModuleAdminDripInterval = stdJson.readUint(_json, "$.faucetOnchainAuthModuleAdminDripInterval");
-        faucetOnchainAuthModuleAdminDripValue = stdJson.readUint(_json, "$.faucetOnchainAuthModuleAdminDripValue");
+        faucetOnchainAuthModuleTtl = stdJson.readUint(_json, "$.faucetOnchainAuthModuleTtl");
+        faucetOnchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOnchainAuthModuleAmount");
         faucetOffchainAuthModuleAdmin = stdJson.readAddress(_json, "$.faucetOffchainAuthModuleAdmin");
-        faucetOffchainAuthModuleAdminDripInterval = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAdminDripInterval");
-        faucetOffchainAuthModuleAdminDripValue = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAdminDripValue");
+        faucetOffchainAuthModuleTtl = stdJson.readUint(_json, "$.faucetOffchainAuthModuleTtl");
+        faucetOffchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAmount");
     }
 }

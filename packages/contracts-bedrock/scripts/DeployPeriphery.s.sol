@@ -459,15 +459,15 @@ contract DeployPeriphery is Deployer {
         string memory moduleName = "OnChainAuthModule";
         Faucet faucet = Faucet(mustGetAddress("Faucet"));
         AdminFaucetAuthModule onChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
-        if (faucet.getModuleStatus(onChainAuthModule)) {
+        if (faucet.isModuleEnabled(onChainAuthModule)) {
             console.log("%s already installed.", moduleName);
         } else {
             console.log("Installing %s", moduleName);
             Faucet.ModuleConfig memory myModuleConfig = Faucet.ModuleConfig({
                 name: moduleName,
                 enabled: true,
-                ttl: cfg.faucetOnchainAuthModuleAdminDripInterval(),
-                amount: cfg.faucetOnchainAuthModuleAdminDripValue()
+                ttl: cfg.faucetOnchainAuthModuleTtl(),
+                amount: cfg.faucetOnchainAuthModuleAmount()
             });
             faucet.configure(onChainAuthModule, myModuleConfig);
             console.log("%s installed successfully", moduleName);
@@ -479,15 +479,15 @@ contract DeployPeriphery is Deployer {
         string memory moduleName = "OffChainAuthModule";
         Faucet faucet = Faucet(mustGetAddress("Faucet"));
         AdminFaucetAuthModule offChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
-        if (faucet.getModuleStatus(offChainAuthModule)) {
+        if (faucet.isModuleEnabled(offChainAuthModule)) {
             console.log("%s already installed.", moduleName);
         } else {
             console.log("Installing %s", moduleName);
             Faucet.ModuleConfig memory myModuleConfig = Faucet.ModuleConfig({
                 name: moduleName,
                 enabled: true,
-                ttl: cfg.faucetOffchainAuthModuleAdminDripInterval(),
-                amount: cfg.faucetOffchainAuthModuleAdminDripValue()
+                ttl: cfg.faucetOffchainAuthModuleTtl(),
+                amount: cfg.faucetOffchainAuthModuleAmount()
             });
             faucet.configure(offChainAuthModule, myModuleConfig);
             console.log("%s installed successfully", moduleName);
