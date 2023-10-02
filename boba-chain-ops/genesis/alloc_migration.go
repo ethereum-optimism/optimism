@@ -17,6 +17,7 @@ import (
 	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/turbo/trie"
 	"github.com/ledgerwatch/log/v3"
 	"golang.org/x/exp/slices"
 )
@@ -88,12 +89,13 @@ var genesisTmpDB kv.RwDB
 var genesisDBLock sync.Mutex
 
 // This function is from erigon/core/genesis_write.go
-func AllocToGenesis(g *types.Genesis, head *types.Header) (*state.IntraBlockState, error) {
+func AllocToGenesis(g *types.Genesis, head *types.Header) (*state.IntraBlockState, common.Hash, error) {
 	var statedb *state.IntraBlockState
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
 	var err error
+	var root common.Hash
 
 	go func() { // we may run inside write tx, can't open 2nd write tx in same goroutine
 		// TODO(yperbasis): use memdb.MemoryMutation instead
@@ -162,23 +164,24 @@ func AllocToGenesis(g *types.Genesis, head *types.Header) (*state.IntraBlockStat
 		}
 
 		// apply all the changes
-
 		if err = statedb.FinalizeTx(&chain.Rules{}, w); err != nil {
 			return
 		}
-		// We override the root hash with the one from legacy genesis
-		// if root, err = trie.CalcRoot("genesis", tx); err != nil {
-		// 	return
-		// }
+
+		root, err = trie.CalcRoot("transition", tx)
+		if err != nil {
+			return
+		}
+
 	}()
 
 	wg.Wait()
 
 	if err != nil {
-		return nil, err
+		return nil, libcommon.Hash{}, err
 	}
 
-	return statedb, nil
+	return statedb, root, nil
 }
 
 func sortedAllocKeys(m types.GenesisAlloc) []string {

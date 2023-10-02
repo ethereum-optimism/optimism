@@ -26,28 +26,6 @@ It performs the following integrity checks:
 
 Run `make boba-migrate`
 
-## boba-rollover
-
-This package performs state regenesis for creating a legacy chain in erigon. The new chain is only readable and is not compatible with v3. It takes the following input:
-
-1. An `alloaction.json` file that contains a list of pre-allocated accounts.
-2. A `genesis.json` file that contains the genesis block configuration.
-
-3. A list of addresses that transacted on the network prior to this past regenesis.
-
-It creates an initialized erigon database as output. It does this by performing the following steps:
-
-1. Migrate the ETH balance from the storage of OVM ETH contract to the balance field in genesis and delete the ETH balance storage slot.
-
-It performs the following integrity checks:
-
-1. OVM ETH storage slots must be completely accounted for.
-2. The total supply of OVM ETH migrated must match the total supply of the OVM ETH contract.
-
-### Compilation
-
-Run `make boba-rollover`
-
 ## boba-regenerate
 
 This pacakge performs the chain regeneration via calling engine api. It does this by performing the following steps:
@@ -92,17 +70,6 @@ This package generates a clean genesis file for devent. It only includes the pre
 ### Compilation
 
 Run `make boba-devnet`
-
-## boba-connect
-
-This package generates a transition block between the legacy and new systems. It does this by performing the following steps:
-
-1. A configuration file to get the timestamp of the transition block.
-2. Use the engine api to create an empty block with the right block timestamp
-
-### Compilation
-
-Run `make boba-connect`
 
 # Migration
 

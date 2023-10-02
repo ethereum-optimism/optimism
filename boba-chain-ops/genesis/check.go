@@ -22,6 +22,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
+	erigonstate "github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/log/v3"
@@ -144,6 +145,8 @@ func PostCheckMigratedDB(
 	l1ChainID uint64,
 	finalSystemOwner libcommon.Address,
 	proxyAdminOwner libcommon.Address,
+	transitionBlockNumber uint64,
+	timestamp int,
 	info *L1BlockInfo,
 ) error {
 	log.Info("Validating database migration")
@@ -161,21 +164,41 @@ func PostCheckMigratedDB(
 	if num == nil {
 		return fmt.Errorf("cannot find header number for %s", hash)
 	}
-	if *num != 0 {
-		return fmt.Errorf("expected chain tip to be block 0, but got %d", *num)
+
+	if *num != transitionBlockNumber {
+		return fmt.Errorf("expected transition block number to be %d, but got %d", transitionBlockNumber, *num)
 	}
 
 	header := rawdb.ReadHeader(tx, hash, *num)
 	log.Info("Read header from database", "number", *num)
+	if header.GasLimit != g.GasLimit {
+		return fmt.Errorf("expected gas limit to be %d, but got %d", g.GasLimit, header.GasLimit)
+	}
+	if header.Time != uint64(timestamp) {
+		return fmt.Errorf("expected timestamp to be %d, but got %d", timestamp, header.Time)
+	}
+	parentHeader := rawdb.ReadHeader(tx, header.ParentHash, header.Number.Uint64()-1)
+	if parentHeader == nil {
+		return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
+	}
+
+	genesisBlock, err := rawdb.ReadBlockByNumber(tx, 0)
+	if err != nil {
+		return fmt.Errorf("failed to read genesis header from database: %w", err)
+	}
 
 	bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
-	if header.Hash() != bobaGenesisHash {
-		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, header.Hash())
+	if genesisBlock.Hash() != bobaGenesisHash {
+		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisBlock.Hash())
 	}
 
 	bobaGenesisExtraData := common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
-	if !bytes.Equal(header.Extra, bobaGenesisExtraData) {
-		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, header.Extra)
+	if !bytes.Equal(genesisBlock.Header().Extra, bobaGenesisExtraData) {
+		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, genesisBlock.Header().Extra)
+	}
+
+	if err := CheckPreBedrockAllocation(tx); err != nil {
+		return err
 	}
 
 	if err := PostCheckBobaProxyContracts(g); err != nil {
@@ -900,6 +923,21 @@ func CheckWithdrawalsAfter(tx kv.Tx, data crossdomain.MigrationData, l1CrossDoma
 	}
 	if innerErr != nil {
 		return fmt.Errorf("error checking storage slots: %w", innerErr)
+	}
+	return nil
+}
+
+func CheckPreBedrockAllocation(tx kv.Tx) error {
+	hash := rawdb.ReadHeadHeaderHash(tx)
+	num := rawdb.ReadHeaderNumber(tx, hash)
+	if num == nil {
+		return fmt.Errorf("cannot find header number for %s", hash)
+	}
+
+	dumper := erigonstate.NewDumper(tx, *num-1, false)
+	result := dumper.RawDump(false, false)
+	if len(result.Accounts) != 0 {
+		return fmt.Errorf("pre-bedrock allocation is not empty")
 	}
 	return nil
 }

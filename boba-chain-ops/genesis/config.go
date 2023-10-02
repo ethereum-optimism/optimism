@@ -44,10 +44,11 @@ type DeployConfig struct {
 	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
 	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
 
-	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
-	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
-	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
-	L2OutputOracleChallenger         common.Address `json:"l2OutputOracleChallenger"`
+	L2OutputOracleSubmissionInterval  uint64         `json:"l2OutputOracleSubmissionInterval"`
+	L2OutputOracleStartingTimestamp   int            `json:"l2OutputOracleStartingTimestamp"`
+	L2OutputOracleProposer            common.Address `json:"l2OutputOracleProposer"`
+	L2OutputOracleChallenger          common.Address `json:"l2OutputOracleChallenger"`
+	L2OutputOracleStartingBlockNumber uint64         `json:"l2OutputOracleStartingBlockNumber"`
 
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
@@ -134,7 +135,7 @@ type DeployConfig struct {
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
 	if d.L1StartingBlockTag == nil {
-		return fmt.Errorf("%w: L2StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
+		return fmt.Errorf("%w: L1StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
 	}
 	if d.L1ChainID == 0 {
 		return fmt.Errorf("%w: L1ChainID cannot be 0", ErrInvalidDeployConfig)
@@ -147,6 +148,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.FinalizationPeriodSeconds == 0 {
 		return fmt.Errorf("%w: FinalizationPeriodSeconds cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2OutputOracleStartingBlockNumber == 0 {
+		log.Warn("L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains")
 	}
 	if d.PortalGuardian == (common.Address{}) {
 		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)

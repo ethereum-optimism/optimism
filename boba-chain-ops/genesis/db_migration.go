@@ -3,19 +3,23 @@ package genesis
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/ledgerwatch/erigon-lib/chain"
-	"github.com/ledgerwatch/erigon-lib/common"
+	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/common/length"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rawdbv3"
+	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/eth/stagedsync/stages"
 	"github.com/ledgerwatch/erigon/params"
+	"github.com/ledgerwatch/erigon/turbo/trie"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -143,7 +147,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 		return nil, nil
 	}
 
-	block, err := WriteGenesis(chaindb, genesis)
+	block, err := WriteGenesis(chaindb, genesis, config)
 	if err != nil {
 		return nil, fmt.Errorf("cannot write genesis: %w", err)
 	}
@@ -152,7 +156,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 }
 
 // Write genesis to chaindb
-func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) (*types.Block, error) {
+func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig) (*types.Block, error) {
 	tx, err := chaindb.BeginRw(context.Background())
 	if err != nil {
 		log.Error("failed to begin write genesis block", "err", err)
@@ -160,29 +164,26 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) (*types.Block, error)
 	}
 	defer tx.Rollback()
 
-	hash, err := rawdb.ReadCanonicalHash(tx, 0)
-	if err != nil {
-		log.Error("failed to read canonical hash of block #0", "err", err)
-		return nil, err
+	parentHeader := rawdb.ReadCurrentHeader(tx)
+	if config.L2OutputOracleStartingBlockNumber != parentHeader.Number.Uint64()+1 {
+		return nil, fmt.Errorf("L2OutputOracleStartingBlockNumber must be %d", parentHeader.Number.Uint64()+1)
 	}
+	transitionBlockNumber := config.L2OutputOracleStartingBlockNumber
 
-	if (hash != common.Hash{}) {
-		log.Error("genesis block already exists")
-		return nil, errors.New("genesis block already exists")
-	}
-
-	header, err := CreateHeader(genesis)
+	var root libcommon.Hash
+	header, err := CreateHeader(genesis, parentHeader, config)
 	if err != nil {
 		log.Error("failed to create header from genesis config", "err", err)
 		return nil, err
 	}
 
-	statedb, err := AllocToGenesis(genesis, header)
+	statedb, root, err := AllocToGenesis(genesis, header)
 	if err != nil {
 		log.Error("failed to create genesis state", "err", err)
 		return nil, err
 	}
 
+	header.Root = root
 	block := types.NewBlock(header, nil, nil, nil, nil)
 
 	var stateWriter state.StateWriter
@@ -197,11 +198,7 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) (*types.Block, error)
 		}
 	}
 
-	stateWriter = state.NewPlainStateWriter(tx, tx, 0)
-
-	if block.Number().Sign() != 0 {
-		return nil, fmt.Errorf("genesis block number is not 0")
-	}
+	stateWriter = state.NewPlainStateWriter(tx, tx, transitionBlockNumber)
 
 	if err := statedb.CommitBlock(&chain.Rules{}, stateWriter); err != nil {
 		return nil, fmt.Errorf("cannot commit genesis block: %w", err)
@@ -220,6 +217,28 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) (*types.Block, error)
 		return nil, err
 	}
 
+	if err := CommitHashedState(tx); err != nil {
+		log.Error("failed to write hashed state", "err", err)
+		return nil, err
+	}
+
+	// verify state root
+	root, err = trie.CalcRoot("transition", tx)
+	if err != nil {
+		return nil, err
+	}
+	if root != header.Root {
+		return nil, fmt.Errorf("state root mismatch: %x != %x", root, header.Root)
+	}
+
+	// save StageProgress
+	if err := stages.SaveStageProgress(tx, stages.IntermediateHashes, transitionBlockNumber); err != nil {
+		return nil, err
+	}
+	if err := stages.SaveStageProgress(tx, stages.Execution, transitionBlockNumber); err != nil {
+		return nil, err
+	}
+
 	err = tx.Commit()
 	if err != nil {
 		log.Error("failed to commit genesis block", "err", err)
@@ -230,7 +249,7 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) (*types.Block, error)
 	return block, nil
 }
 
-// Write writes the block and state of a genesis specification to the database.
+// Write the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
 func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *types.Block, statedb *state.IntraBlockState) error {
 	config := g.Config
@@ -240,16 +259,16 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	if err := config.CheckConfigForkOrder(); err != nil {
 		return err
 	}
-	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), g.Difficulty); err != nil {
+	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), big.NewInt(3)); err != nil {
 		return err
 	}
 	if err := rawdb.WriteBlock(tx, block); err != nil {
 		return err
 	}
-	if err := rawdbv3.TxNums.WriteForGenesis(tx, 1); err != nil {
+	if err := rawdbv3.TxNums.Append(tx, block.NumberU64(), 0); err != nil {
 		return err
 	}
-	if err := rawdb.WriteReceipts(tx, block.NumberU64(), nil); err != nil {
+	if err := rawdb.WriteReceipts(tx, block.NumberU64(), []*types.Receipt{}); err != nil {
 		return err
 	}
 
@@ -261,19 +280,65 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	if err := rawdb.WriteHeadHeaderHash(tx, block.Hash()); err != nil {
 		return err
 	}
-	if err := rawdb.WriteChainConfig(tx, block.Hash(), config); err != nil {
-		return err
-	}
-	// We support ethash/serenity for issuance (for now)
-	if g.Config.Consensus != chain.EtHashConsensus {
-		return nil
+	if err := rawdb.WriteHeaderNumber(tx, block.Hash(), block.NumberU64()); err != nil {
+		fmt.Println("Failed to write WriteHeaderNumber")
+		panic(err)
 	}
 
-	if err := rawdb.WriteTotalBurnt(tx, 0, common.Big0); err != nil {
+	rawdb.WriteForkchoiceHead(tx, block.Hash())
+	rawdb.WriteForkchoiceFinalized(tx, block.Hash())
+	rawdb.WriteForkchoiceSafe(tx, block.Hash())
+
+	if err := rawdb.WriteChainConfig(tx, block.Hash(), config); err != nil {
 		return err
 	}
 
 	log.Info("genesis block is written to database")
+
+	return nil
+}
+
+// Write hashedStorage and hashedAccounts to database
+func CommitHashedState(tx kv.RwTx) error {
+	cursor, err := tx.RwCursor(kv.PlainState)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close()
+
+	h := common.NewHasher()
+	defer common.ReturnHasherToPool(h)
+	for k, v, err := cursor.First(); k != nil; k, v, err = cursor.Next() {
+		if err != nil {
+			return fmt.Errorf("interate over plain state: %w", err)
+		}
+		var newK []byte
+		if len(k) == length.Addr {
+			newK = make([]byte, length.Hash)
+		} else {
+			newK = make([]byte, length.Hash*2+length.Incarnation)
+		}
+		h.Sha.Reset()
+		//nolint:errcheck
+		h.Sha.Write(k[:length.Addr])
+		//nolint:errcheck
+		h.Sha.Read(newK[:length.Hash])
+		if len(k) > length.Addr {
+			copy(newK[length.Hash:], k[length.Addr:length.Addr+length.Incarnation])
+			h.Sha.Reset()
+			//nolint:errcheck
+			h.Sha.Write(k[length.Addr+length.Incarnation:])
+			//nolint:errcheck
+			h.Sha.Read(newK[length.Hash+length.Incarnation:])
+			if err = tx.Put(kv.HashedStorage, newK, common.CopyBytes(v)); err != nil {
+				return fmt.Errorf("insert hashed key: %w", err)
+			}
+		} else {
+			if err = tx.Put(kv.HashedAccounts, newK, common.CopyBytes(v)); err != nil {
+				return fmt.Errorf("insert hashed key: %w", err)
+			}
+		}
+	}
 
 	return nil
 }
