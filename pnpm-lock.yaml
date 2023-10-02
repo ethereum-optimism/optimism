@@ -228,8 +228,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.0
       pino:
-        specifier: ^8.15.0
-        version: 8.15.0
+        specifier: ^8.15.3
+        version: 8.15.3
       pino-multi-stream:
         specifier: ^6.0.0
         version: 6.0.0
@@ -4057,7 +4057,7 @@ packages:
     resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
     deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
     dependencies:
-      pino: 8.15.0
+      pino: 8.15.3
     dev: true
 
   /@types/prettier@2.3.2:
@@ -11967,8 +11967,8 @@ packages:
       duplexify: 4.1.2
       split2: 4.2.0
 
-  /pino-abstract-transport@1.0.0:
-    resolution: {integrity: sha512-c7vo5OpW4wIS42hUVcT5REsL8ZljsUfBjqV/e2sFxmFEFZiq1XLUp5EYLtuDH6PEHq9W1egWqRbnLUP5FuZmOA==}
+  /pino-abstract-transport@1.1.0:
+    resolution: {integrity: sha512-lsleG3/2a/JIWUtf9Q5gUNErBqwIu1tUKTT3dUzaf5DySw9ra1wcqKjJjLX1VTY64Wk1eEOYsVGSaGfCK85ekA==}
     dependencies:
       readable-stream: 4.4.2
       split2: 4.2.0
@@ -12016,14 +12016,14 @@ packages:
       sonic-boom: 2.8.0
       thread-stream: 0.15.2
 
-  /pino@8.15.0:
-    resolution: {integrity: sha512-olUADJByk4twxccmAxb1RiGKOSvddHugCV3wkqjyv+3Sooa2KLrmXrKEWOKi0XPCLasRR5jBXxioE1jxUa4KzQ==}
+  /pino@8.15.3:
+    resolution: {integrity: sha512-wDds1+DH8VaREe4fpLEKttGnDoLiX3KR3AP5bHsrRwEZ93y+Z/HFC03zkGSxpIGWKDHg24sloVqGcIWoLCkTLQ==}
     hasBin: true
     dependencies:
       atomic-sleep: 1.0.0
       fast-redact: 3.2.0
       on-exit-leak-free: 2.1.0
-      pino-abstract-transport: 1.0.0
+      pino-abstract-transport: 1.1.0
       pino-std-serializers: 6.2.2
       process-warning: 2.2.0
       quick-format-unescaped: 4.0.4
