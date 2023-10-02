@@ -225,8 +225,7 @@ func (gi *GethInstance) HTTPAuthEndpoint() string {
 }
 
 func (gi *GethInstance) Close() error {
-	gi.Node.Close()
-	return nil
+	return gi.Node.Close()
 }
 
 // EthInstance is either an in process Geth or external process exposing its
