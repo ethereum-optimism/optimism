@@ -18,6 +18,13 @@ func NewPositionFromGIndex(x uint64) Position {
 	return NewPosition(depth, int(indexAtDepth))
 }
 
+func (p Position) MoveRight() Position {
+	return Position{
+		depth:        p.depth,
+		indexAtDepth: int(p.indexAtDepth + 1),
+	}
+}
+
 func (p Position) Depth() int {
 	return p.depth
 }

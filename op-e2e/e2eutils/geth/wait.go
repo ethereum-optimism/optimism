@@ -55,7 +55,6 @@ func WaitForL1OriginOnL2(l1BlockNum uint64, client *ethclient.Client, timeout ti
 }
 
 func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time.Duration) (*types.Receipt, error) {
-	timeoutCh := time.After(timeout)
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -69,7 +68,7 @@ func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 		}
 
 		select {
-		case <-timeoutCh:
+		case <-ctx.Done():
 			tip, err := client.BlockByNumber(context.Background(), nil)
 			if err != nil {
 				return nil, err

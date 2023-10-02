@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type l2EthClient interface {
@@ -36,14 +37,16 @@ type rpcMetrics interface {
 }
 
 type adminAPI struct {
-	dr driverClient
-	m  rpcMetrics
+	dr  driverClient
+	m   rpcMetrics
+	log log.Logger
 }
 
-func NewAdminAPI(dr driverClient, m rpcMetrics) *adminAPI {
+func NewAdminAPI(dr driverClient, m rpcMetrics, log log.Logger) *adminAPI {
 	return &adminAPI{
-		dr: dr,
-		m:  m,
+		dr:  dr,
+		m:   m,
+		log: log,
 	}
 }
 
@@ -69,6 +72,27 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 	recordDur := n.m.RecordRPCServerRequest("admin_sequencerActive")
 	defer recordDur()
 	return n.dr.SequencerActive(ctx)
+}
+
+func (n *adminAPI) SetLogLevel(ctx context.Context, lvlStr string) error {
+	recordDur := n.m.RecordRPCServerRequest("admin_setLogLevel")
+	defer recordDur()
+
+	h := n.log.GetHandler()
+
+	lvl, err := log.LvlFromString(lvlStr)
+	if err != nil {
+		return err
+	}
+
+	// We set the log level, and do not wrap the handler with an additional filter handler,
+	// as the underlying handler would otherwise also still filter with the previous log level.
+	lvlSetter, ok := h.(oplog.LvlSetter)
+	if !ok {
+		return fmt.Errorf("log handler type %T cannot change log level", h)
+	}
+	lvlSetter.SetLogLevel(lvl)
+	return nil
 }
 
 type nodeAPI struct {

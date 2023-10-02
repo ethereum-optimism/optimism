@@ -20,6 +20,7 @@ var (
 // indices in the given trace.
 type AlphabetTraceProvider struct {
 	state  []string
+	depth  uint64
 	maxLen uint64
 }
 
@@ -27,12 +28,14 @@ type AlphabetTraceProvider struct {
 func NewTraceProvider(state string, depth uint64) *AlphabetTraceProvider {
 	return &AlphabetTraceProvider{
 		state:  strings.Split(state, ""),
+		depth:  depth,
 		maxLen: uint64(1 << depth),
 	}
 }
 
-func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i uint64) ([]byte, []byte, *types.PreimageOracleData, error) {
-	if i == 0 {
+func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
+	traceIndex := i.TraceIndex(int(ap.depth))
+	if traceIndex == 0 {
 		prestate, err := ap.AbsolutePreState(ctx)
 		if err != nil {
 			return nil, nil, nil, err
@@ -40,22 +43,23 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i uint64) ([]b
 		return prestate, []byte{}, nil, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
-	i--
+	traceIndex--
 	// The index cannot be larger than the maximum index as computed by the depth.
-	if i >= ap.maxLen {
+	if traceIndex >= ap.maxLen {
 		return nil, nil, nil, ErrIndexTooLarge
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
-	if i >= uint64(len(ap.state)) {
-		return ap.GetStepData(ctx, uint64(len(ap.state)))
+	if traceIndex >= uint64(len(ap.state)) {
+		return ap.GetStepData(ctx, types.NewPosition(int(ap.depth), len(ap.state)))
 	}
-	return BuildAlphabetPreimage(i, ap.state[i]), []byte{}, nil, nil
+	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex]), []byte{}, nil, nil
 }
 
 // Get returns the claim value at the given index in the trace.
-func (ap *AlphabetTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
+func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (common.Hash, error) {
 	// Step data returns the pre-state, so add 1 to get the state for index i
-	claimBytes, _, _, err := ap.GetStepData(ctx, i+1)
+	postPosition := types.NewPosition(int(ap.depth), int(i.TraceIndex(int(ap.depth)))+1)
+	claimBytes, _, _, err := ap.GetStepData(ctx, postPosition)
 	if err != nil {
 		return common.Hash{}, err
 	}

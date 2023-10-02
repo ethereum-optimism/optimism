@@ -10,3 +10,9 @@ export DEPLOYMENT_CONTEXT=getting-started
 # Optional Tenderly details for a simulation link during deployment
 export TENDERLY_PROJECT=
 export TENDERLY_USERNAME=
+
+export ETHERSCAN_API_KEY=
+
+# Optional create2 salt for deterministic deployment of
+# contract implementations
+export IMPL_SALT=$(openssl rand -hex 32)

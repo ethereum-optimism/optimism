@@ -43,7 +43,8 @@ func Main(version string, cliCtx *cli.Context) error {
 		return fmt.Errorf("invalid CLI flags: %w", err)
 	}
 
-	l := oplog.NewLogger(cfg.LogConfig)
+	l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
+	oplog.SetGlobalLogHandler(l.GetHandler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")

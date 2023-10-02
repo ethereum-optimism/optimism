@@ -101,7 +101,7 @@ func (s *Scheduler) loop(ctx context.Context) {
 			return
 		case games := <-s.scheduleQueue:
 			if err := s.coordinator.schedule(ctx, games); err != nil {
-				s.logger.Error("Failed to schedule game updates", "games", games, "err", err)
+				s.logger.Error("Failed to schedule game updates", "err", err)
 			}
 		case j := <-s.resultQueue:
 			if err := s.coordinator.processResult(j); err != nil {

@@ -32,6 +32,7 @@ contract DelayedVetoable_Init is CommonTest {
         // value in storage.
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(hex"");
+        assertTrue(success);
     }
 
     /// @dev This function is used to prevent initiating the delay unintentionally.
@@ -146,6 +147,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     function test_handleCall_unauthorizedInitiation_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
         (bool success,) = address(delayedVetoable).call(NON_ZERO_DATA);
+        assertTrue(success);
     }
 
     /// @dev The call cannot be forwarded until the delay has passed.
@@ -156,6 +158,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
 
         vm.expectRevert(abi.encodeWithSelector(ForwardingEarly.selector));
         (success,) = address(delayedVetoable).call(data);
+        success;
     }
 
     /// @dev The call cannot be forwarded a second time.
@@ -165,6 +168,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Initiate the call
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(data);
+        assertTrue(success);
 
         vm.warp(block.timestamp + operatingDelay);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
@@ -193,6 +197,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Initiate the call
         vm.prank(initiator);
         (bool success,) = address(delayedVetoable).call(inData);
+        success;
 
         vm.warp(block.timestamp + operatingDelay);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));
@@ -203,6 +208,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         // Forward the call
         vm.expectRevert(outData);
         (bool success2,) = address(delayedVetoable).call(inData);
+        success2;
     }
 
     /// @dev A test documenting the single instance in which the contract is not 'transparent' to the initiator.
@@ -217,5 +223,6 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         vm.prank(initiator);
         vm.expectRevert(outData);
         (bool success,) = address(delayedVetoable).call(inData);
+        success;
     }
 }

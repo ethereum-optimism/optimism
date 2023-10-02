@@ -1,7 +1,7 @@
 # Chain configures l1 chain addresses
-# Can configure them manually or use a preset l2 ChainId for known chains including OP Mainnet, OP Goerli, Base, Base Goerli, Zora, and Zora goerli
+# Can configure them manually or use a preset L2 ChainId for known chains
+#  - i.e OP Mainnet, OP Goerli, Base, Base Goerli, Zora, Zora Goerli, etc
 [chain]
-
 preset = $INDEXER_CHAIN_PRESET
 
 # L1 Config
@@ -15,17 +15,12 @@ l2-polling-interval = 0
 l2-header-buffer-size = 0
 l2-confirmation-depth = 0
 
-
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"
 l2-rpc = "${INDEXER_RPC_URL_L2}"
 
 [db]
 host = "$INDEXER_DB_HOST"
-# this port may be problematic once we depoly
-# the DATABASE_URL looks like this for previous services and didn't include a port
-# DATABASE_URL="postgresql://${INDEXER_DB_USER}:${INDEXER_DB_PASS}@localhost/${INDEXER_DB_NAME}?host=${INDEXER_DB_HOST}"
-# If not problematic delete these comments
 port = $INDEXER_DB_PORT
 user = "$INDEXER_DB_USER"
 password = "$INDEXER_DB_PASS"

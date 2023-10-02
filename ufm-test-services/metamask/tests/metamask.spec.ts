@@ -6,8 +6,7 @@ import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts'
 
 import { testWithSynpress } from './testWithSynpressUtil'
 import {
-  incrementMetamaskTxCounter,
-  setMetamaskTxCounter,
+  incrementSelfSendTxGauge,
 } from './prometheusUtils'
 
 const env = z.object({
@@ -24,18 +23,31 @@ const expectedSender =
     : mnemonicToAccount(
         env.METAMASK_SECRET_WORDS_OR_PRIVATEKEY as string
       ).address.toLowerCase()
-const expectedRecipient = '0x8fcfbe8953433fd1f2e8375ee99057833e4e1e9e'
+const expectedRecipient = expectedSender
 
 let sharedPage: Page
+let wasSuccessful: boolean
+let handledFailure: boolean
 
 test.describe.configure({ mode: 'serial' })
 
+test.beforeAll(() => {
+  wasSuccessful = false
+  handledFailure = false
+})
+
 test.afterAll(async () => {
+  // This is handling failure scenarios such as Playwright timeouts
+  // where are not able to catch and respond to an error.
+  if (!wasSuccessful && !handledFailure) {
+    await incrementSelfSendTxGauge(false)
+  }
+
   await sharedPage.close()
 })
 
 testWithSynpress('Setup wallet and dApp', async ({ page }) => {
-  console.log('Seting up wallet and dApp...')
+  console.log('Setting up wallet and dApp...')
   sharedPage = page
   await sharedPage.goto('http://localhost:9011')
   console.log('Setup wallet and dApp')
@@ -66,8 +78,8 @@ testWithSynpress('Add OP Goerli network', async () => {
   try {
     await expect(sharedPage.locator('#chainId')).toHaveText(expectedChainId)
   } catch (error) {
-    await setMetamaskTxCounter(true, 0)
-    await incrementMetamaskTxCounter(false)
+    await incrementSelfSendTxGauge(false)
+    handledFailure = true
     throw error
   }
   console.log('Added OP Goerli network')
@@ -81,15 +93,15 @@ test(`Connect wallet with ${expectedSender}`, async () => {
   try {
     await expect(sharedPage.locator('#accounts')).toHaveText(expectedSender)
   } catch (error) {
-    await setMetamaskTxCounter(true, 0)
-    await incrementMetamaskTxCounter(false)
+    await incrementSelfSendTxGauge(false)
+    handledFailure = true
     throw error
   }
   console.log(`Connected wallet with ${expectedSender}`)
 })
 
-test('Send an EIP-1559 transaciton and verfiy success', async () => {
-  console.log('Sending an EIP-1559 transaciton and verfiy success...')
+test('Send an EIP-1559 transaction and verify success', async () => {
+  console.log('Sending an EIP-1559 transaction and verify success...')
   const expectedTransferAmount = '0x1'
   const expectedTxType = '0x2'
 
@@ -120,7 +132,7 @@ test('Send an EIP-1559 transaciton and verfiy success', async () => {
   // Waiting for RPC response to be populated on the page
   await sharedPage.waitForTimeout(2_000)
 
-  const transaction = JSON.parse(
+  const transactionReceipt = JSON.parse(
     (await sharedPage.locator('body > main').innerText()).replace(
       'Response: ',
       ''
@@ -128,13 +140,13 @@ test('Send an EIP-1559 transaciton and verfiy success', async () => {
   )
 
   try {
-    expect(transaction.status).toBe('0x1')
-    await setMetamaskTxCounter(false, 0)
-    await incrementMetamaskTxCounter(true)
+    expect(transactionReceipt.status).toBe('0x1')
+    wasSuccessful = true
+    await incrementSelfSendTxGauge(true)
   } catch (error) {
-    await setMetamaskTxCounter(true, 0)
-    await incrementMetamaskTxCounter(false)
+    await incrementSelfSendTxGauge(false)
+    handledFailure = true
     throw error
   }
-  console.log('Sent an EIP-1559 transaciton and verfied success')
+  console.log('Sent an EIP-1559 transaction and verified success')
 })
