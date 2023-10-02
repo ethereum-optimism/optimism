@@ -53,5 +53,8 @@
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10,
 
-  "systemConfigStartBlock": 0
+  "systemConfigStartBlock": 0,
+
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
 }
