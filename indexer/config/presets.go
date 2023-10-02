@@ -89,6 +89,22 @@ var Presets = map[int]Preset{
 			L1StartingHeight: 8410981,
 		},
 	},
+	84532: {
+		Name: "Base Sepolia",
+		ChainConfig: ChainConfig{
+			Preset: 84532,
+			L1Contracts: L1Contracts{
+				AddressManager:              common.HexToAddress("0x709c2B8ef4A9feFc629A8a2C1AF424Dc5BD6ad1B"),
+				SystemConfigProxy:           common.HexToAddress("0xf272670eb55e895584501d564AfEB048bEd26194"),
+				OptimismPortalProxy:         common.HexToAddress("0x49f53e41452C74589E85cA1677426Ba426459e85"),
+				L2OutputOracleProxy:         common.HexToAddress("0x84457ca9D0163FbC4bbfe4Dfbb20ba46e48DF254"),
+				L1CrossDomainMessengerProxy: common.HexToAddress("0xC34855F4De64F1840e5686e64278da901e261f20"),
+				L1StandardBridgeProxy:       common.HexToAddress("0xfd0Bf71F60660E2f608ed56e1659C450eB113120"),
+				L1ERC721BridgeProxy:         common.HexToAddress("0x21eFD066e581FA55Ef105170Cc04d74386a09190"),
+			},
+			L1StartingHeight: 4370868,
+		},
+	},
 	7777777: {
 		Name: "Zora",
 		ChainConfig: ChainConfig{
