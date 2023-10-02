@@ -81,7 +81,7 @@ Bug reports in the form of a proof-of-concept `op-e2e` test that demonstrates a 
 but use custom configurations will be assessed on a case by case basis, and their validity is not guaranteed.
 
 ### Bounty Rewards
-All valid bug reports for Fault Proof Alpha qualify as a low-severity report. See [immunefi][immunefi]
+See our bounty program on [Immunefi][immunefi] for information regarding reward sizes.
 
 <!-- LINKS -->
 [cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
