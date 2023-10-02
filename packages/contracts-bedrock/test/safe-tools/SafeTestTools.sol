@@ -12,10 +12,12 @@ import "./CompatibilityFallbackHandler_1_3_0.sol";
 address constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 bytes12 constant ADDR_MASK = 0xffffffffffffffffffffffff;
 
+/// @dev Get the address from a private key
 function getAddr(uint256 pk) pure returns (address) {
     return Vm(VM_ADDR).addr(pk);
 }
 
+/// @dev Encode a smart contract wallet as a private key
 function encodeSmartContractWalletAsPK(address addr) pure returns (uint256 encodedPK) {
     assembly {
         let addr_b32 := addr
@@ -23,6 +25,7 @@ function encodeSmartContractWalletAsPK(address addr) pure returns (uint256 encod
     }
 }
 
+/// @dev Decode a smart contract wallet as an address from a private key
 function decodeSmartContractWalletAsAddress(uint256 pk) pure returns (address decodedAddr) {
     assembly {
         let addr := shl(96, pk)
@@ -30,6 +33,7 @@ function decodeSmartContractWalletAsAddress(uint256 pk) pure returns (address de
     }
 }
 
+/// @dev Checks if a private key is an encoded smart contract address
 function isSmartContractPK(uint256 pk) pure returns (bool isEncoded) {
     assembly {
         isEncoded := eq(shr(160, pk), shr(160, ADDR_MASK))
@@ -37,12 +41,14 @@ function isSmartContractPK(uint256 pk) pure returns (bool isEncoded) {
 }
 
 library Sort {
+    /// @dev Sorts an array of addresses in place
     function sort(address[] memory arr) public pure returns (address[] memory) {
         LibSort.sort(arr);
         return arr;
     }
 }
 
+/// @dev Sorts an array of private keys by the computed address
 function sortPKsByComputedAddress(uint256[] memory _pks) pure returns (uint256[] memory) {
     uint256[] memory sortedPKs = new uint256[](_pks.length);
 
@@ -101,6 +107,8 @@ struct SafeInstance {
 }
 
 library SafeTestLib {
+    /// @dev A wrapper for the full execTransaction method, if no signatures are provided it will
+    ///         generate them for all owners.
     function execTransaction(
         SafeInstance memory instance,
         address to,
@@ -168,6 +176,7 @@ library SafeTestLib {
         });
     }
 
+    /// @dev Executes either a CALL or DELEGATECALL transaction.
     function execTransaction(
         SafeInstance memory instance,
         address to,
@@ -181,7 +190,7 @@ library SafeTestLib {
         return execTransaction(instance, to, value, data, operation, 0, 0, 0, address(0), address(0), "");
     }
 
-    /// @dev performs a noraml "call"
+    /// @dev Executes a CALL transaction.
     function execTransaction(
         SafeInstance memory instance,
         address to,
@@ -194,6 +203,7 @@ library SafeTestLib {
         return execTransaction(instance, to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
     }
 
+    /// @dev Enables a module on the Safe.
     function enableModule(SafeInstance memory instance, address module) public {
         execTransaction(
             instance,
@@ -210,6 +220,7 @@ library SafeTestLib {
         );
     }
 
+    /// @dev Disables a module on the Safe.
     function disableModule(SafeInstance memory instance, address module) public {
         (address[] memory modules,) = instance.safe.getModulesPaginated(SENTINEL_MODULES, 1000);
         address prevModule = SENTINEL_MODULES;
@@ -238,6 +249,9 @@ library SafeTestLib {
         );
     }
 
+    /// @dev Sets the guard address on the Safe. Unlike modules there can only be one guard, so
+    ///      this method will remove the previous guard. If the guard is set to the 0 address, the
+    ///      guard will be disabled.
     function setGuard(SafeInstance memory instance, address guard) public {
         execTransaction(
             instance,
@@ -254,6 +268,7 @@ library SafeTestLib {
         );
     }
 
+    /// @dev Signs message data using EIP1271: Standard Signature Validation Method for Contracts
     function EIP1271Sign(SafeInstance memory instance, bytes memory data) public {
         address signMessageLib = address(new SignMessageLib());
         execTransaction({
@@ -271,10 +286,12 @@ library SafeTestLib {
         });
     }
 
+    /// @dev Signs a data hash using EIP1271: Standard Signature Validation Method for Contracts
     function EIP1271Sign(SafeInstance memory instance, bytes32 digest) public {
         EIP1271Sign(instance, abi.encodePacked(digest));
     }
 
+    /// @dev Sign a transaction as a safe owner with a private key.
     function signTransaction(
         SafeInstance memory instance,
         uint256 pk,
@@ -312,12 +329,14 @@ library SafeTestLib {
         (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
     }
 
+    /// @dev Increments the nonce of the Safe by sending an empty transaction.
     function incrementNonce(SafeInstance memory instance) public returns (uint256 newNonce) {
         execTransaction(instance, address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
         return instance.safe.nonce();
     }
 }
 
+/// @dev SafeTestTools implements a set of helper functions for testing Safe contracts.
 contract SafeTestTools {
     using SafeTestLib for SafeInstance;
 
