@@ -107,4 +107,18 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
             _owners[i] = currentOwner;
         }
     }
+
+    /// @notice Enables an owner to demonstrate liveness by calling this method directly.
+    ///         This is useful for owners who have not recently signed a transaction via the Safe.
+    function showLiveness() external {
+        require(safe.isOwner(msg.sender), "LivenessGuard: only Safe owners may demontstrate liveness");
+        lastSigned[msg.sender] = block.timestamp;
+        address[] memory signers = new address[](1);
+        signers[0] = msg.sender;
+
+        // todo(maurelian): Is there any need for this event to be differentiated from the one emitted in
+        // checkTransaction?
+        //                  Technically the 0x0 txHash does serve to identiy a call to this method.
+        emit SignersRecorded(0x0, signers);
+    }
 }

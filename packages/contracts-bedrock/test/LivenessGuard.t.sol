@@ -33,7 +33,7 @@ contract LivnessGuard_TestInit is Test, SafeTestTools {
     }
 }
 
-contract LivnessGuard_TestCheckTx is LivnessGuard_TestInit {
+contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     function test_checkTransaction_succeeds() external {
