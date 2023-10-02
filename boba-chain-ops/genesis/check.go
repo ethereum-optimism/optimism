@@ -197,6 +197,14 @@ func PostCheckMigratedDB(
 		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, genesisBlock.Header().Extra)
 	}
 
+	chainConfig, err := rawdb.ReadChainConfig(tx, genesisBlock.Hash())
+	if err != nil {
+		return fmt.Errorf("failed to read chain config from database: %w", err)
+	}
+	if chainConfig.BedrockBlock.Uint64() != transitionBlockNumber {
+		return fmt.Errorf("expected bedrock block to be %d, but got %d", transitionBlockNumber, chainConfig.BedrockBlock)
+	}
+
 	if err := CheckPreBedrockAllocation(tx); err != nil {
 		return err
 	}

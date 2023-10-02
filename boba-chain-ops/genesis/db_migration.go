@@ -289,7 +289,13 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	rawdb.WriteForkchoiceFinalized(tx, block.Hash())
 	rawdb.WriteForkchoiceSafe(tx, block.Hash())
 
-	if err := rawdb.WriteChainConfig(tx, block.Hash(), config); err != nil {
+	// override chain config in the genesis block, so we can avoid changes in
+	// the erigon
+	hash, err := rawdb.ReadCanonicalHash(tx, 0)
+	if err != nil {
+		return err
+	}
+	if err := rawdb.WriteChainConfig(tx, hash, config); err != nil {
 		return err
 	}
 
