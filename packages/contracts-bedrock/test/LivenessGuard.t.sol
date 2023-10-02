@@ -21,6 +21,8 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 contract LivnessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
+    event SignersRecorded(bytes32 indexed txHash, address[] signers);
+
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
 
@@ -35,6 +37,9 @@ contract LivnessGuard_TestCheckTx is LivnessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     function test_checkTransaction_succeeds() external {
+        // Don't check topic1 so that we can avoid the ugly txHash calculation.
+        vm.expectEmit(false, true, true, true, address(livenessGuard));
+        emit SignersRecorded(0x0, safeInstance.owners);
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
 
         for (uint256 i; i < safeInstance.owners.length; i++) {

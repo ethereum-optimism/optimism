@@ -7,6 +7,10 @@ import { SignatureDecoder } from "safe-contracts/common/SignatureDecoder.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
 contract LivenessGuard is SignatureDecoder, BaseGuard {
+    /// @notice Emitted when a new set of signers is recorded.
+    /// @param signers An arrary of signer addresses.
+    event SignersRecorded(bytes32 indexed txHash, address[] signers);
+
     Safe public safe;
     mapping(address => uint256) public lastSigned;
 
@@ -41,7 +45,8 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
             // TODO(Maurelian): Figure out how to best address this.
         }
 
-        // This is a bit of a hack, maybe just replicate the functionality here rather than calling home
+        // This call will reenter to the Safe which is calling it. This is OK because it is only reading the
+        // nonce, and using the getTransactionHash() method.
         bytes32 txHash = Safe(payable(msg.sender)).getTransactionHash(
             // Transaction info
             to,
@@ -55,11 +60,13 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
             gasToken,
             refundReceiver,
             // Signature info
+            Safe(payable(msg.sender)).nonce() - 1
         );
         address[] memory signers = _getNSigners(txHash, signatures);
         for (uint256 i = 0; i < signers.length; i++) {
             lastSigned[signers[i]] = block.timestamp;
         }
+        emit SignersRecorded(txHash, signers);
     }
 
     /// @notice Exctract the signers from a set of signatures.
