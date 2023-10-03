@@ -18,12 +18,6 @@ var (
 
 // Game is an interface that represents the state of a dispute game.
 type Game interface {
-	// Put adds a claim into the game state.
-	Put(claim Claim) error
-
-	// PutAll adds a list of claims into the game state.
-	PutAll(claims []Claim) error
-
 	// Claims returns all of the claims in the game.
 	Claims() []Claim
 
@@ -62,12 +56,14 @@ type gameState struct {
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
-func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameState {
+func NewGameState(agreeWithProposedOutput bool, claims []Claim, depth uint64) *gameState {
 	claimIDs := make(map[claimID]bool)
-	claimIDs[computeClaimID(root)] = true
+	for _, claim := range claims {
+		claimIDs[computeClaimID(claim)] = true
+	}
 	return &gameState{
 		agreeWithProposedOutput: agreeWithProposedOutput,
-		claims:                  []Claim{root},
+		claims:                  claims,
 		claimIDs:                claimIDs,
 		depth:                   depth,
 	}
@@ -83,33 +79,6 @@ func (g *gameState) AgreeWithClaimLevel(claim Claim) bool {
 	} else {
 		return !isOddLevel
 	}
-}
-
-// PutAll adds a list of claims into the [Game] state.
-// If any of the claims already exist in the game state, an error is returned.
-func (g *gameState) PutAll(claims []Claim) error {
-	for _, claim := range claims {
-		if err := g.Put(claim); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// Put adds a claim into the game state.
-func (g *gameState) Put(claim Claim) error {
-	if claim.IsRoot() || g.IsDuplicate(claim) {
-		return ErrClaimExists
-	}
-
-	parent := g.getParent(claim)
-	if parent == nil {
-		return errors.New("no parent claim")
-	}
-
-	g.claims = append(g.claims, claim)
-	g.claimIDs[computeClaimID(claim)] = true
-	return nil
 }
 
 func (g *gameState) IsDuplicate(claim Claim) bool {
