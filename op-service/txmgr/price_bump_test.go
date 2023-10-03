@@ -25,7 +25,7 @@ func (tc *priceBumpTest) run(t *testing.T) {
 	prevFC := calcGasFeeCap(big.NewInt(tc.prevBasefee), big.NewInt(tc.prevGasTip))
 	lgr := testlog.Logger(t, log.LvlCrit)
 
-	tip, fc := updateFees(big.NewInt(tc.prevGasTip), prevFC, big.NewInt(tc.newGasTip), big.NewInt(tc.newBasefee), lgr)
+	tip, fc := updateFees(big.NewInt(tc.prevGasTip), prevFC, big.NewInt(tc.newGasTip), big.NewInt(tc.newBasefee), false, lgr)
 
 	require.Equal(t, tc.expectedTip, tip.Int64(), "tip must be as expected")
 	require.Equal(t, tc.expectedFC, fc.Int64(), "fee cap must be as expected")
