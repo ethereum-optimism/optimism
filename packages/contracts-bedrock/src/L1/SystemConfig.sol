@@ -40,7 +40,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address optimismMintableERC20Factory;
     }
 
-    /// @notice Struct representing the overhead, scalar, and gas limit.
+    /// @notice Struct representing the overhead, and scalar.
     struct GasConfig {
         uint256 overhead;
         uint256 scalar;
@@ -116,7 +116,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Proposer address, proposes new outputs.
     address public proposer;
 
-    /// @notice Challenger address, the challenger can delete outputs.
+    /// @notice Challenger address, can delete outputs.
     address public challenger;
 
     /// @notice Semantic version.
@@ -144,7 +144,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         initialize({
             _owner: address(0xdEaD),
             _superchainConfig: address(0),
-            _gasConfig: SystemConfig.GasConfig({ overhead: 0, scalar: 0 }),
+            _gasConfig: GasConfig({ overhead: 0, scalar: 0 }),
             _batcherHash: bytes32(0),
             _gasLimit: 1,
             _unsafeBlockSigner: address(0),
@@ -234,9 +234,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         gas that is allocated for deposits per block plus the amount of gas that
     ///         is allocated for the system transaction.
     ///         This function is used to determine if changes to parameters are safe.
-    /// @return uint64 Minimum gas limit.
-    function minimumGasLimit() public view returns (uint64) {
-        return uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
+    /// @return minGasLimit_ uint64 Minimum gas limit.
+    function minimumGasLimit() public view returns (uint64 minGasLimit_) {
+        minGasLimit_ = uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
     }
 
     /// @notice High level getter for the unsafe block signer address.
@@ -368,7 +368,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         overhead = _gasConfig.overhead;
         scalar = _gasConfig.scalar;
 
-        bytes memory data = abi.encode(_gasConfig);
+        bytes memory data = abi.encode(_gasConfig.overhead, _gasConfig.scalar);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
@@ -428,21 +428,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _resourceConfig = _config;
     }
 
-    /// @notice Checks if the given address is a proposal manager.
+    /// @notice Checks if the given address is a proposal manager. The same entities who can delete an output
+    ///         should also be able to update the proposer; because in the event that a faulty output is proposed,
+    ///         the malicious proposer will need to be removed prior to deleting the output.
     /// @param _manager The address to check.
-    /// @return A boolean indicating if the address is a proposal manager.
-    function isProposalManager(address _manager) public view returns (bool) {
+    /// @return isManager_ A boolean indicating if the address is a proposal manager.
+    function isProposalManager(address _manager) public view returns (bool isManager_) {
         SuperchainConfig _superchainConfig = SuperchainConfig(superchainConfig());
-        return (
-            _manager == challenger || _manager == _superchainConfig.initiator()
-                || _manager == _superchainConfig.vetoer()
-        );
+        isManager_ = _manager == challenger || _manager == _superchainConfig.initiator()
+            || _manager == _superchainConfig.vetoer();
     }
 
-    /// @notice Updates the proposer. Can only be called by the owner, initiator or vetoer.
-    ///         The same entities who can delete an output should also be able to update the proposer; because in the
-    ///         event that a faulty output is proposed, the malicious proposer will need to be removed prior to
-    ///         deleting the output.
+    /// @notice Updates the proposer. Can only be a proposal manager (owner, initiator or vetoer).
     /// @param _proposer New proposer address.
     function setProposer(address _proposer) external {
         require(isProposalManager(msg.sender), "SystemConfig: caller is not authorized to update the proposer");

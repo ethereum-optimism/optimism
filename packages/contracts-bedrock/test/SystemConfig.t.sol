@@ -389,13 +389,8 @@ contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
 contract SystemConfig_isProposalManager_Test is SystemConfig_Initializer {
     /// @dev Tests that `isProposalManager` returns the correct value.
     function test_isProposalManager_succeeds() external {
-        // check if the challenger can delete an output
         assertTrue(sysConf.isProposalManager(sysConf.challenger()));
-
-        // check if the initiator can delete an output
         assertTrue(sysConf.isProposalManager(supConf.initiator()));
-
-        // check if the vetoer can delete an output
         assertTrue(sysConf.isProposalManager(supConf.vetoer()));
     }
 }

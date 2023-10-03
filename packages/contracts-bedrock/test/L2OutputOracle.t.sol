@@ -199,18 +199,18 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
 
 contract L2OutputOracle_proposalManagement_Test is L2OutputOracle_Initializer {
     /// @dev Tests that `isProposalManager` is identically enforced both on deletion and proposer updating
-    function testFuzz_isProposalManagerCanSetProposerAndDelete_succeeds(address caller) external {
+    function testFuzz_isProposalManagerCanSetProposerAndDelete_works(address caller) external {
         proposeAnotherOutput();
 
         uint256 latestOutputIndex = oracle.latestOutputIndex();
         address newProposer = makeAddr("New Proposer");
 
         if (sysConf.isProposalManager(caller)) {
-            vm.prank(caller);
+            vm.startPrank(caller);
             sysConf.setProposer(newProposer);
             oracle.deleteL2Outputs(latestOutputIndex);
         } else {
-            vm.prank(caller);
+            vm.startPrank(caller);
 
             vm.expectRevert("SystemConfig: caller is not authorized to update the proposer");
             sysConf.setProposer(newProposer);
@@ -423,6 +423,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
         proposeAnotherOutput();
         uint256 latestOutputIndex = oracle.latestOutputIndex();
 
+        assertFalse(sysConf.isProposalManager(address(this)));
         // Try to delete an output
         vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
         oracle.deleteL2Outputs(latestOutputIndex);
