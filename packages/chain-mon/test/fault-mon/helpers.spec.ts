@@ -1,8 +1,9 @@
 import hre from 'hardhat'
 import '@nomiclabs/hardhat-ethers'
-import { Contract, utils } from 'ethers'
+import { Contract, utils, constants } from 'ethers'
 import { toRpcHexString } from '@eth-optimism/core-utils'
 import Artifact__L2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
+import Artifact__SystemConfig from '@eth-optimism/contracts-bedrock/forge-artifacts/SystemConfig.sol/SystemConfig.json'
 import Artifact__Proxy from '@eth-optimism/contracts-bedrock/forge-artifacts/Proxy.sol/Proxy.json'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
@@ -30,7 +31,6 @@ describe('helpers', () => {
   })
 
   let L2OutputOracle: Contract
-  let Proxy: Contract
   beforeEach(async () => {
     const Factory__Proxy = new hre.ethers.ContractFactory(
       Artifact__Proxy.abi,
@@ -38,7 +38,44 @@ describe('helpers', () => {
       signer
     )
 
-    Proxy = await Factory__Proxy.deploy(signer.address)
+    const SystemConfigProxy = await Factory__Proxy.deploy(signer.address)
+
+    const Factory__SystemConfig = new hre.ethers.ContractFactory(
+      Artifact__SystemConfig.abi,
+      Artifact__SystemConfig.bytecode.object,
+      signer
+    )
+
+    const SystemConfigImplementation = await Factory__SystemConfig.deploy()
+
+    await SystemConfigProxy.upgradeToAndCall(
+      SystemConfigImplementation.address,
+      SystemConfigImplementation.interface.encodeFunctionData('initialize', [
+        '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // owner
+        constants.AddressZero, // superchainConfig
+        [0, 0], // gasConfig
+        constants.HashZero, // batcherHash
+        2, // gasLimit
+        constants.AddressZero, // unsafeBlockSigner
+        [1, 1, 2, 1, 1, 1], // config
+        0, // startBlock
+        constants.AddressZero, // batchInbox
+        [
+          deployConfig.l2OutputOracleProposer,
+          deployConfig.l2OutputOracleChallenger,
+        ], // oracleRoles
+        [
+          constants.AddressZero,
+          constants.AddressZero,
+          constants.AddressZero,
+          constants.AddressZero,
+          constants.AddressZero,
+          constants.AddressZero,
+        ],
+      ])
+    )
+
+    L2OutputOracle = await Factory__Proxy.deploy(signer.address)
 
     const Factory__L2OutputOracle = new hre.ethers.ContractFactory(
       Artifact__L2OutputOracle.abi,
@@ -52,18 +89,17 @@ describe('helpers', () => {
       deployConfig.finalizationPeriodSeconds
     )
 
-    await Proxy.upgradeToAndCall(
+    await L2OutputOracle.upgradeToAndCall(
       L2OutputOracleImplementation.address,
       L2OutputOracleImplementation.interface.encodeFunctionData('initialize', [
         deployConfig.l2OutputOracleStartingBlockNumber,
         deployConfig.l2OutputOracleStartingTimestamp,
-        deployConfig.l2OutputOracleProposer,
-        deployConfig.l2OutputOracleChallenger,
+        SystemConfigProxy.address,
       ])
     )
 
     L2OutputOracle = new hre.ethers.Contract(
-      Proxy.address,
+      L2OutputOracle.address,
       Artifact__L2OutputOracle.abi,
       signer
     )
