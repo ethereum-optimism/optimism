@@ -416,7 +416,6 @@ contract DeployPeriphery is Deployer {
         bytes32 initCodeHash = keccak256(abi.encodePacked(type(AdminFaucetAuthModule).creationCode, abi.encode(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version)));
         address preComputedAddress = computeCreate2Address(salt, initCodeHash);
         if (preComputedAddress.code.length > 0) {
-            console.logBytes32(initCodeHash);
             console.log("OnChainAuthModule already deployed at %s", preComputedAddress);
             save("OnChainAuthModule", preComputedAddress);
             addr_ = preComputedAddress;
