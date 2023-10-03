@@ -413,14 +413,20 @@ contract DeployPeriphery is Deployer {
         string memory moduleName = "OnChainAuthModule";
         string memory version = "1";
         bytes32 salt = keccak256(bytes("OnChainAuthModule"));
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(AdminFaucetAuthModule).creationCode, abi.encode(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version)));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(
+                type(AdminFaucetAuthModule).creationCode,
+                abi.encode(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version)
+            )
+        );
         address preComputedAddress = computeCreate2Address(salt, initCodeHash);
         if (preComputedAddress.code.length > 0) {
             console.log("OnChainAuthModule already deployed at %s", preComputedAddress);
             save("OnChainAuthModule", preComputedAddress);
             addr_ = preComputedAddress;
         } else {
-            AdminFaucetAuthModule onChainAuthModule = new AdminFaucetAuthModule{ salt: salt }(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version);
+            AdminFaucetAuthModule onChainAuthModule =
+                new AdminFaucetAuthModule{ salt: salt }(cfg.faucetOnchainAuthModuleAdmin(), moduleName, version);
             require(onChainAuthModule.ADMIN() == cfg.faucetOnchainAuthModuleAdmin());
 
             save("OnChainAuthModule", address(onChainAuthModule));
@@ -435,7 +441,12 @@ contract DeployPeriphery is Deployer {
         string memory moduleName = "OffChainAuthModule";
         string memory version = "1";
         bytes32 salt = keccak256(bytes("OffChainAuthModule"));
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(AdminFaucetAuthModule).creationCode, abi.encode(cfg.faucetOffchainAuthModuleAdmin(), moduleName, version)));
+        bytes32 initCodeHash = keccak256(
+            abi.encodePacked(
+                type(AdminFaucetAuthModule).creationCode,
+                abi.encode(cfg.faucetOffchainAuthModuleAdmin(), moduleName, version)
+            )
+        );
         address preComputedAddress = computeCreate2Address(salt, initCodeHash);
         if (preComputedAddress.code.length > 0) {
             console.logBytes32(initCodeHash);
@@ -443,7 +454,8 @@ contract DeployPeriphery is Deployer {
             save("OffChainAuthModule", preComputedAddress);
             addr_ = preComputedAddress;
         } else {
-            AdminFaucetAuthModule offChainAuthModule = new AdminFaucetAuthModule{ salt: salt }(cfg.faucetOffchainAuthModuleAdmin(), moduleName, version);
+            AdminFaucetAuthModule offChainAuthModule =
+                new AdminFaucetAuthModule{ salt: salt }(cfg.faucetOffchainAuthModuleAdmin(), moduleName, version);
             require(offChainAuthModule.ADMIN() == cfg.faucetOffchainAuthModuleAdmin());
 
             save("OffChainAuthModule", address(offChainAuthModule));
