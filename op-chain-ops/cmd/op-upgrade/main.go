@@ -136,27 +136,25 @@ func entrypoint(ctx *cli.Context) error {
 			return fmt.Errorf("cannot fetch L1 chain ID: %w", err)
 		}
 
-		l2ChainID := chainConfig.ChainID
-
 		// The L2Client is not required, but double check the chain id matches if possible
 		if clients.L2Client != nil {
-			remoteL2ChainID, err := clients.L2Client.ChainID(ctx.Context)
+			l2ChainID, err := clients.L2Client.ChainID(ctx.Context)
 			if err != nil {
 				return fmt.Errorf("cannot fetch L2 chain ID: %w", err)
 			}
-			if remoteL2ChainID.Uint64() != l2ChainID {
-				return fmt.Errorf("Mismatched chain IDs: %d != %d", remoteL2ChainID.Uint64(), l2ChainID)
+			if chainConfig.ChainID != l2ChainID.Uint64() {
+				return fmt.Errorf("Mismatched chain IDs: %d != %d", chainConfig.ChainID, l2ChainID)
 			}
 		}
 
-		log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
+		log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", chainConfig.ChainID)
 
 		log.Info("Detecting on chain contracts")
 		// Tracking the individual addresses can be deprecated once the system is upgraded
 		// to the new contracts where the system config has a reference to each address.
 		addresses, ok := superchain.Addresses[chainConfig.ChainID]
 		if !ok {
-			return fmt.Errorf("no addresses for chain ID %d", l2ChainID)
+			return fmt.Errorf("no addresses for chain ID %d", chainConfig.ChainID)
 		}
 		versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
 		if err != nil {
@@ -259,7 +257,7 @@ func toSuperchainName(chainID uint64) (string, error) {
 }
 
 func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
 		return err
 	}
