@@ -16,8 +16,8 @@ l2-header-buffer-size = 0
 l2-confirmation-depth = 0
 
 [rpcs]
-l1-rpc = "${INDEXER_RPC_URL_L1}"
-l2-rpc = "${INDEXER_RPC_URL_L2}"
+l1-rpc = "${INDEXER_NEXT_RPC_URL_L1}"
+l2-rpc = "${INDEXER_NEXT_RPC_URL_L2}"
 
 [db]
 host = "$INDEXER_DB_HOST"
