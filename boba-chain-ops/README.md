@@ -375,7 +375,7 @@ volumes:
 
 ### Erigon
 
-We will run a erigon node and re-generate the legacy block chain. Once we reach the hardfork block, we will do the migration and insert the transition block to this db. We will use this db to start the bedrock.
+We will run an erigon node and re-generate the legacy block chain. Once we reach the hardfork block, we will do the migration and insert the transition block to this db. This db will be used to start the bedrock and distributed to all partners. 
 
 ### boba-crawler
 
