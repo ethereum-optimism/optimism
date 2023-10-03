@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 var exHash = common.Hash{0xff}

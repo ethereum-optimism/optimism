@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"

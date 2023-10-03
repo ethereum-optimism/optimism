@@ -10,9 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
-	opClient "github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	opClient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -35,7 +35,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
-	l1Client, err := client.DialEthClientWithTimeout(client.DefaultDialTimeout, logger, cfg.L1EthRpc)
+	l1Client, err := dial.DialEthClientWithTimeout(dial.DefaultDialTimeout, logger, cfg.L1EthRpc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}
