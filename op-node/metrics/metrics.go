@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
@@ -64,7 +65,7 @@ type Metricer interface {
 	RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter)
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
-	Document() []DocumentedMetric
+	Document() []metrics.DocumentedMetric
 	RecordChannelInputBytes(num int)
 	RecordHeadChannelOpened()
 	RecordChannelTimedOut()
@@ -92,16 +93,16 @@ type Metrics struct {
 	RPCClientRequestDurationSeconds *prometheus.HistogramVec
 	RPCClientResponsesTotal         *prometheus.CounterVec
 
-	L1SourceCache *CacheMetrics
-	L2SourceCache *CacheMetrics
+	L1SourceCache *metrics.CacheMetrics
+	L2SourceCache *metrics.CacheMetrics
 
 	DerivationIdle prometheus.Gauge
 
-	PipelineResets   *Event
-	UnsafePayloads   *Event
-	DerivationErrors *Event
-	SequencingErrors *Event
-	PublishingErrors *Event
+	PipelineResets   *metrics.Event
+	UnsafePayloads   *metrics.Event
+	DerivationErrors *metrics.Event
+	SequencingErrors *metrics.Event
+	PublishingErrors *metrics.Event
 
 	P2PReqDurationSeconds *prometheus.HistogramVec
 	P2PReqTotal           *prometheus.CounterVec
@@ -109,8 +110,8 @@ type Metrics struct {
 
 	PayloadsQuarantineTotal prometheus.Gauge
 
-	SequencerInconsistentL1Origin *Event
-	SequencerResets               *Event
+	SequencerInconsistentL1Origin *metrics.Event
+	SequencerResets               *metrics.Event
 
 	L1RequestDurationSeconds *prometheus.HistogramVec
 
@@ -123,16 +124,16 @@ type Metrics struct {
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
 
-	RefMetrics
+	metrics.RefMetrics
 
 	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
 
 	// Channel Bank Metrics
-	headChannelOpenedEvent *Event
-	channelTimedOutEvent   *Event
-	frameAddedEvent        *Event
+	headChannelOpenedEvent *metrics.Event
+	channelTimedOutEvent   *metrics.Event
+	frameAddedEvent        *metrics.Event
 
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
@@ -154,7 +155,7 @@ type Metrics struct {
 	ProtocolVersions *prometheus.GaugeVec
 
 	registry *prometheus.Registry
-	factory  Factory
+	factory  metrics.Factory
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -169,7 +170,7 @@ func NewMetrics(procName string) *Metrics {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(collectors.NewGoCollector())
-	factory := With(registry)
+	factory := metrics.With(registry)
 
 	return &Metrics{
 		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
@@ -229,8 +230,8 @@ func NewMetrics(procName string) *Metrics {
 			"error",
 		}),
 
-		L1SourceCache: NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
-		L2SourceCache: NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
+		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
+		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
 
 		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -238,14 +239,14 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "1 if the derivation pipeline is idle",
 		}),
 
-		PipelineResets:   NewEvent(factory, ns, "", "pipeline_resets", "derivation pipeline resets"),
-		UnsafePayloads:   NewEvent(factory, ns, "", "unsafe_payloads", "unsafe payloads"),
-		DerivationErrors: NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
-		SequencingErrors: NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
-		PublishingErrors: NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+		PipelineResets:   metrics.NewEvent(factory, ns, "", "pipeline_resets", "derivation pipeline resets"),
+		UnsafePayloads:   metrics.NewEvent(factory, ns, "", "unsafe_payloads", "unsafe payloads"),
+		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
+		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
+		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
 
-		SequencerInconsistentL1Origin: NewEvent(factory, ns, "", "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
-		SequencerResets:               NewEvent(factory, ns, "", "sequencer_resets", "sequencer resets"),
+		SequencerInconsistentL1Origin: metrics.NewEvent(factory, ns, "", "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
+		SequencerResets:               metrics.NewEvent(factory, ns, "", "sequencer_resets", "sequencer resets"),
 
 		UnsafePayloadsBufferLen: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -258,7 +259,7 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Total estimated memory size of buffered L2 unsafe payloads",
 		}),
 
-		RefMetrics: MakeRefMetrics(ns, factory),
+		RefMetrics: metrics.MakeRefMetrics(ns, factory),
 
 		L1ReorgDepth: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
@@ -332,9 +333,9 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Count of incoming dial attempts to accept, with label to filter to allowed attempts",
 		}, []string{"allow"}),
 
-		headChannelOpenedEvent: NewEvent(factory, ns, "", "head_channel", "New channel at the front of the channel bank"),
-		channelTimedOutEvent:   NewEvent(factory, ns, "", "channel_timeout", "Channel has timed out"),
-		frameAddedEvent:        NewEvent(factory, ns, "", "frame_added", "New frame ingested in the channel bank"),
+		headChannelOpenedEvent: metrics.NewEvent(factory, ns, "", "head_channel", "New channel at the front of the channel bank"),
+		channelTimedOutEvent:   metrics.NewEvent(factory, ns, "", "channel_timeout", "Channel has timed out"),
+		frameAddedEvent:        metrics.NewEvent(factory, ns, "", "frame_added", "New frame ingested in the channel bank"),
 
 		ChannelInputBytes: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
@@ -436,7 +437,7 @@ func NewMetrics(procName string) *Metrics {
 	}
 }
 
-// SetPeerScores updates the peer score
+// SetPeerScores updates the peer score metrics.
 // Accepts a slice of peer scores in any order.
 func (m *Metrics) SetPeerScores(allScores []store.PeerScores) {
 	for _, scores := range allScores {
@@ -637,7 +638,7 @@ func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 	return server.ListenAndServe()
 }
 
-func (m *Metrics) Document() []DocumentedMetric {
+func (m *Metrics) Document() []metrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
@@ -799,7 +800,7 @@ func (n *noopMetricer) RecordSequencerBuildingDiffTime(duration time.Duration) {
 func (n *noopMetricer) RecordSequencerSealingTime(duration time.Duration) {
 }
 
-func (n *noopMetricer) Document() []DocumentedMetric {
+func (n *noopMetricer) Document() []metrics.DocumentedMetric {
 	return nil
 }
 
