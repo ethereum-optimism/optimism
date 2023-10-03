@@ -47,9 +47,10 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @custom:legacy-overwrite challenger
     SystemConfig public systemConfig;
 
-    /// @notice The address of the proposer. Can be updated via reinitialize.
-    /// @custom:network-specific
-    address public proposer;
+    /// @custom:legacy
+    /// @custom:spacer proposer
+    /// @notice Spacer for backwards compatibility.
+    address private spacer_5_0_20;
 
     /// @notice Emitted when an output is proposed.
     /// @param outputRoot    The output root.
@@ -82,23 +83,16 @@ contract L2OutputOracle is Initializable, ISemver {
         L2_BLOCK_TIME = _l2BlockTime;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
-        initialize({
-            _startingBlockNumber: 0,
-            _startingTimestamp: 0,
-            _proposer: address(0),
-            _systemConfig: SystemConfig(address(0))
-        });
+        initialize({ _startingBlockNumber: 0, _startingTimestamp: 0, _systemConfig: SystemConfig(address(0)) });
     }
 
     /// @notice Initializer.
     /// @param _startingBlockNumber Block number for the first recoded L2 block.
     /// @param _startingTimestamp   Timestamp for the first recoded L2 block.
-    /// @param _proposer            The address of the proposer.
     /// @param _systemConfig        The address of the system config.
     function initialize(
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
-        address _proposer,
         SystemConfig _systemConfig
     )
         public
@@ -111,8 +105,10 @@ contract L2OutputOracle is Initializable, ISemver {
 
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
-        proposer = _proposer;
         systemConfig = _systemConfig;
+
+        // Delete the proposer value which is no longer stored in this contract.
+        spacer_5_0_20 = address(0);
     }
 
     /// @notice Getter for the output proposal submission interval.
@@ -138,7 +134,6 @@ contract L2OutputOracle is Initializable, ISemver {
     }
 
     /// @notice Getter for the challenger address.
-    /// @custom:legacy
     function challenger() external view returns (address) {
         return systemConfig.challenger();
     }
@@ -147,7 +142,12 @@ contract L2OutputOracle is Initializable, ISemver {
     ///         future, use `proposer` instead.
     /// @custom:legacy
     function PROPOSER() external view returns (address) {
-        return proposer;
+        return systemConfig.proposer();
+    }
+
+    /// @notice Getter for the proposer address.
+    function proposer() external view returns (address) {
+        return systemConfig.proposer();
     }
 
     /// @notice Deletes all output proposals after and including the proposal that corresponds to
@@ -195,7 +195,9 @@ contract L2OutputOracle is Initializable, ISemver {
         external
         payable
     {
-        require(msg.sender == proposer, "L2OutputOracle: only the proposer address can propose new outputs");
+        require(
+            msg.sender == systemConfig.proposer(), "L2OutputOracle: only the proposer address can propose new outputs"
+        );
 
         require(
             _l2BlockNumber == nextBlockNumber(),

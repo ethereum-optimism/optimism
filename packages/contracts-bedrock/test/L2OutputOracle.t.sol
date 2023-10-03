@@ -62,7 +62,6 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
         oracle.initialize({
             _startingBlockNumber: 0,
             _startingTimestamp: block.timestamp + 1,
-            _proposer: address(0),
             _systemConfig: SystemConfig(address(0))
         });
     }
@@ -473,7 +472,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         L2OutputOracle(payable(proxy)).initialize({
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: address(1),
             _systemConfig: SystemConfig(address(2))
         });
     }
@@ -484,7 +482,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         L2OutputOracle(oracleImpl).initialize({
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: address(1),
             _systemConfig: SystemConfig(address(2))
         });
     }

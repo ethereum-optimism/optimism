@@ -702,6 +702,7 @@ contract Deploy is Deployer {
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     startBlock,
                     cfg.batchInboxAddress(),
+                    cfg.l2OutputOracleProposer(),
                     cfg.l2OutputOracleChallenger(),
                     SystemConfig.Addresses({
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
@@ -888,12 +889,7 @@ contract Deploy is Deployer {
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
                 L2OutputOracle.initialize,
-                (
-                    cfg.l2OutputOracleStartingBlockNumber(),
-                    cfg.l2OutputOracleStartingTimestamp(),
-                    cfg.l2OutputOracleProposer(),
-                    systemConfigProxy
-                )
+                (cfg.l2OutputOracleStartingBlockNumber(), cfg.l2OutputOracleStartingTimestamp(), systemConfigProxy)
                 )
         });
 

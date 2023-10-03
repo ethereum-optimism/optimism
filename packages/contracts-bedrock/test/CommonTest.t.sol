@@ -143,6 +143,7 @@ contract SystemConfig_Initializer is SuperchainConfig_Initializer {
     bytes32 constant batcherHash = bytes32(hex"abcd");
     uint64 constant gasLimit = 30_000_000;
     address constant unsafeBlockSigner = address(1);
+    address internal proposer = makeAddr("Proposer");
     address internal oracleChallenger = makeAddr("Challenger");
 
     function setUp() public virtual override {
@@ -166,6 +167,7 @@ contract SystemConfig_Initializer is SuperchainConfig_Initializer {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     0, // _startBlock
                     batchInbox, // _batchInbox
+                    proposer, // _proposer
                     oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
@@ -191,7 +193,6 @@ contract L2OutputOracle_Initializer is SystemConfig_Initializer {
     L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
-    address internal proposer = 0x000000000000000000000000000000000000AbBa;
     uint256 internal submissionInterval = 1800;
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
@@ -250,7 +251,7 @@ contract L2OutputOracle_Initializer is SystemConfig_Initializer {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp, proposer, sysConf))
+            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp, sysConf))
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");

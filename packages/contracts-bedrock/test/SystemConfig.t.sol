@@ -72,6 +72,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     startBlock, // _startBlock
                     batchInbox, // _batchInbox
+                    proposer, // _proposer
                     oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
@@ -119,6 +120,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Initializer {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     0, // _startBlock
                     batchInbox, // _batchInbox
+                    proposer, // _proposer
                     oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
@@ -159,6 +161,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     0, // _startBlock
                     address(0), // _batchInbox
+                    address(0), // _proposer
                     address(0), // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: address(0),
@@ -200,6 +203,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     1, // _startBlock
                     batchInbox, // _batchInbox,
+                    proposer, // _proposer,
                     oracleChallenger, // _challenger
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,

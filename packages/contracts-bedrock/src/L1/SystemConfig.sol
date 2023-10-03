@@ -9,10 +9,12 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
+/// @custom:audit none This contracts is not yet audited.
 /// @title SystemConfig
-/// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
-///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
+/// @notice The SystemConfig contract is used to manage configuration of an OP Chain.
+///         All configuration is stored on L1 and picked up by L2 as part of the derivation of
 ///         the L2 chain.
+///         The values in this contract are set by the ChainGovernor.
 contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
@@ -105,6 +107,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
+    /// @notice Proposer address, proposes new outputs.
+    address public proposer;
+
     /// @notice Challenger address, the challenger can delete outputs.
     address public challenger;
 
@@ -117,6 +122,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
+
+    /// @notice Emitted when the proposer is updated.
+    /// @param newProposer The address of the new proposer.
+    event ProposerUpdated(address indexed newProposer);
 
     /// @notice Emitted when the challenger is updated.
     /// @param newChallenger The address of the new challenger.
@@ -143,6 +152,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             }),
             _startBlock: type(uint256).max,
             _batchInbox: address(0),
+            _proposer: address(0),
             _challenger: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),
@@ -168,6 +178,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///                           Contracts that were deployed before this field existed
     ///                           need to have this field set manually via an override.
     ///                           Newly deployed contracts should set this value to uint256(0).
+    /// @param _proposer          Initial proposer address.
     /// @param _challenger        Initial challenger address.
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
@@ -182,6 +193,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         ResourceMetering.ResourceConfig memory _config,
         uint256 _startBlock,
         address _batchInbox,
+        address _proposer,
         address _challenger,
         SystemConfig.Addresses memory _addresses
     )
@@ -196,6 +208,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _setGasConfig(_gasConfig);
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setProposer(_proposer);
         _setChallenger(_challenger);
 
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
@@ -410,6 +423,19 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Updates the proposer. Can only be called by the owner.
+    /// @param _proposer New proposer address.
+    function setProposer(address _proposer) external onlyOwner {
+        _setProposer(_proposer);
+    }
+
+    /// @notice Internal function for updating the proposer.
+    /// @param _proposer New proposer.
+    function _setProposer(address _proposer) internal {
+        proposer = _proposer;
+        emit ProposerUpdated(_proposer);
     }
 
     /// @notice Updates the challenger. Can only be called by the owner.
