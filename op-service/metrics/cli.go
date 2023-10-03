@@ -25,23 +25,33 @@ func DefaultCLIConfig() CLIConfig {
 	}
 }
 
+type FlagValue string
+
+func (fv FlagValue) Set(value string) error {
+	*(*string)(&fv) = value
+	return nil
+}
+
+func (fv FlagValue) String() string {
+	return string(fv)
+}
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		&cli.BoolFlag{
+		&cli.GenericFlag{
 			Name:    EnabledFlagName,
 			Usage:   "Enable the metrics server",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ENABLED"),
 		},
-		&cli.StringFlag{
+		&cli.GenericFlag{
 			Name:    ListenAddrFlagName,
 			Usage:   "Metrics listening address",
-			Value:   defaultListenAddr, // TODO(CLI-4159): Switch to 127.0.0.1
+			Value:   FlagValue(defaultListenAddr), // TODO(CLI-4159): Switch to 127.0.0.1
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ADDR"),
 		},
-		&cli.IntFlag{
+		&cli.GenericFlag{
 			Name:    PortFlagName,
 			Usage:   "Metrics listening port",
-			Value:   defaultListenPort,
+			Value:   FlagValue(defaultListenAddr),
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_PORT"),
 		},
 	}

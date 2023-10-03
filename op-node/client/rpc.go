@@ -14,7 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 

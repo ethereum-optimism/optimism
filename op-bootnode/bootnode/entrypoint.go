@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -45,7 +44,7 @@ func Main(cliCtx *cli.Context) error {
 	logCfg := oplog.ReadCLIConfig(cliCtx)
 	logger := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
 	oplog.SetGlobalLogHandler(logger.GetHandler())
-	m := metrics.NewMetrics("default")
+	m := opmetrics.NewMetrics("default")
 	ctx := context.Background()
 
 	config, err := opnode.NewRollupConfig(logger, cliCtx)
