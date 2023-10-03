@@ -31,6 +31,7 @@
     "preinstall": "npx only-allow pnpm",
     "pre-pr": "pnpm clean && pnpm gas-snapshot && pnpm storage-snapshot && pnpm semver-lock && pnpm autogen:invariant-docs && pnpm lint && (cd ../../op-bindings && make)",
     "pre-pr:full": "pnpm test && pnpm slither && pnpm validate-deploy-configs && pnpm validate-spacers && pnpm pre-pr",
+    "pre-pr:no-build": "forge script scripts/SemverLock.s.sol && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact' && ./scripts/storage-snapshot.sh",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "npx tsx scripts/forge-test-names.ts",
     "lint:contracts:check": "pnpm lint:fix && git diff --exit-code",
