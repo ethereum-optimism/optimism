@@ -119,3 +119,19 @@ func TestDefend(t *testing.T) {
 		require.Equalf(t, test.DefendGIndex, result.ToGIndex(), "Defend from GIndex %v", pos.ToGIndex())
 	}
 }
+
+func TestRelativeToAncestorAtDepth(t *testing.T) {
+	t.Run("ErrorsForDeepAncestor", func(t *testing.T) {
+		pos := NewPosition(1, 1)
+		_, err := pos.RelativeToAncestorAtDepth(2)
+		require.ErrorIs(t, err, PositionDepthTooSmall)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		pos := NewPosition(2, 1)
+		expectedRelativePosition := NewPosition(1, 1)
+		relativePosition, err := pos.RelativeToAncestorAtDepth(1)
+		require.NoError(t, err)
+		require.Equal(t, expectedRelativePosition, relativePosition)
+	})
+}

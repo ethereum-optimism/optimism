@@ -23,9 +23,9 @@ func TestGet(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getError: mockGetError}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&mockOutputProvider},
-			depthTiers: []uint64{40, 20},
+			logger:      testlog.Logger(t, log.LvlInfo),
+			topProvider: &mockOutputProvider,
+			topDepth:    40,
 		}
 		_, err := splitProvider.Get(context.Background(), types.NewPosition(1, 0))
 		require.ErrorIs(t, err, mockGetError)
@@ -34,9 +34,9 @@ func TestGet(t *testing.T) {
 	t.Run("ReturnsCorrectOutput", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getOutput: mockOutput}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&mockOutputProvider},
-			depthTiers: []uint64{40, 20},
+			logger:      testlog.Logger(t, log.LvlInfo),
+			topProvider: &mockOutputProvider,
+			topDepth:    40,
 		}
 		output, err := splitProvider.Get(context.Background(), types.NewPosition(6, 3))
 		require.NoError(t, err)
@@ -45,12 +45,13 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("ReturnsCorrectOutputWithMultipleProviders", func(t *testing.T) {
-		firstOutputProvider := mockTraceProvider{}
-		secondOutputProvider := mockTraceProvider{getOutput: mockOutput}
+		topProvider := mockTraceProvider{}
+		bottomProvider := mockTraceProvider{getOutput: mockOutput}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&firstOutputProvider, &secondOutputProvider},
-			depthTiers: []uint64{40, 20},
+			logger:         testlog.Logger(t, log.LvlInfo),
+			topProvider:    &topProvider,
+			bottomProvider: &bottomProvider,
+			topDepth:       40,
 		}
 		output, err := splitProvider.Get(context.Background(), types.NewPosition(42, 17))
 		require.NoError(t, err)
@@ -63,9 +64,9 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{absolutePreStateCommitmentError: mockGetError}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&mockOutputProvider},
-			depthTiers: []uint64{40, 20},
+			logger:         testlog.Logger(t, log.LvlInfo),
+			bottomProvider: &mockOutputProvider,
+			topDepth:       40,
 		}
 		_, err := splitProvider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorIs(t, err, mockGetError)
@@ -74,9 +75,9 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 	t.Run("ReturnsCorrectOutput", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{absolutePreStateCommitment: mockCommitment}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&mockOutputProvider},
-			depthTiers: []uint64{40, 20},
+			logger:         testlog.Logger(t, log.LvlInfo),
+			bottomProvider: &mockOutputProvider,
+			topDepth:       40,
 		}
 		output, err := splitProvider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
@@ -88,9 +89,9 @@ func TestAbsolutePreState(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{absolutePreStateError: mockGetError}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&mockOutputProvider},
-			depthTiers: []uint64{40},
+			logger:         testlog.Logger(t, log.LvlInfo),
+			bottomProvider: &mockOutputProvider,
+			topDepth:       40,
 		}
 		_, err := splitProvider.AbsolutePreState(context.Background())
 		require.ErrorIs(t, err, mockGetError)
@@ -101,9 +102,9 @@ func TestGetStepData(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getStepDataError: mockGetError}
 		splitProvider := SplitTraceProvider{
-			logger:     testlog.Logger(t, log.LvlInfo),
-			providers:  []types.TraceProvider{&mockOutputProvider},
-			depthTiers: []uint64{40},
+			logger:         testlog.Logger(t, log.LvlInfo),
+			bottomProvider: &mockOutputProvider,
+			topDepth:       40,
 		}
 		_, _, _, err := splitProvider.GetStepData(context.Background(), types.NewPosition(0, 0))
 		require.ErrorIs(t, err, mockGetError)

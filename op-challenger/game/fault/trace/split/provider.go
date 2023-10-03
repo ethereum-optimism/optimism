@@ -2,17 +2,11 @@ package split
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-var (
-	GetStepDataErr = fmt.Errorf("GetStepData not supported")
-	NoProvidersErr = fmt.Errorf("no trace providers configured")
 )
 
 var _ types.TraceProvider = (*SplitTraceProvider)(nil)
@@ -21,63 +15,58 @@ var _ types.TraceProvider = (*SplitTraceProvider)(nil)
 // routes requests to the correct internal trace provider based on the
 // depth of the requested trace.
 type SplitTraceProvider struct {
-	logger     log.Logger
-	providers  []types.TraceProvider
-	depthTiers []uint64
+	logger         log.Logger
+	topProvider    types.TraceProvider
+	bottomProvider types.TraceProvider
+	topDepth       uint64
 }
 
-func NewTraceProvider(logger log.Logger, providers []types.TraceProvider, depthTiers []uint64) *SplitTraceProvider {
+// NewTraceProvider creates a new [SplitTraceProvider] instance.
+// The [topDepth] parameter specifies the depth at which the internal
+// [types.TraceProvider] should be switched.
+func NewTraceProvider(logger log.Logger, topProvider types.TraceProvider, bottomProvider types.TraceProvider, topDepth uint64) *SplitTraceProvider {
 	return &SplitTraceProvider{
-		logger:     logger,
-		providers:  providers,
-		depthTiers: depthTiers,
+		logger:         logger,
+		topProvider:    topProvider,
+		bottomProvider: bottomProvider,
+		topDepth:       topDepth,
 	}
 }
 
 func (s *SplitTraceProvider) providerForDepth(depth uint64) (uint64, types.TraceProvider) {
-	reduced := uint64(0)
-	for i, tier := range s.depthTiers {
-		if depth <= tier {
-			return reduced, s.providers[i]
-		}
-		if i < len(s.providers)-1 {
-			reduced += tier
-		}
+	if depth <= s.topDepth {
+		return 0, s.topProvider
 	}
-	return reduced, s.providers[len(s.providers)-1]
+	return s.topDepth, s.bottomProvider
 }
 
 // Get routes the Get request to the internal [types.TraceProvider] that
 // that serves the trace index at the depth.
 func (s *SplitTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
-	if len(s.providers) == 0 {
-		return common.Hash{}, NoProvidersErr
+	ancestorDepth, provider := s.providerForDepth(uint64(pos.Depth()))
+	relativePosition, err := pos.RelativeToAncestorAtDepth(ancestorDepth)
+	if err != nil {
+		return common.Hash{}, err
 	}
-	reduced, provider := s.providerForDepth(uint64(pos.Depth()))
-	localizedPosition := pos.Localize(reduced)
-	return provider.Get(ctx, localizedPosition)
+	return provider.Get(ctx, relativePosition)
 }
 
 // AbsolutePreStateCommitment returns the absolute prestate from the lowest internal [types.TraceProvider]
 func (s *SplitTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error) {
-	if len(s.providers) == 0 {
-		return common.Hash{}, NoProvidersErr
-	}
-	return s.providers[len(s.providers)-1].AbsolutePreStateCommitment(ctx)
+	return s.bottomProvider.AbsolutePreStateCommitment(ctx)
 }
 
 // AbsolutePreState routes the AbsolutePreState request to the lowest internal [types.TraceProvider].
 func (s *SplitTraceProvider) AbsolutePreState(ctx context.Context) (preimage []byte, err error) {
-	if len(s.providers) == 0 {
-		return nil, NoProvidersErr
-	}
-	return s.providers[len(s.providers)-1].AbsolutePreState(ctx)
+	return s.bottomProvider.AbsolutePreState(ctx)
 }
 
 // GetStepData routes the GetStepData request to the lowest internal [types.TraceProvider].
-func (s *SplitTraceProvider) GetStepData(ctx context.Context, i types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
-	if len(s.providers) == 0 {
-		return nil, nil, nil, NoProvidersErr
+func (s *SplitTraceProvider) GetStepData(ctx context.Context, pos types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+	ancestorDepth, _ := s.providerForDepth(uint64(pos.Depth()))
+	relativePosition, err := pos.RelativeToAncestorAtDepth(ancestorDepth)
+	if err != nil {
+		return nil, nil, nil, err
 	}
-	return s.providers[len(s.providers)-1].GetStepData(ctx, i)
+	return s.bottomProvider.GetStepData(ctx, relativePosition)
 }

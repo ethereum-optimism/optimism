@@ -1,6 +1,13 @@
 package types
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
+
+var (
+	PositionDepthTooSmall = errors.New("Position depth is too small")
+)
 
 // Position is a golang wrapper around the dispute game Position type.
 type Position struct {
@@ -25,13 +32,16 @@ func (p Position) MoveRight() Position {
 	}
 }
 
-// Localize returns a new position for a subtree.
-// reduced is the number of levels to reduce the depth by.
-func (p Position) Localize(reduced uint64) Position {
-	newPosDepth := uint64(p.depth) - reduced
+// RelativeToAncestorAtDepth returns a new position for a subtree.
+// [ancestor] is the depth of the subtree root node.
+func (p Position) RelativeToAncestorAtDepth(ancestor uint64) (Position, error) {
+	if ancestor > uint64(p.depth) {
+		return Position{}, PositionDepthTooSmall
+	}
+	newPosDepth := uint64(p.depth) - ancestor
 	nodesAtDepth := 1 << newPosDepth
 	newIndexAtDepth := p.indexAtDepth % nodesAtDepth
-	return NewPosition(int(newPosDepth), newIndexAtDepth)
+	return NewPosition(int(newPosDepth), newIndexAtDepth), nil
 }
 
 func (p Position) Depth() int {
