@@ -124,7 +124,7 @@ func TestRelativeToAncestorAtDepth(t *testing.T) {
 	t.Run("ErrorsForDeepAncestor", func(t *testing.T) {
 		pos := NewPosition(1, 1)
 		_, err := pos.RelativeToAncestorAtDepth(2)
-		require.ErrorIs(t, err, PositionDepthTooSmall)
+		require.ErrorIs(t, err, ErrPositionDepthTooSmall)
 	})
 
 	t.Run("Success", func(t *testing.T) {

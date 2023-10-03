@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	PositionDepthTooSmall = errors.New("Position depth is too small")
+	ErrPositionDepthTooSmall = errors.New("Position depth is too small")
 )
 
 // Position is a golang wrapper around the dispute game Position type.
@@ -36,7 +36,7 @@ func (p Position) MoveRight() Position {
 // [ancestor] is the depth of the subtree root node.
 func (p Position) RelativeToAncestorAtDepth(ancestor uint64) (Position, error) {
 	if ancestor > uint64(p.depth) {
-		return Position{}, PositionDepthTooSmall
+		return Position{}, ErrPositionDepthTooSmall
 	}
 	newPosDepth := uint64(p.depth) - ancestor
 	nodesAtDepth := 1 << newPosDepth

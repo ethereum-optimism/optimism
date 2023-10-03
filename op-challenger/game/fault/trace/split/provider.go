@@ -63,10 +63,10 @@ func (s *SplitTraceProvider) AbsolutePreState(ctx context.Context) (preimage []b
 
 // GetStepData routes the GetStepData request to the lowest internal [types.TraceProvider].
 func (s *SplitTraceProvider) GetStepData(ctx context.Context, pos types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
-	ancestorDepth, _ := s.providerForDepth(uint64(pos.Depth()))
+	ancestorDepth, provider := s.providerForDepth(uint64(pos.Depth()))
 	relativePosition, err := pos.RelativeToAncestorAtDepth(ancestorDepth)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	return s.bottomProvider.GetStepData(ctx, relativePosition)
+	return provider.GetStepData(ctx, relativePosition)
 }
