@@ -6,15 +6,17 @@ import (
 )
 
 type GameBuilder struct {
-	builder         *ClaimBuilder
-	Game            types.Game
-	ExpectedActions []types.Action
+	builder             *ClaimBuilder
+	Game                types.Game
+	ExpectedActions     []types.Action
+	agreeWithOutputRoot bool
 }
 
 func (c *ClaimBuilder) GameBuilder(agreeWithOutputRoot bool, rootCorrect bool) *GameBuilder {
 	return &GameBuilder{
-		builder: c,
-		Game:    types.NewGameState(agreeWithOutputRoot, c.CreateRootClaim(rootCorrect), uint64(c.maxDepth)),
+		builder:             c,
+		agreeWithOutputRoot: agreeWithOutputRoot,
+		Game:                types.NewGameState(agreeWithOutputRoot, []types.Claim{c.CreateRootClaim(rootCorrect)}, uint64(c.maxDepth)),
 	}
 }
 
@@ -22,62 +24,60 @@ type GameBuilderSeq struct {
 	gameBuilder *GameBuilder
 	builder     *ClaimBuilder
 	lastClaim   types.Claim
-	game        types.Game
 }
 
 func (g *GameBuilder) Seq() *GameBuilderSeq {
 	return &GameBuilderSeq{
 		gameBuilder: g,
 		builder:     g.builder,
-		game:        g.Game,
 		lastClaim:   g.Game.Claims()[0],
 	}
 }
 
+// addClaimToGame replaces the game being built with a new instance that has claim as the latest claim.
+// The ContractIndex in claim is updated with its position in the game's claim array.
+func (s *GameBuilderSeq) addClaimToGame(claim *types.Claim) {
+	claim.ContractIndex = len(s.gameBuilder.Game.Claims())
+	claims := append(s.gameBuilder.Game.Claims(), *claim)
+	s.gameBuilder.Game = types.NewGameState(s.gameBuilder.agreeWithOutputRoot, claims, uint64(s.builder.maxDepth))
+}
+
 func (s *GameBuilderSeq) AttackCorrect() *GameBuilderSeq {
 	claim := s.builder.AttackClaim(s.lastClaim, true)
-	claim.ContractIndex = len(s.game.Claims())
-	s.builder.require.NoError(s.game.Put(claim))
+	s.addClaimToGame(&claim)
 	return &GameBuilderSeq{
 		gameBuilder: s.gameBuilder,
 		builder:     s.builder,
-		game:        s.game,
 		lastClaim:   claim,
 	}
 }
 
 func (s *GameBuilderSeq) Attack(value common.Hash) *GameBuilderSeq {
 	claim := s.builder.AttackClaimWithValue(s.lastClaim, value)
-	claim.ContractIndex = len(s.game.Claims())
-	s.builder.require.NoError(s.game.Put(claim))
+	s.addClaimToGame(&claim)
 	return &GameBuilderSeq{
 		gameBuilder: s.gameBuilder,
 		builder:     s.builder,
-		game:        s.game,
 		lastClaim:   claim,
 	}
 }
 
 func (s *GameBuilderSeq) DefendCorrect() *GameBuilderSeq {
 	claim := s.builder.DefendClaim(s.lastClaim, true)
-	claim.ContractIndex = len(s.game.Claims())
-	s.builder.require.NoError(s.game.Put(claim))
+	s.addClaimToGame(&claim)
 	return &GameBuilderSeq{
 		gameBuilder: s.gameBuilder,
 		builder:     s.builder,
-		game:        s.game,
 		lastClaim:   claim,
 	}
 }
 
 func (s *GameBuilderSeq) Defend(value common.Hash) *GameBuilderSeq {
 	claim := s.builder.DefendClaimWithValue(s.lastClaim, value)
-	claim.ContractIndex = len(s.game.Claims())
-	s.builder.require.NoError(s.game.Put(claim))
+	s.addClaimToGame(&claim)
 	return &GameBuilderSeq{
 		gameBuilder: s.gameBuilder,
 		builder:     s.builder,
-		game:        s.game,
 		lastClaim:   claim,
 	}
 }
