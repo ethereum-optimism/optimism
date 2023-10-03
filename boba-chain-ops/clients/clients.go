@@ -19,20 +19,21 @@ import (
 
 // wrapper for rpc.Client
 type RpcClient struct {
-	RpcClient *rpc.Client
+	RpcClient   *rpc.Client
+	BlockNumber int64
 }
 
-func NewRpcClient(url string) (*RpcClient, error) {
+func NewRpcClient(url string, blockNumber int64) (*RpcClient, error) {
 	rpcClient, err := rpc.DialContext(context.Background(), url, log.New())
 	if err != nil {
 		return nil, fmt.Errorf("cannot dial rpc client: %w", err)
 	}
-	return &RpcClient{RpcClient: rpcClient}, nil
+	return &RpcClient{RpcClient: rpcClient, BlockNumber: blockNumber}, nil
 }
 
 func (r *RpcClient) CodeAt(ctx context.Context, contract libcommon.Address, blockNumber *big.Int) ([]byte, error) {
 	if blockNumber == nil {
-		blockNumber = big.NewInt(-1)
+		blockNumber = big.NewInt(r.BlockNumber)
 	}
 	var result hexutility.Bytes
 	if err := r.RpcClient.CallContext(ctx, &result, "eth_getCode", contract, hexutil.EncodeUint64(blockNumber.Uint64())); err != nil {
@@ -71,7 +72,7 @@ func (r *RpcClient) SubscribeFilterLogs(ctx context.Context, query ethereum.Filt
 
 func (r *RpcClient) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	if blockNumber == nil {
-		blockNumber = big.NewInt(-1)
+		blockNumber = big.NewInt(r.BlockNumber)
 	}
 	data := hexutility.Bytes(call.Data)
 	calldata := ethapi.CallArgs{
@@ -88,7 +89,7 @@ func (r *RpcClient) CallContract(ctx context.Context, call ethereum.CallMsg, blo
 
 func (r *RpcClient) StorageAt(ctx context.Context, address libcommon.Address, index libcommon.Hash, blockNumber *big.Int) ([]byte, error) {
 	if blockNumber == nil {
-		blockNumber = big.NewInt(-1)
+		blockNumber = big.NewInt(r.BlockNumber)
 	}
 	var (
 		empty  []byte
@@ -109,9 +110,10 @@ type Clients struct {
 // NewClients will create new RPC clients from a CLI context
 func NewClients(ctx *cli.Context) (*Clients, error) {
 	clients := Clients{}
+	blockNumber := ctx.Int64("l2-block-number")
 
 	if l1RpcURL := ctx.String("l1-rpc-url"); l1RpcURL != "" {
-		l1RpcClient, err := NewRpcClient(l1RpcURL)
+		l1RpcClient, err := NewRpcClient(l1RpcURL, blockNumber)
 		if err != nil {
 			return nil, err
 		}
@@ -119,7 +121,7 @@ func NewClients(ctx *cli.Context) (*Clients, error) {
 	}
 
 	if l2RpcURL := ctx.String("l2-rpc-url"); l2RpcURL != "" {
-		l2RpcClient, err := NewRpcClient(l2RpcURL)
+		l2RpcClient, err := NewRpcClient(l2RpcURL, blockNumber)
 		if err != nil {
 			return nil, err
 		}
