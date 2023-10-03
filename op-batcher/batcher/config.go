@@ -96,7 +96,7 @@ type CLIConfig struct {
 }
 
 func (c CLIConfig) Check() error {
-	// TODO: check the sanity of flags loaded directly like MaxPendingTransactions
+	// TODO: check the sanity of flags loaded directly https://github.com/ethereum-optimism/optimism/issues/7512
 
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
