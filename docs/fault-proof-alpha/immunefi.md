@@ -6,6 +6,8 @@ During this early phase of ongoing development, we invite security researchers a
 The current system is not production ready, however the core infrastructure for creating an instruction trace ([Cannon][cannon] + the [`op-program`][op-program]), the off-chain challenge agent ([`op-challenger`][op-challenger]),
 and the on-chain infrastructure for the [Dispute Game][dispute-game] are all in place.
 
+Pinned FPA commit: `546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f`
+
 ### Resources
 
 > **Note**
