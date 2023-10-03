@@ -428,9 +428,24 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _resourceConfig = _config;
     }
 
-    /// @notice Updates the proposer. Can only be called by the owner.
+    /// @notice Checks if the given address is a proposal manager.
+    /// @param _manager The address to check.
+    /// @return A boolean indicating if the address is a proposal manager.
+    function isProposalManager(address _manager) public view returns (bool) {
+        SuperchainConfig _superchainConfig = SuperchainConfig(superchainConfig());
+        return (
+            _manager == challenger || _manager == _superchainConfig.initiator()
+                || _manager == _superchainConfig.vetoer()
+        );
+    }
+
+    /// @notice Updates the proposer. Can only be called by the owner, initiator or vetoer.
+    ///         The same entities who can delete an output should also be able to update the proposer; because in the
+    ///         event that a faulty output is proposed, the malicious proposer will need to be removed prior to
+    ///         deleting the output.
     /// @param _proposer New proposer address.
-    function setProposer(address _proposer) external onlyOwner {
+    function setProposer(address _proposer) external {
+        require(isProposalManager(msg.sender), "SystemConfig: caller is not authorized to update the proposer");
         _setProposer(_proposer);
     }
 

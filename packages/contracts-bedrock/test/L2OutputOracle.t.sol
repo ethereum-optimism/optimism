@@ -197,28 +197,27 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
     }
 }
 
-contract L2OutputOracle_mayDelete_Test is L2OutputOracle_Initializer {
-    /// @dev Tests that `mayDelete` returns the correct value.
-    function test_mayDelete_succeeds() external {
-        // check if the challenger can delete an output
-        assertTrue(oracle.mayDelete(sysConf.challenger()));
+contract L2OutputOracle_proposalManagement_Test is L2OutputOracle_Initializer {
+    /// @dev Tests that `isProposalManager` is identically enforced both on deletion and proposer updating
+    function testFuzz_isProposalManagerCanSetProposerAndDelete_succeeds(address caller) external {
+        proposeAnotherOutput();
 
-        // check if the initiator can delete an output
-        assertTrue(oracle.mayDelete(supConf.initiator()));
+        uint256 latestOutputIndex = oracle.latestOutputIndex();
+        address newProposer = makeAddr("New Proposer");
 
-        // check if the vetoer can delete an output
-        assertTrue(oracle.mayDelete(supConf.vetoer()));
-    }
-}
+        if (sysConf.isProposalManager(caller)) {
+            vm.prank(caller);
+            sysConf.setProposer(newProposer);
+            oracle.deleteL2Outputs(latestOutputIndex);
+        } else {
+            vm.prank(caller);
 
-contract L2OutputOracle_mayDelete_TestFail is L2OutputOracle_Initializer {
-    /// @dev Tests that `mayDelete` fails if the caller is not authorized
-    function testFuzz_mayDelete_randomAddress_reverts(address caller) external {
-        vm.assume(caller != sysConf.challenger());
-        vm.assume(caller != supConf.initiator());
-        vm.assume(caller != supConf.vetoer());
+            vm.expectRevert("SystemConfig: caller is not authorized to update the proposer");
+            sysConf.setProposer(newProposer);
 
-        assertFalse(oracle.mayDelete(caller));
+            vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
+            oracle.deleteL2Outputs(latestOutputIndex);
+        }
     }
 }
 
@@ -451,19 +450,21 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(oracle.proposer(), proposer);
         assertEq(oracle.CHALLENGER(), oracleChallenger);
         assertEq(oracle.challenger(), oracleChallenger);
+        assertEq(address(oracle.systemConfig()), address(sysConf));
     }
 
     /// @dev Tests that the impl is created with the correct values.
     function test_initValuesOnImpl_succeeds() external {
-        assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-        assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
+        assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(oracle.submissionInterval(), submissionInterval);
+        assertEq(oracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(oracle.l2BlockTime(), l2BlockTime);
 
         // The values that are set in the initialize function should be all
         // zero values in the implementation contract.
         assertEq(oracleImpl.startingBlockNumber(), 0);
         assertEq(oracleImpl.startingTimestamp(), 0);
-        assertEq(oracleImpl.PROPOSER(), address(0));
-        assertEq(oracleImpl.proposer(), address(0));
+        assertEq(address(oracleImpl.systemConfig()), address(0));
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.

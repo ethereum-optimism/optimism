@@ -156,7 +156,7 @@ contract L2OutputOracle is Initializable, ISemver {
     ///                       All outputs after this output will also be deleted.
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2OutputIndex) external {
-        require(mayDelete(msg.sender), "L2OutputOracle: caller is not allowed to delete outputs");
+        require(systemConfig.isProposalManager(msg.sender), "L2OutputOracle: caller is not allowed to delete outputs");
 
         // Make sure we're not *increasing* the length of the array.
         require(
@@ -315,14 +315,5 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @return L2 timestamp of the given block.
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
         return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
-    }
-
-    /// @notice Returns a boolean indicating whether the given address can delete an output.
-    /// @param _addr The address to check.
-    /// @return True if the address can delete an output, false otherwise.
-    function mayDelete(address _addr) public view returns (bool) {
-        SuperchainConfig superchainConfig = SuperchainConfig(systemConfig.superchainConfig());
-        return _addr == systemConfig.challenger() || _addr == superchainConfig.initiator()
-            || _addr == superchainConfig.vetoer();
     }
 }

@@ -385,3 +385,28 @@ contract SystemConfig_CheckSequencer_TestFail is SystemConfig_Initializer {
         sysConf.checkSequencer();
     }
 }
+
+contract SystemConfig_isProposalManager_Test is SystemConfig_Initializer {
+    /// @dev Tests that `isProposalManager` returns the correct value.
+    function test_isProposalManager_succeeds() external {
+        // check if the challenger can delete an output
+        assertTrue(sysConf.isProposalManager(sysConf.challenger()));
+
+        // check if the initiator can delete an output
+        assertTrue(sysConf.isProposalManager(supConf.initiator()));
+
+        // check if the vetoer can delete an output
+        assertTrue(sysConf.isProposalManager(supConf.vetoer()));
+    }
+}
+
+contract SystemConfig_isProposalManager_TestFail is SystemConfig_Initializer {
+    /// @dev Tests that `isProposalManager` fails if the caller is not authorized
+    function testFuzz_isProposalManager_randomAddress_reverts(address caller) external {
+        vm.assume(caller != sysConf.challenger());
+        vm.assume(caller != supConf.initiator());
+        vm.assume(caller != supConf.vetoer());
+
+        assertFalse(sysConf.isProposalManager(caller));
+    }
+}

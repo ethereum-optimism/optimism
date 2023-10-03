@@ -458,8 +458,6 @@ contract Deploy is Deployer {
         require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
         require(oracle.l2BlockTime() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == address(0));
-        require(oracle.proposer() == address(0));
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
         require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
         require(oracle.startingBlockNumber() == 0);
