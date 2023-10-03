@@ -167,8 +167,10 @@ contract SystemConfig_Initializer is SuperchainConfig_Initializer {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
                     0, // _startBlock
                     batchInbox, // _batchInbox
-                    proposer, // _proposer
-                    oracleChallenger, // _challenger
+                    SystemConfig.OracleRoles({ // _oracleRoles
+                        proposer: proposer,
+                        challenger: oracleChallenger
+                    }),
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,

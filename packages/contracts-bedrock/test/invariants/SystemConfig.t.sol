@@ -33,8 +33,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                     Constants.DEFAULT_RESOURCE_CONFIG(), // resource config
                     0, //_startBlock
                     address(0), // _batchInbox
-                    address(0), // _proposer
-                    address(0), // _challenger
+                    SystemConfig.OracleRoles({ proposer: address(0), challenger: address(0) }),
                     SystemConfig.Addresses({ // _addrs
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),

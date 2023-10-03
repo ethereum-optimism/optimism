@@ -654,8 +654,6 @@ contract Deploy is Deployer {
         address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
 
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-
         _callViaSafe({
             _target: superchainConfigProxy,
             _data: abi.encodeCall(
@@ -702,8 +700,10 @@ contract Deploy is Deployer {
                     Constants.DEFAULT_RESOURCE_CONFIG(),
                     startBlock,
                     cfg.batchInboxAddress(),
-                    cfg.l2OutputOracleProposer(),
-                    cfg.l2OutputOracleChallenger(),
+                    SystemConfig.OracleRoles({
+                        proposer: cfg.l2OutputOracleProposer(),
+                        challenger: cfg.l2OutputOracleChallenger()
+                    }),
                     SystemConfig.Addresses({
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),

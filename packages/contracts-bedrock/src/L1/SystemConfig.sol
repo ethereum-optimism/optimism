@@ -46,6 +46,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         uint256 scalar;
     }
 
+    /// @notice Struct representing the overhead, scalar, and gas limit.
+    struct OracleRoles {
+        address proposer;
+        address challenger;
+    }
+
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -152,9 +158,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             }),
             _startBlock: type(uint256).max,
             _batchInbox: address(0),
-            _proposer: address(0),
-            _challenger: address(0),
-            _addresses: SystemConfig.Addresses({
+            _oracleRoles: OracleRoles({ proposer: address(0), challenger: address(0) }),
+            _addresses: Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
@@ -178,8 +183,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///                           Contracts that were deployed before this field existed
     ///                           need to have this field set manually via an override.
     ///                           Newly deployed contracts should set this value to uint256(0).
-    /// @param _proposer          Initial proposer address.
-    /// @param _challenger        Initial challenger address.
+    /// @param _oracleRoles       Initial proposer and challenger addresses.
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
@@ -193,8 +197,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         ResourceMetering.ResourceConfig memory _config,
         uint256 _startBlock,
         address _batchInbox,
-        address _proposer,
-        address _challenger,
+        OracleRoles memory _oracleRoles,
         SystemConfig.Addresses memory _addresses
     )
         public
@@ -208,8 +211,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         _setGasConfig(_gasConfig);
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
-        _setProposer(_proposer);
-        _setChallenger(_challenger);
+        _setProposer(_oracleRoles.proposer);
+        _setChallenger(_oracleRoles.challenger);
 
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
