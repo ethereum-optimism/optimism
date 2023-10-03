@@ -295,6 +295,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
 	receiptChan := make(chan *types.Receipt, 1)
 	publishAndWait := func(tx *types.Transaction, bumpFees bool) *types.Transaction {
+		wg.Add(1)
 		tx, published := m.publishTx(ctx, tx, sendState, bumpFees)
 		if published {
 			go func() {
@@ -308,7 +309,6 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 	}
 
 	// Immediately publish a transaction before starting the resumbission loop
-	wg.Add(1)
 	tx = publishAndWait(tx, false)
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
@@ -326,7 +326,6 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				m.l.Warn("Aborting transaction submission")
 				return nil, errors.New("aborted transaction sending")
 			}
-			wg.Add(1)
 			tx = publishAndWait(tx, true)
 
 		case <-ctx.Done():
