@@ -123,7 +123,7 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Name:    FeeLimitMultiplierFlagName,
 			Usage:   "The multiplier applied to fee suggestions to put a hard limit on fee increases",
 			Value:   defaults.FeeLimitMultiplier,
-			EnvVars: prefixEnvVars("FEE_LIMIT_MULTIPLIER"),
+			EnvVars: prefixEnvVars("TXMGR_FEE_LIMIT_MULTIPLIER"),
 		},
 		&cli.DurationFlag{
 			Name:    ResubmissionTimeoutFlagName,
