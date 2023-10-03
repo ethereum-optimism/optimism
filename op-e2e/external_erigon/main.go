@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -131,23 +132,26 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--torrent.port", "0", // There doesn't seem to be an obvious way to disable torrent listening
 		"--verbosity", strconv.FormatUint(config.Verbosity, 10),
 	)
-	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
+	// The order of messages for engine vs vanilla http API is inconsistent.  A
+	// quick hack is to simply write to two gbytes buffers
+	engineBuffer := gbytes.NewBuffer()
+	sess, err := gexec.Start(cmd, os.Stdout, io.MultiWriter(os.Stderr, engineBuffer))
 	gm := gomega.NewGomega(func(msg string, _ ...int) {
 		err = errors.New(msg)
 	})
 	gm.Expect(err).NotTo(gomega.HaveOccurred())
 
 	var enginePort, httpPort int
+	gm.Eventually(engineBuffer, time.Minute).Should(gbytes.Say("HTTP endpoint opened\\s*url=127.0.0.1:"))
+	if err != nil {
+		return nil, fmt.Errorf("http endpoint never opened")
+	}
+	fmt.Fscanf(engineBuffer, "%d", &httpPort)
 	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened for Engine API\\s*url=127.0.0.1:"))
 	if err != nil {
 		return nil, fmt.Errorf("http engine endpoint never opened")
 	}
 	fmt.Fscanf(sess.Err, "%d", &enginePort)
-	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened\\s*url=127.0.0.1:"))
-	if err != nil {
-		return nil, fmt.Errorf("http endpoint never opened")
-	}
-	fmt.Fscanf(sess.Err, "%d", &httpPort)
 	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("Regeneration ended"))
 	if err != nil {
 		return nil, fmt.Errorf("started did not finish in time")
