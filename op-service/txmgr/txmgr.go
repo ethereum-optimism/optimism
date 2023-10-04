@@ -2,7 +2,6 @@ package txmgr
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -18,12 +17,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	openrpc "github.com/rollkit/celestia-openrpc"
-	"github.com/rollkit/celestia-openrpc/types/blob"
-	openrpcns "github.com/rollkit/celestia-openrpc/types/namespace"
-	"github.com/rollkit/celestia-openrpc/types/share"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/ethereum-optimism/optimism/op-celestia/celestia"
+	"github.com/Layr-Labs/eigenda/api/grpc/disperser"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
@@ -90,8 +88,9 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
-	daClient  *openrpc.Client
-	namespace openrpcns.Namespace
+	daClient             disperser.DisperserClient
+	daQuorumID           uint32
+	daAdversaryThreshold uint32
 
 	backend ETHBackend
 	l       log.Logger
@@ -112,34 +111,24 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 		return nil, err
 	}
 
-	daClient, err := openrpc.NewClient(context.Background(), cfg.DaRpc, cfg.AuthToken)
+	conn, err := grpc.Dial(cfg.DaRpc, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
-
-	if cfg.NamespaceId == "" {
-		return nil, errors.New("namespace id cannot be blank")
-	}
-	nsBytes, err := hex.DecodeString(cfg.NamespaceId)
-	if err != nil {
-		return nil, err
-	}
-
-	namespace, err := share.NewBlobNamespaceV0(nsBytes)
-	if err != nil {
-		return nil, err
-	}
+	defer func() { _ = conn.Close() }()
+	daClient := disperser.NewDisperserClient(conn)
 
 	return &SimpleTxManager{
-		chainID:   conf.ChainID,
-		name:      name,
-		cfg:       conf,
-		daClient:  daClient,
-		namespace: namespace.ToAppNamespace(),
-		backend:   conf.Backend,
-		l:         l.New("service", name),
-		metr:      m,
-		resetC:    make(chan struct{}),
+		chainID:              conf.ChainID,
+		name:                 name,
+		cfg:                  conf,
+		daClient:             daClient,
+		daQuorumID:           cfg.DaQuorumID,
+		daAdversaryThreshold: cfg.DaAdversaryThreshold,
+		backend:              conf.Backend,
+		l:                    l.New("service", name),
+		metr:                 m,
+		resetC:               make(chan struct{}),
 	}, nil
 }
 
@@ -223,33 +212,55 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 	// frame pointer to celestia, while retaining the proposer pathway that
 	// writes the state commitment data to ethereum.
 	if candidate.To.Hex() == "0xfF00000000000000000000000000000000000000" {
-		dataBlob, err := blob.NewBlobV0(m.namespace.Bytes(), candidate.TxData)
-		com, err := blob.CreateCommitment(dataBlob)
-		if err != nil {
-			m.l.Warn("unable to create blob commitment to celestia", "err", err)
+		disperseReq := &disperser.DisperseBlobRequest{
+			Data: candidate.TxData,
+			SecurityParams: []*disperser.SecurityParams{
+				{
+					QuorumId:           m.daQuorumID,
+					AdversaryThreshold: m.daAdversaryThreshold,
+				},
+			},
+		}
+		disperseRes, err := m.daClient.DisperseBlob(ctx, disperseReq)
+		if err != nil || disperseRes == nil {
+			m.l.Warn("unable to publish tx to eigenda", "err", err)
 			return nil, err
 		}
-		err = m.daClient.Header.SyncWait(ctx)
+
+		if disperseRes.Result == disperser.BlobStatus_UNKNOWN ||
+			disperseRes.Result == disperser.BlobStatus_FAILED {
+			m.l.Warn("unable to publish tx to eigenda", "err", err)
+			return nil, fmt.Errorf("reply status is %d", disperseRes.Result)
+		}
+
+		done := false
+		var statusRes *disperser.BlobStatusReply
+		// TODO: Abort after a configurable number of retries?
+		for !done {
+			statusRes, err = m.daClient.GetBlobStatus(ctx, &disperser.BlobStatusRequest{
+				Key: disperseRes.Key,
+			})
+			if err != nil {
+				m.l.Warn("unable to publish tx to eigenda", "err", err)
+			}
+
+			// TODO: Should I wait for confirmed or finalized?
+			if statusRes.Status == disperser.BlobStatus_CONFIRMED {
+				done = true
+			} else {
+				// TODO: Make this parameter configurable
+				time.Sleep(2 * time.Second)
+			}
+		}
+
+		// TODO: Determine which exact fields should be posted to L1 calldata
+		// TODO: Determine what binary wire format we should use... probably not GRPC
+		//       if we plan to have a contract deserialize this at any point.
+		blobInfo, err := proto.Marshal(statusRes.Info)
 		if err != nil {
-			m.l.Warn("unable to wait for celestia header sync", "err", err)
 			return nil, err
 		}
-		height, err := m.daClient.Blob.Submit(ctx, []*blob.Blob{dataBlob})
-		if err != nil {
-			m.l.Warn("unable to publish tx to celestia", "err", err)
-			return nil, err
-		}
-		fmt.Printf("height: %v\n", height)
-		if height == 0 {
-			m.l.Warn("unexpected response from celestia got", "height", height)
-			return nil, errors.New("unexpected response code")
-		}
-		frameRef := celestia.FrameRef{
-			BlockHeight: height,
-			TxCommitment: com,
-		}
-		frameRefData, _ := frameRef.MarshalBinary()
-		candidate = TxCandidate{TxData: frameRefData, To: candidate.To, GasLimit: candidate.GasLimit}
+		candidate = TxCandidate{TxData: blobInfo, To: candidate.To, GasLimit: candidate.GasLimit}
 	}
 
 	tx, err := m.craftTx(ctx, candidate)

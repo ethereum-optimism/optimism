@@ -1,39 +1,27 @@
 package rollup
 
 import (
-	"context"
-	"encoding/hex"
-
-	openrpc "github.com/rollkit/celestia-openrpc"
-	"github.com/rollkit/celestia-openrpc/types/share"
+	"github.com/Layr-Labs/eigenda/api/grpc/retriever"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type DAConfig struct {
-	Rpc       string
-	Namespace share.Namespace
-	Client    *openrpc.Client
-	AuthToken string
+	Rpc    string
+	Client retriever.RetrieverClient
+	// AuthToken string
 }
 
-func NewDAConfig(rpc, token, ns string) (*DAConfig, error) {
-	nsBytes, err := hex.DecodeString(ns)
+func NewDAConfig(rpc string) (*DAConfig, error) {
+	conn, err := grpc.Dial(rpc, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return &DAConfig{}, err
 	}
-
-	namespace, err := share.NewBlobNamespaceV0(nsBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	client, err := openrpc.NewClient(context.Background(), rpc, token)
-	if err != nil {
-		return &DAConfig{}, err
-	}
+	defer func() { _ = conn.Close() }()
+	client := retriever.NewRetrieverClient(conn)
 
 	return &DAConfig{
-		Namespace: namespace,
-		Rpc:       rpc,
-		Client:    client,
+		Rpc:    rpc,
+		Client: client,
 	}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -32,8 +33,9 @@ const (
 	TxNotInMempoolTimeoutFlagName     = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName      = "txmgr.receipt-query-interval"
 	DaRpcFlagName                     = "da-rpc"
-	NamespaceIdFlagName               = "namespace-id"
-	AuthTokenFlagName                 = "auth-token"
+	DaQuorumIDFlagName                = "da-quorum-id"
+	DaAdversaryThresholdFlagName      = "da-adversary-threshold"
+	// AuthTokenFlagName                 = "auth-token"
 )
 
 var (
@@ -113,17 +115,23 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
 		cli.StringFlag{
-			Name:   NamespaceIdFlagName,
-			Usage:  "Namespace ID of the DA layer",
-			Value:  "000008e5f679bf7116cb",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "NAMESPACE_ID"),
+			Name:   DaQuorumIDFlagName,
+			Usage:  "Quorum ID of the DA layer",
+			Value:  "1234",
+			EnvVar: opservice.PrefixEnvVar(envPrefix, "DA_QUORUM_ID"),
 		},
 		cli.StringFlag{
-			Name:   AuthTokenFlagName,
-			Usage:  "Authentication Token of the DA layer",
-			Value:  "",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "AUTH_TOKEN"),
+			Name:   DaAdversaryThresholdFlagName,
+			Usage:  "Adversary threshold of the DA layer",
+			Value:  "40",
+			EnvVar: opservice.PrefixEnvVar(envPrefix, "DA_ADVERSARY_THRESHOLD"),
 		},
+		// cli.StringFlag{
+		// 	Name:   AuthTokenFlagName,
+		// 	Usage:  "Authentication Token of the DA layer",
+		// 	Value:  "",
+		// 	EnvVar: opservice.PrefixEnvVar(envPrefix, "AUTH_TOKEN"),
+		// },
 	}, client.CLIFlags(envPrefix)...)
 }
 
@@ -143,8 +151,9 @@ type CLIConfig struct {
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
 	DaRpc                     string
-	NamespaceId               string
-	AuthToken                 string
+	DaQuorumID                uint32
+	DaAdversaryThreshold      uint32
+	// AuthToken                 string
 }
 
 func (m CLIConfig) Check() error {
@@ -172,10 +181,33 @@ func (m CLIConfig) Check() error {
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
 	}
+	if m.DaRpc == "" {
+		return errors.New("must provide a DA RPC url")
+	}
+	if m.DaQuorumID == 0 {
+		return errors.New("must provide a DA quorum ID")
+	}
+	if m.DaAdversaryThreshold == 0 {
+		return errors.New("must provide a DA adversary threshold")
+	}
 	return nil
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
+	// We do this because the urfave/cli library doesn't support uint32 specifically
+	daQuorumIDLong := ctx.GlobalUint64(DaQuorumIDFlagName)
+	daQuorumID, success := SafeConvertUInt64ToUInt32(daQuorumIDLong)
+	if !success {
+		panic(errors.New("DA quorum ID must be in the uint32 range"))
+	}
+
+	// We do this because the urfave/cli library doesn't support uint32 specifically
+	daAdversaryThresholdLong := ctx.GlobalUint64(DaQuorumIDFlagName)
+	daAdversaryThreshold, success := SafeConvertUInt64ToUInt32(daAdversaryThresholdLong)
+	if !success {
+		panic(errors.New("DA quorum ID must be in the uint32 range"))
+	}
+
 	return CLIConfig{
 		L1RPCURL:                  ctx.GlobalString(L1RPCFlagName),
 		Mnemonic:                  ctx.GlobalString(MnemonicFlagName),
@@ -192,8 +224,9 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		TxSendTimeout:             ctx.GlobalDuration(TxSendTimeoutFlagName),
 		TxNotInMempoolTimeout:     ctx.GlobalDuration(TxNotInMempoolTimeoutFlagName),
 		DaRpc:                     ctx.GlobalString(DaRpcFlagName),
-		NamespaceId:               ctx.GlobalString(NamespaceIdFlagName),
-		AuthToken:               ctx.GlobalString(AuthTokenFlagName),
+		DaQuorumID:                daQuorumID,
+		DaAdversaryThreshold:      daAdversaryThreshold,
+		// AuthToken:                 ctx.GlobalString(AuthTokenFlagName),
 	}
 }
 
@@ -294,4 +327,11 @@ type Config struct {
 	// Signer is used to sign transactions when the gas price is increased.
 	Signer opcrypto.SignerFn
 	From   common.Address
+}
+
+func SafeConvertUInt64ToUInt32(val uint64) (uint32, bool) {
+	if val <= math.MaxUint32 {
+		return uint32(val), true
+	}
+	return 0, false
 }

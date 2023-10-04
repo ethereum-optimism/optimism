@@ -59,8 +59,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	daCfg, err := rollup.NewDAConfig(
 		ctx.GlobalString(flags.DaRPC.Name),
-		ctx.GlobalString(flags.AuthToken.Name),
-		ctx.GlobalString(flags.NamespaceId.Name),
+		// ctx.GlobalString(flags.AuthToken.Name),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load da config: %w", err)

@@ -44,18 +44,12 @@ var (
 		Value:  "http://da:26658",
 		EnvVar: prefixEnvVar("DA_RPC"),
 	}
-	NamespaceId = cli.StringFlag{
-		Name:   "namespace-id",
-		Usage:  "Namespace ID for DA node",
-		Value:  "000008e5f679bf7116cb",
-		EnvVar: prefixEnvVar("NAMESPACE_ID"),
-	}
-	AuthToken = cli.StringFlag{
-		Name: "auth-token",
-		Usage: "Authentication Token for DA node",
-		Value: "",
-		EnvVar: prefixEnvVar("AUTH_TOKEN"),
-	}
+	// AuthToken = cli.StringFlag{
+	// 	Name:   "auth-token",
+	// 	Usage:  "Authentication Token for DA node",
+	// 	Value:  "",
+	// 	EnvVar: prefixEnvVar("AUTH_TOKEN"),
+	// }
 	Network = cli.StringFlag{
 		Name:   "network",
 		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
@@ -233,8 +227,7 @@ var requiredFlags = []cli.Flag{
 	RPCListenAddr,
 	RPCListenPort,
 	DaRPC,
-	NamespaceId,
-	AuthToken,
+	// AuthToken,
 }
 
 var optionalFlags = []cli.Flag{

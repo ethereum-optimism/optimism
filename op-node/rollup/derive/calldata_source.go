@@ -2,17 +2,18 @@ package derive
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/Layr-Labs/eigenda/api/grpc/disperser"
+	"github.com/Layr-Labs/eigenda/api/grpc/retriever"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/ethereum-optimism/optimism/op-celestia/celestia"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -140,18 +141,33 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 			}
 
 			if daCfg != nil {
-				frameRef := celestia.FrameRef{}
-				frameRef.UnmarshalBinary(tx.Data())
+				blobInfo := &disperser.BlobInfo{}
+				err := proto.Unmarshal(tx.Data(), blobInfo)
 				if err != nil {
-					log.Warn("unable to decode frame reference", "index", j, "err", err)
+					log.Warn("unable to decode blob info", "index", j, "err", err)
 					return nil, err
 				}
-				log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daCfg.Namespace), "height", frameRef.BlockHeight)
-				blob, err := daCfg.Client.Blob.Get(context.Background(), frameRef.BlockHeight, daCfg.Namespace, frameRef.TxCommitment)
-				if err != nil {
-					return nil, NewResetError(fmt.Errorf("failed to resolve frame from celestia: %w", err))
+
+				if len(blobInfo.BlobHeader.BlobQuorumParams) == 0 {
+					log.Warn("decoded blob info with no quorum params", "index", j, "err", err)
+					return nil, fmt.Errorf("decoded blob info with no quorum params")
 				}
-				out = append(out, blob.Data)
+
+				// TODO: Fallback to other quorums in blob quorum params until one returns successfully or we run out of quorums
+				// TODO: Query quorums in random order every time
+				quorumID := blobInfo.BlobHeader.BlobQuorumParams[0].QuorumNumber
+				confirmationBlockNumber := blobInfo.BlobVerificationProof.BatchMetadata.ConfirmationBlockNumber
+				log.Info("requesting data from EigenDA", "quorum id", quorumID, "confirmation block number", confirmationBlockNumber)
+				blobRes, err := daCfg.Client.RetrieveBlob(context.Background(), &retriever.BlobRequest{
+					BatchHeaderHash:      blobInfo.BlobVerificationProof.BatchMetadata.BatchHeaderHash,
+					BlobIndex:            blobInfo.BlobVerificationProof.BlobIndex,
+					ReferenceBlockNumber: confirmationBlockNumber,
+					QuorumId:             quorumID,
+				})
+				if err != nil {
+					return nil, NewResetError(fmt.Errorf("failed to resolve frame from EigenDA: %w", err))
+				}
+				out = append(out, blobRes.Data)
 			} else {
 				out = append(out, tx.Data())
 			}
