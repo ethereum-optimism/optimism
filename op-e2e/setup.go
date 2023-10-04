@@ -281,7 +281,7 @@ func (sys *System) Close() {
 	postCancel() // immediate shutdown, no allowance for idling
 
 	for _, node := range sys.RollupNodes {
-		node.Stop(postCtx)
+		_ = node.Stop(postCtx)
 	}
 	for _, ei := range sys.EthInstances {
 		ei.Close()
@@ -339,7 +339,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			postCtx, postCancel := context.WithCancel(context.Background())
 			postCancel() // immediate shutdown, no allowance for idling
 			for _, node := range sys.RollupNodes {
-				node.Stop(postCtx)
+				_ = node.Stop(postCtx)
 			}
 			for _, ei := range sys.EthInstances {
 				ei.Close()
