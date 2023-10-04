@@ -85,13 +85,16 @@ nuke: clean devnet-clean
 	git clean -Xdf
 .PHONY: nuke
 
-devnet-up:
+pre-devnet:
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi
+.PHONY: pre-devnet
+
+devnet-up: pre-devnet
 	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
 		|| make devnet-allocs
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
@@ -100,7 +103,7 @@ devnet-up:
 # alias for devnet-up
 devnet-up-deploy: devnet-up
 
-devnet-test:
+devnet-test: pre-devnet
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
 .PHONY: devnet-test
 
@@ -116,7 +119,7 @@ devnet-clean:
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
 
-devnet-allocs:
+devnet-allocs: pre-devnet
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:
