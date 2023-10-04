@@ -57,9 +57,6 @@ enum GameStatus {
     DEFENDER_WINS
 }
 
-/// @notice A dedicated timestamp type.
-type Timestamp is uint64;
-
 /// @notice A `Claim` type represents a 32 byte hash or other unique identifier for a claim about
 ///         a certain piece of information.
 /// @dev For the `FAULT` `GameType`, this will be a root of the merklized state of the fault proof

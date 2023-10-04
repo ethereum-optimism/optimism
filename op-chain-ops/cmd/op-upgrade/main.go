@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -38,6 +39,11 @@ func main() {
 				Name:  "chain-ids",
 				Usage: "L2 Chain IDs corresponding to chains to upgrade. Corresponds to all chains if empty",
 			},
+			&cli.StringFlag{
+				Name:    "superchain-target",
+				Usage:   "The name of the superchain to upgrade",
+				EnvVars: []string{"SUPERCHAIN_TARGET"},
+			},
 			&cli.PathFlag{
 				Name:     "deploy-config",
 				Usage:    "The path to the deploy config file",
@@ -70,9 +76,13 @@ func entrypoint(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	superchainName, err := toSuperchainName(l1ChainID.Uint64())
-	if err != nil {
-		return err
+
+	superchainName := ctx.String("superchain-target")
+	if superchainName == "" {
+		superchainName, err = toSuperchainName(l1ChainID.Uint64())
+		if err != nil {
+			return err
+		}
 	}
 
 	chainIDs := ctx.Uint64Slice("chain-ids")
@@ -116,23 +126,35 @@ func entrypoint(ctx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("cannot create RPC clients: %w", err)
 		}
+		// The L1Client is required
+		if clients.L1Client == nil {
+			return errors.New("Cannot create L1 client")
+		}
 
 		l1ChainID, err := clients.L1Client.ChainID(ctx.Context)
 		if err != nil {
 			return fmt.Errorf("cannot fetch L1 chain ID: %w", err)
 		}
-		l2ChainID, err := clients.L2Client.ChainID(ctx.Context)
-		if err != nil {
-			return fmt.Errorf("cannot fetch L2 chain ID: %w", err)
+
+		// The L2Client is not required, but double check the chain id matches if possible
+		if clients.L2Client != nil {
+			l2ChainID, err := clients.L2Client.ChainID(ctx.Context)
+			if err != nil {
+				return fmt.Errorf("cannot fetch L2 chain ID: %w", err)
+			}
+			if chainConfig.ChainID != l2ChainID.Uint64() {
+				return fmt.Errorf("Mismatched chain IDs: %d != %d", chainConfig.ChainID, l2ChainID)
+			}
 		}
-		log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", l2ChainID)
+
+		log.Info(chainConfig.Name, "l1-chain-id", l1ChainID, "l2-chain-id", chainConfig.ChainID)
 
 		log.Info("Detecting on chain contracts")
 		// Tracking the individual addresses can be deprecated once the system is upgraded
 		// to the new contracts where the system config has a reference to each address.
-		addresses, ok := superchain.Addresses[l2ChainID.Uint64()]
+		addresses, ok := superchain.Addresses[chainConfig.ChainID]
 		if !ok {
-			return fmt.Errorf("no addresses for chain ID %d", l2ChainID.Uint64())
+			return fmt.Errorf("no addresses for chain ID %d", chainConfig.ChainID)
 		}
 		versions, err := upgrades.GetContractVersions(ctx.Context, addresses, chainConfig, clients.L1Client)
 		if err != nil {
@@ -235,7 +257,7 @@ func toSuperchainName(chainID uint64) (string, error) {
 }
 
 func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o666)
 	if err != nil {
 		return err
 	}
