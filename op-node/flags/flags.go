@@ -309,7 +309,7 @@ var optionalFlags = []cli.Flag{
 var Flags []cli.Flag
 
 func init() {
-	optionalFlags = append(optionalFlags, P2pFlags...)
+	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
