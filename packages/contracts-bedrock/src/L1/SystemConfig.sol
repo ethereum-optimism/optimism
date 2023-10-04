@@ -5,6 +5,7 @@ import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/O
 import { ISemver } from "src/universal/ISemver.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
@@ -100,8 +101,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     uint256 public startBlock;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 1.9.0
+    string public constant version = "1.9.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -164,7 +165,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         SystemConfig.Addresses memory _addresses
     )
         public
-        reinitializer(2)
+        reinitializer(Constants.INITIALIZER)
     {
         __Ownable_init();
         transferOwnership(_owner);

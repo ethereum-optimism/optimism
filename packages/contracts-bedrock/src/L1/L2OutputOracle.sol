@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L2OutputOracle
@@ -63,8 +64,8 @@ contract L2OutputOracle is Initializable, ISemver {
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
@@ -94,7 +95,7 @@ contract L2OutputOracle is Initializable, ISemver {
         address _challenger
     )
         public
-        reinitializer(2)
+        reinitializer(Constants.INITIALIZER)
     {
         require(
             _startingTimestamp <= block.timestamp,
