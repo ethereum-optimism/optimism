@@ -9,6 +9,9 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
 import "./CompatibilityFallbackHandler_1_3_0.sol";
 
+// Tools to simplify testing Safe contracts
+// Author: Colin Nielsen (https://github.com/colinnielsen/safe-tools)
+
 address constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 bytes12 constant ADDR_MASK = 0xffffffffffffffffffffffff;
 
