@@ -29,7 +29,7 @@ func TestGet(t *testing.T) {
 
 	t.Run("ReturnsCorrectOutput", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getOutput: mockOutput}
-		splitProvider := newSplitTraceProvider(t, &mockOutputProvider, nil, 40)
+		splitProvider := newSplitTraceProvider(t, &mockOutputProvider, &mockTraceProvider{}, 40)
 		output, err := splitProvider.Get(context.Background(), types.NewPosition(6, 3))
 		require.NoError(t, err)
 		expectedGIndex := types.NewPosition(6, 3).ToGIndex()
