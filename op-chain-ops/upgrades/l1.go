@@ -72,7 +72,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -111,7 +111,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -150,7 +150,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -228,7 +228,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -267,7 +267,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -324,7 +324,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
@@ -443,7 +443,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
 	sig := "upgradeAndCall(address,address,bytes)"
-	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, *proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
 		return err
 	}
 
