@@ -63,6 +63,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
@@ -102,6 +103,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(list.L1ERC721BridgeProxy.String()),
@@ -141,6 +143,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(list.L1StandardBridgeProxy.String()),
@@ -219,6 +222,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(list.L2OutputOracleProxy.String()),
@@ -258,6 +262,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
@@ -315,6 +320,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(list.OptimismPortalProxy.String()),
@@ -434,6 +440,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	if err != nil {
 		return err
 	}
+	calldata = append(initialize.ID, calldata...)
 
 	args := []any{
 		common.HexToAddress(chainConfig.SystemConfigAddr.String()),
