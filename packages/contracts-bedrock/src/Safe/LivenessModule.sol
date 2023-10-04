@@ -6,6 +6,9 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 
+// TODO(maurelian): remove me
+import { console2 as console } from "forge-std/console2.sol";
+
 /// @title LivenessModule
 /// @notice This module is intended to be used in conjunction with the LivenessGuard. It should be able to
 ///         execute a transaction on the Safe in only a small number of cases:
@@ -50,28 +53,38 @@ contract LivenessModule {
         );
 
         // Calculate the new threshold
-        uint256 numOwnersAfter = safe.getOwners().length - 1;
-        uint256 thresholdAfter = get75PercentThreshold(numOwnersAfter);
-        if (numOwnersAfter >= 8) {
+        address[] memory owners = safe.getOwners();
+        uint256 numOwners = owners.length - 1;
+        uint256 thresholdAfter;
+        if (numOwners > minOwners) {
+            // Preserves the invariant that the Safe has at least 8 owners
+
+            thresholdAfter = get75PercentThreshold(numOwners);
+            console.log("removing one owner. numOwners: %s, thresholdAfter: %s", numOwners, thresholdAfter);
             safe.execTransactionFromModule({
                 to: address(safe),
                 value: 0,
                 data: abi.encodeCall(
                     // Call the Safe to remove the owner
                     OwnerManager.removeOwner,
-                    (getPrevOwner(owner), owner, thresholdAfter)
+                    (getPrevOwner(owner, owners), owner, thresholdAfter)
                     ),
                 operation: Enum.Operation.Call
             });
         } else {
+            console.log("removing all owners. numOwnersAfter: %s", numOwners);
             // The number of owners is dangerously low, so we wish to transfer the ownership of this Safe to a new
             // to the fallback owner.
+
+            // The threshold will be 1 because we are removing all owners except the fallback owner
+            thresholdAfter = 1;
+
             // Remove owners one at a time starting from the last owner.
             // Since we're removing them in order, the ordering will remain constant,
             //  and we shouldn't need to query the list of owners again.
-            address[] memory owners = safe.getOwners();
             for (uint256 i = owners.length - 1; i >= 0; i--) {
                 address currentOwner = owners[i];
+                address prevOwner = getPrevOwner(currentOwner, owners);
                 if (currentOwner != address(this)) {
                     safe.execTransactionFromModule({
                         to: address(safe),
@@ -79,11 +92,7 @@ contract LivenessModule {
                         data: abi.encodeCall(
                             // Call the Safe to remove the owner
                             OwnerManager.removeOwner,
-                            (
-                                getPrevOwner(currentOwner),
-                                currentOwner,
-                                1 // The threshold is 1 because we are removing all owners except the fallback owner
-                            )
+                            (prevOwner, currentOwner, 1)
                             ),
                         operation: Enum.Operation.Call
                     });
@@ -97,21 +106,35 @@ contract LivenessModule {
                 data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (fallbackOwner, 1)),
                 operation: Enum.Operation.Call
             });
-
-            address[] memory ownersAfter = safe.getOwners();
-            require(
-                ownersAfter.length == 1 && ownersAfter[0] == fallbackOwner,
-                "LivenessModule: fallback owner was not added as the sole owner"
-            );
         }
+        _verifyFinalState();
+    }
+
+    /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
+    function _verifyFinalState() internal view {
+        address[] memory owners = safe.getOwners();
+        uint256 numOwners = owners.length;
+        require(
+            (numOwners == 1 && owners[0] == fallbackOwner) || (numOwners >= minOwners),
+            "LivenessModule: Safe must have at least 1 owner or minOwners"
+        );
+
+        // Check that the threshold is correct
+        uint256 threshold = safe.getThreshold();
+        require(
+            threshold == get75PercentThreshold(numOwners) || (numOwners == 1 && threshold == 1),
+            "LivenessModule: threshold must be 75% of the number of owners, or 1 if there is only 1 owner"
+        );
     }
 
     /// @notice Get the previous owner in the linked list of owners
-    function getPrevOwner(address owner) public view returns (address prevOwner_) {
-        address[] memory owners = safe.getOwners();
-        prevOwner_ = address(0);
+    function getPrevOwner(address owner, address[] memory owners) public pure returns (address prevOwner_) {
         for (uint256 i = 0; i < owners.length; i++) {
             if (owners[i] == owner) {
+                if (i == 0) {
+                    prevOwner_ = address(0x1); // OwnerManager.SENTINEL_OWNERS
+                    break;
+                }
                 prevOwner_ = owners[i - 1];
                 break;
             }
@@ -119,7 +142,7 @@ contract LivenessModule {
     }
 
     /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
-    function get75PercentThreshold(uint256 _numOwners) public view returns (uint256 threshold_) {
+    function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
         threshold_ = (_numOwners * 75 + 99) / 100;
     }
 }
