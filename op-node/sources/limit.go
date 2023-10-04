@@ -2,17 +2,34 @@ package sources
 
 import (
 	"context"
+	"net"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
+	"golang.org/x/sync/semaphore"
 )
 
 type limitClient struct {
-	c    client.RPC
-	sema chan struct{}
-	wg   sync.WaitGroup
+	mutex  sync.Mutex
+	closed bool
+	c      client.RPC
+	sema   *semaphore.Weighted
+	wg     sync.WaitGroup
+}
+
+// joinWaitGroup will add the caller to the waitgroup if the client has not
+// already been told to shutdown.  If the client has shut down, false is
+// returned, otherwise true.
+func (lc *limitClient) joinWaitGroup() bool {
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
+	if lc.closed {
+		return false
+	}
+	lc.wg.Add(1)
+	return true
 }
 
 // LimitRPC limits concurrent RPC requests (excluding subscriptions) to a given number by wrapping the client with a semaphore.
@@ -20,33 +37,47 @@ func LimitRPC(c client.RPC, concurrentRequests int) client.RPC {
 	return &limitClient{
 		c: c,
 		// the capacity of the channel determines how many go-routines can concurrently execute requests with the wrapped client.
-		sema: make(chan struct{}, concurrentRequests),
+		sema: semaphore.NewWeighted(int64(concurrentRequests)),
 	}
 }
 
 func (lc *limitClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
-	lc.wg.Add(1)
+	if !lc.joinWaitGroup() {
+		return net.ErrClosed
+	}
 	defer lc.wg.Done()
-	lc.sema <- struct{}{}
-	defer func() { <-lc.sema }()
+	if err := lc.sema.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer lc.sema.Release(1)
 	return lc.c.BatchCallContext(ctx, b)
 }
 
 func (lc *limitClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
-	lc.wg.Add(1)
+	if !lc.joinWaitGroup() {
+		return net.ErrClosed
+	}
 	defer lc.wg.Done()
-	lc.sema <- struct{}{}
-	defer func() { <-lc.sema }()
+	if err := lc.sema.Acquire(ctx, 1); err != nil {
+		return err
+	}
+	defer lc.sema.Release(1)
 	return lc.c.CallContext(ctx, result, method, args...)
 }
 
 func (lc *limitClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
+	if !lc.joinWaitGroup() {
+		return nil, net.ErrClosed
+	}
+	defer lc.wg.Done()
 	// subscription doesn't count towards request limit
 	return lc.c.EthSubscribe(ctx, channel, args...)
 }
 
 func (lc *limitClient) Close() {
-	lc.wg.Wait()
-	close(lc.sema)
+	lc.mutex.Lock()
+	lc.closed = true // No new waitgroup members after this is set
+	lc.mutex.Unlock()
+	lc.wg.Wait() // All waitgroup members exited, means no more dereferences of the client
 	lc.c.Close()
 }
