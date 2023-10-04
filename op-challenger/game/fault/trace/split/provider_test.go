@@ -27,7 +27,7 @@ func TestGet(t *testing.T) {
 		require.ErrorIs(t, err, mockGetError)
 	})
 
-	t.Run("ReturnsCorrectOutput", func(t *testing.T) {
+	t.Run("ReturnsCorrectOutputFromTopProvider", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getOutput: mockOutput}
 		splitProvider := newSplitTraceProvider(t, &mockOutputProvider, &mockTraceProvider{}, 40)
 		output, err := splitProvider.Get(context.Background(), types.NewPosition(6, 3))
