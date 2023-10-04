@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Safe } from "safe-contracts/Safe.sol";
-import { BaseGuard } from "safe-contracts/base/GuardManager.sol";
+import { BaseGuard, GuardManager } from "safe-contracts/base/GuardManager.sol";
+import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { SignatureDecoder } from "safe-contracts/common/SignatureDecoder.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 
@@ -40,9 +41,19 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
         external
     {
         require(msg.sender == address(safe), "LivenessGuard: only Safe can call this function");
-        if (to == address(safe) && data[0:4] == bytes4(keccak256("setGuard(address)"))) {
-            // We can't allow the guard to be disabled, or else the upgrade delay can be bypassed.
-            // TODO(Maurelian): Figure out how to best address this.
+
+        // There are a number of ways in which we need to constrain this safe so that it cannot remove
+        // this guard, nor the LivenessModule.
+        // TODO(Maurelian): Figure out how to best address this. The following is just intended to outline the
+        // known mathods by which a Safe could remove the liveness checks.
+        // TODO(Maurelian): Do we _need_ to have this feature at all?
+        bytes4 dataSig = bytes4(data);
+        if (
+            to == address(safe)
+                && (dataSig == GuardManager.setGuard.selector || dataSig == ModuleManager.enableModule.selector)
+                || operation == Enum.Operation.DelegateCall
+        ) {
+            revert("LivenessGuard: cannot remove LivenessGuard or LivenessModule");
         }
 
         // This call will reenter to the Safe which is calling it. This is OK because it is only reading the
