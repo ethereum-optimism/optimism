@@ -88,7 +88,7 @@ func (p *CannonTraceProvider) SetMaxDepth(gameDepth uint64) {
 }
 
 func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
-	proof, err := p.loadProof(ctx, pos.TraceIndex(int(p.gameDepth)))
+	proof, err := p.loadProof(ctx, pos.UnsafeTraceIndex(int(p.gameDepth)))
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -101,7 +101,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 }
 
 func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
-	proof, err := p.loadProof(ctx, pos.TraceIndex(int(p.gameDepth)))
+	proof, err := p.loadProof(ctx, pos.UnsafeTraceIndex(int(p.gameDepth)))
 	if err != nil {
 		return nil, nil, nil, err
 	}

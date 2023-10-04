@@ -1,6 +1,7 @@
 package types
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,14 +16,14 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 	root := Claim{
 		ClaimData: ClaimData{
 			Value:    common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000077a"),
-			Position: NewPosition(0, 0),
+			Position: NewPosition(0, common.Big0),
 		},
 		// Root claim has no parent
 	}
 	top := Claim{
 		ClaimData: ClaimData{
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
-			Position: NewPosition(1, 0),
+			Position: NewPosition(1, common.Big0),
 		},
 		Parent:              root.ClaimData,
 		ContractIndex:       1,
@@ -31,7 +32,7 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 	middle := Claim{
 		ClaimData: ClaimData{
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
-			Position: NewPosition(2, 2),
+			Position: NewPosition(2, big.NewInt(2)),
 		},
 		Parent:              top.ClaimData,
 		ContractIndex:       2,
@@ -41,7 +42,7 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 	bottom := Claim{
 		ClaimData: ClaimData{
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
-			Position: NewPosition(3, 4),
+			Position: NewPosition(3, big.NewInt(4)),
 		},
 		Parent:              middle.ClaimData,
 		ContractIndex:       3,
@@ -52,7 +53,6 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 }
 
 func TestIsDuplicate(t *testing.T) {
-	// Setup the game state.
 	root, top, middle, bottom := createTestClaims()
 	g := NewGameState(false, []Claim{root, top}, testMaxDepth)
 
