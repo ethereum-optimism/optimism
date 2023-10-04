@@ -11,6 +11,10 @@ import (
 
 var _ types.TraceProvider = (*SplitTraceProvider)(nil)
 
+// CreateResolutionProvider creates a new [types.TraceProvider] that is
+// used for the bottom half of the [SplitTraceProvider].
+type CreateResolutionProvider func(ctx context.Context, preClaim types.Claim, postClaim types.Claim) (types.TraceProvider, error)
+
 // SplitTraceProvider is a [types.TraceProvider] implementation that
 // routes requests to the correct internal trace provider based on the
 // depth of the requested trace.
@@ -18,17 +22,18 @@ type SplitTraceProvider struct {
 	logger         log.Logger
 	topProvider    types.TraceProvider
 	bottomProvider types.TraceProvider
+	creator		   CreateResolutionProvider
 	topDepth       uint64
 }
 
 // NewTraceProvider creates a new [SplitTraceProvider] instance.
 // The [topDepth] parameter specifies the depth at which the internal
 // [types.TraceProvider] should be switched.
-func NewTraceProvider(logger log.Logger, topProvider types.TraceProvider, bottomProvider types.TraceProvider, topDepth uint64) *SplitTraceProvider {
+func NewTraceProvider(logger log.Logger, topProvider types.TraceProvider, creator CreateResolutionProvider, topDepth uint64) *SplitTraceProvider {
 	return &SplitTraceProvider{
 		logger:         logger,
 		topProvider:    topProvider,
-		bottomProvider: bottomProvider,
+		creator:		creator,
 		topDepth:       topDepth,
 	}
 }
