@@ -228,8 +228,8 @@ importers:
         specifier: ^1.10.0
         version: 1.10.0
       pino:
-        specifier: ^8.15.4
-        version: 8.15.4
+        specifier: ^8.15.5
+        version: 8.15.5
       pino-multi-stream:
         specifier: ^6.0.0
         version: 6.0.0
@@ -527,7 +527,7 @@ importers:
         version: 1.15.1(typescript@5.2.2)(zod@3.22.3)
       vitest:
         specifier: ^0.34.2
-        version: 0.34.2
+        version: 0.34.2(jsdom@22.1.0)
       zod:
         specifier: ^3.22.3
         version: 3.22.3
@@ -4057,7 +4057,7 @@ packages:
     resolution: {integrity: sha512-wKoab31pknvILkxAF8ss+v9iNyhw5Iu/0jLtRkUD74cNfOOLJNnqfFKAv0r7wVaTQxRZtWrMpGfShwwBjOcgcg==}
     deprecated: This is a stub types definition. pino provides its own type definitions, so you do not need this installed.
     dependencies:
-      pino: 8.15.4
+      pino: 8.15.5
     dev: true
 
   /@types/prettier@2.3.2:
@@ -12000,8 +12000,8 @@ packages:
       sonic-boom: 2.8.0
       thread-stream: 0.15.2
 
-  /pino@8.15.4:
-    resolution: {integrity: sha512-3s+SfSxeugMt8QeBVXprIJAgXuGDeGuHBfquXKEXKnpghlXzMGMjoa8tOSyzz00iBfQX3xlZvm2yJQ+d6SrVsg==}
+  /pino@8.15.5:
+    resolution: {integrity: sha512-KoTDSVRLiCWIJXTeAHNaflEXqsqCmyZkxfL09y+wT+NRo7j2Ieq30jBEC+GpE4HTQCQQyt3pDRhmwvCKjqzxfQ==}
     hasBin: true
     dependencies:
       atomic-sleep: 1.0.0
@@ -14428,28 +14428,6 @@ packages:
       - terser
     dev: true
 
-  /vite-node@0.34.2(@types/node@20.7.2):
-    resolution: {integrity: sha512-JtW249Zm3FB+F7pQfH56uWSdlltCo1IOkZW5oHBzeQo0iX4jtC7o1t9aILMGd9kVekXBP2lfJBEQt9rBh07ebA==}
-    engines: {node: '>=v14.18.0'}
-    hasBin: true
-    dependencies:
-      cac: 6.7.14
-      debug: 4.3.4(supports-color@8.1.1)
-      mlly: 1.4.0
-      pathe: 1.1.1
-      picocolors: 1.0.0
-      vite: 4.4.10(@types/node@20.7.2)
-    transitivePeerDependencies:
-      - '@types/node'
-      - less
-      - lightningcss
-      - sass
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-    dev: true
-
   /vite-node@0.34.4(@types/node@20.7.1):
     resolution: {integrity: sha512-ho8HtiLc+nsmbwZMw8SlghESEE3KxJNp04F/jPUCLVvaURwt0d+r9LxEqCX5hvrrOQ0GSyxbYr5ZfRYhQ0yVKQ==}
     engines: {node: '>=v14.18.0'}
@@ -14634,71 +14612,6 @@ packages:
       tinypool: 0.7.0
       vite: 4.4.10(@types/node@20.7.2)
       vite-node: 0.34.1(@types/node@20.7.2)
-      why-is-node-running: 2.2.2
-    transitivePeerDependencies:
-      - less
-      - lightningcss
-      - sass
-      - stylus
-      - sugarss
-      - supports-color
-      - terser
-    dev: true
-
-  /vitest@0.34.2:
-    resolution: {integrity: sha512-WgaIvBbjsSYMq/oiMlXUI7KflELmzM43BEvkdC/8b5CAod4ryAiY2z8uR6Crbi5Pjnu5oOmhKa9sy7uk6paBxQ==}
-    engines: {node: '>=v14.18.0'}
-    hasBin: true
-    peerDependencies:
-      '@edge-runtime/vm': '*'
-      '@vitest/browser': '*'
-      '@vitest/ui': '*'
-      happy-dom: '*'
-      jsdom: '*'
-      playwright: '*'
-      safaridriver: '*'
-      webdriverio: '*'
-    peerDependenciesMeta:
-      '@edge-runtime/vm':
-        optional: true
-      '@vitest/browser':
-        optional: true
-      '@vitest/ui':
-        optional: true
-      happy-dom:
-        optional: true
-      jsdom:
-        optional: true
-      playwright:
-        optional: true
-      safaridriver:
-        optional: true
-      webdriverio:
-        optional: true
-    dependencies:
-      '@types/chai': 4.3.6
-      '@types/chai-subset': 1.3.3
-      '@types/node': 20.7.2
-      '@vitest/expect': 0.34.2
-      '@vitest/runner': 0.34.2
-      '@vitest/snapshot': 0.34.2
-      '@vitest/spy': 0.34.2
-      '@vitest/utils': 0.34.2
-      acorn: 8.10.0
-      acorn-walk: 8.2.0
-      cac: 6.7.14
-      chai: 4.3.10
-      debug: 4.3.4(supports-color@8.1.1)
-      local-pkg: 0.4.3
-      magic-string: 0.30.1
-      pathe: 1.1.1
-      picocolors: 1.0.0
-      std-env: 3.3.3
-      strip-literal: 1.0.1
-      tinybench: 2.5.0
-      tinypool: 0.7.0
-      vite: 4.4.10(@types/node@20.7.2)
-      vite-node: 0.34.2(@types/node@20.7.2)
       why-is-node-running: 2.2.2
     transitivePeerDependencies:
       - less
