@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @custom:predeployed 0x4200000000000000000000000000000000000012
@@ -31,8 +32,8 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC20 token contract since this contract
@@ -43,7 +44,7 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
 
     /// @notice Initializer.
     /// @param _bridge Address of the StandardBridge on this chain.
-    function initialize(address _bridge) public reinitializer(2) {
+    function initialize(address _bridge) public reinitializer(Constants.INITIALIZER) {
         bridge = _bridge;
     }
 
