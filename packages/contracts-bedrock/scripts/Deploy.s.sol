@@ -172,7 +172,7 @@ contract Deploy is Deployer {
             ? safeProxyFactory_ = new SafeProxyFactory()
             : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
 
-        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton_));
+        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
 
         save("SafeProxyFactory", address(safeProxyFactory_));
         save("SafeSingleton", address(safeSingleton_));

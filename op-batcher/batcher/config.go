@@ -10,12 +10,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
-	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -88,17 +88,16 @@ type CLIConfig struct {
 	Stopped bool
 
 	TxMgrConfig      txmgr.CLIConfig
-	RPCConfig        rpc.CLIConfig
 	LogConfig        oplog.CLIConfig
 	MetricsConfig    opmetrics.CLIConfig
 	PprofConfig      oppprof.CLIConfig
 	CompressorConfig compressor.CLIConfig
+	RPCFlag          oprpc.CLIConfig
 }
 
 func (c CLIConfig) Check() error {
-	if err := c.RPCConfig.Check(); err != nil {
-		return err
-	}
+	// TODO: check the sanity of flags loaded directly https://github.com/ethereum-optimism/optimism/issues/7512
+
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -106,6 +105,9 @@ func (c CLIConfig) Check() error {
 		return err
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.RPCFlag.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -127,10 +129,10 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MaxL1TxSize:            ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
 		Stopped:                ctx.Bool(flags.StoppedFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
-		RPCConfig:              rpc.ReadCLIConfig(ctx),
 		LogConfig:              oplog.ReadCLIConfig(ctx),
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:            oppprof.ReadCLIConfig(ctx),
 		CompressorConfig:       compressor.ReadCLIConfig(ctx),
+		RPCFlag:                oprpc.ReadCLIConfig(ctx),
 	}
 }

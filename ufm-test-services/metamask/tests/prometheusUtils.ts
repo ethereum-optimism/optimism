@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { z } from 'zod'
-import { Gauge, Pushgateway } from 'prom-client'
+import { Gauge, Pushgateway, Registry } from 'prom-client'
 
 const env = z
   .object({
@@ -10,10 +10,41 @@ const env = z
   .parse(process.env)
 
 const selfSendTransactionMetricName = 'metamask_self_send'
+const feeEstimateLowMetricName = 'metamask_self_send_fee_estimation_low'
+const feeEstimateMediumMetricName = 'metamask_self_send_fee_estimation_medium'
+const feeEstimateHighMetricName = 'metamask_self_send_fee_estimation_high'
+const feeEstimateActualMetricName = 'metamask_self_send_fee_estimation_actual'
+
+const selfSendRegistry = new Registry()
+const feeEstimateLowRegistry = new Registry()
+const feeEstimateMediumRegistry = new Registry()
+const feeEstimateHighRegistry = new Registry()
+const feeEstimateActualRegistry = new Registry()
 
 const selfSendGauge = new Gauge({
   name: selfSendTransactionMetricName,
   help: 'A gauge signifying the number of transactions sent with Metamask',
+  registers: [selfSendRegistry]
+})
+const feeEstimateLowGauge = new Gauge({
+  name: feeEstimateLowMetricName,
+  help: 'A gauge signifying the latest fee estimation from Metamask for Low transaction speed',
+  registers: [feeEstimateLowRegistry]
+})
+const feeEstimateMediumGauge = new Gauge({
+  name: feeEstimateMediumMetricName,
+  help: 'A gauge signifying the latest fee estimation from Metamask for Medium transaction speed',
+  registers: [feeEstimateMediumRegistry]
+})
+const feeEstimateHighGauge = new Gauge({
+  name: feeEstimateHighMetricName,
+  help: 'A gauge signifying the latest fee estimation from Metamask for High transaction speed',
+  registers: [feeEstimateHighRegistry]
+})
+const feeEstimateActualGauge = new Gauge({
+  name: feeEstimateActualMetricName,
+  help: 'A gauge signifying the latest actual transaction fee',
+  registers: [feeEstimateActualRegistry]
 })
 
 export const getSelfSendGaugeValue = async () => {
@@ -71,10 +102,10 @@ export const getSelfSendGaugeValue = async () => {
 }
 
 export const setSelfSendTxGauge = async (valueToSetTo: number) => {
-  console.log(`Setting ${selfSendTransactionMetricName} to ${valueToSetTo}`)
+  console.log(`Setting ${selfSendTransactionMetricName} to ${valueToSetTo}...`)
   selfSendGauge.set(valueToSetTo)
 
-  const pushGateway = new Pushgateway(env.PROMETHEUS_PUSHGATEWAY_URL)
+  const pushGateway = new Pushgateway(env.PROMETHEUS_PUSHGATEWAY_URL, undefined, selfSendRegistry)
   await pushGateway.pushAdd({ jobName: 'metamask_self_send_tx_count' })
 }
 
@@ -89,7 +120,41 @@ export const incrementSelfSendTxGauge = async (isSuccess: boolean) => {
   }
 
   console.log(
-    `Current value of ${selfSendTransactionMetricName} is ${currentMetricValue}, incrementing to ${newMetricValue}`
+    `Current value of ${selfSendTransactionMetricName} is ${currentMetricValue}, incrementing to ${newMetricValue}...`
   )
   await setSelfSendTxGauge(newMetricValue)
+}
+
+export const setFeeEstimationGauge = async (txSpeed: 'low' | 'medium' | 'high' | 'actual', fee: number) => {
+  console.log(
+    txSpeed !== 'actual'
+    ? `Setting Metamask fee estimation for ${txSpeed} to ${fee}...`
+    : `Setting actual transaction fee to ${fee}`
+  )
+
+  let prometheusRegistry: Registry
+  switch (txSpeed) {
+    case 'low':
+      feeEstimateLowGauge.set(fee)
+      prometheusRegistry = feeEstimateLowRegistry
+      break;
+    case 'medium':
+      feeEstimateMediumGauge.set(fee)
+      prometheusRegistry = feeEstimateMediumRegistry
+      break;
+    case 'high':
+      feeEstimateHighGauge.set(fee)
+      prometheusRegistry = feeEstimateHighRegistry
+      break;
+    case 'actual':
+      feeEstimateActualGauge.set(fee)
+      prometheusRegistry = feeEstimateActualRegistry
+      break;
+    default:
+      throw new Error(`unsupported transaction speed given: ${txSpeed}`)
+  }
+
+
+  const pushGateway = new Pushgateway(env.PROMETHEUS_PUSHGATEWAY_URL, undefined, prometheusRegistry)
+  await pushGateway.pushAdd({ jobName: `metamask_self_send_tx_fee_estimation_${txSpeed}` })
 }

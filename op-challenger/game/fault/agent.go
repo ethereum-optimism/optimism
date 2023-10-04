@@ -196,9 +196,6 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 	if len(claims) == 0 {
 		return nil, errors.New("no claims")
 	}
-	game := types.NewGameState(a.agreeWithProposedOutput, claims[0], uint64(a.maxDepth))
-	if err := game.PutAll(claims[1:]); err != nil {
-		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
-	}
+	game := types.NewGameState(a.agreeWithProposedOutput, claims, uint64(a.maxDepth))
 	return game, nil
 }

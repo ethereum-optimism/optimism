@@ -23,3 +23,89 @@ func TestNewPreimageOracleData(t *testing.T) {
 		require.Equal(t, uint32(7), data.OracleOffset)
 	})
 }
+
+func TestIsRootPosition(t *testing.T) {
+	tests := []struct {
+		name     string
+		position Position
+		expected bool
+	}{
+		{
+			name:     "ZeroRoot",
+			position: NewPositionFromGIndex(0),
+			expected: true,
+		},
+		{
+			name:     "ValidRoot",
+			position: NewPositionFromGIndex(1),
+			expected: true,
+		},
+		{
+			name:     "NotRoot",
+			position: NewPositionFromGIndex(2),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.position.IsRootPosition())
+		})
+	}
+}
+
+func buildClaim(gindex uint64, parentGIndex uint64) Claim {
+	return Claim{
+		ClaimData: ClaimData{
+			Position: NewPositionFromGIndex(gindex),
+		},
+		Parent: ClaimData{
+			Position: NewPositionFromGIndex(parentGIndex),
+		},
+	}
+}
+
+func TestDefendsParent(t *testing.T) {
+	tests := []struct {
+		name     string
+		claim    Claim
+		expected bool
+	}{
+		{
+			name:     "LeftChildAttacks",
+			claim:    buildClaim(2, 1),
+			expected: false,
+		},
+		{
+			name:     "RightChildDoesntDefend",
+			claim:    buildClaim(3, 1),
+			expected: false,
+		},
+		{
+			name:     "SubChildDoesntDefend",
+			claim:    buildClaim(4, 1),
+			expected: false,
+		},
+		{
+			name:     "SubSecondChildDoesntDefend",
+			claim:    buildClaim(5, 1),
+			expected: false,
+		},
+		{
+			name:     "RightLeftChildDefendsParent",
+			claim:    buildClaim(6, 1),
+			expected: true,
+		},
+		{
+			name:     "SubThirdChildDefends",
+			claim:    buildClaim(7, 1),
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.claim.DefendsParent())
+		})
+	}
+}

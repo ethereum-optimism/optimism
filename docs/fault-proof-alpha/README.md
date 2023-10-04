@@ -7,6 +7,12 @@ test the fault proof system.
 The overall design of this system along with the APIs and interfaces it exposes are not
 finalized and may change without notice.
 
+### Getting Started
+
+* [Architecture Overview Video](https://www.youtube.com/watch?v=nIN5sNc6nQM)
+* [Fault Proof Alpha Deployment Information (Goerli)](./deployments.md)
+* [Security Reseachers - Bug Bounty Program](./immunefi.md)
+
 ### Contents
 
  * Specifications

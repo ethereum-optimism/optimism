@@ -119,10 +119,6 @@ func TestLoader_FetchClaims(t *testing.T) {
 					Value:    expectedClaims[0].Claim,
 					Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 				},
-				Parent: types.ClaimData{
-					Value:    expectedClaims[0].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
-				},
 				Countered:     false,
 				Clock:         uint64(0),
 				ContractIndex: 0,
@@ -134,11 +130,12 @@ func TestLoader_FetchClaims(t *testing.T) {
 				},
 				Parent: types.ClaimData{
 					Value:    expectedClaims[0].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+					Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 				},
-				Countered:     false,
-				Clock:         uint64(0),
-				ContractIndex: 1,
+				Countered:           false,
+				Clock:               uint64(0),
+				ContractIndex:       1,
+				ParentContractIndex: 0,
 			},
 			{
 				ClaimData: types.ClaimData{
@@ -146,12 +143,13 @@ func TestLoader_FetchClaims(t *testing.T) {
 					Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 				},
 				Parent: types.ClaimData{
-					Value:    expectedClaims[0].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
+					Value:    expectedClaims[1].Claim,
+					Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 				},
-				Countered:     false,
-				Clock:         uint64(0),
-				ContractIndex: 2,
+				Countered:           false,
+				Clock:               uint64(0),
+				ContractIndex:       2,
+				ParentContractIndex: 1,
 			},
 		}, claims)
 	})
@@ -204,21 +202,23 @@ func newMockCaller() *mockCaller {
 		}{
 			{
 				Claim:     [32]byte{0x00},
-				Position:  big.NewInt(0),
+				Position:  big.NewInt(1),
 				Countered: false,
 				Clock:     big.NewInt(0),
 			},
 			{
-				Claim:     [32]byte{0x01},
-				Position:  big.NewInt(0),
-				Countered: false,
-				Clock:     big.NewInt(0),
+				Claim:       [32]byte{0x01},
+				Position:    big.NewInt(2),
+				Countered:   false,
+				Clock:       big.NewInt(0),
+				ParentIndex: 0,
 			},
 			{
-				Claim:     [32]byte{0x02},
-				Position:  big.NewInt(0),
-				Countered: false,
-				Clock:     big.NewInt(0),
+				Claim:       [32]byte{0x02},
+				Position:    big.NewInt(3),
+				Countered:   false,
+				Clock:       big.NewInt(0),
+				ParentIndex: 1,
 			},
 		},
 	}
@@ -240,7 +240,7 @@ func (m *mockCaller) ClaimData(opts *bind.CallOpts, arg0 *big.Int) (struct {
 			Clock       *big.Int
 		}{}, mockClaimDataError
 	}
-	returnClaim := m.returnClaims[m.currentIndex]
+	returnClaim := m.returnClaims[arg0.Uint64()]
 	m.currentIndex++
 	return returnClaim, nil
 }

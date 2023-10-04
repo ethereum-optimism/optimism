@@ -37,10 +37,10 @@
     "@vitest/coverage-istanbul": "^0.34.6",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
-    "viem": "^1.14.0",
-    "vite": "^4.4.9",
+    "viem": "^1.15.1",
+    "vite": "^4.4.10",
     "vitest": "^0.34.1",
-    "zod": "^3.22.0"
+    "zod": "^3.22.3"
   },
   "dependencies": {
     "@ethereumjs/rlp": "^5.0.0",
