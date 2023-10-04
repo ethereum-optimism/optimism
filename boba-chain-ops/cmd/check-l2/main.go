@@ -46,6 +46,12 @@ func main() {
 				Usage:   "L2 RPC URL",
 				EnvVars: []string{"L2_RPC_URL"},
 			},
+			&cli.Int64Flag{
+				Name:    "l2-block-number",
+				Value:   0,
+				Usage:   "L2 block number",
+				EnvVars: []string{"L2_BLOCK_NUMBER"},
+			},
 		},
 		Action: entrypoint,
 	}
@@ -861,8 +867,8 @@ func checkBobaL2(addr libcommon.Address, client *clients.RpcClient) error {
 	if err != nil {
 		return err
 	}
-	if name != "Boba Token" {
-		return fmt.Errorf("BobaL2 name should be 'Boba Token', got %s", name)
+	if name != "Boba Token" && name != "Boba Network" {
+		return fmt.Errorf("BobaL2 name should be 'Boba Token' or 'Boba Network', got %s", name)
 	}
 	log.Info("BobaL2", "name", name)
 	symbol, err := contract.Symbol(&bind.CallOpts{})

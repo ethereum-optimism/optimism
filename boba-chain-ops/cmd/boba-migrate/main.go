@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,8 +17,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon-lib/kv/memdb"
-	"github.com/ledgerwatch/erigon/core"
+	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/node"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
@@ -187,12 +187,12 @@ func main() {
 			}
 
 			// deep copy genesis for later checking
-			var genesisBlockOrigin types.Genesis
+			var transitionBlockOrigin types.Genesis
 			genesisByte, err := json.Marshal(genesisBlock)
 			if err != nil {
 				return err
 			}
-			if err := json.Unmarshal(genesisByte, &genesisBlockOrigin); err != nil {
+			if err := json.Unmarshal(genesisByte, &transitionBlockOrigin); err != nil {
 				return err
 			}
 
@@ -282,8 +282,9 @@ func main() {
 			dryRun := ctx.Bool("dry-run")
 			noCheck := ctx.Bool("no-check")
 
-			if err := genesis.MigrateDB(chaindb, genesisBlock, config, header, &migrationData, !dryRun, noCheck); err != nil {
-				if err.Error() != "genesis block already exists" {
+			block, err := genesis.MigrateDB(chaindb, genesisBlock, config, header, &migrationData, !dryRun, noCheck)
+			if err != nil {
+				if err.Error() != "cannot write genesis: genesis block already exists" {
 					log.Error("failed to migrate db", "err", err)
 					return err
 				} else {
@@ -303,12 +304,14 @@ func main() {
 
 			if err := genesis.PostCheckMigratedDB(
 				postChaindb,
-				&genesisBlockOrigin,
+				&transitionBlockOrigin,
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
 				config.L1ChainID,
 				config.FinalSystemOwner,
 				config.ProxyAdminOwner,
+				config.L2OutputOracleStartingBlockNumber,
+				config.L2OutputOracleStartingTimestamp,
 				&genesis.L1BlockInfo{
 					Number:        header.Number.Uint64(),
 					Time:          header.Time,
@@ -322,12 +325,19 @@ func main() {
 				return err
 			}
 
-			db := memdb.New("")
-			defer db.Close()
-			genesis.SetBalanceToZero(genesisBlock)
-			_, block, err := core.CommitGenesisBlock(db, genesisBlock, "", logger)
-			if err != nil {
-				return err
+			if block == nil {
+				tx, err := postChaindb.BeginRo(context.Background())
+				if err != nil {
+					log.Error("failed to read DB", "err", err)
+					return err
+				}
+				defer tx.Rollback()
+
+				block, err = rawdb.ReadBlockByNumber(tx, config.L2OutputOracleStartingBlockNumber)
+				if err != nil {
+					log.Error("failed to read genesis block to generate rollup file", "err", err)
+					return err
+				}
 			}
 
 			rollupConfig, err := config.RollupConfig(header, block.Hash(), block.Number().Uint64())
@@ -338,6 +348,8 @@ func main() {
 			if err := writeGenesisFile(ctx.String("outfile-rollup"), rollupConfig); err != nil {
 				return err
 			}
+
+			log.Info("Successfully migrated database. The genesis block hash is", "hash", block.Hash().String())
 
 			return nil
 		},

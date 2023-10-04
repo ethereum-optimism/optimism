@@ -22,6 +22,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
+	erigonstate "github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/log/v3"
@@ -84,28 +85,55 @@ var (
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
 		},
-		predeploys.L2StandardBridgeAddr:             eip1967Slots(predeploys.L2StandardBridgeAddr),
-		predeploys.SequencerFeeVaultAddr:            eip1967Slots(predeploys.SequencerFeeVaultAddr),
-		predeploys.OptimismMintableERC20FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC20FactoryAddr),
-		predeploys.L1BlockNumberAddr:                eip1967Slots(predeploys.L1BlockNumberAddr),
-		predeploys.GasPriceOracleAddr:               eip1967Slots(predeploys.GasPriceOracleAddr),
-		//predeploys.L1BlockAddr:                       eip1967Slots(predeploys.L1BlockAddr),
-		predeploys.L2ERC721BridgeAddr:                eip1967Slots(predeploys.L2ERC721BridgeAddr),
+		predeploys.L2StandardBridgeAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"),
+			// L2CrossDomainMessengerAddr
+			libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"): libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30010"),
+		},
+		predeploys.SequencerFeeVaultAddr: eip1967Slots(predeploys.SequencerFeeVaultAddr),
+		predeploys.OptimismMintableERC20FactoryAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000042000000000000000000000000000000000000100002"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30012"),
+		},
+		predeploys.L1BlockNumberAddr:  eip1967Slots(predeploys.L1BlockNumberAddr),
+		predeploys.GasPriceOracleAddr: eip1967Slots(predeploys.GasPriceOracleAddr),
+		predeploys.L2ERC721BridgeAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			libcommon.Hash{}: libcommon.HexToHash("0x0000000000000000000042000000000000000000000000000000000000070002"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30014"),
+		},
 		predeploys.OptimismMintableERC721FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC721FactoryAddr),
 		// ProxyAdmin is not a proxy, and only has the _owner slot set.
 		predeploys.ProxyAdminAddr: {
 			// Slot 0x00 (0) is _owner. Requires custom check, so set to a garbage value
 			ProxyAdminOwnerSlot: libcommon.HexToHash("0xbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad0"),
-
 			// EIP-1967 storage slots
 			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30018"),
 		},
-		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
-		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
+		predeploys.BaseFeeVaultAddr:   eip1967Slots(predeploys.BaseFeeVaultAddr),
+		predeploys.L1FeeVaultAddr:     eip1967Slots(predeploys.L1FeeVaultAddr),
+		predeploys.EASAddr:            eip1967Slots(predeploys.EASAddr),
+		predeploys.SchemaRegistryAddr: eip1967Slots(predeploys.SchemaRegistryAddr),
+
 		// Boba contracts
 		predeploys.BobaTuringCreditAddr: eip1967Slots(predeploys.BobaTuringCreditAddr),
-		predeploys.BobaHCHelperAddr:     eip1967Slots(predeploys.BobaHCHelperAddr),
+		predeploys.BobaHCHelperAddr: {
+			// Slot 0x00 (0) is _owner.
+			libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"): libcommon.HexToHash("0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d303e9"),
+		},
 	}
 )
 
@@ -117,6 +145,8 @@ func PostCheckMigratedDB(
 	l1ChainID uint64,
 	finalSystemOwner libcommon.Address,
 	proxyAdminOwner libcommon.Address,
+	transitionBlockNumber uint64,
+	timestamp int,
 	info *L1BlockInfo,
 ) error {
 	log.Info("Validating database migration")
@@ -134,21 +164,49 @@ func PostCheckMigratedDB(
 	if num == nil {
 		return fmt.Errorf("cannot find header number for %s", hash)
 	}
-	if *num != 0 {
-		return fmt.Errorf("expected chain tip to be block 0, but got %d", *num)
+
+	if *num != transitionBlockNumber {
+		return fmt.Errorf("expected transition block number to be %d, but got %d", transitionBlockNumber, *num)
 	}
 
 	header := rawdb.ReadHeader(tx, hash, *num)
 	log.Info("Read header from database", "number", *num)
+	if header.GasLimit != g.GasLimit {
+		return fmt.Errorf("expected gas limit to be %d, but got %d", g.GasLimit, header.GasLimit)
+	}
+	if header.Time != uint64(timestamp) {
+		return fmt.Errorf("expected timestamp to be %d, but got %d", timestamp, header.Time)
+	}
+	parentHeader := rawdb.ReadHeader(tx, header.ParentHash, header.Number.Uint64()-1)
+	if parentHeader == nil {
+		return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
+	}
+
+	genesisBlock, err := rawdb.ReadBlockByNumber(tx, 0)
+	if err != nil {
+		return fmt.Errorf("failed to read genesis header from database: %w", err)
+	}
 
 	bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
-	if header.Hash() != bobaGenesisHash {
-		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, header.Hash())
+	if genesisBlock.Hash() != bobaGenesisHash {
+		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisBlock.Hash())
 	}
 
 	bobaGenesisExtraData := common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
-	if !bytes.Equal(header.Extra, bobaGenesisExtraData) {
-		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, header.Extra)
+	if !bytes.Equal(genesisBlock.Header().Extra, bobaGenesisExtraData) {
+		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, genesisBlock.Header().Extra)
+	}
+
+	chainConfig, err := rawdb.ReadChainConfig(tx, genesisBlock.Hash())
+	if err != nil {
+		return fmt.Errorf("failed to read chain config from database: %w", err)
+	}
+	if chainConfig.BedrockBlock.Uint64() != transitionBlockNumber {
+		return fmt.Errorf("expected bedrock block to be %d, but got %d", transitionBlockNumber, chainConfig.BedrockBlock)
+	}
+
+	if err := CheckPreBedrockAllocation(tx); err != nil {
+		return err
 	}
 
 	if err := PostCheckBobaProxyContracts(g); err != nil {
@@ -198,11 +256,23 @@ func PostCheckMigratedDB(
 // legacy proxy slots. This is because the legacy slots are affected by the migration process.
 func PostCheckBobaProxyContracts(g *types.Genesis) error {
 	for addr := range BobaUntouchablePredeploys {
+		var originAddr libcommon.Address
+		if addr == predeploys.BobaTuringCreditAddr {
+			originAddr = predeploys.BobaLegacyTuringCreditAddr
+		}
 		for key, val := range g.Alloc[addr].Storage {
 			if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
 				continue
 			}
 			ExpectedStorageSlots[addr][key] = val
+		}
+		if originAddr != (libcommon.Address{}) {
+			for key, val := range g.Alloc[originAddr].Storage {
+				if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
+					continue
+				}
+				ExpectedStorageSlots[addr][key] = val
+			}
 		}
 	}
 	return nil
@@ -861,6 +931,21 @@ func CheckWithdrawalsAfter(tx kv.Tx, data crossdomain.MigrationData, l1CrossDoma
 	}
 	if innerErr != nil {
 		return fmt.Errorf("error checking storage slots: %w", innerErr)
+	}
+	return nil
+}
+
+func CheckPreBedrockAllocation(tx kv.Tx) error {
+	hash := rawdb.ReadHeadHeaderHash(tx)
+	num := rawdb.ReadHeaderNumber(tx, hash)
+	if num == nil {
+		return fmt.Errorf("cannot find header number for %s", hash)
+	}
+
+	dumper := erigonstate.NewDumper(tx, *num-1, false)
+	result := dumper.RawDump(false, false)
+	if len(result.Accounts) != 0 {
+		return fmt.Errorf("pre-bedrock allocation is not empty")
 	}
 	return nil
 }

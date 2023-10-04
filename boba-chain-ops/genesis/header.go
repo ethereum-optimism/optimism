@@ -5,14 +5,12 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/types"
-	"github.com/ledgerwatch/erigon/params"
 )
 
-func CreateHeader(g *types.Genesis) (*types.Header, error) {
+func CreateHeader(g *types.Genesis, parentHeader *types.Header, config *DeployConfig) (*types.Header, error) {
 	head := &types.Header{
-		Number:        new(big.Int).SetUint64(g.Number),
+		Number:        big.NewInt(int64(config.L2OutputOracleStartingBlockNumber)),
 		Nonce:         types.EncodeNonce(g.Nonce),
 		Time:          g.Timestamp,
 		ParentHash:    g.ParentHash,
@@ -28,30 +26,16 @@ func CreateHeader(g *types.Genesis) (*types.Header, error) {
 		AuRaSeal:      g.AuRaSeal,
 	}
 
-	if g.GasLimit == 0 {
-		head.GasLimit = params.GenesisGasLimit
-	}
-	if g.Difficulty == nil {
-		head.Difficulty = params.GenesisDifficulty
-	}
-	if g.Config != nil && (g.Config.IsLondon(0)) {
-		if g.BaseFee != nil {
-			head.BaseFee = g.BaseFee
-		} else {
-			head.BaseFee = new(big.Int).SetUint64(params.InitialBaseFee)
-		}
-	}
-
 	// update header for legacy genesis
 	if !chain.IsBobaValidChainId(g.Config.ChainID) {
 		return nil, chain.ErrInvalidChainID
 	}
 
-	head.Time = 0
-	head.Difficulty = big.NewInt(1)
-	head.Extra = common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
-	head.Coinbase = libcommon.HexToAddress(chain.GetBobaGenesisCoinbase(g.Config.ChainID))
-	head.Root = libcommon.HexToHash(chain.GetBobaGenesisRoot(g.Config.ChainID))
+	head.Extra = []byte{}
+	head.Time = uint64(config.L2OutputOracleStartingTimestamp)
+	head.Difficulty = big.NewInt(0)
+	head.BaseFee = libcommon.Big0
+	head.ParentHash = parentHeader.Hash()
 
 	return head, nil
 }

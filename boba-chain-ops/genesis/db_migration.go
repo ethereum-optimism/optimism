@@ -3,26 +3,27 @@ package genesis
 import (
 	"context"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/ledgerwatch/erigon-lib/chain"
-	"github.com/ledgerwatch/erigon-lib/common"
+	libcommon "github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/common/length"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rawdbv3"
-	"github.com/ledgerwatch/erigon/consensus/ethash"
-	"github.com/ledgerwatch/erigon/consensus/merge"
+	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/eth/stagedsync/stages"
 	"github.com/ledgerwatch/erigon/params"
+	"github.com/ledgerwatch/erigon/turbo/trie"
 	"github.com/ledgerwatch/log/v3"
 )
 
-func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, blockHeader *types.Header, migrationData *crossdomain.MigrationData, commit, noCheck bool) error {
+func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, blockHeader *types.Header, migrationData *crossdomain.MigrationData, commit, noCheck bool) (*types.Block, error) {
 	// Before we do anything else, we need to ensure that all of the input configuration is correct
 	// and nothing is missing. We'll first verify the contract configuration, then we'll verify the
 	// witness data for the migration. We operate under the assumption that the witness data is
@@ -31,13 +32,13 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// Generate and verify the configuration for storage variables to be set on L2.
 	storage, err := NewL2StorageConfig(config, blockHeader)
 	if err != nil {
-		return fmt.Errorf("cannot create storage config: %w", err)
+		return nil, fmt.Errorf("cannot create storage config: %w", err)
 	}
 
 	// Generate and verify the configuration for immutable variables to be set on L2.
 	immutable, err := NewL2ImmutableConfig(config, blockHeader)
 	if err != nil {
-		return fmt.Errorf("cannot create immutable config: %w", err)
+		return nil, fmt.Errorf("cannot create immutable config: %w", err)
 	}
 	log.Debug("Created L2 configuration", "storage", storage, "immutable", immutable)
 
@@ -45,7 +46,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// may be missing some messages or have some extra messages.
 	unfilteredWithdrawals, invalidMessages, err := migrationData.ToWithdrawals()
 	if err != nil {
-		return fmt.Errorf("cannot serialize withdrawals: %w", err)
+		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
 
 	log.Info("Read withdrawals from witness data", "unfiltered", len(unfilteredWithdrawals), "invalid", len(invalidMessages))
@@ -57,7 +58,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 		log.Info("Checking withdrawals...")
 		filteredWithdrawals, err = crossdomain.PreCheckWithdrawals(genesis, unfilteredWithdrawals, invalidMessages)
 		if err != nil {
-			return fmt.Errorf("withdrawals mismatch: %w", err)
+			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 		}
 	} else {
 		log.Info("Skipping checking withdrawals")
@@ -66,14 +67,18 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 
 	log.Info("Filtered withdrawals", "filtered", len(filteredWithdrawals))
 
-	// At this point we've fully verified the witness data for the migration, so we can begin the
-	// actual migration process.
+	// We need to retrieve the legacy credit from the genesis so that we can rebuild the credit in
+	// new turingCredit contract
+	legacyTuringCredit := RetrieveLegacyTuringCredit(genesis)
+
+	// At this point, we have verified that the witness data is correct and retrieved the legacy
+	// credit from the genesis. We can now start to mutate the genesis to prepare it for the
 
 	// We need to wipe the legacy contracts from the genesis, because the legacy contracts are the
 	// legacy implementation of the predeployed contracts. We want to replace the legacy contracts
 	// with the new predeployed contracts, so we need to wipe the legacy contracts first.
 	if err := WipeBobaLegacyProxyImplementation(genesis); err != nil {
-		return fmt.Errorf("cannot wipe legacy predeploy: %w", err)
+		return nil, fmt.Errorf("cannot wipe legacy predeploy: %w", err)
 	}
 
 	// We need to wipe the storage of every predeployed contract EXCEPT for the GovernanceToken,
@@ -82,7 +87,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// therefore can be safely removed from the database. Storage must be wiped before anything
 	// else or the ERC-1967 proxy storage slots will be removed.
 	if err := WipePredeployStorage(genesis); err != nil {
-		return fmt.Errorf("cannot wipe storage: %w", err)
+		return nil, fmt.Errorf("cannot wipe storage: %w", err)
 	}
 
 	// Next order of business is to convert all predeployed smart contracts into proxies so they
@@ -91,7 +96,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// WETH9 contracts behind proxies because we do not want to make these easily upgradable.
 	log.Info("Converting predeployed contracts to proxies")
 	if err := SetL2Proxies(genesis); err != nil {
-		return fmt.Errorf("cannot set L2Proxies: %w", err)
+		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
 	// Here we update the storage of each predeploy with the new storage variables that we want to
@@ -99,7 +104,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// proxies (NOT the GovernanceToken or WETH9).
 	log.Info("Updating implementations for predeployed contracts")
 	if err := SetImplementations(genesis, storage, immutable); err != nil {
-		return fmt.Errorf("cannot set implementations: %w", err)
+		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
 	// We need to update the code for LegacyERC20ETH. This is NOT a standard predeploy because it's
@@ -107,7 +112,7 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// function call to SetImplementations.
 	log.Info("Updating code for LegacyERC20ETH")
 	if err := SetLegacyETH(genesis, storage, immutable); err != nil {
-		return fmt.Errorf("cannot set legacy ETH: %w", err)
+		return nil, fmt.Errorf("cannot set legacy ETH: %w", err)
 	}
 
 	// Now we migrate legacy withdrawals from the LegacyMessagePasser contract to their new format
@@ -117,63 +122,69 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
 	err = crossdomain.MigrateWithdrawals(filteredWithdrawals, genesis, &config.L1CrossDomainMessengerProxy, noCheck)
 	if err != nil {
-		return fmt.Errorf("cannot migrate withdrawals: %w", err)
+		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
 
-	// Finally we migrate the balances held inside the LegacyERC20ETH contract into the state trie.
+	//  We migrate the balances held inside the LegacyERC20ETH contract into the state trie.
 	// We also delete the balances from the LegacyERC20ETH contract. Unlike the steps above, this step
 	// combines the check and mutation steps into one in order to reduce migration time.
 	log.Info("Starting to migrate ERC20 ETH")
 	err = ether.MigrateBalances(genesis, migrationData.Addresses(), migrationData.OvmAllowances, noCheck)
 	if err != nil {
-		return fmt.Errorf("failed to migrate OVM_ETH: %w", err)
+		return nil, fmt.Errorf("failed to migrate OVM_ETH: %w", err)
+	}
+
+	// Finally, we need to migrate the legacy credit from the LegacyTuringCredit contract to the
+	// new TuringCredit contract.
+	log.Info("Starting to migrate TuringCredit")
+	err = ether.MigrateTuringCredit(genesis, legacyTuringCredit, noCheck)
+	if err != nil {
+		return nil, fmt.Errorf("failed to migrate TuringCredit: %w", err)
 	}
 
 	if !commit {
 		log.Info("Dry run complete!")
-		return nil
+		return nil, nil
 	}
 
-	if err = WriteGenesis(chaindb, genesis); err != nil {
-		return err
+	block, err := WriteGenesis(chaindb, genesis, config)
+	if err != nil {
+		return nil, fmt.Errorf("cannot write genesis: %w", err)
 	}
 
-	return nil
+	return block, nil
 }
 
 // Write genesis to chaindb
-func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) error {
+func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig) (*types.Block, error) {
 	tx, err := chaindb.BeginRw(context.Background())
 	if err != nil {
 		log.Error("failed to begin write genesis block", "err", err)
-		return err
+		return nil, err
 	}
 	defer tx.Rollback()
 
-	hash, err := rawdb.ReadCanonicalHash(tx, 0)
-	if err != nil {
-		log.Error("failed to read canonical hash of block #0", "err", err)
-		return err
+	parentHeader := rawdb.ReadCurrentHeader(tx)
+	if config.L2OutputOracleStartingBlockNumber != parentHeader.Number.Uint64()+1 {
+		return nil, fmt.Errorf("L2OutputOracleStartingBlockNumber must be %d", parentHeader.Number.Uint64()+1)
 	}
+	transitionBlockNumber := config.L2OutputOracleStartingBlockNumber
 
-	if (hash != common.Hash{}) {
-		log.Error("genesis block already exists")
-		return errors.New("genesis block already exists")
-	}
-
-	header, err := CreateHeader(genesis)
+	var root libcommon.Hash
+	header, err := CreateHeader(genesis, parentHeader, config)
 	if err != nil {
 		log.Error("failed to create header from genesis config", "err", err)
-		return err
+		return nil, err
 	}
 
-	statedb, err := AllocToGenesis(genesis, header)
+	statedb, root, err := AllocToGenesis(genesis, header)
 	if err != nil {
 		log.Error("failed to create genesis state", "err", err)
-		return err
+		return nil, err
 	}
 
-	block := types.NewBlock(header, nil, nil, nil, []*types.Withdrawal{})
+	header.Root = root
+	block := types.NewBlock(header, nil, nil, nil, nil)
 
 	var stateWriter state.StateWriter
 	for addr, account := range genesis.Alloc {
@@ -182,45 +193,63 @@ func WriteGenesis(chaindb kv.RwDB, genesis *types.Genesis) error {
 			var b [8]byte
 			binary.BigEndian.PutUint64(b[:], state.FirstContractIncarnation)
 			if err := tx.Put(kv.IncarnationMap, addr[:], b[:]); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
-	stateWriter = state.NewPlainStateWriter(tx, tx, 0)
-
-	if block.Number().Sign() != 0 {
-		return fmt.Errorf("genesis block number is not 0")
-	}
+	stateWriter = state.NewPlainStateWriter(tx, tx, transitionBlockNumber)
 
 	if err := statedb.CommitBlock(&chain.Rules{}, stateWriter); err != nil {
-		return fmt.Errorf("cannot commit genesis block: %w", err)
+		return nil, fmt.Errorf("cannot commit genesis block: %w", err)
 	}
 	if csw, ok := stateWriter.(state.WriterWithChangeSets); ok {
 		if err := csw.WriteChangeSets(); err != nil {
-			return fmt.Errorf("cannot write changesets: %w", err)
+			return nil, fmt.Errorf("cannot write changesets: %w", err)
 		}
 		if err := csw.WriteHistory(); err != nil {
-			return fmt.Errorf("cannot write history: %w", err)
+			return nil, fmt.Errorf("cannot write history: %w", err)
 		}
 	}
 
 	if err := CommitGenesisBlock(tx, genesis, "", block, statedb); err != nil {
 		log.Error("failed to write genesis block", "err", err)
-		return err
+		return nil, err
+	}
+
+	if err := CommitHashedState(tx); err != nil {
+		log.Error("failed to write hashed state", "err", err)
+		return nil, err
+	}
+
+	// verify state root
+	root, err = trie.CalcRoot("transition", tx)
+	if err != nil {
+		return nil, err
+	}
+	if root != header.Root {
+		return nil, fmt.Errorf("state root mismatch: %x != %x", root, header.Root)
+	}
+
+	// save StageProgress
+	if err := stages.SaveStageProgress(tx, stages.IntermediateHashes, transitionBlockNumber); err != nil {
+		return nil, err
+	}
+	if err := stages.SaveStageProgress(tx, stages.Execution, transitionBlockNumber); err != nil {
+		return nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
 		log.Error("failed to commit genesis block", "err", err)
-		return err
+		return nil, err
 	}
 	log.Info("Successfully wrote genesis state", "hash", block.Hash())
 
-	return nil
+	return block, nil
 }
 
-// Write writes the block and state of a genesis specification to the database.
+// Write the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
 func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *types.Block, statedb *state.IntraBlockState) error {
 	config := g.Config
@@ -230,16 +259,16 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	if err := config.CheckConfigForkOrder(); err != nil {
 		return err
 	}
-	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), g.Difficulty); err != nil {
+	if err := rawdb.WriteTd(tx, block.Hash(), block.NumberU64(), big.NewInt(3)); err != nil {
 		return err
 	}
 	if err := rawdb.WriteBlock(tx, block); err != nil {
 		return err
 	}
-	if err := rawdbv3.TxNums.WriteForGenesis(tx, 1); err != nil {
+	if err := rawdbv3.TxNums.Append(tx, block.NumberU64(), 0); err != nil {
 		return err
 	}
-	if err := rawdb.WriteReceipts(tx, block.NumberU64(), nil); err != nil {
+	if err := rawdb.WriteReceipts(tx, block.NumberU64(), []*types.Receipt{}); err != nil {
 		return err
 	}
 
@@ -251,33 +280,71 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	if err := rawdb.WriteHeadHeaderHash(tx, block.Hash()); err != nil {
 		return err
 	}
-	if err := rawdb.WriteChainConfig(tx, block.Hash(), config); err != nil {
-		return err
-	}
-	// We support ethash/serenity for issuance (for now)
-	if g.Config.Consensus != chain.EtHashConsensus {
-		return nil
-	}
-	// Issuance is the sum of allocs
-	genesisIssuance := big.NewInt(0)
-	for _, account := range g.Alloc {
-		genesisIssuance.Add(genesisIssuance, account.Balance)
+	if err := rawdb.WriteHeaderNumber(tx, block.Hash(), block.NumberU64()); err != nil {
+		fmt.Println("Failed to write WriteHeaderNumber")
+		panic(err)
 	}
 
-	// BlockReward can be present at genesis
-	if block.Header().Difficulty.Cmp(merge.ProofOfStakeDifficulty) != 0 {
-		blockReward, _ := ethash.AccumulateRewards(g.Config, block.Header(), nil)
-		// Set BlockReward
-		genesisIssuance.Add(genesisIssuance, blockReward.ToBig())
-	}
-	if err := rawdb.WriteTotalIssued(tx, 0, genesisIssuance); err != nil {
+	rawdb.WriteForkchoiceHead(tx, block.Hash())
+	rawdb.WriteForkchoiceFinalized(tx, block.Hash())
+	rawdb.WriteForkchoiceSafe(tx, block.Hash())
+
+	// override chain config in the genesis block, so we can avoid changes in
+	// the erigon
+	hash, err := rawdb.ReadCanonicalHash(tx, 0)
+	if err != nil {
 		return err
 	}
-	if err := rawdb.WriteTotalBurnt(tx, 0, common.Big0); err != nil {
+	if err := rawdb.WriteChainConfig(tx, hash, config); err != nil {
 		return err
 	}
 
 	log.Info("genesis block is written to database")
+
+	return nil
+}
+
+// Write hashedStorage and hashedAccounts to database
+func CommitHashedState(tx kv.RwTx) error {
+	cursor, err := tx.RwCursor(kv.PlainState)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close()
+
+	h := common.NewHasher()
+	defer common.ReturnHasherToPool(h)
+	for k, v, err := cursor.First(); k != nil; k, v, err = cursor.Next() {
+		if err != nil {
+			return fmt.Errorf("interate over plain state: %w", err)
+		}
+		var newK []byte
+		if len(k) == length.Addr {
+			newK = make([]byte, length.Hash)
+		} else {
+			newK = make([]byte, length.Hash*2+length.Incarnation)
+		}
+		h.Sha.Reset()
+		//nolint:errcheck
+		h.Sha.Write(k[:length.Addr])
+		//nolint:errcheck
+		h.Sha.Read(newK[:length.Hash])
+		if len(k) > length.Addr {
+			copy(newK[length.Hash:], k[length.Addr:length.Addr+length.Incarnation])
+			h.Sha.Reset()
+			//nolint:errcheck
+			h.Sha.Write(k[length.Addr+length.Incarnation:])
+			//nolint:errcheck
+			h.Sha.Read(newK[length.Hash+length.Incarnation:])
+			if err = tx.Put(kv.HashedStorage, newK, common.CopyBytes(v)); err != nil {
+				return fmt.Errorf("insert hashed key: %w", err)
+			}
+		} else {
+			if err = tx.Put(kv.HashedAccounts, newK, common.CopyBytes(v)); err != nil {
+				return fmt.Errorf("insert hashed key: %w", err)
+			}
+		}
+	}
 
 	return nil
 }
