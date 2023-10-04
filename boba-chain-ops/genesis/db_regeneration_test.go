@@ -10,8 +10,8 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
-	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/commands"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/turbo/engineapi/engine_types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -99,7 +99,7 @@ func TestRegenerateBlock(t *testing.T) {
 	require.NoError(t, err)
 	executionPayloadTx := make([]hexutility.Bytes, 1)
 	executionPayloadTx[0] = hexutility.Bytes(marshalTransactions[0])
-	privateClient.GetPayloadV1Returns(&commands.ExecutionPayload{
+	privateClient.GetPayloadV1Returns(&engine_types.ExecutionPayload{
 		BlockHash:    block.Hash,
 		Transactions: executionPayloadTx,
 	}, nil)

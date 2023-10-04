@@ -9,11 +9,11 @@ import (
 
 	ethereum "github.com/ledgerwatch/erigon"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/commands"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/eth/tracers"
 	"github.com/ledgerwatch/erigon/rpc"
+	"github.com/ledgerwatch/erigon/turbo/engineapi/engine_types"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -25,9 +25,9 @@ type RPC interface {
 	GetLatestBlock() (*Block, error)
 	GetBlockByNumber(blockNumber *big.Int) (*Block, error)
 	GetTransactionByHash(txHash *common.Hash) (types.Transaction, error)
-	ForkchoiceUpdateV1(fc *commands.ForkChoiceState, attributes *commands.PayloadAttributes) (*ForkchoiceUpdatedResult, error)
-	GetPayloadV1(payloadID *PayloadID) (*commands.ExecutionPayload, error)
-	NewPayloadV1(executionPayload *commands.ExecutionPayload) (*PayloadStatusV1, error)
+	ForkchoiceUpdateV1(fc *engine_types.ForkChoiceState, attributes *engine_types.PayloadAttributes) (*ForkchoiceUpdatedResult, error)
+	GetPayloadV1(payloadID *PayloadID) (*engine_types.ExecutionPayload, error)
+	NewPayloadV1(executionPayload *engine_types.ExecutionPayload) (*PayloadStatusV1, error)
 	TraceTransaction(txHash *common.Hash) (*TraceTransaction, error)
 	GetLogs(filter *ethereum.FilterQuery) ([]*types.Log, error)
 }
@@ -123,7 +123,7 @@ func (r *BackendRPC) GetTransactionByHash(txHash *common.Hash) (types.Transactio
 	return tx, nil
 }
 
-func (r *BackendRPC) ForkchoiceUpdateV1(fc *commands.ForkChoiceState, attributes *commands.PayloadAttributes) (*ForkchoiceUpdatedResult, error) {
+func (r *BackendRPC) ForkchoiceUpdateV1(fc *engine_types.ForkChoiceState, attributes *engine_types.PayloadAttributes) (*ForkchoiceUpdatedResult, error) {
 	if err := r.RefreshJWTAuth(); err != nil {
 		return nil, err
 	}
@@ -136,11 +136,11 @@ func (r *BackendRPC) ForkchoiceUpdateV1(fc *commands.ForkChoiceState, attributes
 	return &result, nil
 }
 
-func (r *BackendRPC) GetPayloadV1(payloadID *PayloadID) (*commands.ExecutionPayload, error) {
+func (r *BackendRPC) GetPayloadV1(payloadID *PayloadID) (*engine_types.ExecutionPayload, error) {
 	if err := r.RefreshJWTAuth(); err != nil {
 		return nil, err
 	}
-	var result *commands.ExecutionPayload
+	var result *engine_types.ExecutionPayload
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 	if err := r.client.CallContext(ctx, &result, "engine_getPayloadV1", payloadID); err != nil {
@@ -149,7 +149,7 @@ func (r *BackendRPC) GetPayloadV1(payloadID *PayloadID) (*commands.ExecutionPayl
 	return result, nil
 }
 
-func (r *BackendRPC) NewPayloadV1(executionPayload *commands.ExecutionPayload) (*PayloadStatusV1, error) {
+func (r *BackendRPC) NewPayloadV1(executionPayload *engine_types.ExecutionPayload) (*PayloadStatusV1, error) {
 	if err := r.RefreshJWTAuth(); err != nil {
 		return nil, err
 	}

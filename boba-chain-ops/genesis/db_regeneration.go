@@ -10,9 +10,9 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
-	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/commands"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/turbo/engineapi/engine_types"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -137,12 +137,12 @@ func (b *BuilderEngine) RegenerateBlock() error {
 
 	// Step 1: Get new payloadID
 	// engine_forkchoiceUpdatedV1 -> Get payloadID
-	fc := &commands.ForkChoiceState{
+	fc := &engine_types.ForkChoiceState{
 		HeadHash:           latestBlock.Hash,
 		SafeBlockHash:      latestBlock.Hash,
 		FinalizedBlockHash: latestBlock.Hash,
 	}
-	attributes := &commands.PayloadAttributes{
+	attributes := &engine_types.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(legacyBlock.Time),
 		PrevRandao:            [32]byte{},
 		SuggestedFeeRecipient: libcommon.HexToAddress("0x4200000000000000000000000000000000000011"),
@@ -198,7 +198,7 @@ func (b *BuilderEngine) RegenerateBlock() error {
 
 	// Step 4: Submit block
 	// engine_executePayloadV1 -> Submit block
-	updatedFc := &commands.ForkChoiceState{
+	updatedFc := &engine_types.ForkChoiceState{
 		HeadHash:           executionPayload.BlockHash,
 		SafeBlockHash:      executionPayload.BlockHash,
 		FinalizedBlockHash: executionPayload.BlockHash,

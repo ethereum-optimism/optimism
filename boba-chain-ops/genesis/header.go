@@ -21,7 +21,7 @@ func CreateHeader(g *types.Genesis, parentHeader *types.Header, config *DeployCo
 		MixDigest:     g.Mixhash,
 		Coinbase:      g.Coinbase,
 		BaseFee:       g.BaseFee,
-		ExcessDataGas: g.ExcessDataGas,
+		ExcessBlobGas: g.ExcessBlobGas,
 		AuRaStep:      g.AuRaStep,
 		AuRaSeal:      g.AuRaSeal,
 	}

@@ -153,7 +153,7 @@ func AllocToGenesis(g *types.Genesis, head *types.Header) (*state.IntraBlockStat
 			}
 
 			if len(account.Constructor) > 0 {
-				if _, err = core.SysCreate(addr, account.Constructor, *g.Config, statedb, head, g.ExcessDataGas); err != nil {
+				if _, err = core.SysCreate(addr, account.Constructor, *g.Config, statedb, head); err != nil {
 					return
 				}
 			}

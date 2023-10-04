@@ -215,6 +215,10 @@ type GenesisOutput struct {
 }
 
 func (g GenesisOutput) PerformOutput(genesis *types.Genesis) GenesisOutput {
+	var excessDataGas *hexutil.Big
+	if genesis.ExcessBlobGas != nil {
+		excessDataGas = (*hexutil.Big)(big.NewInt(int64(*genesis.ExcessBlobGas)))
+	}
 	return GenesisOutput{
 		Config:        genesis.Config,
 		Nonce:         hexutil.Uint64(genesis.Nonce),
@@ -225,7 +229,7 @@ func (g GenesisOutput) PerformOutput(genesis *types.Genesis) GenesisOutput {
 		Mixhash:       genesis.Mixhash,
 		Coinbase:      genesis.Coinbase,
 		BaseFee:       (*hexutil.Big)(genesis.BaseFee),
-		ExcessDataGas: (*hexutil.Big)(genesis.ExcessDataGas),
+		ExcessDataGas: excessDataGas,
 		Alloc:         genesis.Alloc,
 
 		Number:     hexutil.Uint64(genesis.Number),

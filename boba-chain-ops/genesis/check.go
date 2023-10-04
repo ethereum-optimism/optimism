@@ -182,22 +182,22 @@ func PostCheckMigratedDB(
 		return fmt.Errorf("cannot find parent header for %s", header.ParentHash)
 	}
 
-	genesisBlock, err := rawdb.ReadBlockByNumber(tx, 0)
+	genesisHeader := rawdb.ReadHeaderByNumber(tx, 0)
 	if err != nil {
 		return fmt.Errorf("failed to read genesis header from database: %w", err)
 	}
 
 	bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
-	if genesisBlock.Hash() != bobaGenesisHash {
-		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisBlock.Hash())
+	if genesisHeader.Hash() != bobaGenesisHash {
+		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, genesisHeader.Hash())
 	}
 
 	bobaGenesisExtraData := common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
-	if !bytes.Equal(genesisBlock.Header().Extra, bobaGenesisExtraData) {
-		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, genesisBlock.Header().Extra)
+	if !bytes.Equal(genesisHeader.Extra, bobaGenesisExtraData) {
+		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, genesisHeader.Extra)
 	}
 
-	chainConfig, err := rawdb.ReadChainConfig(tx, genesisBlock.Hash())
+	chainConfig, err := rawdb.ReadChainConfig(tx, genesisHeader.Hash())
 	if err != nil {
 		return fmt.Errorf("failed to read chain config from database: %w", err)
 	}

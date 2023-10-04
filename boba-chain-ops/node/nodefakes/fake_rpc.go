@@ -8,16 +8,16 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node"
 	ethereum "github.com/ledgerwatch/erigon"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/commands"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/turbo/engineapi/engine_types"
 )
 
 type FakeRPC struct {
-	ForkchoiceUpdateV1Stub        func(*commands.ForkChoiceState, *commands.PayloadAttributes) (*node.ForkchoiceUpdatedResult, error)
+	ForkchoiceUpdateV1Stub        func(*engine_types.ForkChoiceState, *engine_types.PayloadAttributes) (*node.ForkchoiceUpdatedResult, error)
 	forkchoiceUpdateV1Mutex       sync.RWMutex
 	forkchoiceUpdateV1ArgsForCall []struct {
-		arg1 *commands.ForkChoiceState
-		arg2 *commands.PayloadAttributes
+		arg1 *engine_types.ForkChoiceState
+		arg2 *engine_types.PayloadAttributes
 	}
 	forkchoiceUpdateV1Returns struct {
 		result1 *node.ForkchoiceUpdatedResult
@@ -77,17 +77,17 @@ type FakeRPC struct {
 		result1 []*types.Log
 		result2 error
 	}
-	GetPayloadV1Stub        func(*node.PayloadID) (*commands.ExecutionPayload, error)
+	GetPayloadV1Stub        func(*node.PayloadID) (*engine_types.ExecutionPayload, error)
 	getPayloadV1Mutex       sync.RWMutex
 	getPayloadV1ArgsForCall []struct {
 		arg1 *node.PayloadID
 	}
 	getPayloadV1Returns struct {
-		result1 *commands.ExecutionPayload
+		result1 *engine_types.ExecutionPayload
 		result2 error
 	}
 	getPayloadV1ReturnsOnCall map[int]struct {
-		result1 *commands.ExecutionPayload
+		result1 *engine_types.ExecutionPayload
 		result2 error
 	}
 	GetTransactionByHashStub        func(*common.Hash) (types.Transaction, error)
@@ -103,10 +103,10 @@ type FakeRPC struct {
 		result1 types.Transaction
 		result2 error
 	}
-	NewPayloadV1Stub        func(*commands.ExecutionPayload) (*node.PayloadStatusV1, error)
+	NewPayloadV1Stub        func(*engine_types.ExecutionPayload) (*node.PayloadStatusV1, error)
 	newPayloadV1Mutex       sync.RWMutex
 	newPayloadV1ArgsForCall []struct {
-		arg1 *commands.ExecutionPayload
+		arg1 *engine_types.ExecutionPayload
 	}
 	newPayloadV1Returns struct {
 		result1 *node.PayloadStatusV1
@@ -150,12 +150,12 @@ type FakeRPC struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeRPC) ForkchoiceUpdateV1(arg1 *commands.ForkChoiceState, arg2 *commands.PayloadAttributes) (*node.ForkchoiceUpdatedResult, error) {
+func (fake *FakeRPC) ForkchoiceUpdateV1(arg1 *engine_types.ForkChoiceState, arg2 *engine_types.PayloadAttributes) (*node.ForkchoiceUpdatedResult, error) {
 	fake.forkchoiceUpdateV1Mutex.Lock()
 	ret, specificReturn := fake.forkchoiceUpdateV1ReturnsOnCall[len(fake.forkchoiceUpdateV1ArgsForCall)]
 	fake.forkchoiceUpdateV1ArgsForCall = append(fake.forkchoiceUpdateV1ArgsForCall, struct {
-		arg1 *commands.ForkChoiceState
-		arg2 *commands.PayloadAttributes
+		arg1 *engine_types.ForkChoiceState
+		arg2 *engine_types.PayloadAttributes
 	}{arg1, arg2})
 	stub := fake.ForkchoiceUpdateV1Stub
 	fakeReturns := fake.forkchoiceUpdateV1Returns
@@ -176,13 +176,13 @@ func (fake *FakeRPC) ForkchoiceUpdateV1CallCount() int {
 	return len(fake.forkchoiceUpdateV1ArgsForCall)
 }
 
-func (fake *FakeRPC) ForkchoiceUpdateV1Calls(stub func(*commands.ForkChoiceState, *commands.PayloadAttributes) (*node.ForkchoiceUpdatedResult, error)) {
+func (fake *FakeRPC) ForkchoiceUpdateV1Calls(stub func(*engine_types.ForkChoiceState, *engine_types.PayloadAttributes) (*node.ForkchoiceUpdatedResult, error)) {
 	fake.forkchoiceUpdateV1Mutex.Lock()
 	defer fake.forkchoiceUpdateV1Mutex.Unlock()
 	fake.ForkchoiceUpdateV1Stub = stub
 }
 
-func (fake *FakeRPC) ForkchoiceUpdateV1ArgsForCall(i int) (*commands.ForkChoiceState, *commands.PayloadAttributes) {
+func (fake *FakeRPC) ForkchoiceUpdateV1ArgsForCall(i int) (*engine_types.ForkChoiceState, *engine_types.PayloadAttributes) {
 	fake.forkchoiceUpdateV1Mutex.RLock()
 	defer fake.forkchoiceUpdateV1Mutex.RUnlock()
 	argsForCall := fake.forkchoiceUpdateV1ArgsForCall[i]
@@ -455,7 +455,7 @@ func (fake *FakeRPC) GetLogsReturnsOnCall(i int, result1 []*types.Log, result2 e
 	}{result1, result2}
 }
 
-func (fake *FakeRPC) GetPayloadV1(arg1 *node.PayloadID) (*commands.ExecutionPayload, error) {
+func (fake *FakeRPC) GetPayloadV1(arg1 *node.PayloadID) (*engine_types.ExecutionPayload, error) {
 	fake.getPayloadV1Mutex.Lock()
 	ret, specificReturn := fake.getPayloadV1ReturnsOnCall[len(fake.getPayloadV1ArgsForCall)]
 	fake.getPayloadV1ArgsForCall = append(fake.getPayloadV1ArgsForCall, struct {
@@ -480,7 +480,7 @@ func (fake *FakeRPC) GetPayloadV1CallCount() int {
 	return len(fake.getPayloadV1ArgsForCall)
 }
 
-func (fake *FakeRPC) GetPayloadV1Calls(stub func(*node.PayloadID) (*commands.ExecutionPayload, error)) {
+func (fake *FakeRPC) GetPayloadV1Calls(stub func(*node.PayloadID) (*engine_types.ExecutionPayload, error)) {
 	fake.getPayloadV1Mutex.Lock()
 	defer fake.getPayloadV1Mutex.Unlock()
 	fake.GetPayloadV1Stub = stub
@@ -493,28 +493,28 @@ func (fake *FakeRPC) GetPayloadV1ArgsForCall(i int) *node.PayloadID {
 	return argsForCall.arg1
 }
 
-func (fake *FakeRPC) GetPayloadV1Returns(result1 *commands.ExecutionPayload, result2 error) {
+func (fake *FakeRPC) GetPayloadV1Returns(result1 *engine_types.ExecutionPayload, result2 error) {
 	fake.getPayloadV1Mutex.Lock()
 	defer fake.getPayloadV1Mutex.Unlock()
 	fake.GetPayloadV1Stub = nil
 	fake.getPayloadV1Returns = struct {
-		result1 *commands.ExecutionPayload
+		result1 *engine_types.ExecutionPayload
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeRPC) GetPayloadV1ReturnsOnCall(i int, result1 *commands.ExecutionPayload, result2 error) {
+func (fake *FakeRPC) GetPayloadV1ReturnsOnCall(i int, result1 *engine_types.ExecutionPayload, result2 error) {
 	fake.getPayloadV1Mutex.Lock()
 	defer fake.getPayloadV1Mutex.Unlock()
 	fake.GetPayloadV1Stub = nil
 	if fake.getPayloadV1ReturnsOnCall == nil {
 		fake.getPayloadV1ReturnsOnCall = make(map[int]struct {
-			result1 *commands.ExecutionPayload
+			result1 *engine_types.ExecutionPayload
 			result2 error
 		})
 	}
 	fake.getPayloadV1ReturnsOnCall[i] = struct {
-		result1 *commands.ExecutionPayload
+		result1 *engine_types.ExecutionPayload
 		result2 error
 	}{result1, result2}
 }
@@ -583,11 +583,11 @@ func (fake *FakeRPC) GetTransactionByHashReturnsOnCall(i int, result1 types.Tran
 	}{result1, result2}
 }
 
-func (fake *FakeRPC) NewPayloadV1(arg1 *commands.ExecutionPayload) (*node.PayloadStatusV1, error) {
+func (fake *FakeRPC) NewPayloadV1(arg1 *engine_types.ExecutionPayload) (*node.PayloadStatusV1, error) {
 	fake.newPayloadV1Mutex.Lock()
 	ret, specificReturn := fake.newPayloadV1ReturnsOnCall[len(fake.newPayloadV1ArgsForCall)]
 	fake.newPayloadV1ArgsForCall = append(fake.newPayloadV1ArgsForCall, struct {
-		arg1 *commands.ExecutionPayload
+		arg1 *engine_types.ExecutionPayload
 	}{arg1})
 	stub := fake.NewPayloadV1Stub
 	fakeReturns := fake.newPayloadV1Returns
@@ -608,13 +608,13 @@ func (fake *FakeRPC) NewPayloadV1CallCount() int {
 	return len(fake.newPayloadV1ArgsForCall)
 }
 
-func (fake *FakeRPC) NewPayloadV1Calls(stub func(*commands.ExecutionPayload) (*node.PayloadStatusV1, error)) {
+func (fake *FakeRPC) NewPayloadV1Calls(stub func(*engine_types.ExecutionPayload) (*node.PayloadStatusV1, error)) {
 	fake.newPayloadV1Mutex.Lock()
 	defer fake.newPayloadV1Mutex.Unlock()
 	fake.NewPayloadV1Stub = stub
 }
 
-func (fake *FakeRPC) NewPayloadV1ArgsForCall(i int) *commands.ExecutionPayload {
+func (fake *FakeRPC) NewPayloadV1ArgsForCall(i int) *engine_types.ExecutionPayload {
 	fake.newPayloadV1Mutex.RLock()
 	defer fake.newPayloadV1Mutex.RUnlock()
 	argsForCall := fake.newPayloadV1ArgsForCall[i]
