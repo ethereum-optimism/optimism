@@ -10,6 +10,7 @@ import { Types } from "../src/libraries/Types.sol";
 
 // Target contract dependencies
 import { Proxy } from "../src/universal/Proxy.sol";
+import { SystemConfig } from "../src/L1/SystemConfig.sol";
 
 // Target contract
 import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
@@ -61,8 +62,7 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
         oracle.initialize({
             _startingBlockNumber: 0,
             _startingTimestamp: block.timestamp + 1,
-            _proposer: address(0),
-            _challenger: address(0)
+            _systemConfig: SystemConfig(address(0))
         });
     }
 }
@@ -194,6 +194,30 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
 
         // check timestamp for some other block number
         assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024);
+    }
+}
+
+contract L2OutputOracle_proposalManagement_Test is L2OutputOracle_Initializer {
+    /// @dev Tests that `isProposalManager` is identically enforced both on deletion and proposer updating
+    function testFuzz_isProposalManagerCanSetProposerAndDelete_works(address caller) external {
+        proposeAnotherOutput();
+
+        uint256 latestOutputIndex = oracle.latestOutputIndex();
+        address newProposer = makeAddr("New Proposer");
+
+        if (sysConf.isProposalManager(caller)) {
+            vm.startPrank(caller);
+            sysConf.setProposer(newProposer);
+            oracle.deleteL2Outputs(latestOutputIndex);
+        } else {
+            vm.startPrank(caller);
+
+            vm.expectRevert("SystemConfig: caller is not authorized to update the proposer");
+            sysConf.setProposer(newProposer);
+
+            vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
+            oracle.deleteL2Outputs(latestOutputIndex);
+        }
     }
 }
 
@@ -346,7 +370,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
     function test_deleteL2Outputs_ifNotChallenger_reverts() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
-        vm.expectRevert("L2OutputOracle: only the challenger address can delete outputs");
+        vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
         oracle.deleteL2Outputs(latestBlockNumber);
     }
 
@@ -393,6 +417,17 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
         vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
         oracle.deleteL2Outputs(latestOutputIndex);
     }
+
+    /// @dev Tests that `deleteL2Outputs` reverts for finalized outputs.
+    function test_deleteL2Outputs_unAuthed_reverts() external {
+        proposeAnotherOutput();
+        uint256 latestOutputIndex = oracle.latestOutputIndex();
+
+        assertFalse(sysConf.isProposalManager(address(this)));
+        // Try to delete an output
+        vm.expectRevert("L2OutputOracle: caller is not allowed to delete outputs");
+        oracle.deleteL2Outputs(latestOutputIndex);
+    }
 }
 
 contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
@@ -416,21 +451,21 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(oracle.proposer(), proposer);
         assertEq(oracle.CHALLENGER(), oracleChallenger);
         assertEq(oracle.challenger(), oracleChallenger);
+        assertEq(address(oracle.systemConfig()), address(sysConf));
     }
 
     /// @dev Tests that the impl is created with the correct values.
     function test_initValuesOnImpl_succeeds() external {
-        assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-        assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
+        assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(oracle.submissionInterval(), submissionInterval);
+        assertEq(oracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(oracle.l2BlockTime(), l2BlockTime);
 
         // The values that are set in the initialize function should be all
         // zero values in the implementation contract.
         assertEq(oracleImpl.startingBlockNumber(), 0);
         assertEq(oracleImpl.startingTimestamp(), 0);
-        assertEq(oracleImpl.PROPOSER(), address(0));
-        assertEq(oracleImpl.proposer(), address(0));
-        assertEq(oracleImpl.CHALLENGER(), address(0));
-        assertEq(oracleImpl.challenger(), address(0));
+        assertEq(address(oracleImpl.systemConfig()), address(0));
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
@@ -439,8 +474,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         L2OutputOracle(payable(proxy)).initialize({
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: address(1),
-            _challenger: address(2)
+            _systemConfig: SystemConfig(address(2))
         });
     }
 
@@ -450,8 +484,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         L2OutputOracle(oracleImpl).initialize({
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: address(1),
-            _challenger: address(2)
+            _systemConfig: SystemConfig(address(2))
         });
     }
 

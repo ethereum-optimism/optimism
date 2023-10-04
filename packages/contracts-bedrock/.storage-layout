@@ -53,8 +53,8 @@
 | startingBlockNumber | uint256                       | 1    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 | startingTimestamp   | uint256                       | 2    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 | l2Outputs           | struct Types.OutputProposal[] | 3    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
-| challenger          | address                       | 4    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
-| proposer            | address                       | 5    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
+| systemConfig        | contract SystemConfig         | 4    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
+| spacer_5_0_20       | address                       | 5    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 
 =======================
 ➡ src/L1/OptimismPortal.sol:OptimismPortal
@@ -91,6 +91,8 @@
 | gasLimit        | uint64                                 | 104  | 0      | 8     | src/L1/SystemConfig.sol:SystemConfig |
 | _resourceConfig | struct ResourceMetering.ResourceConfig | 105  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 | startBlock      | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| proposer        | address                                | 107  | 0      | 20    | src/L1/SystemConfig.sol:SystemConfig |
+| challenger      | address                                | 108  | 0      | 20    | src/L1/SystemConfig.sol:SystemConfig |
 
 =======================
 ➡ src/L1/SuperchainConfig.sol:SuperchainConfig

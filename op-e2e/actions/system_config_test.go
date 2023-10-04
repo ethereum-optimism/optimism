@@ -262,7 +262,8 @@ func TestGPOParamsChange(gt *testing.T) {
 	// overhead changes from 2100 (default) to 1000
 	// scalar changes from 1_000_000 (default) to 2_300_000
 	// e.g. if system operator determines that l2 txs need to be more expensive, but small ones less
-	_, err = sysCfgContract.SetGasConfig(sysCfgOwner, big.NewInt(1000), big.NewInt(2_300_000))
+	gasConfig := bindings.SystemConfigGasConfig{Overhead: big.NewInt(1000), Scalar: big.NewInt(2_300_000)}
+	_, err = sysCfgContract.SetGasConfig(sysCfgOwner, gasConfig)
 	require.NoError(t, err)
 
 	// include the GPO change tx in L1

@@ -9,10 +9,12 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Storage } from "src/libraries/Storage.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
+/// @custom:audit none This contracts is not yet audited.
 /// @title SystemConfig
-/// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
-///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
+/// @notice The SystemConfig contract is used to manage configuration of an OP Chain.
+///         All configuration is stored on L1 and picked up by L2 as part of the derivation of
 ///         the L2 chain.
+///         The values in this contract are set by the ChainGovernor.
 contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
@@ -36,6 +38,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         address l2OutputOracle;
         address optimismPortal;
         address optimismMintableERC20Factory;
+    }
+
+    /// @notice Struct representing the overhead, and scalar.
+    struct GasConfig {
+        uint256 overhead;
+        uint256 scalar;
+    }
+
+    /// @notice Struct representing the overhead, scalar, and gas limit.
+    struct OracleRoles {
+        address proposer;
+        address challenger;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -99,6 +113,12 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
+    /// @notice Proposer address, proposes new outputs.
+    address public proposer;
+
+    /// @notice Challenger address, can delete outputs.
+    address public challenger;
+
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
@@ -109,6 +129,14 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
+    /// @notice Emitted when the proposer is updated.
+    /// @param newProposer The address of the new proposer.
+    event ProposerUpdated(address indexed newProposer);
+
+    /// @notice Emitted when the challenger is updated.
+    /// @param newChallenger The address of the new challenger.
+    event ChallengerUpdated(address indexed newChallenger);
+
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
@@ -116,8 +144,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         initialize({
             _owner: address(0xdEaD),
             _superchainConfig: address(0),
-            _overhead: 0,
-            _scalar: 0,
+            _gasConfig: GasConfig({ overhead: 0, scalar: 0 }),
             _batcherHash: bytes32(0),
             _gasLimit: 1,
             _unsafeBlockSigner: address(0),
@@ -131,7 +158,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
             }),
             _startBlock: type(uint256).max,
             _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
+            _oracleRoles: OracleRoles({ proposer: address(0), challenger: address(0) }),
+            _addresses: Addresses({
                 l1CrossDomainMessenger: address(0),
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
@@ -146,8 +174,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         The resource config must be set before the require check.
     /// @param _owner             Initial owner of the contract.
     /// @param _superchainConfig  Initial superchainConfig address.
-    /// @param _overhead          Initial overhead value.
-    /// @param _scalar            Initial scalar value.
+    /// @param _gasConfig         Initial gas config (overhead and scalar) values.
     /// @param _batcherHash       Initial batcher hash.
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
@@ -156,20 +183,21 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///                           Contracts that were deployed before this field existed
     ///                           need to have this field set manually via an override.
     ///                           Newly deployed contracts should set this value to uint256(0).
+    /// @param _oracleRoles       Initial proposer and challenger addresses.
     /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
     ///                           canonical data.
     /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
         address _superchainConfig,
-        uint256 _overhead,
-        uint256 _scalar,
+        GasConfig memory _gasConfig,
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
         uint256 _startBlock,
         address _batchInbox,
+        OracleRoles memory _oracleRoles,
         SystemConfig.Addresses memory _addresses
     )
         public
@@ -180,9 +208,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
 
         // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
-        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
+        _setGasConfig(_gasConfig);
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setProposer(_oracleRoles.proposer);
+        _setChallenger(_oracleRoles.challenger);
 
         Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
         Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
@@ -204,9 +234,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         gas that is allocated for deposits per block plus the amount of gas that
     ///         is allocated for the system transaction.
     ///         This function is used to determine if changes to parameters are safe.
-    /// @return uint64 Minimum gas limit.
-    function minimumGasLimit() public view returns (uint64) {
-        return uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
+    /// @return minGasLimit_ uint64 Minimum gas limit.
+    function minimumGasLimit() public view returns (uint64 minGasLimit_) {
+        minGasLimit_ = uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
     }
 
     /// @notice High level getter for the unsafe block signer address.
@@ -327,20 +357,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Updates gas config. Can only be called by the owner.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
-        _setGasConfig(_overhead, _scalar);
+    /// @param _gasConfig New gas config.
+    function setGasConfig(GasConfig memory _gasConfig) external onlyOwner {
+        _setGasConfig(_gasConfig);
     }
 
     /// @notice Internal function for updating the gas config.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
-        overhead = _overhead;
-        scalar = _scalar;
+    /// @param _gasConfig New gas config.
+    function _setGasConfig(GasConfig memory _gasConfig) internal {
+        overhead = _gasConfig.overhead;
+        scalar = _gasConfig.scalar;
 
-        bytes memory data = abi.encode(_overhead, _scalar);
+        bytes memory data = abi.encode(_gasConfig.overhead, _gasConfig.scalar);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
@@ -398,5 +426,43 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /// @notice Checks if the given address is a proposal manager. The same entities who can delete an output
+    ///         should also be able to update the proposer; because in the event that a faulty output is proposed,
+    ///         the malicious proposer will need to be removed prior to deleting the output.
+    /// @param _manager The address to check.
+    /// @return isManager_ A boolean indicating if the address is a proposal manager.
+    function isProposalManager(address _manager) public view returns (bool isManager_) {
+        SuperchainConfig _superchainConfig = SuperchainConfig(superchainConfig());
+        isManager_ = _manager == challenger || _manager == _superchainConfig.initiator()
+            || _manager == _superchainConfig.vetoer();
+    }
+
+    /// @notice Updates the proposer. Can only be a proposal manager (owner, initiator or vetoer).
+    /// @param _proposer New proposer address.
+    function setProposer(address _proposer) external {
+        require(isProposalManager(msg.sender), "SystemConfig: caller is not authorized to update the proposer");
+        _setProposer(_proposer);
+    }
+
+    /// @notice Internal function for updating the proposer.
+    /// @param _proposer New proposer.
+    function _setProposer(address _proposer) internal {
+        proposer = _proposer;
+        emit ProposerUpdated(_proposer);
+    }
+
+    /// @notice Updates the challenger. Can only be called by the owner.
+    /// @param _challenger New challenger address.
+    function setChallenger(address _challenger) external onlyOwner {
+        _setChallenger(_challenger);
+    }
+
+    /// @notice Internal function for updating the challenger.
+    /// @param _challenger New challenger.
+    function _setChallenger(address _challenger) internal {
+        challenger = _challenger;
+        emit ChallengerUpdated(_challenger);
     }
 }
