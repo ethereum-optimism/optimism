@@ -1367,6 +1367,20 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
+      - docker-build:
+          name: ufm-metamask-docker-build
+          docker_file: ufm-test-services/metamask/Dockerfile
+          docker_name: ufm-metamask
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: ufm-test-services/metamask
+      - docker-publish:
+          name: ufm-metamask-docker-publish
+          docker_file: ufm-test-services/metamask/Dockerfile
+          docker_name: ufm-metamask
+          docker_context: ufm-test-services/metamask
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
@@ -1377,7 +1391,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1531,6 +1545,21 @@ workflows:
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
           docker_context: .
+          context:
+            - oplabs-gcr
+          requires:
+            - hold
+      - docker-release:
+          name: ufm-metamask-docker-release
+          filters:
+            tags:
+              only: /^ufm-metamask\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ufm-test-services/metamask/Dockerfile
+          docker_name: ufm-metamask
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ufm-test-services/metamask
           context:
             - oplabs-gcr
           requires:
