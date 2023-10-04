@@ -20,10 +20,10 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
 
-    function makeKeys(uint256 num) public pure returns (uint256[] memory) {
-        uint256[] memory keys = new uint256[](num);
+    function makeKeys(uint256 num) public pure returns (uint256[] memory keys_) {
+        keys_ = new uint256[](num);
         for (uint256 i; i < num; i++) {
-            keys[i] = uint256(keccak256(abi.encodePacked(i)));
+            keys_[i] = uint256(keccak256(abi.encodePacked(i)));
         }
     }
 
@@ -44,8 +44,18 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
 }
 
 contract LivenessModule_RemoveOwner_Test is LivnessModule_TestInit {
-    function test_removeOwner_succeeds() external {
+    function test_removeOwner_oneOwner_succeeds() external {
+        uint256 ownersBefore = safeInstance.owners.length;
         vm.warp(block.timestamp + 30 days);
         livenessModule.removeOwner(safeInstance.owners[0]);
+        assertEq(safeInstance.safe.getOwners().length, ownersBefore - 1);
+    }
+
+    function test_removeOwner_allOwners_succeeds() external {
+        vm.warp(block.timestamp + 30 days);
+        // The safe is initialized with 10 owners, so we need to remove 3 to get below the minOwners threshold
+        livenessModule.removeOwner(safeInstance.owners[0]);
+        livenessModule.removeOwner(safeInstance.owners[1]);
+        livenessModule.removeOwner(safeInstance.owners[2]);
     }
 }
