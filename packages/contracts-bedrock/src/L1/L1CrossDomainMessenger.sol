@@ -5,6 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -19,8 +20,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     OptimismPortal public PORTAL;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.6.1
-    string public constant version = "1.6.1";
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
@@ -29,7 +30,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Initializes the contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
-    function initialize(OptimismPortal _portal) public reinitializer(2) {
+    function initialize(OptimismPortal _portal) public reinitializer(Constants.INITIALIZER) {
         PORTAL = _portal;
         __CrossDomainMessenger_init();
     }

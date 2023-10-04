@@ -703,11 +703,6 @@ contract Deploy is Deployer {
         require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-
-        // Ensures that the legacy slot is modified correctly. This will fail
-        // during predeployment simulation on OP Mainnet if there is a bug.
-        bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
-        require(slot0 == bytes32(uint256(2)));
     }
 
     /// @notice Initialize the L1ERC721Bridge
