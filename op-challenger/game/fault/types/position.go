@@ -25,17 +25,11 @@ func NewPosition(depth int, indexAtDepth *big.Int) Position {
 	}
 }
 
-func NewLargePositionFromGIndex(x *big.Int) Position {
+func NewPositionFromGIndex(x *big.Int) Position {
 	depth := bigMSB(x)
-	indexAtDepth := new(big.Int).Sub(x, new(big.Int).Lsh(big.NewInt(1), uint(depth)))
+	withoutMSB := new(big.Int).Not(new(big.Int).Lsh(big.NewInt(1), uint(depth)))
+	indexAtDepth := new(big.Int).And(x, withoutMSB)
 	return NewPosition(depth, indexAtDepth)
-}
-
-// todo(client-pod#80): remove this to use the NewLargePositionFromGIndex.
-func NewPositionFromGIndex(x uint64) Position {
-	depth := MSBIndex(x)
-	indexAtDepth := ^(1 << depth) & x
-	return NewPosition(depth, big.NewInt(int64(indexAtDepth)))
 }
 
 func (p Position) MoveRight() Position {
@@ -85,13 +79,6 @@ func (p Position) TraceIndex(maxDepth int) *big.Int {
 	rhs := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), uint(rd)), big.NewInt(1))
 	ti := new(big.Int).Or(p.lshIndex(rd), rhs)
 	return ti
-}
-
-// UnsafeTraceIndex returns a uint64 representation of the trace index.
-// todo(refcell): This should be removed in a follow-on pr and any invocations
-// should be updated to use TraceIndex.
-func (p Position) UnsafeTraceIndex(maxDepth int) uint64 {
-	return p.TraceIndex(maxDepth).Uint64()
 }
 
 // move returns a new position at the left or right child.
@@ -146,24 +133,12 @@ func (p Position) ToGIndex() *big.Int {
 
 // bigMSB returns the index of the most significant bit
 func bigMSB(x *big.Int) int {
-	if x.Cmp(common.Big0) == 0 {
+	if x.Cmp(new(big.Int)) == 0 {
 		return 0
 	}
 	out := 0
-	for ; x.Cmp(common.Big0) != 0; out++ {
+	for ; x.Cmp(new(big.Int)) != 0; out++ {
 		x = new(big.Int).Rsh(x, 1)
-	}
-	return out - 1
-}
-
-// MSBIndex returns the index of the most significant bit
-func MSBIndex(x uint64) int {
-	if x == 0 {
-		return 0
-	}
-	out := 0
-	for ; x != 0; out++ {
-		x = x >> 1
 	}
 	return out - 1
 }

@@ -117,7 +117,7 @@ func TestLoader_FetchClaims(t *testing.T) {
 			{
 				ClaimData: types.ClaimData{
 					Value:    expectedClaims[0].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
+					Position: types.NewPositionFromGIndex(expectedClaims[0].Position),
 				},
 				Countered:     false,
 				Clock:         uint64(0),
@@ -126,11 +126,11 @@ func TestLoader_FetchClaims(t *testing.T) {
 			{
 				ClaimData: types.ClaimData{
 					Value:    expectedClaims[1].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+					Position: types.NewPositionFromGIndex(expectedClaims[1].Position),
 				},
 				Parent: types.ClaimData{
 					Value:    expectedClaims[0].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
+					Position: types.NewPositionFromGIndex(expectedClaims[0].Position),
 				},
 				Countered:           false,
 				Clock:               uint64(0),
@@ -140,11 +140,11 @@ func TestLoader_FetchClaims(t *testing.T) {
 			{
 				ClaimData: types.ClaimData{
 					Value:    expectedClaims[2].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
+					Position: types.NewPositionFromGIndex(expectedClaims[2].Position),
 				},
 				Parent: types.ClaimData{
 					Value:    expectedClaims[1].Claim,
-					Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+					Position: types.NewPositionFromGIndex(expectedClaims[1].Position),
 				},
 				Countered:           false,
 				Clock:               uint64(0),

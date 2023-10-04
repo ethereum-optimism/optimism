@@ -8,32 +8,34 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMSBIndex(t *testing.T) {
+func bi(i int) *big.Int {
+	return big.NewInt(int64(i))
+}
+
+func TestBigMSB(t *testing.T) {
+	large, ok := new(big.Int).SetString("18446744073709551615", 10)
+	require.True(t, ok)
 	tests := []struct {
-		input    uint64
+		input    *big.Int
 		expected int
 	}{
-		{0, 0},
-		{1, 0},
-		{2, 1},
-		{4, 2},
-		{8, 3},
-		{16, 4},
-		{255, 7},
-		{1024, 10},
-		{18446744073709551615, 63},
+		{bi(0), 0},
+		{bi(1), 0},
+		{bi(2), 1},
+		{bi(4), 2},
+		{bi(8), 3},
+		{bi(16), 4},
+		{bi(255), 7},
+		{bi(1024), 10},
+		{large, 63},
 	}
 
 	for _, test := range tests {
-		result := MSBIndex(test.input)
+		result := bigMSB(test.input)
 		if result != test.expected {
 			t.Errorf("MSBIndex(%d) expected %d, but got %d", test.input, test.expected, result)
 		}
 	}
-}
-
-func bi(i int) *big.Int {
-	return big.NewInt(int64(i))
 }
 
 type testNodeInfo struct {
@@ -89,7 +91,7 @@ var treeNodes = []testNodeInfo{
 // TestGINConversions does To & From the generalized index on the treeNodesMaxDepth4 data
 func TestGINConversions(t *testing.T) {
 	for _, test := range treeNodes {
-		from := NewLargePositionFromGIndex(test.GIndex)
+		from := NewPositionFromGIndex(test.GIndex)
 		pos := NewPosition(test.Depth, test.IndexAtDepth)
 		require.EqualValuesf(t, pos.Depth(), from.Depth(), "From GIndex %v vs pos %v", from.Depth(), pos.Depth())
 		require.Zerof(t, pos.IndexAtDepth().Cmp(from.IndexAtDepth()), "From GIndex %v vs pos %v", from.IndexAtDepth(), pos.IndexAtDepth())
@@ -100,7 +102,7 @@ func TestGINConversions(t *testing.T) {
 
 func TestTraceIndexOfRootWithLargeDepth(t *testing.T) {
 	traceIdx := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 100), big.NewInt(1))
-	pos := NewLargePositionFromGIndex(big.NewInt(1))
+	pos := NewPositionFromGIndex(big.NewInt(1))
 	actual := pos.TraceIndex(100)
 	require.Equal(t, traceIdx, actual)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/client"
@@ -54,7 +55,7 @@ func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClie
 
 func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	traceIndex := pos.TraceIndex(int(o.gameDepth))
-	if traceIndex.Cmp(common.Big0.SetUint64(math.MaxUint64)) > 0 {
+	if traceIndex.Cmp(new(big.Int).SetUint64(math.MaxUint64)) > 0 {
 		return common.Hash{}, fmt.Errorf("trace index %v is greater than max uint64", traceIndex)
 	}
 	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1

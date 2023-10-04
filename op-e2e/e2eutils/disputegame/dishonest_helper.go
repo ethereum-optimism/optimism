@@ -74,7 +74,7 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
 		// honest level, invalid attack
 		// honest level, invalid defense
 
-		pos := types.NewPositionFromGIndex(claimData.Position.Uint64())
+		pos := types.NewPositionFromGIndex(claimData.Position)
 		if int64(pos.Depth()) == depth {
 			return
 		}

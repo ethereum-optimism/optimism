@@ -47,27 +47,27 @@ func TestGet(t *testing.T) {
 
 	t.Run("FirstBlockAfterPrestate", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(128))
+		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(big.NewInt(128)))
 		require.NoError(t, err)
 		require.Equal(t, firstOutputRoot, value)
 	})
 
 	t.Run("MissingOutputAtBlock", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		_, err := provider.Get(context.Background(), types.NewPositionFromGIndex(129))
+		_, err := provider.Get(context.Background(), types.NewPositionFromGIndex(big.NewInt(129)))
 		require.ErrorAs(t, fmt.Errorf("no output at block %d", prestateBlock+2), &err)
 	})
 
 	t.Run("PostStateBlock", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(228))
+		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(big.NewInt(228)))
 		require.NoError(t, err)
 		require.Equal(t, value, poststateOutputRoot)
 	})
 
 	t.Run("AfterPostStateBlock", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(229))
+		value, err := provider.Get(context.Background(), types.NewPositionFromGIndex(big.NewInt(229)))
 		require.NoError(t, err)
 		require.Equal(t, value, poststateOutputRoot)
 	})
