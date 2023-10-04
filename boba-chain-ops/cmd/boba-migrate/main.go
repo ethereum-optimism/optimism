@@ -256,7 +256,7 @@ func main() {
 			}
 			defer stack.Close()
 
-			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 			if err != nil {
 				log.Error("failed to open chaindb", "err", err)
 				return err
@@ -295,7 +295,7 @@ func main() {
 			// close the database handle
 			chaindb.Close()
 
-			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 			if err != nil {
 				log.Error("failed to open post chaindb", "err", err)
 				return err
@@ -333,9 +333,14 @@ func main() {
 				}
 				defer tx.Rollback()
 
-				block, err = rawdb.ReadBlockByNumber(tx, config.L2OutputOracleStartingBlockNumber)
+				header := rawdb.ReadHeaderByNumber(tx, config.L2OutputOracleStartingBlockNumber)
 				if err != nil {
-					log.Error("failed to read genesis block to generate rollup file", "err", err)
+					log.Error("failed to read header", "err", err)
+					return err
+				}
+				block = rawdb.ReadBlock(tx, header.Hash(), header.Number.Uint64())
+				if block == nil {
+					log.Error("failed to read block", "err", err)
 					return err
 				}
 			}

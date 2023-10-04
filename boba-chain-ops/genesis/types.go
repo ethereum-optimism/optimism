@@ -225,7 +225,7 @@ func (g GenesisOutput) PerformOutput(genesis *types.Genesis) GenesisOutput {
 		Mixhash:       genesis.Mixhash,
 		Coinbase:      genesis.Coinbase,
 		BaseFee:       (*hexutil.Big)(genesis.BaseFee),
-		ExcessDataGas: (*hexutil.Big)(genesis.ExcessDataGas),
+		ExcessDataGas: (*hexutil.Big)(big.NewInt(int64(*genesis.ExcessBlobGas))),
 		Alloc:         genesis.Alloc,
 
 		Number:     hexutil.Uint64(genesis.Number),

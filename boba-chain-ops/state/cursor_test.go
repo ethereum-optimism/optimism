@@ -41,7 +41,7 @@ func TestGetStorage(t *testing.T) {
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -68,7 +68,7 @@ func TestGetAccount(t *testing.T) {
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -98,7 +98,7 @@ func TestGetContractCode(t *testing.T) {
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -133,7 +133,7 @@ func TestGetContractCodeHash(t *testing.T) {
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -169,7 +169,7 @@ func TestForEachStorage(t *testing.T) {
 	require.NoError(t, err)
 	defer stack.Close()
 
-	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
+	db, err := node.OpenDatabase(stack.Config(), kv.ChainDB, "", false, logger)
 	require.NoError(t, err)
 	defer db.Close()
 
