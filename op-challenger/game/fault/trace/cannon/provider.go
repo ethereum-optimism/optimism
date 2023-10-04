@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
-	"math/big"
 	"os"
 	"path/filepath"
 
@@ -91,7 +89,7 @@ func (p *CannonTraceProvider) SetMaxDepth(gameDepth uint64) {
 
 func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
 	traceIndex := pos.TraceIndex(int(p.gameDepth))
-	if traceIndex.Cmp(new(big.Int).SetUint64(math.MaxUint64)) > 0 {
+	if !traceIndex.IsUint64() {
 		return common.Hash{}, errors.New("trace index out of bounds")
 	}
 	proof, err := p.loadProof(ctx, traceIndex.Uint64())
@@ -108,7 +106,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 
 func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	traceIndex := pos.TraceIndex(int(p.gameDepth))
-	if traceIndex.Cmp(new(big.Int).SetUint64(math.MaxUint64)) > 0 {
+	if !traceIndex.IsUint64() {
 		return nil, nil, nil, errors.New("trace index out of bounds")
 	}
 	proof, err := p.loadProof(ctx, traceIndex.Uint64())
