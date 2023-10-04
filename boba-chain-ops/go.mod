@@ -179,7 +179,7 @@ require (
 
 replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20231004031126-9584796cbb22
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20231003025903-91b17881dc5c
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon/erigon-lib v0.0.0-20231004031126-9584796cbb22
 
 replace github.com/bobanetwork/v3-anchorage/boba-bindings => ../boba-bindings
 
