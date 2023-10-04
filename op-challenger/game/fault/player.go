@@ -10,6 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -92,6 +94,23 @@ func NewGamePlayer(
 	case config.TraceTypeAlphabet:
 		provider = alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 		updater = alphabet.NewOracleUpdater(logger)
+	case config.TraceTypeOutputCannon:
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
+		if err != nil {
+			return nil, fmt.Errorf("create cannon trace provider: %w", err)
+		}
+		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
+		}
+		// todo: get prestate and poststate blocks
+		prestateBlock := uint64(0)
+		poststateBlock := uint64(0)
+		outputProvider, err := outputs.NewTraceProvider(ctx, logger, cfg.RollupRpc, gameDepth, prestateBlock, poststateBlock)
+		if err != nil {
+			return nil, fmt.Errorf("create output trace provider: %w", err)
+		}
+		provider = split.NewTraceProvider(logger, outputProvider, cannonProvider, gameDepth)
 	default:
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}
