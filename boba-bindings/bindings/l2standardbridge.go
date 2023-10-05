@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -613,6 +615,177 @@ func (_L2StandardBridge *L2StandardBridgeSession) WithdrawTo(_l2Token libcommon.
 // Solidity: function withdrawTo(address _l2Token, address _to, uint256 _amount, uint32 _minGasLimit, bytes _extraData) payable returns()
 func (_L2StandardBridge *L2StandardBridgeTransactorSession) WithdrawTo(_l2Token libcommon.Address, _to libcommon.Address, _amount *big.Int, _minGasLimit uint32, _extraData []byte) (types.Transaction, error) {
 	return _L2StandardBridge.Contract.WithdrawTo(&_L2StandardBridge.TransactOpts, _l2Token, _to, _amount, _minGasLimit, _extraData)
+}
+
+// BridgeERC20Params is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeERC20 method from calldata of a transaction
+//
+// Solidity: function bridgeERC20(address _localToken, address _remoteToken, uint256 _amount, uint32 _minGasLimit, bytes _extraData) returns()
+
+// BridgeERC20ToParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeERC20To method from calldata of a transaction
+//
+// Solidity: function bridgeERC20To(address _localToken, address _remoteToken, address _to, uint256 _amount, uint32 _minGasLimit, bytes _extraData) returns()
+
+// BridgeETHParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeETH method from calldata of a transaction
+//
+// Solidity: function bridgeETH(uint32 _minGasLimit, bytes _extraData) payable returns()
+
+// BridgeETHToParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeETHTo method from calldata of a transaction
+//
+// Solidity: function bridgeETHTo(address _to, uint32 _minGasLimit, bytes _extraData) payable returns()
+
+// FinalizeBridgeERC20Params is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse FinalizeBridgeERC20 method from calldata of a transaction
+//
+// Solidity: function finalizeBridgeERC20(address _localToken, address _remoteToken, address _from, address _to, uint256 _amount, bytes _extraData) returns()
+
+// FinalizeBridgeETHParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse FinalizeBridgeETH method from calldata of a transaction
+//
+// Solidity: function finalizeBridgeETH(address _from, address _to, uint256 _amount, bytes _extraData) payable returns()
+
+// FinalizeDepositParams is an auto generated read-only Go binding of transcaction calldata params
+type FinalizeDepositParams struct {
+	Param__l1Token   libcommon.Address
+	Param__l2Token   libcommon.Address
+	Param__from      libcommon.Address
+	Param__to        libcommon.Address
+	Param__amount    *big.Int
+	Param__extraData []byte
+}
+
+// Parse FinalizeDeposit method from calldata of a transaction
+//
+// Solidity: function finalizeDeposit(address _l1Token, address _l2Token, address _from, address _to, uint256 _amount, bytes _extraData) payable returns()
+func ParseFinalizeDeposit(calldata []byte) (*FinalizeDepositParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2StandardBridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["finalizeDeposit"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack finalizeDeposit params data: %w", err)
+	}
+
+	var paramsResult = new(FinalizeDepositParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(libcommon.Address)).(*libcommon.Address)
+	out3 := *abi.ConvertType(out[3], new(libcommon.Address)).(*libcommon.Address)
+	out4 := *abi.ConvertType(out[4], new(*big.Int)).(**big.Int)
+	out5 := *abi.ConvertType(out[5], new([]byte)).(*[]byte)
+
+	return &FinalizeDepositParams{
+		Param__l1Token: out0, Param__l2Token: out1, Param__from: out2, Param__to: out3, Param__amount: out4, Param__extraData: out5,
+	}, nil
+}
+
+// WithdrawParams is an auto generated read-only Go binding of transcaction calldata params
+type WithdrawParams struct {
+	Param__l2Token     libcommon.Address
+	Param__amount      *big.Int
+	Param__minGasLimit uint32
+	Param__extraData   []byte
+}
+
+// Parse Withdraw method from calldata of a transaction
+//
+// Solidity: function withdraw(address _l2Token, uint256 _amount, uint32 _minGasLimit, bytes _extraData) payable returns()
+func ParseWithdraw(calldata []byte) (*WithdrawParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2StandardBridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["withdraw"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack withdraw params data: %w", err)
+	}
+
+	var paramsResult = new(WithdrawParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new(uint32)).(*uint32)
+	out3 := *abi.ConvertType(out[3], new([]byte)).(*[]byte)
+
+	return &WithdrawParams{
+		Param__l2Token: out0, Param__amount: out1, Param__minGasLimit: out2, Param__extraData: out3,
+	}, nil
+}
+
+// WithdrawToParams is an auto generated read-only Go binding of transcaction calldata params
+type WithdrawToParams struct {
+	Param__l2Token     libcommon.Address
+	Param__to          libcommon.Address
+	Param__amount      *big.Int
+	Param__minGasLimit uint32
+	Param__extraData   []byte
+}
+
+// Parse WithdrawTo method from calldata of a transaction
+//
+// Solidity: function withdrawTo(address _l2Token, address _to, uint256 _amount, uint32 _minGasLimit, bytes _extraData) payable returns()
+func ParseWithdrawTo(calldata []byte) (*WithdrawToParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2StandardBridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["withdrawTo"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack withdrawTo params data: %w", err)
+	}
+
+	var paramsResult = new(WithdrawToParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	out3 := *abi.ConvertType(out[3], new(uint32)).(*uint32)
+	out4 := *abi.ConvertType(out[4], new([]byte)).(*[]byte)
+
+	return &WithdrawToParams{
+		Param__l2Token: out0, Param__to: out1, Param__amount: out2, Param__minGasLimit: out3, Param__extraData: out4,
+	}, nil
 }
 
 // Receive is a paid mutator transaction binding the contract receive function.

@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -776,6 +778,100 @@ func (_L1CrossDomainMessenger *L1CrossDomainMessengerSession) SendMessage(_targe
 // Solidity: function sendMessage(address _target, bytes _message, uint32 _minGasLimit) payable returns()
 func (_L1CrossDomainMessenger *L1CrossDomainMessengerTransactorSession) SendMessage(_target libcommon.Address, _message []byte, _minGasLimit uint32) (types.Transaction, error) {
 	return _L1CrossDomainMessenger.Contract.SendMessage(&_L1CrossDomainMessenger.TransactOpts, _target, _message, _minGasLimit)
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _portal) returns()
+
+// RelayMessageParams is an auto generated read-only Go binding of transcaction calldata params
+type RelayMessageParams struct {
+	Param__nonce       *big.Int
+	Param__sender      libcommon.Address
+	Param__target      libcommon.Address
+	Param__value       *big.Int
+	Param__minGasLimit *big.Int
+	Param__message     []byte
+}
+
+// Parse RelayMessage method from calldata of a transaction
+//
+// Solidity: function relayMessage(uint256 _nonce, address _sender, address _target, uint256 _value, uint256 _minGasLimit, bytes _message) payable returns()
+func ParseRelayMessage(calldata []byte) (*RelayMessageParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L1CrossDomainMessengerABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["relayMessage"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack relayMessage params data: %w", err)
+	}
+
+	var paramsResult = new(RelayMessageParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(libcommon.Address)).(*libcommon.Address)
+	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+	out4 := *abi.ConvertType(out[4], new(*big.Int)).(**big.Int)
+	out5 := *abi.ConvertType(out[5], new([]byte)).(*[]byte)
+
+	return &RelayMessageParams{
+		Param__nonce: out0, Param__sender: out1, Param__target: out2, Param__value: out3, Param__minGasLimit: out4, Param__message: out5,
+	}, nil
+}
+
+// SendMessageParams is an auto generated read-only Go binding of transcaction calldata params
+type SendMessageParams struct {
+	Param__target      libcommon.Address
+	Param__message     []byte
+	Param__minGasLimit uint32
+}
+
+// Parse SendMessage method from calldata of a transaction
+//
+// Solidity: function sendMessage(address _target, bytes _message, uint32 _minGasLimit) payable returns()
+func ParseSendMessage(calldata []byte) (*SendMessageParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L1CrossDomainMessengerABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["sendMessage"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack sendMessage params data: %w", err)
+	}
+
+	var paramsResult = new(SendMessageParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new([]byte)).(*[]byte)
+	out2 := *abi.ConvertType(out[2], new(uint32)).(*uint32)
+
+	return &SendMessageParams{
+		Param__target: out0, Param__message: out1, Param__minGasLimit: out2,
+	}, nil
 }
 
 // L1CrossDomainMessengerFailedRelayedMessageIterator is returned from FilterFailedRelayedMessage and is used to iterate over the raw logs and unpacked data for FailedRelayedMessage events raised by the L1CrossDomainMessenger contract.

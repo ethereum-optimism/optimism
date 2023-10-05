@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -364,6 +366,137 @@ func (_OptimismMintableERC20Factory *OptimismMintableERC20FactorySession) Initia
 func (_OptimismMintableERC20Factory *OptimismMintableERC20FactoryTransactorSession) Initialize(_bridge libcommon.Address) (types.Transaction, error) {
 	return _OptimismMintableERC20Factory.Contract.Initialize(&_OptimismMintableERC20Factory.TransactOpts, _bridge)
 }
+
+// CreateOptimismMintableERC20Params is an auto generated read-only Go binding of transcaction calldata params
+type CreateOptimismMintableERC20Params struct {
+	Param__remoteToken libcommon.Address
+	Param__name        string
+	Param__symbol      string
+}
+
+// Parse CreateOptimismMintableERC20 method from calldata of a transaction
+//
+// Solidity: function createOptimismMintableERC20(address _remoteToken, string _name, string _symbol) returns(address)
+func ParseCreateOptimismMintableERC20(calldata []byte) (*CreateOptimismMintableERC20Params, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20FactoryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["createOptimismMintableERC20"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack createOptimismMintableERC20 params data: %w", err)
+	}
+
+	var paramsResult = new(CreateOptimismMintableERC20Params)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(string)).(*string)
+	out2 := *abi.ConvertType(out[2], new(string)).(*string)
+
+	return &CreateOptimismMintableERC20Params{
+		Param__remoteToken: out0, Param__name: out1, Param__symbol: out2,
+	}, nil
+}
+
+// CreateOptimismMintableERC20WithDecimalsParams is an auto generated read-only Go binding of transcaction calldata params
+type CreateOptimismMintableERC20WithDecimalsParams struct {
+	Param__remoteToken libcommon.Address
+	Param__name        string
+	Param__symbol      string
+	Param__decimals    uint8
+}
+
+// Parse CreateOptimismMintableERC20WithDecimals method from calldata of a transaction
+//
+// Solidity: function createOptimismMintableERC20WithDecimals(address _remoteToken, string _name, string _symbol, uint8 _decimals) returns(address)
+func ParseCreateOptimismMintableERC20WithDecimals(calldata []byte) (*CreateOptimismMintableERC20WithDecimalsParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20FactoryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["createOptimismMintableERC20WithDecimals"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack createOptimismMintableERC20WithDecimals params data: %w", err)
+	}
+
+	var paramsResult = new(CreateOptimismMintableERC20WithDecimalsParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(string)).(*string)
+	out2 := *abi.ConvertType(out[2], new(string)).(*string)
+	out3 := *abi.ConvertType(out[3], new(uint8)).(*uint8)
+
+	return &CreateOptimismMintableERC20WithDecimalsParams{
+		Param__remoteToken: out0, Param__name: out1, Param__symbol: out2, Param__decimals: out3,
+	}, nil
+}
+
+// CreateStandardL2TokenParams is an auto generated read-only Go binding of transcaction calldata params
+type CreateStandardL2TokenParams struct {
+	Param__remoteToken libcommon.Address
+	Param__name        string
+	Param__symbol      string
+}
+
+// Parse CreateStandardL2Token method from calldata of a transaction
+//
+// Solidity: function createStandardL2Token(address _remoteToken, string _name, string _symbol) returns(address)
+func ParseCreateStandardL2Token(calldata []byte) (*CreateStandardL2TokenParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20FactoryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["createStandardL2Token"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack createStandardL2Token params data: %w", err)
+	}
+
+	var paramsResult = new(CreateStandardL2TokenParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(string)).(*string)
+	out2 := *abi.ConvertType(out[2], new(string)).(*string)
+
+	return &CreateStandardL2TokenParams{
+		Param__remoteToken: out0, Param__name: out1, Param__symbol: out2,
+	}, nil
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _bridge) returns()
 
 // OptimismMintableERC20FactoryInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the OptimismMintableERC20Factory contract.
 type OptimismMintableERC20FactoryInitializedIterator struct {

@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -269,4 +271,41 @@ func (_LegacyMessagePasser *LegacyMessagePasserSession) PassMessageToL1(_message
 // Solidity: function passMessageToL1(bytes _message) returns()
 func (_LegacyMessagePasser *LegacyMessagePasserTransactorSession) PassMessageToL1(_message []byte) (types.Transaction, error) {
 	return _LegacyMessagePasser.Contract.PassMessageToL1(&_LegacyMessagePasser.TransactOpts, _message)
+}
+
+// PassMessageToL1Params is an auto generated read-only Go binding of transcaction calldata params
+type PassMessageToL1Params struct {
+	Param__message []byte
+}
+
+// Parse PassMessageToL1 method from calldata of a transaction
+//
+// Solidity: function passMessageToL1(bytes _message) returns()
+func ParsePassMessageToL1(calldata []byte) (*PassMessageToL1Params, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(LegacyMessagePasserABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["passMessageToL1"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack passMessageToL1 params data: %w", err)
+	}
+
+	var paramsResult = new(PassMessageToL1Params)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return &PassMessageToL1Params{
+		Param__message: out0,
+	}, nil
 }

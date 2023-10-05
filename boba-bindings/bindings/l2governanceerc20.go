@@ -1051,6 +1051,66 @@ func (_L2GovernanceERC20 *L2GovernanceERC20TransactorSession) TransferFrom(from 
 	return _L2GovernanceERC20.Contract.TransferFrom(&_L2GovernanceERC20.TransactOpts, from, to, amount)
 }
 
+// ApproveParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Approve method from calldata of a transaction
+//
+// Solidity: function approve(address spender, uint256 amount) returns(bool)
+
+// BurnParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Burn method from calldata of a transaction
+//
+// Solidity: function burn(address _from, uint256 _amount) returns()
+
+// DecreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse DecreaseAllowance method from calldata of a transaction
+//
+// Solidity: function decreaseAllowance(address spender, uint256 subtractedValue) returns(bool)
+
+// DelegateParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Delegate method from calldata of a transaction
+//
+// Solidity: function delegate(address delegatee) returns()
+
+// DelegateBySigParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse DelegateBySig method from calldata of a transaction
+//
+// Solidity: function delegateBySig(address delegatee, uint256 nonce, uint256 expiry, uint8 v, bytes32 r, bytes32 s) returns()
+
+// IncreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse IncreaseAllowance method from calldata of a transaction
+//
+// Solidity: function increaseAllowance(address spender, uint256 addedValue) returns(bool)
+
+// MintParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Mint method from calldata of a transaction
+//
+// Solidity: function mint(address _to, uint256 _amount) returns()
+
+// PermitParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Permit method from calldata of a transaction
+//
+// Solidity: function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+
+// TransferParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Transfer method from calldata of a transaction
+//
+// Solidity: function transfer(address to, uint256 amount) returns(bool)
+
+// TransferFromParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferFrom method from calldata of a transaction
+//
+// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
+
 // L2GovernanceERC20ApprovalIterator is returned from FilterApproval and is used to iterate over the raw logs and unpacked data for Approval events raised by the L2GovernanceERC20 contract.
 type L2GovernanceERC20ApprovalIterator struct {
 	Event *L2GovernanceERC20Approval // Event containing the contract specifics and raw log

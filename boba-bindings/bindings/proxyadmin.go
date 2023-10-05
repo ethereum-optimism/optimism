@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -613,6 +615,289 @@ func (_ProxyAdmin *ProxyAdminSession) UpgradeAndCall(_proxy libcommon.Address, _
 // Solidity: function upgradeAndCall(address _proxy, address _implementation, bytes _data) payable returns()
 func (_ProxyAdmin *ProxyAdminTransactorSession) UpgradeAndCall(_proxy libcommon.Address, _implementation libcommon.Address, _data []byte) (types.Transaction, error) {
 	return _ProxyAdmin.Contract.UpgradeAndCall(&_ProxyAdmin.TransactOpts, _proxy, _implementation, _data)
+}
+
+// ChangeProxyAdminParams is an auto generated read-only Go binding of transcaction calldata params
+type ChangeProxyAdminParams struct {
+	Param__proxy    libcommon.Address
+	Param__newAdmin libcommon.Address
+}
+
+// Parse ChangeProxyAdmin method from calldata of a transaction
+//
+// Solidity: function changeProxyAdmin(address _proxy, address _newAdmin) returns()
+func ParseChangeProxyAdmin(calldata []byte) (*ChangeProxyAdminParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["changeProxyAdmin"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack changeProxyAdmin params data: %w", err)
+	}
+
+	var paramsResult = new(ChangeProxyAdminParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &ChangeProxyAdminParams{
+		Param__proxy: out0, Param__newAdmin: out1,
+	}, nil
+}
+
+// SetAddressParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse SetAddress method from calldata of a transaction
+//
+// Solidity: function setAddress(string _name, address _address) returns()
+
+// SetAddressManagerParams is an auto generated read-only Go binding of transcaction calldata params
+type SetAddressManagerParams struct {
+	Param__address libcommon.Address
+}
+
+// Parse SetAddressManager method from calldata of a transaction
+//
+// Solidity: function setAddressManager(address _address) returns()
+func ParseSetAddressManager(calldata []byte) (*SetAddressManagerParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setAddressManager"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setAddressManager params data: %w", err)
+	}
+
+	var paramsResult = new(SetAddressManagerParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &SetAddressManagerParams{
+		Param__address: out0,
+	}, nil
+}
+
+// SetImplementationNameParams is an auto generated read-only Go binding of transcaction calldata params
+type SetImplementationNameParams struct {
+	Param__address libcommon.Address
+	Param__name    string
+}
+
+// Parse SetImplementationName method from calldata of a transaction
+//
+// Solidity: function setImplementationName(address _address, string _name) returns()
+func ParseSetImplementationName(calldata []byte) (*SetImplementationNameParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setImplementationName"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setImplementationName params data: %w", err)
+	}
+
+	var paramsResult = new(SetImplementationNameParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(string)).(*string)
+
+	return &SetImplementationNameParams{
+		Param__address: out0, Param__name: out1,
+	}, nil
+}
+
+// SetProxyTypeParams is an auto generated read-only Go binding of transcaction calldata params
+type SetProxyTypeParams struct {
+	Param__address libcommon.Address
+	Param__type    uint8
+}
+
+// Parse SetProxyType method from calldata of a transaction
+//
+// Solidity: function setProxyType(address _address, uint8 _type) returns()
+func ParseSetProxyType(calldata []byte) (*SetProxyTypeParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setProxyType"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setProxyType params data: %w", err)
+	}
+
+	var paramsResult = new(SetProxyTypeParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(uint8)).(*uint8)
+
+	return &SetProxyTypeParams{
+		Param__address: out0, Param__type: out1,
+	}, nil
+}
+
+// SetUpgradingParams is an auto generated read-only Go binding of transcaction calldata params
+type SetUpgradingParams struct {
+	Param__upgrading bool
+}
+
+// Parse SetUpgrading method from calldata of a transaction
+//
+// Solidity: function setUpgrading(bool _upgrading) returns()
+func ParseSetUpgrading(calldata []byte) (*SetUpgradingParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setUpgrading"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setUpgrading params data: %w", err)
+	}
+
+	var paramsResult = new(SetUpgradingParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return &SetUpgradingParams{
+		Param__upgrading: out0,
+	}, nil
+}
+
+// TransferOwnershipParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferOwnership method from calldata of a transaction
+//
+// Solidity: function transferOwnership(address newOwner) returns()
+
+// UpgradeParams is an auto generated read-only Go binding of transcaction calldata params
+type UpgradeParams struct {
+	Param__proxy          libcommon.Address
+	Param__implementation libcommon.Address
+}
+
+// Parse Upgrade method from calldata of a transaction
+//
+// Solidity: function upgrade(address _proxy, address _implementation) returns()
+func ParseUpgrade(calldata []byte) (*UpgradeParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["upgrade"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack upgrade params data: %w", err)
+	}
+
+	var paramsResult = new(UpgradeParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &UpgradeParams{
+		Param__proxy: out0, Param__implementation: out1,
+	}, nil
+}
+
+// UpgradeAndCallParams is an auto generated read-only Go binding of transcaction calldata params
+type UpgradeAndCallParams struct {
+	Param__proxy          libcommon.Address
+	Param__implementation libcommon.Address
+	Param__data           []byte
+}
+
+// Parse UpgradeAndCall method from calldata of a transaction
+//
+// Solidity: function upgradeAndCall(address _proxy, address _implementation, bytes _data) payable returns()
+func ParseUpgradeAndCall(calldata []byte) (*UpgradeAndCallParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyAdminABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["upgradeAndCall"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack upgradeAndCall params data: %w", err)
+	}
+
+	var paramsResult = new(UpgradeAndCallParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new([]byte)).(*[]byte)
+
+	return &UpgradeAndCallParams{
+		Param__proxy: out0, Param__implementation: out1, Param__data: out2,
+	}, nil
 }
 
 // ProxyAdminOwnershipTransferredIterator is returned from FilterOwnershipTransferred and is used to iterate over the raw logs and unpacked data for OwnershipTransferred events raised by the ProxyAdmin contract.

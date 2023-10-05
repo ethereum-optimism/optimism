@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -1180,6 +1182,285 @@ func (_SystemConfig *SystemConfigSession) TransferOwnership(newOwner libcommon.A
 // Solidity: function transferOwnership(address newOwner) returns()
 func (_SystemConfig *SystemConfigTransactorSession) TransferOwnership(newOwner libcommon.Address) (types.Transaction, error) {
 	return _SystemConfig.Contract.TransferOwnership(&_SystemConfig.TransactOpts, newOwner)
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+type InitializeParams struct {
+	Param__owner             libcommon.Address
+	Param__overhead          *big.Int
+	Param__scalar            *big.Int
+	Param__batcherHash       [32]byte
+	Param__gasLimit          uint64
+	Param__unsafeBlockSigner libcommon.Address
+	Param__config            ResourceMeteringResourceConfig
+	Param__startBlock        *big.Int
+	Param__batchInbox        libcommon.Address
+	Param__addresses         SystemConfigAddresses
+}
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config, uint256 _startBlock, address _batchInbox, (address,address,address,address,address,address) _addresses) returns()
+func ParseInitialize(calldata []byte) (*InitializeParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["initialize"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack initialize params data: %w", err)
+	}
+
+	var paramsResult = new(InitializeParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	out3 := *abi.ConvertType(out[3], new([32]byte)).(*[32]byte)
+	out4 := *abi.ConvertType(out[4], new(uint64)).(*uint64)
+	out5 := *abi.ConvertType(out[5], new(libcommon.Address)).(*libcommon.Address)
+	out6 := *abi.ConvertType(out[6], new(ResourceMeteringResourceConfig)).(*ResourceMeteringResourceConfig)
+	out7 := *abi.ConvertType(out[7], new(*big.Int)).(**big.Int)
+	out8 := *abi.ConvertType(out[8], new(libcommon.Address)).(*libcommon.Address)
+	out9 := *abi.ConvertType(out[9], new(SystemConfigAddresses)).(*SystemConfigAddresses)
+
+	return &InitializeParams{
+		Param__owner: out0, Param__overhead: out1, Param__scalar: out2, Param__batcherHash: out3, Param__gasLimit: out4, Param__unsafeBlockSigner: out5, Param__config: out6, Param__startBlock: out7, Param__batchInbox: out8, Param__addresses: out9,
+	}, nil
+}
+
+// SetBatcherHashParams is an auto generated read-only Go binding of transcaction calldata params
+type SetBatcherHashParams struct {
+	Param__batcherHash [32]byte
+}
+
+// Parse SetBatcherHash method from calldata of a transaction
+//
+// Solidity: function setBatcherHash(bytes32 _batcherHash) returns()
+func ParseSetBatcherHash(calldata []byte) (*SetBatcherHashParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setBatcherHash"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setBatcherHash params data: %w", err)
+	}
+
+	var paramsResult = new(SetBatcherHashParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return &SetBatcherHashParams{
+		Param__batcherHash: out0,
+	}, nil
+}
+
+// SetGasConfigParams is an auto generated read-only Go binding of transcaction calldata params
+type SetGasConfigParams struct {
+	Param__overhead *big.Int
+	Param__scalar   *big.Int
+}
+
+// Parse SetGasConfig method from calldata of a transaction
+//
+// Solidity: function setGasConfig(uint256 _overhead, uint256 _scalar) returns()
+func ParseSetGasConfig(calldata []byte) (*SetGasConfigParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setGasConfig"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setGasConfig params data: %w", err)
+	}
+
+	var paramsResult = new(SetGasConfigParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &SetGasConfigParams{
+		Param__overhead: out0, Param__scalar: out1,
+	}, nil
+}
+
+// SetGasLimitParams is an auto generated read-only Go binding of transcaction calldata params
+type SetGasLimitParams struct {
+	Param__gasLimit uint64
+}
+
+// Parse SetGasLimit method from calldata of a transaction
+//
+// Solidity: function setGasLimit(uint64 _gasLimit) returns()
+func ParseSetGasLimit(calldata []byte) (*SetGasLimitParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setGasLimit"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setGasLimit params data: %w", err)
+	}
+
+	var paramsResult = new(SetGasLimitParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+
+	return &SetGasLimitParams{
+		Param__gasLimit: out0,
+	}, nil
+}
+
+// SetResourceConfigParams is an auto generated read-only Go binding of transcaction calldata params
+type SetResourceConfigParams struct {
+	Param__config ResourceMeteringResourceConfig
+}
+
+// Parse SetResourceConfig method from calldata of a transaction
+//
+// Solidity: function setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128) _config) returns()
+func ParseSetResourceConfig(calldata []byte) (*SetResourceConfigParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setResourceConfig"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setResourceConfig params data: %w", err)
+	}
+
+	var paramsResult = new(SetResourceConfigParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(ResourceMeteringResourceConfig)).(*ResourceMeteringResourceConfig)
+
+	return &SetResourceConfigParams{
+		Param__config: out0,
+	}, nil
+}
+
+// SetUnsafeBlockSignerParams is an auto generated read-only Go binding of transcaction calldata params
+type SetUnsafeBlockSignerParams struct {
+	Param__unsafeBlockSigner libcommon.Address
+}
+
+// Parse SetUnsafeBlockSigner method from calldata of a transaction
+//
+// Solidity: function setUnsafeBlockSigner(address _unsafeBlockSigner) returns()
+func ParseSetUnsafeBlockSigner(calldata []byte) (*SetUnsafeBlockSignerParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setUnsafeBlockSigner"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setUnsafeBlockSigner params data: %w", err)
+	}
+
+	var paramsResult = new(SetUnsafeBlockSignerParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &SetUnsafeBlockSignerParams{
+		Param__unsafeBlockSigner: out0,
+	}, nil
+}
+
+// TransferOwnershipParams is an auto generated read-only Go binding of transcaction calldata params
+type TransferOwnershipParams struct {
+	Param_newOwner libcommon.Address
+}
+
+// Parse TransferOwnership method from calldata of a transaction
+//
+// Solidity: function transferOwnership(address newOwner) returns()
+func ParseTransferOwnership(calldata []byte) (*TransferOwnershipParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SystemConfigABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["transferOwnership"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack transferOwnership params data: %w", err)
+	}
+
+	var paramsResult = new(TransferOwnershipParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &TransferOwnershipParams{
+		Param_newOwner: out0,
+	}, nil
 }
 
 // SystemConfigConfigUpdateIterator is returned from FilterConfigUpdate and is used to iterate over the raw logs and unpacked data for ConfigUpdate events raised by the SystemConfig contract.

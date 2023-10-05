@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -907,6 +909,92 @@ func (_L2OutputOracle *L2OutputOracleSession) ProposeL2Output(_outputRoot [32]by
 // Solidity: function proposeL2Output(bytes32 _outputRoot, uint256 _l2BlockNumber, bytes32 _l1BlockHash, uint256 _l1BlockNumber) payable returns()
 func (_L2OutputOracle *L2OutputOracleTransactorSession) ProposeL2Output(_outputRoot [32]byte, _l2BlockNumber *big.Int, _l1BlockHash [32]byte, _l1BlockNumber *big.Int) (types.Transaction, error) {
 	return _L2OutputOracle.Contract.ProposeL2Output(&_L2OutputOracle.TransactOpts, _outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber)
+}
+
+// DeleteL2OutputsParams is an auto generated read-only Go binding of transcaction calldata params
+type DeleteL2OutputsParams struct {
+	Param__l2OutputIndex *big.Int
+}
+
+// Parse DeleteL2Outputs method from calldata of a transaction
+//
+// Solidity: function deleteL2Outputs(uint256 _l2OutputIndex) returns()
+func ParseDeleteL2Outputs(calldata []byte) (*DeleteL2OutputsParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2OutputOracleABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["deleteL2Outputs"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack deleteL2Outputs params data: %w", err)
+	}
+
+	var paramsResult = new(DeleteL2OutputsParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return &DeleteL2OutputsParams{
+		Param__l2OutputIndex: out0,
+	}, nil
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp, address _proposer, address _challenger) returns()
+
+// ProposeL2OutputParams is an auto generated read-only Go binding of transcaction calldata params
+type ProposeL2OutputParams struct {
+	Param__outputRoot    [32]byte
+	Param__l2BlockNumber *big.Int
+	Param__l1BlockHash   [32]byte
+	Param__l1BlockNumber *big.Int
+}
+
+// Parse ProposeL2Output method from calldata of a transaction
+//
+// Solidity: function proposeL2Output(bytes32 _outputRoot, uint256 _l2BlockNumber, bytes32 _l1BlockHash, uint256 _l1BlockNumber) payable returns()
+func ParseProposeL2Output(calldata []byte) (*ProposeL2OutputParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2OutputOracleABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["proposeL2Output"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack proposeL2Output params data: %w", err)
+	}
+
+	var paramsResult = new(ProposeL2OutputParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new([32]byte)).(*[32]byte)
+	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+
+	return &ProposeL2OutputParams{
+		Param__outputRoot: out0, Param__l2BlockNumber: out1, Param__l1BlockHash: out2, Param__l1BlockNumber: out3,
+	}, nil
 }
 
 // L2OutputOracleInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the L2OutputOracle contract.

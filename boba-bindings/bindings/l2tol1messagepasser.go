@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -352,6 +354,47 @@ func (_L2ToL1MessagePasser *L2ToL1MessagePasserSession) InitiateWithdrawal(_targ
 // Solidity: function initiateWithdrawal(address _target, uint256 _gasLimit, bytes _data) payable returns()
 func (_L2ToL1MessagePasser *L2ToL1MessagePasserTransactorSession) InitiateWithdrawal(_target libcommon.Address, _gasLimit *big.Int, _data []byte) (types.Transaction, error) {
 	return _L2ToL1MessagePasser.Contract.InitiateWithdrawal(&_L2ToL1MessagePasser.TransactOpts, _target, _gasLimit, _data)
+}
+
+// InitiateWithdrawalParams is an auto generated read-only Go binding of transcaction calldata params
+type InitiateWithdrawalParams struct {
+	Param__target   libcommon.Address
+	Param__gasLimit *big.Int
+	Param__data     []byte
+}
+
+// Parse InitiateWithdrawal method from calldata of a transaction
+//
+// Solidity: function initiateWithdrawal(address _target, uint256 _gasLimit, bytes _data) payable returns()
+func ParseInitiateWithdrawal(calldata []byte) (*InitiateWithdrawalParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2ToL1MessagePasserABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["initiateWithdrawal"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack initiateWithdrawal params data: %w", err)
+	}
+
+	var paramsResult = new(InitiateWithdrawalParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new([]byte)).(*[]byte)
+
+	return &InitiateWithdrawalParams{
+		Param__target: out0, Param__gasLimit: out1, Param__data: out2,
+	}, nil
 }
 
 // Receive is a paid mutator transaction binding the contract receive function.

@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -312,6 +314,51 @@ func (_AddressManager *AddressManagerSession) TransferOwnership(newOwner libcomm
 func (_AddressManager *AddressManagerTransactorSession) TransferOwnership(newOwner libcommon.Address) (types.Transaction, error) {
 	return _AddressManager.Contract.TransferOwnership(&_AddressManager.TransactOpts, newOwner)
 }
+
+// SetAddressParams is an auto generated read-only Go binding of transcaction calldata params
+type SetAddressParams struct {
+	Param__name    string
+	Param__address libcommon.Address
+}
+
+// Parse SetAddress method from calldata of a transaction
+//
+// Solidity: function setAddress(string _name, address _address) returns()
+func ParseSetAddress(calldata []byte) (*SetAddressParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(AddressManagerABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setAddress"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setAddress params data: %w", err)
+	}
+
+	var paramsResult = new(SetAddressParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &SetAddressParams{
+		Param__name: out0, Param__address: out1,
+	}, nil
+}
+
+// TransferOwnershipParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferOwnership method from calldata of a transaction
+//
+// Solidity: function transferOwnership(address newOwner) returns()
 
 // AddressManagerAddressSetIterator is returned from FilterAddressSet and is used to iterate over the raw logs and unpacked data for AddressSet events raised by the AddressManager contract.
 type AddressManagerAddressSetIterator struct {

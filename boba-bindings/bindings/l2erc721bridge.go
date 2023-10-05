@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -426,6 +428,151 @@ func (_L2ERC721Bridge *L2ERC721BridgeSession) Initialize(_messenger libcommon.Ad
 func (_L2ERC721Bridge *L2ERC721BridgeTransactorSession) Initialize(_messenger libcommon.Address) (types.Transaction, error) {
 	return _L2ERC721Bridge.Contract.Initialize(&_L2ERC721Bridge.TransactOpts, _messenger)
 }
+
+// BridgeERC721Params is an auto generated read-only Go binding of transcaction calldata params
+type BridgeERC721Params struct {
+	Param__localToken  libcommon.Address
+	Param__remoteToken libcommon.Address
+	Param__tokenId     *big.Int
+	Param__minGasLimit uint32
+	Param__extraData   []byte
+}
+
+// Parse BridgeERC721 method from calldata of a transaction
+//
+// Solidity: function bridgeERC721(address _localToken, address _remoteToken, uint256 _tokenId, uint32 _minGasLimit, bytes _extraData) returns()
+func ParseBridgeERC721(calldata []byte) (*BridgeERC721Params, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2ERC721BridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["bridgeERC721"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack bridgeERC721 params data: %w", err)
+	}
+
+	var paramsResult = new(BridgeERC721Params)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	out3 := *abi.ConvertType(out[3], new(uint32)).(*uint32)
+	out4 := *abi.ConvertType(out[4], new([]byte)).(*[]byte)
+
+	return &BridgeERC721Params{
+		Param__localToken: out0, Param__remoteToken: out1, Param__tokenId: out2, Param__minGasLimit: out3, Param__extraData: out4,
+	}, nil
+}
+
+// BridgeERC721ToParams is an auto generated read-only Go binding of transcaction calldata params
+type BridgeERC721ToParams struct {
+	Param__localToken  libcommon.Address
+	Param__remoteToken libcommon.Address
+	Param__to          libcommon.Address
+	Param__tokenId     *big.Int
+	Param__minGasLimit uint32
+	Param__extraData   []byte
+}
+
+// Parse BridgeERC721To method from calldata of a transaction
+//
+// Solidity: function bridgeERC721To(address _localToken, address _remoteToken, address _to, uint256 _tokenId, uint32 _minGasLimit, bytes _extraData) returns()
+func ParseBridgeERC721To(calldata []byte) (*BridgeERC721ToParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2ERC721BridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["bridgeERC721To"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack bridgeERC721To params data: %w", err)
+	}
+
+	var paramsResult = new(BridgeERC721ToParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(libcommon.Address)).(*libcommon.Address)
+	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+	out4 := *abi.ConvertType(out[4], new(uint32)).(*uint32)
+	out5 := *abi.ConvertType(out[5], new([]byte)).(*[]byte)
+
+	return &BridgeERC721ToParams{
+		Param__localToken: out0, Param__remoteToken: out1, Param__to: out2, Param__tokenId: out3, Param__minGasLimit: out4, Param__extraData: out5,
+	}, nil
+}
+
+// FinalizeBridgeERC721Params is an auto generated read-only Go binding of transcaction calldata params
+type FinalizeBridgeERC721Params struct {
+	Param__localToken  libcommon.Address
+	Param__remoteToken libcommon.Address
+	Param__from        libcommon.Address
+	Param__to          libcommon.Address
+	Param__tokenId     *big.Int
+	Param__extraData   []byte
+}
+
+// Parse FinalizeBridgeERC721 method from calldata of a transaction
+//
+// Solidity: function finalizeBridgeERC721(address _localToken, address _remoteToken, address _from, address _to, uint256 _tokenId, bytes _extraData) returns()
+func ParseFinalizeBridgeERC721(calldata []byte) (*FinalizeBridgeERC721Params, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L2ERC721BridgeABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["finalizeBridgeERC721"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack finalizeBridgeERC721 params data: %w", err)
+	}
+
+	var paramsResult = new(FinalizeBridgeERC721Params)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(libcommon.Address)).(*libcommon.Address)
+	out3 := *abi.ConvertType(out[3], new(libcommon.Address)).(*libcommon.Address)
+	out4 := *abi.ConvertType(out[4], new(*big.Int)).(**big.Int)
+	out5 := *abi.ConvertType(out[5], new([]byte)).(*[]byte)
+
+	return &FinalizeBridgeERC721Params{
+		Param__localToken: out0, Param__remoteToken: out1, Param__from: out2, Param__to: out3, Param__tokenId: out4, Param__extraData: out5,
+	}, nil
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _messenger) returns()
 
 // L2ERC721BridgeERC721BridgeFinalizedIterator is returned from FilterERC721BridgeFinalized and is used to iterate over the raw logs and unpacked data for ERC721BridgeFinalized events raised by the L2ERC721Bridge contract.
 type L2ERC721BridgeERC721BridgeFinalizedIterator struct {

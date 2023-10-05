@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -767,6 +769,281 @@ func (_OptimismMintableERC20 *OptimismMintableERC20Session) TransferFrom(from li
 // Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
 func (_OptimismMintableERC20 *OptimismMintableERC20TransactorSession) TransferFrom(from libcommon.Address, to libcommon.Address, amount *big.Int) (types.Transaction, error) {
 	return _OptimismMintableERC20.Contract.TransferFrom(&_OptimismMintableERC20.TransactOpts, from, to, amount)
+}
+
+// ApproveParams is an auto generated read-only Go binding of transcaction calldata params
+type ApproveParams struct {
+	Param_spender libcommon.Address
+	Param_amount  *big.Int
+}
+
+// Parse Approve method from calldata of a transaction
+//
+// Solidity: function approve(address spender, uint256 amount) returns(bool)
+func ParseApprove(calldata []byte) (*ApproveParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["approve"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack approve params data: %w", err)
+	}
+
+	var paramsResult = new(ApproveParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &ApproveParams{
+		Param_spender: out0, Param_amount: out1,
+	}, nil
+}
+
+// BurnParams is an auto generated read-only Go binding of transcaction calldata params
+type BurnParams struct {
+	Param__from   libcommon.Address
+	Param__amount *big.Int
+}
+
+// Parse Burn method from calldata of a transaction
+//
+// Solidity: function burn(address _from, uint256 _amount) returns()
+func ParseBurn(calldata []byte) (*BurnParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["burn"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack burn params data: %w", err)
+	}
+
+	var paramsResult = new(BurnParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &BurnParams{
+		Param__from: out0, Param__amount: out1,
+	}, nil
+}
+
+// DecreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+type DecreaseAllowanceParams struct {
+	Param_spender         libcommon.Address
+	Param_subtractedValue *big.Int
+}
+
+// Parse DecreaseAllowance method from calldata of a transaction
+//
+// Solidity: function decreaseAllowance(address spender, uint256 subtractedValue) returns(bool)
+func ParseDecreaseAllowance(calldata []byte) (*DecreaseAllowanceParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["decreaseAllowance"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack decreaseAllowance params data: %w", err)
+	}
+
+	var paramsResult = new(DecreaseAllowanceParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &DecreaseAllowanceParams{
+		Param_spender: out0, Param_subtractedValue: out1,
+	}, nil
+}
+
+// IncreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+type IncreaseAllowanceParams struct {
+	Param_spender    libcommon.Address
+	Param_addedValue *big.Int
+}
+
+// Parse IncreaseAllowance method from calldata of a transaction
+//
+// Solidity: function increaseAllowance(address spender, uint256 addedValue) returns(bool)
+func ParseIncreaseAllowance(calldata []byte) (*IncreaseAllowanceParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["increaseAllowance"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack increaseAllowance params data: %w", err)
+	}
+
+	var paramsResult = new(IncreaseAllowanceParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &IncreaseAllowanceParams{
+		Param_spender: out0, Param_addedValue: out1,
+	}, nil
+}
+
+// MintParams is an auto generated read-only Go binding of transcaction calldata params
+type MintParams struct {
+	Param__to     libcommon.Address
+	Param__amount *big.Int
+}
+
+// Parse Mint method from calldata of a transaction
+//
+// Solidity: function mint(address _to, uint256 _amount) returns()
+func ParseMint(calldata []byte) (*MintParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["mint"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack mint params data: %w", err)
+	}
+
+	var paramsResult = new(MintParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &MintParams{
+		Param__to: out0, Param__amount: out1,
+	}, nil
+}
+
+// TransferParams is an auto generated read-only Go binding of transcaction calldata params
+type TransferParams struct {
+	Param_to     libcommon.Address
+	Param_amount *big.Int
+}
+
+// Parse Transfer method from calldata of a transaction
+//
+// Solidity: function transfer(address to, uint256 amount) returns(bool)
+func ParseTransfer(calldata []byte) (*TransferParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["transfer"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack transfer params data: %w", err)
+	}
+
+	var paramsResult = new(TransferParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &TransferParams{
+		Param_to: out0, Param_amount: out1,
+	}, nil
+}
+
+// TransferFromParams is an auto generated read-only Go binding of transcaction calldata params
+type TransferFromParams struct {
+	Param_from   libcommon.Address
+	Param_to     libcommon.Address
+	Param_amount *big.Int
+}
+
+// Parse TransferFrom method from calldata of a transaction
+//
+// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
+func ParseTransferFrom(calldata []byte) (*TransferFromParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC20ABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["transferFrom"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack transferFrom params data: %w", err)
+	}
+
+	var paramsResult = new(TransferFromParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+
+	return &TransferFromParams{
+		Param_from: out0, Param_to: out1, Param_amount: out2,
+	}, nil
 }
 
 // OptimismMintableERC20ApprovalIterator is returned from FilterApproval and is used to iterate over the raw logs and unpacked data for Approval events raised by the OptimismMintableERC20 contract.

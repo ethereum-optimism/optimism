@@ -769,6 +769,48 @@ func (_LegacyERC20ETH *LegacyERC20ETHTransactorSession) TransferFrom(arg0 libcom
 	return _LegacyERC20ETH.Contract.TransferFrom(&_LegacyERC20ETH.TransactOpts, arg0, arg1, arg2)
 }
 
+// ApproveParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Approve method from calldata of a transaction
+//
+// Solidity: function approve(address , uint256 ) returns(bool)
+
+// BurnParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Burn method from calldata of a transaction
+//
+// Solidity: function burn(address , uint256 ) returns()
+
+// DecreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse DecreaseAllowance method from calldata of a transaction
+//
+// Solidity: function decreaseAllowance(address , uint256 ) returns(bool)
+
+// IncreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse IncreaseAllowance method from calldata of a transaction
+//
+// Solidity: function increaseAllowance(address , uint256 ) returns(bool)
+
+// MintParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Mint method from calldata of a transaction
+//
+// Solidity: function mint(address , uint256 ) returns()
+
+// TransferParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Transfer method from calldata of a transaction
+//
+// Solidity: function transfer(address , uint256 ) returns(bool)
+
+// TransferFromParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferFrom method from calldata of a transaction
+//
+// Solidity: function transferFrom(address , address , uint256 ) returns(bool)
+
 // LegacyERC20ETHApprovalIterator is returned from FilterApproval and is used to iterate over the raw logs and unpacked data for Approval events raised by the LegacyERC20ETH contract.
 type LegacyERC20ETHApprovalIterator struct {
 	Event *LegacyERC20ETHApproval // Event containing the contract specifics and raw log

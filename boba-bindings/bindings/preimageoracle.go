@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -387,4 +389,129 @@ func (_PreimageOracle *PreimageOracleSession) LoadLocalData(_ident *big.Int, _wo
 // Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint256 _size, uint256 _partOffset) returns(bytes32 key_)
 func (_PreimageOracle *PreimageOracleTransactorSession) LoadLocalData(_ident *big.Int, _word [32]byte, _size *big.Int, _partOffset *big.Int) (types.Transaction, error) {
 	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _ident, _word, _size, _partOffset)
+}
+
+// CheatParams is an auto generated read-only Go binding of transcaction calldata params
+type CheatParams struct {
+	Param_partOffset *big.Int
+	Param_key        [32]byte
+	Param_part       [32]byte
+	Param_size       *big.Int
+}
+
+// Parse Cheat method from calldata of a transaction
+//
+// Solidity: function cheat(uint256 partOffset, bytes32 key, bytes32 part, uint256 size) returns()
+func ParseCheat(calldata []byte) (*CheatParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(PreimageOracleABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["cheat"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack cheat params data: %w", err)
+	}
+
+	var paramsResult = new(CheatParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+	out2 := *abi.ConvertType(out[2], new([32]byte)).(*[32]byte)
+	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+
+	return &CheatParams{
+		Param_partOffset: out0, Param_key: out1, Param_part: out2, Param_size: out3,
+	}, nil
+}
+
+// LoadKeccak256PreimagePartParams is an auto generated read-only Go binding of transcaction calldata params
+type LoadKeccak256PreimagePartParams struct {
+	Param__partOffset *big.Int
+	Param__preimage   []byte
+}
+
+// Parse LoadKeccak256PreimagePart method from calldata of a transaction
+//
+// Solidity: function loadKeccak256PreimagePart(uint256 _partOffset, bytes _preimage) returns()
+func ParseLoadKeccak256PreimagePart(calldata []byte) (*LoadKeccak256PreimagePartParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(PreimageOracleABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["loadKeccak256PreimagePart"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack loadKeccak256PreimagePart params data: %w", err)
+	}
+
+	var paramsResult = new(LoadKeccak256PreimagePartParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new([]byte)).(*[]byte)
+
+	return &LoadKeccak256PreimagePartParams{
+		Param__partOffset: out0, Param__preimage: out1,
+	}, nil
+}
+
+// LoadLocalDataParams is an auto generated read-only Go binding of transcaction calldata params
+type LoadLocalDataParams struct {
+	Param__ident      *big.Int
+	Param__word       [32]byte
+	Param__size       *big.Int
+	Param__partOffset *big.Int
+}
+
+// Parse LoadLocalData method from calldata of a transaction
+//
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint256 _size, uint256 _partOffset) returns(bytes32 key_)
+func ParseLoadLocalData(calldata []byte) (*LoadLocalDataParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(PreimageOracleABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["loadLocalData"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack loadLocalData params data: %w", err)
+	}
+
+	var paramsResult = new(LoadLocalDataParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+
+	return &LoadLocalDataParams{
+		Param__ident: out0, Param__word: out1, Param__size: out2, Param__partOffset: out3,
+	}, nil
 }
