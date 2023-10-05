@@ -72,6 +72,7 @@ contract SuperchainConfig_Pause_Test is SuperchainConfig_Initializer {
         supConf.pause(100);
 
         assertEq(supConf.paused(), true);
+        assertEq(supConf.pausedUntil(), block.timestamp + 100);
     }
 
     /// @dev Tests that `pause` successfully unpauses automatically after 1 week

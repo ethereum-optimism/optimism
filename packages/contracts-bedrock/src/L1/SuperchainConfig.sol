@@ -157,9 +157,14 @@ contract SuperchainConfig is Initializable, ISemver {
         maxPause_ = Storage.getUint(MAX_PAUSE_SLOT);
     }
 
-    /// @notice Getter for the paused address.
+    /// @notice Getter for the paused value.
     function paused() public view returns (bool paused_) {
         paused_ = Storage.getUint(PAUSED_TIME_SLOT) > block.timestamp;
+    }
+
+    /// @notice Getter for the paused address.
+    function pausedUntil() public view returns (uint256 paused_) {
+        paused_ = Storage.getUint(PAUSED_TIME_SLOT);
     }
 
     /// @notice Pauses withdrawals.
