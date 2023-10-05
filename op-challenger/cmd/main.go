@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
@@ -48,6 +49,27 @@ func run(args []string, action ConfigAction) error {
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
+
+	for _, f := range flags.Flags {
+		if f.Names()[0] == "log.level" {
+			if f.IsSet() {
+				panic("flag is already set!")
+			}
+			v, ok := f.(*cli.GenericFlag)
+			if !ok {
+				panic("not a generic flag!")
+			}
+			fv, ok := v.Value.(*oplog.LvlFlagValue)
+			if !ok {
+				panic("not a lvl flag value!")
+			}
+			if fv == nil {
+				panic("nil lvl flag value!")
+			}
+			fmt.Printf("lvl flag value: %q\n", fv.String())
+		}
+	}
+
 	app.Flags = flags.Flags
 	app.Name = "op-challenger"
 	app.Usage = "Challenge outputs"
