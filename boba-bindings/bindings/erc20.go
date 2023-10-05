@@ -479,6 +479,36 @@ func (_ERC20 *ERC20TransactorSession) TransferFrom(from libcommon.Address, to li
 	return _ERC20.Contract.TransferFrom(&_ERC20.TransactOpts, from, to, amount)
 }
 
+// ApproveParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Approve method from calldata of a transaction
+//
+// Solidity: function approve(address spender, uint256 amount) returns(bool)
+
+// DecreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse DecreaseAllowance method from calldata of a transaction
+//
+// Solidity: function decreaseAllowance(address spender, uint256 subtractedValue) returns(bool)
+
+// IncreaseAllowanceParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse IncreaseAllowance method from calldata of a transaction
+//
+// Solidity: function increaseAllowance(address spender, uint256 addedValue) returns(bool)
+
+// TransferParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Transfer method from calldata of a transaction
+//
+// Solidity: function transfer(address to, uint256 amount) returns(bool)
+
+// TransferFromParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferFrom method from calldata of a transaction
+//
+// Solidity: function transferFrom(address from, address to, uint256 amount) returns(bool)
+
 // ERC20ApprovalIterator is returned from FilterApproval and is used to iterate over the raw logs and unpacked data for Approval events raised by the ERC20 contract.
 type ERC20ApprovalIterator struct {
 	Event *ERC20Approval // Event containing the contract specifics and raw log

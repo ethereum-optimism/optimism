@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -542,6 +544,98 @@ func (_DisputeGameFactory *DisputeGameFactorySession) TransferOwnership(newOwner
 func (_DisputeGameFactory *DisputeGameFactoryTransactorSession) TransferOwnership(newOwner libcommon.Address) (types.Transaction, error) {
 	return _DisputeGameFactory.Contract.TransferOwnership(&_DisputeGameFactory.TransactOpts, newOwner)
 }
+
+// CreateParams is an auto generated read-only Go binding of transcaction calldata params
+type CreateParams struct {
+	Param__gameType  uint8
+	Param__rootClaim [32]byte
+	Param__extraData []byte
+}
+
+// Parse Create method from calldata of a transaction
+//
+// Solidity: function create(uint8 _gameType, bytes32 _rootClaim, bytes _extraData) returns(address proxy_)
+func ParseCreate(calldata []byte) (*CreateParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(DisputeGameFactoryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["create"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack create params data: %w", err)
+	}
+
+	var paramsResult = new(CreateParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint8)).(*uint8)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+	out2 := *abi.ConvertType(out[2], new([]byte)).(*[]byte)
+
+	return &CreateParams{
+		Param__gameType: out0, Param__rootClaim: out1, Param__extraData: out2,
+	}, nil
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _owner) returns()
+
+// SetImplementationParams is an auto generated read-only Go binding of transcaction calldata params
+type SetImplementationParams struct {
+	Param__gameType uint8
+	Param__impl     libcommon.Address
+}
+
+// Parse SetImplementation method from calldata of a transaction
+//
+// Solidity: function setImplementation(uint8 _gameType, address _impl) returns()
+func ParseSetImplementation(calldata []byte) (*SetImplementationParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(DisputeGameFactoryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setImplementation"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setImplementation params data: %w", err)
+	}
+
+	var paramsResult = new(SetImplementationParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint8)).(*uint8)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &SetImplementationParams{
+		Param__gameType: out0, Param__impl: out1,
+	}, nil
+}
+
+// TransferOwnershipParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferOwnership method from calldata of a transaction
+//
+// Solidity: function transferOwnership(address newOwner) returns()
 
 // DisputeGameFactoryDisputeGameCreatedIterator is returned from FilterDisputeGameCreated and is used to iterate over the raw logs and unpacked data for DisputeGameCreated events raised by the DisputeGameFactory contract.
 type DisputeGameFactoryDisputeGameCreatedIterator struct {

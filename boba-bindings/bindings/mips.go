@@ -270,3 +270,9 @@ func (_MIPS *MIPSSession) Step(stateData []byte, proof []byte) (types.Transactio
 func (_MIPS *MIPSTransactorSession) Step(stateData []byte, proof []byte) (types.Transaction, error) {
 	return _MIPS.Contract.Step(&_MIPS.TransactOpts, stateData, proof)
 }
+
+// StepParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Step method from calldata of a transaction
+//
+// Solidity: function step(bytes stateData, bytes proof) returns(bytes32)

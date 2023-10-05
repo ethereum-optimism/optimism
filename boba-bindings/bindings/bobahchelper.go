@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -656,6 +658,412 @@ func (_BobaHCHelper *BobaHCHelperSession) WithdrawRevenue(_withdrawAmount *big.I
 func (_BobaHCHelper *BobaHCHelperTransactorSession) WithdrawRevenue(_withdrawAmount *big.Int) (types.Transaction, error) {
 	return _BobaHCHelper.Contract.WithdrawRevenue(&_BobaHCHelper.TransactOpts, _withdrawAmount)
 }
+
+// AddCreditParams is an auto generated read-only Go binding of transcaction calldata params
+type AddCreditParams struct {
+	Param__caller libcommon.Address
+	Param__amount *big.Int
+}
+
+// Parse AddCredit method from calldata of a transaction
+//
+// Solidity: function AddCredit(address _caller, uint256 _amount) returns()
+func ParseAddCredit(calldata []byte) (*AddCreditParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["AddCredit"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack AddCredit params data: %w", err)
+	}
+
+	var paramsResult = new(AddCreditParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &AddCreditParams{
+		Param__caller: out0, Param__amount: out1,
+	}, nil
+}
+
+// AddPermittedCallerParams is an auto generated read-only Go binding of transcaction calldata params
+type AddPermittedCallerParams struct {
+	Param__url           string
+	Param__callerAddress libcommon.Address
+}
+
+// Parse AddPermittedCaller method from calldata of a transaction
+//
+// Solidity: function AddPermittedCaller(string _url, address _callerAddress) returns()
+func ParseAddPermittedCaller(calldata []byte) (*AddPermittedCallerParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["AddPermittedCaller"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack AddPermittedCaller params data: %w", err)
+	}
+
+	var paramsResult = new(AddPermittedCallerParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &AddPermittedCallerParams{
+		Param__url: out0, Param__callerAddress: out1,
+	}, nil
+}
+
+// CallOffchainParams is an auto generated read-only Go binding of transcaction calldata params
+type CallOffchainParams struct {
+	Param__url     string
+	Param__payload []byte
+}
+
+// Parse CallOffchain method from calldata of a transaction
+//
+// Solidity: function CallOffchain(string _url, bytes _payload) returns(bool, bytes)
+func ParseCallOffchain(calldata []byte) (*CallOffchainParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["CallOffchain"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack CallOffchain params data: %w", err)
+	}
+
+	var paramsResult = new(CallOffchainParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+	out1 := *abi.ConvertType(out[1], new([]byte)).(*[]byte)
+
+	return &CallOffchainParams{
+		Param__url: out0, Param__payload: out1,
+	}, nil
+}
+
+// GetLegacyResponseParams is an auto generated read-only Go binding of transcaction calldata params
+type GetLegacyResponseParams struct {
+	Param_rType    uint32
+	Param__url     string
+	Param__payload []byte
+}
+
+// Parse GetLegacyResponse method from calldata of a transaction
+//
+// Solidity: function GetLegacyResponse(uint32 rType, string _url, bytes _payload) returns(bytes)
+func ParseGetLegacyResponse(calldata []byte) (*GetLegacyResponseParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["GetLegacyResponse"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack GetLegacyResponse params data: %w", err)
+	}
+
+	var paramsResult = new(GetLegacyResponseParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint32)).(*uint32)
+	out1 := *abi.ConvertType(out[1], new(string)).(*string)
+	out2 := *abi.ConvertType(out[2], new([]byte)).(*[]byte)
+
+	return &GetLegacyResponseParams{
+		Param_rType: out0, Param__url: out1, Param__payload: out2,
+	}, nil
+}
+
+// GetRandomParams is an auto generated read-only Go binding of transcaction calldata params
+type GetRandomParams struct {
+	Param_rType   uint32
+	Param__random *big.Int
+}
+
+// Parse GetRandom method from calldata of a transaction
+//
+// Solidity: function GetRandom(uint32 rType, uint256 _random) returns(uint256)
+func ParseGetRandom(calldata []byte) (*GetRandomParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["GetRandom"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack GetRandom params data: %w", err)
+	}
+
+	var paramsResult = new(GetRandomParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint32)).(*uint32)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &GetRandomParams{
+		Param_rType: out0, Param__random: out1,
+	}, nil
+}
+
+// PutResponseParams is an auto generated read-only Go binding of transcaction calldata params
+type PutResponseParams struct {
+	Param__cacheKey   [32]byte
+	Param__success    bool
+	Param__returndata []byte
+}
+
+// Parse PutResponse method from calldata of a transaction
+//
+// Solidity: function PutResponse(bytes32 _cacheKey, bool _success, bytes _returndata) returns()
+func ParsePutResponse(calldata []byte) (*PutResponseParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["PutResponse"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack PutResponse params data: %w", err)
+	}
+
+	var paramsResult = new(PutResponseParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new(bool)).(*bool)
+	out2 := *abi.ConvertType(out[2], new([]byte)).(*[]byte)
+
+	return &PutResponseParams{
+		Param__cacheKey: out0, Param__success: out1, Param__returndata: out2,
+	}, nil
+}
+
+// RegisterEndpointParams is an auto generated read-only Go binding of transcaction calldata params
+type RegisterEndpointParams struct {
+	Param__url  string
+	Param__auth [32]byte
+}
+
+// Parse RegisterEndpoint method from calldata of a transaction
+//
+// Solidity: function RegisterEndpoint(string _url, bytes32 _auth) returns(bool)
+func ParseRegisterEndpoint(calldata []byte) (*RegisterEndpointParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["RegisterEndpoint"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack RegisterEndpoint params data: %w", err)
+	}
+
+	var paramsResult = new(RegisterEndpointParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+
+	return &RegisterEndpointParams{
+		Param__url: out0, Param__auth: out1,
+	}, nil
+}
+
+// RemovePermittedCallerParams is an auto generated read-only Go binding of transcaction calldata params
+type RemovePermittedCallerParams struct {
+	Param__url           string
+	Param__callerAddress libcommon.Address
+}
+
+// Parse RemovePermittedCaller method from calldata of a transaction
+//
+// Solidity: function RemovePermittedCaller(string _url, address _callerAddress) returns()
+func ParseRemovePermittedCaller(calldata []byte) (*RemovePermittedCallerParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["RemovePermittedCaller"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack RemovePermittedCaller params data: %w", err)
+	}
+
+	var paramsResult = new(RemovePermittedCallerParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &RemovePermittedCallerParams{
+		Param__url: out0, Param__callerAddress: out1,
+	}, nil
+}
+
+// SequentialRandomParams is an auto generated read-only Go binding of transcaction calldata params
+type SequentialRandomParams struct {
+	Param_session  [32]byte
+	Param_nextHash [32]byte
+	Param_myNum    *big.Int
+}
+
+// Parse SequentialRandom method from calldata of a transaction
+//
+// Solidity: function SequentialRandom(bytes32 session, bytes32 nextHash, uint256 myNum) returns(bool, bytes32, uint256)
+func ParseSequentialRandom(calldata []byte) (*SequentialRandomParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["SequentialRandom"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack SequentialRandom params data: %w", err)
+	}
+
+	var paramsResult = new(SequentialRandomParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+
+	return &SequentialRandomParams{
+		Param_session: out0, Param_nextHash: out1, Param_myNum: out2,
+	}, nil
+}
+
+// UnregisterEndpointParams is an auto generated read-only Go binding of transcaction calldata params
+type UnregisterEndpointParams struct {
+	Param__url string
+}
+
+// Parse UnregisterEndpoint method from calldata of a transaction
+//
+// Solidity: function UnregisterEndpoint(string _url) returns()
+func ParseUnregisterEndpoint(calldata []byte) (*UnregisterEndpointParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaHCHelperABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["UnregisterEndpoint"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack UnregisterEndpoint params data: %w", err)
+	}
+
+	var paramsResult = new(UnregisterEndpointParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return &UnregisterEndpointParams{
+		Param__url: out0,
+	}, nil
+}
+
+// TransferOwnershipParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferOwnership method from calldata of a transaction
+//
+// Solidity: function transferOwnership(address _newOwner) returns()
+
+// WithdrawRevenueParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse WithdrawRevenue method from calldata of a transaction
+//
+// Solidity: function withdrawRevenue(uint256 _withdrawAmount) returns()
 
 // BobaHCHelperEndpointRegisteredIterator is returned from FilterEndpointRegistered and is used to iterate over the raw logs and unpacked data for EndpointRegistered events raised by the BobaHCHelper contract.
 type BobaHCHelperEndpointRegisteredIterator struct {

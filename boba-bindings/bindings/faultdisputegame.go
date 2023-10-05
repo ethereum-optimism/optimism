@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -1022,6 +1024,207 @@ func (_FaultDisputeGame *FaultDisputeGameSession) Step(_claimIndex *big.Int, _is
 // Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
 func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Step(_claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (types.Transaction, error) {
 	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _claimIndex, _isAttack, _stateData, _proof)
+}
+
+// AddLocalDataParams is an auto generated read-only Go binding of transcaction calldata params
+type AddLocalDataParams struct {
+	Param__ident      *big.Int
+	Param__partOffset *big.Int
+}
+
+// Parse AddLocalData method from calldata of a transaction
+//
+// Solidity: function addLocalData(uint256 _ident, uint256 _partOffset) returns()
+func ParseAddLocalData(calldata []byte) (*AddLocalDataParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(FaultDisputeGameABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["addLocalData"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack addLocalData params data: %w", err)
+	}
+
+	var paramsResult = new(AddLocalDataParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &AddLocalDataParams{
+		Param__ident: out0, Param__partOffset: out1,
+	}, nil
+}
+
+// AttackParams is an auto generated read-only Go binding of transcaction calldata params
+type AttackParams struct {
+	Param__parentIndex *big.Int
+	Param__claim       [32]byte
+}
+
+// Parse Attack method from calldata of a transaction
+//
+// Solidity: function attack(uint256 _parentIndex, bytes32 _claim) payable returns()
+func ParseAttack(calldata []byte) (*AttackParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(FaultDisputeGameABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["attack"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack attack params data: %w", err)
+	}
+
+	var paramsResult = new(AttackParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+
+	return &AttackParams{
+		Param__parentIndex: out0, Param__claim: out1,
+	}, nil
+}
+
+// DefendParams is an auto generated read-only Go binding of transcaction calldata params
+type DefendParams struct {
+	Param__parentIndex *big.Int
+	Param__claim       [32]byte
+}
+
+// Parse Defend method from calldata of a transaction
+//
+// Solidity: function defend(uint256 _parentIndex, bytes32 _claim) payable returns()
+func ParseDefend(calldata []byte) (*DefendParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(FaultDisputeGameABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["defend"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack defend params data: %w", err)
+	}
+
+	var paramsResult = new(DefendParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+
+	return &DefendParams{
+		Param__parentIndex: out0, Param__claim: out1,
+	}, nil
+}
+
+// MoveParams is an auto generated read-only Go binding of transcaction calldata params
+type MoveParams struct {
+	Param__challengeIndex *big.Int
+	Param__claim          [32]byte
+	Param__isAttack       bool
+}
+
+// Parse Move method from calldata of a transaction
+//
+// Solidity: function move(uint256 _challengeIndex, bytes32 _claim, bool _isAttack) payable returns()
+func ParseMove(calldata []byte) (*MoveParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(FaultDisputeGameABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["move"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack move params data: %w", err)
+	}
+
+	var paramsResult = new(MoveParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new([32]byte)).(*[32]byte)
+	out2 := *abi.ConvertType(out[2], new(bool)).(*bool)
+
+	return &MoveParams{
+		Param__challengeIndex: out0, Param__claim: out1, Param__isAttack: out2,
+	}, nil
+}
+
+// StepParams is an auto generated read-only Go binding of transcaction calldata params
+type StepParams struct {
+	Param__claimIndex *big.Int
+	Param__isAttack   bool
+	Param__stateData  []byte
+	Param__proof      []byte
+}
+
+// Parse Step method from calldata of a transaction
+//
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+func ParseStep(calldata []byte) (*StepParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(FaultDisputeGameABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["step"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack step params data: %w", err)
+	}
+
+	var paramsResult = new(StepParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(bool)).(*bool)
+	out2 := *abi.ConvertType(out[2], new([]byte)).(*[]byte)
+	out3 := *abi.ConvertType(out[3], new([]byte)).(*[]byte)
+
+	return &StepParams{
+		Param__claimIndex: out0, Param__isAttack: out1, Param__stateData: out2, Param__proof: out3,
+	}, nil
 }
 
 // FaultDisputeGameMoveIterator is returned from FilterMove and is used to iterate over the raw logs and unpacked data for Move events raised by the FaultDisputeGame contract.

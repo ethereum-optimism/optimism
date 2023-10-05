@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -373,6 +375,82 @@ func (_DeployerWhitelist *DeployerWhitelistSession) SetWhitelistedDeployer(_depl
 // Solidity: function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) returns()
 func (_DeployerWhitelist *DeployerWhitelistTransactorSession) SetWhitelistedDeployer(_deployer libcommon.Address, _isWhitelisted bool) (types.Transaction, error) {
 	return _DeployerWhitelist.Contract.SetWhitelistedDeployer(&_DeployerWhitelist.TransactOpts, _deployer, _isWhitelisted)
+}
+
+// SetOwnerParams is an auto generated read-only Go binding of transcaction calldata params
+type SetOwnerParams struct {
+	Param__owner libcommon.Address
+}
+
+// Parse SetOwner method from calldata of a transaction
+//
+// Solidity: function setOwner(address _owner) returns()
+func ParseSetOwner(calldata []byte) (*SetOwnerParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(DeployerWhitelistABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setOwner"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setOwner params data: %w", err)
+	}
+
+	var paramsResult = new(SetOwnerParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &SetOwnerParams{
+		Param__owner: out0,
+	}, nil
+}
+
+// SetWhitelistedDeployerParams is an auto generated read-only Go binding of transcaction calldata params
+type SetWhitelistedDeployerParams struct {
+	Param__deployer      libcommon.Address
+	Param__isWhitelisted bool
+}
+
+// Parse SetWhitelistedDeployer method from calldata of a transaction
+//
+// Solidity: function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) returns()
+func ParseSetWhitelistedDeployer(calldata []byte) (*SetWhitelistedDeployerParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(DeployerWhitelistABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setWhitelistedDeployer"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setWhitelistedDeployer params data: %w", err)
+	}
+
+	var paramsResult = new(SetWhitelistedDeployerParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(bool)).(*bool)
+
+	return &SetWhitelistedDeployerParams{
+		Param__deployer: out0, Param__isWhitelisted: out1,
+	}, nil
 }
 
 // DeployerWhitelistOwnerChangedIterator is returned from FilterOwnerChanged and is used to iterate over the raw logs and unpacked data for OwnerChanged events raised by the DeployerWhitelist contract.

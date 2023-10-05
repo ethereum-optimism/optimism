@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -897,6 +899,487 @@ func (_EAS *EASSession) Timestamp(data [32]byte) (types.Transaction, error) {
 // Solidity: function timestamp(bytes32 data) returns(uint64)
 func (_EAS *EASTransactorSession) Timestamp(data [32]byte) (types.Transaction, error) {
 	return _EAS.Contract.Timestamp(&_EAS.TransactOpts, data)
+}
+
+// AttestParams is an auto generated read-only Go binding of transcaction calldata params
+type AttestParams struct {
+	Param_request AttestationRequest
+}
+
+// Parse Attest method from calldata of a transaction
+//
+// Solidity: function attest((bytes32,(address,uint64,bool,bytes32,bytes,uint256)) request) payable returns(bytes32)
+func ParseAttest(calldata []byte) (*AttestParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["attest"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack attest params data: %w", err)
+	}
+
+	var paramsResult = new(AttestParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(AttestationRequest)).(*AttestationRequest)
+
+	return &AttestParams{
+		Param_request: out0,
+	}, nil
+}
+
+// AttestByDelegationParams is an auto generated read-only Go binding of transcaction calldata params
+type AttestByDelegationParams struct {
+	Param_delegatedRequest DelegatedAttestationRequest
+}
+
+// Parse AttestByDelegation method from calldata of a transaction
+//
+// Solidity: function attestByDelegation((bytes32,(address,uint64,bool,bytes32,bytes,uint256),(uint8,bytes32,bytes32),address,uint64) delegatedRequest) payable returns(bytes32)
+func ParseAttestByDelegation(calldata []byte) (*AttestByDelegationParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["attestByDelegation"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack attestByDelegation params data: %w", err)
+	}
+
+	var paramsResult = new(AttestByDelegationParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(DelegatedAttestationRequest)).(*DelegatedAttestationRequest)
+
+	return &AttestByDelegationParams{
+		Param_delegatedRequest: out0,
+	}, nil
+}
+
+// IncreaseNonceParams is an auto generated read-only Go binding of transcaction calldata params
+type IncreaseNonceParams struct {
+	Param_newNonce *big.Int
+}
+
+// Parse IncreaseNonce method from calldata of a transaction
+//
+// Solidity: function increaseNonce(uint256 newNonce) returns()
+func ParseIncreaseNonce(calldata []byte) (*IncreaseNonceParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["increaseNonce"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack increaseNonce params data: %w", err)
+	}
+
+	var paramsResult = new(IncreaseNonceParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return &IncreaseNonceParams{
+		Param_newNonce: out0,
+	}, nil
+}
+
+// MultiAttestParams is an auto generated read-only Go binding of transcaction calldata params
+type MultiAttestParams struct {
+	Param_multiRequests []MultiAttestationRequest
+}
+
+// Parse MultiAttest method from calldata of a transaction
+//
+// Solidity: function multiAttest((bytes32,(address,uint64,bool,bytes32,bytes,uint256)[])[] multiRequests) payable returns(bytes32[])
+func ParseMultiAttest(calldata []byte) (*MultiAttestParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["multiAttest"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack multiAttest params data: %w", err)
+	}
+
+	var paramsResult = new(MultiAttestParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]MultiAttestationRequest)).(*[]MultiAttestationRequest)
+
+	return &MultiAttestParams{
+		Param_multiRequests: out0,
+	}, nil
+}
+
+// MultiAttestByDelegationParams is an auto generated read-only Go binding of transcaction calldata params
+type MultiAttestByDelegationParams struct {
+	Param_multiDelegatedRequests []MultiDelegatedAttestationRequest
+}
+
+// Parse MultiAttestByDelegation method from calldata of a transaction
+//
+// Solidity: function multiAttestByDelegation((bytes32,(address,uint64,bool,bytes32,bytes,uint256)[],(uint8,bytes32,bytes32)[],address,uint64)[] multiDelegatedRequests) payable returns(bytes32[])
+func ParseMultiAttestByDelegation(calldata []byte) (*MultiAttestByDelegationParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["multiAttestByDelegation"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack multiAttestByDelegation params data: %w", err)
+	}
+
+	var paramsResult = new(MultiAttestByDelegationParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]MultiDelegatedAttestationRequest)).(*[]MultiDelegatedAttestationRequest)
+
+	return &MultiAttestByDelegationParams{
+		Param_multiDelegatedRequests: out0,
+	}, nil
+}
+
+// MultiRevokeParams is an auto generated read-only Go binding of transcaction calldata params
+type MultiRevokeParams struct {
+	Param_multiRequests []MultiRevocationRequest
+}
+
+// Parse MultiRevoke method from calldata of a transaction
+//
+// Solidity: function multiRevoke((bytes32,(bytes32,uint256)[])[] multiRequests) payable returns()
+func ParseMultiRevoke(calldata []byte) (*MultiRevokeParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["multiRevoke"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack multiRevoke params data: %w", err)
+	}
+
+	var paramsResult = new(MultiRevokeParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]MultiRevocationRequest)).(*[]MultiRevocationRequest)
+
+	return &MultiRevokeParams{
+		Param_multiRequests: out0,
+	}, nil
+}
+
+// MultiRevokeByDelegationParams is an auto generated read-only Go binding of transcaction calldata params
+type MultiRevokeByDelegationParams struct {
+	Param_multiDelegatedRequests []MultiDelegatedRevocationRequest
+}
+
+// Parse MultiRevokeByDelegation method from calldata of a transaction
+//
+// Solidity: function multiRevokeByDelegation((bytes32,(bytes32,uint256)[],(uint8,bytes32,bytes32)[],address,uint64)[] multiDelegatedRequests) payable returns()
+func ParseMultiRevokeByDelegation(calldata []byte) (*MultiRevokeByDelegationParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["multiRevokeByDelegation"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack multiRevokeByDelegation params data: %w", err)
+	}
+
+	var paramsResult = new(MultiRevokeByDelegationParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]MultiDelegatedRevocationRequest)).(*[]MultiDelegatedRevocationRequest)
+
+	return &MultiRevokeByDelegationParams{
+		Param_multiDelegatedRequests: out0,
+	}, nil
+}
+
+// MultiRevokeOffchainParams is an auto generated read-only Go binding of transcaction calldata params
+type MultiRevokeOffchainParams struct {
+	Param_data [][32]byte
+}
+
+// Parse MultiRevokeOffchain method from calldata of a transaction
+//
+// Solidity: function multiRevokeOffchain(bytes32[] data) returns(uint64)
+func ParseMultiRevokeOffchain(calldata []byte) (*MultiRevokeOffchainParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["multiRevokeOffchain"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack multiRevokeOffchain params data: %w", err)
+	}
+
+	var paramsResult = new(MultiRevokeOffchainParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([][32]byte)).(*[][32]byte)
+
+	return &MultiRevokeOffchainParams{
+		Param_data: out0,
+	}, nil
+}
+
+// MultiTimestampParams is an auto generated read-only Go binding of transcaction calldata params
+type MultiTimestampParams struct {
+	Param_data [][32]byte
+}
+
+// Parse MultiTimestamp method from calldata of a transaction
+//
+// Solidity: function multiTimestamp(bytes32[] data) returns(uint64)
+func ParseMultiTimestamp(calldata []byte) (*MultiTimestampParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["multiTimestamp"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack multiTimestamp params data: %w", err)
+	}
+
+	var paramsResult = new(MultiTimestampParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([][32]byte)).(*[][32]byte)
+
+	return &MultiTimestampParams{
+		Param_data: out0,
+	}, nil
+}
+
+// RevokeParams is an auto generated read-only Go binding of transcaction calldata params
+type RevokeParams struct {
+	Param_request RevocationRequest
+}
+
+// Parse Revoke method from calldata of a transaction
+//
+// Solidity: function revoke((bytes32,(bytes32,uint256)) request) payable returns()
+func ParseRevoke(calldata []byte) (*RevokeParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["revoke"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack revoke params data: %w", err)
+	}
+
+	var paramsResult = new(RevokeParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(RevocationRequest)).(*RevocationRequest)
+
+	return &RevokeParams{
+		Param_request: out0,
+	}, nil
+}
+
+// RevokeByDelegationParams is an auto generated read-only Go binding of transcaction calldata params
+type RevokeByDelegationParams struct {
+	Param_delegatedRequest DelegatedRevocationRequest
+}
+
+// Parse RevokeByDelegation method from calldata of a transaction
+//
+// Solidity: function revokeByDelegation((bytes32,(bytes32,uint256),(uint8,bytes32,bytes32),address,uint64) delegatedRequest) payable returns()
+func ParseRevokeByDelegation(calldata []byte) (*RevokeByDelegationParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["revokeByDelegation"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack revokeByDelegation params data: %w", err)
+	}
+
+	var paramsResult = new(RevokeByDelegationParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(DelegatedRevocationRequest)).(*DelegatedRevocationRequest)
+
+	return &RevokeByDelegationParams{
+		Param_delegatedRequest: out0,
+	}, nil
+}
+
+// RevokeOffchainParams is an auto generated read-only Go binding of transcaction calldata params
+type RevokeOffchainParams struct {
+	Param_data [32]byte
+}
+
+// Parse RevokeOffchain method from calldata of a transaction
+//
+// Solidity: function revokeOffchain(bytes32 data) returns(uint64)
+func ParseRevokeOffchain(calldata []byte) (*RevokeOffchainParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["revokeOffchain"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack revokeOffchain params data: %w", err)
+	}
+
+	var paramsResult = new(RevokeOffchainParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return &RevokeOffchainParams{
+		Param_data: out0,
+	}, nil
+}
+
+// TimestampParams is an auto generated read-only Go binding of transcaction calldata params
+type TimestampParams struct {
+	Param_data [32]byte
+}
+
+// Parse Timestamp method from calldata of a transaction
+//
+// Solidity: function timestamp(bytes32 data) returns(uint64)
+func ParseTimestamp(calldata []byte) (*TimestampParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(EASABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["timestamp"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack timestamp params data: %w", err)
+	}
+
+	var paramsResult = new(TimestampParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return &TimestampParams{
+		Param_data: out0,
+	}, nil
 }
 
 // EASAttestedIterator is returned from FilterAttested and is used to iterate over the raw logs and unpacked data for Attested events raised by the EAS contract.

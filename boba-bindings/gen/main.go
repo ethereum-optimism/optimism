@@ -119,6 +119,68 @@ func main() {
 		log.Fatal(err)
 	}
 
+	// XXX(jky) This is an absolutely horrible hack, and we should really
+	// figure out a way to make the generation right.  But, it would require
+	// modifying contracts, or the generation scheme, and I'm wary of
+	// creating conflicts and churn, so this is a benign way to handle
+	// things.
+	types := map[string]struct{}{}
+	funcs := map[string]struct{}{}
+	removeDuplicates := func(outFile string) {
+		fSet := token.NewFileSet()
+		file, err := parser.ParseFile(fSet, outFile, nil, parser.ParseComments)
+		if err != nil {
+			log.Fatalf("could not open %s for rewriting: %s", outFile, err)
+		}
+		astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
+			n := c.Node()
+			switch x := n.(type) {
+			case *goast.GenDecl:
+				switch x.Tok {
+				case token.TYPE:
+					spec := x.Specs[0].(*goast.TypeSpec)
+					name := spec.Name.Name
+					if _, ok := types[name]; ok {
+						log.Printf("WARNING: Removing type %s from file %s\n", name, outFile)
+						c.Delete()
+					} else {
+						types[name] = struct{}{}
+					}
+				}
+			case *goast.FuncDecl:
+				if x.Recv != nil {
+					// We are only deduplicating pure functions
+					return true
+				}
+				name := x.Name.Name
+				if _, ok := funcs[name]; ok {
+					log.Printf("WARNING: Removing func %s from file %s\n", name, outFile)
+					c.Delete()
+				} else {
+					funcs[name] = struct{}{}
+				}
+			}
+
+			return true
+		})
+		out, err := os.Create(outFile)
+		if err != nil {
+			log.Fatalf("could not truncate for rewrite: %s", err)
+		}
+		defer out.Close()
+		if err := format.Node(out, fSet, file); err != nil {
+			log.Fatalf("could not rewrite: %s", err)
+		}
+
+		cmd := exec.Command("goimports", "-w", outFile)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			log.Fatalf("error running goimports: %v\n", err)
+		}
+	}
+
 	for _, name := range contracts {
 		log.Printf("generating code for %s\n", name)
 
@@ -172,41 +234,7 @@ func main() {
 			log.Fatalf("error running abigen: %v\n", err)
 		}
 
-		// XXX(jky) This is an absolutely horrible hack, and we should really
-		// figure out a way to make the generation right.  But, it would require
-		// modifying contracts, or the generation scheme, and I'm wary of
-		// creating conflicts and churn, so this is a benign way to handle
-		// things.
-		if filepath.Base(outFile) == "boba.go" || filepath.Base(outFile) == "l2governanceerc20.go" {
-			fSet := token.NewFileSet()
-			file, err := parser.ParseFile(fSet, outFile, nil, parser.ParseComments)
-			if err != nil {
-				log.Fatalf("could not open %s for rewriting: %s", outFile, err)
-			}
-			astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
-				n := c.Node()
-				switch x := n.(type) {
-				case *goast.GenDecl:
-					if x.Tok == token.TYPE {
-						spec := x.Specs[0].(*goast.TypeSpec)
-						if spec.Name.Name == "ERC20VotesCheckpoint" {
-							c.Delete()
-							return false
-						}
-					}
-				}
-
-				return true
-			})
-			out, err := os.Create(outFile)
-			if err != nil {
-				log.Fatalf("could not truncate for rewrite: %s", err)
-			}
-			defer out.Close()
-			if err := format.Node(out, fSet, file); err != nil {
-				log.Fatalf("could not rewrite: %s", err)
-			}
-		}
+		removeDuplicates(outFile)
 
 		storage := artifact.StorageLayout
 		canonicalStorage := ast.CanonicalizeASTIDs(&storage, f.MonorepoBase)

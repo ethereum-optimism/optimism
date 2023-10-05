@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -331,6 +333,47 @@ func (_OptimismMintableERC721Factory *OptimismMintableERC721FactorySession) Crea
 // Solidity: function createOptimismMintableERC721(address _remoteToken, string _name, string _symbol) returns(address)
 func (_OptimismMintableERC721Factory *OptimismMintableERC721FactoryTransactorSession) CreateOptimismMintableERC721(_remoteToken libcommon.Address, _name string, _symbol string) (types.Transaction, error) {
 	return _OptimismMintableERC721Factory.Contract.CreateOptimismMintableERC721(&_OptimismMintableERC721Factory.TransactOpts, _remoteToken, _name, _symbol)
+}
+
+// CreateOptimismMintableERC721Params is an auto generated read-only Go binding of transcaction calldata params
+type CreateOptimismMintableERC721Params struct {
+	Param__remoteToken libcommon.Address
+	Param__name        string
+	Param__symbol      string
+}
+
+// Parse CreateOptimismMintableERC721 method from calldata of a transaction
+//
+// Solidity: function createOptimismMintableERC721(address _remoteToken, string _name, string _symbol) returns(address)
+func ParseCreateOptimismMintableERC721(calldata []byte) (*CreateOptimismMintableERC721Params, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismMintableERC721FactoryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["createOptimismMintableERC721"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack createOptimismMintableERC721 params data: %w", err)
+	}
+
+	var paramsResult = new(CreateOptimismMintableERC721Params)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(string)).(*string)
+	out2 := *abi.ConvertType(out[2], new(string)).(*string)
+
+	return &CreateOptimismMintableERC721Params{
+		Param__remoteToken: out0, Param__name: out1, Param__symbol: out2,
+	}, nil
 }
 
 // OptimismMintableERC721FactoryOptimismMintableERC721CreatedIterator is returned from FilterOptimismMintableERC721Created and is used to iterate over the raw logs and unpacked data for OptimismMintableERC721Created events raised by the OptimismMintableERC721Factory contract.

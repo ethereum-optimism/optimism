@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -277,6 +279,47 @@ func (_SchemaRegistry *SchemaRegistrySession) Register(schema string, resolver l
 // Solidity: function register(string schema, address resolver, bool revocable) returns(bytes32)
 func (_SchemaRegistry *SchemaRegistryTransactorSession) Register(schema string, resolver libcommon.Address, revocable bool) (types.Transaction, error) {
 	return _SchemaRegistry.Contract.Register(&_SchemaRegistry.TransactOpts, schema, resolver, revocable)
+}
+
+// RegisterParams is an auto generated read-only Go binding of transcaction calldata params
+type RegisterParams struct {
+	Param_schema    string
+	Param_resolver  libcommon.Address
+	Param_revocable bool
+}
+
+// Parse Register method from calldata of a transaction
+//
+// Solidity: function register(string schema, address resolver, bool revocable) returns(bytes32)
+func ParseRegister(calldata []byte) (*RegisterParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(SchemaRegistryABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["register"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack register params data: %w", err)
+	}
+
+	var paramsResult = new(RegisterParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+	out2 := *abi.ConvertType(out[2], new(bool)).(*bool)
+
+	return &RegisterParams{
+		Param_schema: out0, Param_resolver: out1, Param_revocable: out2,
+	}, nil
 }
 
 // SchemaRegistryRegisteredIterator is returned from FilterRegistered and is used to iterate over the raw logs and unpacked data for Registered events raised by the SchemaRegistry contract.

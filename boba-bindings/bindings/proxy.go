@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -291,6 +293,119 @@ func (_Proxy *ProxySession) UpgradeToAndCall(_implementation libcommon.Address, 
 // Solidity: function upgradeToAndCall(address _implementation, bytes _data) payable returns(bytes)
 func (_Proxy *ProxyTransactorSession) UpgradeToAndCall(_implementation libcommon.Address, _data []byte) (types.Transaction, error) {
 	return _Proxy.Contract.UpgradeToAndCall(&_Proxy.TransactOpts, _implementation, _data)
+}
+
+// ChangeAdminParams is an auto generated read-only Go binding of transcaction calldata params
+type ChangeAdminParams struct {
+	Param__admin libcommon.Address
+}
+
+// Parse ChangeAdmin method from calldata of a transaction
+//
+// Solidity: function changeAdmin(address _admin) returns()
+func ParseChangeAdmin(calldata []byte) (*ChangeAdminParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["changeAdmin"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack changeAdmin params data: %w", err)
+	}
+
+	var paramsResult = new(ChangeAdminParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &ChangeAdminParams{
+		Param__admin: out0,
+	}, nil
+}
+
+// UpgradeToParams is an auto generated read-only Go binding of transcaction calldata params
+type UpgradeToParams struct {
+	Param__implementation libcommon.Address
+}
+
+// Parse UpgradeTo method from calldata of a transaction
+//
+// Solidity: function upgradeTo(address _implementation) returns()
+func ParseUpgradeTo(calldata []byte) (*UpgradeToParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["upgradeTo"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack upgradeTo params data: %w", err)
+	}
+
+	var paramsResult = new(UpgradeToParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &UpgradeToParams{
+		Param__implementation: out0,
+	}, nil
+}
+
+// UpgradeToAndCallParams is an auto generated read-only Go binding of transcaction calldata params
+type UpgradeToAndCallParams struct {
+	Param__implementation libcommon.Address
+	Param__data           []byte
+}
+
+// Parse UpgradeToAndCall method from calldata of a transaction
+//
+// Solidity: function upgradeToAndCall(address _implementation, bytes _data) payable returns(bytes)
+func ParseUpgradeToAndCall(calldata []byte) (*UpgradeToAndCallParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(ProxyABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["upgradeToAndCall"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack upgradeToAndCall params data: %w", err)
+	}
+
+	var paramsResult = new(UpgradeToAndCallParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new([]byte)).(*[]byte)
+
+	return &UpgradeToAndCallParams{
+		Param__implementation: out0, Param__data: out1,
+	}, nil
 }
 
 // Fallback is a paid mutator transaction binding the contract fallback function.

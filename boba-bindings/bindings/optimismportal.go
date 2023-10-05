@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -823,6 +825,137 @@ func (_OptimismPortal *OptimismPortalSession) Unpause() (types.Transaction, erro
 // Solidity: function unpause() returns()
 func (_OptimismPortal *OptimismPortalTransactorSession) Unpause() (types.Transaction, error) {
 	return _OptimismPortal.Contract.Unpause(&_OptimismPortal.TransactOpts)
+}
+
+// DepositTransactionParams is an auto generated read-only Go binding of transcaction calldata params
+type DepositTransactionParams struct {
+	Param__to         libcommon.Address
+	Param__value      *big.Int
+	Param__gasLimit   uint64
+	Param__isCreation bool
+	Param__data       []byte
+}
+
+// Parse DepositTransaction method from calldata of a transaction
+//
+// Solidity: function depositTransaction(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes _data) payable returns()
+func ParseDepositTransaction(calldata []byte) (*DepositTransactionParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismPortalABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["depositTransaction"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack depositTransaction params data: %w", err)
+	}
+
+	var paramsResult = new(DepositTransactionParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new(uint64)).(*uint64)
+	out3 := *abi.ConvertType(out[3], new(bool)).(*bool)
+	out4 := *abi.ConvertType(out[4], new([]byte)).(*[]byte)
+
+	return &DepositTransactionParams{
+		Param__to: out0, Param__value: out1, Param__gasLimit: out2, Param__isCreation: out3, Param__data: out4,
+	}, nil
+}
+
+// FinalizeWithdrawalTransactionParams is an auto generated read-only Go binding of transcaction calldata params
+type FinalizeWithdrawalTransactionParams struct {
+	Param__tx TypesWithdrawalTransaction
+}
+
+// Parse FinalizeWithdrawalTransaction method from calldata of a transaction
+//
+// Solidity: function finalizeWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes) _tx) returns()
+func ParseFinalizeWithdrawalTransaction(calldata []byte) (*FinalizeWithdrawalTransactionParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismPortalABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["finalizeWithdrawalTransaction"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack finalizeWithdrawalTransaction params data: %w", err)
+	}
+
+	var paramsResult = new(FinalizeWithdrawalTransactionParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(TypesWithdrawalTransaction)).(*TypesWithdrawalTransaction)
+
+	return &FinalizeWithdrawalTransactionParams{
+		Param__tx: out0,
+	}, nil
+}
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _l2Oracle, address _guardian, address _systemConfig, bool _paused) returns()
+
+// ProveWithdrawalTransactionParams is an auto generated read-only Go binding of transcaction calldata params
+type ProveWithdrawalTransactionParams struct {
+	Param__tx              TypesWithdrawalTransaction
+	Param__l2OutputIndex   *big.Int
+	Param__outputRootProof TypesOutputRootProof
+	Param__withdrawalProof [][]byte
+}
+
+// Parse ProveWithdrawalTransaction method from calldata of a transaction
+//
+// Solidity: function proveWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes) _tx, uint256 _l2OutputIndex, (bytes32,bytes32,bytes32,bytes32) _outputRootProof, bytes[] _withdrawalProof) returns()
+func ParseProveWithdrawalTransaction(calldata []byte) (*ProveWithdrawalTransactionParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(OptimismPortalABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["proveWithdrawalTransaction"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack proveWithdrawalTransaction params data: %w", err)
+	}
+
+	var paramsResult = new(ProveWithdrawalTransactionParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(TypesWithdrawalTransaction)).(*TypesWithdrawalTransaction)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new(TypesOutputRootProof)).(*TypesOutputRootProof)
+	out3 := *abi.ConvertType(out[3], new([][]byte)).(*[][]byte)
+
+	return &ProveWithdrawalTransactionParams{
+		Param__tx: out0, Param__l2OutputIndex: out1, Param__outputRootProof: out2, Param__withdrawalProof: out3,
+	}, nil
 }
 
 // Receive is a paid mutator transaction binding the contract receive function.

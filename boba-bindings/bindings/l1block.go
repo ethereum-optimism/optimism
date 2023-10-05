@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -517,4 +519,55 @@ func (_L1Block *L1BlockSession) SetL1BlockValues(_number uint64, _timestamp uint
 // Solidity: function setL1BlockValues(uint64 _number, uint64 _timestamp, uint256 _basefee, bytes32 _hash, uint64 _sequenceNumber, bytes32 _batcherHash, uint256 _l1FeeOverhead, uint256 _l1FeeScalar) returns()
 func (_L1Block *L1BlockTransactorSession) SetL1BlockValues(_number uint64, _timestamp uint64, _basefee *big.Int, _hash [32]byte, _sequenceNumber uint64, _batcherHash [32]byte, _l1FeeOverhead *big.Int, _l1FeeScalar *big.Int) (types.Transaction, error) {
 	return _L1Block.Contract.SetL1BlockValues(&_L1Block.TransactOpts, _number, _timestamp, _basefee, _hash, _sequenceNumber, _batcherHash, _l1FeeOverhead, _l1FeeScalar)
+}
+
+// SetL1BlockValuesParams is an auto generated read-only Go binding of transcaction calldata params
+type SetL1BlockValuesParams struct {
+	Param__number         uint64
+	Param__timestamp      uint64
+	Param__basefee        *big.Int
+	Param__hash           [32]byte
+	Param__sequenceNumber uint64
+	Param__batcherHash    [32]byte
+	Param__l1FeeOverhead  *big.Int
+	Param__l1FeeScalar    *big.Int
+}
+
+// Parse SetL1BlockValues method from calldata of a transaction
+//
+// Solidity: function setL1BlockValues(uint64 _number, uint64 _timestamp, uint256 _basefee, bytes32 _hash, uint64 _sequenceNumber, bytes32 _batcherHash, uint256 _l1FeeOverhead, uint256 _l1FeeScalar) returns()
+func ParseSetL1BlockValues(calldata []byte) (*SetL1BlockValuesParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(L1BlockABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["setL1BlockValues"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack setL1BlockValues params data: %w", err)
+	}
+
+	var paramsResult = new(SetL1BlockValuesParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(uint64)).(*uint64)
+	out1 := *abi.ConvertType(out[1], new(uint64)).(*uint64)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	out3 := *abi.ConvertType(out[3], new([32]byte)).(*[32]byte)
+	out4 := *abi.ConvertType(out[4], new(uint64)).(*uint64)
+	out5 := *abi.ConvertType(out[5], new([32]byte)).(*[32]byte)
+	out6 := *abi.ConvertType(out[6], new(*big.Int)).(**big.Int)
+	out7 := *abi.ConvertType(out[7], new(*big.Int)).(**big.Int)
+
+	return &SetL1BlockValuesParams{
+		Param__number: out0, Param__timestamp: out1, Param__basefee: out2, Param__hash: out3, Param__sequenceNumber: out4, Param__batcherHash: out5, Param__l1FeeOverhead: out6, Param__l1FeeScalar: out7,
+	}, nil
 }

@@ -452,6 +452,42 @@ func (_StandardBridge *StandardBridgeTransactorSession) FinalizeBridgeETH(_from 
 	return _StandardBridge.Contract.FinalizeBridgeETH(&_StandardBridge.TransactOpts, _from, _to, _amount, _extraData)
 }
 
+// BridgeERC20Params is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeERC20 method from calldata of a transaction
+//
+// Solidity: function bridgeERC20(address _localToken, address _remoteToken, uint256 _amount, uint32 _minGasLimit, bytes _extraData) returns()
+
+// BridgeERC20ToParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeERC20To method from calldata of a transaction
+//
+// Solidity: function bridgeERC20To(address _localToken, address _remoteToken, address _to, uint256 _amount, uint32 _minGasLimit, bytes _extraData) returns()
+
+// BridgeETHParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeETH method from calldata of a transaction
+//
+// Solidity: function bridgeETH(uint32 _minGasLimit, bytes _extraData) payable returns()
+
+// BridgeETHToParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeETHTo method from calldata of a transaction
+//
+// Solidity: function bridgeETHTo(address _to, uint32 _minGasLimit, bytes _extraData) payable returns()
+
+// FinalizeBridgeERC20Params is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse FinalizeBridgeERC20 method from calldata of a transaction
+//
+// Solidity: function finalizeBridgeERC20(address _localToken, address _remoteToken, address _from, address _to, uint256 _amount, bytes _extraData) returns()
+
+// FinalizeBridgeETHParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse FinalizeBridgeETH method from calldata of a transaction
+//
+// Solidity: function finalizeBridgeETH(address _from, address _to, uint256 _amount, bytes _extraData) payable returns()
+
 // Receive is a paid mutator transaction binding the contract receive function.
 //
 // Solidity: receive() payable returns()

@@ -4,7 +4,9 @@
 package bindings
 
 import (
+	"fmt"
 	"math/big"
+	"reflect"
 	"strings"
 
 	ethereum "github.com/ledgerwatch/erigon"
@@ -529,6 +531,201 @@ func (_BobaTuringCredit *BobaTuringCreditSession) WithdrawRevenue(_withdrawAmoun
 // Solidity: function withdrawRevenue(uint256 _withdrawAmount) returns()
 func (_BobaTuringCredit *BobaTuringCreditTransactorSession) WithdrawRevenue(_withdrawAmount *big.Int) (types.Transaction, error) {
 	return _BobaTuringCredit.Contract.WithdrawRevenue(&_BobaTuringCredit.TransactOpts, _withdrawAmount)
+}
+
+// AddBalanceToParams is an auto generated read-only Go binding of transcaction calldata params
+type AddBalanceToParams struct {
+	Param__addBalanceAmount      *big.Int
+	Param__helperContractAddress libcommon.Address
+}
+
+// Parse AddBalanceTo method from calldata of a transaction
+//
+// Solidity: function addBalanceTo(uint256 _addBalanceAmount, address _helperContractAddress) returns()
+func ParseAddBalanceTo(calldata []byte) (*AddBalanceToParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaTuringCreditABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["addBalanceTo"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack addBalanceTo params data: %w", err)
+	}
+
+	var paramsResult = new(AddBalanceToParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(libcommon.Address)).(*libcommon.Address)
+
+	return &AddBalanceToParams{
+		Param__addBalanceAmount: out0, Param__helperContractAddress: out1,
+	}, nil
+}
+
+// SpendCreditParams is an auto generated read-only Go binding of transcaction calldata params
+type SpendCreditParams struct {
+	Param__helperContractAddress libcommon.Address
+	Param__amount                *big.Int
+}
+
+// Parse SpendCredit method from calldata of a transaction
+//
+// Solidity: function spendCredit(address _helperContractAddress, uint256 _amount) returns(bool)
+func ParseSpendCredit(calldata []byte) (*SpendCreditParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaTuringCreditABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["spendCredit"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack spendCredit params data: %w", err)
+	}
+
+	var paramsResult = new(SpendCreditParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return &SpendCreditParams{
+		Param__helperContractAddress: out0, Param__amount: out1,
+	}, nil
+}
+
+// TransferOwnershipParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferOwnership method from calldata of a transaction
+//
+// Solidity: function transferOwnership(address _newOwner) returns()
+
+// UpdateTuringPriceParams is an auto generated read-only Go binding of transcaction calldata params
+type UpdateTuringPriceParams struct {
+	Param__turingPrice *big.Int
+}
+
+// Parse UpdateTuringPrice method from calldata of a transaction
+//
+// Solidity: function updateTuringPrice(uint256 _turingPrice) returns()
+func ParseUpdateTuringPrice(calldata []byte) (*UpdateTuringPriceParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaTuringCreditABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["updateTuringPrice"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack updateTuringPrice params data: %w", err)
+	}
+
+	var paramsResult = new(UpdateTuringPriceParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return &UpdateTuringPriceParams{
+		Param__turingPrice: out0,
+	}, nil
+}
+
+// UpdateTuringTokenParams is an auto generated read-only Go binding of transcaction calldata params
+type UpdateTuringTokenParams struct {
+	Param__turingToken libcommon.Address
+}
+
+// Parse UpdateTuringToken method from calldata of a transaction
+//
+// Solidity: function updateTuringToken(address _turingToken) returns()
+func ParseUpdateTuringToken(calldata []byte) (*UpdateTuringTokenParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaTuringCreditABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["updateTuringToken"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack updateTuringToken params data: %w", err)
+	}
+
+	var paramsResult = new(UpdateTuringTokenParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(libcommon.Address)).(*libcommon.Address)
+
+	return &UpdateTuringTokenParams{
+		Param__turingToken: out0,
+	}, nil
+}
+
+// WithdrawRevenueParams is an auto generated read-only Go binding of transcaction calldata params
+type WithdrawRevenueParams struct {
+	Param__withdrawAmount *big.Int
+}
+
+// Parse WithdrawRevenue method from calldata of a transaction
+//
+// Solidity: function withdrawRevenue(uint256 _withdrawAmount) returns()
+func ParseWithdrawRevenue(calldata []byte) (*WithdrawRevenueParams, error) {
+	if len(calldata) <= 4 {
+		return nil, fmt.Errorf("invalid calldata input")
+	}
+
+	_abi, err := abi.JSON(strings.NewReader(BobaTuringCreditABI))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get abi of registry metadata: %w", err)
+	}
+
+	out, err := _abi.Methods["withdrawRevenue"].Inputs.Unpack(calldata[4:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to unpack withdrawRevenue params data: %w", err)
+	}
+
+	var paramsResult = new(WithdrawRevenueParams)
+	value := reflect.ValueOf(paramsResult).Elem()
+
+	if value.NumField() != len(out) {
+		return nil, fmt.Errorf("failed to match calldata with param field number")
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return &WithdrawRevenueParams{
+		Param__withdrawAmount: out0,
+	}, nil
 }
 
 // BobaTuringCreditAddBalanceToIterator is returned from FilterAddBalanceTo and is used to iterate over the raw logs and unpacked data for AddBalanceTo events raised by the BobaTuringCredit contract.

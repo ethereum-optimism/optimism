@@ -647,6 +647,18 @@ func (_CrossDomainMessenger *CrossDomainMessengerTransactorSession) SendMessage(
 	return _CrossDomainMessenger.Contract.SendMessage(&_CrossDomainMessenger.TransactOpts, _target, _message, _minGasLimit)
 }
 
+// RelayMessageParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse RelayMessage method from calldata of a transaction
+//
+// Solidity: function relayMessage(uint256 _nonce, address _sender, address _target, uint256 _value, uint256 _minGasLimit, bytes _message) payable returns()
+
+// SendMessageParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse SendMessage method from calldata of a transaction
+//
+// Solidity: function sendMessage(address _target, bytes _message, uint32 _minGasLimit) payable returns()
+
 // CrossDomainMessengerFailedRelayedMessageIterator is returned from FilterFailedRelayedMessage and is used to iterate over the raw logs and unpacked data for FailedRelayedMessage events raised by the CrossDomainMessenger contract.
 type CrossDomainMessengerFailedRelayedMessageIterator struct {
 	Event *CrossDomainMessengerFailedRelayedMessage // Event containing the contract specifics and raw log

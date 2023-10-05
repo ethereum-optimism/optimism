@@ -479,6 +479,30 @@ func (_WETH9 *WETH9TransactorSession) Withdraw(wad *big.Int) (types.Transaction,
 	return _WETH9.Contract.Withdraw(&_WETH9.TransactOpts, wad)
 }
 
+// ApproveParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Approve method from calldata of a transaction
+//
+// Solidity: function approve(address guy, uint256 wad) returns(bool)
+
+// TransferParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Transfer method from calldata of a transaction
+//
+// Solidity: function transfer(address dst, uint256 wad) returns(bool)
+
+// TransferFromParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse TransferFrom method from calldata of a transaction
+//
+// Solidity: function transferFrom(address src, address dst, uint256 wad) returns(bool)
+
+// WithdrawParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Withdraw method from calldata of a transaction
+//
+// Solidity: function withdraw(uint256 wad) returns()
+
 // Fallback is a paid mutator transaction binding the contract fallback function.
 //
 // Solidity: fallback() payable returns()

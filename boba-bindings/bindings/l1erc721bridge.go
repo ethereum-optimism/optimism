@@ -458,6 +458,30 @@ func (_L1ERC721Bridge *L1ERC721BridgeTransactorSession) Initialize(_messenger li
 	return _L1ERC721Bridge.Contract.Initialize(&_L1ERC721Bridge.TransactOpts, _messenger)
 }
 
+// BridgeERC721Params is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeERC721 method from calldata of a transaction
+//
+// Solidity: function bridgeERC721(address _localToken, address _remoteToken, uint256 _tokenId, uint32 _minGasLimit, bytes _extraData) returns()
+
+// BridgeERC721ToParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse BridgeERC721To method from calldata of a transaction
+//
+// Solidity: function bridgeERC721To(address _localToken, address _remoteToken, address _to, uint256 _tokenId, uint32 _minGasLimit, bytes _extraData) returns()
+
+// FinalizeBridgeERC721Params is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse FinalizeBridgeERC721 method from calldata of a transaction
+//
+// Solidity: function finalizeBridgeERC721(address _localToken, address _remoteToken, address _from, address _to, uint256 _tokenId, bytes _extraData) returns()
+
+// InitializeParams is an auto generated read-only Go binding of transcaction calldata params
+
+// Parse Initialize method from calldata of a transaction
+//
+// Solidity: function initialize(address _messenger) returns()
+
 // L1ERC721BridgeERC721BridgeFinalizedIterator is returned from FilterERC721BridgeFinalized and is used to iterate over the raw logs and unpacked data for ERC721BridgeFinalized events raised by the L1ERC721Bridge contract.
 type L1ERC721BridgeERC721BridgeFinalizedIterator struct {
 	Event *L1ERC721BridgeERC721BridgeFinalized // Event containing the contract specifics and raw log
