@@ -25,7 +25,7 @@ import (
 // the raw calldata when both the calldata and ABIs with arguments are
 // present.
 type Batch struct {
-	SkipCalldata bool
+	SkipCalldata bool               `json:"-"`
 	Version      string             `json:"version"`
 	ChainID      *big.Int           `json:"chainId"`
 	CreatedAt    uint64             `json:"createdAt"`
