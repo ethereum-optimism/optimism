@@ -23,7 +23,7 @@ import (
 
 const (
 	proofsDir      = "proofs"
-	diskStateCache = "state.json.gz"
+	diskStateCache = "state.bin.gz"
 )
 
 type proofData struct {

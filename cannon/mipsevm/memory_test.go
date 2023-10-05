@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/json"
 	"io"
 	"strings"
 	"testing"
@@ -178,12 +177,14 @@ func TestMemoryReadWrite(t *testing.T) {
 	})
 }
 
-func TestMemoryJSON(t *testing.T) {
+func TestMemorySerialize(t *testing.T) {
 	m := NewMemory()
 	m.SetMemory(8, 123)
-	dat, err := json.Marshal(m)
+	buf := new(bytes.Buffer)
+	err := m.Serialize(buf)
 	require.NoError(t, err)
-	var res Memory
-	require.NoError(t, json.Unmarshal(dat, &res))
+	res := NewMemory()
+	err = res.Deserialize(buf)
+	require.NoError(t, err)
 	require.Equal(t, uint32(123), res.GetMemory(8))
 }

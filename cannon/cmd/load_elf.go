@@ -24,8 +24,8 @@ var (
 	}
 	LoadELFOutFlag = &cli.PathFlag{
 		Name:     "out",
-		Usage:    "Output path to write JSON state to. State is dumped to stdout if set to -. Not written if empty.",
-		Value:    "state.json",
+		Usage:    "Output path to write binary state to. State is dumped to stdout if set to -. Not written if empty.",
+		Value:    "state.bin.gz",
 		Required: false,
 	}
 	LoadELFMetaFlag = &cli.PathFlag{
@@ -69,13 +69,13 @@ func LoadELF(ctx *cli.Context) error {
 	if err := writeJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta); err != nil {
 		return fmt.Errorf("failed to output metadata: %w", err)
 	}
-	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state)
+	return writeSerializedBinary(ctx.Path(LoadELFOutFlag.Name), state)
 }
 
 var LoadELFCommand = &cli.Command{
 	Name:        "load-elf",
-	Usage:       "Load ELF file into Cannon JSON state",
-	Description: "Load ELF file into Cannon JSON state, optionally patch out functions",
+	Usage:       "Load ELF file into Cannon binary state",
+	Description: "Load ELF file into Cannon binary state, optionally patch out functions",
 	Action:      LoadELF,
 	Flags: []cli.Flag{
 		LoadELFPathFlag,

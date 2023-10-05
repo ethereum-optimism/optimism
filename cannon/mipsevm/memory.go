@@ -2,11 +2,9 @@ package mipsevm
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math/bits"
-	"sort"
 
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -230,40 +228,68 @@ func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
 	return p
 }
 
-type pageEntry struct {
-	Index uint32 `json:"index"`
-	Data  *Page  `json:"data"`
-}
-
-func (m *Memory) MarshalJSON() ([]byte, error) { // nosemgrep
-	pages := make([]pageEntry, 0, len(m.pages))
+// Serialize serializes a `Memory` struct to a byte slice.
+func (m *Memory) Serialize(out io.Writer) error {
 	for k, p := range m.pages {
-		pages = append(pages, pageEntry{
-			Index: k,
-			Data:  p.Data,
-		})
+		// Write the page index as a big endian uint32
+		binary.Write(out, binary.BigEndian, k)
+		// Write the length of the page data as a big endian uint32
+		binary.Write(out, binary.BigEndian, uint32(len(p.Data)))
+		// Write the page data
+		n, err := out.Write(p.Data[:])
+		if err != nil {
+			return err
+		}
+		if n != len(p.Data) {
+			return fmt.Errorf("failed to write full page data")
+		}
 	}
-	sort.Slice(pages, func(i, j int) bool {
-		return pages[i].Index < pages[j].Index
-	})
-	return json.Marshal(pages)
+
+	return nil
 }
 
-func (m *Memory) UnmarshalJSON(data []byte) error {
-	var pages []pageEntry
-	if err := json.Unmarshal(data, &pages); err != nil {
-		return err
-	}
-	m.nodes = make(map[uint64]*[32]byte)
-	m.pages = make(map[uint32]*CachedPage)
-	m.lastPageKeys = [2]uint32{^uint32(0), ^uint32(0)}
-	m.lastPage = [2]*CachedPage{nil, nil}
-	for i, p := range pages {
-		if _, ok := m.pages[p.Index]; ok {
-			return fmt.Errorf("cannot load duplicate page, entry %d, page index %d", i, p.Index)
+// Deserialize deserializes a `Memory` struct from a byte slice.
+func (m *Memory) Deserialize(in io.Reader) error {
+	for {
+		// Read the page index as a big endian uint32
+		var pageIndex uint32
+		err := binary.Read(in, binary.BigEndian, &pageIndex)
+		if err == io.EOF {
+			break // Exit the loop on EOF
+		} else if err != nil {
+			return err
 		}
-		m.AllocPage(p.Index).Data = p.Data
+
+		// Check if there was already a page with this index
+		if _, ok := m.pages[pageIndex]; ok {
+			return fmt.Errorf("cannot load duplicate page, page index %d", pageIndex)
+		}
+
+		// Read the length of the page data as a big endian uint32
+		var pageDataLen uint32
+		err = binary.Read(in, binary.BigEndian, &pageDataLen)
+		if err != nil {
+			return err
+		}
+
+		if pageDataLen > PageSize {
+			return fmt.Errorf("page data length exceeds PageSize")
+		}
+
+		// Read the page data into the pageBuffer
+		var page Page
+		n, err := in.Read(page[:pageDataLen]) // Read directly into pageBuffer
+		if err != nil {
+			return err
+		}
+		if uint32(n) != pageDataLen {
+			return fmt.Errorf("failed to read full page data")
+		}
+
+		// Allocate the page and assign the data
+		m.AllocPage(pageIndex).Data = &page
 	}
+
 	return nil
 }
 

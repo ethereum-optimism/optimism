@@ -21,10 +21,10 @@ import (
 const (
 	snapsDir     = "snapshots"
 	preimagesDir = "preimages"
-	finalState   = "final.json.gz"
+	finalState   = "final.bin.gz"
 )
 
-var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json.gz$`)
+var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.bin.gz$`)
 
 type snapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
 type cmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
@@ -85,7 +85,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--proof-at", "=" + strconv.FormatUint(i, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json.gz"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
-		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json.gz"),
+		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.bin.gz"),
 	}
 	if i < math.MaxUint64 {
 		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
@@ -162,7 +162,7 @@ func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 			logger.Warn("Unexpected file in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
-		index, err := strconv.ParseUint(name[0:len(name)-len(".json.gz")], 10, 64)
+		index, err := strconv.ParseUint(name[0:len(name)-len(".bin")], 10, 64)
 		if err != nil {
 			logger.Error("Unable to parse trace index of snapshot file", "parent", snapDir, "child", entry.Name())
 			continue
@@ -174,7 +174,7 @@ func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 	if bestSnap == 0 {
 		return absolutePreState, nil
 	}
-	startFrom := fmt.Sprintf("%v/%v.json.gz", snapDir, bestSnap)
+	startFrom := fmt.Sprintf("%v/%v.bin", snapDir, bestSnap)
 
 	return startFrom, nil
 }

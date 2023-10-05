@@ -25,7 +25,8 @@ var (
 func Witness(ctx *cli.Context) error {
 	input := ctx.Path(WitnessInputFlag.Name)
 	output := ctx.Path(WitnessOutputFlag.Name)
-	state, err := loadJSON[mipsevm.State](input)
+	state := &mipsevm.State{}
+	err := loadSerializedBinary(input, state)
 	if err != nil {
 		return fmt.Errorf("invalid input state (%v): %w", input, err)
 	}

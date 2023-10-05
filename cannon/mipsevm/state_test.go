@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 
@@ -268,4 +269,43 @@ func staticOracle(t *testing.T, preimageData []byte) *testOracle {
 			return preimageData
 		},
 	}
+}
+
+func TestSerializeStateRoundtrip(t *testing.T) {
+	// Construct a test case with populated fields
+	memory := NewMemory()
+	memory.AllocPage(5)
+	p := memory.AllocPage(123)
+	p.Data[2] = 0x01
+	state := &State{
+		Memory:         memory,
+		PreimageKey:    common.Hash{0xFF},
+		PreimageOffset: 5,
+		PC:             0xFF,
+		NextPC:         0xFF + 4,
+		LO:             0xbeef,
+		HI:             0xbabe,
+		Heap:           0xc0ffee,
+		ExitCode:       1,
+		Exited:         true,
+		Step:           0xdeadbeef,
+		Registers: [32]uint32{
+			0xdeadbeef,
+			0xdeadbeef,
+			0xc0ffee,
+			0xbeefbabe,
+			0xdeadc0de,
+			0xbadc0de,
+			0xdeaddead,
+		},
+		LastHint: hexutil.Bytes{1, 2, 3, 4, 5},
+	}
+
+	ser := new(bytes.Buffer)
+	err := state.Serialize(ser)
+	require.NoError(t, err, "must serialize state")
+	state2 := &State{}
+	err = state2.Deserialize(ser)
+	require.NoError(t, err, "must deserialize state")
+	require.Equal(t, state, state2, "must roundtrip state")
 }

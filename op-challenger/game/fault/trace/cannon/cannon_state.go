@@ -1,7 +1,6 @@
 package cannon
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -15,7 +14,7 @@ func parseState(path string) (*mipsevm.State, error) {
 	}
 	defer file.Close()
 	var state mipsevm.State
-	err = json.NewDecoder(file).Decode(&state)
+	state.Deserialize(file)
 	if err != nil {
 		return nil, fmt.Errorf("invalid mipsevm state (%v): %w", path, err)
 	}

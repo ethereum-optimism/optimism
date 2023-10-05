@@ -83,7 +83,7 @@ func WithCannon(
 		c.CannonL2 = l2Endpoint
 		c.CannonBin = "../cannon/bin/cannon"
 		c.CannonServer = "../op-program/bin/op-program"
-		c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
+		c.CannonAbsolutePreState = "../op-program/bin/prestate.bin.gz"
 		c.CannonSnapshotFreq = 10_000_000
 
 		genesisBytes, err := json.Marshal(l2Genesis)

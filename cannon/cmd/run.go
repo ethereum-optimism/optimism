@@ -23,7 +23,7 @@ var (
 		Name:      "input",
 		Usage:     "path of input JSON state. Stdin if left empty.",
 		TakesFile: true,
-		Value:     "state.json",
+		Value:     "state.bin.gz",
 		Required:  true,
 	}
 	RunOutputFlag = &cli.PathFlag{
@@ -55,7 +55,7 @@ var (
 	RunSnapshotFmtFlag = &cli.StringFlag{
 		Name:     "snapshot-fmt",
 		Usage:    "format for snapshot output file names.",
-		Value:    "state-%d.json",
+		Value:    "state-%d.bin.gz",
 		Required: false,
 	}
 	RunStopAtFlag = &cli.GenericFlag{
@@ -224,7 +224,8 @@ func Run(ctx *cli.Context) error {
 		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
 	}
 
-	state, err := loadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
+	state := &mipsevm.State{}
+	err := loadSerializedBinary(ctx.Path(RunInputFlag.Name), state)
 	if err != nil {
 		return err
 	}
@@ -321,7 +322,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state); err != nil {
+			if err := writeSerializedBinary(fmt.Sprintf(snapshotFmt, step), state); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
@@ -362,7 +363,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state); err != nil {
+	if err := writeSerializedBinary(ctx.Path(RunOutputFlag.Name), state); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil
