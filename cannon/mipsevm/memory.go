@@ -230,6 +230,10 @@ func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
 
 // Serialize serializes a `Memory` struct to a byte slice.
 func (m *Memory) Serialize(out io.Writer) error {
+	// Write the version byte to the output
+	if err := binary.Write(out, binary.BigEndian, uint8(0)); err != nil {
+		return err
+	}
 	for k, p := range m.pages {
 		// Write the page index as a big endian uint32
 		if err := binary.Write(out, binary.BigEndian, k); err != nil {
@@ -254,6 +258,14 @@ func (m *Memory) Serialize(out io.Writer) error {
 
 // Deserialize deserializes a `Memory` struct from a byte slice.
 func (m *Memory) Deserialize(in io.Reader) error {
+	// Read the version byte from the input
+	var version uint8
+	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
+		return err
+	}
+	if version != 0 {
+		return fmt.Errorf("incorrect memory encoding version %d", version)
+	}
 	for {
 		// Read the page index as a big endian uint32
 		var pageIndex uint32

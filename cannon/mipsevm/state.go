@@ -73,6 +73,11 @@ func (s *State) EncodeWitness() StateWitness {
 }
 
 func (s *State) Serialize(out io.Writer) error {
+	// Write the version byte to the buffer.
+	if err := binary.Write(out, binary.BigEndian, uint8(0)); err != nil {
+		return err
+	}
+
 	// Write the memory to the buffer.
 	serMemBuf := new(bytes.Buffer)
 	err := s.Memory.Serialize(serMemBuf)
@@ -165,6 +170,15 @@ func (s *State) Serialize(out io.Writer) error {
 }
 
 func (s *State) Deserialize(in io.Reader) error {
+	// Read the version byte from the buffer.
+	var version uint8
+	if err := binary.Read(in, binary.BigEndian, &version); err != nil {
+		return err
+	}
+	if version != 0 {
+		return fmt.Errorf("invalid state encoding version %d", version)
+	}
+
 	// Read the length of the memory as a big endian uint32
 	var serMemLen uint32
 	if err := binary.Read(in, binary.BigEndian, &serMemLen); err != nil {
