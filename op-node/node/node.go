@@ -65,7 +65,7 @@ type OpNode struct {
 
 	// cancels execution prematurely, e.g. to halt. This may be nil.
 	cancel context.CancelCauseFunc
-	halted bool
+	halted atomic.Bool
 }
 
 // The OpNode handles incoming gossip
@@ -255,7 +255,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 				l1Head, err := reload(ctx)
 				if err != nil {
 					if errors.Is(err, errNodeHalt) {
-						n.halted = true
+						n.halted.Store(true)
 						if n.cancel != nil { // node cancellation is always available when started as CLI app
 							n.cancel(errNodeHalt)
 							return
@@ -606,7 +606,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		n.closed.Store(true)
 	}
 
-	if n.halted {
+	if n.halted.Load() {
 		// if we had a halt upon initialization, idle for a while, with open metrics, to prevent a rapid restart-loop
 		tim := time.NewTimer(time.Minute * 5)
 		n.log.Warn("halted, idling to avoid immediate shutdown repeats")
