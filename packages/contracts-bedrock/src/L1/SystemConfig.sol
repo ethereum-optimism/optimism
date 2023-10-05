@@ -101,8 +101,8 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     uint256 public startBlock;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.9.0
-    string public constant version = "1.9.0";
+    /// @custom:semver 1.10.0
+    string public constant version = "1.10.0";
 
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -249,18 +249,18 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         can have their start block set by a user provided override.
     ///         A start block of 0 indicates that there is no override and the
     ///         start block will be set by `block.number`.
-    /// @dev    This logic is used to patch legacy with new storage values. In the
-    ///         next version, it should remove the override and set the start block
-    ///         to `block.number` if the value in storage is 0. This will allow it
-    ///         to be reinitialized again and also work for fresh deployments.
+    /// @dev    This logic is used to patch legacy deployments with new storage values.
+    ///         Use the override if it is provided as a non zero value and the value
+    ///         has not already been set in storage. Use `block.number` if the value
+    ///         has already been set in storage
     /// @param  _startBlock The start block override to set in storage.
     function _setStartBlock(uint256 _startBlock) internal {
-        require(startBlock == 0, "SystemConfig: cannot override an already set start block");
-        if (_startBlock != 0) {
-            // There is an override, it cannot already be set.
+        if (_startBlock != 0 && startBlock == 0) {
+            // There is an override and it is not already set, this is for legacy chains.
             startBlock = _startBlock;
-        } else {
+        } else if (startBlock == 0) {
             // There is no override and it is not set in storage. Set it to the block number.
+            // This is for newly deployed chains.
             startBlock = block.number;
         }
     }
