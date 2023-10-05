@@ -149,6 +149,11 @@ func (kind *RPCProviderKind) Set(value string) error {
 	return nil
 }
 
+func (kind *RPCProviderKind) Clone() any {
+	cpy := *kind
+	return &cpy
+}
+
 func ValidRPCProviderKind(value RPCProviderKind) bool {
 	for _, k := range RPCProviderKinds {
 		if k == value {

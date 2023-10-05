@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 )
 
 const (
@@ -20,6 +21,9 @@ const (
 	ColorFlagName  = "log.color"
 )
 
+// CLIFlags creates flag definitions for the logging utils.
+// Warning: flags are not safe to reuse due to an upstream urfave default-value mutation bug in GenericFlag.
+// Use cliapp.ProtectFlags(flags) to create a copy before passing it into an App if the app runs more than once.
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
 		&cli.GenericFlag{
@@ -68,7 +72,12 @@ func (fv LvlFlagValue) LogLvl() log.Lvl {
 	return log.Lvl(fv)
 }
 
-var _ cli.Generic = (*LvlFlagValue)(nil)
+func (fv *LvlFlagValue) Clone() any {
+	cpy := *fv
+	return &cpy
+}
+
+var _ cliapp.CloneableGeneric = (*LvlFlagValue)(nil)
 
 // FormatType defines a type of log format.
 // Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'
@@ -132,6 +141,13 @@ func (fv FormatFlagValue) String() string {
 func (fv FormatFlagValue) FormatType() FormatType {
 	return FormatType(fv)
 }
+
+func (fv *FormatFlagValue) Clone() any {
+	cpy := *fv
+	return &cpy
+}
+
+var _ cliapp.CloneableGeneric = (*FormatFlagValue)(nil)
 
 type CLIConfig struct {
 	Level  log.Lvl
