@@ -32,13 +32,15 @@ var (
 	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
 	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
 	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
+	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
 )
 
 type TraceType string
 
 const (
-	TraceTypeAlphabet TraceType = "alphabet"
-	TraceTypeCannon   TraceType = "cannon"
+	TraceTypeAlphabet     TraceType = "alphabet"
+	TraceTypeCannon       TraceType = "cannon"
+	TraceTypeOutputCannon TraceType = "output_cannon"
 
 	// Mainnet games
 	CannonFaultGameID = 0
@@ -47,7 +49,7 @@ const (
 	AlphabetFaultGameID = 255
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutputCannon}
 
 // GameIdToString maps game IDs to their string representation.
 var GameIdToString = map[uint8]string{
@@ -105,6 +107,9 @@ type Config struct {
 
 	// Specific to the alphabet trace provider
 	AlphabetTrace string // String for the AlphabetTraceProvider
+
+	// Specific to the output cannon trace type
+	RollupRpc string
 
 	// Specific to the cannon trace provider
 	CannonBin              string // Path to the cannon executable to run when generating trace data
@@ -167,7 +172,12 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceType == TraceTypeCannon {
+	if c.TraceType == TraceTypeOutputCannon {
+		if c.RollupRpc == "" {
+			return ErrMissingRollupRpc
+		}
+	}
+	if c.TraceType == TraceTypeCannon || c.TraceType == TraceTypeOutputCannon {
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
 		}

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"sync"
-
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -66,35 +64,6 @@ func runApi(ctx *cli.Context) error {
 	return api.Start(ctx.Context)
 }
 
-func runAll(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx))
-
-	// Ensure both processes complete before returning.
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		err := runApi(ctx)
-		if err != nil {
-			log.Error("api process non-zero exit", "err", err)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		err := runIndexer(ctx)
-		if err != nil {
-			log.Error("indexer process non-zero exit", "err", err)
-		}
-	}()
-
-	// We purposefully return no error since the indexer and api
-	// have no inter-dependencies. We simply rely on the logs to
-	// report a non-zero exit for either process.
-	wg.Wait()
-	return nil
-}
-
 func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
 	flags = append(flags, log.CLIFlags("INDEXER")...)
@@ -114,12 +83,6 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Flags:       flags,
 				Description: "Runs the indexing service",
 				Action:      runIndexer,
-			},
-			{
-				Name:        "all",
-				Flags:       flags,
-				Description: "Runs both the api service and the indexing service",
-				Action:      runAll,
 			},
 			{
 				Name:        "version",

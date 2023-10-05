@@ -11,6 +11,8 @@
     "TestCannonDisputeGame":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
     "TestCannonProposedOutputRootInvalid":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
     "TestCannonChallengeWithCorrectRoot":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
+    "TestChallengerCompleteExhaustiveDisputeGame": "TODO, this should be investigated, is probably the debug_dbGet though",
+    "TestCannonPoisonedPostState": "TODO, this should be investigated, is probably the debug_dbGet though",
     "TestMissingGasLimit": "TODO This is a new failure that should be investigated",
     "TestGethOnlyPendingBlockIsLatest": "TODO This is a new failure that should be investigated",
     "TestPreregolith": "TODO This is a new failure that should be investigated",

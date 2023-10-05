@@ -1,17 +1,14 @@
 {
   "finalSystemOwner": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
   "portalGuardian": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
-
   "l1StartingBlockTag": "0x19c7e6b18fe156e45f4cfef707294fd8f079fa9c30a7b7cd6ec1ce3682ec6a2e",
   "l1ChainID": 5,
   "l2ChainID": 998,
   "l2BlockTime": 2,
   "l1BlockTime": 12,
-
   "maxSequencerDrift": 1200,
   "sequencerWindowSize": 3600,
   "channelTimeout": 120,
-
   "p2pSequencerAddress": "0xf1a4a22a65Ff01EBB23A580146a3ED49D70c8932",
   "batchInboxAddress": "0xff00000000000000000000000000000000000998",
   "batchSenderAddress": "0xE0Fa1Cc7a0FD5bD82b9A06b08FD6C4563E6635C2",
@@ -21,32 +18,27 @@
   "l2OutputOracleProposer": "0xE06d39D4B8DC05E562353F060DED346AC4acC077",
   "l2OutputOracleChallenger": "0xE06d39D4B8DC05E562353F060DED346AC4acC077",
   "finalizationPeriodSeconds": 12,
-
   "proxyAdminOwner": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
   "baseFeeVaultRecipient": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
   "l1FeeVaultRecipient": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
   "sequencerFeeVaultRecipient": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
-
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
-
   "enableGovernance": true,
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
-
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
-
-
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10,
-
-  "systemConfigStartBlock": 8364212
+  "systemConfigStartBlock": 8364212,
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
 }

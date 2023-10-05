@@ -10,5 +10,17 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 op-bootnode:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-bootnode ./cmd
 
+clean:
+	rm -f bin/op-bootnode
+
+test:
+	go test -v ./...
+
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+
+.PHONY: \
+	op-bootnode \
+	clean \
+	test \
+	lint
