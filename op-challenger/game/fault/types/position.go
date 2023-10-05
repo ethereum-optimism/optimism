@@ -133,11 +133,11 @@ func (p Position) ToGIndex() *big.Int {
 
 // bigMSB returns the index of the most significant bit
 func bigMSB(x *big.Int) int {
-	if x.Cmp(new(big.Int)) == 0 {
+	if x.Cmp(big.NewInt(0)) == 0 {
 		return 0
 	}
 	out := 0
-	for ; x.Cmp(new(big.Int)) != 0; out++ {
+	for ; x.Cmp(big.NewInt(0)) != 0; out++ {
 		x = new(big.Int).Rsh(x, 1)
 	}
 	return out - 1

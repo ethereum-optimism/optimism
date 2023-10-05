@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +33,7 @@ func TestIsRootPosition(t *testing.T) {
 	}{
 		{
 			name:     "ZeroRoot",
-			position: NewPositionFromGIndex(common.Big0),
+			position: NewPositionFromGIndex(big.NewInt(0)),
 			expected: true,
 		},
 		{
