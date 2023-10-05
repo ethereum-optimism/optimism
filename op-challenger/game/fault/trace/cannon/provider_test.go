@@ -1,6 +1,7 @@
 package cannon
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	_ "embed"
@@ -219,7 +220,7 @@ func TestGetStepData(t *testing.T) {
 func TestAbsolutePreState(t *testing.T) {
 	dataDir := t.TempDir()
 
-	prestate := "state.json"
+	prestate := "state.bin"
 
 	t.Run("StateUnavailable", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, "/dir/does/not/exist", prestate)
@@ -228,30 +229,39 @@ func TestAbsolutePreState(t *testing.T) {
 	})
 
 	t.Run("InvalidStateFile", func(t *testing.T) {
-		setupPreState(t, dataDir, "invalid.json")
+		setupPreState(t, dataDir, "invalid.bin")
 		provider, _ := setupWithTestData(t, dataDir, prestate)
 		_, err := provider.AbsolutePreState(context.Background())
 		require.ErrorContains(t, err, "invalid mipsevm state")
 	})
 
 	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
-		setupPreState(t, dataDir, "state.json")
+		setupPreState(t, dataDir, "state.bin")
 		provider, _ := setupWithTestData(t, dataDir, prestate)
 		preState, err := provider.AbsolutePreState(context.Background())
 		require.NoError(t, err)
-		state := mipsevm.State{
+		state := &mipsevm.State{
 			Memory:         mipsevm.NewMemory(),
-			PreimageKey:    common.HexToHash("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
-			PreimageOffset: 0,
-			PC:             0,
-			NextPC:         1,
-			LO:             0,
-			HI:             0,
-			Heap:           0,
-			ExitCode:       0,
-			Exited:         false,
-			Step:           0,
-			Registers:      [32]uint32{},
+			PreimageKey:    common.Hash{0xFF},
+			PreimageOffset: 5,
+			PC:             0xFF,
+			NextPC:         0xFF + 4,
+			LO:             0xbeef,
+			HI:             0xbabe,
+			Heap:           0xc0ffee,
+			ExitCode:       1,
+			Exited:         true,
+			Step:           0xdeadbeef,
+			Registers: [32]uint32{
+				0xdeadbeef,
+				0xdeadbeef,
+				0xc0ffee,
+				0xbeefbabe,
+				0xdeadc0de,
+				0xbadc0de,
+				0xdeaddead,
+			},
+			LastHint: nil,
 		}
 		require.Equal(t, []byte(state.EncodeWitness()), preState)
 	})
@@ -262,7 +272,7 @@ func setupPreState(t *testing.T, dataDir string, filename string) {
 	path := filepath.Join(srcDir, filename)
 	file, err := testData.ReadFile(path)
 	require.NoErrorf(t, err, "reading %v", path)
-	err = os.WriteFile(filepath.Join(dataDir, "state.json"), file, 0o644)
+	err = os.WriteFile(filepath.Join(dataDir, "state.bin"), file, 0o644)
 	require.NoErrorf(t, err, "writing %v", path)
 }
 
@@ -279,7 +289,7 @@ func setupTestData(t *testing.T) (string, string) {
 		err = writeGzip(filepath.Join(dataDir, proofsDir, entry.Name()+".gz"), file)
 		require.NoErrorf(t, err, "writing %v", path)
 	}
-	return dataDir, "state.json"
+	return dataDir, "state.bin"
 }
 
 func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTraceProvider, *stubGenerator) {
@@ -303,11 +313,11 @@ func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64)
 	e.generated = append(e.generated, int(i))
 	if e.finalState != nil && e.finalState.Step <= i {
 		// Requesting a trace index past the end of the trace
-		data, err := json.Marshal(e.finalState)
-		if err != nil {
+		data := new(bytes.Buffer)
+		if err := e.finalState.Serialize(data); err != nil {
 			return err
 		}
-		return writeGzip(filepath.Join(dir, finalState), data)
+		return writeGzip(filepath.Join(dir, finalState), data.Bytes())
 	}
 	if e.proof != nil {
 		proofFile := filepath.Join(dir, proofsDir, fmt.Sprintf("%d.json.gz", i))

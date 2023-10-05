@@ -27,7 +27,7 @@ func TestLoadState(t *testing.T) {
 		expected := &mipsevm.State{}
 		err = expected.Deserialize(bytes.NewReader(testState))
 		require.NoError(t, err)
-		require.Equal(t, expected, state)
+		require.EqualValues(t, expected, state)
 	})
 
 	t.Run("Gzipped", func(t *testing.T) {
@@ -47,6 +47,6 @@ func TestLoadState(t *testing.T) {
 		expected := &mipsevm.State{}
 		err = expected.Deserialize(bytes.NewReader(testState))
 		require.NoError(t, err)
-		require.Equal(t, expected, state)
+		require.EqualValues(t, expected, state)
 	})
 }
