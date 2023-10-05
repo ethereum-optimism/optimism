@@ -1528,7 +1528,7 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 
 	// wait for the required protocol version to take effect by halting the verifier that opted in, and halting the op-geth node that opted in.
 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
-		if !sys.RollupNodes["verifier"].Closed() {
+		if !sys.RollupNodes["verifier"].Stopped() {
 			return struct{}{}, errors.New("verifier rollup node is not closed yet")
 		}
 		return struct{}{}, nil
