@@ -119,7 +119,7 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--miner.gaslimit", strconv.FormatUint(config.GasCeil, 10),
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
-		"--http.api", "eth,debug,net,engine,erigon,web3",
+		"--http.api", "eth,debug,net,engine,erigon,web3,txpool",
 		"--private.api.addr=127.0.0.1:0",
 		"--allow-insecure-unlock",
 		"--authrpc.addr=127.0.0.1",
