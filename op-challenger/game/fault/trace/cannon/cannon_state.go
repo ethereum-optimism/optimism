@@ -14,7 +14,7 @@ func parseState(path string) (*mipsevm.State, error) {
 	}
 	defer file.Close()
 	var state mipsevm.State
-	state.Deserialize(file)
+	err = state.Deserialize(file)
 	if err != nil {
 		return nil, fmt.Errorf("invalid mipsevm state (%v): %w", path, err)
 	}

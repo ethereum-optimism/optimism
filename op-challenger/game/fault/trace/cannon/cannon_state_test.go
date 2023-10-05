@@ -25,7 +25,8 @@ func TestLoadState(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := &mipsevm.State{}
-		expected.Deserialize(bytes.NewReader(testState))
+		err = expected.Deserialize(bytes.NewReader(testState))
+		require.NoError(t, err)
 		require.Equal(t, expected, state)
 	})
 
@@ -44,7 +45,8 @@ func TestLoadState(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := &mipsevm.State{}
-		expected.Deserialize(bytes.NewReader(testState))
+		err = expected.Deserialize(bytes.NewReader(testState))
+		require.NoError(t, err)
 		require.Equal(t, expected, state)
 	})
 }

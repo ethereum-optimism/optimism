@@ -232,9 +232,13 @@ func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
 func (m *Memory) Serialize(out io.Writer) error {
 	for k, p := range m.pages {
 		// Write the page index as a big endian uint32
-		binary.Write(out, binary.BigEndian, k)
+		if err := binary.Write(out, binary.BigEndian, k); err != nil {
+			return err
+		}
 		// Write the length of the page data as a big endian uint32
-		binary.Write(out, binary.BigEndian, uint32(len(p.Data)))
+		if err := binary.Write(out, binary.BigEndian, uint32(len(p.Data))); err != nil {
+			return err
+		}
 		// Write the page data
 		n, err := out.Write(p.Data[:])
 		if err != nil {
