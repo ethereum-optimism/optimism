@@ -1,9 +1,9 @@
 package cannon
 
 import (
+	"bytes"
 	"compress/gzip"
 	_ "embed"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,26 +12,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//go:embed test_data/state.json
+//go:embed test_data/state.bin
 var testState []byte
 
 func TestLoadState(t *testing.T) {
 	t.Run("Uncompressed", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "state.json")
+		path := filepath.Join(dir, "state.bin")
 		require.NoError(t, os.WriteFile(path, testState, 0644))
 
 		state, err := parseState(path)
 		require.NoError(t, err)
 
-		var expected mipsevm.State
-		require.NoError(t, json.Unmarshal(testState, &expected))
-		require.Equal(t, &expected, state)
+		expected := &mipsevm.State{}
+		expected.Deserialize(bytes.NewReader(testState))
+		require.Equal(t, expected, state)
 	})
 
 	t.Run("Gzipped", func(t *testing.T) {
 		dir := t.TempDir()
-		path := filepath.Join(dir, "state.json.gz")
+		path := filepath.Join(dir, "state.bin.gz")
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0644)
 		require.NoError(t, err)
 		defer f.Close()
@@ -43,8 +43,8 @@ func TestLoadState(t *testing.T) {
 		state, err := parseState(path)
 		require.NoError(t, err)
 
-		var expected mipsevm.State
-		require.NoError(t, json.Unmarshal(testState, &expected))
-		require.Equal(t, &expected, state)
+		expected := &mipsevm.State{}
+		expected.Deserialize(bytes.NewReader(testState))
+		require.Equal(t, expected, state)
 	})
 }

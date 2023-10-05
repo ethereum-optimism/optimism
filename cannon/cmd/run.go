@@ -21,16 +21,16 @@ import (
 var (
 	RunInputFlag = &cli.PathFlag{
 		Name:      "input",
-		Usage:     "path of input JSON state. Stdin if left empty.",
+		Usage:     "path of input binary state. Stdin if left empty.",
 		TakesFile: true,
 		Value:     "state.bin.gz",
 		Required:  true,
 	}
 	RunOutputFlag = &cli.PathFlag{
 		Name:      "output",
-		Usage:     "path of output JSON state. Not written if empty, use - to write to Stdout.",
+		Usage:     "path of output binary state. Not written if empty, use - to write to Stdout.",
 		TakesFile: true,
-		Value:     "out.json",
+		Value:     "out.bin.gz",
 		Required:  false,
 	}
 	patternHelp    = "'never' (default), 'always', '=123' at exactly step 123, '%123' for every 123 steps"

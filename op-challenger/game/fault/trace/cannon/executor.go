@@ -162,7 +162,7 @@ func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 			logger.Warn("Unexpected file in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
-		index, err := strconv.ParseUint(name[0:len(name)-len(".bin")], 10, 64)
+		index, err := strconv.ParseUint(name[0:len(name)-len(".bin.gz")], 10, 64)
 		if err != nil {
 			logger.Error("Unable to parse trace index of snapshot file", "parent", snapDir, "child", entry.Name())
 			continue
@@ -174,7 +174,7 @@ func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 	if bestSnap == 0 {
 		return absolutePreState, nil
 	}
-	startFrom := fmt.Sprintf("%v/%v.bin", snapDir, bestSnap)
+	startFrom := fmt.Sprintf("%v/%v.bin.gz", snapDir, bestSnap)
 
 	return startFrom, nil
 }

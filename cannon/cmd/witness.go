@@ -11,7 +11,7 @@ import (
 var (
 	WitnessInputFlag = &cli.PathFlag{
 		Name:      "input",
-		Usage:     "path of input JSON state.",
+		Usage:     "path of input binary state.",
 		TakesFile: true,
 		Required:  true,
 	}
@@ -46,8 +46,8 @@ func Witness(ctx *cli.Context) error {
 
 var WitnessCommand = &cli.Command{
 	Name:        "witness",
-	Usage:       "Convert a Cannon JSON state into a binary witness",
-	Description: "Convert a Cannon JSON state into a binary witness. The hash of the witness is written to stdout",
+	Usage:       "Convert a Cannon binary state into a binary witness",
+	Description: "Convert a Cannon binary state into a binary witness. The hash of the witness is written to stdout",
 	Action:      Witness,
 	Flags: []cli.Flag{
 		WitnessInputFlag,
