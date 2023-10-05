@@ -5,9 +5,10 @@
 **Table of Contents**
 
 - [System config contents (version 0)](#system-config-contents-version-0)
-  - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [`overhead` and `scalar` (`uint256,uint256`)](#overhead-and-scalar-uint256uint256)
   - [`gasLimit` (`uint64`)](#gaslimit-uint64)
+  - [Sequencer key pair](#sequencer-key-pair)
+  - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
 - [Reading the system config](#reading-the-system-config)
@@ -21,6 +22,22 @@ The rollup [block derivation process](./derivation.md) picks up on these log eve
 
 Version 0 of the system configuration contract defines the following parameters:
 
+### `overhead` and `scalar` (`uint256,uint256`)
+
+The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters,
+are updated in conjunction and apply new L1 costs to the L2 transactions.
+
+### `gasLimit` (`uint64`)
+
+The gas limit of the L2 blocks is configured through the system config.
+
+### Sequencer key pair
+
+A sequencer is identified by a pair of values, the `batcherHash` and `unsafeBlockSigner`. These
+values are written simulataneously to the system config contract via the `setSequencer()` method,
+which will revert unless the key pair in included in the [superchain config](./superchain_config.md)
+contract's `allowedSequencers` mapping.
+
 ### `batcherHash` (`bytes32`)
 
 A versioned hash of the current authorized batcher sender(s), to rotate keys as batch-submitter.
@@ -30,15 +47,6 @@ Version `0` embeds the current batch submitter ethereum address (`bytes20`) in t
 
 In the future this versioned hash may become a commitment to a more extensive configuration,
 to enable more extensive redundancy and/or rotation configurations.
-
-### `overhead` and `scalar` (`uint256,uint256`)
-
-The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters,
-are updated in conjunction and apply new L1 costs to the L2 transactions.
-
-### `gasLimit` (`uint64`)
-
-The gas limit of the L2 blocks is configured through the system config.
 Changes to the L2 gas limit are fully applied in the first L2 block with the L1 origin that introduced the change,
 as opposed to the 1/1024 adjustments towards a target as seen in limit updates of L1 blocks.
 
