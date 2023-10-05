@@ -184,7 +184,7 @@ contract OptimismPortal_CannotProveWhenPaused is OptimismPortal_Invariant_Harnes
 
         // Pause the system
         vm.prank(supConf.guardian());
-        supConf.pause(100);
+        supConf.pause(100, "identifier");
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
@@ -212,7 +212,7 @@ contract OptimismPortal_CannotFinalizeWhenPaused is OptimismPortal_Invariant_Har
 
         // Pause the system
         vm.prank(supConf.guardian());
-        supConf.pause(100);
+        supConf.pause(100, "identifier");
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization

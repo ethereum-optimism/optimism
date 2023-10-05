@@ -92,7 +92,8 @@ contract SuperchainConfig_Initializer is CommonTest {
     SuperchainConfig supConf;
     SuperchainConfig SuperchainConfigImpl;
 
-    event Paused();
+    event Paused(uint256 duration, string identifier);
+    event PauseExtended(uint256 duration, string identifier);
     event Unpaused();
     event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
 

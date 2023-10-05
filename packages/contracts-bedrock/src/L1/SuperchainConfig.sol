@@ -67,7 +67,14 @@ contract SuperchainConfig is Initializable, ISemver {
     mapping(bytes32 => bool) public allowedSequencers;
 
     /// @notice Emitted when the pause is triggered.
-    event Paused();
+    /// @param duration The duration of the pause.
+    /// @param identifier A string helping to identify provenance of the pause transaction.
+    event Paused(uint256 duration, string identifier);
+
+    /// @notice Emitted when an active pause is extended.
+    /// @param duration The duration of the pause.
+    /// @param identifier A string helping to identify provenance of the pause transaction.
+    event PauseExtended(uint256 duration, string identifier);
 
     /// @notice Emitted when the pause is lifted.
     event Unpaused();
@@ -168,11 +175,15 @@ contract SuperchainConfig is Initializable, ISemver {
     }
 
     /// @notice Pauses withdrawals.
-    function pause(uint256 duration) external {
+    /// @param duration The duration of the pause.
+    /// @param identifier (Optional) A string to identify provenance of the pause transaction.
+    function pause(uint256 duration, string memory identifier) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
-        emit Paused();
         require(duration <= Storage.getUint(MAX_PAUSE_SLOT), "SuperchainConfig: duration exceeds maxPause");
+
         Storage.setUint(PAUSED_TIME_SLOT, uint256(block.timestamp) + duration);
+        emit Paused(duration, identifier);
+    }
     }
 
     /// @notice Unpauses withdrawals.
