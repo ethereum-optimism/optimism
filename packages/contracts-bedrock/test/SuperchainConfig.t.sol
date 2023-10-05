@@ -24,7 +24,7 @@ contract SuperchainConfig_Init_Test is SuperchainConfig_Initializer {
         assertEq(supConf.guardian(), guardian);
         assertEq(supConf.delay(), delay);
         assertEq(supConf.maxPause(), maxPause);
-        assertEq(supConf.paused(), false);
+        assertFalse(supConf.paused());
         bytes32 sequencerHash = Hashing.hashSequencerKeyPair(dummySequencer);
         assertEq(supConf.allowedSequencers(sequencerHash), true);
         assertEq(supConf.isAllowedSequencer(dummySequencer), true);
@@ -34,28 +34,34 @@ contract SuperchainConfig_Init_Test is SuperchainConfig_Initializer {
 contract SuperchainConfig_Pause_TestFail is SuperchainConfig_Initializer {
     /// @dev Tests that `pause` reverts when called by a non-GUARDIAN.
     function test_pause_notGuardian_reverts() external {
-        assertEq(supConf.paused(), false);
+        assertFalse(supConf.paused());
 
         assertTrue(supConf.guardian() != alice);
         vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
         supConf.pause(100, "identifier");
 
-        assertEq(supConf.paused(), false);
+        assertFalse(supConf.paused());
     }
 
-    /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
-    function test_unpause_notGuardian_reverts() external {
+    /// @dev Tests that `pause` reverts when the system is already paused.
+    function test_pause_alreadyPaused_reverts() external {
+        _pause();
+
+        vm.expectRevert("SuperchainConfig: system is already paused");
         vm.prank(guardian);
         supConf.pause(100, "identifier");
-        assertEq(supConf.paused(), true);
 
-        assertTrue(supConf.guardian() != alice);
-        vm.expectRevert("SuperchainConfig: only guardian can unpause");
-        vm.prank(alice);
-        supConf.unpause();
+        assertTrue(supConf.paused());
+    }
 
-        assertEq(supConf.paused(), true);
+    /// @dev Tests that `pause` reverts when the duration is greater than the max pause.
+    function test_pause_durationGreaterThanMaxPause_reverts() external {
+        vm.expectRevert("SuperchainConfig: duration exceeds maxPause");
+        vm.prank(guardian);
+        supConf.pause(maxPause + 1, "identifier");
+
+        assertFalse(supConf.paused());
     }
 }
 
@@ -63,7 +69,7 @@ contract SuperchainConfig_Pause_Test is SuperchainConfig_Initializer {
     /// @dev Tests that `pause` successfully pauses
     ///      when called by the GUARDIAN.
     function test_pause_succeeds() external {
-        assertEq(supConf.paused(), false);
+        assertFalse(supConf.paused());
 
         vm.expectEmit(address(supConf));
         emit Paused(100, "identifier");
@@ -71,33 +77,99 @@ contract SuperchainConfig_Pause_Test is SuperchainConfig_Initializer {
         vm.prank(guardian);
         supConf.pause(100, "identifier");
 
-        assertEq(supConf.paused(), true);
+        assertTrue(supConf.paused());
         assertEq(supConf.pausedUntil(), block.timestamp + 100);
     }
 
-    /// @dev Tests that `pause` successfully unpauses automatically after 1 week
-    function test_pause_unpauses_succeeds() external {
-        vm.prank(guardian);
-        supConf.pause(100, "identifier");
-        assertEq(supConf.paused(), true);
+    /// @dev Tests that `pause` automatially unpauses after the duration has passed
+    function test_pause_thaws_succeeds() external {
+        _pause();
 
-        vm.warp(block.timestamp + 1 weeks);
+        vm.warp(block.timestamp + 100);
         assertFalse(supConf.paused());
     }
+}
 
+contract SuperchainConfig_Unpause_TestFail is SuperchainConfig_Initializer {
+    /// @dev Tests that `unpause` reverts when called by a non-GUARDIAN.
+    function test_unpause_notGuardian_reverts() external {
+        _pause();
+
+        assertTrue(supConf.guardian() != alice);
+        vm.expectRevert("SuperchainConfig: only guardian can unpause");
+        vm.prank(alice);
+        supConf.unpause();
+
+        assertTrue(supConf.paused());
+    }
+}
+
+contract SuperchainConfig_Unpause_Test is SuperchainConfig_Initializer {
     /// @dev Tests that `unpause` successfully unpauses
     ///      when called by the GUARDIAN.
     function test_unpause_succeeds() external {
-        vm.prank(guardian);
-        supConf.pause(100, "identifier");
-        assertEq(supConf.paused(), true);
+        _pause();
 
-        vm.expectEmit(true, true, true, true, address(supConf));
+        vm.expectEmit(address(supConf));
         emit Unpaused();
         vm.prank(guardian);
         supConf.unpause();
 
-        assertEq(supConf.paused(), false);
+        assertFalse(supConf.paused());
+    }
+}
+
+contract SuperchainConfig_ExtendPause_TestFail is SuperchainConfig_Initializer {
+    /// @dev Tests that `extendPause` reverts when called by a non-GUARDIAN.
+    function test_extendPause_notGuardian_reverts() external {
+        _pause();
+
+        assertTrue(supConf.guardian() != alice);
+        vm.expectRevert("SuperchainConfig: only guardian can extend the pause");
+        vm.prank(alice);
+        supConf.extendPause(100, "identifier");
+
+        assertTrue(supConf.paused());
+    }
+
+    /// @dev Tests that `extendPause` reverts when the system is not paused.
+    function test_extendPause_notPaused_reverts() external {
+        assertFalse(supConf.paused());
+
+        vm.expectRevert("SuperchainConfig: system is not paused");
+        vm.prank(guardian);
+        supConf.extendPause(100, "identifier");
+
+        assertFalse(supConf.paused());
+    }
+
+    /// @dev Tests that `extendPause` reverts when the duration is greater than the max pause.
+    function test_extendPause_durationGreaterThanMaxPause_reverts() external {
+        _pause();
+
+        vm.expectRevert("SuperchainConfig: duration exceeds maxPause");
+        vm.prank(guardian);
+        supConf.extendPause(maxPause + 1, "identifier");
+
+        assertTrue(supConf.paused());
+    }
+}
+
+contract SuperchainConfig_ExtendPause_Test is SuperchainConfig_Initializer {
+    /// @dev Tests that `extendPause` successfully extends the pause by the duration
+    ///      when called by the GUARDIAN.
+    function test_extendPause_succeeds() external {
+        _pause();
+
+        uint256 pausedUntilBefore = supConf.pausedUntil();
+        vm.expectEmit(address(supConf));
+        emit PauseExtended(200, "identifier");
+
+        vm.prank(guardian);
+        supConf.extendPause(200, "identifier");
+
+        assertTrue(supConf.paused());
+        assertEq(pausedUntilBefore + 200, supConf.pausedUntil());
     }
 }
 

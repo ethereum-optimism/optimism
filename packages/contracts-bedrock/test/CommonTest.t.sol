@@ -105,6 +105,13 @@ contract SuperchainConfig_Initializer is CommonTest {
     uint256 maxPause = 1 weeks;
     Types.SequencerKeyPair dummySequencer;
 
+    /// @dev A helper function to pause the contract for further testing.
+    function _pause() internal {
+        vm.prank(guardian);
+        supConf.pause(100, "identifier");
+        assertEq(supConf.paused(), true);
+    }
+
     function setUp() public virtual override {
         super.setUp();
         dummySequencer =
