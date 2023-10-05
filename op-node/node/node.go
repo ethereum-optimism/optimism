@@ -135,12 +135,8 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
-	if err := n.initHeartbeat(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init the heartbeat service: %w", err)
-	}
-	if err := n.initPProf(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init pprof server: %w", err)
-	}
+	n.initHeartbeat(cfg)
+	n.initPProf(cfg)
 	return nil
 }
 
@@ -257,18 +253,20 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 				// If the reload fails, we will try again the next interval.
 				// Missing a runtime-config update is not critical, and we do not want to overwhelm the L1 RPC.
 				l1Head, err := reload(ctx)
-				switch err {
-				case errNodeHalt, nil:
-					n.log.Debug("reloaded runtime config", "l1_head", l1Head)
-					if err == errNodeHalt {
+				if err != nil {
+					if errors.Is(err, errNodeHalt) {
 						n.halted = true
-						if n.cancel != nil {
+						if n.cancel != nil { // node cancellation is always available when started as CLI app
 							n.cancel(errNodeHalt)
+							return
+						} else {
+							n.log.Debug("opted to halt, but cannot halt node", "l1_head", l1Head)
 						}
-						return
+					} else {
+						n.log.Warn("failed to reload runtime config", "err", err)
 					}
-				default:
-					n.log.Warn("failed to reload runtime config", "err", err)
+				} else {
+					n.log.Debug("reloaded runtime config", "l1_head", l1Head)
 				}
 			case <-ctx.Done():
 				return
@@ -357,9 +355,9 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initHeartbeat(_ context.Context, cfg *Config) error {
+func (n *OpNode) initHeartbeat(cfg *Config) {
 	if !cfg.Heartbeat.Enabled {
-		return nil
+		return
 	}
 	var peerID string
 	if cfg.P2P.Disabled() {
@@ -381,12 +379,11 @@ func (n *OpNode) initHeartbeat(_ context.Context, cfg *Config) error {
 			log.Error("heartbeat goroutine crashed", "err", err)
 		}
 	}(cfg.Heartbeat.URL)
-	return nil
 }
 
-func (n *OpNode) initPProf(_ context.Context, cfg *Config) error {
+func (n *OpNode) initPProf(cfg *Config) {
 	if !cfg.Pprof.Enabled {
-		return nil
+		return
 	}
 	log.Info("pprof server started", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
 	go func(listenAddr string, listenPort int) {
@@ -394,7 +391,6 @@ func (n *OpNode) initPProf(_ context.Context, cfg *Config) error {
 			log.Error("error starting pprof", "err", err)
 		}
 	}(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
-	return nil
 }
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {

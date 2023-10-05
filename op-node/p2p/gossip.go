@@ -383,9 +383,9 @@ type publisher struct {
 	log log.Logger
 	cfg *rollup.Config
 
-	// p2pCtx is used for downstream message-handling resources,
-	// these can be cancelled without blocking.
-	p2pCtx    context.Context
+	// p2pCancel cancels the downstream gossip event-handling functions, independent of the sources.
+	// A closed gossip event source (event handler or subscription) does not stop any open event iteration,
+	// thus we have to stop it ourselves this way.
 	p2pCancel context.CancelFunc
 
 	// blocks topic, main handle on block gossip
@@ -475,7 +475,6 @@ func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Con
 		blocksTopic:  blocksTopic,
 		blocksEvents: blocksTopicEvents,
 		blocksSub:    subscription,
-		p2pCtx:       p2pCtx,
 		p2pCancel:    p2pCancel,
 		runCfg:       runCfg,
 	}, nil
