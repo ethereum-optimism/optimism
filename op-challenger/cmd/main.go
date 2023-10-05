@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -70,7 +71,7 @@ func run(args []string, action ConfigAction) error {
 		}
 	}
 
-	app.Flags = flags.Flags
+	app.Flags = cliapp.ProtectFlags(flags.Flags)
 	app.Name = "op-challenger"
 	app.Usage = "Challenge outputs"
 	app.Description = "Ensures that on chain outputs are correct."

@@ -170,6 +170,14 @@ func (a *TextFlag[T]) Get() T {
 	return a.Value
 }
 
+func (a *TextFlag[T]) Clone() any {
+	var out TextFlag[T]
+	if err := out.Set(a.String()); err != nil {
+		panic(fmt.Errorf("cannot clone invalid text value: %w", err))
+	}
+	return &out
+}
+
 var _ cli.Generic = (*TextFlag[*common.Address])(nil)
 
 func textFlag[T Text](name string, usage string, value T) *cli.GenericFlag {
