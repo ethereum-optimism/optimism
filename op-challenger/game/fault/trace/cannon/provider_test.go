@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -34,6 +35,14 @@ func TestGet(t *testing.T) {
 		value, err := provider.Get(context.Background(), PositionFromTraceIndex(provider, common.Big0))
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x45fd9aa59768331c726e719e76aa343e73123af888804604785ae19506e65e87"), value)
+		require.Empty(t, generator.generated)
+	})
+
+	t.Run("ErrorsTraceIndexOutOfBounds", func(t *testing.T) {
+		provider, generator := setupWithTestData(t, dataDir, prestate)
+		largePosition := PositionFromTraceIndex(provider, new(big.Int).Mul(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(2)))
+		_, err := provider.Get(context.Background(), largePosition)
+		require.ErrorContains(t, err, "trace index out of bounds")
 		require.Empty(t, generator.generated)
 	})
 
@@ -81,6 +90,15 @@ func TestGetStepData(t *testing.T) {
 		require.Equal(t, expectedProof, proof)
 		// TODO: Need to add some oracle data
 		require.Nil(t, data)
+		require.Empty(t, generator.generated)
+	})
+
+	t.Run("ErrorsTraceIndexOutOfBounds", func(t *testing.T) {
+		dataDir, prestate := setupTestData(t)
+		provider, generator := setupWithTestData(t, dataDir, prestate)
+		largePosition := PositionFromTraceIndex(provider, new(big.Int).Mul(new(big.Int).SetUint64(math.MaxUint64), big.NewInt(2)))
+		_, _, _, err := provider.GetStepData(context.Background(), largePosition)
+		require.ErrorContains(t, err, "trace index out of bounds")
 		require.Empty(t, generator.generated)
 	})
 

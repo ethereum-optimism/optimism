@@ -74,7 +74,7 @@ func (c *ClaimBuilder) claim(pos types.Position, correct bool) common.Hash {
 }
 
 func (c *ClaimBuilder) CreateRootClaim(correct bool) types.Claim {
-	value := c.claim(types.NewPositionFromGIndex(1), correct)
+	value := c.claim(types.NewPositionFromGIndex(big.NewInt(1)), correct)
 	claim := types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    value,

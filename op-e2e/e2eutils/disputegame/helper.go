@@ -38,7 +38,7 @@ const alphabetGameDepth = 4
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
 
 // rootPosition is the position of the root claim.
-var rootPosition = faultTypes.NewPositionFromGIndex(1)
+var rootPosition = faultTypes.NewPositionFromGIndex(big.NewInt(1))
 
 type Status uint8
 

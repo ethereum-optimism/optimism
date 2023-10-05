@@ -1,6 +1,7 @@
 package types
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -32,17 +33,17 @@ func TestIsRootPosition(t *testing.T) {
 	}{
 		{
 			name:     "ZeroRoot",
-			position: NewPositionFromGIndex(0),
+			position: NewPositionFromGIndex(big.NewInt(0)),
 			expected: true,
 		},
 		{
 			name:     "ValidRoot",
-			position: NewPositionFromGIndex(1),
+			position: NewPositionFromGIndex(big.NewInt(1)),
 			expected: true,
 		},
 		{
 			name:     "NotRoot",
-			position: NewPositionFromGIndex(2),
+			position: NewPositionFromGIndex(big.NewInt(2)),
 			expected: false,
 		},
 	}
@@ -54,7 +55,7 @@ func TestIsRootPosition(t *testing.T) {
 	}
 }
 
-func buildClaim(gindex uint64, parentGIndex uint64) Claim {
+func buildClaim(gindex *big.Int, parentGIndex *big.Int) Claim {
 	return Claim{
 		ClaimData: ClaimData{
 			Position: NewPositionFromGIndex(gindex),
@@ -73,32 +74,32 @@ func TestDefendsParent(t *testing.T) {
 	}{
 		{
 			name:     "LeftChildAttacks",
-			claim:    buildClaim(2, 1),
+			claim:    buildClaim(big.NewInt(2), big.NewInt(1)),
 			expected: false,
 		},
 		{
 			name:     "RightChildDoesntDefend",
-			claim:    buildClaim(3, 1),
+			claim:    buildClaim(big.NewInt(3), big.NewInt(1)),
 			expected: false,
 		},
 		{
 			name:     "SubChildDoesntDefend",
-			claim:    buildClaim(4, 1),
+			claim:    buildClaim(big.NewInt(4), big.NewInt(1)),
 			expected: false,
 		},
 		{
 			name:     "SubSecondChildDoesntDefend",
-			claim:    buildClaim(5, 1),
+			claim:    buildClaim(big.NewInt(5), big.NewInt(1)),
 			expected: false,
 		},
 		{
 			name:     "RightLeftChildDefendsParent",
-			claim:    buildClaim(6, 1),
+			claim:    buildClaim(big.NewInt(6), big.NewInt(1)),
 			expected: true,
 		},
 		{
 			name:     "SubThirdChildDefends",
-			claim:    buildClaim(7, 1),
+			claim:    buildClaim(big.NewInt(7), big.NewInt(1)),
 			expected: true,
 		},
 	}

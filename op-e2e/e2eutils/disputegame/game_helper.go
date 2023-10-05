@@ -128,7 +128,7 @@ func (g *FaultGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) com
 func (g *FaultGameHelper) GetClaimPosition(ctx context.Context, claimIdx int64) types.Position {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
-	return types.NewPositionFromGIndex(claim.Position.Uint64())
+	return types.NewPositionFromGIndex(claim.Position)
 }
 
 // getClaim retrieves the claim data for a specific index.
@@ -143,7 +143,7 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 
 // getClaimPosition retrieves the [types.Position] of a claim at a specific index.
 func (g *FaultGameHelper) getClaimPosition(ctx context.Context, claimIdx int64) types.Position {
-	return types.NewPositionFromGIndex(g.getClaim(ctx, claimIdx).Position.Uint64())
+	return types.NewPositionFromGIndex(g.getClaim(ctx, claimIdx).Position)
 }
 
 func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
@@ -151,7 +151,7 @@ func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
 		ctx,
 		fmt.Sprintf("Could not find claim depth %v", depth),
 		func(claim ContractClaim) bool {
-			pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+			pos := types.NewPositionFromGIndex(claim.Position)
 			return pos.Depth() == depth
 		})
 }
@@ -162,7 +162,7 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 		ctx,
 		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
 		func(claim ContractClaim) bool {
-			pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+			pos := types.NewPositionFromGIndex(claim.Position)
 			return int64(pos.Depth()) == maxDepth && claim.Countered == countered
 		})
 }
@@ -380,7 +380,7 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 		claim, err := g.game.ClaimData(opts, big.NewInt(i))
 		g.require.NoErrorf(err, "Fetch claim %v", i)
 
-		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+		pos := types.NewPositionFromGIndex(claim.Position)
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
 			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex)
 	}
