@@ -30,6 +30,6 @@
   "src/periphery/op-nft/OptimistInviter.sol": "0xfdd5b9d45205ef9372ba37f7a6394724695e676d27a47cb154ee6e4148490013",
   "src/universal/OptimismMintableERC20.sol": "0x17fe6e955dc7e9e480e57bc62c227206838b204dcb660b8cb8f6f217319a22ba",
   "src/universal/OptimismMintableERC20Factory.sol": "0x684a9445515e3797722b211e2c0d6a94b6244d6fa028cd2825a31538ef2dc59c",
-  "src/universal/OptimismMintableERC721.sol": "0x49dc863caf3e002bf0c90b3af3873990fb282771f4c63735fd61a885b7873983",
-  "src/universal/OptimismMintableERC721Factory.sol": "0x502438b009bfaf0ab187914662468261f10446fd85d44a79b29cdaef7b4982ba"
+  "src/universal/OptimismMintableERC721.sol": "0x4c73bf8474fa7eb091796a4db7e57bc5f26d50a3d1cfcb78d5efa47ced5ced2b",
+  "src/universal/OptimismMintableERC721Factory.sol": "0x935fd97018b6ef10fa813d9d43ab7a77c80885f7a8d7feb430097645cb2abd2c"
 }
