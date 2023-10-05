@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 )
 
 // RPCErrFaker implements an RPC by wrapping one, but returns an error when prepared with one, to test RPC error handling.

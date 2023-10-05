@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -34,7 +34,7 @@ type OutputTraceProvider struct {
 }
 
 func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, gameDepth, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
-	rollupClient, err := client.DialRollupClientWithTimeout(client.DefaultDialTimeout, logger, rollupRpc)
+	rollupClient, err := dial.DialRollupClientWithTimeout(dial.DefaultDialTimeout, logger, rollupRpc)
 	if err != nil {
 		return nil, err
 	}

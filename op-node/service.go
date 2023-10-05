@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
