@@ -5,6 +5,7 @@ import (
 	"math"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 
 	"github.com/urfave/cli/v2"
 )
@@ -25,19 +26,9 @@ func DefaultCLIConfig() CLIConfig {
 	}
 }
 
-type FlagValue string
-
-func (fv FlagValue) Set(value string) error {
-	*(*string)(&fv) = value
-	return nil
-}
-
-func (fv FlagValue) String() string {
-	return string(fv)
-}
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		&cli.GenericFlag{
+		&cli.BoolFlag{
 			Name:    EnabledFlagName,
 			Usage:   "Enable the metrics server",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ENABLED"),
@@ -45,17 +36,39 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.GenericFlag{
 			Name:    ListenAddrFlagName,
 			Usage:   "Metrics listening address",
-			Value:   FlagValue(defaultListenAddr), // TODO(CLI-4159): Switch to 127.0.0.1
+			Value:   NewFlagValue(defaultListenAddr), // TODO(CLI-4159): Switch to 127.0.0.1
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ADDR"),
 		},
 		&cli.GenericFlag{
 			Name:    PortFlagName,
 			Usage:   "Metrics listening port",
-			Value:   FlagValue(defaultListenAddr),
+			Value:   NewFlagValue(defaultListenAddr),
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_PORT"),
 		},
 	}
 }
+
+type FlagValue string
+
+func NewFlagValue(s string) *FlagValue {
+	return (*FlagValue)(&s)
+}
+
+func (fv *FlagValue) Set(value string) error {
+	*(*string)(fv) = value
+	return nil
+}
+
+func (fv FlagValue) String() string {
+	return string(fv)
+}
+
+func (fv *FlagValue) Clone() any {
+	cpy := *fv
+	return &cpy
+}
+
+var _ cliapp.CloneableGeneric = (*FlagValue)(nil)
 
 type CLIConfig struct {
 	Enabled    bool
