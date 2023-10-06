@@ -12,6 +12,7 @@ import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title OptimismPortal
@@ -98,8 +99,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.9.1
-    string public constant version = "1.9.1";
+    /// @custom:semver 1.10.0
+    string public constant version = "1.10.0";
 
     /// @notice Constructs the OptimismPortal contract.
     constructor() {
@@ -123,7 +124,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         bool _paused
     )
         public
-        reinitializer(2)
+        reinitializer(Constants.INITIALIZER)
     {
         l2Sender = Constants.DEFAULT_L2_SENDER;
         l2Oracle = _l2Oracle;

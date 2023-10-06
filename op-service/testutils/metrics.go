@@ -58,3 +58,9 @@ type TestRPCMetrics struct{}
 func (n *TestRPCMetrics) RecordRPCServerRequest(method string) func() {
 	return func() {}
 }
+
+func (n *TestRPCMetrics) RecordRPCClientRequest(method string) func(err error) {
+	return func(err error) {}
+}
+
+func (n *TestRPCMetrics) RecordRPCClientResponse(method string, err error) {}

@@ -54,14 +54,14 @@
     "@vitest/coverage-istanbul": "^0.34.6",
     "@wagmi/cli": "^1.5.2",
     "@wagmi/core": "^1.4.3",
-    "abitype": "^0.9.3",
+    "abitype": "^0.9.9",
     "glob": "^10.3.10",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^22.1.0",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
-    "vite": "^4.4.6",
+    "vite": "^4.4.10",
     "vitest": "^0.34.2"
   },
   "peerDependencies": {
@@ -80,6 +80,6 @@
     "@testing-library/react": "^14.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "viem": "^1.14.0"
+    "viem": "^1.15.1"
   }
 }

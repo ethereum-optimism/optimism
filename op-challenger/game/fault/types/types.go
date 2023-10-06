@@ -119,5 +119,5 @@ func (c *Claim) IsRoot() bool {
 // DefendsParent returns true if the the claim is a defense (i.e. goes right) of the
 // parent. It returns false if the claim is an attack (i.e. goes left) of the parent.
 func (c *Claim) DefendsParent() bool {
-	return (c.IndexAtDepth() >> 1) != c.Parent.IndexAtDepth()
+	return c.RightOf(c.Parent.Position)
 }

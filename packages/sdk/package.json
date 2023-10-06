@@ -48,7 +48,7 @@
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
-    "hardhat": "^2.17.4",
+    "hardhat": "^2.18.0",
     "hardhat-deploy": "^0.11.4",
     "isomorphic-fetch": "^3.0.0",
     "mocha": "^10.2.0",
@@ -56,9 +56,9 @@
     "ts-node": "^10.9.1",
     "typedoc": "^0.25.1",
     "typescript": "^5.2.2",
-    "viem": "^1.14.0",
+    "viem": "^1.15.1",
     "vitest": "^0.34.2",
-    "zod": "^3.22.1"
+    "zod": "^3.22.4"
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.6.0",

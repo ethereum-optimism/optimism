@@ -32,7 +32,7 @@ func (a *alphabetWithProofProvider) GetStepData(ctx context.Context, i types.Pos
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	traceIndex := i.TraceIndex(int(a.depth))
+	traceIndex := i.TraceIndex(int(a.depth)).Uint64()
 	data := types.NewPreimageOracleData([]byte{byte(traceIndex)}, []byte{byte(traceIndex - 1)}, uint32(traceIndex-1))
 	return preimage, []byte{byte(traceIndex - 1)}, data, nil
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func alphabetClaim(index uint64, letter string) common.Hash {
+func alphabetClaim(index *big.Int, letter string) common.Hash {
 	return alphabetStateHash(BuildAlphabetPreimage(index, letter))
 }
 
@@ -26,16 +26,16 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 		expectedHash common.Hash
 	}{
 		{
-			types.NewPosition(depth, 7),
-			alphabetClaim(7, "h"),
+			types.NewPosition(depth, big.NewInt(7)),
+			alphabetClaim(big.NewInt(7), "h"),
 		},
 		{
-			types.NewPosition(depth, 3),
-			alphabetClaim(3, "d"),
+			types.NewPosition(depth, big.NewInt(3)),
+			alphabetClaim(big.NewInt(3), "d"),
 		},
 		{
-			types.NewPosition(depth, 5),
-			alphabetClaim(5, "f"),
+			types.NewPosition(depth, big.NewInt(5)),
+			alphabetClaim(big.NewInt(5), "f"),
 		},
 	}
 
@@ -47,23 +47,13 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}
 }
 
-// FuzzIndexToBytes tests the IndexToBytes function.
-func FuzzIndexToBytes(f *testing.F) {
-	f.Fuzz(func(t *testing.T, index uint64) {
-		translated := IndexToBytes(index)
-		original := new(big.Int)
-		original.SetBytes(translated)
-		require.Equal(t, original.Uint64(), index)
-	})
-}
-
 // TestGetPreimage_Succeeds tests the GetPreimage function
 // returns the correct pre-image for a index.
 func TestGetStepData_Succeeds(t *testing.T) {
 	depth := 2
 	ap := NewTraceProvider("abc", uint64(depth))
-	expected := BuildAlphabetPreimage(0, "a")
-	pos := types.NewPosition(depth, 1)
+	expected := BuildAlphabetPreimage(big.NewInt(0), "a")
+	pos := types.NewPosition(depth, big.NewInt(1))
 	retrieved, proof, data, err := ap.GetStepData(context.Background(), pos)
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
@@ -76,7 +66,7 @@ func TestGetStepData_Succeeds(t *testing.T) {
 func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
 	depth := 2
 	ap := NewTraceProvider("abc", uint64(depth))
-	pos := types.NewPosition(depth, 5)
+	pos := types.NewPosition(depth, big.NewInt(5))
 	_, _, _, err := ap.GetStepData(context.Background(), pos)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
@@ -85,10 +75,10 @@ func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
 func TestGet_Succeeds(t *testing.T) {
 	depth := 2
 	ap := NewTraceProvider("abc", uint64(depth))
-	pos := types.NewPosition(depth, 0)
+	pos := types.NewPosition(depth, big.NewInt(0))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(0, "a")
+	expected := alphabetClaim(big.NewInt(0), "a")
 	require.Equal(t, expected, claim)
 }
 
@@ -97,7 +87,7 @@ func TestGet_Succeeds(t *testing.T) {
 func TestGet_IndexTooLarge(t *testing.T) {
 	depth := 2
 	ap := NewTraceProvider("abc", uint64(depth))
-	pos := types.NewPosition(depth, 4)
+	pos := types.NewPosition(depth, big.NewInt(4))
 	_, err := ap.Get(context.Background(), pos)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
@@ -107,9 +97,9 @@ func TestGet_IndexTooLarge(t *testing.T) {
 func TestGet_Extends(t *testing.T) {
 	depth := 2
 	ap := NewTraceProvider("abc", uint64(depth))
-	pos := types.NewPosition(depth, 3)
+	pos := types.NewPosition(depth, big.NewInt(3))
 	claim, err := ap.Get(context.Background(), pos)
 	require.NoError(t, err)
-	expected := alphabetClaim(2, "c")
+	expected := alphabetClaim(big.NewInt(2), "c")
 	require.Equal(t, expected, claim)
 }
