@@ -1,8 +1,8 @@
 package metrics
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 
