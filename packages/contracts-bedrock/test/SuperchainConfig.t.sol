@@ -44,17 +44,6 @@ contract SuperchainConfig_Pause_TestFail is SuperchainConfig_Initializer {
         assertFalse(supConf.paused());
     }
 
-    /// @dev Tests that `pause` reverts when the system is already paused.
-    function test_pause_alreadyPaused_reverts() external {
-        _pause();
-
-        vm.expectRevert("SuperchainConfig: system is already paused");
-        vm.prank(guardian);
-        supConf.pause(100, "identifier");
-
-        assertTrue(supConf.paused());
-    }
-
     /// @dev Tests that `pause` reverts when the duration is greater than the max pause.
     function test_pause_durationGreaterThanMaxPause_reverts() external {
         vm.expectRevert("SuperchainConfig: duration exceeds maxPause");
@@ -121,35 +110,24 @@ contract SuperchainConfig_Unpause_Test is SuperchainConfig_Initializer {
 
 contract SuperchainConfig_ExtendPause_TestFail is SuperchainConfig_Initializer {
     /// @dev Tests that `extendPause` reverts when called by a non-GUARDIAN.
-    function test_extendPause_notGuardian_reverts() external {
+    function test_pause_extendingPausenotGuardian_reverts() external {
         _pause();
 
         assertTrue(supConf.guardian() != alice);
-        vm.expectRevert("SuperchainConfig: only guardian can extend the pause");
+        vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
-        supConf.extendPause(100, "identifier");
+        supConf.pause(100, "identifier");
 
         assertTrue(supConf.paused());
     }
 
-    /// @dev Tests that `extendPause` reverts when the system is not paused.
-    function test_extendPause_notPaused_reverts() external {
-        assertFalse(supConf.paused());
-
-        vm.expectRevert("SuperchainConfig: system is not paused");
-        vm.prank(guardian);
-        supConf.extendPause(100, "identifier");
-
-        assertFalse(supConf.paused());
-    }
-
     /// @dev Tests that `extendPause` reverts when the duration is greater than the max pause.
-    function test_extendPause_durationGreaterThanMaxPause_reverts() external {
+    function test_pause_extendingPauseDurationGreaterThanMaxPause_reverts() external {
         _pause();
 
         vm.expectRevert("SuperchainConfig: duration exceeds maxPause");
         vm.prank(guardian);
-        supConf.extendPause(maxPause + 1, "identifier");
+        supConf.pause(maxPause + 1, "identifier");
 
         assertTrue(supConf.paused());
     }
@@ -166,7 +144,7 @@ contract SuperchainConfig_ExtendPause_Test is SuperchainConfig_Initializer {
         emit PauseExtended(200, "identifier");
 
         vm.prank(guardian);
-        supConf.extendPause(200, "identifier");
+        supConf.pause(200, "identifier");
 
         assertTrue(supConf.paused());
         assertEq(pausedUntilBefore + 200, supConf.pausedUntil());
