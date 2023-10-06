@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
+	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
 
 	"github.com/urfave/cli/v2"
 
@@ -70,7 +70,7 @@ func main() {
 		},
 		{
 			Name:        "doc",
-			Subcommands: doc.Subcommands,
+			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
 		},
 	}
 

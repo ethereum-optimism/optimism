@@ -7,6 +7,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
+	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
@@ -32,7 +33,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
-			Subcommands: doc.Subcommands,
+			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
 		},
 	}
 

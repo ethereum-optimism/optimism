@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/metrics/doc"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,7 +33,7 @@ func main() {
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
-			Subcommands: doc.Subcommands,
+			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
 		},
 	}
 
