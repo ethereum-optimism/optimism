@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -197,7 +197,7 @@ func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr)
 			if err != nil {
 				return false, fmt.Errorf("failed to check dir %v is deleted: %w", dir, err)
 			}
-			h.t.Errorf("Game data directory %v not yet deleted", dir)
+			h.t.Logf("Game data directory %v not yet deleted", dir)
 			return false, nil
 		}
 		return true, nil

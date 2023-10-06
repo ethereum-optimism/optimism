@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -37,6 +37,21 @@ func TestLogLevel(t *testing.T) {
 		lvl := lvl
 		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
 			logger, _, err := runWithArgs(addRequiredArgs("--log.level", lvl))
+			require.NoError(t, err)
+			require.NotNil(t, logger)
+		})
+	}
+}
+
+func TestLogFormat(t *testing.T) {
+	t.Run("RejectInvalid", func(t *testing.T) {
+		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
+	})
+
+	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
+		lvl := lvl
+		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
+			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
 			require.NoError(t, err)
 			require.NotNil(t, logger)
 		})

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -379,10 +380,22 @@ type GossipOut interface {
 }
 
 type publisher struct {
-	log         log.Logger
-	cfg         *rollup.Config
+	log log.Logger
+	cfg *rollup.Config
+
+	// p2pCancel cancels the downstream gossip event-handling functions, independent of the sources.
+	// A closed gossip event source (event handler or subscription) does not stop any open event iteration,
+	// thus we have to stop it ourselves this way.
+	p2pCancel context.CancelFunc
+
+	// blocks topic, main handle on block gossip
 	blocksTopic *pubsub.Topic
-	runCfg      GossipRuntimeConfig
+	// block events handler, to be cancelled before closing the blocks topic.
+	blocksEvents *pubsub.TopicEventHandler
+	// block subscriptions, to be cancelled before closing blocks topic.
+	blocksSub *pubsub.Subscription
+
+	runCfg GossipRuntimeConfig
 }
 
 var _ GossipOut = (*publisher)(nil)
@@ -419,10 +432,13 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.Execution
 }
 
 func (p *publisher) Close() error {
+	p.p2pCancel()
+	p.blocksEvents.Cancel()
+	p.blocksSub.Cancel()
 	return p.blocksTopic.Close()
 }
 
-func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
 	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg, runCfg)))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
@@ -440,17 +456,28 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 	if err != nil {
 		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %w", err)
 	}
+	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
 	subscription, err := blocksTopic.Subscribe()
 	if err != nil {
+		p2pCancel()
+		err = errors.Join(err, blocksTopic.Close())
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
 	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
 	go subscriber(p2pCtx, subscription)
 
-	return &publisher{log: log, cfg: cfg, blocksTopic: blocksTopic, runCfg: runCfg}, nil
+	return &publisher{
+		log:          log,
+		cfg:          cfg,
+		blocksTopic:  blocksTopic,
+		blocksEvents: blocksTopicEvents,
+		blocksSub:    subscription,
+		p2pCancel:    p2pCancel,
+		runCfg:       runCfg,
+	}, nil
 }
 
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)

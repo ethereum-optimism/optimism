@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -56,6 +57,9 @@ type Config struct {
 	// To halt when detecting the node does not support a signaled protocol version
 	// change of the given severity (major/minor/patch). Disabled if empty.
 	RollupHalt string
+
+	// Cancel to request a premature shutdown of the node itself, e.g. when halting. This may be nil.
+	Cancel context.CancelCauseFunc
 }
 
 type RPCConfig struct {

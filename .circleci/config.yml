@@ -1,7 +1,7 @@
 version: 2.1
 
 orbs:
-  go: circleci/go@1.5.0
+  go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
 commands:
@@ -763,7 +763,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     steps:
       - checkout
       - run:
@@ -901,14 +901,14 @@ jobs:
       - run:
           name: generate L1 state
           command: make devnet-allocs
-      - store_test_results:
-          path: /test-results
       - run:
           name: Test
           command: |
             mkdir -p /test-results
-            DB_USER=postgres gotestsum --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=4 ./...
+            DB_USER=postgres gotestsum --format=standard-verbose --junitfile=/test-results/indexer_tests.xml -- -parallel=4 ./...
           working_directory: indexer
+      - store_test_results:
+          path: /test-results
       - run:
           name: Build
           command: make indexer
@@ -938,9 +938,9 @@ jobs:
       - run:
           name: Install latest golang
           command: |
-            wget https://go.dev/dl/go1.20.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.21.1.linux-amd64.tar.gz
             sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf go1.20.linux-amd64.tar.gz
+            sudo tar -C /usr/local -xzf go1.21.1.linux-amd64.tar.gz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
@@ -1154,14 +1154,14 @@ jobs:
 
   bedrock-go-tests:
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     resource_class: medium
     steps:
       - run: echo Done
 
   fpp-verify:
     docker:
-      - image: cimg/go:1.20
+      - image: cimg/go:1.21
     steps:
       - checkout
       - run:
@@ -1495,6 +1495,20 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
+      - docker-build:
+          name: ufm-metamask-docker-build
+          docker_file: ufm-test-services/metamask/Dockerfile
+          docker_name: ufm-metamask
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: ufm-test-services/metamask
+      - docker-publish:
+          name: ufm-metamask-docker-publish
+          docker_file: ufm-test-services/metamask/Dockerfile
+          docker_name: ufm-metamask
+          docker_context: ufm-test-services/metamask
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
@@ -1505,25 +1519,25 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
-          name: op-heartbeat-release
-          filters:
-            tags:
-              only: /^op-heartbeat\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: op-heartbeat/Dockerfile
-          docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
+           name: op-heartbeat-release
+           filters:
+             tags:
+               only: /^op-heartbeat\/v.*/
+             branches:
+               ignore: /.*/
+           docker_file: op-heartbeat/Dockerfile
+           docker_name: op-heartbeat
+           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+           docker_context: .
+           platforms: "linux/amd64,linux/arm64"
+           context:
+             - oplabs-gcr-release
+           requires:
+             - hold
       - docker-release:
           name: op-node-docker-release
           filters:
@@ -1659,6 +1673,21 @@ workflows:
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
           docker_context: .
+          context:
+            - oplabs-gcr
+          requires:
+            - hold
+      - docker-release:
+          name: ufm-metamask-docker-release
+          filters:
+            tags:
+              only: /^ufm-metamask\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ufm-test-services/metamask/Dockerfile
+          docker_name: ufm-metamask
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ufm-test-services/metamask
           context:
             - oplabs-gcr
           requires:

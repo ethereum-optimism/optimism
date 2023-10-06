@@ -141,6 +141,49 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(sysConf.startBlock(), startBlock);
     }
 
+    /// @dev Tests that initialization with start block already set is a noop.
+    function test_initialize_startBlockNoop_reverts() external {
+        // wipe out initialized slot so we can initialize again
+        vm.store(address(sysConf), bytes32(0), bytes32(0));
+        // the startBlock slot is 106, set it to something non zero
+        vm.store(address(sysConf), bytes32(uint256(106)), bytes32(uint256(0xff)));
+
+        // Initialize with a non zero start block, should see a revert
+        vm.prank(multisig);
+        // The call to initialize reverts due to: "SystemConfig: cannot override an already set start block"
+        // but the proxy revert message bubbles up.
+        Proxy(payable(address(sysConf))).upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice, // _owner,
+                    overhead, // _overhead,
+                    scalar, // _scalar,
+                    batcherHash, // _batcherHash
+                    gasLimit, // _gasLimit,
+                    unsafeBlockSigner, // _unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+                    1, // _startBlock
+                    batchInbox, // _batchInbox
+                    SystemConfig.Addresses({ // _addresses
+                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1ERC721Bridge: l1ERC721Bridge,
+                        l1StandardBridge: l1StandardBridge,
+                        l2OutputOracle: l2OutputOracle,
+                        optimismPortal: optimismPortal,
+                        optimismMintableERC20Factory: optimismMintableERC20Factory
+                    })
+                )
+            )
+        );
+
+        // It was initialized with 1 but it was already set so the override
+        // should be ignored.
+        uint256 startBlock = sysConf.startBlock();
+        assertEq(startBlock, 0xff);
+    }
+
     /// @dev Ensures that the events are emitted during initialization.
     function test_initialize_events_succeeds() external {
         // Wipe out the initialized slot so the proxy can be initialized again
@@ -219,46 +262,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
                         l2OutputOracle: address(0),
                         optimismPortal: address(0),
                         optimismMintableERC20Factory: address(0)
-                    })
-                )
-            )
-        );
-    }
-
-    /// @dev Tests that initialization fails when the start block override is used
-    ///      when the start block has already been set.
-    function test_initialize_startBlock_reverts() external {
-        // wipe out initialized slot so we can initialize again
-        vm.store(address(sysConf), bytes32(0), bytes32(0));
-        // the startBlock slot is 106, set it to something non zero
-        vm.store(address(sysConf), bytes32(uint256(106)), bytes32(uint256(block.number)));
-
-        // Initialize with a non zero start block, should see a revert
-        vm.prank(multisig);
-        // The call to initialize reverts due to: "SystemConfig: cannot override an already set start block"
-        // but the proxy revert message bubbles up.
-        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
-        Proxy(payable(address(sysConf))).upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    1, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
                     })
                 )
             )

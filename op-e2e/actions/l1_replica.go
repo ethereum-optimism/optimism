@@ -15,10 +15,10 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 // L1CanonSrc is used to sync L1 from another node.
@@ -161,12 +161,12 @@ func (s *L1Replica) MockL1RPCErrors(fn func() error) {
 }
 
 func (s *L1Replica) EthClient() *ethclient.Client {
-	cl, _ := s.node.Attach() // never errors
+	cl := s.node.Attach()
 	return ethclient.NewClient(cl)
 }
 
 func (s *L1Replica) RPCClient() client.RPC {
-	cl, _ := s.node.Attach() // never errors
+	cl := s.node.Attach()
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {

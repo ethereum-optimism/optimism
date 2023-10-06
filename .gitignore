@@ -27,6 +27,7 @@ packages/contracts-bedrock/deployments/hardhat-local
 # jetbrains
 .idea/
 
+.secrets
 .env
 .env*
 !.env.example

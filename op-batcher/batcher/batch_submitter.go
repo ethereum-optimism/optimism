@@ -5,7 +5,6 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 
-	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -31,9 +30,11 @@ func Main(version string, cliCtx *cli.Context) error {
 		return fmt.Errorf("invalid CLI flags: %w", err)
 	}
 
-	l := oplog.NewLogger(cfg.LogConfig)
+	l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
+	oplog.SetGlobalLogHandler(l.GetHandler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
-	m := metrics.NewMetrics("default")
+	procName := "default"
+	m := metrics.NewMetrics(procName)
 	l.Info("Initializing Batch Submitter")
 
 	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l, m)
@@ -74,18 +75,15 @@ func Main(version string, cliCtx *cli.Context) error {
 		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
-	rpcCfg := cfg.RPCConfig
 	server := oprpc.NewServer(
-		rpcCfg.ListenAddr,
-		rpcCfg.ListenPort,
+		cfg.RPCFlag.ListenAddr,
+		cfg.RPCFlag.ListenPort,
 		version,
 		oprpc.WithLogger(l),
 	)
-	if rpcCfg.EnableAdmin {
-		server.AddAPI(gethrpc.API{
-			Namespace: "admin",
-			Service:   rpc.NewAdminAPI(batchSubmitter),
-		})
+	if cfg.RPCFlag.EnableAdmin {
+		adminAPI := rpc.NewAdminAPI(batchSubmitter, &m.RPCMetrics, l)
+		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		l.Info("Admin RPC enabled")
 	}
 	if err := server.Start(); err != nil {

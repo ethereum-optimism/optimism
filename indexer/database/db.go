@@ -4,15 +4,18 @@ package database
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	_ "github.com/ethereum-optimism/optimism/indexer/database/serializers"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/pkg/errors"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var (
@@ -33,10 +36,13 @@ type DB struct {
 	BridgeTransactions BridgeTransactionsDB
 }
 
-func NewDB(dbConfig config.DBConfig) (*DB, error) {
+func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 
-	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
+	if dbConfig.Port != 0 {
+		dsn += fmt.Sprintf(" port=%d", dbConfig.Port)
+	}
 	if dbConfig.User != "" {
 		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
 	}
@@ -47,20 +53,20 @@ func NewDB(dbConfig config.DBConfig) (*DB, error) {
 	gormConfig := gorm.Config{
 		// The indexer will explicitly manage the transactions
 		SkipDefaultTransaction: true,
-		Logger:                 logger.Default.LogMode(logger.Silent),
+		Logger:                 newLogger(log),
 	}
 
 	gorm, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
 		gorm, err := gorm.Open(postgres.Open(dsn), &gormConfig)
-
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to connect to database")
+			return nil, fmt.Errorf("failed to connect to database: %w", err)
 		}
+
 		return gorm, nil
 	})
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to database after multiple retries")
+		return nil, fmt.Errorf("failed to connect to database after multiple retries: %w", err)
 	}
 
 	db := &DB{
@@ -101,4 +107,34 @@ func dbFromGormTx(tx *gorm.DB) *DB {
 		BridgeMessages:     newBridgeMessagesDB(tx),
 		BridgeTransactions: newBridgeTransactionsDB(tx),
 	}
+}
+
+func (db *DB) ExecuteSQLMigration(migrationsFolder string) error {
+	err := filepath.Walk(migrationsFolder, func(path string, info os.FileInfo, err error) error {
+		// Check for any walking error
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Failed to process migration file: %s", path))
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Read the migration file content
+		fileContent, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return errors.Wrap(readErr, fmt.Sprintf("Error reading SQL file: %s", path))
+		}
+
+		// Execute the migration
+		execErr := db.gorm.Exec(string(fileContent)).Error
+		if execErr != nil {
+			return errors.Wrap(execErr, fmt.Sprintf("Error executing SQL script: %s", path))
+		}
+
+		return nil
+	})
+
+	return err
 }

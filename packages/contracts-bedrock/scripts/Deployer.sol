@@ -115,6 +115,10 @@ abstract contract Deployer is Script {
             string memory deploymentName = deployments[i].name;
 
             string memory deployTx = _getDeployTransactionByContractAddress(addr);
+            if (bytes(deployTx).length == 0) {
+                console.log("Deploy Tx not found for %s skipping deployment artifact generation", deploymentName);
+                continue;
+            }
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
             if (keccak256(abi.encodePacked(contractName)) == keccak256(abi.encodePacked("null"))) {
                 contractName = deploymentName;
@@ -177,7 +181,7 @@ abstract contract Deployer is Script {
         if (existing.addr != address(0)) {
             return bytes(existing.name).length > 0;
         }
-        return _getExistingDeploymentAdress(_name) != address(0);
+        return _getExistingDeploymentAddress(_name) != address(0);
     }
 
     /// @notice Returns the address of a deployment.
@@ -192,7 +196,7 @@ abstract contract Deployer is Script {
             }
             return existing.addr;
         }
-        return _getExistingDeploymentAdress(_name);
+        return _getExistingDeploymentAddress(_name);
     }
 
     /// @notice Returns the address of a deployment and reverts if the deployment
@@ -480,7 +484,7 @@ abstract contract Deployer is Script {
     /// @notice Reads the artifact from the filesystem by name and returns the address.
     /// @param _name The name of the artifact to read.
     /// @return The address of the artifact.
-    function _getExistingDeploymentAdress(string memory _name) internal view returns (address payable) {
+    function _getExistingDeploymentAddress(string memory _name) internal view returns (address payable) {
         return _getExistingDeployment(_name).addr;
     }
 

@@ -1,8 +1,10 @@
 package flags
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -27,5 +29,25 @@ func TestUniqueFlags(t *testing.T) {
 			continue
 		}
 		seenCLI[name] = struct{}{}
+	}
+}
+
+// TestBetaFlags test that all flags starting with "beta." have "BETA_" in the env var, and vice versa.
+func TestBetaFlags(t *testing.T) {
+	for _, flag := range Flags {
+		envFlag, ok := flag.(interface {
+			GetEnvVars() []string
+		})
+		if !ok || len(envFlag.GetEnvVars()) == 0 { // skip flags without env-var support
+			continue
+		}
+		name := flag.Names()[0]
+		envName := envFlag.GetEnvVars()[0]
+		if strings.HasPrefix(name, "beta.") {
+			assert.Contains(t, envName, "BETA_", "%q flag must contain BETA in env var to match \"beta.\" flag name", name)
+		}
+		if strings.Contains(envName, "BETA_") {
+			assert.True(t, strings.HasPrefix(name, "beta."), "%q flag must start with \"beta.\" in flag name to match \"BETA_\" env var", name)
+		}
 	}
 }

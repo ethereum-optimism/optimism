@@ -5,9 +5,11 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 type priceBumpTest struct {

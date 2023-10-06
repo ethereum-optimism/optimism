@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	l2oo2 "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -208,8 +207,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 		)
 
 		// Start dishonest challenger
-		correctTrace := game.CreateHonestActor(ctx, disputegame.CorrectAlphabet, 4)
-		dishonestHelper := disputegame.NewDishonestHelper(&game.FaultGameHelper, correctTrace, !isRootCorrect)
+		dishonestHelper := game.CreateDishonestHelper(disputegame.CorrectAlphabet, 4, !isRootCorrect)
 		dishonestHelper.ExhaustDishonestClaims(ctx)
 
 		// Wait until we've reached max depth before checking for inactivity
@@ -464,8 +462,7 @@ func TestCannonPoisonedPostState(t *testing.T) {
 			game.WaitForClaimCount(ctx, claimCount)
 
 			// Defender moves last. If we're at max depth, then we're done
-			dishonestClaim := game.GetClaimUnsafe(ctx, claimCount-1)
-			pos := types.NewPositionFromGIndex(dishonestClaim.Position.Uint64())
+			pos := game.GetClaimPosition(ctx, claimCount-1)
 			if int64(pos.Depth()) == depth {
 				break
 			}

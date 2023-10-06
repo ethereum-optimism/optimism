@@ -199,7 +199,7 @@ This means the start and end of a read/write operation must fall within the same
 If an operation were to violate this, the input `count` of the read/write syscall must be
 truncated such that the effective address of the last byte read/writtten matches the input effective address.
 
-The VM must read/write the maximum amount of bytes possible without crossing the input adress alignment boundary.
+The VM must read/write the maximum amount of bytes possible without crossing the input address alignment boundary.
 For example, the effect of a write request for a 3-byte aligned buffer must be exactly 3 bytes.
 If the buffer is misaligned, then the VM may write less than 3 bytes depending on the size of the misalignment.
 

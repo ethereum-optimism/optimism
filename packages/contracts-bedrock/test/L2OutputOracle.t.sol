@@ -6,13 +6,14 @@ import { stdError } from "forge-std/Test.sol";
 import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
 
 // Libraries
-import { Types } from "../src/libraries/Types.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
-import { Proxy } from "../src/universal/Proxy.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
-import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 
 contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
     /// @dev Tests that constructor sets the initial values correctly.
@@ -463,7 +464,9 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
         NextImpl nextImpl = new NextImpl();
         vm.startPrank(multisig);
-        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 3));
+        proxy.upgradeToAndCall(
+            address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, Constants.INITIALIZER + 1)
+        );
         assertEq(proxy.implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected

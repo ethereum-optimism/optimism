@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"runtime/debug"
 	"sync"
@@ -10,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-chi/chi/v5"
@@ -20,45 +20,63 @@ import (
 
 const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 
-type Api struct {
+// Api ... Indexer API struct
+// TODO : Structured error responses
+type API struct {
 	log             log.Logger
-	Router          *chi.Mux
+	router          *chi.Mux
 	serverConfig    config.ServerConfig
 	metricsConfig   config.ServerConfig
 	metricsRegistry *prometheus.Registry
 }
 
 const (
-	MetricsNamespace = "op_indexer"
+	MetricsNamespace = "op_indexer_api"
+	addressParam     = "{address:%s}"
+
+	// Endpoint paths
+	// NOTE - This can be further broken out over time as new version iterations
+	// are implemented
+	HealthPath      = "/healthz"
+	DepositsPath    = "/api/v0/deposits/"
+	WithdrawalsPath = "/api/v0/withdrawals/"
 )
 
+// chiMetricsMiddleware ... Injects a metrics recorder into request processing middleware
 func chiMetricsMiddleware(rec metrics.HTTPRecorder) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return metrics.NewHTTPRecordingMiddleware(rec, next)
 	}
 }
 
-func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig config.ServerConfig, metricsConfig config.ServerConfig) *Api {
+// NewApi ... Construct a new api instance
+func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig config.ServerConfig, metricsConfig config.ServerConfig) *API {
+	// (1) Initialize dependencies
 	apiRouter := chi.NewRouter()
 	h := routes.NewRoutes(logger, bv, apiRouter)
 
 	mr := metrics.NewRegistry()
 	promRecorder := metrics.NewPromHTTPRecorder(mr, MetricsNamespace)
 
+	// (2) Inject routing middleware
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
 	apiRouter.Use(middleware.Recoverer)
-	apiRouter.Use(middleware.Heartbeat("/healthz"))
+	apiRouter.Use(middleware.Heartbeat(HealthPath))
 
-	apiRouter.Get(fmt.Sprintf("/api/v0/deposits/{address:%s}", ethereumAddressRegex), h.L1DepositsHandler)
-	apiRouter.Get(fmt.Sprintf("/api/v0/withdrawals/{address:%s}", ethereumAddressRegex), h.L2WithdrawalsHandler)
+	// (3) Set GET routes
+	apiRouter.Get(fmt.Sprintf(DepositsPath+addressParam, ethereumAddressRegex), h.L1DepositsHandler)
+	apiRouter.Get(fmt.Sprintf(WithdrawalsPath+addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
 
-	return &Api{log: logger, Router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
+	return &API{log: logger, router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }
 
-func (a *Api) Start(ctx context.Context) error {
+// Run ... Runs the API server routines
+func (a *API) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
 
+	// (1) Construct an inner function that will start a goroutine
+	//    and handle any panics that occur on a shared error channel
 	processCtx, processCancel := context.WithCancel(ctx)
 	runProcess := func(start func(ctx context.Context) error) {
 		wg.Add(1)
@@ -78,9 +96,11 @@ func (a *Api) Start(ctx context.Context) error {
 		}()
 	}
 
+	// (2) Start the API and metrics servers
 	runProcess(a.startServer)
 	runProcess(a.startMetricsServer)
 
+	// (3) Wait for all processes to complete
 	wg.Wait()
 
 	err := <-errCh
@@ -93,19 +113,42 @@ func (a *Api) Start(ctx context.Context) error {
 	return err
 }
 
-func (a *Api) startServer(ctx context.Context) error {
+// Port ... Returns the the port that server is listening on
+func (a *API) Port() int {
+	return a.serverConfig.Port
+}
+
+// startServer ... Starts the API server
+func (a *API) startServer(ctx context.Context) error {
 	a.log.Info("api server listening...", "port", a.serverConfig.Port)
-	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.Router}
-	err := httputil.ListenAndServeContext(ctx, &server)
+	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.router}
+
+	addr := fmt.Sprintf(":%d", a.serverConfig.Port)
+	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		a.log.Error("api server stopped", "err", err)
+		a.log.Error("Listen:", err)
+		return err
+	}
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		return fmt.Errorf("failed to get TCP address from network listener")
+	}
+
+	// Update the port in the config in case the OS chose a different port
+	// than the one we requested (e.g. using port 0 to fetch a random open port)
+	a.serverConfig.Port = tcpAddr.Port
+
+	err = http.Serve(listener, server.Handler)
+	if err != nil {
+		a.log.Error("api server stopped with error", "err", err)
 	} else {
 		a.log.Info("api server stopped")
 	}
 	return err
 }
 
-func (a *Api) startMetricsServer(ctx context.Context) error {
+// startMetricsServer ... Starts the metrics server
+func (a *API) startMetricsServer(ctx context.Context) error {
 	a.log.Info("starting metrics server...", "port", a.metricsConfig.Port)
 	err := metrics.ListenAndServe(ctx, a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)
 	if err != nil {
