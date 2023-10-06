@@ -7,7 +7,7 @@ WORKDIR /app
 # Update PATH
 ENV PATH /app/node_modules/.bin:$PATH
 
-RUN if [ "$METAMASK_RUN_HEADLESS" = "true" ]; then \
+RUN if [ "$METAMASK_RUN_HEADLESS" != "false" ]; then \
         apt-get update && \
         apt-get install -y xvfb && \
         rm -rf /var/lib/apt/lists/* ; \
