@@ -16,7 +16,7 @@ import {
 const env = z
   .object({
     METAMASK_SECRET_WORDS_OR_PRIVATEKEY: z.string(),
-    METAMASK_OP_GOERLI_RPC_URL: z.string().url(),
+    METAMASK_OP_SEPOLIA_RPC_URL: z.string().url(),
     METAMASK_DAPP_URL: z.string().url(),
   })
   .parse(process.env)
@@ -29,6 +29,8 @@ const expectedSender = env.METAMASK_SECRET_WORDS_OR_PRIVATEKEY?.startsWith('0x')
       env.METAMASK_SECRET_WORDS_OR_PRIVATEKEY as string
     ).address.toLowerCase()
 const expectedRecipient = expectedSender
+
+const expectedCurrencySymbol = 'OPS'
 
 let sharedPage: Page
 let wasSuccessful: boolean
@@ -55,27 +57,26 @@ testWithSynpress('Setup wallet and dApp', async ({ page }) => {
   console.log('Setting up wallet and dApp...')
   sharedPage = page
   await sharedPage.goto('http://localhost:9011')
-  console.log('Setup wallet and dApp')
 })
 
-testWithSynpress('Add OP Goerli network', async () => {
-  console.log('Adding OP Goerli network...')
-  const expectedChainId = '0x1a4'
+testWithSynpress('Add OP Sepolia network', async () => {
+  console.log('Adding OP Sepolia network...')
+  const expectedChainId = '0xaa37dc'
 
   await metamask.addNetwork({
-    name: 'op-goerli',
+    name: 'op-sepolia',
     rpcUrls: {
       default: {
-        http: [env.METAMASK_OP_GOERLI_RPC_URL],
+        http: [env.METAMASK_OP_SEPOLIA_RPC_URL],
       },
     },
-    id: '420',
+    id: '11155420',
     nativeCurrency: {
-      symbol: 'OPG',
+      symbol: expectedCurrencySymbol,
     },
     blockExplorers: {
       default: {
-        url: 'https://goerli-explorer.optimism.io',
+        url: 'https://optimism-sepolia.blockscout.com',
       },
     },
   })
@@ -87,7 +88,6 @@ testWithSynpress('Add OP Goerli network', async () => {
     handledFailure = true
     throw error
   }
-  console.log('Added OP Goerli network')
 })
 
 test(`Connect wallet with ${expectedSender}`, async () => {
@@ -102,7 +102,6 @@ test(`Connect wallet with ${expectedSender}`, async () => {
     handledFailure = true
     throw error
   }
-  console.log(`Connected wallet with ${expectedSender}`)
 })
 
 test('Send an EIP-1559 transaction and verify success', async () => {
@@ -127,6 +126,7 @@ test('Send an EIP-1559 transaction and verify success', async () => {
   const notificationPage =
     await synpressPlaywright.switchToMetamaskNotification()
 
+  console.log('Gathering transaction fee estimations...')
   const lowFeeEstimate = await getFeeEstimateInGwei(
     confirmPageElements.gasOptionLowButton,
     'Low',
@@ -146,6 +146,7 @@ test('Send an EIP-1559 transaction and verify success', async () => {
     notificationPage
   )
 
+  console.log('Sent transaction, waiting for confirmation...')
   await metamask.confirmTransactionAndWaitForMining()
   const txHash = await txHashPromise
 
@@ -164,6 +165,7 @@ test('Send an EIP-1559 transaction and verify success', async () => {
   // Metamask test dApp allows us access to the Metamask RPC provider via loading this URL.
   // The RPC response will be populated onto the page that's loaded.
   // More info here: https://github.com/MetaMask/test-dapp/tree/main#usage
+  console.log('Retrieving transaction receipt...')
   await sharedPage.goto(
     `${env.METAMASK_DAPP_URL}/request.html?method=eth_getTransactionReceipt&params=["${txHash}"]`
   )
@@ -179,7 +181,6 @@ test('Send an EIP-1559 transaction and verify success', async () => {
     handledFailure = true
     throw error
   }
-  console.log('Sent an EIP-1559 transaction and verified success')
 
   await setFeeEstimationGauge('low', lowFeeEstimate)
   await setFeeEstimationGauge('medium', mediumFeeEstimate)
@@ -192,7 +193,6 @@ const getFeeEstimateInGwei = async (
   waitForText: 'Low' | 'Market' | 'Aggressive',
   notificationPage: Page
 ) => {
-  const regexParseEtherValue = /(\d+\.\d+)\sOPG/
   await synpressPlaywright.waitAndClick(
     confirmPageElements.editGasFeeButton,
     notificationPage
@@ -203,6 +203,7 @@ const getFeeEstimateInGwei = async (
     waitForText,
     notificationPage
   )
+  const regexParseEtherValue = /(\d+\.\d+)\s?OPS/
   const feeValue = (
     await synpressPlaywright.waitAndGetValue(
       confirmPageElements.totalLabel,
