@@ -42,20 +42,6 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
     {
         require(msg.sender == address(safe), "LivenessGuard: only Safe can call this function");
 
-        // There are a number of ways in which we need to constrain this safe so that it cannot remove
-        // this guard, nor the LivenessModule.
-        // TODO(Maurelian): Figure out how to best address this. The following is just intended to outline the
-        // known mathods by which a Safe could remove the liveness checks.
-        // TODO(Maurelian): Do we _need_ to have this feature at all?
-        bytes4 dataSig = bytes4(data);
-        if (
-            to == address(safe)
-                && (dataSig == GuardManager.setGuard.selector || dataSig == ModuleManager.enableModule.selector)
-                || operation == Enum.Operation.DelegateCall
-        ) {
-            revert("LivenessGuard: cannot remove LivenessGuard or LivenessModule");
-        }
-
         // This call will reenter to the Safe which is calling it. This is OK because it is only reading the
         // nonce, and using the getTransactionHash() method.
         bytes32 txHash = Safe(payable(msg.sender)).getTransactionHash(
