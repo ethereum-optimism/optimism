@@ -95,7 +95,11 @@ CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
     -- transaction data
     from_address VARCHAR NOT NULL,
     to_address   VARCHAR NOT NULL,
+
+    -- This refers to the amount MINTED on L2 (msg.value of the L1 transaction). Important distinction from
+    -- the `value` field of the deposit transaction which simply is the value transferred to specified recipient.
     amount       UINT256 NOT NULL,
+
     gas_limit    UINT256 NOT NULL,
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
