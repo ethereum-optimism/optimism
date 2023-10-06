@@ -28,7 +28,7 @@
     - [`l2-transactions <blockhash>`](#l2-transactions-blockhash)
     - [`l2-code <codehash>`](#l2-code-codehash)
     - [`l2-state-node <nodehash>`](#l2-state-node-nodehash)
-    - [`l2-output <blockhash>`](#l2-output-blockhash)
+    - [`l2-output <outputroot>`](#l2-output-outputroot)
 - [Fault Proof VM](#fault-proof-vm)
 - [Fault Proof Interactive Dispute Game](#fault-proof-interactive-dispute-game)
 
@@ -376,6 +376,7 @@ Requests the host to prepare the L2 MPT node preimage with the given `<nodehash>
 #### `l2-output <outputroot>`
 
 Requests the host to prepare the L2 Output at the l2 output root `<outputroot>`.
+The L2 Output is the preimage of a [computed output root](./proposals.md#l2-output-commitment-construction).
 
 ## Fault Proof VM
 
