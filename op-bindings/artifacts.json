@@ -41,5 +41,8 @@
   "GovernanceToken",
   "BobaHCHelper",
   "L2GovernanceERC20",
-  "ProtocolVersions"
+  "ProtocolVersions",
+  "Safe",
+  "SafeProxyFactory",
+  "DelayedVetoable"
 ]

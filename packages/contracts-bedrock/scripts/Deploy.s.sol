@@ -9,6 +9,8 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Deployer } from "./Deployer.sol";
 import { DeployConfig } from "./DeployConfig.s.sol";
 
+import { Safe } from "safe-contracts/Safe.sol";
+import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";

@@ -56,11 +56,7 @@ log = logging.getLogger(__name__)
 
 def main():
     patterns = sys.argv[1].split(',')
-
-    # temporarily only run indexer tests if indexer is changed because the tests are flaky
-    if len(patterns) != 1 or patterns[0] != "indexer":
-      patterns = patterns + REBUILD_ALL_PATTERNS
-
+    patterns = patterns + REBUILD_ALL_PATTERNS
 
     fp = os.path.realpath(__file__)
     monorepo_path = os.path.realpath(os.path.join(fp, '..', '..'))
