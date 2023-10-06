@@ -12,8 +12,6 @@
     "TestCannonProposedOutputRootInvalid":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
     "TestCannonChallengeWithCorrectRoot":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
     "TestPreregolith/UnusedGasConsumed_RegolithNotScheduled": "TODO This is a new failure that should be investigated",
-    "TestPreregolith/UnusedGasConsumed_RegolithNotYetActive": "TODO This is a new failure that should be investigated",
-    "TestRegolith/DepositNonceCorrect_ActivateAtGenesis": "TODO This is a new failure that should be investigated",
-    "TestRegolith/DepositNonceCorrect_ActivateAfterGenesis": "TODO This is a new failure that should be investigated"
+    "TestPreregolith/UnusedGasConsumed_RegolithNotYetActive": "TODO This is a new failure that should be investigated"
   }
 }
