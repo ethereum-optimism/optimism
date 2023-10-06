@@ -9,7 +9,8 @@
   - [System Owner](#system-owner)
   - [Initiator and vetoer](#initiator-and-vetoer)
   - [Guardian](#guardian)
-- [Batcher allowlist](#batcher-allowlist)
+- [Sequencer allowlist](#sequencer-allowlist)
+  - [Updating the allowlist](#updating-the-allowlist)
 - [Pausability status and parameters](#pausability-status-and-parameters)
   - [Effects of a pause](#effects-of-a-pause)
   - [Management of the paused status](#management-of-the-paused-status)
@@ -48,17 +49,17 @@ authorization.
 
 The `guardian` entity can pause the system in case of an emergency.
 
-## Batcher allowlist
+## Sequencer allowlist
 
-The batcher allowlist is a list of authorized batchers managed by the system owner.
+The Sequencer allowlist is a list of authorized sequencers managed by the system owner.
 
-Batchers are represented by a key pair.
+A Sequencer is represented by a [key pair](./system_config.md#sequencer-key-pair) in this allowlist,
+and only allowed sequencers can be set as the sequencer in a system config contract.
 
-The list can be updated by the system owner
-or the initiator, with the changes subject to a delay for security reasons.
-The `SuperchainConfig` contract emits an event for each update to the allowlist,
-which can be either the addition or removal of a batcher.
-The `SystemConfig` contract uses this allowlist to validate batch submissions.
+### Updating the allowlist
+
+Adding to the allowlist can be done instantly by the initiator. Removing from the list is done by the
+system owner, and so is subject to delay.
 
 ## Pausability status and parameters
 
