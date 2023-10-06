@@ -1,8 +1,10 @@
 package metrics
 
 import (
+	"fmt"
 	"errors"
 	"math"
+	"strings"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
@@ -42,7 +44,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.GenericFlag{
 			Name:    PortFlagName,
 			Usage:   "Metrics listening port",
-			Value:   NewFlagValue(defaultListenAddr),
+			Value:   NewFlagValue(fmt.Sprint(defaultListenPort)),
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_PORT"),
 		},
 	}
@@ -55,7 +57,8 @@ func NewFlagValue(s string) *FlagValue {
 }
 
 func (fv *FlagValue) Set(value string) error {
-	*(*string)(fv) = value
+	value = strings.ToLower(value) // ignore case
+	*fv = FlagValue(value)
 	return nil
 }
 
