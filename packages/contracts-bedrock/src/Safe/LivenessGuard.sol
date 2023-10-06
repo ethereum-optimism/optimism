@@ -12,7 +12,7 @@ contract LivenessGuard is SignatureDecoder, BaseGuard {
     /// @param signers An arrary of signer addresses.
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
 
-    Safe public safe;
+    Safe public immutable safe;
     mapping(address => uint256) public lastSigned;
 
     constructor(Safe _safe) {
