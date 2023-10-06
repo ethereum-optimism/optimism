@@ -90,14 +90,9 @@ and `L1ERC721Bridge`.
 The paused status of the system is always temporary. When first activated, it will last for for the
 specified `duration`, which can be at most up to the `maxPause` value.
 
-For this reason, an `extendPause()` method, callable by the `guardian` is included so that the pause
-can be extended, if necessary to allow time to address the cause of the emergency.
-
-Note: The `pause()` method can only be called when the superchain IS NOT paused. The `extendPause()`
-method can only be called when the superchain IS paused. This helps to clarify the semantics around
-how the duration is applied when either function is called. That is `pause()` will pause the system
-until `block.timestamp + duration`, whereas `extendPause()` will pause the system until
-`pausedUntil() + duration`.
+If the pause needs to be extended to allow time to address the cause of the emergency, the
+`guardian` may call pause again. In the event that the system is already paused, then the pause will
+be extended by adding the `duration` to the current time that the pause is set to end.
 
 Although the `pause()` function is only callable by the `guardian`, the intention is to pre-sign
 transactions which call `pause()`. These pre-signed transactions will be securely distributed to a
