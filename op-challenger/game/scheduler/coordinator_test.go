@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -15,60 +15,61 @@ import (
 )
 
 func TestScheduleNewGames(t *testing.T) {
-	c, workQueue, _, games, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, disk := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
 	ctx := context.Background()
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1, gameAddr2, gameAddr3}))
+	creators := asStubPlayerCreators(gameAddr1, gameAddr2, gameAddr3)
+	require.NoError(t, c.schedule(ctx, toPlayerCreators(creators)))
 
 	require.Len(t, workQueue, 3, "should schedule job for each game")
-	require.Len(t, games.created, 3, "should have created players")
-	var players []GamePlayer
-	for i := 0; i < len(games.created); i++ {
+	var players []types.GamePlayer
+	for i := 0; i < len(creators); i++ {
+		require.Truef(t, creators[i].created, "should have created player %v", i)
 		j := <-workQueue
 		players = append(players, j.player)
 	}
-	for addr, player := range games.created {
-		require.Equal(t, disk.DirForGame(addr), player.dir, "should use allocated directory")
-		require.Containsf(t, players, player, "should have created a job for player %v", addr)
+	for _, player := range creators {
+		require.Equal(t, disk.DirForGame(player.Addr()), player.dir, "should use allocated directory")
+		require.Containsf(t, players, player, "should have created a job for player %v", player.Addr())
 	}
 }
 
 func TestSkipSchedulingInflightGames(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
 	// Schedule the game once
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr1)))
 	require.Len(t, workQueue, 1, "should schedule game")
 
 	// And then attempt to schedule again
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr1)))
 	require.Len(t, workQueue, 1, "should not reschedule in-flight game")
 }
 
 func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 	// No space in buffer to schedule a job
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 0)
+	c, workQueue, _, _ := setupCoordinatorTest(t, 0)
 	gameAddr1 := common.Address{0xaa}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Context is cancelled
 
 	// Should not block because the context is done.
-	err := c.schedule(ctx, []common.Address{gameAddr1})
+	err := c.schedule(ctx, asPlayerCreators(gameAddr1))
 	require.ErrorIs(t, err, context.Canceled)
 	require.Empty(t, workQueue, "should not have been able to schedule game")
 }
 
 func TestScheduleGameAgainAfterCompletion(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	ctx := context.Background()
 
 	// Schedule the game once
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr1)))
 	require.Len(t, workQueue, 1, "should schedule game")
 
 	// Read the job
@@ -79,18 +80,18 @@ func TestScheduleGameAgainAfterCompletion(t *testing.T) {
 	require.NoError(t, c.processResult(j))
 
 	// And then attempt to schedule again
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr1)))
 	require.Len(t, workQueue, 1, "should reschedule completed game")
 }
 
 func TestResultForUnknownGame(t *testing.T) {
-	c, _, _, _, _ := setupCoordinatorTest(t, 10)
+	c, _, _, _ := setupCoordinatorTest(t, 10)
 	err := c.processResult(job{addr: common.Address{0xaa}})
 	require.ErrorIs(t, err, errUnknownGame)
 }
 
 func TestProcessResultsWhileJobQueueFull(t *testing.T) {
-	c, workQueue, resultQueue, games, disk := setupCoordinatorTest(t, 0)
+	c, workQueue, resultQueue, disk := setupCoordinatorTest(t, 0)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -113,8 +114,11 @@ func TestProcessResultsWhileJobQueueFull(t *testing.T) {
 
 	// Even though work queue length is only 1, should be able to schedule all three games
 	// by reading and processing results
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1, gameAddr2, gameAddr3}))
-	require.Len(t, games.created, 3, "should have created 3 games")
+	creators := asStubPlayerCreators(gameAddr1, gameAddr2, gameAddr3)
+	require.NoError(t, c.schedule(ctx, toPlayerCreators(creators)))
+	for i, creator := range creators {
+		require.Truef(t, creator.created, "should have created game %v", i)
+	}
 
 loop:
 	for {
@@ -132,14 +136,14 @@ loop:
 }
 
 func TestDeleteDataForResolvedGames(t *testing.T) {
-	c, workQueue, _, _, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, disk := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
 	ctx := context.Background()
 
 	// First get game 3 marked as resolved
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr3}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr3)))
 	require.Len(t, workQueue, 1)
 	j := <-workQueue
 	j.status = types.GameStatusDefenderWon
@@ -148,7 +152,7 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 	disk.DirForGame(gameAddr3)
 
 	gameAddrs := []common.Address{gameAddr1, gameAddr2, gameAddr3}
-	require.NoError(t, c.schedule(ctx, gameAddrs))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddrs...)))
 
 	// The work queue should only contain jobs for games 1 and 2
 	// A resolved game should not be scheduled for an update.
@@ -172,15 +176,17 @@ func TestDeleteDataForResolvedGames(t *testing.T) {
 }
 
 func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
-	c, workQueue, _, games, disk := setupCoordinatorTest(t, 10)
+	c, workQueue, _, disk := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	ctx := context.Background()
 
-	games.creationFails = gameAddr1
-
 	gameAddrs := []common.Address{gameAddr1, gameAddr2}
-	err := c.schedule(ctx, gameAddrs)
+	creators := asStubPlayerCreators(gameAddrs...)
+
+	creators[0].creationError = errors.New("boom")
+
+	err := c.schedule(ctx, toPlayerCreators(creators))
 	require.Error(t, err)
 
 	// Game 1 won't be scheduled because the player failed to be created
@@ -193,8 +199,8 @@ func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
 	require.True(t, disk.gameDirExists[gameAddr2], "game 2 data should be preserved")
 
 	// Should create player for game 1 next time its scheduled
-	games.creationFails = common.Address{}
-	require.NoError(t, c.schedule(ctx, gameAddrs))
+	creators[0].creationError = nil
+	require.NoError(t, c.schedule(ctx, toPlayerCreators(creators)))
 	require.Len(t, workQueue, len(gameAddrs), "should schedule all games")
 
 	j := <-workQueue
@@ -203,7 +209,7 @@ func TestDoNotDeleteDataForGameThatFailedToCreatePlayer(t *testing.T) {
 }
 
 func TestDropOldGameStates(t *testing.T) {
-	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
+	c, workQueue, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
@@ -211,7 +217,7 @@ func TestDropOldGameStates(t *testing.T) {
 	ctx := context.Background()
 
 	// Start tracking game 1, 2 and 3
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr1, gameAddr2, gameAddr3}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr1, gameAddr2, gameAddr3)))
 	require.Len(t, workQueue, 3, "should schedule games")
 
 	// Complete processing of games 1 and 2, leaving 3 in flight
@@ -219,7 +225,7 @@ func TestDropOldGameStates(t *testing.T) {
 	require.NoError(t, c.processResult(<-workQueue))
 
 	// Next update only has games 2 and 4
-	require.NoError(t, c.schedule(ctx, []common.Address{gameAddr2, gameAddr4}))
+	require.NoError(t, c.schedule(ctx, asPlayerCreators(gameAddr2, gameAddr4)))
 
 	require.NotContains(t, c.states, gameAddr1, "should drop state for game 1")
 	require.Contains(t, c.states, gameAddr2, "should keep state for game 2 (still active)")
@@ -227,60 +233,13 @@ func TestDropOldGameStates(t *testing.T) {
 	require.Contains(t, c.states, gameAddr4, "should create state for game 4")
 }
 
-func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *createdGames, *stubDiskManager) {
+func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan job, chan job, *stubDiskManager) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	workQueue := make(chan job, bufferSize)
 	resultQueue := make(chan job, bufferSize)
-	games := &createdGames{
-		t:       t,
-		created: make(map[common.Address]*stubGame),
-	}
 	disk := &stubDiskManager{gameDirExists: make(map[common.Address]bool)}
-	c := newCoordinator(logger, metrics.NoopMetrics, workQueue, resultQueue, games.CreateGame, disk)
-	return c, workQueue, resultQueue, games, disk
-}
-
-type stubGame struct {
-	addr          common.Address
-	progressCount int
-	status        types.GameStatus
-	dir           string
-}
-
-func (g *stubGame) ProgressGame(_ context.Context) types.GameStatus {
-	g.progressCount++
-	return g.status
-}
-
-func (g *stubGame) Status() types.GameStatus {
-	return g.status
-}
-
-type createdGames struct {
-	t               *testing.T
-	createCompleted common.Address
-	creationFails   common.Address
-	created         map[common.Address]*stubGame
-}
-
-func (c *createdGames) CreateGame(addr common.Address, dir string) (GamePlayer, error) {
-	if c.creationFails == addr {
-		return nil, fmt.Errorf("refusing to create player for game: %v", addr)
-	}
-	if _, exists := c.created[addr]; exists {
-		c.t.Fatalf("game %v already exists", addr)
-	}
-	status := types.GameStatusInProgress
-	if addr == c.createCompleted {
-		status = types.GameStatusDefenderWon
-	}
-	game := &stubGame{
-		addr:   addr,
-		status: status,
-		dir:    dir,
-	}
-	c.created[addr] = game
-	return game, nil
+	c := newCoordinator(logger, metrics.NoopMetrics, workQueue, resultQueue, disk)
+	return c, workQueue, resultQueue, disk
 }
 
 type stubDiskManager struct {

@@ -27,6 +27,7 @@ type GameInfo interface {
 }
 
 type GamePlayer struct {
+	addr                    common.Address
 	act                     actor
 	agreeWithProposedOutput bool
 	loader                  GameInfo
@@ -60,6 +61,7 @@ func NewGamePlayer(
 		logger.Info("Game already resolved", "status", status)
 		// Game is already complete so skip creating the trace provider, loading game inputs etc.
 		return &GamePlayer{
+			addr:                    addr,
 			logger:                  logger,
 			loader:                  loader,
 			agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
@@ -106,12 +108,17 @@ func NewGamePlayer(
 	}
 
 	return &GamePlayer{
+		addr:                    addr,
 		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
 		status:                  status,
 	}, nil
+}
+
+func (g *GamePlayer) Addr() common.Address {
+	return g.addr
 }
 
 func (g *GamePlayer) Status() gameTypes.GameStatus {

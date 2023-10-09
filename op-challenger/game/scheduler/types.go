@@ -1,17 +1,10 @@
 package scheduler
 
 import (
-	"context"
-
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 )
-
-type GamePlayer interface {
-	ProgressGame(ctx context.Context) types.GameStatus
-	Status() types.GameStatus
-}
 
 type DiskManager interface {
 	DirForGame(addr common.Address) string
@@ -20,6 +13,6 @@ type DiskManager interface {
 
 type job struct {
 	addr   common.Address
-	player GamePlayer
+	player types.GamePlayer
 	status types.GameStatus
 }

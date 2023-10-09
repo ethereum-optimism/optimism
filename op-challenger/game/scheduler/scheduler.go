@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -26,14 +26,14 @@ type Scheduler struct {
 	coordinator    *coordinator
 	m              SchedulerMetricer
 	maxConcurrency uint
-	scheduleQueue  chan []common.Address
+	scheduleQueue  chan []types.PlayerCreator
 	jobQueue       chan job
 	resultQueue    chan job
 	wg             sync.WaitGroup
 	cancel         func()
 }
 
-func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint, createPlayer PlayerCreator) *Scheduler {
+func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxConcurrency uint) *Scheduler {
 	// Size job and results queues to be fairly small so backpressure is applied early
 	// but with enough capacity to keep the workers busy
 	jobQueue := make(chan job, maxConcurrency*2)
@@ -41,12 +41,12 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 
 	// scheduleQueue has a size of 1 so backpressure quickly propagates to the caller
 	// allowing them to potentially skip update cycles.
-	scheduleQueue := make(chan []common.Address, 1)
+	scheduleQueue := make(chan []types.PlayerCreator, 1)
 
 	return &Scheduler{
 		logger:         logger,
 		m:              m,
-		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk),
+		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, disk),
 		maxConcurrency: maxConcurrency,
 		scheduleQueue:  scheduleQueue,
 		jobQueue:       jobQueue,
@@ -84,7 +84,7 @@ func (s *Scheduler) Close() error {
 	return nil
 }
 
-func (s *Scheduler) Schedule(games []common.Address) error {
+func (s *Scheduler) Schedule(games []types.PlayerCreator) error {
 	select {
 	case s.scheduleQueue <- games:
 		return nil

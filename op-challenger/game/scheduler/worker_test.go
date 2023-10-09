@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/stretchr/testify/require"
 )
@@ -69,6 +70,10 @@ func (m *metricSink) ThreadIdle() {
 
 type stubPlayer struct {
 	status types.GameStatus
+}
+
+func (s *stubPlayer) Addr() common.Address {
+	return common.Address{}
 }
 
 func (s *stubPlayer) ProgressGame(ctx context.Context) types.GameStatus {

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,7 +52,7 @@ func TestMonitorGames(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
-		source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		source.games = []types.PlayerCreator{newPlayerCreator(addr1), newPlayerCreator(addr2)}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -86,14 +87,14 @@ func TestMonitorGames(t *testing.T) {
 		err := monitor.MonitorGames(ctx)
 		require.NoError(t, err)
 		require.Len(t, sched.scheduled, 1)
-		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
+		require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled(0))
 	})
 
 	t.Run("Resubscribes on error", func(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
-		source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		source.games = []types.PlayerCreator{newPlayerCreator(addr1), newPlayerCreator(addr2)}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -130,7 +131,7 @@ func TestMonitorGames(t *testing.T) {
 		err := monitor.MonitorGames(ctx)
 		require.NoError(t, err)
 		require.NotEmpty(t, sched.scheduled) // We might get more than one update scheduled.
-		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
+		require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled(0))
 	})
 }
 
@@ -139,31 +140,28 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+	source.games = []types.PlayerCreator{newPlayerCreator(addr1), newPlayerCreator(addr2)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
 	require.Len(t, sched.scheduled, 1)
-	require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
+	require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled(0))
 }
 
 func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
 	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
-	source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+	source.games = []types.PlayerCreator{newPlayerCreator(addr1), newPlayerCreator(addr2)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
 	require.Len(t, sched.scheduled, 1)
-	require.Equal(t, []common.Address{addr2}, sched.scheduled[0])
+	require.Equal(t, []common.Address{addr2}, sched.Scheduled(0))
 }
 
-func newFDG(proxy common.Address, timestamp uint64) FaultDisputeGame {
-	return FaultDisputeGame{
-		Proxy:     proxy,
-		Timestamp: timestamp,
-	}
+func newPlayerCreator(proxy common.Address) types.PlayerCreator {
+	return stubPlayerCreator(proxy)
 }
 
 func setupMonitorTest(
@@ -198,9 +196,9 @@ type mockNewHeadSource struct {
 }
 
 func (m *mockNewHeadSource) EthSubscribe(
-	ctx context.Context,
+	_ context.Context,
 	ch any,
-	args ...any,
+	_ ...any,
 ) (ethereum.Subscription, error) {
 	errChan := make(chan error)
 	m.sub = &mockSubscription{errChan, (ch).(chan<- *ethtypes.Header)}
@@ -222,22 +220,41 @@ func (m *mockSubscription) Err() <-chan error {
 }
 
 type stubGameSource struct {
-	games []FaultDisputeGame
+	games []types.PlayerCreator
 }
 
 func (s *stubGameSource) FetchAllGamesAtBlock(
-	ctx context.Context,
-	earliest uint64,
-	blockNumber *big.Int,
-) ([]FaultDisputeGame, error) {
+	_ context.Context,
+	_ uint64,
+	_ *big.Int,
+) ([]types.PlayerCreator, error) {
 	return s.games, nil
 }
 
 type stubScheduler struct {
-	scheduled [][]common.Address
+	scheduled [][]types.PlayerCreator
 }
 
-func (s *stubScheduler) Schedule(games []common.Address) error {
+func (s *stubScheduler) Schedule(games []types.PlayerCreator) error {
 	s.scheduled = append(s.scheduled, games)
 	return nil
+}
+
+func (s *stubScheduler) Scheduled(i int) []common.Address {
+	games := s.scheduled[i]
+	var addrs []common.Address
+	for _, game := range games {
+		addrs = append(addrs, game.Addr())
+	}
+	return addrs
+}
+
+type stubPlayerCreator common.Address
+
+func (c stubPlayerCreator) Addr() common.Address {
+	return common.Address(c)
+}
+
+func (c stubPlayerCreator) Create(_ string) (types.GamePlayer, error) {
+	return nil, nil
 }

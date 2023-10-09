@@ -1,7 +1,10 @@
 package types
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type GameStatus uint8
@@ -32,4 +35,15 @@ func GameStatusFromUint8(i uint8) (GameStatus, error) {
 		return GameStatus(i), fmt.Errorf("invalid game status: %d", i)
 	}
 	return GameStatus(i), nil
+}
+
+type PlayerCreator interface {
+	Addr() common.Address
+	Create(dir string) (GamePlayer, error)
+}
+
+type GamePlayer interface {
+	Addr() common.Address
+	ProgressGame(ctx context.Context) GameStatus
+	Status() GameStatus
 }

@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	opClient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -61,21 +62,20 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		m.StartBalanceMetrics(ctx, logger, l1Client, txMgr.From())
 	}
 
-	factory, err := bindings.NewDisputeGameFactory(cfg.GameFactoryAddress, l1Client)
+	loader, err := NewGameSource(logger, cfg.GameFactoryAddress, l1Client)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err)
+		return nil, fmt.Errorf("failed to create game source: %w", err)
 	}
-	loader := NewGameLoader(factory)
+	// TODO: Should select the game type from which registration was used and remove Config.TraceType
+	loader.RegisterGameType(fault.CannonGameType, func(caller bind.ContractCaller, gameAddr common.Address, dir string) (types.GamePlayer, error) {
+		return fault.NewGamePlayer(ctx, logger, m, cfg, dir, gameAddr, txMgr, caller)
+	})
+	loader.RegisterGameType(fault.AlphabetGameType, func(caller bind.ContractCaller, gameAddr common.Address, dir string) (types.GamePlayer, error) {
+		return fault.NewGamePlayer(ctx, logger, m, cfg, dir, gameAddr, txMgr, caller)
+	})
 
 	disk := newDiskManager(cfg.Datadir)
-	sched := scheduler.NewScheduler(
-		logger,
-		m,
-		disk,
-		cfg.MaxConcurrency,
-		func(addr common.Address, dir string) (scheduler.GamePlayer, error) {
-			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, addr, txMgr, l1Client)
-		})
+	sched := scheduler.NewScheduler(logger, m, disk, cfg.MaxConcurrency)
 
 	pollClient, err := opClient.NewRPCWithClient(ctx, logger, cfg.L1EthRpc, opClient.NewBaseRPCClient(l1Client.Client()), cfg.PollInterval)
 	if err != nil {
