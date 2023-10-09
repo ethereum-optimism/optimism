@@ -31,13 +31,13 @@ func TestService(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	srv, err := Start(log.New(), cfg, "foobar")
+	srv, err := Start(ctx, log.New(), cfg, "foobar")
 	// Make sure that the service properly starts
 	require.NoError(t, err)
 
 	defer cancel()
 	defer func() {
-		require.NoError(t, srv.Close(), "close heartbeat server")
+		require.NoError(t, srv.Stop(ctx), "close heartbeat server")
 	}()
 
 	tests := []struct {

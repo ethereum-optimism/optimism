@@ -61,7 +61,11 @@ func Main(version string, cliCtx *cli.Context) error {
 			return err
 		}
 		l.Info("started pprof server", "addr", pprofSrv.Addr())
-		defer pprofSrv.Close()
+		defer func() {
+			if err := pprofSrv.Stop(context.Background()); err != nil {
+				l.Error("failed to stop pprof server", "err", err)
+			}
+		}()
 	}
 
 	metricsCfg := cfg.MetricsConfig
@@ -72,7 +76,11 @@ func Main(version string, cliCtx *cli.Context) error {
 			return fmt.Errorf("failed to start metrics server: %w", err)
 		}
 		l.Info("started metrics server", "addr", metricsSrv.Addr())
-		defer metricsSrv.Close()
+		defer func() {
+			if err := metricsSrv.Stop(context.Background()); err != nil {
+				l.Error("failed to stop pprof server", "err", err)
+			}
+		}()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())

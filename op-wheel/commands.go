@@ -423,7 +423,11 @@ var (
 					if err != nil {
 						return fmt.Errorf("failed to start metrics server: %w", err)
 					}
-					defer metricsSrv.Close()
+					defer func() {
+						if err := metricsSrv.Stop(context.Background()); err != nil {
+							l.Error("failed to stop metrics server: %w", err)
+						}
+					}()
 				}
 				return engine.Auto(ctx, metrics, client, l, shutdown, settings)
 			})

@@ -119,7 +119,7 @@ func (i *Indexer) startHttpServer(ctx context.Context) error {
 	i.log.Info("http server started", "addr", srv.Addr())
 	<-ctx.Done()
 	defer i.log.Info("http server stopped")
-	return srv.Close()
+	return srv.Stop(context.Background())
 }
 
 func (i *Indexer) startMetricsServer(ctx context.Context) error {
@@ -131,7 +131,7 @@ func (i *Indexer) startMetricsServer(ctx context.Context) error {
 	i.log.Info("metrics server started", "addr", srv.Addr())
 	<-ctx.Done()
 	defer i.log.Info("metrics server stopped")
-	return srv.Close()
+	return srv.Stop(context.Background())
 }
 
 // Start starts the indexing service on L1 and L2 chains

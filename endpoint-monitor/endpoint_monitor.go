@@ -52,7 +52,11 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			l.Error("error starting metrics server", err)
 			return err
 		}
-		defer srv.Close()
+		defer func() {
+			if err := srv.Stop(cliCtx.Context); err != nil {
+				l.Error("failed to stop metrics server", "err", err)
+			}
+		}()
 		opio.BlockOnInterrupts()
 
 		return nil

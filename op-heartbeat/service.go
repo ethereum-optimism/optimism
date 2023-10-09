@@ -1,6 +1,7 @@
 package op_heartbeat
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -41,7 +42,7 @@ func Main(version string) func(ctx *cli.Context) error {
 		oplog.SetGlobalLogHandler(l.GetHandler())
 		l.Info("starting heartbeat monitor", "version", version)
 
-		srv, err := Start(l, cfg, version)
+		srv, err := Start(cliCtx.Context, l, cfg, version)
 		if err != nil {
 			l.Crit("error starting application", "err", err)
 		}
@@ -54,7 +55,7 @@ func Main(version string) func(ctx *cli.Context) error {
 			syscall.SIGQUIT,
 		}...)
 		<-doneCh
-		return srv.Close()
+		return srv.Stop(context.Background())
 	}
 }
 
@@ -62,21 +63,21 @@ type HeartbeatService struct {
 	pprof, metrics, http *httputil.HTTPServer
 }
 
-func (hs *HeartbeatService) Close() error {
+func (hs *HeartbeatService) Stop(ctx context.Context) error {
 	var result error
 	if hs.pprof != nil {
-		result = errors.Join(result, hs.pprof.Close())
+		result = errors.Join(result, hs.pprof.Stop(ctx))
 	}
 	if hs.metrics != nil {
-		result = errors.Join(result, hs.metrics.Close())
+		result = errors.Join(result, hs.metrics.Stop(ctx))
 	}
 	if hs.http != nil {
-		result = errors.Join(result, hs.http.Close())
+		result = errors.Join(result, hs.http.Stop(ctx))
 	}
 	return result
 }
 
-func Start(l log.Logger, cfg Config, version string) (*HeartbeatService, error) {
+func Start(ctx context.Context, l log.Logger, cfg Config, version string) (*HeartbeatService, error) {
 	hs := &HeartbeatService{}
 
 	registry := opmetrics.NewRegistry()
@@ -85,7 +86,7 @@ func Start(l log.Logger, cfg Config, version string) (*HeartbeatService, error) 
 		l.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		metricsSrv, err := opmetrics.StartServer(registry, metricsCfg.ListenAddr, metricsCfg.ListenPort)
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to start metrics server: %w", err), hs.Close())
+			return nil, errors.Join(fmt.Errorf("failed to start metrics server: %w", err), hs.Stop(ctx))
 		}
 		hs.metrics = metricsSrv
 		l.Info("started metrics server", "addr", metricsSrv.Addr())
@@ -96,7 +97,7 @@ func Start(l log.Logger, cfg Config, version string) (*HeartbeatService, error) 
 		l.Debug("starting pprof", "addr", pprofCfg.ListenAddr, "port", pprofCfg.ListenPort)
 		pprofSrv, err := oppprof.StartServer(pprofCfg.ListenAddr, pprofCfg.ListenPort)
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to start pprof server: %w", err), hs.Close())
+			return nil, errors.Join(fmt.Errorf("failed to start pprof server: %w", err), hs.Stop(ctx))
 		}
 		l.Info("started pprof server", "addr", pprofSrv.Addr())
 		hs.pprof = pprofSrv
@@ -121,7 +122,7 @@ func Start(l log.Logger, cfg Config, version string) (*HeartbeatService, error) 
 		}),
 		httputil.WithMaxHeaderBytes(HTTPMaxHeaderSize))
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to start HTTP server: %w", err), hs.Close())
+		return nil, errors.Join(fmt.Errorf("failed to start HTTP server: %w", err), hs.Stop(ctx))
 	}
 	hs.http = srv
 

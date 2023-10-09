@@ -555,7 +555,9 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	var result *multierror.Error
 
 	if n.server != nil {
-		n.server.Stop()
+		if err := n.server.Stop(ctx); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close RPC server: %w", err))
+		}
 	}
 	if n.p2pNode != nil {
 		if err := n.p2pNode.Close(); err != nil {
@@ -623,12 +625,12 @@ func (n *OpNode) Stop(ctx context.Context) error {
 
 	// Close metrics and pprof only after we are done idling
 	if n.pprofSrv != nil {
-		if err := n.pprofSrv.Close(); err != nil {
+		if err := n.pprofSrv.Stop(ctx); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close pprof server: %w", err))
 		}
 	}
 	if n.metricsSrv != nil {
-		if err := n.metricsSrv.Close(); err != nil {
+		if err := n.metricsSrv.Stop(ctx); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close metrics server: %w", err))
 		}
 	}
@@ -640,10 +642,9 @@ func (n *OpNode) Stopped() bool {
 	return n.closed.Load()
 }
 
-func (n *OpNode) ListenAddr() string {
-	return n.server.listenAddr.String()
-}
-
 func (n *OpNode) HTTPEndpoint() string {
-	return fmt.Sprintf("http://%s", n.ListenAddr())
+	if n.server == nil {
+		return ""
+	}
+	return fmt.Sprintf("http://%s", n.server.Addr().String())
 }

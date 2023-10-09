@@ -78,7 +78,11 @@ func Main(cliCtx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to start metrics server: %w", err)
 		}
-		defer metricsSrv.Close()
+		defer func() {
+			if err := metricsSrv.Stop(context.Background()); err != nil {
+				log.Error("failed to stop metrics server", "err", err)
+			}
+		}()
 		log.Info("started metrics server", "addr", metricsSrv.Addr())
 		m.RecordUp()
 	}

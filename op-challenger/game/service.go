@@ -31,13 +31,16 @@ type Service struct {
 	metricsSrv *httputil.HTTPServer
 }
 
-func (s *Service) Close() error {
+func (s *Service) Stop(ctx context.Context) error {
 	var result error
+	if s.sched != nil {
+		result = errors.Join(result, s.sched.Close())
+	}
 	if s.pprofSrv != nil {
-		result = errors.Join(result, s.pprofSrv.Close())
+		result = errors.Join(result, s.pprofSrv.Stop(ctx))
 	}
 	if s.metricsSrv != nil {
-		result = errors.Join(result, s.metricsSrv.Close())
+		result = errors.Join(result, s.metricsSrv.Stop(ctx))
 	}
 	return result
 }
@@ -66,7 +69,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		logger.Debug("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
 		pprofSrv, err := oppprof.StartServer(pprofConfig.ListenAddr, pprofConfig.ListenPort)
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to start pprof server: %w", err), s.Close())
+			return nil, errors.Join(fmt.Errorf("failed to start pprof server: %w", err), s.Stop(ctx))
 		}
 		s.pprofSrv = pprofSrv
 		logger.Info("started pprof server", "addr", pprofSrv.Addr())
@@ -77,7 +80,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		logger.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		metricsSrv, err := m.Start(metricsCfg.ListenAddr, metricsCfg.ListenPort)
 		if err != nil {
-			return nil, errors.Join(fmt.Errorf("failed to start metrics server: %w", err), s.Close())
+			return nil, errors.Join(fmt.Errorf("failed to start metrics server: %w", err), s.Stop(ctx))
 		}
 		logger.Info("started metrics server", "addr", metricsSrv.Addr())
 		s.metricsSrv = metricsSrv
@@ -86,7 +89,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 
 	factory, err := bindings.NewDisputeGameFactory(cfg.GameFactoryAddress, l1Client)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err), s.Close())
+		return nil, errors.Join(fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err), s.Stop(ctx))
 	}
 	loader := NewGameLoader(factory)
 
@@ -102,7 +105,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 
 	pollClient, err := opClient.NewRPCWithClient(ctx, logger, cfg.L1EthRpc, opClient.NewBaseRPCClient(l1Client.Client()), cfg.PollInterval)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("failed to create RPC client: %w", err), s.Close())
+		return nil, errors.Join(fmt.Errorf("failed to create RPC client: %w", err), s.Stop(ctx))
 	}
 	s.monitor = newGameMonitor(logger, cl, loader, s.sched, cfg.GameWindow, l1Client.BlockNumber, cfg.GameAllowlist, pollClient)
 
@@ -115,7 +118,9 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 // MonitorGame monitors the fault dispute game and attempts to progress it.
 func (s *Service) MonitorGame(ctx context.Context) error {
 	s.sched.Start(ctx)
-	defer s.sched.Close()
-	defer s.Close()
-	return s.monitor.MonitorGames(ctx)
+	err := s.monitor.MonitorGames(ctx)
+	// The other ctx is the close-trigger.
+	// We need to refactor Service more to allow for graceful/force-shutdown granularity.
+	err = errors.Join(err, s.Stop(context.Background()))
+	return err
 }
