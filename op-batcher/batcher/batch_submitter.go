@@ -50,28 +50,31 @@ func Main(version string, cliCtx *cli.Context) error {
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Stop pprof and metrics only after main loop returns
 	defer batchSubmitter.StopIfRunning(context.Background())
 
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
-		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
-		go func() {
-			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
-				l.Error("error starting pprof", "err", err)
-			}
-		}()
+		l.Debug("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+		pprofSrv, err := oppprof.StartServer(pprofConfig.ListenAddr, pprofConfig.ListenPort)
+		if err != nil {
+			l.Error("failed to start pprof server", "err", err)
+			return err
+		}
+		l.Info("started pprof server", "addr", pprofSrv.Addr())
+		defer pprofSrv.Close()
 	}
 
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
-		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-		go func() {
-			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-				l.Error("error starting metrics server", "err", err)
-			}
-		}()
+		l.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		metricsSrv, err := m.Start(metricsCfg.ListenAddr, metricsCfg.ListenPort)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics server: %w", err)
+		}
+		l.Info("started metrics server", "addr", metricsSrv.Addr())
+		defer metricsSrv.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
@@ -87,7 +90,6 @@ func Main(version string, cliCtx *cli.Context) error {
 		l.Info("Admin RPC enabled")
 	}
 	if err := server.Start(); err != nil {
-		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
 

@@ -150,11 +150,11 @@ func (a *API) startServer(ctx context.Context) error {
 // startMetricsServer ... Starts the metrics server
 func (a *API) startMetricsServer(ctx context.Context) error {
 	a.log.Info("starting metrics server...", "port", a.metricsConfig.Port)
-	err := metrics.ListenAndServe(ctx, a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)
+	srv, err := metrics.StartServer(a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)
 	if err != nil {
-		a.log.Error("metrics server stopped", "err", err)
-	} else {
-		a.log.Info("metrics server stopped")
+		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	return err
+	<-ctx.Done()
+	defer a.log.Info("metrics server stopped")
+	return srv.Close()
 }
