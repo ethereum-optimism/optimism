@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.20.7-alpine3.18 as builder
+FROM --platform=$BUILDPLATFORM golang:1.21.1-alpine3.18 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
@@ -22,5 +22,11 @@ RUN make indexer
 FROM alpine:3.18
 
 COPY --from=builder /app/indexer/indexer /usr/local/bin
+COPY --from=builder /app/indexer/indexer.toml /app/indexer/indexer.toml
+COPY --from=builder /app/indexer/migrations /app/indexer/migrations
+
+WORKDIR /app
+
+ENV INDEXER_MIGRATIONS_DIR="/app/indexer/migrations"
 
 CMD ["indexer", "index", "--config", "/app/indexer/indexer.toml"]

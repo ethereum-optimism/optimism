@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 )
 
 // ABI types
@@ -272,7 +273,7 @@ func main() {
 		// Create a secure trie for state
 		state, err := trie.NewStateTrie(
 			trie.TrieID(types.EmptyRootHash),
-			trie.NewDatabase(rawdb.NewMemoryDatabase()),
+			trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{HashDB: hashdb.Defaults}),
 		)
 		checkErr(err, "Error creating secure trie")
 
@@ -283,7 +284,7 @@ func main() {
 		// Create a secure trie for the world state
 		world, err := trie.NewStateTrie(
 			trie.TrieID(types.EmptyRootHash),
-			trie.NewDatabase(rawdb.NewMemoryDatabase()),
+			trie.NewDatabase(rawdb.NewMemoryDatabase(), &trie.Config{HashDB: hashdb.Defaults}),
 		)
 		checkErr(err, "Error creating secure trie")
 
@@ -300,7 +301,7 @@ func main() {
 
 		// Get the proof
 		var proof proofList
-		checkErr(state.Prove(predeploys.L2ToL1MessagePasserAddr.Bytes(), 0, &proof), "Error getting proof")
+		checkErr(state.Prove(predeploys.L2ToL1MessagePasserAddr.Bytes(), &proof), "Error getting proof")
 
 		// Get the output root
 		outputRoot, err := hashOutputRootProof(common.Hash{}, world.Hash(), state.Hash(), common.Hash{})

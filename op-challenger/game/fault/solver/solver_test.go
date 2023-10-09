@@ -2,6 +2,7 @@ package solver
 
 import (
 	"context"
+	"math/big"
 	"testing"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
@@ -16,7 +17,8 @@ func TestAttemptStep(t *testing.T) {
 
 	// Last accessible leaf is the second last trace index
 	// The root node is used for the last trace index and can only be attacked.
-	lastLeafTraceIndex := uint64(1<<maxDepth - 2)
+	lastLeafTraceIndex := big.NewInt(1<<maxDepth - 2)
+	lastLeafTraceIndexPlusOne := big.NewInt(1<<maxDepth - 1)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -32,9 +34,9 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:               "AttackFirstTraceIndex",
 			expectAttack:       true,
-			expectPreState:     claimBuilder.CorrectPreState(0),
-			expectProofData:    claimBuilder.CorrectProofData(0),
-			expectedOracleData: claimBuilder.CorrectOracleData(0),
+			expectPreState:     claimBuilder.CorrectPreState(common.Big0),
+			expectProofData:    claimBuilder.CorrectProofData(common.Big0),
+			expectedOracleData: claimBuilder.CorrectOracleData(common.Big0),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
 					Attack(common.Hash{0xaa}).
@@ -45,9 +47,9 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:               "DefendFirstTraceIndex",
 			expectAttack:       false,
-			expectPreState:     claimBuilder.CorrectPreState(1),
-			expectProofData:    claimBuilder.CorrectProofData(1),
-			expectedOracleData: claimBuilder.CorrectOracleData(1),
+			expectPreState:     claimBuilder.CorrectPreState(big.NewInt(1)),
+			expectProofData:    claimBuilder.CorrectProofData(big.NewInt(1)),
+			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(1)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
 					Attack(common.Hash{0xaa}).
@@ -58,9 +60,9 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:               "AttackMiddleTraceIndex",
 			expectAttack:       true,
-			expectPreState:     claimBuilder.CorrectPreState(4),
-			expectProofData:    claimBuilder.CorrectProofData(4),
-			expectedOracleData: claimBuilder.CorrectOracleData(4),
+			expectPreState:     claimBuilder.CorrectPreState(big.NewInt(4)),
+			expectProofData:    claimBuilder.CorrectProofData(big.NewInt(4)),
+			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(4)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
 					AttackCorrect().
@@ -71,9 +73,9 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:               "DefendMiddleTraceIndex",
 			expectAttack:       false,
-			expectPreState:     claimBuilder.CorrectPreState(5),
-			expectProofData:    claimBuilder.CorrectProofData(5),
-			expectedOracleData: claimBuilder.CorrectOracleData(5),
+			expectPreState:     claimBuilder.CorrectPreState(big.NewInt(5)),
+			expectProofData:    claimBuilder.CorrectProofData(big.NewInt(5)),
+			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(5)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
 					AttackCorrect().
@@ -97,9 +99,9 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:               "DefendLastTraceIndex",
 			expectAttack:       false,
-			expectPreState:     claimBuilder.CorrectPreState(lastLeafTraceIndex + 1),
-			expectProofData:    claimBuilder.CorrectProofData(lastLeafTraceIndex + 1),
-			expectedOracleData: claimBuilder.CorrectOracleData(lastLeafTraceIndex + 1),
+			expectPreState:     claimBuilder.CorrectPreState(lastLeafTraceIndexPlusOne),
+			expectProofData:    claimBuilder.CorrectProofData(lastLeafTraceIndexPlusOne),
+			expectedOracleData: claimBuilder.CorrectOracleData(lastLeafTraceIndexPlusOne),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
 					AttackCorrect().
@@ -140,9 +142,9 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:               "CannotStepNearlyValidPath",
 			expectAttack:       true,
-			expectPreState:     claimBuilder.CorrectPreState(4),
-			expectProofData:    claimBuilder.CorrectProofData(4),
-			expectedOracleData: claimBuilder.CorrectOracleData(4),
+			expectPreState:     claimBuilder.CorrectPreState(big.NewInt(4)),
+			expectProofData:    claimBuilder.CorrectProofData(big.NewInt(4)),
+			expectedOracleData: claimBuilder.CorrectOracleData(big.NewInt(4)),
 			setupGame: func(builder *faulttest.GameBuilder) {
 				builder.Seq().
 					AttackCorrect().

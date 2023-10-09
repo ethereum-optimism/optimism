@@ -48,7 +48,7 @@ func DialEthClient(rpcUrl string, metrics Metricer) (EthClient, error) {
 		return nil, err
 	}
 
-	client := &client{rpc: newRPC(rpcClient, metrics)}
+	client := &client{rpc: NewRPC(rpcClient, metrics)}
 	return client, nil
 }
 
@@ -193,8 +193,8 @@ func (c *client) FilterLogs(query ethereum.FilterQuery) ([]types.Log, error) {
 	return result, err
 }
 
-// Modeled off op-node/client.go. We can refactor this once the client/metrics portion
-// of op-node/client has been generalized
+// Modeled off op-service/client.go. We can refactor this once the client/metrics portion
+// of op-service/client has been generalized
 
 type RPC interface {
 	Close()
@@ -207,7 +207,7 @@ type rpcClient struct {
 	metrics Metricer
 }
 
-func newRPC(client *rpc.Client, metrics Metricer) RPC {
+func NewRPC(client *rpc.Client, metrics Metricer) RPC {
 	return &rpcClient{client, metrics}
 }
 

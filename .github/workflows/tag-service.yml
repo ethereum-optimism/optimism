@@ -28,6 +28,7 @@ on:
           - op-challenger
           - op-ufm
           - proxyd
+          - ufm-metamask
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

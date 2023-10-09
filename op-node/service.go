@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -36,7 +36,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	if !ctx.Bool(flags.BetaRollupLoadProtocolVersions.Name) {
+	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
 		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
 		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
@@ -66,7 +66,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	syncConfig := NewSyncConfig(ctx)
 
-	haltOption := ctx.String(flags.BetaRollupHalt.Name)
+	haltOption := ctx.String(flags.RollupHalt.Name)
 	if haltOption == "none" {
 		haltOption = ""
 	}
@@ -202,6 +202,10 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 		if err != nil {
 			return nil, err
 		}
+		if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
+			canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+			config.CanyonTime = &canyon
+		}
 
 		return config, nil
 	}
@@ -215,6 +219,10 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	var rollupConfig rollup.Config
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
+	}
+	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
+		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+		rollupConfig.CanyonTime = &canyon
 	}
 	return &rollupConfig, nil
 }

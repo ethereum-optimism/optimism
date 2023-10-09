@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
+import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
-import { ISemver } from "../universal/ISemver.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
@@ -18,8 +19,8 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.0
-    string public constant version = "1.3.0";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @notice Constructs the contract.
     constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
@@ -28,7 +29,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
 
     /// @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
         __ERC721Bridge_init({ _messenger: _messenger });
     }
 

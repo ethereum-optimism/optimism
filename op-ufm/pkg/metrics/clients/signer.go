@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
 
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
-	signer "github.com/ethereum-optimism/optimism/op-signer/client"
+	signer "github.com/ethereum-optimism/optimism/op-service/signer"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )

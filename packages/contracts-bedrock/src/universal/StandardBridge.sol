@@ -24,6 +24,10 @@ abstract contract StandardBridge is Initializable {
 
     /// @notice Corresponding bridge on the other domain. This public getter is deprecated
     ///         and will be removed in the future. Please use `otherBridge` instead.
+    ///         This can safely be an immutable because for the L1StandardBridge, it will
+    ///         be set to the L2StandardBridge address, which is the same for all OP Stack
+    ///         chains. For the L2StandardBridge, there are not multiple proxies using the
+    ///         same implementation.
     /// @custom:legacy
     /// @custom:network-specific
     StandardBridge public immutable OTHER_BRIDGE;

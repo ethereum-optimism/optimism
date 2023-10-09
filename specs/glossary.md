@@ -208,7 +208,7 @@ A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequ
 A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transaction] for epoch
 `N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
 
-> **TODO** specify sequencer window size
+The current default `sws` is 3600 epochs.
 
 Additionally, the first block in the window defines the [depositing transactions][depositing-tx] which determine the
 [deposits] to be included in the first L2 block of the epoch.

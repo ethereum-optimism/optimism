@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Constants } from "../libraries/Constants.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title IL1ChugSplashDeployer
 interface IL1ChugSplashDeployer {

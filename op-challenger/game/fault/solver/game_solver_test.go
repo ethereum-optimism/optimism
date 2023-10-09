@@ -56,7 +56,6 @@ func TestCalculateNextActions(t *testing.T) {
 				builder.Seq().AttackCorrect()
 			},
 		},
-
 		{
 			name:                "RespondToAllClaimsAtDisagreeingLevel",
 			agreeWithOutputRoot: true,
@@ -70,7 +69,6 @@ func TestCalculateNextActions(t *testing.T) {
 				honestClaim.Defend(common.Hash{0xdd}).ExpectAttack()
 			},
 		},
-
 		{
 			name:                "StepAtMaxDepth",
 			agreeWithOutputRoot: true,
@@ -83,7 +81,6 @@ func TestCalculateNextActions(t *testing.T) {
 				lastHonestClaim.Attack(common.Hash{0xdd}).ExpectStepAttack()
 			},
 		},
-
 		{
 			name:                "PoisonedPreState",
 			agreeWithOutputRoot: true,

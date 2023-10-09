@@ -163,7 +163,7 @@ func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
 		Pending hexutil.Uint64 `json:"pending"`
 	}
 	for i := 0; i < 5; i++ {
-		require.NoError(t, opGeth.L2RpcClient.CallContext(ctx, &txPoolStatus, "txpool_status"))
+		require.NoError(t, opGeth.L2Client.Client().Call(&txPoolStatus, "txpool_status"))
 		if txPoolStatus.Pending == 0 {
 			time.Sleep(time.Second)
 		} else {

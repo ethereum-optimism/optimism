@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -14,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
@@ -58,22 +58,27 @@ func TestMonitorGames(t *testing.T) {
 
 		go func() {
 			headerNotSent := true
-			waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
+			for {
 				if len(sched.scheduled) >= 1 {
-					return true, nil
+					break
 				}
 				if mockHeadSource.sub == nil {
-					return false, nil
+					continue
 				}
 				if headerNotSent {
-					mockHeadSource.sub.headers <- &ethtypes.Header{
+					select {
+					case mockHeadSource.sub.headers <- &ethtypes.Header{
 						Number: big.NewInt(1),
+					}:
+						headerNotSent = false
+					case <-ctx.Done():
+						break
+					default:
 					}
-					headerNotSent = false
 				}
-				return false, nil
-			})
-			require.NoError(t, waitErr)
+				// Just to avoid a tight loop
+				time.Sleep(100 * time.Millisecond)
+			}
 			mockHeadSource.err = fmt.Errorf("eth subscribe test error")
 			cancel()
 		}()
@@ -94,27 +99,29 @@ func TestMonitorGames(t *testing.T) {
 		defer cancel()
 
 		go func() {
-			headerNotSent := true
 			waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
 				return mockHeadSource.sub != nil, nil
 			})
 			require.NoError(t, waitErr)
 			mockHeadSource.sub.errChan <- fmt.Errorf("test error")
-			waitErr = wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
+			for {
 				if len(sched.scheduled) >= 1 {
-					return true, nil
+					break
 				}
 				if mockHeadSource.sub == nil {
-					return false, nil
+					continue
 				}
-				if headerNotSent {
-					mockHeadSource.sub.headers <- &ethtypes.Header{
-						Number: big.NewInt(1),
-					}
-					headerNotSent = false
+				select {
+				case mockHeadSource.sub.headers <- &ethtypes.Header{
+					Number: big.NewInt(1),
+				}:
+				case <-ctx.Done():
+					break
+				default:
 				}
-				return false, nil
-			})
+				// Just to avoid a tight loop
+				time.Sleep(100 * time.Millisecond)
+			}
 			require.NoError(t, waitErr)
 			mockHeadSource.err = fmt.Errorf("eth subscribe test error")
 			cancel()
@@ -122,7 +129,7 @@ func TestMonitorGames(t *testing.T) {
 
 		err := monitor.MonitorGames(ctx)
 		require.NoError(t, err)
-		require.Len(t, sched.scheduled, 1)
+		require.NotEmpty(t, sched.scheduled) // We might get more than one update scheduled.
 		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
 	})
 }

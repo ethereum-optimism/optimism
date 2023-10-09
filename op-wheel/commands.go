@@ -11,15 +11,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-wheel/cheat"
@@ -33,11 +35,11 @@ func prefixEnvVars(name string) []string {
 }
 
 var (
-	GlobalGethLogLvlFlag = &cli.StringFlag{
+	GlobalGethLogLvlFlag = &cli.GenericFlag{
 		Name:    "geth-log-level",
 		Usage:   "Set the global geth logging level",
 		EnvVars: prefixEnvVars("GETH_LOG_LEVEL"),
-		Value:   "error",
+		Value:   oplog.NewLvlFlagValue(log.LvlError),
 	}
 	DataDirFlag = &cli.StringFlag{
 		Name:      "data-dir",
@@ -166,6 +168,14 @@ func (a *TextFlag[T]) String() string {
 
 func (a *TextFlag[T]) Get() T {
 	return a.Value
+}
+
+func (a *TextFlag[T]) Clone() any {
+	var out TextFlag[T]
+	if err := out.Set(a.String()); err != nil {
+		panic(fmt.Errorf("cannot clone invalid text value: %w", err))
+	}
+	return &out
 }
 
 var _ cli.Generic = (*TextFlag[*common.Address])(nil)
@@ -396,10 +406,8 @@ var (
 		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
-			if err := logCfg.Check(); err != nil {
-				return fmt.Errorf("failed to parse log configuration: %w", err)
-			}
-			l := oplog.NewLogger(logCfg)
+			l := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+			oplog.SetGlobalLogHandler(l.GetHandler())
 
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag
