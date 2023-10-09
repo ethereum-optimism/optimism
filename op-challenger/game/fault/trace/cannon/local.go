@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
@@ -25,37 +23,31 @@ type L2DataSource interface {
 }
 
 type GameInputsSource interface {
-	L1Head(opts *bind.CallOpts) ([32]byte, error)
-	Proposals(opts *bind.CallOpts) (struct {
-		Starting bindings.IFaultDisputeGameOutputProposal
-		Disputed bindings.IFaultDisputeGameOutputProposal
-	}, error)
+	L1Head(ctx context.Context) (common.Hash, error)
+	Proposals(ctx context.Context) (agreedOutputRoot common.Hash, agreedBlockNumber *big.Int, disputedOutputRoot common.Hash, disputedBlockNumber *big.Int, err error)
 }
 
 func fetchLocalInputs(ctx context.Context, gameAddr common.Address, caller GameInputsSource, l2Client L2DataSource) (LocalGameInputs, error) {
-	opts := &bind.CallOpts{Context: ctx}
-	l1Head, err := caller.L1Head(opts)
+	l1Head, err := caller.L1Head(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L1 head for game %v: %w", gameAddr, err)
 	}
 
-	proposals, err := caller.Proposals(opts)
+	agreedOutputRoot, agreedBlockNumber, disputedOutputRoot, disputedBlockNumber, err := caller.Proposals(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch proposals: %w", err)
 	}
-	claimedOutput := proposals.Disputed
-	agreedOutput := proposals.Starting
-	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
+	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedBlockNumber)
 	if err != nil {
-		return LocalGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedOutput.L2BlockNumber, err)
+		return LocalGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedBlockNumber, err)
 	}
 	l2Head := agreedHeader.Hash()
 
 	return LocalGameInputs{
 		L1Head:        l1Head,
 		L2Head:        l2Head,
-		L2OutputRoot:  agreedOutput.OutputRoot,
-		L2Claim:       claimedOutput.OutputRoot,
-		L2BlockNumber: claimedOutput.L2BlockNumber,
+		L2OutputRoot:  agreedOutputRoot,
+		L2Claim:       disputedOutputRoot,
+		L2BlockNumber: disputedBlockNumber,
 	}, nil
 }

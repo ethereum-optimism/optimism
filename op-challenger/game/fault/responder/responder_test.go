@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -202,7 +203,9 @@ func TestPerformAction(t *testing.T) {
 func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager) {
 	log := testlog.Logger(t, log.LvlError)
 	mockTxMgr := &mockTxManager{}
-	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress)
+	abi, err := contracts.NewFaultDisputeGameAbi()
+	require.NoError(t, err)
+	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress, abi)
 	require.NoError(t, err)
 	return responder, mockTxMgr
 }

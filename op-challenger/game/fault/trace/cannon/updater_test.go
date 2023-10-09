@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
@@ -64,7 +65,11 @@ func newTestCannonUpdater(t *testing.T, sendFails bool) (*cannonUpdater, *mockTx
 		from:      mockFdgAddress,
 		sendFails: sendFails,
 	}
-	updater, err := NewOracleUpdaterWithOracle(logger, txMgr, mockFdgAddress, mockPreimageOracleAddress)
+	gameAbi, err := contracts.NewFaultDisputeGameAbi()
+	require.NoError(t, err)
+	oracleAbi, err := contracts.NewPreimageOracleAbi()
+	require.NoError(t, err)
+	updater, err := NewOracleUpdaterWithOracle(logger, txMgr, mockFdgAddress, gameAbi, mockPreimageOracleAddress, oracleAbi)
 	require.NoError(t, err)
 	return updater, txMgr
 }
@@ -93,6 +98,7 @@ func TestCannonUpdater_UpdateOracle(t *testing.T) {
 
 // TestCannonUpdater_BuildLocalOracleData tests the [cannonUpdater]
 // builds a valid tx candidate for a local oracle update.
+// TODO: Move this test to be against the FaultDisputeGameAbi
 func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
 	updater, _ := newTestCannonUpdater(t, false)
 	oracleData := &types.PreimageOracleData{
@@ -101,7 +107,7 @@ func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
 		OracleOffset: 7,
 	}
 
-	txData, err := updater.BuildLocalOracleData(oracleData)
+	txData, err := updater.fdgAbi.AddLocalData(oracleData)
 	require.NoError(t, err)
 
 	var addLocalDataBytes4 = crypto.Keccak256([]byte("addLocalData(uint256,uint256)"))[:4]
@@ -117,6 +123,7 @@ func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
 
 // TestCannonUpdater_BuildGlobalOracleData tests the [cannonUpdater]
 // builds a valid tx candidate for a global oracle update.
+// TODO: Move this test to be against the OracleAbi
 func TestCannonUpdater_BuildGlobalOracleData(t *testing.T) {
 	updater, _ := newTestCannonUpdater(t, false)
 	oracleData := &types.PreimageOracleData{
@@ -125,7 +132,7 @@ func TestCannonUpdater_BuildGlobalOracleData(t *testing.T) {
 		OracleOffset: 7,
 	}
 
-	txData, err := updater.BuildGlobalOracleData(oracleData)
+	txData, err := updater.preimageOracleAbi.GlobalOracleData(oracleData)
 	require.NoError(t, err)
 
 	var loadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]

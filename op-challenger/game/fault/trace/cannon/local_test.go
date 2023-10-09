@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -52,21 +51,17 @@ type mockGameInputsSource struct {
 	disputed bindings.IFaultDisputeGameOutputProposal
 }
 
-func (s *mockGameInputsSource) L1Head(opts *bind.CallOpts) ([32]byte, error) {
+func (s *mockGameInputsSource) L1Head(_ context.Context) (common.Hash, error) {
 	return s.l1Head, nil
 }
 
-func (s *mockGameInputsSource) Proposals(opts *bind.CallOpts) (struct {
-	Starting bindings.IFaultDisputeGameOutputProposal
-	Disputed bindings.IFaultDisputeGameOutputProposal
-}, error) {
-	return struct {
-		Starting bindings.IFaultDisputeGameOutputProposal
-		Disputed bindings.IFaultDisputeGameOutputProposal
-	}{
-		Starting: s.starting,
-		Disputed: s.disputed,
-	}, nil
+func (s *mockGameInputsSource) Proposals(_ context.Context) (
+	agreedOutputRoot common.Hash,
+	agreedBlockNumber *big.Int,
+	disputedOutputRoot common.Hash,
+	disputedBlockNumber *big.Int,
+	err error) {
+	return s.starting.OutputRoot, s.starting.L2BlockNumber, s.disputed.OutputRoot, s.disputed.L2BlockNumber, nil
 }
 
 type mockL2DataSource struct {
@@ -74,11 +69,11 @@ type mockL2DataSource struct {
 	header  ethtypes.Header
 }
 
-func (s *mockL2DataSource) ChainID(ctx context.Context) (*big.Int, error) {
+func (s *mockL2DataSource) ChainID(_ context.Context) (*big.Int, error) {
 	return s.chainID, nil
 }
 
-func (s *mockL2DataSource) HeaderByNumber(ctx context.Context, num *big.Int) (*ethtypes.Header, error) {
+func (s *mockL2DataSource) HeaderByNumber(_ context.Context, num *big.Int) (*ethtypes.Header, error) {
 	if s.header.Number.Cmp(num) == 0 {
 		return &s.header, nil
 	}

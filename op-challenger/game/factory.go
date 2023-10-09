@@ -31,6 +31,7 @@ type FaultDisputeGame struct {
 	Proxy     common.Address
 }
 
+// TODO: This probably should move to the contracts package
 type gameLoader struct {
 	caller MinimalDisputeGameFactoryCaller
 }

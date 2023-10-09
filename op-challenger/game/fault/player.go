@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
@@ -46,14 +46,17 @@ func NewGamePlayer(
 	client bind.ContractCaller,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
-	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
+	contract, err := contracts.NewFaultDisputeGame(addr, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
 	}
 
-	loader := NewLoader(contract)
+	contractAbi, err := contracts.NewFaultDisputeGameAbi()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load fault dispute game abit: %w", err)
+	}
 
-	status, err := loader.GetGameStatus(ctx)
+	status, err := contract.GetGameStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game status: %w", err)
 	}
@@ -63,7 +66,7 @@ func NewGamePlayer(
 		return &GamePlayer{
 			addr:                    addr,
 			logger:                  logger,
-			loader:                  loader,
+			loader:                  contract,
 			agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 			status:                  status,
 			// Act function does nothing because the game is already complete
@@ -73,7 +76,7 @@ func NewGamePlayer(
 		}, nil
 	}
 
-	gameDepth, err := loader.FetchGameDepth(ctx)
+	gameDepth, err := contract.FetchGameDepth(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
@@ -87,7 +90,11 @@ func NewGamePlayer(
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
 		provider = cannonProvider
-		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, contract, client)
+		oracleAbi, err := contracts.NewPreimageOracleAbi()
+		if err != nil {
+			return nil, fmt.Errorf("failed to load preimage oracle abi: %w", err)
+		}
+		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, contractAbi, oracleAbi, contract)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
@@ -98,20 +105,20 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}
 
-	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
+	if err := ValidateAbsolutePrestate(ctx, provider, contract); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, addr)
+	responder, err := responder.NewFaultResponder(logger, txMgr, addr, contractAbi)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
 	return &GamePlayer{
 		addr:                    addr,
-		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     NewAgent(m, contract, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
-		loader:                  loader,
+		loader:                  contract,
 		logger:                  logger,
 		status:                  status,
 	}, nil

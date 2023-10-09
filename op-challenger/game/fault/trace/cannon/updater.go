@@ -3,14 +3,10 @@ package cannon
 import (
 	"context"
 	"fmt"
-	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -22,10 +18,10 @@ type cannonUpdater struct {
 	log   log.Logger
 	txMgr txmgr.TxManager
 
-	fdgAbi  abi.ABI
+	fdgAbi  *contracts.FaultDisputeGameAbi
 	fdgAddr common.Address
 
-	preimageOracleAbi  abi.ABI
+	preimageOracleAbi  *contracts.PreimageOracleAbi
 	preimageOracleAddr common.Address
 }
 
@@ -35,23 +31,15 @@ func NewOracleUpdater(
 	logger log.Logger,
 	txMgr txmgr.TxManager,
 	fdgAddr common.Address,
-	gameCaller *bindings.FaultDisputeGameCaller,
-	client bind.ContractCaller,
+	gameAbi *contracts.FaultDisputeGameAbi,
+	oracleAbi *contracts.PreimageOracleAbi,
+	gameCaller *contracts.FaultDisputeGame,
 ) (*cannonUpdater, error) {
-	opts := &bind.CallOpts{Context: ctx}
-	vm, err := gameCaller.VM(opts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load VM address from game %v: %w", fdgAddr, err)
-	}
-	mipsCaller, err := bindings.NewMIPSCaller(vm, client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create MIPS caller for address %v: %w", vm, err)
-	}
-	oracleAddr, err := mipsCaller.Oracle(opts)
+	oracleAddr, err := gameCaller.PreimageOracleAddr(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load pre-image oracle address from game %v: %w", fdgAddr, err)
 	}
-	return NewOracleUpdaterWithOracle(logger, txMgr, fdgAddr, oracleAddr)
+	return NewOracleUpdaterWithOracle(logger, txMgr, fdgAddr, gameAbi, oracleAddr, oracleAbi)
 }
 
 // NewOracleUpdaterWithOracle returns a new updater using a specified pre-image oracle address.
@@ -59,25 +47,18 @@ func NewOracleUpdaterWithOracle(
 	logger log.Logger,
 	txMgr txmgr.TxManager,
 	fdgAddr common.Address,
+	gameAbi *contracts.FaultDisputeGameAbi,
 	preimageOracleAddr common.Address,
+	preimageOracleAbi *contracts.PreimageOracleAbi,
 ) (*cannonUpdater, error) {
-	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-	preimageOracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
 	return &cannonUpdater{
 		log:   logger,
 		txMgr: txMgr,
 
-		fdgAbi:  *fdgAbi,
+		fdgAbi:  gameAbi,
 		fdgAddr: fdgAddr,
 
-		preimageOracleAbi:  *preimageOracleAbi,
+		preimageOracleAbi:  preimageOracleAbi,
 		preimageOracleAddr: preimageOracleAddr,
 	}, nil
 }
@@ -92,7 +73,7 @@ func (u *cannonUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOr
 
 // sendLocalOracleData sends the local oracle data to the [txmgr].
 func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data *types.PreimageOracleData) error {
-	txData, err := u.BuildLocalOracleData(data)
+	txData, err := u.fdgAbi.AddLocalData(data)
 	if err != nil {
 		return fmt.Errorf("local oracle tx data build: %w", err)
 	}
@@ -101,33 +82,11 @@ func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data *types.Pre
 
 // sendGlobalOracleData sends the global oracle data to the [txmgr].
 func (u *cannonUpdater) sendGlobalOracleData(ctx context.Context, data *types.PreimageOracleData) error {
-	txData, err := u.BuildGlobalOracleData(data)
+	txData, err := u.preimageOracleAbi.GlobalOracleData(data)
 	if err != nil {
 		return fmt.Errorf("global oracle tx data build: %w", err)
 	}
 	return u.sendTxAndWait(ctx, u.fdgAddr, txData)
-}
-
-// BuildLocalOracleData takes the local preimage key and data
-// and creates tx data to load the key, data pair into the
-// PreimageOracle contract from the FaultDisputeGame contract call.
-func (u *cannonUpdater) BuildLocalOracleData(data *types.PreimageOracleData) ([]byte, error) {
-	return u.fdgAbi.Pack(
-		"addLocalData",
-		data.GetIdent(),
-		big.NewInt(int64(data.OracleOffset)),
-	)
-}
-
-// BuildGlobalOracleData takes the global preimage key and data
-// and creates tx data to load the key, data pair into the
-// PreimageOracle contract.
-func (u *cannonUpdater) BuildGlobalOracleData(data *types.PreimageOracleData) ([]byte, error) {
-	return u.preimageOracleAbi.Pack(
-		"loadKeccak256PreimagePart",
-		big.NewInt(int64(data.OracleOffset)),
-		data.GetPreimageWithoutSize(),
-	)
 }
 
 // sendTxAndWait sends a transaction through the [txmgr] and waits for a receipt.

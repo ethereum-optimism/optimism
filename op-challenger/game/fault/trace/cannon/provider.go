@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
@@ -55,7 +54,7 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameCaller *bindings.FaultDisputeGameCaller, dir string, gameAddr common.Address, gameDepth uint64) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameCaller GameInputsSource, dir string, gameAddr common.Address, gameDepth uint64) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
