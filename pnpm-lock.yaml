@@ -220,7 +220,7 @@ importers:
         version: 4.18.2
       express-prom-bundle:
         specifier: ^6.6.0
-        version: 6.6.0(prom-client@14.2.0)
+        version: 6.6.0(prom-client@15.0.0)
       lodash:
         specifier: ^4.17.21
         version: 4.17.21
@@ -237,8 +237,8 @@ importers:
         specifier: ^0.14.0
         version: 0.14.0
       prom-client:
-        specifier: ^14.2.0
-        version: 14.2.0
+        specifier: ^15.0.0
+        version: 15.0.0
     devDependencies:
       '@ethersproject/abstract-provider':
         specifier: ^5.7.0
@@ -3072,6 +3072,11 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
+
+  /@opentelemetry/api@1.6.0:
+    resolution: {integrity: sha512-OWlrQAnWn9577PhVgqjUvMr1pg57Bc4jv0iL4w0PRuOSRvq67rvHW9Ie/dZVMvCzhSCB+UxhcY/PmCmFj33Q+g==}
+    engines: {node: '>=8.0.0'}
+    dev: false
 
   /@parcel/watcher@2.0.4:
     resolution: {integrity: sha512-cTDi+FUDBIUOBKEtj+nhiJ71AZVlkAsQFuGQTun5tV9mwQBQgZvhCzG+URPQc8myeN32yRVZEfVAPCs1RW+Jvg==}
@@ -8195,14 +8200,14 @@ packages:
       homedir-polyfill: 1.0.3
     dev: true
 
-  /express-prom-bundle@6.6.0(prom-client@14.2.0):
+  /express-prom-bundle@6.6.0(prom-client@15.0.0):
     resolution: {integrity: sha512-tZh2P2p5a8/yxQ5VbRav011Poa4R0mHqdFwn9Swe/obXDe5F0jY9wtRAfNYnqk4LXY7akyvR/nrvAHxQPWUjsQ==}
     engines: {node: '>=10'}
     peerDependencies:
       prom-client: '>=12.0.0'
     dependencies:
       on-finished: 2.4.1
-      prom-client: 14.2.0
+      prom-client: 15.0.0
       url-value-parser: 2.0.3
     dev: false
 
@@ -12156,10 +12161,11 @@ packages:
     resolution: {integrity: sha512-cdGef/drWFoydD1JsMzuFf8100nZl+GT+yacc2bEced5f9Rjk4z+WtFUTBu9PhOi9j/jfmBPu0mMEY4wIdAF8A==}
     engines: {node: '>= 0.6.0'}
 
-  /prom-client@14.2.0:
-    resolution: {integrity: sha512-sF308EhTenb/pDRPakm+WgiN+VdM/T1RaHj1x+MvAuT8UiQP8JmOEbxVqtkbfR4LrvOg5n7ic01kRBDGXjYikA==}
-    engines: {node: '>=10'}
+  /prom-client@15.0.0:
+    resolution: {integrity: sha512-UocpgIrKyA2TKLVZDSfm8rGkL13C19YrQBAiG3xo3aDFWcHedxRxI3z+cIcucoxpSO0h5lff5iv/SXoxyeopeA==}
+    engines: {node: ^16 || ^18 || >=20}
     dependencies:
+      '@opentelemetry/api': 1.6.0
       tdigest: 0.1.1
     dev: false
 
