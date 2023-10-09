@@ -40,10 +40,10 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.2
 	github.com/urfave/cli/v2 v2.25.7
-	golang.org/x/crypto v0.13.0
+	golang.org/x/crypto v0.14.0
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
-	golang.org/x/sync v0.3.0
-	golang.org/x/term v0.12.0
+	golang.org/x/sync v0.4.0
+	golang.org/x/term v0.13.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.13.0
 	gorm.io/driver/postgres v1.5.2
@@ -203,7 +203,7 @@ require (
 	go.uber.org/zap v1.25.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.15.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect

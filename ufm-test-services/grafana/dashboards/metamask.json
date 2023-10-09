@@ -18,6 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 1,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -122,7 +123,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "metamask_self_send",
+          "expr": "metamask_self_send_metric",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -194,7 +195,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "metamask_self_send_fee_estimation_low"
+              "options": "metamask_self_send_fee_estimation_low_metric"
             },
             "properties": [
               {
@@ -213,7 +214,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "metamask_self_send_fee_estimation_medium"
+              "options": "metamask_self_send_fee_estimation_medium_metric"
             },
             "properties": [
               {
@@ -232,7 +233,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "metamask_self_send_fee_estimation_high"
+              "options": "metamask_self_send_fee_estimation_high_metric"
             },
             "properties": [
               {
@@ -244,7 +245,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "metamask_self_send_fee_estimation_actual"
+              "options": "metamask_self_send_fee_estimation_actual_metric"
             },
             "properties": [
               {
@@ -294,7 +295,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "metamask_self_send_fee_estimation_low",
+          "expr": "metamask_self_send_fee_estimation_low_metric",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -310,7 +311,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "metamask_self_send_fee_estimation_medium",
+          "expr": "metamask_self_send_fee_estimation_medium_metric",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -327,7 +328,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "metamask_self_send_fee_estimation_high",
+          "expr": "metamask_self_send_fee_estimation_high_metric",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -344,7 +345,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "builder",
-          "expr": "metamask_self_send_fee_estimation_actual",
+          "expr": "metamask_self_send_fee_estimation_actual_metric",
           "fullMetaSearch": false,
           "hide": false,
           "includeNullMetadata": true,
@@ -367,7 +368,7 @@
     "list": []
   },
   "time": {
-    "from": "now-3h",
+    "from": "now-12h",
     "to": "now"
   },
   "timepicker": {},
