@@ -106,7 +106,7 @@ func NewIndexer(
 }
 
 func (i *Indexer) startHttpServer(ctx context.Context) error {
-	i.log.Info("starting http server...", "port", i.httpConfig.Host)
+	i.log.Debug("starting http server...", "port", i.httpConfig.Host)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Heartbeat("/healthz"))
@@ -123,7 +123,7 @@ func (i *Indexer) startHttpServer(ctx context.Context) error {
 }
 
 func (i *Indexer) startMetricsServer(ctx context.Context) error {
-	i.log.Info("starting metrics server...", "port", i.metricsConfig.Port)
+	i.log.Debug("starting metrics server...", "port", i.metricsConfig.Port)
 	srv, err := metrics.StartServer(i.metricsRegistry, i.metricsConfig.Host, i.metricsConfig.Port)
 	if err != nil {
 		return fmt.Errorf("metrics server failed to start: %w", err)
