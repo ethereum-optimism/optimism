@@ -5,14 +5,14 @@ import { ERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extension
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IOptimismMintableERC721 } from "./IOptimismMintableERC721.sol";
-import { Semver } from "../universal/Semver.sol";
+import { IOptimismMintableERC721 } from "src/universal/IOptimismMintableERC721.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title OptimismMintableERC721
 /// @notice This contract is the remote representation for some token that lives on another network,
 ///         typically an Optimism representation of an Ethereum-based token. Standard reference
 ///         implementation that can be extended or modified according to your needs.
-contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Semver {
+contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, ISemver {
     /// @inheritdoc IOptimismMintableERC721
     uint256 public immutable REMOTE_CHAIN_ID;
 
@@ -31,7 +31,10 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
         _;
     }
 
-    /// @custom:semver 1.2.0
+    /// @notice Semantic version.
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
+
     /// @param _bridge        Address of the bridge on this network.
     /// @param _remoteChainId Chain ID where the remote token is deployed.
     /// @param _remoteToken   Address of the corresponding token on the other network.
@@ -45,7 +48,6 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
         string memory _symbol
     )
         ERC721(_name, _symbol)
-        Semver(1, 2, 0)
     {
         require(_bridge != address(0), "OptimismMintableERC721: bridge cannot be address(0)");
         require(_remoteChainId != 0, "OptimismMintableERC721: remote chain id cannot be zero");

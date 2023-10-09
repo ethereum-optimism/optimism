@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
-import { Semver } from "./Semver.sol";
+import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title OptimismMintableERC721Factory
 /// @notice Factory contract for creating OptimismMintableERC721 contracts.
-contract OptimismMintableERC721Factory is Semver {
+contract OptimismMintableERC721Factory is ISemver {
     /// @notice Address of the ERC721 bridge on this network.
     address public immutable BRIDGE;
 
@@ -22,13 +22,16 @@ contract OptimismMintableERC721Factory is Semver {
     /// @param deployer    Address of the initiator of the deployment
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    /// @custom:semver 1.3.0
+    /// @notice Semantic version.
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
+
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC721 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC721 contracts.
     /// @param _bridge Address of the ERC721 bridge on this network.
     /// @param _remoteChainId Chain ID for the remote network.
-    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 3, 0) {
+    constructor(address _bridge, uint256 _remoteChainId) {
         BRIDGE = _bridge;
         REMOTE_CHAIN_ID = _remoteChainId;
     }

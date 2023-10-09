@@ -92,7 +92,7 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, 
 	claim := types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    fetchedClaim.Claim,
-			Position: types.NewPositionFromGIndex(fetchedClaim.Position.Uint64()),
+			Position: types.NewPositionFromGIndex(fetchedClaim.Position),
 		},
 		Countered:           fetchedClaim.Countered,
 		Clock:               fetchedClaim.Clock.Uint64(),
@@ -108,7 +108,7 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, 
 		}
 		claim.Parent = types.ClaimData{
 			Value:    parentClaim.Claim,
-			Position: types.NewPositionFromGIndex(parentClaim.Position.Uint64()),
+			Position: types.NewPositionFromGIndex(parentClaim.Position),
 		}
 	}
 

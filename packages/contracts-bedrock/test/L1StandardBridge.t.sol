@@ -7,16 +7,17 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 
 // Libraries
-import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
-import { L2StandardBridge } from "../src/L2/L2StandardBridge.sol";
-import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Target contract
-import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
 contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     /// @dev Test that the accessors return the correct initialized values.
@@ -34,13 +35,8 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
         assertEq(address(L1Bridge.messenger()), address(L1Messenger));
         assertEq(address(L1Bridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(L2Bridge), Predeploys.L2_STANDARD_BRIDGE);
-    }
-
-    function test_initialize_fix_succeeds() external {
         bytes32 slot0 = vm.load(address(L1Bridge), bytes32(uint256(0)));
-        // The first storage slot should only have its first byte set to 0x02.
-        // This covers the `clearLegacySlot` fix.
-        assertEq(slot0, bytes32(uint256(2)));
+        assertEq(slot0, bytes32(uint256(Constants.INITIALIZER)));
     }
 }
 

@@ -173,4 +173,5 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, event)
 	require.Equal(t, event.TransactionHash, finalizedReceipt.TxHash)
+
 }

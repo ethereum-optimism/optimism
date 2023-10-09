@@ -62,7 +62,7 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 	// data directories potentially being deleted for games that are required.
 	for _, addr := range games {
 		if j, err := c.createJob(addr); err != nil {
-			errs = append(errs, err)
+			errs = append(errs, fmt.Errorf("failed to create job for game %v: %w", addr, err))
 		} else if j != nil {
 			jobs = append(jobs, *j)
 			c.m.RecordGameUpdateScheduled()
@@ -81,11 +81,13 @@ func (c *coordinator) schedule(ctx context.Context, games []common.Address) erro
 			c.logger.Warn("Game not found in states map", "game", addr)
 		}
 	}
-	c.m.RecordGamesStatus(gamesInProgress, gamesChallengerWon, gamesDefenderWon)
+	c.m.RecordGamesStatus(gamesInProgress, gamesDefenderWon, gamesChallengerWon)
 
 	// Finally, enqueue the jobs
 	for _, j := range jobs {
-		errs = append(errs, c.enqueueJob(ctx, j))
+		if err := c.enqueueJob(ctx, j); err != nil {
+			errs = append(errs, fmt.Errorf("failed to enqueue job for game %v: %w", j.addr, err))
+		}
 	}
 	return errors.Join(errs...)
 }
@@ -109,9 +111,14 @@ func (c *coordinator) createJob(game common.Address) (*job, error) {
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
 		state.player = player
+		state.status = player.Status()
 	}
 	state.inflight = true
-	return &job{addr: game, player: state.player}, nil
+	if state.status != types.GameStatusInProgress {
+		c.logger.Debug("Not rescheduling resolved game", "game", game, "status", state.status)
+		return nil, nil
+	}
+	return &job{addr: game, player: state.player, status: state.status}, nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {

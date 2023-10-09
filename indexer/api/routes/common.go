@@ -3,24 +3,30 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/ethereum/go-ethereum/log"
 )
 
-func jsonResponse(w http.ResponseWriter, logger log.Logger, data interface{}, statusCode int) {
+const (
+	InternalServerError = "Internal server error"
+
+	// defaultPageLimit ... Default page limit for pagination
+	defaultPageLimit = 100
+)
+
+// jsonResponse ... Marshals and writes a JSON response provided arbitrary data
+func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) error {
 	w.Header().Set("Content-Type", "application/json")
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		logger.Error("Failed to marshal JSON: %v", err)
-		return
+		http.Error(w, InternalServerError, http.StatusInternalServerError)
+		return err
 	}
 
 	w.WriteHeader(statusCode)
 	_, err = w.Write(jsonData)
 	if err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		logger.Error("Failed to write JSON data", err)
-		return
+		http.Error(w, InternalServerError, http.StatusInternalServerError)
+		return err
 	}
+
+	return nil
 }

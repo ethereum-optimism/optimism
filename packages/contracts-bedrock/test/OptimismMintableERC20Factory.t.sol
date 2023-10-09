@@ -81,7 +81,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     {
         bytes memory constructorArgs = abi.encode(address(L2Bridge), _remote, _name, _symbol, _decimals);
         bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC20).creationCode, constructorArgs);
-        bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol));
+        bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol, _decimals));
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(L2TokenFactory), salt, keccak256(bytecode)));
         return address(uint160(uint256(hash)));
     }

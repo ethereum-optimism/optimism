@@ -13,7 +13,7 @@ fmt:
 .PHONY: fmt
 
 test:
-	go test -race -v ./...
+	go test -v ./...
 .PHONY: test
 
 lint:

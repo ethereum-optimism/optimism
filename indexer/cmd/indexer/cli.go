@@ -1,13 +1,11 @@
 package main
 
 import (
-	"sync"
-
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/op-service/log"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/urfave/cli/v2"
@@ -21,17 +19,24 @@ var (
 		Usage:   "path to config file",
 		EnvVars: []string{"INDEXER_CONFIG"},
 	}
+	MigrationsFlag = &cli.StringFlag{
+		Name:    "migrations-dir",
+		Value:   "./migrations",
+		Usage:   "path to migrations folder",
+		EnvVars: []string{"INDEXER_MIGRATIONS_DIR"},
+	}
 )
 
 func runIndexer(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "indexer")
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "indexer")
+	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
 		return err
 	}
 
-	db, err := database.NewDB(cfg.DB)
+	db, err := database.NewDB(log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
@@ -48,14 +53,15 @@ func runIndexer(ctx *cli.Context) error {
 }
 
 func runApi(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
+	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
 		return err
 	}
 
-	db, err := database.NewDB(cfg.DB)
+	db, err := database.NewDB(log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
@@ -63,41 +69,34 @@ func runApi(ctx *cli.Context) error {
 	defer db.Close()
 
 	api := api.NewApi(log, db.BridgeTransfers, cfg.HTTPServer, cfg.MetricsServer)
-	return api.Start(ctx.Context)
+	return api.Run(ctx.Context)
 }
 
-func runAll(ctx *cli.Context) error {
-	log := log.NewLogger(log.ReadCLIConfig(ctx))
+func runMigrations(ctx *cli.Context) error {
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
+	oplog.SetGlobalLogHandler(log.GetHandler())
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
+	migrationsDir := ctx.String(MigrationsFlag.Name)
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return err
+	}
 
-	// Ensure both processes complete before returning.
-	var wg sync.WaitGroup
-	wg.Add(2)
+	db, err := database.NewDB(log, cfg.DB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return err
+	}
+	defer db.Close()
 
-	go func() {
-		defer wg.Done()
-		err := runApi(ctx)
-		if err != nil {
-			log.Error("api process non-zero exit", "err", err)
-		}
-	}()
-	go func() {
-		defer wg.Done()
-		err := runIndexer(ctx)
-		if err != nil {
-			log.Error("indexer process non-zero exit", "err", err)
-		}
-	}()
-
-	// We purposefully return no error since the indexer and api
-	// have no inter-dependencies. We simply rely on the logs to
-	// report a non-zero exit for either process.
-	wg.Wait()
-	return nil
+	return db.ExecuteSQLMigration(migrationsDir)
 }
 
 func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
-	flags = append(flags, log.CLIFlags("INDEXER")...)
+	flags = append(flags, oplog.CLIFlags("INDEXER")...)
+	migrationFlags := []cli.Flag{MigrationsFlag, ConfigFlag}
+	migrationFlags = append(migrationFlags, oplog.CLIFlags("INDEXER")...)
 	return &cli.App{
 		Version:              params.VersionWithCommit(GitCommit, GitDate),
 		Description:          "An indexer of all optimism events with a serving api layer",
@@ -116,10 +115,10 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Action:      runIndexer,
 			},
 			{
-				Name:        "all",
-				Flags:       flags,
-				Description: "Runs both the api service and the indexing service",
-				Action:      runAll,
+				Name:        "migrate",
+				Flags:       migrationFlags,
+				Description: "Runs the database migrations",
+				Action:      runMigrations,
 			},
 			{
 				Name:        "version",

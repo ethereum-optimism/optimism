@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/ethereum/go-ethereum"
@@ -68,6 +68,40 @@ func TestResolve(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
 		err := responder.Resolve(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 1, mockTxMgr.sends)
+	})
+}
+
+func TestCallResolveClaim(t *testing.T) {
+	t.Run("SendFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.callFails = true
+		err := responder.CallResolveClaim(context.Background(), 0)
+		require.ErrorIs(t, err, mockCallError)
+		require.Equal(t, 0, mockTxMgr.calls)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		err := responder.CallResolveClaim(context.Background(), 0)
+		require.NoError(t, err)
+		require.Equal(t, 1, mockTxMgr.calls)
+	})
+}
+
+func TestResolveClaim(t *testing.T) {
+	t.Run("SendFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.sendFails = true
+		err := responder.ResolveClaim(context.Background(), 0)
+		require.ErrorIs(t, err, mockSendError)
+		require.Equal(t, 0, mockTxMgr.sends)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		err := responder.ResolveClaim(context.Background(), 0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
 	})

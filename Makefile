@@ -24,9 +24,8 @@ ci-builder:
 submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
 	if [ -z "$$GITHUB_ENV" ]; then \
-		echo "SKIP submodules" \
-		#git submodule init; \
-		#git submodule update; \
+		git submodule init; \
+		git submodule update --recursive; \
 	fi
 .PHONY: submodules
 
@@ -95,14 +94,18 @@ nuke: clean devnet-clean
 	git clean -Xdf
 .PHONY: nuke
 
-devnet-up:
+pre-devnet:
+	@if ! [ -x "$(command -v geth)" ]; then \
+		make install-geth; \
+	fi
 	@if [ ! -e op-program/bin ]; then \
 		make cannon-prestate; \
 	fi
-	$(shell ./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock)
-	if [ $(.SHELLSTATUS) -ne 0 ]; then \
-		make devnet-allocs; \
-	fi
+.PHONY: pre-devnet
+
+devnet-up: pre-devnet
+	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
+		|| make devnet-allocs
 	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
@@ -120,7 +123,7 @@ devnet-hardhat-test:
 	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/hardhat.py --monorepo-dir=. --test
 .PHONY: devnet-hardhat-test
 
-devnet-test:
+devnet-test: pre-devnet
 	PYTHONPATH=./bedrock-devnet ${PYTHON} ./bedrock-devnet/main.py --monorepo-dir=. --test
 .PHONY: devnet-test
 
@@ -136,7 +139,7 @@ devnet-clean:
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
 
-devnet-allocs:
+devnet-allocs: pre-devnet
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:

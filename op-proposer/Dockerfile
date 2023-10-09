@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.20.7-alpine3.18 as builder
+FROM --platform=$BUILDPLATFORM golang:1.21.1-alpine3.18 as builder
 
 ARG VERSION=v0.0.0
 
@@ -16,7 +16,6 @@ COPY ./op-proposer /app/op-proposer
 COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-service /app/op-service
-COPY ./op-signer /app/op-signer
 COPY ./.git /app/.git
 
 WORKDIR /app/op-proposer

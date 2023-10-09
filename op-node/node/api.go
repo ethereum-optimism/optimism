@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 type l2EthClient interface {
@@ -30,43 +32,38 @@ type driverClient interface {
 	SequencerActive(context.Context) (bool, error)
 }
 
-type rpcMetrics interface {
-	// RecordRPCServerRequest returns a function that records the duration of serving the given RPC method
-	RecordRPCServerRequest(method string) func()
-}
-
 type adminAPI struct {
+	*rpc.CommonAdminAPI
 	dr driverClient
-	m  rpcMetrics
 }
 
-func NewAdminAPI(dr driverClient, m rpcMetrics) *adminAPI {
+func NewAdminAPI(dr driverClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
-		dr: dr,
-		m:  m,
+		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		dr:             dr,
 	}
 }
 
 func (n *adminAPI) ResetDerivationPipeline(ctx context.Context) error {
-	recordDur := n.m.RecordRPCServerRequest("admin_resetDerivationPipeline")
+	recordDur := n.M.RecordRPCServerRequest("admin_resetDerivationPipeline")
 	defer recordDur()
 	return n.dr.ResetDerivationPipeline(ctx)
 }
 
 func (n *adminAPI) StartSequencer(ctx context.Context, blockHash common.Hash) error {
-	recordDur := n.m.RecordRPCServerRequest("admin_startSequencer")
+	recordDur := n.M.RecordRPCServerRequest("admin_startSequencer")
 	defer recordDur()
 	return n.dr.StartSequencer(ctx, blockHash)
 }
 
 func (n *adminAPI) StopSequencer(ctx context.Context) (common.Hash, error) {
-	recordDur := n.m.RecordRPCServerRequest("admin_stopSequencer")
+	recordDur := n.M.RecordRPCServerRequest("admin_stopSequencer")
 	defer recordDur()
 	return n.dr.StopSequencer(ctx)
 }
 
 func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
-	recordDur := n.m.RecordRPCServerRequest("admin_sequencerActive")
+	recordDur := n.M.RecordRPCServerRequest("admin_sequencerActive")
 	defer recordDur()
 	return n.dr.SequencerActive(ctx)
 }
@@ -76,10 +73,10 @@ type nodeAPI struct {
 	client l2EthClient
 	dr     driverClient
 	log    log.Logger
-	m      rpcMetrics
+	m      metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m rpcMetrics) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,

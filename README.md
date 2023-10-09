@@ -61,7 +61,6 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./op-program">op-program</a>: Fault proof program
 ├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
 ├── <a href="./op-service">op-service</a>: Common codebase utilities
-├── <a href="./op-signer">op-signer</a>: Client signer
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 ├── <a href="./packages">packages</a>

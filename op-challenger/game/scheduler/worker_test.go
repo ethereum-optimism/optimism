@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
 	"github.com/stretchr/testify/require"
 )
@@ -15,18 +16,32 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	in := make(chan job, 2)
 	out := make(chan job, 2)
 
+	ms := &metricSink{}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var wg sync.WaitGroup
 	wg.Add(1)
-	go progressGames(ctx, in, out, &wg)
+	go progressGames(ctx, in, out, &wg, ms.ThreadActive, ms.ThreadIdle)
 
 	in <- job{
 		player: &stubPlayer{status: types.GameStatusInProgress},
 	}
+	waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
+		return ms.activeCalls >= 1, nil
+	})
+	require.NoError(t, waitErr)
+	require.Equal(t, ms.activeCalls, 1)
+	require.Equal(t, ms.idleCalls, 1)
+
 	in <- job{
 		player: &stubPlayer{status: types.GameStatusDefenderWon},
 	}
+	waitErr = wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
+		return ms.activeCalls >= 2, nil
+	})
+	require.NoError(t, waitErr)
+	require.Equal(t, ms.activeCalls, 2)
+	require.Equal(t, ms.idleCalls, 2)
 
 	result1 := readWithTimeout(t, out)
 	result2 := readWithTimeout(t, out)
@@ -39,11 +54,28 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	wg.Wait()
 }
 
+type metricSink struct {
+	activeCalls int
+	idleCalls   int
+}
+
+func (m *metricSink) ThreadActive() {
+	m.activeCalls++
+}
+
+func (m *metricSink) ThreadIdle() {
+	m.idleCalls++
+}
+
 type stubPlayer struct {
 	status types.GameStatus
 }
 
 func (s *stubPlayer) ProgressGame(ctx context.Context) types.GameStatus {
+	return s.status
+}
+
+func (s *stubPlayer) Status() types.GameStatus {
 	return s.status
 }
 

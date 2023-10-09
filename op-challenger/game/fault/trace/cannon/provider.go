@@ -49,13 +49,14 @@ type CannonTraceProvider struct {
 	dir       string
 	prestate  string
 	generator ProofGenerator
+	gameDepth uint64
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address, gameDepth uint64) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
@@ -69,20 +70,29 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, 
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
-	return NewTraceProviderFromInputs(logger, m, cfg, localInputs, dir), nil
+	return NewTraceProviderFromInputs(logger, m, cfg, localInputs, dir, gameDepth), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string) *CannonTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:    logger,
 		dir:       dir,
 		prestate:  cfg.CannonAbsolutePreState,
 		generator: NewExecutor(logger, m, cfg, localInputs),
+		gameDepth: gameDepth,
 	}
 }
 
-func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
-	proof, err := p.loadProof(ctx, i)
+func (p *CannonTraceProvider) SetMaxDepth(gameDepth uint64) {
+	p.gameDepth = gameDepth
+}
+
+func (p *CannonTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
+	traceIndex := pos.TraceIndex(int(p.gameDepth))
+	if !traceIndex.IsUint64() {
+		return common.Hash{}, errors.New("trace index out of bounds")
+	}
+	proof, err := p.loadProof(ctx, traceIndex.Uint64())
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -94,8 +104,12 @@ func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, e
 	return value, nil
 }
 
-func (p *CannonTraceProvider) GetStepData(ctx context.Context, i uint64) ([]byte, []byte, *types.PreimageOracleData, error) {
-	proof, err := p.loadProof(ctx, i)
+func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
+	traceIndex := pos.TraceIndex(int(p.gameDepth))
+	if !traceIndex.IsUint64() {
+		return nil, nil, nil, errors.New("trace index out of bounds")
+	}
+	proof, err := p.loadProof(ctx, traceIndex.Uint64())
 	if err != nil {
 		return nil, nil, nil, err
 	}

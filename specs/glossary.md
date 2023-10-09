@@ -208,7 +208,7 @@ A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequ
 A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transaction] for epoch
 `N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
 
-> **TODO** specify sequencer window size
+The current default `sws` is 3600 epochs.
 
 Additionally, the first block in the window defines the [depositing transactions][depositing-tx] which determine the
 [deposits] to be included in the first L2 block of the epoch.
@@ -645,7 +645,7 @@ blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
 
 [address-aliasing]: glossary.md#address-aliasing
 
-When a contract submits a [deposit][deposits] from L1 to L2, it's address (as returned by `ORIGIN` and `CALLER`) will be
+When a contract submits a [deposit][deposits] from L1 to L2, its address (as returned by `ORIGIN` and `CALLER`) will be
 aliased with a modified representation of the address of a contract.
 
 - cf. [Deposit Specification](deposits.md#address-aliasing)

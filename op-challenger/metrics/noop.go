@@ -22,3 +22,8 @@ func (*NoopMetricsImpl) RecordGamesStatus(inProgress, defenderWon, challengerWon
 
 func (*NoopMetricsImpl) RecordGameUpdateScheduled() {}
 func (*NoopMetricsImpl) RecordGameUpdateCompleted() {}
+
+func (*NoopMetricsImpl) IncActiveExecutors() {}
+func (*NoopMetricsImpl) DecActiveExecutors() {}
+func (*NoopMetricsImpl) IncIdleExecutors()   {}
+func (*NoopMetricsImpl) DecIdleExecutors()   {}
