@@ -35,12 +35,9 @@ func NewOracleUpdater(
 	logger log.Logger,
 	txMgr txmgr.TxManager,
 	fdgAddr common.Address,
+	gameCaller *bindings.FaultDisputeGameCaller,
 	client bind.ContractCaller,
 ) (*cannonUpdater, error) {
-	gameCaller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
-	if err != nil {
-		return nil, fmt.Errorf("create caller for game %v: %w", fdgAddr, err)
-	}
 	opts := &bind.CallOpts{Context: ctx}
 	vm, err := gameCaller.VM(opts)
 	if err != nil {

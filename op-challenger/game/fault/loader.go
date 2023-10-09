@@ -4,7 +4,6 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 
@@ -38,15 +37,6 @@ func NewLoader(caller MinimalFaultDisputeGameCaller) *loader {
 	return &loader{
 		caller: caller,
 	}
-}
-
-// NewLoaderFromBindings creates a new [loader] from a [bindings.FaultDisputeGameCaller].
-func NewLoaderFromBindings(fdgAddr common.Address, client bind.ContractCaller) (*loader, error) {
-	caller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
-	if err != nil {
-		return nil, err
-	}
-	return NewLoader(caller), nil
 }
 
 // GetGameStatus returns the current game status.

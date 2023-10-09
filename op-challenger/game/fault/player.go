@@ -82,12 +82,12 @@ func NewGamePlayer(
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, dir, addr, gameDepth)
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
 		provider = cannonProvider
-		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
+		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, contract, client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
