@@ -5,7 +5,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { ISemver } from "src/universal/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import { Slot } from "src/libraries/Slot.sol";
+import { Storage } from "src/libraries/Storage.sol";
 
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
@@ -67,7 +67,14 @@ contract SuperchainConfig is Initializable, ISemver {
     mapping(bytes32 => bool) public allowedSequencers;
 
     /// @notice Emitted when the pause is triggered.
-    event Paused();
+    /// @param duration The duration of the pause.
+    /// @param identifier A string helping to identify provenance of the pause transaction.
+    event Paused(uint256 duration, string identifier);
+
+    /// @notice Emitted when an active pause is extended.
+    /// @param duration The duration of the pause.
+    /// @param identifier A string helping to identify provenance of the pause transaction.
+    event PauseExtended(uint256 duration, string identifier);
 
     /// @notice Emitted when the pause is lifted.
     event Unpaused();
@@ -129,51 +136,67 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Getter for the systemOwner address.
     function systemOwner() public view returns (address systemOwner_) {
-        systemOwner_ = Slot.getAddress(SYSTEM_OWNER_SLOT);
+        systemOwner_ = Storage.getAddress(SYSTEM_OWNER_SLOT);
     }
 
     /// @notice Getter for the initiator address.
     function initiator() public view returns (address initiator_) {
-        initiator_ = Slot.getAddress(INITIATOR_SLOT);
+        initiator_ = Storage.getAddress(INITIATOR_SLOT);
     }
 
     /// @notice Getter for the vetoer address.
     function vetoer() public view returns (address vetoer_) {
-        vetoer_ = Slot.getAddress(VETOER_SLOT);
+        vetoer_ = Storage.getAddress(VETOER_SLOT);
     }
 
     /// @notice Getter for the guardian address.
     function guardian() public view returns (address guardian_) {
-        guardian_ = Slot.getAddress(GUARDIAN_SLOT);
+        guardian_ = Storage.getAddress(GUARDIAN_SLOT);
     }
 
     /// @notice Getter for the delay time.
     function delay() public view returns (uint256 delay_) {
-        delay_ = Slot.getUint(DELAY_SLOT);
+        delay_ = Storage.getUint(DELAY_SLOT);
     }
 
-    /// @notice Getter for the maxPause time.
+    /// @notice Getter for the maxPause duration.
     function maxPause() public view returns (uint256 maxPause_) {
-        maxPause_ = Slot.getUint(MAX_PAUSE_SLOT);
+        maxPause_ = Storage.getUint(MAX_PAUSE_SLOT);
     }
 
-    /// @notice Getter for the paused address.
+    /// @notice Getter for the current paused status.
     function paused() public view returns (bool paused_) {
-        paused_ = Slot.getUint(PAUSED_TIME_SLOT) > block.timestamp;
+        paused_ = Storage.getUint(PAUSED_TIME_SLOT) > block.timestamp;
     }
 
-    /// @notice Pauses withdrawals.
-    function pause(uint256 duration) external {
+    /// @notice Getter for the paused until time.
+    function pausedUntil() public view returns (uint256 paused_) {
+        paused_ = Storage.getUint(PAUSED_TIME_SLOT);
+    }
+
+    /// @notice Pauses withdrawals by the specified duration.
+    ///         If already paused, the end of the pause period will be delayed by the specified duration.
+    /// @param duration The duration of the pause.
+    /// @param identifier (Optional) A string to identify provenance of the pause transaction.
+    function pause(uint256 duration, string memory identifier) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
-        require(duration <= Slot.getUint(MAX_PAUSE_SLOT), "SuperchainConfig: duration exceeds maxPause");
-        Slot.setUint(PAUSED_TIME_SLOT, uint256(block.timestamp) + duration);
-        emit Paused();
+        require(duration <= Storage.getUint(MAX_PAUSE_SLOT), "SuperchainConfig: duration exceeds maxPause");
+
+        if (paused() == false) {
+            // Pause is not active, so set the pause end time to the current time plus the duration.
+            Storage.setUint(PAUSED_TIME_SLOT, uint256(block.timestamp) + duration);
+            emit Paused(duration, identifier);
+        } else {
+            // Pause is already active, so extend the current pause end time by the duration.
+            Storage.setUint(PAUSED_TIME_SLOT, Storage.getUint(PAUSED_TIME_SLOT) + duration);
+            emit PauseExtended(duration, identifier);
+        }
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can unpause");
-        Slot.setUint(PAUSED_TIME_SLOT, uint256((0)));
+        Storage.setUint(PAUSED_TIME_SLOT, uint256((0)));
         emit Unpaused();
     }
 
@@ -217,42 +240,42 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Sets the system owner address.
     /// @param _systemOwner The new system owner address.
     function _setSystemOwner(address _systemOwner) internal {
-        Slot.setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
+        Storage.setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
         emit ConfigUpdate(UpdateType.SYSTEM_OWNER, abi.encode(_systemOwner));
     }
 
     /// @notice Sets the initiator address.
     /// @param _initiator The new initiator address.
     function _setInitiator(address _initiator) internal {
-        Slot.setAddress(INITIATOR_SLOT, _initiator);
+        Storage.setAddress(INITIATOR_SLOT, _initiator);
         emit ConfigUpdate(UpdateType.INITIATOR, abi.encode(_initiator));
     }
 
     /// @notice Sets the vetoer address.
     /// @param _vetoer The new vetoer address.
     function _setVetoer(address _vetoer) internal {
-        Slot.setAddress(VETOER_SLOT, _vetoer);
+        Storage.setAddress(VETOER_SLOT, _vetoer);
         emit ConfigUpdate(UpdateType.VETOER, abi.encode(_vetoer));
     }
 
     /// @notice Sets the guardian address.
     /// @param _guardian The new guardian address.
     function _setGuardian(address _guardian) internal {
-        Slot.setAddress(GUARDIAN_SLOT, _guardian);
+        Storage.setAddress(GUARDIAN_SLOT, _guardian);
         emit ConfigUpdate(UpdateType.GUARDIAN, abi.encode(_guardian));
     }
 
     /// @notice Sets the delay.
     /// @param _delay The new delay.
     function _setDelay(uint256 _delay) internal {
-        Slot.setUint(DELAY_SLOT, _delay);
+        Storage.setUint(DELAY_SLOT, _delay);
         emit ConfigUpdate(UpdateType.DELAY, abi.encode(_delay));
     }
 
     /// @notice Sets the maxPause.
     /// @param _maxPause The new maxPause.
     function _setMaxPause(uint256 _maxPause) internal {
-        Slot.setUint(MAX_PAUSE_SLOT, _maxPause);
+        Storage.setUint(MAX_PAUSE_SLOT, _maxPause);
         emit ConfigUpdate(UpdateType.MAX_PAUSE, abi.encode(_maxPause));
     }
 }
