@@ -54,7 +54,7 @@
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/abstract-signer": "^5.7.0",
-    "@types/express": "^4.17.18",
+    "@types/express": "^4.17.19",
     "@types/morgan": "^1.9.6",
     "@types/pino": "^7.0.5",
     "@types/pino-multi-stream": "^5.1.4",
