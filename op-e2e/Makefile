@@ -3,11 +3,9 @@ ifdef JUNIT_FILE
 	go_test = OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=standard-verbose --junitfile=$(JUNIT_FILE) --
   # Note: -parallel must be set to match the number of cores in the resource class
 	go_test_flags = -timeout=20m -parallel=8
-	go_test_flags_external = -timeout=20m -parallel=4
 else
 	go_test = go test
 	go_test_flags = -v
-	go_test_flags_external = -v
 endif
 
 test: pre-test test-ws
@@ -57,7 +55,3 @@ clean:
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 .PHONY: lint
-
-test-external-%: pre-test
-	make -C ./external_$*/
-	$(go_test) $(go_test_flags_external) --externalL2 ./external_$*/
