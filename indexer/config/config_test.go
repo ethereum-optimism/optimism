@@ -220,8 +220,9 @@ func TestLoadedConfigPresetPrecendence(t *testing.T) {
 	require.Equal(t, uint(50), conf.Chain.L1ConfirmationDepth)
 	require.Equal(t, uint(100), conf.Chain.L2ConfirmationDepth)
 
-	// overriden preset conifg
+	// preset is used but does not overwrite config
 	require.Equal(t, common.HexToAddress("0x0000000000000000000000000000000000000001"), conf.Chain.L1Contracts.OptimismPortalProxy)
+	require.Equal(t, Presets[10].ChainConfig.L1Contracts.AddressManager, conf.Chain.L1Contracts.AddressManager)
 }
 
 func TestLocalDevnet(t *testing.T) {
