@@ -10,7 +10,7 @@ import (
 
 // FuzzBatchRoundTrip executes a fuzz test similar to TestBatchRoundTrip, which tests that arbitrary BatchData will be
 // encoded and decoded without loss of its original values.
-// Does not test span batch because fuzzer is not aware structure of span batch.
+// Does not test the span batch type because the fuzzer is not aware of the structure of a span batch.
 func FuzzBatchRoundTrip(f *testing.F) {
 	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
 		// Create our fuzzer wrapper to generate complex values

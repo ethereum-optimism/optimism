@@ -22,8 +22,8 @@ import (
 // SpanBatchType := 1
 // spanBatch := SpanBatchType ++ prefix ++ payload
 // prefix := rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check
-// payload := payload = block_count ++ origin_bits ++ block_tx_counts ++ txs
-// txs = contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases
+// payload := block_count ++ origin_bits ++ block_tx_counts ++ txs
+// txs := contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases
 
 var ErrTooBigSpanBatchFieldSize = errors.New("batch would cause field bytes to go over limit")
 
@@ -433,6 +433,9 @@ func (b *SpanBatch) GetTimestamp() uint64 {
 
 // LogContext creates a new log context that contains information of the batch
 func (b *SpanBatch) LogContext(log log.Logger) log.Logger {
+	if len(b.batches) == 0 {
+		return log.New("block_count", 0)
+	}
 	return log.New(
 		"batch_timestamp", b.batches[0].Timestamp,
 		"parent_check", hexutil.Encode(b.parentCheck),

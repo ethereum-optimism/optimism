@@ -432,6 +432,9 @@ func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 		if err := tx.UnmarshalBinary(txs[idx]); err != nil {
 			return nil, errors.New("failed to decode tx")
 		}
+		if tx.Protected() && tx.ChainId().Cmp(chainID) != 0 {
+			return nil, fmt.Errorf("protected tx has chain ID %d, but expected chain ID %d", tx.ChainId(), chainID)
+		}
 		var txSig spanBatchSignature
 		v, r, s := tx.RawSignatureValues()
 		R, _ := uint256.FromBig(r)
