@@ -222,6 +222,24 @@ func (s *Driver) eventLoop() {
 		sequencerTimer.Reset(delay)
 	}
 
+	sequencerStep := func() error {
+		payload, err := s.sequencer.RunNextSequencerAction(ctx)
+		if err != nil {
+			s.log.Error("Sequencer critical error", "err", err)
+			return err
+		}
+		if s.network != nil && payload != nil {
+			// Publishing of unsafe data via p2p is optional.
+			// Errors are not severe enough to change/halt sequencing but should be logged and metered.
+			if err := s.network.PublishL2Payload(ctx, payload); err != nil {
+				s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+				s.metrics.RecordPublishingError()
+			}
+		}
+		planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
+		return nil
+	}
+
 	// Create a ticker to check if there is a gap in the engine queue. Whenever
 	// there is, we send requests to sync source to retrieve the missing payloads.
 	syncCheckInterval := time.Duration(s.config.BlockTime) * time.Second * 2
@@ -266,20 +284,18 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			payload, err := s.sequencer.RunNextSequencerAction(ctx)
-			if err != nil {
-				s.log.Error("Sequencer critical error", "err", err)
+			if err := sequencerStep(); err != nil {
 				return
 			}
-			if s.network != nil && payload != nil {
-				// Publishing of unsafe data via p2p is optional.
-				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
-				if err := s.network.PublishL2Payload(ctx, payload); err != nil {
-					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-					s.metrics.RecordPublishingError()
-				}
+			continue
+		default:
+		}
+
+		select {
+		case <-sequencerCh:
+			if err := sequencerStep(); err != nil {
+				return
 			}
-			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case <-altSyncTicker.C:
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(ctx, time.Second*2)
