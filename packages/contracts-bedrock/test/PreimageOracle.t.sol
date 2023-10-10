@@ -32,7 +32,7 @@ contract PreimageOracle_Test is Test {
         uint8 partOffset = 0;
 
         // Load the local data into the preimage oracle under the test contract's context.
-        bytes32 contextKey = oracle.loadLocalData(ident, word, size, partOffset);
+        bytes32 contextKey = oracle.loadLocalData(ident, 0, word, size, partOffset);
 
         // Validate that the pre-image part is set
         bool ok = oracle.preimagePartOk(contextKey, partOffset);
@@ -50,6 +50,7 @@ contract PreimageOracle_Test is Test {
     /// @notice Tests that context-specific data [0, 32] bytes in length can be loaded correctly.
     function testFuzz_loadLocalData_varyingLength_succeeds(
         uint256 ident,
+        uint256 localContext,
         bytes32 word,
         uint256 size,
         uint256 partOffset
@@ -62,7 +63,7 @@ contract PreimageOracle_Test is Test {
         partOffset = bound(partOffset, 0, size + 8);
 
         // Load the local data into the preimage oracle under the test contract's context.
-        bytes32 contextKey = oracle.loadLocalData(ident, word, uint8(size), uint8(partOffset));
+        bytes32 contextKey = oracle.loadLocalData(ident, localContext, word, uint8(size), uint8(partOffset));
 
         // Validate that the first local data part is set
         bool ok = oracle.preimagePartOk(contextKey, partOffset);
@@ -112,7 +113,7 @@ contract PreimageOracle_Test is Test {
         uint256 offset = preimage.length + 9;
 
         vm.expectRevert(PartOffsetOOB.selector);
-        oracle.loadLocalData(1, preimage, 32, offset);
+        oracle.loadLocalData(1, 0, preimage, 32, offset);
     }
 
     /// @notice Tests that a pre-image cannot be set with an out-of-bounds offset.

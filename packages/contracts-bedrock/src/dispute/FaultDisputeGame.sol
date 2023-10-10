@@ -278,7 +278,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function addLocalData(uint256 _ident, uint256 _partOffset) external {
+    function addLocalData(uint256 _ident, uint256 _l2BlockNumber, uint256 _partOffset) external {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -289,6 +289,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             mstore(0x1C, loadLocalDataSelector)
             // Store the `_ident` argument
             mstore(0x20, _ident)
+            // Store the `_localContext` argument
+            mstore(0x40, _l2BlockNumber)
             // Store the data to load
             let data
             switch _ident
@@ -319,16 +321,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
                 // Revert with  `InvalidLocalIdent()`
                 revert(0x1C, 0x04)
             }
-            mstore(0x40, data)
+            mstore(0x60, data)
             // Store the size of the data to load
             // _ident > 3 ? 8 : 32
-            mstore(0x60, shl(sub(0x05, shl(0x01, gt(_ident, 0x03))), 0x01))
+            mstore(0x80, shl(sub(0x05, shl(0x01, gt(_ident, 0x03))), 0x01))
             // Store the part offset of the data
-            mstore(0x80, _partOffset)
+            mstore(0xA0, _partOffset)
 
             // Attempt to add the local data to the preimage oracle and bubble up the revert
             // if it fails.
-            if iszero(call(gas(), oracle, 0x00, 0x1C, 0x84, 0x00, 0x00)) {
+            if iszero(call(gas(), oracle, 0x00, 0x1C, 0xA4, 0x00, 0x00)) {
                 returndatacopy(0x00, 0x00, returndatasize())
                 revert(0x00, returndatasize())
             }

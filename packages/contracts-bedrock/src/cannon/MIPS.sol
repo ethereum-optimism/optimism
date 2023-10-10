@@ -141,8 +141,9 @@ contract MIPS {
     }
 
     /// @notice Handles a syscall.
+    /// @param _localContext The local key context for the preimage oracle.
     /// @return out_ The hashed MIPS state.
-    function handleSyscall() internal returns (bytes32 out_) {
+    function handleSyscall(uint256 _localContext) internal returns (bytes32 out_) {
         unchecked {
             // Load state from memory
             State memory state;
@@ -202,7 +203,7 @@ contract MIPS {
                     bytes32 preimageKey = state.preimageKey;
                     // If the preimage key is a local key, localize it in the context of the caller.
                     if (uint8(preimageKey[0]) == 1) {
-                        preimageKey = PreimageKeyLib.localize(preimageKey);
+                        preimageKey = PreimageKeyLib.localize(preimageKey, _localContext);
                     }
                     (bytes32 dat, uint256 datLen) = ORACLE.readPreimage(preimageKey, state.preimageOffset);
 
@@ -508,8 +509,8 @@ contract MIPS {
     function proofOffset(uint8 _proofIndex) internal pure returns (uint256 offset_) {
         unchecked {
             // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
-            // And the leaf value itself needs to be encoded as well. And proof.offset == 388
-            offset_ = 388 + (uint256(_proofIndex) * (28 * 32));
+            // And the leaf value itself needs to be encoded as well. And proof.offset == 420
+            offset_ = 420 + (uint256(_proofIndex) * (28 * 32));
             uint256 s = 0;
             assembly {
                 s := calldatasize()
@@ -621,7 +622,11 @@ contract MIPS {
 
     /// @notice Executes a single step of the vm.
     ///         Will revert if any required input state is missing.
-    function step(bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
+    /// @param _stateData The encoded state witness data.
+    /// @param _proof The encoded proof data for leaves within the MIPS VM's memory.
+    /// @param _localContext The local key context for the preimage oracle. Optional, can be set as a constant
+    ///                     if the caller only requires one set of local keys.
+    function step(bytes calldata _stateData, bytes calldata _proof, uint256 _localContext) public returns (bytes32) {
         unchecked {
             State memory state;
 
@@ -631,16 +636,16 @@ contract MIPS {
                     // expected state mem offset check
                     revert(0, 0)
                 }
-                if iszero(eq(mload(0x40), mul(32, 48))) {
+                if iszero(eq(mload(0x40), shl(5, 48))) {
                     // expected memory check
                     revert(0, 0)
                 }
-                if iszero(eq(stateData.offset, 100)) {
-                    // 32*3+4=100 expected state data offset
+                if iszero(eq(_stateData.offset, 132)) {
+                    // 32*4+4=132 expected state data offset
                     revert(0, 0)
                 }
-                if iszero(eq(proof.offset, 388)) {
-                    // 100+32+256=388 expected proof offset
+                if iszero(eq(_proof.offset, 420)) {
+                    // 132+32+256=420 expected proof offset
                     revert(0, 0)
                 }
 
@@ -653,7 +658,7 @@ contract MIPS {
                 }
 
                 // Unpack state from calldata into memory
-                let c := stateData.offset // calldata offset
+                let c := _stateData.offset // calldata offset
                 let m := 0x80 // mem offset
                 c, m := putField(c, m, 32) // memRoot
                 c, m := putField(c, m, 32) // preimageKey
@@ -764,7 +769,7 @@ contract MIPS {
 
                 // syscall (can read and write)
                 if (func == 0xC) {
-                    return handleSyscall();
+                    return handleSyscall(_localContext);
                 }
 
                 // lo and hi registers
