@@ -19,12 +19,12 @@ import (
 )
 
 type ChannelWithMetadata struct {
-	ID             derive.ChannelID       `json:"id"`
-	IsReady        bool                   `json:"is_ready"`
-	InvalidFrames  bool                   `json:"invalid_frames"`
-	InvalidBatches bool                   `json:"invalid_batches"`
-	Frames         []FrameWithMetadata    `json:"frames"`
-	Batches        []derive.SingularBatch `json:"batches"`
+	ID             derive.ChannelID    `json:"id"`
+	IsReady        bool                `json:"is_ready"`
+	InvalidFrames  bool                `json:"invalid_frames"`
+	InvalidBatches bool                `json:"invalid_batches"`
+	Frames         []FrameWithMetadata `json:"frames"`
+	Batches        []derive.BatchData  `json:"batches"`
 }
 
 type FrameWithMetadata struct {
@@ -104,7 +104,7 @@ func processFrames(cfg *rollup.Config, id derive.ChannelID, frames []FrameWithMe
 		}
 	}
 
-	var batches []derive.SingularBatch
+	var batches []derive.BatchData
 	invalidBatches := false
 	if ch.IsReady() {
 		br, err := derive.BatchReader(ch.Reader())
@@ -114,11 +114,7 @@ func processFrames(cfg *rollup.Config, id derive.ChannelID, frames []FrameWithMe
 					fmt.Printf("Error reading batch for channel %v. Err: %v\n", id.String(), err)
 					invalidBatches = true
 				} else {
-					if batch.BatchType != derive.SingularBatchType {
-						batches = append(batches, batch.SingularBatch)
-					} else {
-						fmt.Printf("batch-type %d is not supported", batch.BatchType)
-					}
+					batches = append(batches, *batch)
 				}
 			}
 		} else {
