@@ -79,6 +79,9 @@ func (bq *BatchQueue) popNextBatch(safeL2Head eth.L2BlockRef) *SingularBatch {
 }
 
 func (bq *BatchQueue) advanceEpochMaybe(nextBatch *SingularBatch) {
+	if len(bq.l1Blocks) == 0 {
+		return
+	}
 	if nextBatch.GetEpochNum() == rollup.Epoch(bq.l1Blocks[0].Number)+1 {
 		// Advance epoch if necessary
 		bq.l1Blocks = bq.l1Blocks[1:]
