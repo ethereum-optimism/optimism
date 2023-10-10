@@ -38,7 +38,7 @@
     "@testing-library/jest-dom": "^6.0.1",
     "@testing-library/react-hooks": "^8.0.1",
     "@vitest/coverage-istanbul": "^0.34.6",
-    "abitype": "^0.9.9",
+    "abitype": "^0.9.10",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^22.1.0",
