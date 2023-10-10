@@ -1068,6 +1068,17 @@ jobs:
           event: fail
           template: basic_fail_1
 
+  op-program-compat:
+    docker:
+      - image: cimg/go:1.21
+    steps:
+      - checkout
+      - run:
+          name: compat-goerli
+          command: |
+            make run-goerli-verify
+          working_directory: op-program
+
   check-generated-mocks-op-node:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1237,6 +1248,9 @@ workflows:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
+      - op-program-compat:
+          requires:
+            - op-program-tests
       - bedrock-go-tests:
           requires:
             - go-mod-tidy
@@ -1262,6 +1276,7 @@ workflows:
             - op-proposer-tests
             - op-challenger-tests
             - op-program-tests
+            - op-program-compat
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
