@@ -166,17 +166,25 @@ contract DelayedVetoable_Init is SuperchainConfig_Initializer {
 
     /// @dev This function is used to prevent initiating the delay unintentionally.
     ///      It should only be used on tests prior to the delay being activated.
-    /// @param data The data to be used in the call.
-    function assumeNonzeroData(bytes memory data) internal pure {
-        vm.assume(data.length > 0);
+    /// @param _data The data to be used in the call.
+    function _assumeNonzeroData(bytes memory _data) internal pure {
+        vm.assume(_data.length > 0);
     }
 
     /// @dev This function is used to ensure that the data does not clash with the queuedAt function selector.
-    /// @param data The data to be used in the call.
-    function assumeNoClash(bytes calldata data) internal pure {
-        if (data.length >= 4) {
-            vm.assume(bytes4(data[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
+    /// @param _data The data to be used in the call.
+    function _assumeNoClash(bytes calldata _data) internal pure {
+        if (_data.length >= 4) {
+            vm.assume(bytes4(_data[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
         }
+    }
+
+    /// @dev A helper function used to initate a call for further testing
+    /// @param _data The data to be used in the call.
+    function _initiateCall(bytes calldata _data) internal {
+        vm.prank(initiator);
+        (bool success,) = address(delayedVetoable).call(_data);
+        assertTrue(success);
     }
 }
 
