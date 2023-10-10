@@ -1002,7 +1002,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the StorageSetter contract, used for upgrades.
-    function deployStorageSetter() broadcast public returns (address addr_) {
+    function deployStorageSetter() public broadcast returns (address addr_) {
         StorageSetter setter = new StorageSetter{ salt: implSalt() }();
         console.log("StorageSetter deployed at: %s", address(setter));
         string memory version = setter.version();
