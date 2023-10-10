@@ -3,7 +3,12 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
         CREATE DOMAIN UINT256 AS NUMERIC
-            CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
+    ELSE
+        -- To remain backwards compatible, drop the old constraint and re-add.
+        ALTER DOMAIN UINT256 DROP CONSTRAINT uint256_check;
+        ALTER DOMAIN UINT256 ADD
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
     END IF;
 END $$;
 
