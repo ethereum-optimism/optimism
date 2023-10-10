@@ -113,6 +113,28 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
+	// Add in OP Mainnet specific upgrade logic here
+	if chainConfig.ChainID == 10 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(list.L1StandardBridgeProxy.String()),
+			common.HexToAddress("0xf30CE41cA2f24D28b95Eb861553dAc2948e0157F"),
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		sig := "upgradeAndCall(address,address,bytes)"
+		if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
+			return err
+		}
+	}
+
 	l1StandardBridgeABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return err
