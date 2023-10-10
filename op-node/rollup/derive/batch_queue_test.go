@@ -771,6 +771,13 @@ func TestBatchQueueOverlappingSpanBatch(t *testing.T) {
 		inputBatches = append(inputBatches, NewSpanBatch(expectedOutputBatches[i:i+batchSize]))
 	}
 	inputBatches = append(inputBatches, nil)
+	// inputBatches:
+	// [
+	//    [12, 14, 16],  // No overlap
+	//    [14, 16, 18],  // overlapped blocks: 14, 16
+	//    [16, 18, 20],  // overlapped blocks: 16, 18
+	//    [18, 20, 22],  // overlapped blocks: 18, 20
+	// ]
 
 	input := &fakeBatchQueueInput{
 		batches: inputBatches,
@@ -784,8 +791,21 @@ func TestBatchQueueOverlappingSpanBatch(t *testing.T) {
 		if batch != nil {
 			blockRef := singularBatchToBlockRef(t, batch, uint64(i+1))
 			payload := singularBatchToPayload(t, batch, uint64(i+1))
-			l2Client.Mock.On("L2BlockRefByNumber", uint64(i+1)).Times(9999).Return(blockRef, &nilErr)
-			l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(9999).Return(&payload, &nilErr)
+			if i < 3 {
+				// In CheckBatch(), "L2BlockRefByNumber" is called when fetching the parent block of overlapped span batch
+				// so blocks at 12, 14, 16 should be called.
+				// CheckBatch() is called twice for a batch - before pushing to the queue, after popping from the queue
+				l2Client.Mock.On("L2BlockRefByNumber", uint64(i+1)).Times(2).Return(blockRef, &nilErr)
+			}
+			if i == 1 || i == 4 {
+				// In CheckBatch(), "PayloadByNumber" is called when fetching the overlapped blocks.
+				// blocks at 14, 20 are included in overlapped blocks once.
+				// CheckBatch() is called twice for a batch - before adding to the queue, after getting from the queue
+				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(2).Return(&payload, &nilErr)
+			} else if i == 2 || i == 3 {
+				// blocks at 16, 18 are included in overlapped blocks twice.
+				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(4).Return(&payload, &nilErr)
+			}
 		}
 	}
 
@@ -807,6 +827,8 @@ func TestBatchQueueOverlappingSpanBatch(t *testing.T) {
 			safeHead.L1Origin = b.Epoch()
 		}
 	}
+
+	l2Client.Mock.AssertExpectations(t)
 }
 
 func TestBatchQueueComplex(t *testing.T) {
@@ -851,12 +873,12 @@ func TestBatchQueueComplex(t *testing.T) {
 	inputErrors := []error{nil, nil, nil, nil, nil, nil, io.EOF}
 	// batches will be returned by fakeBatchQueueInput
 	inputBatches := []Batch{
-		NewSpanBatch(expectedOutputBatches[0:2]), // 6, 8
-		expectedOutputBatches[2],                 // 10
-		NewSpanBatch(expectedOutputBatches[1:4]), // 8, 10, 12
-		expectedOutputBatches[4],                 // 14
-		NewSpanBatch(expectedOutputBatches[4:6]), // 14, 16
-		NewSpanBatch(expectedOutputBatches[6:9]), // 18, 20, 22
+		NewSpanBatch(expectedOutputBatches[0:2]), // [6, 8] - no overlap
+		expectedOutputBatches[2],                 // [10] - no overlap
+		NewSpanBatch(expectedOutputBatches[1:4]), // [8, 10, 12] - overlapped blocks: 8 or 8, 10
+		expectedOutputBatches[4],                 // [14] - no overlap
+		NewSpanBatch(expectedOutputBatches[4:6]), // [14, 16] - overlapped blocks: nothing or 14
+		NewSpanBatch(expectedOutputBatches[6:9]), // [18, 20, 22] - no overlap
 	}
 
 	// Shuffle the order of input batches
@@ -880,8 +902,16 @@ func TestBatchQueueComplex(t *testing.T) {
 		if batch != nil {
 			blockRef := singularBatchToBlockRef(t, batch, uint64(i+1))
 			payload := singularBatchToPayload(t, batch, uint64(i+1))
-			l2Client.Mock.On("L2BlockRefByNumber", uint64(i+1)).Times(9999).Return(blockRef, &nilErr)
-			l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Times(9999).Return(&payload, &nilErr)
+			if i == 0 || i == 3 {
+				// In CheckBatch(), "L2BlockRefByNumber" is called when fetching the parent block of overlapped span batch
+				// so blocks at 6, 8 could be called, depends on the order of batches
+				l2Client.Mock.On("L2BlockRefByNumber", uint64(i+1)).Return(blockRef, &nilErr).Maybe()
+			}
+			if i == 1 || i == 2 || i == 4 {
+				// In CheckBatch(), "PayloadByNumber" is called when fetching the overlapped blocks.
+				// so blocks at 14, 20 could be called, depends on the order of batches
+				l2Client.Mock.On("PayloadByNumber", uint64(i+1)).Return(&payload, &nilErr).Maybe()
+			}
 		}
 	}
 
@@ -916,4 +946,6 @@ func TestBatchQueueComplex(t *testing.T) {
 			safeHead.L1Origin = b.Epoch()
 		}
 	}
+
+	l2Client.Mock.AssertExpectations(t)
 }
