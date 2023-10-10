@@ -13,9 +13,7 @@
     "TestCannonChallengeWithCorrectRoot":"The current fraud prover depends on debug_dbGet, a custom geth RPC which is not generally supported by other eth clients",
     "TestChallengerCompleteExhaustiveDisputeGame": "TODO, this should be investigated, is probably the debug_dbGet though",
     "TestCannonPoisonedPostState": "TODO, this should be investigated, is probably the debug_dbGet though",
-    "TestMissingGasLimit": "TODO This is a new failure that should be investigated",
-    "TestGethOnlyPendingBlockIsLatest": "TODO This is a new failure that should be investigated",
-    "TestPreregolith": "TODO This is a new failure that should be investigated",
-    "TestRegolith": "TODO This is a new failure that should be investigated"
+    "TestPreregolith/UnusedGasConsumed_RegolithNotScheduled": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block",
+    "TestPreregolith/UnusedGasConsumed_RegolithNotYetActive": "Erigon doesn't reject building the block when the gas exceeds the block gas limit; instead, it discards transactions until they fit within the block"
   }
 }
