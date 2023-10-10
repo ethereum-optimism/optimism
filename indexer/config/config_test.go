@@ -141,6 +141,8 @@ func TestLoadConfigWithUnknownPreset(t *testing.T) {
 
 	logger := testlog.Logger(t, log.LvlInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
+	require.Error(t, err)
+
 	var faultyPreset = 1234567890
 	require.Equal(t, conf.Chain.Preset, faultyPreset)
 	require.Error(t, err)
@@ -170,10 +172,88 @@ func TestLoadConfigPollingValues(t *testing.T) {
 
 	logger := testlog.Logger(t, log.LvlInfo)
 	conf, err := LoadConfig(logger, tmpfile.Name())
-
 	require.NoError(t, err)
+
 	require.Equal(t, conf.Chain.L1PollingInterval, uint(1000))
 	require.Equal(t, conf.Chain.L2PollingInterval, uint(1005))
 	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(100))
 	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(105))
+}
+
+func TestLoadedConfigPresetPrecendence(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "test_bad_preset.toml")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+
+	testData := `
+        [chain]
+        preset = 10  # Optimism Mainnet
+
+		# confirmation depths are explicitly set
+		l1-confirmation-depth = 50
+		l2-confirmation-depth = 100
+
+		# override a contract address
+		[chain.l1-contracts]
+		optimism-portal = "0x0000000000000000000000000000000000000001"
+
+
+        [rpcs]
+        l1-rpc = "https://l1.example.com"
+        l2-rpc = "https://l2.example.com"
+    `
+
+	data := []byte(testData)
+	err = os.WriteFile(tmpfile.Name(), data, 0644)
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	err = tmpfile.Close()
+	require.NoError(t, err)
+
+	logger := testlog.Logger(t, log.LvlInfo)
+	conf, err := LoadConfig(logger, tmpfile.Name())
+	require.NoError(t, err)
+
+	// confirmation depths
+	require.Equal(t, uint(50), conf.Chain.L1ConfirmationDepth)
+	require.Equal(t, uint(100), conf.Chain.L2ConfirmationDepth)
+
+	// preset is used but does not overwrite config
+	require.Equal(t, common.HexToAddress("0x0000000000000000000000000000000000000001"), conf.Chain.L1Contracts.OptimismPortalProxy)
+	require.Equal(t, Presets[10].ChainConfig.L1Contracts.AddressManager, conf.Chain.L1Contracts.AddressManager)
+}
+
+func TestLocalDevnet(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "test_user_values.toml")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+
+	testData := `
+        [chain]
+        preset = 901
+
+        [rpcs]
+        l1-rpc = "https://l1.example.com"
+        l2-rpc = "https://l2.example.com"
+	`
+
+	data := []byte(testData)
+	err = os.WriteFile(tmpfile.Name(), data, 0644)
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	err = tmpfile.Close()
+	require.NoError(t, err)
+
+	logger := testlog.Logger(t, log.LvlInfo)
+	conf, err := LoadConfig(logger, tmpfile.Name())
+	require.NoError(t, err)
+
+	devnetPreset, err := DevnetPreset()
+	require.NoError(t, err)
+
+	require.Equal(t, devnetPreset.ChainConfig.L1Contracts, conf.Chain.L1Contracts)
 }
