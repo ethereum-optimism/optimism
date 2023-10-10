@@ -144,60 +144,72 @@ type ServerConfig struct {
 func LoadConfig(log log.Logger, path string) (Config, error) {
 	log.Debug("loading config", "path", path)
 
-	var conf Config
+	var cfg Config
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return conf, err
+		return cfg, err
 	}
 
 	data = []byte(os.ExpandEnv(string(data)))
 	log.Debug("parsed config file", "data", string(data))
-	if _, err := toml.Decode(string(data), &conf); err != nil {
-		log.Info("failed to decode config file", "err", err)
-		return conf, err
+
+	if _, err := toml.Decode(string(data), &cfg); err != nil {
+		log.Error("failed to decode config file", "err", err)
+		return cfg, err
 	}
 
-	if conf.Chain.Preset == DEVNET_L2_CHAIN_ID {
-		preset, err := GetDevnetPreset()
+	if cfg.Chain.Preset == DevnetPresetId {
+		preset, err := DevnetPreset()
 		if err != nil {
-			return conf, err
+			return cfg, err
 		}
-		conf.Chain = preset.ChainConfig
-	} else if conf.Chain.Preset != 0 {
-		preset, ok := Presets[conf.Chain.Preset]
+
+		log.Info("loaded local devnet preset")
+		cfg.Chain = preset.ChainConfig
+	} else if cfg.Chain.Preset != 0 {
+		preset, ok := Presets[cfg.Chain.Preset]
 		if !ok {
-			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
+			return cfg, fmt.Errorf("unknown preset: %d", cfg.Chain.Preset)
 		}
-		log.Info("detected preset", "preset", conf.Chain.Preset, "name", preset.Name)
-		log.Info("setting L1 information from preset")
-		conf.Chain = preset.ChainConfig
+
+		log.Info("detected preset", "preset", cfg.Chain.Preset, "name", preset.Name)
+		cfg.Chain = preset.ChainConfig
 	}
 
 	// Setup L2Contracts from predeploys
-	conf.Chain.L2Contracts = L2ContractsFromPredeploys()
+	cfg.Chain.L2Contracts = L2ContractsFromPredeploys()
 
-	// Setup defaults for some unset options
+	// Deserialize the config file again when a preset is configured such that
+	// precedence is given to the config file vs the preset
+	if cfg.Chain.Preset > 0 {
+		if _, err := toml.Decode(string(data), &cfg); err != nil {
+			log.Error("failed to decode config file", "err", err)
+			return cfg, err
+		}
+	}
 
-	if conf.Chain.L1PollingInterval == 0 {
+	// Defaults for any unset options
+
+	if cfg.Chain.L1PollingInterval == 0 {
 		log.Info("setting default L1 polling interval", "interval", defaultLoopInterval)
-		conf.Chain.L1PollingInterval = defaultLoopInterval
+		cfg.Chain.L1PollingInterval = defaultLoopInterval
 	}
 
-	if conf.Chain.L2PollingInterval == 0 {
+	if cfg.Chain.L2PollingInterval == 0 {
 		log.Info("setting default L2 polling interval", "interval", defaultLoopInterval)
-		conf.Chain.L2PollingInterval = defaultLoopInterval
+		cfg.Chain.L2PollingInterval = defaultLoopInterval
 	}
 
-	if conf.Chain.L1HeaderBufferSize == 0 {
+	if cfg.Chain.L1HeaderBufferSize == 0 {
 		log.Info("setting default L1 header buffer", "size", defaultHeaderBufferSize)
-		conf.Chain.L1HeaderBufferSize = defaultHeaderBufferSize
+		cfg.Chain.L1HeaderBufferSize = defaultHeaderBufferSize
 	}
 
-	if conf.Chain.L2HeaderBufferSize == 0 {
+	if cfg.Chain.L2HeaderBufferSize == 0 {
 		log.Info("setting default L2 header buffer", "size", defaultHeaderBufferSize)
-		conf.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
+		cfg.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
 	}
 
 	log.Info("loaded config")
-	return conf, nil
+	return cfg, nil
 }

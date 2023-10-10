@@ -57,6 +57,22 @@ var Presets = map[int]Preset{
 			L2BedrockStartingHeight: 4061224,
 		},
 	},
+	11155420: {
+		Name: "Optimism Sepolia",
+		ChainConfig: ChainConfig{
+			Preset: 11155420,
+			L1Contracts: L1Contracts{
+				AddressManager:              common.HexToAddress("0x9bFE9c5609311DF1c011c47642253B78a4f33F4B"),
+				SystemConfigProxy:           common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
+				OptimismPortalProxy:         common.HexToAddress("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
+				L2OutputOracleProxy:         common.HexToAddress("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F"),
+				L1CrossDomainMessengerProxy: common.HexToAddress("0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef"),
+				L1StandardBridgeProxy:       common.HexToAddress("0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1"),
+				L1ERC721BridgeProxy:         common.HexToAddress("0xd83e03D576d23C9AEab8cC44Fa98d058D2176D1f"),
+			},
+			L1StartingHeight: 4071408,
+		},
+	},
 	8453: {
 		Name: "Base",
 		ChainConfig: ChainConfig{
@@ -135,22 +151,6 @@ var Presets = map[int]Preset{
 				L1ERC721BridgeProxy:         common.HexToAddress("0x57C1C6b596ce90C0e010c358DD4Aa052404bB70F"),
 			},
 			L1StartingHeight: 8942381,
-		},
-	},
-	11155420: {
-		Name: "OP Sepolia",
-		ChainConfig: ChainConfig{
-			Preset: 11155420,
-			L1Contracts: L1Contracts{
-				AddressManager:              common.HexToAddress("0x9bFE9c5609311DF1c011c47642253B78a4f33F4B"),
-				SystemConfigProxy:           common.HexToAddress("0x034edD2A225f7f429A63E0f1D2084B9E0A93b538"),
-				OptimismPortalProxy:         common.HexToAddress("0x16Fc5058F25648194471939df75CF27A2fdC48BC"),
-				L2OutputOracleProxy:         common.HexToAddress("0x90E9c4f8a994a250F6aEfd61CAFb4F2e895D458F"),
-				L1CrossDomainMessengerProxy: common.HexToAddress("0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef"),
-				L1StandardBridgeProxy:       common.HexToAddress("0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1"),
-				L1ERC721BridgeProxy:         common.HexToAddress("0xd83e03D576d23C9AEab8cC44Fa98d058D2176D1f"),
-			},
-			L1StartingHeight: 4071408,
 		},
 	},
 	424: {
