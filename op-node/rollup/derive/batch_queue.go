@@ -78,7 +78,7 @@ func (bq *BatchQueue) popNextBatch(safeL2Head eth.L2BlockRef) *SingularBatch {
 	return nextBatch
 }
 
-func (bq *BatchQueue) advanceEpoch(nextBatch *SingularBatch) {
+func (bq *BatchQueue) advanceEpochMaybe(nextBatch *SingularBatch) {
 	if nextBatch.GetEpochNum() == rollup.Epoch(bq.l1Blocks[0].Number)+1 {
 		// Advance epoch if necessary
 		bq.l1Blocks = bq.l1Blocks[1:]
@@ -89,7 +89,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	if len(bq.nextSpan) > 0 {
 		// If there are cached singular batches, pop first one and return.
 		nextBatch := bq.popNextBatch(safeL2Head)
-		bq.advanceEpoch(nextBatch)
+		bq.advanceEpochMaybe(nextBatch)
 		return nextBatch, nil
 	}
 
@@ -169,7 +169,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 		return nil, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", batch.GetBatchType()))
 	}
 
-	bq.advanceEpoch(nextBatch)
+	bq.advanceEpochMaybe(nextBatch)
 	return nextBatch, nil
 }
 
