@@ -11,6 +11,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -178,8 +179,8 @@ func NewMetrics(procName string) *Metrics {
 	}
 }
 
-func (m *Metrics) Serve(ctx context.Context, host string, port int) error {
-	return opmetrics.ListenAndServe(ctx, m.registry, host, port)
+func (m *Metrics) Start(host string, port int) (*httputil.HTTPServer, error) {
+	return opmetrics.StartServer(m.registry, host, port)
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
