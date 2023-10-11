@@ -93,20 +93,42 @@ contract DelayedVetoable is ISemver {
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
-    function initiator() external virtual readOrHandle returns (address initiator_) {
+    function _initiator() internal virtual returns (address initiator_) {
         initiator_ = INITIATOR;
+    }
+
+    function initiator() external readOrHandle returns (address initiator_) {
+        initiator_ = _initiator();
     }
 
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
-    function vetoer() external virtual readOrHandle returns (address vetoer_) {
+    function _vetoer() internal virtual returns (address vetoer_) {
         vetoer_ = VETOER;
+    }
+
+    function vetoer() external readOrHandle returns (address vetoer_) {
+        vetoer_ = _vetoer();
     }
 
     //// @notice Queries the target address.
     /// @return target_ Target address.
-    function target() external readOrHandle returns (address target_) {
+    function _target() internal virtual returns (address target_) {
         target_ = TARGET;
+    }
+
+    function target() external readOrHandle returns (address target_) {
+        target_ = _target();
+    }
+
+    /// @notice Gets the operating delay
+    /// @return operatingDelay_ Delay address.
+    function _operatingDelay() internal virtual returns (uint256 operatingDelay_) {
+        operatingDelay_ = OPERATING_DELAY;
+    }
+
+    function operatingDelay() external readOrHandle returns (uint256 operatingDelay_) {
+        operatingDelay_ = _operatingDelay();
     }
 
     /// @notice Gets the delay
