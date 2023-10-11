@@ -55,10 +55,7 @@ contract PreimageOracle_Test is Test {
         uint8 partOffset = 0;
 
         // Form the words we'll be storing
-        bytes32[2] memory words = [
-            bytes32(uint256(0xdeadbeef) << 224),
-            bytes32(uint256(0xbeefbabe) << 224)
-        ];
+        bytes32[2] memory words = [bytes32(uint256(0xdeadbeef) << 224), bytes32(uint256(0xbeefbabe) << 224)];
 
         for (uint256 i; i < words.length; i++) {
             // Load the local data into the preimage oracle under the test contract's context
