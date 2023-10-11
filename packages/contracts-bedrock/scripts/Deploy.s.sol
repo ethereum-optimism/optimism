@@ -15,6 +15,7 @@ import { DeployConfig } from "./DeployConfig.s.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -167,6 +168,8 @@ contract Deploy is Deployer {
     function deployProxies() public {
         deployAddressManager();
         deployProxyAdmin();
+        deployDelayedVetoableForOpChain();
+        transferProxyAdminOwnership();
 
         deployOptimismPortalProxy();
         deployL2OutputOracleProxy();
@@ -447,17 +450,55 @@ contract Deploy is Deployer {
         save("DelayedVetoableForSuperchain", address(delatedVetoable));
         console.log("DelayedVetoableForSuperchain deployed at %s", address(delatedVetoable));
     }
+
+    /// @notice Deploy the DelayedVetoable contract for the OP Chain's Proxy Admin
+    ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
+    ///         address, this function does not use the broadcast modifier, and instead starts and
+    ///         stops broadcasting, then starts and stops pranking, within the function body.
+    function deployDelayedVetoableForOpChain() public {
+        vm.startBroadcast();
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        DelayedVetoable delatedVetoable = new DelayedVetoable({
+                superchainConfig_: superchainConfigProxy,
+                target_: proxyAdmin
+            });
+        vm.stopBroadcast();
+
+        vm.startPrank(address(0));
+        require(delatedVetoable.superchainConfig() == address(superchainConfigProxy));
+        require(delatedVetoable.target() == proxyAdmin);
+        // Temp(maurelian): In hindsight, it would have been simpler/cleaner to just put the delay activation on the
+        //                  SuperchainConfig contract.
+        require(delatedVetoable.delay() == 0);
+        require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
+        require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
+        vm.stopPrank();
+
+        save("DelayedVetoableForOpChain", address(delatedVetoable));
+        console.log("DelayedVetoableForOpChain deployed at %s", address(delatedVetoable));
     }
 
     /// @notice Transfer ownership of the SuperchainConfigProxy to the DelayedVetoableForSuperchain contract
     function transferSuperchainConfigProxyOwnership() public broadcast {
-        address payable superchainConfigProxy = payable(mustGetAddress("SuperchainConfigProxy"));
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address delayedVetoableForSuperchain = mustGetAddress("DelayedVetoableForSuperchain");
         _callViaSafe({
             _target: superchainConfigProxy,
             _data: abi.encodeWithSelector(Proxy.changeAdmin.selector, delayedVetoableForSuperchain)
         });
         console.log("SuperchainConfigProxy ownership transferred to %s", delayedVetoableForSuperchain);
+    }
+
+    /// @notice Transfer ownership of the ProxyAdmin to the DelayedVetoableForOpChain contract
+    function transferProxyAdminOwnership() public broadcast {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
+        _callViaSafe({
+            _target: proxyAdmin,
+            _data: abi.encodeCall(Ownable.transferOwnership, (delayedVetoableForOpChain))
+        });
+        console.log("ProxyAdmin ownership transferred to %s", delayedVetoableForOpChain);
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
@@ -666,14 +707,15 @@ contract Deploy is Deployer {
         });
     }
 
-    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
+    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method (via the
+    ///         DelayedVetoable contract .
     function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
 
         bytes memory data =
             abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
 
-        _callViaSafe({ _target: proxyAdmin, _data: data });
+        _callViaSafe({ _target: delayedVetoableForOpChain, _data: data });
     }
 
     /// @notice Initialize the DisputeGameFactory
