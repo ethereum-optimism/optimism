@@ -201,7 +201,8 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result := db.gorm.Where(l1QueryFilter).Order("timestamp DESC").Take(&l1Header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch latest L1 block header in bridge processor")
+				log.Warn("Could not fetch latest L1 block header in bridge processor", "from_timestamp",
+					fromTimestamp, "max_l1_range", maxL1Range)
 				return nil, nil
 			}
 			return nil, result.Error
