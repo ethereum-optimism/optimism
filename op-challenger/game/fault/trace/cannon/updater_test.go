@@ -104,12 +104,13 @@ func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
 	txData, err := updater.BuildLocalOracleData(oracleData)
 	require.NoError(t, err)
 
-	var addLocalDataBytes4 = crypto.Keccak256([]byte("addLocalData(uint256,uint256)"))[:4]
+	var addLocalDataBytes4 = crypto.Keccak256([]byte("addLocalData(uint256,uint256,uint256)"))[:4]
 
 	// Pack the tx data manually.
 	var expected []byte
 	expected = append(expected, addLocalDataBytes4...)
 	expected = append(expected, common.Hex2Bytes("00aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")...)
+	expected = append(expected, common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")...)
 	expected = append(expected, common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000007")...)
 
 	require.Equal(t, expected, txData)
