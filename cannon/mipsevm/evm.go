@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -24,9 +23,9 @@ import (
 )
 
 var (
-	StepBytes4                      = crypto.Keccak256([]byte("step(bytes,bytes,uint256)"))[:4]
-	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
-	LoadLocalDataBytes4             = crypto.Keccak256([]byte("loadLocalData(uint256,uint256,bytes32,uint256,uint256)"))[:4]
+	StepBytes4                      []byte
+	LoadKeccak256PreimagePartBytes4 []byte
+	LoadLocalDataBytes4             []byte
 )
 
 // LoadContracts loads the Cannon contracts, from op-bindings package
@@ -36,6 +35,9 @@ func LoadContracts() (*Contracts, error) {
 	mips.DeployedBytecode.SourceMap = bindings.MIPSDeployedSourceMap
 	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
 	oracle.DeployedBytecode.SourceMap = bindings.PreimageOracleDeployedSourceMap
+	if err := InitSelectors(); err != nil {
+		return nil, err
+	}
 	return &Contracts{
 		MIPS:   &mips,
 		Oracle: &oracle,
@@ -52,10 +54,30 @@ func LoadContractsFromFiles() (*Contracts, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := InitSelectors(); err != nil {
+		return nil, err
+	}
 	return &Contracts{
 		MIPS:   mips,
 		Oracle: oracle,
 	}, nil
+}
+
+func InitSelectors() error {
+	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
+	if err != nil {
+		return fmt.Errorf("failed to load MIPS ABI: %w", err)
+	}
+	StepBytes4 = mipsAbi.Methods["step"].ID[:4]
+
+	preimageAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	if err != nil {
+		return fmt.Errorf("failed to load pre-image oracle ABI: %w", err)
+	}
+	LoadKeccak256PreimagePartBytes4 = preimageAbi.Methods["loadKeccak256PreimagePart"].ID[:4]
+	LoadLocalDataBytes4 = preimageAbi.Methods["loadLocalData"].ID[:4]
+
+	return nil
 }
 
 func LoadContract(name string) (*Contract, error) {
