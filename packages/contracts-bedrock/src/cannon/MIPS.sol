@@ -625,7 +625,7 @@ contract MIPS {
     /// @param _stateData The encoded state witness data.
     /// @param _proof The encoded proof data for leaves within the MIPS VM's memory.
     /// @param _localContext The local key context for the preimage oracle. Optional, can be set as a constant
-    ///                     if the caller only requires one set of local keys.
+    ///                      if the caller only requires one set of local keys.
     function step(bytes calldata _stateData, bytes calldata _proof, uint256 _localContext) public returns (bytes32) {
         unchecked {
             State memory state;
