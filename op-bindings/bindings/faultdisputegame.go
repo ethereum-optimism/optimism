@@ -26,7 +26,6 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
-	_ = abi.ConvertType
 )
 
 // IFaultDisputeGameOutputProposal is an auto generated low-level Go binding around an user-defined struct.
@@ -164,11 +163,11 @@ func NewFaultDisputeGameFilterer(address common.Address, filterer bind.ContractF
 
 // bindFaultDisputeGame binds a generic wrapper to an already deployed contract.
 func bindFaultDisputeGame(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := FaultDisputeGameMetaData.GetAbi()
+	parsed, err := abi.JSON(strings.NewReader(FaultDisputeGameABI))
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
