@@ -1,6 +1,7 @@
 {
   "src/EAS/EAS.sol": "0xea04b7a9ec170ce9cbd466ede87650f9e9ffe3d725d7951cef5777a98a840173",
   "src/EAS/SchemaRegistry.sol": "0x5ee1a0c3b2bf1eb5edb53fb0967cf13856be546f0f16fe7acdc3e4f286db6831",
+  "src/L1/DataAvailabilityChallenge.sol": "0xe06916cb6011ecfcf24e535ee6c13ef6b812f54ed6b1845c207d4d48e3ad3578",
   "src/L1/DelayedVetoable.sol": "0x276c6276292095e6aa37a70008cf4e0d1cbcc020dbc9107459bbc72ab5ed744f",
   "src/L1/L1CrossDomainMessenger.sol": "0x314a831b10500182a932ca6a8c34939ba45b6844e78a656c46790641e5811a66",
   "src/L1/L1ERC721Bridge.sol": "0x679dc0ab891843253bab269a09218bd2706984cae0f52c0f25789c0797096308",
