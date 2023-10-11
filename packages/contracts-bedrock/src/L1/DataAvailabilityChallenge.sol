@@ -62,6 +62,15 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         bytes32 indexed challengedHash, uint256 indexed challengedBlockNumber, ChallengeStatus status
     );
 
+    /// @notice An event that is emitted when the challenge window changes.
+    event ChallengeWindowChanged(uint256 challengeWindow);
+
+    /// @notice An event that is emitted when the resolve window changes.
+    event ResolveWindowChanged(uint256 resolveWindow);
+
+    /// @notice An event that is emitted when the bond size required to initiate a challenge changes.
+    event RequiredBondSizeChanged(uint256 challengeWindow);
+
     /// @notice An event that is emitted when the head of the chain of expired challenges is updated.
     /// @param expiredChallengesHead The new head of the chain of expired challenges.
     event ExpiredChallengesHeadUpdated(bytes32 expiredChallengesHead);
@@ -116,18 +125,21 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param _challengeWindow The block interval during which a commitment can be challenged.
     function setChallengeWindow(uint256 _challengeWindow) public onlyOwner {
         challengeWindow = _challengeWindow;
+        emit ChallengeWindowChanged(_challengeWindow);
     }
 
     /// @notice Sets the resolve window.
     /// @param _resolveWindow The block interval during which a challenge can be resolved.
     function setResolveWindow(uint256 _resolveWindow) public onlyOwner {
         resolveWindow = _resolveWindow;
+        emit ResolveWindowChanged(_resolveWindow);
     }
 
     /// @notice Sets the bond size.
     /// @param _bondSize The amount required to post a challenge.
     function setBondSize(uint256 _bondSize) public onlyOwner {
         bondSize = _bondSize;
+        emit RequiredBondSizeChanged(_bondSize);
     }
 
     /// @notice Post a bond as prerequisite for challenging a commitment.
