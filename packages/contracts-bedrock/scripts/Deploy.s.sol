@@ -838,6 +838,7 @@ contract Deploy is Deployer {
     /// @notice Initialize the L1StandardBridge
     function initializeL1StandardBridge() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address delayedVetoable = mustGetAddress("DelayedVetoableForOpChain");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
@@ -845,7 +846,7 @@ contract Deploy is Deployer {
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
             _callViaSafe({
-                _target: address(proxyAdmin),
+                _target: address(delayedVetoable),
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
             });
         }
@@ -917,6 +918,7 @@ contract Deploy is Deployer {
     /// @notice initializeL1CrossDomainMessenger
     function initializeL1CrossDomainMessenger() public broadcast {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address delayedVetoable = mustGetAddress("DelayedVetoableForOpChain");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
@@ -925,7 +927,7 @@ contract Deploy is Deployer {
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
             _callViaSafe({
-                _target: address(proxyAdmin),
+                _target: delayedVetoable,
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED))
             });
         }
@@ -935,7 +937,7 @@ contract Deploy is Deployer {
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
         if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
             _callViaSafe({
-                _target: address(proxyAdmin),
+                _target: delayedVetoable,
                 _data: abi.encodeCall(ProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
             });
         }
@@ -966,6 +968,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the L2OutputOracle
     function initializeL2OutputOracle() public broadcast {
+        address delayedVetoable = mustGetAddress("DelayedVetoableForOpChain");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
         SystemConfig systemConfigProxy = SystemConfig(mustGetAddress("SystemConfigProxy"));
