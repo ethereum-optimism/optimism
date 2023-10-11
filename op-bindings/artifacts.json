@@ -40,5 +40,6 @@
   "Safe",
   "SafeProxyFactory",
   "DelayedVetoable",
-  "ISemver"
+  "ISemver",
+  "StorageSetter"
 ]
