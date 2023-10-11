@@ -182,11 +182,7 @@ func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID
 
 func (ea *L2EngineAPI) GetPayloadV2(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
 	payload, err := ea.getPayload(ctx, payloadId)
-	if err != nil {
-		return nil, err
-	} else {
-		return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, nil
-	}
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, err
 }
 
 func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {

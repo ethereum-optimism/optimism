@@ -684,6 +684,9 @@ To interact with the engine, the [execution engine API][exec-engine] is used, wi
 - [`engine_getPayloadV2`] — retrieves a previously requested execution payload build.
 - [`engine_newPayloadV2`] — executes an execution payload to create a block.
 
+The current version of `op-node` uses the `v2` RPC methods from the engine API, whereas prior versions used the `v1`
+equivalents. The `v2` methods are backwards compatible with `v1` payloads but support Shanghai.
+
 [`engine_forkchoiceUpdatedV2`]: exec-engine.md#engine_forkchoiceupdatedv2
 [`engine_getPayloadV2`]: exec-engine.md#engine_getpayloadv2
 [`engine_newPayloadV2`]: exec-engine.md#engine_newpayloadv2
