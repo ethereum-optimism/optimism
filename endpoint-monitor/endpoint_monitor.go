@@ -6,15 +6,17 @@ import (
 	"strings"
 	"time"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var (
@@ -40,16 +42,22 @@ func Main(version string) func(cliCtx *cli.Context) error {
 		l.Info(fmt.Sprintf("starting endpoint monitor with checkInterval=%s checkDuration=%s", cfg.CheckInterval, cfg.CheckDuration))
 		endpointMonitor.Start()
 
-		ctx := context.Background()
 		registry := opmetrics.NewRegistry()
 		registry.MustRegister(MetricWsSubscribeStatus)
 		metricsCfg := cfg.MetricsConfig
 
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-		if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+		srv, err := opmetrics.StartServer(registry, metricsCfg.ListenAddr, metricsCfg.ListenPort)
+		if err != nil {
 			l.Error("error starting metrics server", err)
 			return err
 		}
+		defer func() {
+			if err := srv.Stop(cliCtx.Context); err != nil {
+				l.Error("failed to stop metrics server", "err", err)
+			}
+		}()
+		opio.BlockOnInterrupts()
 
 		return nil
 	}

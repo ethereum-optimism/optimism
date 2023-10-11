@@ -523,19 +523,13 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 	m.SequencerSealingDurationSeconds.Observe(float64(duration) / float64(time.Second))
 }
 
-// Serve starts the metrics server on the given hostname and port.
-// The server will be closed when the passed-in context is cancelled.
-func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
+// StartServer starts the metrics server on the given hostname and port.
+func (m *Metrics) StartServer(hostname string, port int) (*ophttp.HTTPServer, error) {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
-	server := ophttp.NewHttpServer(promhttp.InstrumentMetricHandler(
+	h := promhttp.InstrumentMetricHandler(
 		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
-	))
-	server.Addr = addr
-	go func() {
-		<-ctx.Done()
-		server.Close()
-	}()
-	return server.ListenAndServe()
+	)
+	return ophttp.StartHTTPServer(addr, h)
 }
 
 func (m *Metrics) Document() []metrics.DocumentedMetric {

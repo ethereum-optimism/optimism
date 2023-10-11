@@ -39,6 +39,7 @@
   "eip1559Denominator": 50,
   "eip1559Elasticity": 6,
   "l2GenesisRegolithTimeOffset": "0x0",
+  "systemConfigStartBlock": 17422444,
   "daChallengeWindow": 1000,
   "daResolveWindow": 1000,
   "daBondSize": 1000

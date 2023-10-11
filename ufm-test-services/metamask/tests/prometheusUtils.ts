@@ -9,7 +9,7 @@ const env = z
     METRICS_READ_PASSWORD: z.string().optional(),
     METRICS_WRITE_URL: z.string().url(),
     METRICS_WRITE_TOOL: z.enum(['grafana', 'prometheus-pushgateway']),
-    METRIC_WRITE_SOURCE: z.string().optional(),
+    METRICS_WRITE_SOURCE: z.string().optional(),
     METRICS_WRITE_USERNAME: z.string().optional(),
     METRICS_WRITE_PASSWORD: z.string().optional(),
   })
@@ -40,7 +40,7 @@ const env = z
     (data) => {
       if (
         data.METRICS_WRITE_TOOL === 'grafana' &&
-        data.METRIC_WRITE_SOURCE === undefined
+        data.METRICS_WRITE_SOURCE === undefined
       )
         return false
 
@@ -48,7 +48,7 @@ const env = z
     },
     {
       message:
-        'Writing to Grafana requires a source, please specify one using METRIC_WRITE_SOURCE env',
+        'Writing to Grafana requires a source, please specify one using METRICS_WRITE_SOURCE env',
     }
   )
   .parse(process.env)
@@ -164,7 +164,7 @@ export const getSelfSendGaugeValue = async () => {
 const pushMetricsGrafana = (metricName: string, valueToSetTo: number) =>
   pushMetricsWriteUrl(
     `${metricName},source=${
-      env.METRIC_WRITE_SOURCE
+      env.METRICS_WRITE_SOURCE
     } metric=${valueToSetTo}`
   )
 
