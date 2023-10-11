@@ -40,6 +40,11 @@ func TestGuardGossipValidator(t *testing.T) {
 	require.Equal(t, pubsub.ValidationIgnore, val(context.Background(), "bob", nil))
 }
 
+func TestCombinePeers(t *testing.T) {
+	res := combinePeers([]peer.ID{"foo", "bar"}, []peer.ID{"bar", "baz"})
+	require.Equal(t, []peer.ID{"foo", "bar", "baz"}, res)
+}
+
 func TestVerifyBlockSignature(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlCrit)
 	cfg := &rollup.Config{

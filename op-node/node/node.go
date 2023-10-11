@@ -510,6 +510,7 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *e
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
+
 	if err := n.l2Driver.OnUnsafeL2Payload(ctx, payload); err != nil {
 		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
 	}
