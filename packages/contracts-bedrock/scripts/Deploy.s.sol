@@ -933,14 +933,8 @@ contract Deploy is Deployer {
             _proxy: payable(dataAvailabilityChallengeProxy),
             _implementation: dataAvailabilityChallenge,
             _innerCallData: abi.encodeCall(
-                DataAvailabilityChallenge.initialize,
-                (
-                    finalSystemOwner,
-                    daChallengeWindow,
-                    daResolveWindow,
-                    daBondSize
+                DataAvailabilityChallenge.initialize, (finalSystemOwner, daChallengeWindow, daResolveWindow, daBondSize)
                 )
-            )
         });
 
         DataAvailabilityChallenge dac = DataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));

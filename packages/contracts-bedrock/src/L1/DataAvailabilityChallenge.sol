@@ -26,9 +26,12 @@ struct Challenge {
 /// @title DataAvailabilityChallenge
 /// @notice This contract enables data availability of a data commitment at a given block number to be challenged.
 ///         To challenge a commitment, the challenger must first post a bond (bondSize).
-///         Challenging a commitment is only possible within a certain block interval (challengeWindow) after the commitment was made.
-///         If the challenge is not resolved within a certain block interval (resolveWindow), the challenge can be expired.
-///         If a challenge is expired, the challenger's bond is unlocked and the challenged commitment is added to the chain of expired challenges.
+///         Challenging a commitment is only possible within a certain block interval (challengeWindow) after the
+/// commitment was made.
+///         If the challenge is not resolved within a certain block interval (resolveWindow), the challenge can be
+/// expired.
+///         If a challenge is expired, the challenger's bond is unlocked and the challenged commitment is added to the
+/// chain of expired challenges.
 contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @notice Error for when the challenger's bond is too low.
     error BondTooLow(uint256 balance, uint256 required);
@@ -86,14 +89,22 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     bytes32 public expiredChallengesHead;
 
     /// @notice constructs a new DataAvailabilityChallenge contract.
-    constructor() OwnableUpgradeable() {}
+    constructor() OwnableUpgradeable() { }
 
     /// @notice Initializes the contract.
     /// @param _owner The owner of the contract.
     /// @param _challengeWindow The block interval during which a commitment can be challenged.
     /// @param _resolveWindow The block interval during which a challenge can be resolved.
     /// @param _bondSize The amount required to post a challenge.
-    function initialize(address _owner, uint256 _challengeWindow, uint256 _resolveWindow, uint256 _bondSize) public initializer {
+    function initialize(
+        address _owner,
+        uint256 _challengeWindow,
+        uint256 _resolveWindow,
+        uint256 _bondSize
+    )
+        public
+        initializer
+    {
         __Ownable_init();
         setChallengeWindow(_challengeWindow);
         setResolveWindow(_resolveWindow);
@@ -139,7 +150,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
         // send caller's balance to caller
         bool success = SafeCall.send(msg.sender, gasleft(), balance);
-        if(!success) {
+        if (!success) {
             revert WithdrawalFailed();
         }
     }
@@ -186,7 +197,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
         // set the status of this challenge to active, store the current block number and address of the challenger
         challenges[challengedBlockNumber][challengedHash] =
-            Challenge({status: ChallengeStatus.Active, challenger: msg.sender, startBlock: block.number});
+            Challenge({ status: ChallengeStatus.Active, challenger: msg.sender, startBlock: block.number });
 
         // emit an event to notify that the challenge status is now active
         emit ChallengeStatusChanged(challengedHash, challengedBlockNumber, ChallengeStatus.Active);

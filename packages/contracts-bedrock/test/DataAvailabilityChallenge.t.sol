@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity 0.8.15;
 
-import {Test} from "forge-std/Test.sol";
-import {DataAvailabilityChallenge, ChallengeStatus, Challenge} from "../src/L1/DataAvailabilityChallenge.sol";
+import { Test } from "forge-std/Test.sol";
+import { DataAvailabilityChallenge, ChallengeStatus, Challenge } from "../src/L1/DataAvailabilityChallenge.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 
 address constant DAC_OWNER = address(1234);
@@ -28,16 +28,15 @@ contract DataAvailabilityChallengeTest is Test {
         dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE);
     }
 
-
     function testDeposit() public {
         assertEq(dac.balances(address(this)), 0);
-        dac.deposit{value: 1000}();
+        dac.deposit{ value: 1000 }();
         assertEq(dac.balances(address(this)), 1000);
     }
 
     function testReceive() public {
         assertEq(dac.balances(address(this)), 0);
-        (bool success, ) = payable(address(dac)).call{value: 1000}("");
+        (bool success,) = payable(address(dac)).call{ value: 1000 }("");
         assertTrue(success);
         assertEq(dac.balances(address(this)), 1000);
     }
@@ -50,7 +49,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.deal(sender, amount);
 
         vm.prank(sender);
-        dac.deposit{value: amount}();
+        dac.deposit{ value: amount }();
 
         assertEq(dac.balances(sender), amount);
         assertEq(sender.balance, 0);
@@ -73,7 +72,7 @@ contract DataAvailabilityChallengeTest is Test {
         // Deposit the required bond
         vm.deal(challenger, requiredBond);
         vm.prank(challenger);
-        dac.deposit{value: requiredBond}();
+        dac.deposit{ value: requiredBond }();
 
         // Challenge a (blockNumber,hash) tuple
         vm.prank(challenger);
@@ -93,7 +92,7 @@ contract DataAvailabilityChallengeTest is Test {
     function testChallengeFailBondTooLow() public {
         uint256 requiredBond = dac.bondSize();
         uint256 actualBond = requiredBond - 1;
-        dac.deposit{value: actualBond}();
+        dac.deposit{ value: actualBond }();
 
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
         dac.challenge(0, "some hash");
@@ -104,20 +103,20 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(2);
 
         // First challenge succeeds
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(0, "some hash");
 
         // Second challenge of the same hash/blockNumber fails
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeExists.selector));
         dac.challenge(0, "some hash");
 
         // Challenge succeed if the challenged block number is different
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(1, "some hash");
 
         // Challenge succeed if the challenged hash is different
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(0, "some other hash");
     }
 
@@ -129,7 +128,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock);
 
         // Challenge fails because the current block number must be after the challenged block
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
         dac.challenge(challengeBlock, challengeHash);
     }
@@ -142,7 +141,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + dac.challengeWindow() + 1);
 
         // Challenge fails because the block number is after the challenge window
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.ChallengeWindowNotOpen.selector));
         dac.challenge(challengeBlock, challengeHash);
     }
@@ -156,7 +155,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Resolve the challenge
@@ -192,7 +191,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Resolve the challenge
@@ -212,7 +211,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Move to a block after the resolve window
@@ -235,7 +234,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Move to block after resolve window
@@ -255,7 +254,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Move to a block after the resolve window
@@ -287,7 +286,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Resolve the challenge
@@ -307,7 +306,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Move to a block after the challenge window
@@ -330,7 +329,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeBlock + 1);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         vm.roll(block.number + dac.resolveWindow() - 1);
@@ -353,7 +352,7 @@ contract DataAvailabilityChallengeTest is Test {
         // Deposit the required bond
         vm.deal(challenger, requiredBond);
         vm.prank(challenger);
-        dac.deposit{value: requiredBond}();
+        dac.deposit{ value: requiredBond }();
 
         // Challenge a (blockNumber,hash) tuple
         // Expect challenge to fail because the challenge window is not open
@@ -400,7 +399,7 @@ contract DataAvailabilityChallengeTest is Test {
         vm.roll(challengeStartBlock);
 
         // Challenge the hash
-        dac.deposit{value: dac.bondSize()}();
+        dac.deposit{ value: dac.bondSize() }();
         dac.challenge(challengeBlock, challengeHash);
 
         // Move to a block after the resolve window
@@ -440,7 +439,7 @@ contract DataAvailabilityChallengeTest is Test {
     function testSetBondSize() public {
         uint256 requiredBond = dac.bondSize();
         uint256 actualBond = requiredBond - 1;
-        dac.deposit{value: actualBond}();
+        dac.deposit{ value: actualBond }();
 
         // Expect the challenge to fail because the bond is too low
         vm.expectRevert(abi.encodeWithSelector(DataAvailabilityChallenge.BondTooLow.selector, actualBond, requiredBond));
