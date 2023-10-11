@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import {Test} from "forge-std/Test.sol";
 import {DataAvailabilityChallenge, ChallengeStatus, Challenge} from "../src/L1/DataAvailabilityChallenge.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 address constant DAC_OWNER = address(1234);
 uint256 constant CHALLENGE_WINDOW = 1000;
@@ -12,7 +13,7 @@ uint256 constant BOND_SIZE = 1000;
 contract DataAvailabilityChallengeTest is Test {
     DataAvailabilityChallenge public dac;
 
-    function setUp() public {
+    function setUp() public virtual {
         dac = new DataAvailabilityChallenge();
         dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE);
     }
@@ -452,5 +453,14 @@ contract DataAvailabilityChallengeTest is Test {
         vm.prank(notOwner);
         vm.expectRevert("Ownable: caller is not the owner");
         dac.setBondSize(newBondSize);
+    }
+}
+
+contract DataAvailabilityChallengeProxyTest is DataAvailabilityChallengeTest {
+    function setUp() public virtual override {
+        Proxy proxy = new Proxy(address(this));
+        proxy.upgradeTo(address(new DataAvailabilityChallenge()));
+        dac = DataAvailabilityChallenge(address(proxy));
+        dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE);
     }
 }
