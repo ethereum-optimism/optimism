@@ -253,6 +253,10 @@ func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionP
 	return ea.newPayload(ctx, payload)
 }
 
+func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+	return ea.newPayload(ctx, payload)
+}
+
 func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
 	ea.log.Trace("L2Engine API request received", "method", "GetPayload", "id", payloadId)
 	if ea.payloadID != payloadId {
