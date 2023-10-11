@@ -919,6 +919,7 @@ contract Deploy is Deployer {
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
     }
 
+    /// @notice Initialize the DataAvailabilityChallenge
     function initializeDataAvailabilityChallenge() public broadcast {
         address dataAvailabilityChallengeProxy = mustGetAddress("DataAvailabilityChallengeProxy");
         address dataAvailabilityChallenge = mustGetAddress("DataAvailabilityChallenge");
