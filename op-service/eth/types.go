@@ -125,6 +125,10 @@ type Data = hexutil.Bytes
 
 type PayloadID = engine.PayloadID
 
+type ExecutionPayloadEnvelope struct {
+	ExecutionPayload *ExecutionPayload `json:"executionPayload"`
+}
+
 type ExecutionPayload struct {
 	ParentHash    common.Hash     `json:"parentHash"`
 	FeeRecipient  common.Address  `json:"feeRecipient"`
