@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
 
 /// @dev An enum representing the status of a DA challenge.
 enum ChallengeStatus {
@@ -46,6 +47,9 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
     /// @notice Error for when attempting to expire a challenge that is still in the resolve window.
     error ResolveWindowNotClosed();
+
+    /// @notice Error for when the call to withdraw a bond failed.
+    error WithdrawalFailed();
 
     /// @notice An event that is emitted when the status of a challenge changes.
     /// @param challengedHash The hash of the commitment that is being challenged.
@@ -129,7 +133,10 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
         balances[msg.sender] = 0;
 
         // send caller's balance to caller
-        payable(msg.sender).transfer(balance);
+        bool success = SafeCall.send(msg.sender, gasleft(), balance);
+        if(!success) {
+            revert WithdrawalFailed();
+        }
     }
 
     /// @notice Checks if the current block is within the challenge window for a given challenged block number.
