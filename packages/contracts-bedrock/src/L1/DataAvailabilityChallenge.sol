@@ -120,7 +120,12 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     }
 
     /// @notice Post a bond as prerequisite for challenging a commitment.
-    function deposit() external payable {
+    receive() external payable {
+        deposit();
+    }
+
+    /// @notice Post a bond as prerequisite for challenging a commitment.
+    function deposit() public payable {
         balances[msg.sender] += msg.value;
     }
 

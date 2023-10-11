@@ -35,9 +35,17 @@ contract DataAvailabilityChallengeTest is Test {
         assertEq(dac.balances(address(this)), 1000);
     }
 
+    function testReceive() public {
+        assertEq(dac.balances(address(this)), 0);
+        (bool success, ) = payable(address(dac)).call{value: 1000}("");
+        assertTrue(success);
+        assertEq(dac.balances(address(this)), 1000);
+    }
+
     function testWithdraw(address sender, uint256 amount) public {
         assumePayable(sender);
         assumeNoPrecompiles(sender);
+        vm.assume(sender != address(dac));
         vm.assume(sender.balance == 0);
         vm.deal(sender, amount);
 
@@ -460,7 +468,7 @@ contract DataAvailabilityChallengeProxyTest is DataAvailabilityChallengeTest {
     function setUp() public virtual override {
         Proxy proxy = new Proxy(address(this));
         proxy.upgradeTo(address(new DataAvailabilityChallenge()));
-        dac = DataAvailabilityChallenge(address(proxy));
+        dac = DataAvailabilityChallenge(payable(address(proxy)));
         dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE);
     }
 }
