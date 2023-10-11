@@ -1,4 +1,4 @@
-FROM debian:bullseye-20220822-slim as foundry-build
+FROM debian:bullseye-20220822-slim as rust-build
 
 SHELL ["/bin/bash", "-c"]
 
@@ -10,6 +10,8 @@ RUN apt-get update && \
   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
   ./rustup.sh -y
+
+RUN $HOME/.cargo/bin/cargo install just
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
@@ -33,9 +35,10 @@ ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=foundry-build /opt/foundry/target/release/forge /usr/local/bin/forge
-COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
-COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
+COPY --from=rust-build /usr/local/cargo/bin/just /usr/local/bin/just
+COPY --from=rust-build /opt/foundry/target/release/forge /usr/local/bin/forge
+COPY --from=rust-build /opt/foundry/target/release/cast /usr/local/bin/cast
+COPY --from=rust-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 RUN apt-get update && \
