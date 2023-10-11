@@ -28,6 +28,21 @@ var (
 	LoadLocalDataBytes4             []byte
 )
 
+func init() {
+	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
+	if err != nil {
+		panic(fmt.Errorf("failed to load MIPS ABI: %w", err))
+	}
+	StepBytes4 = mipsAbi.Methods["step"].ID[:4]
+
+	preimageAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	if err != nil {
+		panic(fmt.Errorf("failed to load pre-image oracle ABI: %w", err))
+	}
+	LoadKeccak256PreimagePartBytes4 = preimageAbi.Methods["loadKeccak256PreimagePart"].ID[:4]
+	LoadLocalDataBytes4 = preimageAbi.Methods["loadLocalData"].ID[:4]
+}
+
 // LoadContracts loads the Cannon contracts, from op-bindings package
 func LoadContracts() (*Contracts, error) {
 	var mips, oracle Contract
@@ -35,9 +50,6 @@ func LoadContracts() (*Contracts, error) {
 	mips.DeployedBytecode.SourceMap = bindings.MIPSDeployedSourceMap
 	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
 	oracle.DeployedBytecode.SourceMap = bindings.PreimageOracleDeployedSourceMap
-	if err := InitSelectors(); err != nil {
-		return nil, err
-	}
 	return &Contracts{
 		MIPS:   &mips,
 		Oracle: &oracle,
@@ -54,30 +66,10 @@ func LoadContractsFromFiles() (*Contracts, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := InitSelectors(); err != nil {
-		return nil, err
-	}
 	return &Contracts{
 		MIPS:   mips,
 		Oracle: oracle,
 	}, nil
-}
-
-func InitSelectors() error {
-	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
-	if err != nil {
-		return fmt.Errorf("failed to load MIPS ABI: %w", err)
-	}
-	StepBytes4 = mipsAbi.Methods["step"].ID[:4]
-
-	preimageAbi, err := bindings.PreimageOracleMetaData.GetAbi()
-	if err != nil {
-		return fmt.Errorf("failed to load pre-image oracle ABI: %w", err)
-	}
-	LoadKeccak256PreimagePartBytes4 = preimageAbi.Methods["loadKeccak256PreimagePart"].ID[:4]
-	LoadLocalDataBytes4 = preimageAbi.Methods["loadLocalData"].ID[:4]
-
-	return nil
 }
 
 func LoadContract(name string) (*Contract, error) {
