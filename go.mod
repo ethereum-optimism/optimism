@@ -45,7 +45,7 @@ require (
 	golang.org/x/term v0.13.0
 	golang.org/x/time v0.3.0
 	gorm.io/driver/postgres v1.5.3
-	gorm.io/gorm v1.25.4
+	gorm.io/gorm v1.25.5
 )
 
 require (
