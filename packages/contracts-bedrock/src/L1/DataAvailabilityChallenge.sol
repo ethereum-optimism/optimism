@@ -121,19 +121,19 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
     /// @notice Post a bond as prerequisite for challenging a commitment.
     function deposit() external payable {
-        balances[_msgSender()] += msg.value;
+        balances[msg.sender] += msg.value;
     }
 
     /// @notice Withdraw a user's unlocked bond.
     function withdraw() external {
         // get caller's balance
-        uint256 balance = balances[_msgSender()];
+        uint256 balance = balances[msg.sender];
 
         // set caller's balance to 0
-        balances[_msgSender()] = 0;
+        balances[msg.sender] = 0;
 
         // send caller's balance to caller
-        bool success = SafeCall.send(_msgSender(), gasleft(), balance);
+        bool success = SafeCall.send(msg.sender, gasleft(), balance);
         if(!success) {
             revert WithdrawalFailed();
         }
@@ -161,12 +161,12 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param challengedHash The data commitment that is being challenged.
     function challenge(uint256 challengedBlockNumber, bytes32 challengedHash) external {
         // require the caller to have a bond
-        if (balances[_msgSender()] < bondSize) {
-            revert BondTooLow(balances[_msgSender()], bondSize);
+        if (balances[msg.sender] < bondSize) {
+            revert BondTooLow(balances[msg.sender], bondSize);
         }
 
         // reduce the caller's bond
-        balances[_msgSender()] -= bondSize;
+        balances[msg.sender] -= bondSize;
 
         // require the challenge status to be uninitialized
         Challenge storage existingChallenge = challenges[challengedBlockNumber][challengedHash];
@@ -181,7 +181,7 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
 
         // set the status of this challenge to active, store the current block number and address of the challenger
         challenges[challengedBlockNumber][challengedHash] =
-            Challenge({status: ChallengeStatus.Active, challenger: _msgSender(), startBlock: block.number});
+            Challenge({status: ChallengeStatus.Active, challenger: msg.sender, startBlock: block.number});
 
         // emit an event to notify that the challenge status is now active
         emit ChallengeStatusChanged(challengedHash, challengedBlockNumber, ChallengeStatus.Active);
