@@ -13,8 +13,8 @@ interface IPreimageOracle {
 
     /// @notice Loads of local data part into the preimage oracle.
     /// @param _ident The identifier of the local data.
-    /// @param _localContext The local key context for the preimage oracle. Optional, can be set as a constant
-    ///                     if the caller only requires one set of local keys.
+    /// @param _localContext The local key context for the preimage oracle. Optionally, can be set as a constant
+    ///                      if the caller only requires one set of local keys.
     /// @param _word The local data word.
     /// @param _size The number of bytes in `_word` to load.
     /// @param _partOffset The offset of the local data part to write to the oracle.
