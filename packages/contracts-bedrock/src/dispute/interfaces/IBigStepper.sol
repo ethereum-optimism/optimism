@@ -30,7 +30,7 @@ interface IBigStepper {
     /// @param _stateData The preimage of the prestate hash.
     /// @param _proof A proof for the inclusion of the prestate's memory in the merkle tree.
     /// @param _localContext The local key context for the preimage oracle. Optional, can be set as a constant
-    ///                     if the caller only requires one set of local keys.
+    ///                      if the caller only requires one set of local keys.
     /// @return postState_ The poststate hash after the instruction step.
     function step(
         bytes calldata _stateData,

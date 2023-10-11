@@ -71,7 +71,7 @@ interface IFaultDisputeGame is IDisputeGame {
     /// @notice Posts the requested local data to the VM's `PreimageOralce`.
     /// @param _ident The local identifier of the data to post.
     /// @param _l2BlockNumber The L2 block number being disputed. This serves as the local context for the
-    ///                      `PreimageOracle` key.
+    ///                       `PreimageOracle` key.
     /// @param _partOffset The offset of the data to post.
     function addLocalData(uint256 _ident, uint256 _l2BlockNumber, uint256 _partOffset) external;
 
