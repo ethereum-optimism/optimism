@@ -4,11 +4,17 @@ pragma solidity 0.8.15;
 import {Test} from "forge-std/Test.sol";
 import {DataAvailabilityChallenge, ChallengeStatus, Challenge} from "../src/L1/DataAvailabilityChallenge.sol";
 
+address constant DAC_OWNER = address(1234);
+uint256 constant CHALLENGE_WINDOW = 1000;
+uint256 constant RESOLVE_WINDOW = 1000;
+uint256 constant BOND_SIZE = 1000;
+
 contract DataAvailabilityChallengeTest is Test {
     DataAvailabilityChallenge public dac;
 
     function setUp() public {
-        dac = new DataAvailabilityChallenge(1000, 1000, 1000);
+        dac = new DataAvailabilityChallenge();
+        dac.initialize(DAC_OWNER, CHALLENGE_WINDOW, RESOLVE_WINDOW, BOND_SIZE);
     }
 
     function testDeposit() public {

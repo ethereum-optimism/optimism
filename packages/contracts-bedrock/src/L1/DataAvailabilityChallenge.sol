@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+
 /// @dev An enum representing the status of a DA challenge.
 enum ChallengeStatus {
     Uninitialized,
@@ -25,7 +28,7 @@ struct Challenge {
 ///         Challenging a commitment is only possible within a certain block interval (challengeWindow) after the commitment was made.
 ///         If the challenge is not resolved within a certain block interval (resolveWindow), the challenge can be expired.
 ///         If a challenge is expired, the challenger's bond is unlocked and the challenged commitment is added to the chain of expired challenges.
-contract DataAvailabilityChallenge {
+contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @notice Error for when the challenger's bond is too low.
     error BondTooLow(uint256 balance, uint256 required);
 
@@ -56,6 +59,10 @@ contract DataAvailabilityChallenge {
     /// @param expiredChallengesHead The new head of the chain of expired challenges.
     event ExpiredChallengesHeadUpdated(bytes32 expiredChallengesHead);
 
+    /// @notice Semantic version.
+    /// @custom:semver 0.0.0
+    string public constant version = "0.0.0";
+
     /// @notice The block interval during which a commitment can be challenged.
     uint256 public challengeWindow;
 
@@ -74,28 +81,38 @@ contract DataAvailabilityChallenge {
     /// @notice The head of the chain of expired challenges.
     bytes32 public expiredChallengesHead;
 
-    /// @notice The constructor for the DataAvailabilityChallenge contract.
+    /// @notice constructs a new DataAvailabilityChallenge contract.
+    constructor() OwnableUpgradeable() {}
+
+    /// @notice Sets the challenge window.
     /// @param _challengeWindow The block interval during which a commitment can be challenged.
-    /// @param _resolveWindow The block interval during which a challenge can be resolved.
-    /// @param _bondSize The amount required to post a challenge.
-    constructor(uint256 _challengeWindow, uint256 _resolveWindow, uint256 _bondSize) {
+    function setChallengeWindow(uint256 _challengeWindow) public onlyOwner {
         challengeWindow = _challengeWindow;
+    }
+
+    /// @notice Sets the resolve window.
+    /// @param _resolveWindow The block interval during which a challenge can be resolved.
+    function setResolveWindow(uint256 _resolveWindow) public onlyOwner {
         resolveWindow = _resolveWindow;
+    }
+
+    /// @notice Sets the bond size.
+    /// @param _bondSize The amount required to post a challenge.
+    function setBondSize(uint256 _bondSize) public onlyOwner {
         bondSize = _bondSize;
     }
 
-    /// @notice Checks if the current block is within the challenge window for a given challenged block number.
-    /// @param challengedBlockNumber The block number at which the commitment was made.
-    /// @return True if the current block is within the challenge window, false otherwise.
-    function _isInChallengeWindow(uint256 challengedBlockNumber) internal view returns (bool) {
-        return (block.number > challengedBlockNumber && block.number <= challengedBlockNumber + challengeWindow);
-    }
-
-    /// @notice Checks if the current block is within the resolve window for a given challenge start block number.
-    /// @param challengeStartBlockNumber The block number at which the challenge was initiated.
-    /// @return True if the current block is within the resolve window, false otherwise.
-    function _isInResolveWindow(uint256 challengeStartBlockNumber) internal view returns (bool) {
-        return block.number <= challengeStartBlockNumber + resolveWindow;
+    /// @notice Initializes the contract.
+    /// @param _owner The owner of the contract.
+    /// @param _challengeWindow The block interval during which a commitment can be challenged.
+    /// @param _resolveWindow The block interval during which a challenge can be resolved.
+    /// @param _bondSize The amount required to post a challenge.
+    function initialize(address _owner, uint256 _challengeWindow, uint256 _resolveWindow, uint256 _bondSize) public initializer {
+        __Ownable_init();
+        setChallengeWindow(_challengeWindow);
+        setResolveWindow(_resolveWindow);
+        setBondSize(_bondSize);
+        _transferOwnership(_owner);
     }
 
     /// @notice Post a bond as prerequisite for challenging a commitment.
@@ -113,6 +130,20 @@ contract DataAvailabilityChallenge {
 
         // send caller's balance to caller
         payable(msg.sender).transfer(balance);
+    }
+
+    /// @notice Checks if the current block is within the challenge window for a given challenged block number.
+    /// @param challengedBlockNumber The block number at which the commitment was made.
+    /// @return True if the current block is within the challenge window, false otherwise.
+    function _isInChallengeWindow(uint256 challengedBlockNumber) internal view returns (bool) {
+        return (block.number > challengedBlockNumber && block.number <= challengedBlockNumber + challengeWindow);
+    }
+
+    /// @notice Checks if the current block is within the resolve window for a given challenge start block number.
+    /// @param challengeStartBlockNumber The block number at which the challenge was initiated.
+    /// @return True if the current block is within the resolve window, false otherwise.
+    function _isInResolveWindow(uint256 challengeStartBlockNumber) internal view returns (bool) {
+        return block.number <= challengeStartBlockNumber + resolveWindow;
     }
 
     /// @notice Challenge a data commitment at a given block number.
