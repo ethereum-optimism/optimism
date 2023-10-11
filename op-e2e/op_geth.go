@@ -40,7 +40,6 @@ var (
 type OpGeth struct {
 	node          EthInstance
 	l2Engine      *sources.EngineClient
-	L2RpcClient   *rpc.Client
 	L2Client      *ethclient.Client
 	SystemConfig  eth.SystemConfig
 	L1ChainConfig *params.ChainConfig
@@ -106,16 +105,12 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
 	require.Nil(t, err)
 
-	l2RpcClient, err := rpc.Dial(node.HTTPEndpoint())
-	require.Nil(t, err)
-
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
 
 	require.Nil(t, err)
 	return &OpGeth{
 		node:          node,
 		L2Client:      l2Client,
-		L2RpcClient:   l2RpcClient,
 		l2Engine:      l2Engine,
 		SystemConfig:  rollupGenesis.SystemConfig,
 		L1ChainConfig: l1Genesis.Config,
@@ -129,7 +124,6 @@ func (d *OpGeth) Close() {
 	_ = d.node.Close()
 	d.l2Engine.Close()
 	d.L2Client.Close()
-	d.L2RpcClient.Close()
 }
 
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
