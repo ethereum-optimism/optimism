@@ -34,5 +34,8 @@
   "l2OutputOracleChallenger": "0xFBAfDf2C3762b571310e3a726A6cD4443E6Ff3dA",
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
-  "sequencerFeeVaultWithdrawalNetwork": 0
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+  "daChallengeWindow": 1000,
+  "daResolveWindow": 1000,
+  "daBondSize": 1000
 }

@@ -34,5 +34,8 @@
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
-  "l1BlockTime": 12
+  "l1BlockTime": 12,
+  "daChallengeWindow": 1000,
+  "daResolveWindow": 1000,
+  "daBondSize": 1000
 }
