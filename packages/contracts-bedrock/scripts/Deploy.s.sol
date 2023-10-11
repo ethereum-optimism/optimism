@@ -35,6 +35,7 @@ import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
+import { DataAvailabilityChallenge } from "src/L1/DataAvailabilityChallenge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
 
@@ -86,6 +87,7 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeOptimismPortal();
         initializeProtocolVersions();
+        initializeDataAvailabilityChallenge();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
@@ -141,6 +143,7 @@ contract Deploy is Deployer {
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
         deployProtocolVersionsProxy();
+        deployDataAvailabilityChallengeProxy();
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -159,6 +162,7 @@ contract Deploy is Deployer {
         deployPreimageOracle();
         deployMips();
         deployProtocolVersions();
+        deployDataAvailabilityChallenge();
     }
 
     // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
@@ -367,6 +371,22 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
+    /// @notice Deploy the DataAvailabilityChallengeProxy
+    function deployDataAvailabilityChallengeProxy() public broadcast returns (address addr_) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        Proxy proxy = new Proxy({
+            _admin: proxyAdmin
+        });
+
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
+
+        save("DataAvailabilityChallengeProxy", address(proxy));
+        console.log("DataAvailabilityChallengeProxy deployed at %s", address(proxy));
+
+        addr_ = address(proxy);
+    }
+
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: implSalt() }();
@@ -542,6 +562,15 @@ contract Deploy is Deployer {
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
 
         addr_ = address(bridge);
+    }
+
+    /// @notice Deploy the DataAvailabilityChallenge
+    function deployDataAvailabilityChallenge() public broadcast returns (address addr_) {
+        DataAvailabilityChallenge dac = new DataAvailabilityChallenge();
+        save("DataAvailabilityChallenge", address(dac));
+        console.log("DataAvailabilityChallenge deployed at %s", address(dac));
+
+        addr_ = address(dac);
     }
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
@@ -888,6 +917,39 @@ contract Deploy is Deployer {
         require(versions.owner() == finalSystemOwner);
         require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
+    }
+
+    function initializeDataAvailabilityChallenge() public broadcast {
+        address dataAvailabilityChallengeProxy = mustGetAddress("DataAvailabilityChallengeProxy");
+        address dataAvailabilityChallenge = mustGetAddress("DataAvailabilityChallenge");
+
+        address finalSystemOwner = cfg.finalSystemOwner();
+        uint256 daChallengeWindow = cfg.daChallengeWindow();
+        uint256 daResolveWindow = cfg.daResolveWindow();
+        uint256 daBondSize = cfg.daBondSize();
+
+        _upgradeAndCallViaSafe({
+            _proxy: payable(dataAvailabilityChallengeProxy),
+            _implementation: dataAvailabilityChallenge,
+            _innerCallData: abi.encodeCall(
+                DataAvailabilityChallenge.initialize,
+                (
+                    finalSystemOwner,
+                    daChallengeWindow,
+                    daResolveWindow,
+                    daBondSize
+                )
+            )
+        });
+
+        DataAvailabilityChallenge dac = DataAvailabilityChallenge(payable(dataAvailabilityChallengeProxy));
+        string memory version = dac.version();
+        console.log("DataAvailabilityChallenge version: %s", version);
+
+        require(dac.owner() == finalSystemOwner);
+        require(dac.challengeWindow() == daChallengeWindow);
+        require(dac.resolveWindow() == daResolveWindow);
+        require(dac.bondSize() == daBondSize);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
