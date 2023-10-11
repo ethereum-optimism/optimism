@@ -348,10 +348,10 @@ func Run(ctx *cli.Context) error {
 				Post:      postStateHash,
 				StateData: witness.State,
 				ProofData: witness.MemProof,
-				StepInput: witness.EncodeStepInput(),
+				StepInput: witness.EncodeStepInput(0),
 			}
 			if witness.HasPreimage() {
-				inp, err := witness.EncodePreimageOracleInput()
+				inp, err := witness.EncodePreimageOracleInput(nil)
 				if err != nil {
 					return fmt.Errorf("failed to encode pre-image oracle input: %w", err)
 				}

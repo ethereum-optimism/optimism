@@ -25,7 +25,7 @@ func uint32ToBytes32(v uint32) []byte {
 	return out[:]
 }
 
-func (wit *StepWitness) EncodeStepInput() []byte {
+func (wit *StepWitness) EncodeStepInput(localContext uint32) []byte {
 	abiStateLen := len(wit.State)
 	if abiStateLen%32 != 0 {
 		abiStateLen += 32 - (abiStateLen % 32)
@@ -36,8 +36,9 @@ func (wit *StepWitness) EncodeStepInput() []byte {
 
 	var input []byte
 	input = append(input, StepBytes4...)
-	input = append(input, uint32ToBytes32(32*2)...)                          // state data offset in bytes
-	input = append(input, uint32ToBytes32(32*2+32+uint32(len(abiState)))...) // proof data offset in bytes
+	input = append(input, uint32ToBytes32(32*3)...)                          // state data offset in bytes
+	input = append(input, uint32ToBytes32(32*3+32+uint32(len(abiState)))...) // proof data offset in bytes
+	input = append(input, uint32ToBytes32(localContext)...)                  // local context in bytes
 
 	input = append(input, uint32ToBytes32(uint32(len(wit.State)))...) // state data length in bytes
 	input = append(input, abiState[:]...)
@@ -50,7 +51,7 @@ func (wit *StepWitness) HasPreimage() bool {
 	return wit.PreimageKey != ([32]byte{})
 }
 
-func (wit *StepWitness) EncodePreimageOracleInput() ([]byte, error) {
+func (wit *StepWitness) EncodePreimageOracleInput(localContext *uint32) ([]byte, error) {
 	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
@@ -63,6 +64,11 @@ func (wit *StepWitness) EncodePreimageOracleInput() ([]byte, error) {
 		var input []byte
 		input = append(input, LoadLocalDataBytes4...)
 		input = append(input, wit.PreimageKey[:]...)
+		if localContext != nil {
+			input = append(input, uint32ToBytes32(*localContext)...) // local context in bytes
+		} else {
+			input = append(input, uint32ToBytes32(0)...) // local context in bytes
+		}
 
 		preimagePart := wit.PreimageValue[8:]
 		var tmp [32]byte

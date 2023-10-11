@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	StepBytes4                      = crypto.Keccak256([]byte("step(bytes,bytes)"))[:4]
+	StepBytes4                      = crypto.Keccak256([]byte("step(bytes,bytes,uint256)"))[:4]
 	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
-	LoadLocalDataBytes4             = crypto.Keccak256([]byte("loadLocalData(uint256,bytes32,uint256,uint256)"))[:4]
+	LoadLocalDataBytes4             = crypto.Keccak256([]byte("loadLocalData(uint256,uint256,bytes32,uint256,uint256)"))[:4]
 )
 
 // LoadContracts loads the Cannon contracts, from op-bindings package
