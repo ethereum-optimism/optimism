@@ -1,9 +1,10 @@
 import { ContractConfig, defineConfig, Plugin } from '@wagmi/cli'
 import { actions, react } from '@wagmi/cli/plugins'
-import glob from 'glob'
+import * as glob from 'glob'
 import { readFileSync, writeFileSync } from 'fs'
-import type { Abi, AbiFunction, Address } from 'abitype'
+import type { Abi, Address } from 'abitype'
 import { isDeepStrictEqual } from 'util'
+import { camelCase, constantCase } from 'change-case'
 
 /**
  * Predeployed contract addresses
@@ -158,22 +159,36 @@ Object.entries(deployments).forEach(([chain, deploymentFiles]) => {
   }
 })
 
-const getWagmiContracts = (deploymentFiles: string[]) =>
+const getWagmiContracts = (
+  deploymentFiles: string[],
+  filterDuplicates = false
+) =>
   deploymentFiles.map((artifactPath) => {
     const deployment = JSON.parse(
       readFileSync(artifactPath, 'utf8')
     ) as DeploymentJson
-    // There is a wagmi bug we need to filter out the MESSENGER method because it collides with messenger
+
+    // There is a known bug in the wagmi/cli repo where some contracts have FOO_CASE and fooCase in same contract causing issues
+    // This is a common pattern at OP
     // @see https://github.com/wagmi-dev/wagmi/issues/2724
-    const filterOut = new Set([
-      'MESSENGER',
-      'OTHER_BRIDGE',
-      'VERSION',
-      'DECIMALS',
-    ])
-    const abi = deployment.abi.filter(
-      (item) => !filterOut.has((item as AbiFunction).name)
-    )
+    const abi = filterDuplicates
+      ? deployment.abi.filter((item) => {
+          if (item.type !== 'function') {
+            return true
+          }
+          if (item.name !== constantCase(item.name)) {
+            return true
+          }
+          // if constante case make sure it is not a duplicate
+          // e.g. make sure fooBar doesn't exist with FOO_BAR
+          return !deployment.abi.some(
+            (otherItem) =>
+              otherItem.type === 'function' &&
+              otherItem.name !== item.name &&
+              otherItem.name === camelCase(item.name)
+          )
+        })
+      : deployment.abi
     const contractConfig = {
       abi,
       name: artifactPath.split('/').reverse()[0]?.replace('.json', ''),
@@ -190,12 +205,12 @@ const getWagmiContracts = (deploymentFiles: string[]) =>
 /**
  * Returns the contracts for the wagmi cli config
  */
-const getContractConfigs = () => {
+const getContractConfigs = (filterDuplicates = false) => {
   const contracts = {
-    1: getWagmiContracts(deployments[1]),
-    10: getWagmiContracts(deployments[10]),
-    5: getWagmiContracts(deployments[5]),
-    420: getWagmiContracts(deployments[420]),
+    1: getWagmiContracts(deployments[1], filterDuplicates),
+    10: getWagmiContracts(deployments[10], filterDuplicates),
+    5: getWagmiContracts(deployments[5], filterDuplicates),
+    420: getWagmiContracts(deployments[420], filterDuplicates),
   }
 
   const allContracts = Object.values(contracts).flat()
@@ -341,6 +356,8 @@ const eslintIgnorePlugin: Plugin = {
 }
 
 const contracts = getContractConfigs()
+// there is a known wagmi bug with contracts who have both FOO_BAR and fooBar method
+const contractsWithFilteredDuplicates = getContractConfigs(true)
 // @see https://wagmi.sh/cli
 export default defineConfig([
   {
@@ -354,12 +371,12 @@ export default defineConfig([
   },
   {
     out: 'src/actions.ts',
-    contracts,
+    contracts: contractsWithFilteredDuplicates,
     plugins: [eslintIgnorePlugin, actions()],
   },
   {
     out: 'src/react.ts',
-    contracts,
+    contracts: contractsWithFilteredDuplicates,
     plugins: [eslintIgnorePlugin, react()],
   },
 ])
