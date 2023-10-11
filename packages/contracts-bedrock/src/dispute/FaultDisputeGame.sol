@@ -174,7 +174,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
+        // TODO(clabby): Once output bisection is implemented, the local context will no longer
+        //               be constant. We will need to pass it in here based off of the ancestor
+        //               disputed output root's L2 block number.
+        bool validStep = VM.step(_stateData, _proof, 0) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 

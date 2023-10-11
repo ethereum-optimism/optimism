@@ -47,6 +47,38 @@ contract PreimageOracle_Test is Test {
         assertEq(length, size);
     }
 
+    /// @notice Tests that multiple local key contexts can be used by the same address for the
+    ///         same local data identifier.
+    function test_loadLocalData_multipleContexts_succeeds() public {
+        uint256 ident = 1;
+        uint8 size = 4;
+        uint8 partOffset = 0;
+
+        // Form the words we'll be storing
+        bytes32[2] memory words = [
+            bytes32(uint256(0xdeadbeef) << 224),
+            bytes32(uint256(0xbeefbabe) << 224)
+        ];
+
+        for (uint256 i; i < words.length; i++) {
+            // Load the local data into the preimage oracle under the test contract's context
+            // and the given local context.
+            bytes32 contextKey = oracle.loadLocalData(ident, i, words[i], size, partOffset);
+
+            // Validate that the pre-image part is set
+            bool ok = oracle.preimagePartOk(contextKey, partOffset);
+            assertTrue(ok);
+
+            // Validate the local data part
+            bytes32 expectedPart = bytes32(uint256(words[i] >> 64) | uint256(size) << 192);
+            assertEq(oracle.preimageParts(contextKey, partOffset), expectedPart);
+
+            // Validate the local data length
+            uint256 length = oracle.preimageLengths(contextKey);
+            assertEq(length, size);
+        }
+    }
+
     /// @notice Tests that context-specific data [0, 32] bytes in length can be loaded correctly.
     function testFuzz_loadLocalData_varyingLength_succeeds(
         uint256 ident,
