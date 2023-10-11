@@ -47,7 +47,7 @@
     "chai-as-promised": "^7.1.1",
     "dateformat": "^4.5.1",
     "dotenv": "^16.3.1",
-    "ethers": "^5.7.2"
+    "ethers": "^6.8.0"
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.7.0",
