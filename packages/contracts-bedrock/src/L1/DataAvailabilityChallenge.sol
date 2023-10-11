@@ -88,6 +88,19 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @notice constructs a new DataAvailabilityChallenge contract.
     constructor() OwnableUpgradeable() {}
 
+    /// @notice Initializes the contract.
+    /// @param _owner The owner of the contract.
+    /// @param _challengeWindow The block interval during which a commitment can be challenged.
+    /// @param _resolveWindow The block interval during which a challenge can be resolved.
+    /// @param _bondSize The amount required to post a challenge.
+    function initialize(address _owner, uint256 _challengeWindow, uint256 _resolveWindow, uint256 _bondSize) public initializer {
+        __Ownable_init();
+        setChallengeWindow(_challengeWindow);
+        setResolveWindow(_resolveWindow);
+        setBondSize(_bondSize);
+        _transferOwnership(_owner);
+    }
+
     /// @notice Sets the challenge window.
     /// @param _challengeWindow The block interval during which a commitment can be challenged.
     function setChallengeWindow(uint256 _challengeWindow) public onlyOwner {
@@ -104,19 +117,6 @@ contract DataAvailabilityChallenge is OwnableUpgradeable, ISemver {
     /// @param _bondSize The amount required to post a challenge.
     function setBondSize(uint256 _bondSize) public onlyOwner {
         bondSize = _bondSize;
-    }
-
-    /// @notice Initializes the contract.
-    /// @param _owner The owner of the contract.
-    /// @param _challengeWindow The block interval during which a commitment can be challenged.
-    /// @param _resolveWindow The block interval during which a challenge can be resolved.
-    /// @param _bondSize The amount required to post a challenge.
-    function initialize(address _owner, uint256 _challengeWindow, uint256 _resolveWindow, uint256 _bondSize) public initializer {
-        __Ownable_init();
-        setChallengeWindow(_challengeWindow);
-        setResolveWindow(_resolveWindow);
-        setBondSize(_bondSize);
-        _transferOwnership(_owner);
     }
 
     /// @notice Post a bond as prerequisite for challenging a commitment.
