@@ -27,6 +27,7 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
@@ -72,20 +73,25 @@ contract Deploy is Deployer {
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
         address systemOwnerSafe = deploySafe();
-        address supConfProxy = setupSuperchainConfig();
+        address supConfProxy = setupSuperchain();
         setupOpChain({ supConfProxy: supConfProxy, systemOwnerSafe: systemOwnerSafe });
     }
 
     /// @notice Deploy a full system with a new SuperchainConfig
-    function setupSuperchainConfig() public returns (address supConfProxy_) {
+    function setupSuperchain() public returns (address supConfProxy_) {
+        console.log("Deploying Superchain");
+
         supConfProxy_ = deploySuperchainConfigProxy();
         deploySuperchainConfig();
         initializeSuperchainConfig();
+        deployDelayedVetoableForSuperchain();
+        transferSuperchainConfigProxyOwnership();
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
     function setupOpChain(address supConfProxy, address systemOwnerSafe) public {
-        console.log("Deploying an Opchain only");
+        console.log("Deploying Opchain");
+
         if (getAddress("SuperchainConfigProxy") == address(0)) {
             save("SuperchainConfigProxy", supConfProxy);
         }
@@ -414,6 +420,44 @@ contract Deploy is Deployer {
 
         save("SuperchainConfig", address(superchainConfig));
         console.log("SuperchainConfig deployed at %s", address(superchainConfig));
+    }
+
+    /// @notice Deploy the DelayedVetoable contract for the SuperchainConfig
+    ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
+    ///         address, this function does not use the broadcast modifier, and instead starts and
+    ///         stops broadcasting, then starts and stops pranking, within the function body.
+    function deployDelayedVetoableForSuperchain() public {
+        vm.startBroadcast();
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        DelayedVetoable delatedVetoable = new DelayedVetoable({
+                superchainConfig_: superchainConfigProxy,
+                target_: address(superchainConfigProxy)
+            });
+        vm.stopBroadcast();
+
+        vm.startPrank(address(0));
+        require(delatedVetoable.superchainConfig() == address(superchainConfigProxy));
+        require(delatedVetoable.target() == address(superchainConfigProxy));
+        require(delatedVetoable.delay() == 0);
+        require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
+        require(delatedVetoable.initiator() == cfg.superchainConfigInitiator());
+        require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
+        vm.stopPrank();
+
+        save("DelayedVetoableForSuperchain", address(delatedVetoable));
+        console.log("DelayedVetoableForSuperchain deployed at %s", address(delatedVetoable));
+    }
+    }
+
+    /// @notice Transfer ownership of the SuperchainConfigProxy to the DelayedVetoableForSuperchain contract
+    function transferSuperchainConfigProxyOwnership() public broadcast {
+        address payable superchainConfigProxy = payable(mustGetAddress("SuperchainConfigProxy"));
+        address delayedVetoableForSuperchain = mustGetAddress("DelayedVetoableForSuperchain");
+        _callViaSafe({
+            _target: superchainConfigProxy,
+            _data: abi.encodeWithSelector(Proxy.changeAdmin.selector, delayedVetoableForSuperchain)
+        });
+        console.log("SuperchainConfigProxy ownership transferred to %s", delayedVetoableForSuperchain);
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
