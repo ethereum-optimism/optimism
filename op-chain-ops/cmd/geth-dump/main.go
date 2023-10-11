@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/mattn/go-isatty"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 func dbOpen(path string, cache int, handles int) (ethdb.Database, error) {
