@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
@@ -42,17 +43,11 @@ contract DelayedVetoable is ISemver {
     /// @param data The data forwarded to the target.
     event Vetoed(bytes32 indexed callHash, bytes data);
 
-    /// @notice The address that all calls are forwarded to after the delay.
-    address internal immutable TARGET;
+    /// @notice The target for calls from this contract.
+    address internal TARGET;
 
-    /// @notice The address that can veto a call.
-    address internal immutable VETOER;
-
-    /// @notice The address that can initiate a call.
-    address internal immutable INITIATOR;
-
-    /// @notice The delay which will be set after the initial system deployment is completed.
-    uint256 internal immutable OPERATING_DELAY;
+    /// @notice The superchain config contract.
+    SuperchainConfig internal _superchainConfig;
 
     /// @notice The current amount of time to wait before forwarding a call.
     uint256 internal _delay;
@@ -78,23 +73,17 @@ contract DelayedVetoable is ISemver {
     string public constant version = "1.0.0";
 
     /// @notice Sets the target admin during contract deployment.
-    /// @param vetoer_ Address of the vetoer.
-    /// @param initiator_ Address of the initiator.
-    /// @param target_ Address of the target.
-    /// @param operatingDelay_ Time to delay when the system is operational.
-    constructor(address vetoer_, address initiator_, address target_, uint256 operatingDelay_) {
-        // Note that the _delay value is not set here. Having an initial delay of 0 is helpful
-        // during the deployment of a new system.
-        VETOER = vetoer_;
-        INITIATOR = initiator_;
+    /// @param superchainConfig_ Address of the superchain config contract.
+    /// @param target_ Address of the target contract.
+    constructor(SuperchainConfig superchainConfig_, address target_) {
+        _superchainConfig = superchainConfig_;
         TARGET = target_;
-        OPERATING_DELAY = operatingDelay_;
     }
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
     function _initiator() internal returns (address initiator_) {
-        initiator_ = INITIATOR;
+        initiator_ = _superchainConfig.initiator();
     }
 
     function initiator() external readOrHandle returns (address initiator_) {
@@ -104,7 +93,7 @@ contract DelayedVetoable is ISemver {
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
     function _vetoer() internal returns (address vetoer_) {
-        vetoer_ = VETOER;
+        vetoer_ = _superchainConfig.vetoer();
     }
 
     function vetoer() external readOrHandle returns (address vetoer_) {
@@ -121,18 +110,24 @@ contract DelayedVetoable is ISemver {
         target_ = _target();
     }
 
-    /// @notice Gets the operating delay
+    /// @notice Gets the operating delay.
     /// @return operatingDelay_ Delay address.
     function _operatingDelay() internal returns (uint256 operatingDelay_) {
-        operatingDelay_ = OPERATING_DELAY;
+        operatingDelay_ = _superchainConfig.delay();
     }
 
     function operatingDelay() external readOrHandle returns (uint256 operatingDelay_) {
         operatingDelay_ = _operatingDelay();
     }
 
+    /// @notice Gets the SuperchainConfig contract address.
+    /// @return superchainConfig_ Address of the SuperchainConfig contract.
+    function superchainConfig() external readOrHandle returns (address superchainConfig_) {
+        superchainConfig_ = address(_superchainConfig);
+    }
+
     /// @notice Gets the delay
-    /// @return delay_ Delay address.
+    /// @return delay_ Delay value.
     function delay() external readOrHandle returns (uint256 delay_) {
         delay_ = _delay;
     }

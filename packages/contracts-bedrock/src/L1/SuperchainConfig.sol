@@ -6,6 +6,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
@@ -91,7 +92,6 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
         initialize({
-            _systemOwner: address(0),
             _initiator: address(0),
             _vetoer: address(0),
             _guardian: address(0),
@@ -103,7 +103,6 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
-    /// @param _systemOwner Owner of the contract.
     /// @param _initiator   Address of the initiator who may initiate an upgrade or change to critical config values.
     /// @param _vetoer      Address of the vetoer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
@@ -111,7 +110,6 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _maxPause    The maximum time in seconds that the system can be paused for.
     /// @param _sequencers  The initial list of allowed sequencers
     function initialize(
-        address _systemOwner,
         address _initiator,
         address _vetoer,
         address _guardian,
@@ -122,7 +120,6 @@ contract SuperchainConfig is Initializable, ISemver {
         public
         reinitializer(2)
     {
-        _setSystemOwner(_systemOwner);
         _setInitiator(_initiator);
         _setVetoer(_vetoer);
         _setGuardian(_guardian);
@@ -136,7 +133,7 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Getter for the systemOwner address.
     function systemOwner() public view returns (address systemOwner_) {
-        systemOwner_ = Storage.getAddress(SYSTEM_OWNER_SLOT);
+        systemOwner_ = Storage.getAddress(Constants.PROXY_OWNER_ADDRESS);
     }
 
     /// @notice Getter for the initiator address.

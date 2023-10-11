@@ -36,6 +36,7 @@ import { SuperchainConfig } from "../src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
 import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 import { Constants } from "../src/libraries/Constants.sol";
+import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -97,11 +98,12 @@ contract SuperchainConfig_Initializer is CommonTest {
     event Unpaused();
     event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
 
-    address systemOwner = makeAddr("SystemOwner");
+    address systemOwner = multisig;
     address initiator = makeAddr("initiator");
     address vetoer = makeAddr("vetoer");
     address guardian = makeAddr("guardian");
-    uint256 delay = 100;
+    uint256 operatingDelay = 14 days;
+    // uint256 delay = operatingDelay;
     uint256 maxPause = 1 weeks;
     Types.SequencerKeyPair dummySequencer;
 
@@ -125,11 +127,57 @@ contract SuperchainConfig_Initializer is CommonTest {
         proxy.upgradeToAndCall(
             address(SuperchainConfigImpl),
             abi.encodeCall(
-                SuperchainConfig.initialize, (systemOwner, initiator, vetoer, guardian, delay, maxPause, sequencers)
+                SuperchainConfig.initialize, (initiator, vetoer, guardian, operatingDelay, maxPause, sequencers)
             )
         );
 
         supConf = SuperchainConfig(address(proxy));
+    }
+}
+
+contract DelayedVetoable_Init is SuperchainConfig_Initializer {
+    error Unauthorized(address expected, address actual);
+    error ForwardingEarly();
+
+    event Initiated(bytes32 indexed callHash, bytes data);
+    event Forwarded(bytes32 indexed callHash, bytes data);
+    event Vetoed(bytes32 indexed callHash, bytes data);
+
+    address target = makeAddr("target");
+    DelayedVetoable delayedVetoable;
+
+    function setUp() public override {
+        super.setUp();
+        delayedVetoable = new DelayedVetoable({
+            superchainConfig_: supConf,
+            target_: target
+        });
+
+        // Transfer ownership of the superchain config proxy to delayedVetoable
+        vm.prank(multisig);
+        Proxy(payable(address(supConf))).changeAdmin(address(delayedVetoable));
+
+        // Most tests will use the operating delay, so we call as the initiator with null data
+        // to set the delay. For tests that need to use the initial zero delay, we'll modify the
+        // value in storage.
+        vm.prank(initiator);
+        (bool success,) = address(delayedVetoable).call(hex"");
+        assertTrue(success);
+    }
+
+    /// @dev This function is used to prevent initiating the delay unintentionally.
+    ///      It should only be used on tests prior to the delay being activated.
+    /// @param data The data to be used in the call.
+    function assumeNonzeroData(bytes memory data) internal pure {
+        vm.assume(data.length > 0);
+    }
+
+    /// @dev This function is used to ensure that the data does not clash with the queuedAt function selector.
+    /// @param data The data to be used in the call.
+    function assumeNoClash(bytes calldata data) internal pure {
+        if (data.length >= 4) {
+            vm.assume(bytes4(data[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
+        }
     }
 }
 

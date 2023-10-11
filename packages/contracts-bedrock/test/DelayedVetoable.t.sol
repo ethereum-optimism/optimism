@@ -1,55 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
+import { DelayedVetoable_Init } from "./CommonTest.t.sol";
 import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
-
-contract DelayedVetoable_Init is CommonTest {
-    error Unauthorized(address expected, address actual);
-    error ForwardingEarly();
-
-    event Initiated(bytes32 indexed callHash, bytes data);
-    event Forwarded(bytes32 indexed callHash, bytes data);
-    event Vetoed(bytes32 indexed callHash, bytes data);
-
-    address target = address(0xabba);
-    address initiator = alice;
-    address vetoer = bob;
-    uint256 operatingDelay = 14 days;
-    DelayedVetoable delayedVetoable;
-
-    function setUp() public override {
-        super.setUp();
-        delayedVetoable = new DelayedVetoable({
-            initiator_: alice,
-            vetoer_: bob,
-            target_: address(target),
-            operatingDelay_: operatingDelay
-        });
-
-        // Most tests will use the operating delay, so we call as the initiator with null data
-        // to set the delay. For tests that need to use the initial zero delay, we'll modify the
-        // value in storage.
-        vm.prank(initiator);
-        (bool success,) = address(delayedVetoable).call(hex"");
-        assertTrue(success);
-    }
-
-    /// @dev This function is used to prevent initiating the delay unintentionally.
-    ///      It should only be used on tests prior to the delay being activated.
-    /// @param data The data to be used in the call.
-    function assumeNonzeroData(bytes memory data) internal pure {
-        vm.assume(data.length > 0);
-    }
-
-    /// @dev This function is used to ensure that the data does not clash with the queuedAt function selector.
-    /// @param data The data to be used in the call.
-    function assumeNoClash(bytes calldata data) internal pure {
-        if (data.length >= 4) {
-            vm.assume(bytes4(data[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
-        }
-    }
-}
 
 contract DelayedVetoable_Getters_Test is DelayedVetoable_Init {
     /// @dev The getters return the expected values when called by the zero address.
@@ -102,7 +55,7 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
         assumeNoClash(inData);
 
         // Reset the delay to zero
-        vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
+        vm.store(address(delayedVetoable), bytes32(uint256(2)), bytes32(uint256(0)));
 
         vm.mockCall(target, inData, outData);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));

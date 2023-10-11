@@ -661,7 +661,6 @@ contract Deploy is Deployer {
                     abi.encodeCall(
                         SuperchainConfig.initialize,
                         (
-                            cfg.finalSystemOwner(), // systemOwner
                             cfg.superchainConfigInitiator(), // initiator
                             cfg.superchainConfigVetoer(), // vetoer
                             cfg.portalGuardian(), // guardian
