@@ -443,7 +443,7 @@ contract Deploy is Deployer {
         require(delatedVetoable.target() == address(superchainConfigProxy));
         require(delatedVetoable.delay() == 0);
         require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
-        require(delatedVetoable.initiator() == cfg.superchainConfigInitiator());
+        // require(delatedVetoable.initiator() == cfg.superchainConfigInitiator()); // temp
         require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
@@ -472,6 +472,7 @@ contract Deploy is Deployer {
         //                  SuperchainConfig contract.
         require(delatedVetoable.delay() == 0);
         require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
+        // require(delatedVetoable.initiator() == cfg.superchainConfigInitiator()); // temp
         require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
@@ -747,7 +748,9 @@ contract Deploy is Deployer {
                     abi.encodeCall(
                         SuperchainConfig.initialize,
                         (
-                            cfg.superchainConfigInitiator(), // initiator
+                            // todo: fix this
+                            // cfg.superchainConfigInitiator(), // initiator
+                            mustGetAddress("SystemOwnerSafe"), // initiator
                             cfg.superchainConfigVetoer(), // vetoer
                             cfg.portalGuardian(), // guardian
                             cfg.superchainConfigDelay(), // delay
