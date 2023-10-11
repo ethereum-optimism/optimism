@@ -93,7 +93,7 @@ contract DelayedVetoable is ISemver {
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
-    function _initiator() internal virtual returns (address initiator_) {
+    function _initiator() internal returns (address initiator_) {
         initiator_ = INITIATOR;
     }
 
@@ -103,7 +103,7 @@ contract DelayedVetoable is ISemver {
 
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
-    function _vetoer() internal virtual returns (address vetoer_) {
+    function _vetoer() internal returns (address vetoer_) {
         vetoer_ = VETOER;
     }
 
@@ -113,7 +113,7 @@ contract DelayedVetoable is ISemver {
 
     //// @notice Queries the target address.
     /// @return target_ Target address.
-    function _target() internal virtual returns (address target_) {
+    function _target() internal returns (address target_) {
         target_ = TARGET;
     }
 
@@ -123,7 +123,7 @@ contract DelayedVetoable is ISemver {
 
     /// @notice Gets the operating delay
     /// @return operatingDelay_ Delay address.
-    function _operatingDelay() internal virtual returns (uint256 operatingDelay_) {
+    function _operatingDelay() internal returns (uint256 operatingDelay_) {
         operatingDelay_ = OPERATING_DELAY;
     }
 
@@ -155,10 +155,10 @@ contract DelayedVetoable is ISemver {
     function _handleCall() internal {
         // The initiator and vetoer activate the delay by passing in null data.
         if (msg.data.length == 0 && _delay == 0) {
-            if (msg.sender != INITIATOR && msg.sender != VETOER) {
-                revert Unauthorized(INITIATOR, msg.sender);
+            if (msg.sender != _initiator() && msg.sender != _vetoer()) {
+                revert Unauthorized(_initiator(), msg.sender);
             }
-            _delay = OPERATING_DELAY;
+            _delay = _operatingDelay();
             emit DelayActivated(_delay);
             return;
         }
@@ -166,7 +166,7 @@ contract DelayedVetoable is ISemver {
         bytes32 callHash = keccak256(msg.data);
 
         // Case 1: The initiator is calling the contract to initiate a call.
-        if (msg.sender == INITIATOR && _queuedAt[callHash] == 0) {
+        if (msg.sender == _initiator() && _queuedAt[callHash] == 0) {
             if (_delay == 0) {
                 // This forward function will halt the call frame on completion.
                 _forwardAndHalt(callHash);
@@ -179,7 +179,7 @@ contract DelayedVetoable is ISemver {
         // Case 2: The vetoer is calling the contract to veto a call.
         // Note: The vetoer retains the ability to veto even after the delay has passed. This makes censoring the vetoer
         //       more costly, as there is no time limit after which their transaction can be included.
-        if (msg.sender == VETOER && _queuedAt[callHash] != 0) {
+        if (msg.sender == _vetoer() && _queuedAt[callHash] != 0) {
             delete _queuedAt[callHash];
             emit Vetoed(callHash, msg.data);
             return;
@@ -189,7 +189,7 @@ contract DelayedVetoable is ISemver {
         // passed.
         if (_queuedAt[callHash] == 0) {
             // The call has not been initiated, so we'll treat this is an unauthorized initiation attempt.
-            revert Unauthorized(INITIATOR, msg.sender);
+            revert Unauthorized(_initiator(), msg.sender);
         }
 
         if (_queuedAt[callHash] + _delay < block.timestamp) {
@@ -206,7 +206,7 @@ contract DelayedVetoable is ISemver {
     function _forwardAndHalt(bytes32 callHash) internal {
         // Forward the call
         emit Forwarded(callHash, msg.data);
-        (bool success, bytes memory returndata) = TARGET.call(msg.data);
+        (bool success, bytes memory returndata) = _target().call(msg.data);
         if (success == true) {
             assembly {
                 return(add(returndata, 0x20), mload(returndata))
