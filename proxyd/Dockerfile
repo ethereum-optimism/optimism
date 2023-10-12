@@ -14,6 +14,8 @@ RUN make proxyd
 
 FROM alpine:3.18
 
+RUN apk add bind-tools jq curl
+
 COPY ./proxyd/entrypoint.sh /bin/entrypoint.sh
 
 RUN apk update && \
