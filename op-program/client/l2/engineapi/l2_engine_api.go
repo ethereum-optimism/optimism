@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -177,6 +178,82 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 }
 
 func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
+	return ea.getPayload(ctx, payloadId)
+}
+
+func (ea *L2EngineAPI) GetPayloadV2(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayloadEnvelope, error) {
+	payload, err := ea.getPayload(ctx, payloadId)
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, err
+}
+
+func (ea *L2EngineAPI) config() *params.ChainConfig {
+	return ea.backend.Config()
+}
+
+func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if attr != nil {
+		if attr.Withdrawals != nil {
+			return STATUS_INVALID, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
+		}
+		if ea.config().IsShanghai(ea.config().LondonBlock, uint64(attr.Timestamp)) {
+			return STATUS_INVALID, engine.InvalidParams.With(errors.New("forkChoiceUpdateV1 called post-shanghai"))
+		}
+	}
+
+	return ea.forkchoiceUpdated(ctx, state, attr)
+}
+
+func (ea *L2EngineAPI) ForkchoiceUpdatedV2(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	if attr != nil {
+		if err := ea.verifyPayloadAttributes(attr); err != nil {
+			return STATUS_INVALID, engine.InvalidParams.With(err)
+		}
+	}
+
+	return ea.forkchoiceUpdated(ctx, state, attr)
+}
+
+func (ea *L2EngineAPI) verifyPayloadAttributes(attr *eth.PayloadAttributes) error {
+	c := ea.config()
+
+	// Verify withdrawals attribute for Shanghai.
+	if err := checkAttribute(c.IsShanghai, attr.Withdrawals != nil, c.LondonBlock, uint64(attr.Timestamp)); err != nil {
+		return fmt.Errorf("invalid withdrawals: %w", err)
+	}
+	return nil
+}
+
+func checkAttribute(active func(*big.Int, uint64) bool, exists bool, block *big.Int, time uint64) error {
+	if active(block, time) && !exists {
+		return errors.New("fork active, missing expected attribute")
+	}
+	if !active(block, time) && exists {
+		return errors.New("fork inactive, unexpected attribute set")
+	}
+	return nil
+}
+
+func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+	if payload.Withdrawals != nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("withdrawals not supported in V1"))
+	}
+
+	return ea.newPayload(ctx, payload)
+}
+
+func (ea *L2EngineAPI) NewPayloadV2(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+	if ea.config().IsShanghai(new(big.Int).SetUint64(uint64(payload.BlockNumber)), uint64(payload.Timestamp)) {
+		if payload.Withdrawals == nil {
+			return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("nil withdrawals post-shanghai"))
+		}
+	} else if payload.Withdrawals != nil {
+		return &eth.PayloadStatusV1{Status: eth.ExecutionInvalid}, engine.InvalidParams.With(errors.New("non-nil withdrawals pre-shanghai"))
+	}
+
+	return ea.newPayload(ctx, payload)
+}
+
+func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
 	ea.log.Trace("L2Engine API request received", "method", "GetPayload", "id", payloadId)
 	if ea.payloadID != payloadId {
 		ea.log.Warn("unexpected payload ID requested for block building", "expected", ea.payloadID, "got", payloadId)
@@ -190,7 +267,7 @@ func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID
 	return eth.BlockAsPayload(bl)
 }
 
-func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ForkchoiceUpdated", "head", state.HeadBlockHash, "finalized", state.FinalizedBlockHash, "safe", state.SafeBlockHash)
 	if state.HeadBlockHash == (common.Hash{}) {
 		ea.log.Warn("Forkchoice requested update to zero hash")
@@ -273,7 +350,7 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 	return valid(nil), nil
 }
 
-func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
+func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ExecutePayload", "number", payload.BlockNumber, "hash", payload.BlockHash)
 	txs := make([][]byte, len(payload.Transactions))
 	for i, tx := range payload.Transactions {
