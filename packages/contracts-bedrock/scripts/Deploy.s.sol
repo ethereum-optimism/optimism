@@ -122,6 +122,7 @@ contract Deploy is Deployer {
         setCannonFaultGameImplementation();
 
         transferDisputeGameFactoryOwnership();
+        activateDelay();
     }
 
     /// @notice The create2 salt used for deployment of the contract implementations.
@@ -477,11 +478,12 @@ contract Deploy is Deployer {
         vm.startPrank(address(0));
         require(delatedVetoable.superchainConfig() == address(superchainConfigProxy));
         require(delatedVetoable.target() == proxyAdmin);
-        // Temp(maurelian): In hindsight, it would have been simpler/cleaner to just put the delay activation on the
-        //                  SuperchainConfig contract.
         require(delatedVetoable.delay() == 0);
         require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
-        // require(delatedVetoable.initiator() == cfg.superchainConfigInitiator()); // temp
+        require(
+            delatedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
+                || delatedVetoable.initiator() == cfg.superchainConfigInitiator()
+        );
         require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
@@ -1111,6 +1113,22 @@ contract Deploy is Deployer {
             disputeGameFactory.transferOwnership(safe);
             console.log("DisputeGameFactory ownership transferred to Safe at: %s", safe);
         }
+    }
+
+    /// @notice Activates the delay on the DelayedVetoable contracts
+    function activateDelay() public broadcast {
+        _callViaSafe({
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForSuperchain"),
+            _data: hex""
+        });
+
+        _callViaSafe({
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
+            _data: hex""
+        });
+        console.log("Delay activated on DelayedVetoable contracts");
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
