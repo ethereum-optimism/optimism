@@ -98,9 +98,6 @@ func (b *BridgeProcessor) run() error {
 	var lastEpoch *big.Int
 	if b.LatestL1Header != nil {
 		lastEpoch = b.LatestL1Header.Number
-	} else {
-		b.log.Info("starting processing from supplied genesis epoch", "l1_starting_number", b.chainConfig.L1StartingHeight)
-		lastEpoch = big.NewInt(int64(b.chainConfig.L1StartingHeight))
 	}
 
 	latestEpoch, err := b.db.Blocks.LatestObservedEpoch(lastEpoch, maxEpochRange)

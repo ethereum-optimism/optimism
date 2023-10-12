@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -171,14 +170,11 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	// We use timestamps since that translates to both L1 & L2
 	var fromTimestamp, toTimestamp uint64
 
-	if fromL1Height == nil {
-		fromL1Height = bigint.Zero
-	}
-
 	// Lower Bound (the default `fromTimestamp = l1_starting_heigh` (default=0) suffices genesis representation)
-	if fromL1Height.BitLen() > 0 {
+	if fromL1Height != nil {
 		var header L1BlockHeader
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
+		// TODO - Embed logging to db
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				log.Warn("Could not fetch latest L1 block header in bridge processor", "number", fromL1Height,
@@ -189,6 +185,17 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		}
 
 		fromTimestamp = header.Timestamp
+	} else {
+		var header L1BlockHeader
+		result := db.gorm.Order("number desc").Take(&header)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				log.Warn("Could not fetch latest L1 block header in bridge processor", "number", fromL1Height,
+					"processor", "bridge")
+				return nil, nil
+			}
+			return nil, result.Error
+		}
 	}
 
 	// Upper Bound (lowest timestamp indexed between L1/L2 bounded by `maxL1Range`)
