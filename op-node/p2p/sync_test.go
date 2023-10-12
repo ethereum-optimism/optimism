@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/event"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -290,7 +289,7 @@ func TestMultiPeerSync(t *testing.T) {
 	}
 }
 
-func TestUseEvtPeerConnectednessChangedEvent(t *testing.T) {
+func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	t.Parallel()
 	log := testlog.Logger(t, log.LvlDebug)
 
@@ -308,20 +307,17 @@ func TestUseEvtPeerConnectednessChangedEvent(t *testing.T) {
 	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
 		return nil
 	}, metrics.NoopMetrics, &NoopApplicationScorer{})
-	subscribe, err := hostA.EventBus().Subscribe(&event.EvtPeerConnectednessChanged{})
-	require.NoError(t, err, "subscribe peerConnectednessChanged fail")
-	go func() {
-		for evt := range subscribe.Out() {
-			evto := evt.(event.EvtPeerConnectednessChanged)
-			if evto.Connectedness == network.Connected {
-				log.Info("event: connect peer", "peer", evto.Peer)
-				syncCl.AddPeer(evto.Peer)
-			} else if evto.Connectedness == network.NotConnected {
-				log.Info("event: disconnect peer", "peer", evto.Peer)
-				syncCl.RemovePeer(evto.Peer)
+	hostA.Network().Notify(&network.NotifyBundle{
+		ConnectedF: func(nw network.Network, conn network.Conn) {
+			syncCl.AddPeer(conn.RemotePeer())
+		},
+		DisconnectedF: func(nw network.Network, conn network.Conn) {
+			// only when no connection is available, we can remove the peer
+			if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
+				syncCl.RemovePeer(conn.RemotePeer())
 			}
-		}
-	}()
+		},
+	})
 	syncCl.Start()
 
 	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
