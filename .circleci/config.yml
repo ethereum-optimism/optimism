@@ -611,6 +611,18 @@ jobs:
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
 
+  todo-issues:
+    machine:
+      image: ubuntu-2204:2022.07.1
+    steps:
+      - checkout
+      - run:
+          name: Install ripgrep
+          command: sudo apt-get install -y ripgrep
+      - run:
+          name: Check TODO issues
+          command: ./ops/scripts/todo-checker.sh --verbose
+
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -1167,6 +1179,7 @@ workflows:
       - fuzz-op-chain-ops
       - fuzz-cannon
       - bedrock-markdown
+      - todo-issues
       - go-lint:
           name: op-batcher-lint
           module: op-batcher
