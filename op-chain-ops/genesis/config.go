@@ -724,7 +724,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"basefee":        block.BaseFee(),
 		"hash":           block.Hash(),
 		"sequenceNumber": 0,
-		"batcherHash":    config.BatchSenderAddress.Hash(),
+		"batcherHash":    eth.AddressAsLeftPaddedHash(config.BatchSenderAddress),
 		"l1FeeOverhead":  config.GasPriceOracleOverhead,
 		"l1FeeScalar":    config.GasPriceOracleScalar,
 	}
