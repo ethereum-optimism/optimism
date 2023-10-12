@@ -121,7 +121,7 @@ type channelBuilder struct {
 	// guaranteed to be a ChannelFullError wrapping the specific reason.
 	fullErr error
 	// current channel
-	co *derive.ChannelOut
+	co derive.ChannelOut
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
 	blocks []*types.Block
 	// frames data queue, to be send as txs
@@ -139,7 +139,7 @@ func newChannelBuilder(cfg ChannelConfig, spanBatchBuilder *derive.SpanBatchBuil
 	if err != nil {
 		return nil, err
 	}
-	co, err := derive.NewChannelOut(c, cfg.BatchType, spanBatchBuilder)
+	co, err := derive.NewChannelOut(cfg.BatchType, c, spanBatchBuilder)
 	if err != nil {
 		return nil, err
 	}
