@@ -16,6 +16,13 @@ END $$;
  * BLOCK DATA
  */
 
+
+DROP TABLE IF EXISTS l1_block_headers CASCADE;
+DROP TABLE IF EXISTS l2_block_headers CASCADE;
+DROP TABLE IF EXISTS l1_contract_events CASCADE;
+DROP TABLE IF EXISTS l2_contract_events CASCADE;
+
+
 CREATE TABLE IF NOT EXISTS l1_block_headers (
     -- Searchable fields
     hash        VARCHAR PRIMARY KEY,
