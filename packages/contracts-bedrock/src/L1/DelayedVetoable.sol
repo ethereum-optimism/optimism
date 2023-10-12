@@ -82,7 +82,7 @@ contract DelayedVetoable is ISemver {
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
-    function _initiator() internal returns (address initiator_) {
+    function _initiator() internal view returns (address initiator_) {
         initiator_ = SUPERCHAIN_CONFIG.initiator();
     }
 
@@ -92,7 +92,7 @@ contract DelayedVetoable is ISemver {
 
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
-    function _vetoer() internal returns (address vetoer_) {
+    function _vetoer() internal view returns (address vetoer_) {
         vetoer_ = SUPERCHAIN_CONFIG.vetoer();
     }
 
@@ -102,7 +102,7 @@ contract DelayedVetoable is ISemver {
 
     //// @notice Queries the target address.
     /// @return target_ Target address.
-    function _target() internal returns (address target_) {
+    function _target() internal view returns (address target_) {
         target_ = TARGET;
     }
 
@@ -112,7 +112,7 @@ contract DelayedVetoable is ISemver {
 
     /// @notice Gets the operating delay.
     /// @return operatingDelay_ Delay address.
-    function _operatingDelay() internal returns (uint256 operatingDelay_) {
+    function _operatingDelay() internal view returns (uint256 operatingDelay_) {
         operatingDelay_ = SUPERCHAIN_CONFIG.delay();
     }
 

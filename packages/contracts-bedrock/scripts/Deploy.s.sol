@@ -997,7 +997,6 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the L2OutputOracle
     function initializeL2OutputOracle() public broadcast {
-        address delayedVetoable = mustGetAddress("DelayedVetoableForOpChain");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
         SystemConfig systemConfigProxy = SystemConfig(mustGetAddress("SystemConfigProxy"));
