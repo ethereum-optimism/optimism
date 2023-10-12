@@ -94,13 +94,13 @@ contract Deploy is Deployer {
         supConfProxy_ = deploySuperchainConfigProxy();
         deploySuperchainConfig();
         initializeSuperchainConfig();
-        deployDelayedVetoableForSuperchain();
+        deployDelayedVetoable(supConfProxy_, "DelayedVetoableForSuperchain");
         transferSuperchainConfigProxyOwnership();
 
-        deployProtocolVersionsProxy();
+        address protocolVersionsProxy = deployProtocolVersionsProxy();
         deployProtocolVersions();
         initializeProtocolVersions();
-        deployDelayedVetoableForProtocolVersions();
+        deployDelayedVetoable(protocolVersionsProxy, "DelayedVetoableForProtocolVersions");
         transferProtocolVersionsProxyOwnership();
     }
 
@@ -176,8 +176,8 @@ contract Deploy is Deployer {
     function deployProxies() public {
         console.log("Deploying proxies");
         deployAddressManager();
-        deployProxyAdmin();
-        deployDelayedVetoableForOpChain();
+        address proxyAdmin = deployProxyAdmin();
+        deployDelayedVetoable(proxyAdmin, "DelayedVetoableForOpChain");
         transferProxyAdminOwnership();
 
         deployOptimismPortalProxy();
@@ -446,22 +446,23 @@ contract Deploy is Deployer {
         console.log("SuperchainConfig deployed at %s", address(superchainConfig));
     }
 
-    /// @notice Deploy the DelayedVetoable contract for the SuperchainConfig
+    /// @notice Deploys a DelayedVetoable contract
     ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
     ///         address, this function does not use the broadcast modifier, and instead starts and
     ///         stops broadcasting, then starts and stops pranking, within the function body.
-    function deployDelayedVetoableForSuperchain() public {
+    function deployDelayedVetoable(address _target, string memory contractName) public {
         vm.startBroadcast();
         SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        // address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         DelayedVetoable delayedVetoable = new DelayedVetoable({
                 superchainConfig_: superchainConfigProxy,
-                target_: address(superchainConfigProxy)
+                target_: _target
             });
         vm.stopBroadcast();
 
         vm.startPrank(address(0));
         require(delayedVetoable.superchainConfig() == address(superchainConfigProxy));
-        require(delayedVetoable.target() == address(superchainConfigProxy));
+        require(delayedVetoable.target() == _target);
         require(delayedVetoable.delay() == 0);
         require(delayedVetoable.operatingDelay() == cfg.superchainConfigDelay());
         require(
@@ -471,68 +472,8 @@ contract Deploy is Deployer {
         require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
-        save("DelayedVetoableForSuperchain", address(delayedVetoable));
-        console.log("DelayedVetoableForSuperchain deployed at %s", address(delayedVetoable));
-    }
-
-    /// @notice Deploy the DelayedVetoable contract for the SuperchainConfig
-    ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
-    ///         address, this function does not use the broadcast modifier, and instead starts and
-    ///         stops broadcasting, then starts and stops pranking, within the function body.
-    function deployDelayedVetoableForProtocolVersions() public {
-        vm.startBroadcast();
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
-        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
-        DelayedVetoable delayedVetoable = new DelayedVetoable({
-                superchainConfig_: superchainConfigProxy,
-                target_: protocolVersionsProxy
-            });
-        vm.stopBroadcast();
-
-        vm.startPrank(address(0));
-        require(delayedVetoable.superchainConfig() == address(superchainConfigProxy));
-        require(delayedVetoable.target() == protocolVersionsProxy);
-        require(delayedVetoable.delay() == 0);
-        require(delayedVetoable.operatingDelay() == cfg.superchainConfigDelay());
-        require(
-            delayedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
-                || delayedVetoable.initiator() == cfg.superchainConfigInitiator()
-        );
-        require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
-        vm.stopPrank();
-
-        save("DelayedVetoableForProtocolVersions", address(delayedVetoable));
-        console.log("DelayedVetoableForProtocolVersions deployed at %s", address(delayedVetoable));
-    }
-
-    /// @notice Deploy the DelayedVetoable contract for the OP Chain's Proxy Admin
-    ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
-    ///         address, this function does not use the broadcast modifier, and instead starts and
-    ///         stops broadcasting, then starts and stops pranking, within the function body.
-    function deployDelayedVetoableForOpChain() public {
-        vm.startBroadcast();
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
-        DelayedVetoable delayedVetoable = new DelayedVetoable({
-                superchainConfig_: superchainConfigProxy,
-                target_: proxyAdmin
-            });
-        vm.stopBroadcast();
-
-        vm.startPrank(address(0));
-        require(delayedVetoable.superchainConfig() == address(superchainConfigProxy));
-        require(delayedVetoable.target() == proxyAdmin);
-        require(delayedVetoable.delay() == 0);
-        require(delayedVetoable.operatingDelay() == cfg.superchainConfigDelay());
-        require(
-            delayedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
-                || delayedVetoable.initiator() == cfg.superchainConfigInitiator()
-        );
-        require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
-        vm.stopPrank();
-
-        save("DelayedVetoableForOpChain", address(delayedVetoable));
-        console.log("DelayedVetoableForOpChain deployed at %s", address(delayedVetoable));
+        save(contractName, address(delayedVetoable));
+        console.log("%s deployed at %s", contractName, address(delayedVetoable));
     }
 
     /// @notice Transfer ownership of the SuperchainConfigProxy to the DelayedVetoableForSuperchain contract
