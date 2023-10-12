@@ -117,11 +117,12 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 // Read the raw data of the first channel, if it's timed-out or closed.
 // Read returns io.EOF if there is nothing new to read.
 func (cb *ChannelBank) Read() (data []byte, err error) {
-	// Common Code. By returning `nil,nil`, we call back into this to make sure that all timed
-	// out channels at the front of the queue will eventually be removed.
+	// Common Code pre/post canyon. Return io.EOF if no channels
 	if len(cb.channelQueue) == 0 {
 		return nil, io.EOF
 	}
+	// Return nil,nil on the first channel if it is timed out. There may be more timed out
+	// channels at the head of the queue and we want to remove them all.
 	first := cb.channelQueue[0]
 	ch := cb.channels[first]
 	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
@@ -137,22 +138,23 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	// Pre-Canyon we simply check the first index.
 	// Post-Canyon we read the entire channelQueue for the first ready channel. If no channel is
 	// available, we return `nil, io.EOF`.
+	// Canyon is activated when the first L1 block whose time >= CanyonTime, not on the L2 timestamp.
 	if !cb.cfg.IsCanyon(cb.Origin().Time) {
-		return cb.readIndex(0)
+		return cb.tryReadChannelAtIndex(0)
 	}
 
 	for i := 0; i < len(cb.channelQueue); i++ {
-		if data, err := cb.readIndex(i); err == nil {
+		if data, err := cb.tryReadChannelAtIndex(i); err == nil {
 			return data, nil
 		}
 	}
 	return nil, io.EOF
 }
 
-// readIndex attempts to read the channel at the specified index. If the channel is
+// tryReadChannelAtIndex attempts to read the channel at the specified index. If the channel is
 // not ready (or timed out), it will return io.EOF.
 // If the channel read was successful, it will remove the channel from the channelQueue.
-func (cb *ChannelBank) readIndex(i int) (data []byte, err error) {
+func (cb *ChannelBank) tryReadChannelAtIndex(i int) (data []byte, err error) {
 	chanID := cb.channelQueue[i]
 	ch := cb.channels[chanID]
 	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
