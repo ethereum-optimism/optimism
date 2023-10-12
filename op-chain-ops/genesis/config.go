@@ -125,8 +125,6 @@ type DeployConfig struct {
 	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
-	// PortalGuardian represents the GUARDIAN account in the OptimismPortal. Has the ability to pause withdrawals.
-	PortalGuardian common.Address `json:"portalGuardian"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
 	// Can be an account on L1 or L2, depending on the BaseFeeVaultWithdrawalNetwork value.
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
@@ -217,6 +215,8 @@ type DeployConfig struct {
 	SuperchainConfigInitiator common.Address `json:"superchainConfigInitiator"`
 	// SuperchainConfigVetoer represents the address of the SuperchainConfigVetoer role.
 	SuperchainConfigVetoer common.Address `json:"superchainConfigVetoer"`
+	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
+	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 	// SuperchainConfigDelay represents the time after which an upgrade can occur ifit
 	SuperchainConfigDelay uint64 `json:"superchainConfigDelay"`
 	// SuperchainConfigMaxPause represents the time after which an upgrade can occur ifit
@@ -224,6 +224,9 @@ type DeployConfig struct {
 	// SequencerKeys represents the set of allowed Sequencer key pairs (batcher hash and unsafe
 	// block signer).
 	SuperchainConfigSequencerKeyPairs []SequencerKeyPair `json:"superchainConfigSequencerKeyPairs"`
+	// Legacy config values.
+	// These are no longer used, but are necessary for parsing legacy deploy-configs
+	PortalGuardian   common.Address `json:"portalGuardian"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -261,9 +264,6 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleStartingBlockNumber == 0 {
 		log.Warn("L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains")
 	}
-	if d.PortalGuardian == (common.Address{}) {
-		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)
-	}
 	if d.MaxSequencerDrift == 0 {
 		return fmt.Errorf("%w: MaxSequencerDrift cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -294,8 +294,8 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleChallenger == (common.Address{}) {
 		return fmt.Errorf("%w: L2OutputOracleChallenger cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.FinalSystemOwner == (common.Address{}) {
-		return fmt.Errorf("%w: FinalSystemOwner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.SystemConfigOwner == (common.Address{}) {
+		log.Warn("SystemConfigOwner cannot be address(0)")
 	}
 	if d.ProxyAdminOwner == (common.Address{}) {
 		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
@@ -370,6 +370,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if len(d.SuperchainConfigSequencerKeyPairs) == 0 {
 		fmt.Println("Warning: SuperchainConfigSequencerKeyPairs is empty")
+	}
+	if d.SuperchainConfigGuardian == (common.Address{}) {
+		log.Warn("SuperchainConfigGuardian address is 0")
 	}
 	return nil
 }

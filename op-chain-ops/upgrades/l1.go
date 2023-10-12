@@ -291,9 +291,9 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return fmt.Errorf("no initialize method")
 	}
 
-	var portalGuardian common.Address
+	var superchainConfigGuardian common.Address
 	if config != nil {
-		portalGuardian = config.PortalGuardian
+		superchainConfigGuardian = config.SuperchainConfigGuardian
 	} else {
 		optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
 		if err != nil {
@@ -303,12 +303,12 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		if err != nil {
 			return err
 		}
-		portalGuardian = guardian
+		superchainConfigGuardian = guardian
 	}
 
 	calldata, err := initialize.Inputs.PackValues([]any{
 		common.HexToAddress(list.L2OutputOracleProxy.String()),
-		portalGuardian,
+		superchainConfigGuardian,
 		common.HexToAddress(chainConfig.SystemConfigAddr.String()),
 		false,
 	})

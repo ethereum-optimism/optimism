@@ -752,7 +752,7 @@ contract Deploy is Deployer {
                             // cfg.superchainConfigInitiator(), // initiator
                             mustGetAddress("SystemOwnerSafe"), // initiator
                             cfg.superchainConfigVetoer(), // vetoer
-                            cfg.portalGuardian(), // guardian
+                            cfg.superchainConfigGuardian(), // guardian
                             cfg.superchainConfigDelay(), // delay
                             cfg.superchainConfigMaxPause(), // delay
                             cfg.getSequencerKeyPairs() // sequencers
@@ -1008,7 +1008,7 @@ contract Deploy is Deployer {
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        address guardian = cfg.portalGuardian();
+        address guardian = cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
         }
@@ -1032,8 +1032,8 @@ contract Deploy is Deployer {
 
         require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
         require(address(portal.superchainConfig()) == superchainConfigProxy);
-        require(portal.guardian() == cfg.portalGuardian());
-        require(portal.GUARDIAN() == cfg.portalGuardian());
+        require(portal.guardian() == cfg.superchainConfigGuardian());
+        require(portal.GUARDIAN() == cfg.superchainConfigGuardian());
         require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == false);
 

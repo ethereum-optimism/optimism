@@ -1,6 +1,6 @@
 {
   "finalSystemOwner": "ADMIN",
-  "portalGuardian": "ADMIN",
+  "superchainConfigGuardian": "ADMIN",
 
   "l1StartingBlockTag": "BLOCKHASH",
 
