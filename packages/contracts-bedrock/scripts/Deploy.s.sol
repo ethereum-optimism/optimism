@@ -255,6 +255,7 @@ contract Deploy is Deployer {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         if (admin.addressManager() != addressManager) {
             _callViaSafe({
+                _safe: Safe(systemOwnerSafe),
                 _target: address(admin),
                 _data: abi.encodeWithSelector(admin.setAddressManager.selector, addressManager)
             });
@@ -443,7 +444,8 @@ contract Deploy is Deployer {
         require(delatedVetoable.target() == address(superchainConfigProxy));
         require(delatedVetoable.delay() == 0);
         require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
-        // require(delatedVetoable.initiator() == cfg.superchainConfigInitiator()); // temp
+        // Temp(maurelian): The initiator needs to be the newly deployed safe.
+        // require(delatedVetoable.initiator() == cfg.superchainConfigInitiator());
         require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
@@ -485,6 +487,7 @@ contract Deploy is Deployer {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address delayedVetoableForSuperchain = mustGetAddress("DelayedVetoableForSuperchain");
         _callViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _target: superchainConfigProxy,
             _data: abi.encodeWithSelector(Proxy.changeAdmin.selector, delayedVetoableForSuperchain)
         });
@@ -496,6 +499,7 @@ contract Deploy is Deployer {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
         _callViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _target: proxyAdmin,
             _data: abi.encodeCall(Ownable.transferOwnership, (delayedVetoableForOpChain))
         });
@@ -688,13 +692,11 @@ contract Deploy is Deployer {
     }
 
     /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
-    function _callViaSafe(address _target, bytes memory _data) internal {
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-
+    function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
         // This is the signature format used the caller is also the signer.
         bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
 
-        safe.execTransaction({
+        _safe.execTransaction({
             to: _target,
             value: 0,
             data: _data,
@@ -710,13 +712,20 @@ contract Deploy is Deployer {
 
     /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method (via the
     ///         DelayedVetoable contract .
-    function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
+    function _upgradeAndCallViaSafe(
+        Safe _safe,
+        address _proxy,
+        address _implementation,
+        bytes memory _innerCallData
+    )
+        internal
+    {
         address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
 
         bytes memory data =
             abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
 
-        _callViaSafe({ _target: delayedVetoableForOpChain, _data: data });
+        _callViaSafe({ _safe: _safe, _target: delayedVetoableForOpChain, _data: data });
     }
 
     /// @notice Initialize the DisputeGameFactory
@@ -725,6 +734,7 @@ contract Deploy is Deployer {
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(disputeGameFactoryProxy),
             _implementation: disputeGameFactory,
             _innerCallData: abi.encodeCall(DisputeGameFactory.initialize, (msg.sender))
@@ -740,6 +750,7 @@ contract Deploy is Deployer {
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
 
         _callViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _target: superchainConfigProxy,
             _data: abi.encodeCall(
                 Proxy.upgradeToAndCall,
@@ -772,6 +783,7 @@ contract Deploy is Deployer {
         uint256 startBlock = cfg.systemConfigStartBlock();
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
             _innerCallData: abi.encodeCall(
@@ -846,6 +858,7 @@ contract Deploy is Deployer {
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
             _callViaSafe({
+                _safe: Safe(mustGetAddress("SystemOwnerSafe")),
                 _target: address(delayedVetoable),
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
             });
@@ -853,6 +866,7 @@ contract Deploy is Deployer {
         require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
             _innerCallData: abi.encodeCall(
@@ -882,6 +896,7 @@ contract Deploy is Deployer {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
             _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy)))
@@ -902,6 +917,7 @@ contract Deploy is Deployer {
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
             _innerCallData: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
@@ -927,6 +943,7 @@ contract Deploy is Deployer {
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
             _callViaSafe({
+                _safe: Safe(mustGetAddress("SystemOwnerSafe")),
                 _target: delayedVetoable,
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED))
             });
@@ -937,6 +954,7 @@ contract Deploy is Deployer {
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
         if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
             _callViaSafe({
+                _safe: Safe(mustGetAddress("SystemOwnerSafe")),
                 _target: delayedVetoable,
                 _data: abi.encodeCall(ProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
             });
@@ -947,6 +965,7 @@ contract Deploy is Deployer {
         );
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
@@ -974,6 +993,7 @@ contract Deploy is Deployer {
         SystemConfig systemConfigProxy = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
@@ -1014,6 +1034,7 @@ contract Deploy is Deployer {
         }
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
             _innerCallData: abi.encodeCall(
@@ -1051,6 +1072,7 @@ contract Deploy is Deployer {
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
         _upgradeAndCallViaSafe({
+            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
             _proxy: payable(protocolVersionsProxy),
             _implementation: protocolVersions,
             _innerCallData: abi.encodeCall(
