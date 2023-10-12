@@ -107,16 +107,7 @@ contract Deploy is Deployer {
 
         deployProxies();
         deployImplementations();
-
-        initializeDisputeGameFactory();
-        initializeSystemConfig();
-        initializeL1StandardBridge();
-        initializeL1ERC721Bridge();
-        initializeOptimismMintableERC20Factory();
-        initializeL1CrossDomainMessenger();
-        initializeL2OutputOracle();
-        initializeOptimismPortal();
-        initializeProtocolVersions();
+        initializeImplementations();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
@@ -172,6 +163,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the proxies
     function deployProxies() public {
+        console.log("Deploying proxies");
         deployAddressManager();
         deployProxyAdmin();
         deployDelayedVetoableForOpChain();
@@ -192,6 +184,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy all of the implementations
     function deployImplementations() public {
+        console.log("Deploying implementations");
         deployOptimismPortal();
         deployL1CrossDomainMessenger();
         deployL2OutputOracle();
@@ -206,7 +199,20 @@ contract Deploy is Deployer {
         deployProtocolVersions();
     }
 
+    function initializeImplementations() public {
+        console.log("Initializing implementations");
+        initializeDisputeGameFactory();
+        initializeSystemConfig();
+        initializeL1StandardBridge();
+        initializeL1ERC721Bridge();
+        initializeOptimismMintableERC20Factory();
+        initializeL1CrossDomainMessenger();
+        initializeL2OutputOracle();
+        initializeOptimismPortal();
+        initializeProtocolVersions();
+    }
     // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
+
     function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
         // These are they standard create2 deployed contracts. First we'll check if they are deployed,
         // if not we'll deploy new ones, though not at these addresses.
