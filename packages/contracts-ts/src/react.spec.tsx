@@ -2,7 +2,7 @@ import matchers from '@testing-library/jest-dom/matchers'
 import { cleanup, waitFor } from '@testing-library/react'
 import { renderHook } from '@testing-library/react-hooks'
 import { afterEach, expect, test } from 'vitest'
-import { useMintManagerOwner } from './react'
+import { useMintManagerRead } from './react'
 import { configureChains, createConfig, WagmiConfig } from 'wagmi'
 import * as React from 'react'
 import { optimism } from 'viem/chains'
@@ -35,7 +35,8 @@ const blockNumber = BigInt(106806163)
 
 test('react hooks should work', async () => {
   const hook = renderHook(
-    () => useMintManagerOwner({ chainId: 10, blockNumber }),
+    () =>
+      useMintManagerRead({ chainId: 10, blockNumber, functionName: 'owner' }),
     {
       wrapper: ({ children }) => (
         <WagmiConfig config={config}>{children}</WagmiConfig>
