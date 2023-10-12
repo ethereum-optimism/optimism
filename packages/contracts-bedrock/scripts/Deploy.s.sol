@@ -70,7 +70,7 @@ contract Deploy is Deployer {
         console.log("Deployment context: %s", deploymentContext);
     }
 
-    /// @notice Deploy all of the L1 contracts
+    /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
 
@@ -83,14 +83,25 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy a full system with a new SuperchainConfig
+    ///         The Superchain system has 3 singleton contracts which lie outside of an Op Chain:
+    ///         1. The SuperchainConfig contract
+    ///         2. The DelayedVetoable contract which controls the SuperchainConfig
+    ///         3. The ProtocolVersions contract which stores the protocol versions
     function setupSuperchain() public returns (address supConfProxy_) {
         console.log("Deploying Superchain");
 
+        // Deploy the SuperchainConfigProxy and its DelayedVetoable
         supConfProxy_ = deploySuperchainConfigProxy();
         deploySuperchainConfig();
         initializeSuperchainConfig();
         deployDelayedVetoableForSuperchain();
         transferSuperchainConfigProxyOwnership();
+
+        deployProtocolVersionsProxy();
+        deployProtocolVersions();
+        initializeProtocolVersions();
+        deployDelayedVetoableForProtocolVersions();
+        transferProtocolVersionsProxyOwnership();
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
@@ -177,7 +188,6 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
-        deployProtocolVersionsProxy();
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -196,7 +206,6 @@ contract Deploy is Deployer {
         deployBlockOracle();
         deployPreimageOracle();
         deployMips();
-        deployProtocolVersions();
     }
 
     function initializeImplementations() public {
@@ -209,7 +218,6 @@ contract Deploy is Deployer {
         initializeL1CrossDomainMessenger();
         initializeL2OutputOracle();
         initializeOptimismPortal();
-        initializeProtocolVersions();
     }
     // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
 
@@ -409,13 +417,13 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersionsProxy
     function deployProtocolVersionsProxy() public onlyTestnetOrDevnet broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        address safe = mustGetAddress("SuperchainConfigInitiatorSafe");
         Proxy proxy = new Proxy({
-            _admin: proxyAdmin
+            _admin: safe
         });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
+        require(admin == safe);
 
         save("ProtocolVersionsProxy", address(proxy));
         console.log("ProtocolVersionsProxy deployed at %s", address(proxy));
@@ -467,6 +475,36 @@ contract Deploy is Deployer {
         console.log("DelayedVetoableForSuperchain deployed at %s", address(delayedVetoable));
     }
 
+    /// @notice Deploy the DelayedVetoable contract for the SuperchainConfig
+    ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
+    ///         address, this function does not use the broadcast modifier, and instead starts and
+    ///         stops broadcasting, then starts and stops pranking, within the function body.
+    function deployDelayedVetoableForProtocolVersions() public {
+        vm.startBroadcast();
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
+        DelayedVetoable delayedVetoable = new DelayedVetoable({
+                superchainConfig_: superchainConfigProxy,
+                target_: protocolVersionsProxy
+            });
+        vm.stopBroadcast();
+
+        vm.startPrank(address(0));
+        require(delayedVetoable.superchainConfig() == address(superchainConfigProxy));
+        require(delayedVetoable.target() == protocolVersionsProxy);
+        require(delayedVetoable.delay() == 0);
+        require(delayedVetoable.operatingDelay() == cfg.superchainConfigDelay());
+        require(
+            delayedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
+                || delayedVetoable.initiator() == cfg.superchainConfigInitiator()
+        );
+        require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
+        vm.stopPrank();
+
+        save("DelayedVetoableForProtocolVersions", address(delayedVetoable));
+        console.log("DelayedVetoableForProtocolVersions deployed at %s", address(delayedVetoable));
+    }
+
     /// @notice Deploy the DelayedVetoable contract for the OP Chain's Proxy Admin
     ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
     ///         address, this function does not use the broadcast modifier, and instead starts and
@@ -504,7 +542,7 @@ contract Deploy is Deployer {
         _callViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _target: superchainConfigProxy,
-            _data: abi.encodeWithSelector(Proxy.changeAdmin.selector, delayedVetoableForSuperchain)
+            _data: abi.encodeCall(Proxy.changeAdmin, (delayedVetoableForSuperchain))
         });
         console.log("SuperchainConfigProxy ownership transferred to %s", delayedVetoableForSuperchain);
     }
@@ -519,6 +557,18 @@ contract Deploy is Deployer {
             _data: abi.encodeCall(Ownable.transferOwnership, (delayedVetoableForOpChain))
         });
         console.log("ProxyAdmin ownership transferred to %s", delayedVetoableForOpChain);
+    }
+
+    /// @notice Transfer ownership of the ProtocolVersions to the DelayedVetoableForProtocolVersions contract
+    function transferProtocolVersionsProxyOwnership() public broadcast {
+        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
+        address delayedVetoableForProtocolVersions = mustGetAddress("DelayedVetoableForProtocolVersions");
+        _callViaSafe({
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: protocolVersionsProxy,
+            _data: abi.encodeCall(Proxy.changeAdmin, (delayedVetoableForProtocolVersions))
+        });
+        console.log("ProxyAdmin ownership transferred to %s", delayedVetoableForProtocolVersions);
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
@@ -708,7 +758,7 @@ contract Deploy is Deployer {
 
     /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
     function _callViaSafe(Safe _safe, address _target, bytes memory _data) internal {
-        // This is the signature format used the caller is also the signer.
+        // This is the signature format used when the caller is also the signer.
         bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
 
         _safe.execTransaction({
@@ -729,27 +779,28 @@ contract Deploy is Deployer {
     ///         DelayedVetoable contract .
     function _upgradeAndCallViaSafe(
         Safe _safe,
+        address _target,
         address _proxy,
         address _implementation,
         bytes memory _innerCallData
     )
         internal
     {
-        address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
-
         bytes memory data =
             abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
 
-        _callViaSafe({ _safe: _safe, _target: delayedVetoableForOpChain, _data: data });
+        _callViaSafe({ _safe: _safe, _target: _target, _data: data });
     }
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public onlyDevnet broadcast {
         address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
+        address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: delayedVetoableForOpChain,
             _proxy: payable(disputeGameFactoryProxy),
             _implementation: disputeGameFactory,
             _innerCallData: abi.encodeCall(DisputeGameFactory.initialize, (msg.sender))
@@ -774,8 +825,6 @@ contract Deploy is Deployer {
                     abi.encodeCall(
                         SuperchainConfig.initialize,
                         (
-                            // todo: fix this
-                            // cfg.superchainConfigInitiator(), // initiator
                             mustGetAddress("SuperchainConfigInitiatorSafe"), // initiator
                             cfg.superchainConfigVetoer(), // vetoer
                             cfg.superchainConfigGuardian(), // guardian
@@ -799,6 +848,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
             _innerCallData: abi.encodeCall(
@@ -882,6 +932,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
             _innerCallData: abi.encodeCall(
@@ -912,6 +963,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
             _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy)))
@@ -933,6 +985,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
             _innerCallData: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
@@ -981,6 +1034,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
@@ -1009,6 +1063,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
@@ -1050,6 +1105,7 @@ contract Deploy is Deployer {
 
         _upgradeAndCallViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: mustGetAddress("DelayedVetoableForOpChain"),
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
             _innerCallData: abi.encodeCall(
@@ -1082,20 +1138,27 @@ contract Deploy is Deployer {
         address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         address protocolVersions = mustGetAddress("ProtocolVersions");
 
-        address systemConfigOwner = cfg.systemConfigOwner();
+        // In practice, the vetoer is the OP Foundation, and so will be the owner of the ProtocolVersions
+        // contract giving it the ability to set the recommended and required versions.
+        address superchainConfigVetoer = cfg.superchainConfigVetoer();
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
-        _upgradeAndCallViaSafe({
+        _callViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
-            _proxy: payable(protocolVersionsProxy),
-            _implementation: protocolVersions,
-            _innerCallData: abi.encodeCall(
-                ProtocolVersions.initialize,
+            _target: protocolVersionsProxy,
+            _data: abi.encodeCall(
+                Proxy.upgradeToAndCall,
                 (
-                    systemConfigOwner,
-                    ProtocolVersion.wrap(requiredProtocolVersion),
-                    ProtocolVersion.wrap(recommendedProtocolVersion)
+                    protocolVersions,
+                    abi.encodeCall(
+                        ProtocolVersions.initialize,
+                        (
+                            superchainConfigVetoer,
+                            ProtocolVersion.wrap(requiredProtocolVersion),
+                            ProtocolVersion.wrap(recommendedProtocolVersion)
+                        )
+                        )
                 )
                 )
         });
@@ -1104,7 +1167,7 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        require(versions.owner() == systemConfigOwner);
+        require(versions.owner() == superchainConfigVetoer);
         require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
     }
@@ -1123,18 +1186,31 @@ contract Deploy is Deployer {
 
     /// @notice Activates the delay on the DelayedVetoable contracts
     function activateDelay() public broadcast {
+        address delayedVetoableForSuperchain = mustGetAddress("DelayedVetoableForSuperchain");
         _callViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
-            _target: mustGetAddress("DelayedVetoableForSuperchain"),
+            _target: delayedVetoableForSuperchain,
             _data: hex""
         });
+        console.log("Delay activated on DelayedVetoableForSuperchain contract at %s", delayedVetoableForSuperchain);
 
+        address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
         _callViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
-            _target: mustGetAddress("DelayedVetoableForOpChain"),
+            _target: delayedVetoableForSuperchain,
             _data: hex""
         });
-        console.log("Delay activated on DelayedVetoable contracts");
+        console.log("Delay activated on SuperchainConfigInitiatorSafe contract at %s", delayedVetoableForOpChain);
+
+        address delayedVetoableForProtocolVersions = mustGetAddress("DelayedVetoableForProtocolVersions");
+        _callViaSafe({
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+            _target: delayedVetoableForProtocolVersions,
+            _data: hex""
+        });
+        console.log(
+            "Delay activated on DelayedVetoableForProtocolVersions contract at %s", delayedVetoableForProtocolVersions
+        );
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
