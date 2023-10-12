@@ -1179,7 +1179,6 @@ workflows:
       - fuzz-op-chain-ops
       - fuzz-cannon
       - bedrock-markdown
-      - todo-issues
       - go-lint:
           name: op-batcher-lint
           module: op-batcher
@@ -1514,6 +1513,15 @@ workflows:
             - oplabs-gcr
           requires:
             - hold
+
+  scheduled-todo-issues:
+    when:
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - todo-issues:
+          name: todo-issue-checks
+          context:
+            - slack
 
   scheduled-fpp:
     when:
