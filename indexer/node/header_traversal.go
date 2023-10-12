@@ -49,7 +49,7 @@ func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, 
 
 	if f.lastHeader != nil {
 		cmp := f.lastHeader.Number.Cmp(endHeight)
-		if cmp == 0 {
+		if cmp == 0 { // We're synced to head and there are no new headers
 			return nil, nil
 		} else if cmp > 0 {
 			return nil, ErrHeaderTraversalAheadOfProvider
@@ -61,6 +61,7 @@ func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, 
 		nextHeight = new(big.Int).Add(f.lastHeader.Number, bigint.One)
 	}
 
+	// endHeight = (nextHeight - endHeight) <= maxSize
 	endHeight = bigint.Clamp(nextHeight, endHeight, maxSize)
 	headers, err := f.ethClient.BlockHeadersByRange(nextHeight, endHeight)
 	if err != nil {
