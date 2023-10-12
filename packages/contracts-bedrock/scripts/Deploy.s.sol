@@ -445,26 +445,26 @@ contract Deploy is Deployer {
     function deployDelayedVetoableForSuperchain() public {
         vm.startBroadcast();
         SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
-        DelayedVetoable delatedVetoable = new DelayedVetoable({
+        DelayedVetoable delayedVetoable = new DelayedVetoable({
                 superchainConfig_: superchainConfigProxy,
                 target_: address(superchainConfigProxy)
             });
         vm.stopBroadcast();
 
         vm.startPrank(address(0));
-        require(delatedVetoable.superchainConfig() == address(superchainConfigProxy));
-        require(delatedVetoable.target() == address(superchainConfigProxy));
-        require(delatedVetoable.delay() == 0);
-        require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
+        require(delayedVetoable.superchainConfig() == address(superchainConfigProxy));
+        require(delayedVetoable.target() == address(superchainConfigProxy));
+        require(delayedVetoable.delay() == 0);
+        require(delayedVetoable.operatingDelay() == cfg.superchainConfigDelay());
         require(
-            delatedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
-                || delatedVetoable.initiator() == cfg.superchainConfigInitiator()
+            delayedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
+                || delayedVetoable.initiator() == cfg.superchainConfigInitiator()
         );
-        require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
+        require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
-        save("DelayedVetoableForSuperchain", address(delatedVetoable));
-        console.log("DelayedVetoableForSuperchain deployed at %s", address(delatedVetoable));
+        save("DelayedVetoableForSuperchain", address(delayedVetoable));
+        console.log("DelayedVetoableForSuperchain deployed at %s", address(delayedVetoable));
     }
 
     /// @notice Deploy the DelayedVetoable contract for the OP Chain's Proxy Admin
@@ -475,26 +475,26 @@ contract Deploy is Deployer {
         vm.startBroadcast();
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
-        DelayedVetoable delatedVetoable = new DelayedVetoable({
+        DelayedVetoable delayedVetoable = new DelayedVetoable({
                 superchainConfig_: superchainConfigProxy,
                 target_: proxyAdmin
             });
         vm.stopBroadcast();
 
         vm.startPrank(address(0));
-        require(delatedVetoable.superchainConfig() == address(superchainConfigProxy));
-        require(delatedVetoable.target() == proxyAdmin);
-        require(delatedVetoable.delay() == 0);
-        require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
+        require(delayedVetoable.superchainConfig() == address(superchainConfigProxy));
+        require(delayedVetoable.target() == proxyAdmin);
+        require(delayedVetoable.delay() == 0);
+        require(delayedVetoable.operatingDelay() == cfg.superchainConfigDelay());
         require(
-            delatedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
-                || delatedVetoable.initiator() == cfg.superchainConfigInitiator()
+            delayedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
+                || delayedVetoable.initiator() == cfg.superchainConfigInitiator()
         );
-        require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
+        require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
-        save("DelayedVetoableForOpChain", address(delatedVetoable));
-        console.log("DelayedVetoableForOpChain deployed at %s", address(delatedVetoable));
+        save("DelayedVetoableForOpChain", address(delayedVetoable));
+        console.log("DelayedVetoableForOpChain deployed at %s", address(delayedVetoable));
     }
 
     /// @notice Transfer ownership of the SuperchainConfigProxy to the DelayedVetoableForSuperchain contract
