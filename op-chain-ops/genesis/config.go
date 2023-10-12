@@ -358,19 +358,19 @@ func (d *DeployConfig) Check() error {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
 	if d.SuperchainConfigInitiator == (common.Address{}) {
-		fmt.Println("Warning: SuperchainConfigInitiator is address(0)")
+		log.Warn("SuperchainConfigInitiator is address(0)")
 	}
 	if d.SuperchainConfigVetoer == (common.Address{}) {
-		fmt.Println("Warning: SuperchainConfigVetoer is address(0)")
+		log.Warn("SuperchainConfigVetoer is address(0)")
 	}
 	if d.SuperchainConfigDelay == 0 {
-		fmt.Println("Warning: SuperchainConfigDelay is 0")
+		log.Warn("SuperchainConfigDelay is 0")
 	}
 	if d.SuperchainConfigMaxPause == 0 {
-		fmt.Println("Warning: SuperchainConfigMaxPause is 0")
+		log.Warn("SuperchainConfigMaxPause is 0")
 	}
 	if len(d.SuperchainConfigSequencerKeyPairs) == 0 {
-		fmt.Println("Warning: SuperchainConfigSequencerKeyPairs is empty")
+		log.Warn("SuperchainConfigSequencerKeyPairs is empty")
 	}
 	if d.SuperchainConfigGuardian == (common.Address{}) {
 		log.Warn("SuperchainConfigGuardian address is 0")
