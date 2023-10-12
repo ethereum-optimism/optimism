@@ -189,12 +189,14 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result := db.gorm.Order("number desc").Take(&header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch recent L1 block heade", "number", fromL1Height,
+				log.Warn("Could not fetch recent L1 block header", "number", fromL1Height,
 					"processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
 		}
+
+		fromL1Height = header.Number
 	}
 
 	// Upper Bound (lowest timestamp indexed between L1/L2 bounded by `maxL1Range`)
