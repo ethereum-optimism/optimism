@@ -175,12 +175,13 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		fromL1Height = bigint.Zero
 	}
 
-	// Lower Bound (the default `fromTimestamp = 0` suffices genesis representation)
+	// Lower Bound (the default `fromTimestamp = l1_starting_heigh` (default=0) suffices genesis representation)
 	if fromL1Height.BitLen() > 0 {
 		var header L1BlockHeader
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				log.Warn("Could not fetch latest L1 block header in bridge processor", "number", fromL1Height)
 				return nil, nil
 			}
 			return nil, result.Error
@@ -197,6 +198,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 			l1QueryFilter = fmt.Sprintf("%s AND number <= %d", l1QueryFilter, maxHeight)
 		}
 
+		// Fetch most recent header from l1_block_headers table
 		var l1Header L1BlockHeader
 		result := db.gorm.Where(l1QueryFilter).Order("timestamp DESC").Take(&l1Header)
 		if result.Error != nil {
@@ -210,6 +212,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 
 		toTimestamp = l1Header.Timestamp
 
+		// Fetch most recent header from l2_block_headers table
 		var l2Header L2BlockHeader
 		result = db.gorm.Where("timestamp <= ?", toTimestamp).Order("timestamp DESC").Take(&l2Header)
 		if result.Error != nil {
