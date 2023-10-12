@@ -219,8 +219,8 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeOptimismPortal();
     }
-    // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
 
+    // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
     function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
         // These are they standard create2 deployed contracts. First we'll check if they are deployed,
         // if not we'll deploy new ones, though not at these addresses.
@@ -238,7 +238,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the Safe
-    function deploySafe(string memory safeName) public broadcast returns (address addr_) {
+    function deploySafe(string memory _safeName) public broadcast returns (address addr_) {
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory signers = new address[](1);
@@ -249,8 +249,8 @@ contract Deploy is Deployer {
         );
         address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
 
-        save(safeName, address(safe));
-        console.log("New %s deployed at %s", safeName, address(safe));
+        save(_safeName, address(safe));
+        console.log("New %s deployed at %s", _safeName, address(safe));
         addr_ = safe;
     }
 

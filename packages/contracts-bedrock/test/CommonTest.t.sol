@@ -103,7 +103,6 @@ contract SuperchainConfig_Initializer is CommonTest {
     address vetoer = makeAddr("vetoer");
     address guardian = makeAddr("guardian");
     uint256 operatingDelay = 14 days;
-    // uint256 delay = operatingDelay;
     uint256 maxPause = 1 weeks;
     Types.SequencerKeyPair dummySequencer;
 
