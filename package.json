@@ -39,7 +39,6 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
     "@changesets/changelog-github": "^0.4.8",
-    "@nrwl/nx-cloud": "latest",
     "@types/chai": "^4.3.7",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^10.0.2",
@@ -72,7 +71,8 @@
     "prettier-plugin-solidity": "^1.0.0-beta.13",
     "rimraf": "^5.0.5",
     "ts-mocha": "^10.0.0",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "nx-cloud": "latest"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.0",
