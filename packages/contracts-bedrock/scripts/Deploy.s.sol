@@ -777,7 +777,7 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(
                 SystemConfig.initialize,
                 (
-                    cfg.finalSystemOwner(),
+                    cfg.systemConfigOwner(),
                     superchainConfigProxy,
                     SystemConfig.GasConfig({ overhead: cfg.gasPriceOracleOverhead(), scalar: cfg.gasPriceOracleScalar() }),
                     batcherHash,
@@ -806,7 +806,7 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        require(config.owner() == cfg.finalSystemOwner());
+        require(config.owner() == cfg.systemConfigOwner());
         require(config.overhead() == cfg.gasPriceOracleOverhead());
         require(config.scalar() == cfg.gasPriceOracleScalar());
         require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
@@ -1046,7 +1046,7 @@ contract Deploy is Deployer {
         address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         address protocolVersions = mustGetAddress("ProtocolVersions");
 
-        address finalSystemOwner = cfg.finalSystemOwner();
+        address systemConfigOwner = cfg.systemConfigOwner();
         uint256 requiredProtocolVersion = cfg.requiredProtocolVersion();
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
@@ -1056,7 +1056,7 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(
                 ProtocolVersions.initialize,
                 (
-                    finalSystemOwner,
+                    systemConfigOwner,
                     ProtocolVersion.wrap(requiredProtocolVersion),
                     ProtocolVersion.wrap(recommendedProtocolVersion)
                 )
@@ -1067,7 +1067,7 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        require(versions.owner() == finalSystemOwner);
+        require(versions.owner() == systemConfigOwner);
         require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
     }

@@ -357,7 +357,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 
 	var gasPriceOracleOverhead, gasPriceOracleScalar *big.Int
 	var batcherHash common.Hash
-	var p2pSequencerAddress, finalSystemOwner common.Address
+	var p2pSequencerAddress, systemConfigOwner common.Address
 	var l2GenesisBlockGasLimit uint64
 
 	if config != nil {
@@ -368,7 +368,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		startBlock = new(big.Int).SetUint64(config.SystemConfigStartBlock)
 		batchInboxAddress = config.BatchInboxAddress
 		p2pSequencerAddress = config.P2PSequencerAddress
-		finalSystemOwner = config.FinalSystemOwner
+		systemConfigOwner = config.SystemConfigOwner
 	} else {
 		systemConfig, err := bindings.NewSystemConfigCaller(common.HexToAddress(chainConfig.SystemConfigAddr.String()), backend)
 		if err != nil {
@@ -404,7 +404,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		if err != nil {
 			return err
 		}
-		finalSystemOwner, err = systemConfig.Owner(&bind.CallOpts{})
+		systemConfigOwner, err = systemConfig.Owner(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
@@ -420,7 +420,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	}
 
 	calldata, err := initialize.Inputs.PackValues([]any{
-		finalSystemOwner,
+		systemConfigOwner,
 		gasPriceOracleOverhead,
 		gasPriceOracleScalar,
 		batcherHash,

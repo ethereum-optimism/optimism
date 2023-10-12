@@ -122,9 +122,9 @@ type DeployConfig struct {
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
 	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
+	// SystemConfigOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
-	FinalSystemOwner common.Address `json:"finalSystemOwner"`
+	SystemConfigOwner common.Address `json:"systemConfigOwner"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
 	// Can be an account on L1 or L2, depending on the BaseFeeVaultWithdrawalNetwork value.
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
@@ -227,6 +227,7 @@ type DeployConfig struct {
 	// Legacy config values.
 	// These are no longer used, but are necessary for parsing legacy deploy-configs
 	PortalGuardian   common.Address `json:"portalGuardian"`
+	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
