@@ -55,7 +55,7 @@ contract DelayedVetoable_HandleCall_Test is DelayedVetoable_Init {
         assumeNoClash(inData);
 
         // Reset the delay to zero
-        vm.store(address(delayedVetoable), bytes32(uint256(2)), bytes32(uint256(0)));
+        vm.store(address(delayedVetoable), bytes32(uint256(0)), bytes32(uint256(0)));
 
         vm.mockCall(target, inData, outData);
         vm.expectEmit(true, false, false, true, address(delayedVetoable));

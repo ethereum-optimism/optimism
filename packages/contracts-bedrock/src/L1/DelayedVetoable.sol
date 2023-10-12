@@ -44,10 +44,10 @@ contract DelayedVetoable is ISemver {
     event Vetoed(bytes32 indexed callHash, bytes data);
 
     /// @notice The target for calls from this contract.
-    address internal TARGET;
+    address internal immutable TARGET;
 
     /// @notice The superchain config contract.
-    SuperchainConfig internal _superchainConfig;
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice The current amount of time to wait before forwarding a call.
     uint256 internal _delay;
@@ -76,14 +76,14 @@ contract DelayedVetoable is ISemver {
     /// @param superchainConfig_ Address of the superchain config contract.
     /// @param target_ Address of the target contract.
     constructor(SuperchainConfig superchainConfig_, address target_) {
-        _superchainConfig = superchainConfig_;
+        SUPERCHAIN_CONFIG = superchainConfig_;
         TARGET = target_;
     }
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
     function _initiator() internal returns (address initiator_) {
-        initiator_ = _superchainConfig.initiator();
+        initiator_ = SUPERCHAIN_CONFIG.initiator();
     }
 
     function initiator() external readOrHandle returns (address initiator_) {
@@ -93,7 +93,7 @@ contract DelayedVetoable is ISemver {
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
     function _vetoer() internal returns (address vetoer_) {
-        vetoer_ = _superchainConfig.vetoer();
+        vetoer_ = SUPERCHAIN_CONFIG.vetoer();
     }
 
     function vetoer() external readOrHandle returns (address vetoer_) {
@@ -113,7 +113,7 @@ contract DelayedVetoable is ISemver {
     /// @notice Gets the operating delay.
     /// @return operatingDelay_ Delay address.
     function _operatingDelay() internal returns (uint256 operatingDelay_) {
-        operatingDelay_ = _superchainConfig.delay();
+        operatingDelay_ = SUPERCHAIN_CONFIG.delay();
     }
 
     function operatingDelay() external readOrHandle returns (uint256 operatingDelay_) {
@@ -123,7 +123,7 @@ contract DelayedVetoable is ISemver {
     /// @notice Gets the SuperchainConfig contract address.
     /// @return superchainConfig_ Address of the SuperchainConfig contract.
     function superchainConfig() external readOrHandle returns (address superchainConfig_) {
-        superchainConfig_ = address(_superchainConfig);
+        superchainConfig_ = address(SUPERCHAIN_CONFIG);
     }
 
     /// @notice Gets the delay
