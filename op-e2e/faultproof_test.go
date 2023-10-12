@@ -238,6 +238,43 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 	})
 }
 
+func TestOutputBisectionDisputeGame(t *testing.T) {
+	InitParallel(t)
+
+	defendClaimCount := int64(28)
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game := disputeGameFactory.StartBisectionGame(ctx, common.Hash{0x01, 0xaa})
+	require.NotNil(t, game)
+	game.LogGameData(ctx)
+
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
+		// Agree with the proposed output, so disagree with the root claim
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+	)
+
+	game.DefendRootClaim(
+		ctx,
+		func(parentClaimIdx int64) {
+			if parentClaimIdx+1 == defendClaimCount {
+				game.Defend(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+			} else {
+				game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+			}
+		})
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
+}
+
 func TestCannonDisputeGame(t *testing.T) {
 	InitParallel(t)
 

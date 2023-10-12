@@ -141,6 +141,11 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	}
 }
 
+func (h *FactoryHelper) StartBisectionGame(ctx context.Context, rootClaim common.Hash) *BisectionGameHelper {
+	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
+	return h.createBisectionGame(ctx, l2BlockNumber, l1Head, rootClaim)
+}
+
 func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Hash) *CannonGameHelper {
 	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
 	return h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
@@ -213,7 +218,19 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 	return game, honestHelper
 }
 
+func (h *FactoryHelper) createBisectionGame(ctx context.Context, l2BlockNumber uint64, l1Head *big.Int, rootClaim common.Hash) *BisectionGameHelper {
+	return &BisectionGameHelper{
+		FaultGameHelper: h.createCannonicalHelper(ctx, l2BlockNumber, l1Head, rootClaim),
+	}
+}
+
 func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint64, l1Head *big.Int, rootClaim common.Hash) *CannonGameHelper {
+	return &CannonGameHelper{
+		FaultGameHelper: h.createCannonicalHelper(ctx, l2BlockNumber, l1Head, rootClaim),
+	}
+}
+
+func (h *FactoryHelper) createCannonicalHelper(ctx context.Context, l2BlockNumber uint64, l1Head *big.Int, rootClaim common.Hash) FaultGameHelper {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
@@ -232,16 +249,14 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
-	return &CannonGameHelper{
-		FaultGameHelper: FaultGameHelper{
-			t:           h.t,
-			require:     h.require,
-			client:      h.client,
-			opts:        h.opts,
-			game:        game,
-			factoryAddr: h.factoryAddr,
-			addr:        createdEvent.DisputeProxy,
-		},
+	return FaultGameHelper{
+		t:           h.t,
+		require:     h.require,
+		client:      h.client,
+		opts:        h.opts,
+		game:        game,
+		factoryAddr: h.factoryAddr,
+		addr:        createdEvent.DisputeProxy,
 	}
 }
 

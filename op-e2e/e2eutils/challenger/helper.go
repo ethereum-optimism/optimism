@@ -61,6 +61,19 @@ func WithAgreeProposedOutput(agree bool) Option {
 	}
 }
 
+func WithBisection(
+	t *testing.T,
+	rollupCfg *rollup.Config,
+	l2Genesis *core.Genesis,
+	l2Endpoint string,
+) Option {
+	return func(c *config.Config) {
+		cannon := WithCannon(t, rollupCfg, l2Genesis, l2Endpoint)
+		cannon(c)
+		c.TraceType = config.TraceTypeOutputCannon
+	}
+}
+
 func WithAlphabet(alphabet string) Option {
 	return func(c *config.Config) {
 		c.TraceType = config.TraceTypeAlphabet
