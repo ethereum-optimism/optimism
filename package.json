@@ -13,6 +13,7 @@
     "bindings": "nx bindings @eth-optimism/contracts-bedrock",
     "build": "npx nx run-many --target=build",
     "test": "npx nx run-many --target=test",
+    "issues": "./ops/scripts/todo-checker.sh",
     "lint": "npx nx run-many --target=lint",
     "test:coverage": "npx nx run-many --target=test:coverage",
     "lint:ts:check": "npx nx run-many --target=lint:ts:check",
