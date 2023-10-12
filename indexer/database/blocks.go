@@ -181,7 +181,8 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch latest L1 block header in bridge processor", "number", fromL1Height)
+				log.Warn("Could not fetch latest L1 block header in bridge processor", "number", fromL1Height,
+					"processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -204,7 +205,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				log.Warn("Could not fetch latest L1 block header in bridge processor", "from_timestamp",
-					fromTimestamp, "max_l1_range", maxL1Range)
+					fromTimestamp, "max_l1_range", maxL1Range, "processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -217,7 +218,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result = db.gorm.Where("timestamp <= ?", toTimestamp).Order("timestamp DESC").Take(&l2Header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch latest L2 block header in bridge processor")
+				log.Warn("Could not fetch latest L2 block header in bridge processor", "processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -240,7 +241,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	result := query.Take(&epoch)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			log.Warn("Could not fetch latest observed epoch in bridge processor")
+			log.Warn("Could not fetch latest observed epoch in bridge processor", "processor", "bridge")
 			return nil, nil
 		}
 		return nil, result.Error

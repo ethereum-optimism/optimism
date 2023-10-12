@@ -88,7 +88,7 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 
 // Runs the processing loop. In order to ensure all seen bridge finalization events
 // can be correlated with bridge initiated events, we establish a shared marker between
-// L1 and L2 when processing events. The lastest shared indexed time (epochs) between
+// L1 and L2 when processing events. The latest shared indexed time (epochs) between
 // L1 and L2 serves as this shared marker.
 func (b *BridgeProcessor) run() error {
 	// In the event where we have a large number of un-observed epochs, we cap the search
