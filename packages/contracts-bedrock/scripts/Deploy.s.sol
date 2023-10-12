@@ -73,9 +73,13 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
-        address systemOwnerSafe = deploySafe();
+
+        address supConfInitiator;
+        if (cfg.superchainConfigInitiator() == address(0)) {
+            supConfInitiator = deploySafe("SuperchainConfigInitiatorSafe");
+        }
         address supConfProxy = setupSuperchain();
-        setupOpChain({ supConfProxy: supConfProxy, systemOwnerSafe: systemOwnerSafe });
+        setupOpChain({ supConfProxy: supConfProxy, supConfInitiator: supConfInitiator });
     }
 
     /// @notice Deploy a full system with a new SuperchainConfig
@@ -90,14 +94,15 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
-    function setupOpChain(address supConfProxy, address systemOwnerSafe) public {
+    function setupOpChain(address supConfProxy, address supConfInitiator) public {
         console.log("Deploying Opchain");
 
         if (getAddress("SuperchainConfigProxy") == address(0)) {
             save("SuperchainConfigProxy", supConfProxy);
         }
-        if (getAddress("SystemOwnerSafe") == address(0)) {
-            save("SystemOwnerSafe", systemOwnerSafe);
+
+        if (getAddress("SuperchainConfigInitiatorSafe") == address(0)) {
+            save("SuperchainConfigInitiatorSafe", supConfInitiator);
         }
 
         deployProxies();
@@ -154,7 +159,7 @@ contract Deploy is Deployer {
     }
 
     function deploySuperchainConfigProxy() public broadcast returns (address addr_) {
-        address safe = mustGetAddress("SystemOwnerSafe");
+        address safe = mustGetAddress("SuperchainConfigInitiatorSafe");
         Proxy proxy = new Proxy({
             _admin: safe
         });
@@ -218,7 +223,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the Safe
-    function deploySafe() public broadcast returns (address addr_) {
+    function deploySafe(string memory safeName) public broadcast returns (address addr_) {
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory signers = new address[](1);
@@ -229,8 +234,8 @@ contract Deploy is Deployer {
         );
         address safe = address(safeProxyFactory.createProxyWithNonce(address(safeSingleton), initData, block.timestamp));
 
-        save("SystemOwnerSafe", address(safe));
-        console.log("New SystemOwnerSafe deployed at %s", address(safe));
+        save(safeName, address(safe));
+        console.log("New %s deployed at %s", safeName, address(safe));
         addr_ = safe;
     }
 
@@ -246,16 +251,16 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
-        address systemOwnerSafe = mustGetAddress("SystemOwnerSafe");
+        address payable supConfInitiator = mustGetAddress("SuperchainConfigInitiatorSafe");
         ProxyAdmin admin = new ProxyAdmin({
-            _owner: systemOwnerSafe
+            _owner: supConfInitiator
         });
-        require(admin.owner() == systemOwnerSafe);
+        require(admin.owner() == supConfInitiator);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         if (admin.addressManager() != addressManager) {
             _callViaSafe({
-                _safe: Safe(systemOwnerSafe),
+                _safe: Safe(supConfInitiator),
                 _target: address(admin),
                 _data: abi.encodeWithSelector(admin.setAddressManager.selector, addressManager)
             });
@@ -444,8 +449,10 @@ contract Deploy is Deployer {
         require(delatedVetoable.target() == address(superchainConfigProxy));
         require(delatedVetoable.delay() == 0);
         require(delatedVetoable.operatingDelay() == cfg.superchainConfigDelay());
-        // Temp(maurelian): The initiator needs to be the newly deployed safe.
-        // require(delatedVetoable.initiator() == cfg.superchainConfigInitiator());
+        require(
+            delatedVetoable.initiator() == mustGetAddress("SuperchainConfigInitiatorSafe")
+                || delatedVetoable.initiator() == cfg.superchainConfigInitiator()
+        );
         require(delatedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
@@ -487,7 +494,7 @@ contract Deploy is Deployer {
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address delayedVetoableForSuperchain = mustGetAddress("DelayedVetoableForSuperchain");
         _callViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _target: superchainConfigProxy,
             _data: abi.encodeWithSelector(Proxy.changeAdmin.selector, delayedVetoableForSuperchain)
         });
@@ -499,7 +506,7 @@ contract Deploy is Deployer {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
         _callViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _target: proxyAdmin,
             _data: abi.encodeCall(Ownable.transferOwnership, (delayedVetoableForOpChain))
         });
@@ -734,7 +741,7 @@ contract Deploy is Deployer {
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(disputeGameFactoryProxy),
             _implementation: disputeGameFactory,
             _innerCallData: abi.encodeCall(DisputeGameFactory.initialize, (msg.sender))
@@ -750,7 +757,7 @@ contract Deploy is Deployer {
         address payable superchainConfig = mustGetAddress("SuperchainConfig");
 
         _callViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _target: superchainConfigProxy,
             _data: abi.encodeCall(
                 Proxy.upgradeToAndCall,
@@ -761,7 +768,7 @@ contract Deploy is Deployer {
                         (
                             // todo: fix this
                             // cfg.superchainConfigInitiator(), // initiator
-                            mustGetAddress("SystemOwnerSafe"), // initiator
+                            mustGetAddress("SuperchainConfigInitiatorSafe"), // initiator
                             cfg.superchainConfigVetoer(), // vetoer
                             cfg.superchainConfigGuardian(), // guardian
                             cfg.superchainConfigDelay(), // delay
@@ -783,7 +790,7 @@ contract Deploy is Deployer {
         uint256 startBlock = cfg.systemConfigStartBlock();
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(systemConfigProxy),
             _implementation: systemConfig,
             _innerCallData: abi.encodeCall(
@@ -858,7 +865,7 @@ contract Deploy is Deployer {
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
             _callViaSafe({
-                _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+                _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
                 _target: address(delayedVetoable),
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1StandardBridgeProxy, ProxyAdmin.ProxyType.CHUGSPLASH))
             });
@@ -866,7 +873,7 @@ contract Deploy is Deployer {
         require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
             _innerCallData: abi.encodeCall(
@@ -896,7 +903,7 @@ contract Deploy is Deployer {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(l1ERC721BridgeProxy),
             _implementation: l1ERC721Bridge,
             _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy)))
@@ -917,7 +924,7 @@ contract Deploy is Deployer {
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(optimismMintableERC20FactoryProxy),
             _implementation: optimismMintableERC20Factory,
             _innerCallData: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
@@ -943,7 +950,7 @@ contract Deploy is Deployer {
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
             _callViaSafe({
-                _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+                _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
                 _target: delayedVetoable,
                 _data: abi.encodeCall(ProxyAdmin.setProxyType, (l1CrossDomainMessengerProxy, ProxyAdmin.ProxyType.RESOLVED))
             });
@@ -954,7 +961,7 @@ contract Deploy is Deployer {
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
         if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
             _callViaSafe({
-                _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+                _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
                 _target: delayedVetoable,
                 _data: abi.encodeCall(ProxyAdmin.setImplementationName, (l1CrossDomainMessengerProxy, contractName))
             });
@@ -965,7 +972,7 @@ contract Deploy is Deployer {
         );
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
@@ -993,7 +1000,7 @@ contract Deploy is Deployer {
         SystemConfig systemConfigProxy = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
@@ -1034,7 +1041,7 @@ contract Deploy is Deployer {
         }
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
             _innerCallData: abi.encodeCall(
@@ -1072,7 +1079,7 @@ contract Deploy is Deployer {
         uint256 recommendedProtocolVersion = cfg.recommendedProtocolVersion();
 
         _upgradeAndCallViaSafe({
-            _safe: Safe(mustGetAddress("SystemOwnerSafe")),
+            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
             _proxy: payable(protocolVersionsProxy),
             _implementation: protocolVersions,
             _innerCallData: abi.encodeCall(
@@ -1099,7 +1106,7 @@ contract Deploy is Deployer {
         DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
         address owner = disputeGameFactory.owner();
 
-        address safe = mustGetAddress("SystemOwnerSafe");
+        address safe = mustGetAddress("SuperchainConfigInitiatorSafe");
         if (owner != safe) {
             disputeGameFactory.transferOwnership(safe);
             console.log("DisputeGameFactory ownership transferred to Safe at: %s", safe);
