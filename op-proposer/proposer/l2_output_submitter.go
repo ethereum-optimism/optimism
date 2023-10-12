@@ -106,6 +106,10 @@ func Main(version string, cliCtx *cli.Context) error {
 
 	rpcCfg := cfg.RPCConfig
 	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, oprpc.WithLogger(l))
+	if rpcCfg.EnableAdmin {
+		server.AddAPI(oprpc.ToGethAdminAPI(oprpc.NewCommonAdminAPI(&m.RPCMetrics, l)))
+		l.Info("Admin RPC enabled")
+	}
 	if err := server.Start(); err != nil {
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
