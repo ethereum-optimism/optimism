@@ -15,6 +15,7 @@ var (
 )
 
 type HeaderTraversal struct {
+	started   bool
 	ethClient EthClient
 
 	lastHeader             *types.Header

@@ -122,7 +122,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 			// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
 			retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 			if _, err := retry.Do[interface{}](ctx, 10, retryStrategy, func() (interface{}, error) {
-				if err := l1Etl.db.Transaction(func(tx *database.DB) error {
+				err := l1Etl.db.Transaction(func(tx *database.DB) error {
 					if err := tx.Blocks.StoreL1BlockHeaders(l1BlockHeaders); err != nil {
 						return err
 					}
@@ -131,7 +131,14 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 						return err
 					}
 					return nil
-				}); err != nil {
+				})
+
+				if err != nil && strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
+					batch.Logger.Warn("duplicate key error, ignoring insertion", "err", err)
+					return nil, nil
+				}
+
+				if err != nil {
 					batch.Logger.Error("unable to persist batch", "err", err)
 					return nil, err
 				}
