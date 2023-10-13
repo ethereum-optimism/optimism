@@ -307,15 +307,19 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
 		return nil
 	}, metrics.NoopMetrics, &NoopApplicationScorer{})
+
+	waitChan := make(chan struct{}, 1)
 	hostA.Network().Notify(&network.NotifyBundle{
 		ConnectedF: func(nw network.Network, conn network.Conn) {
 			syncCl.AddPeer(conn.RemotePeer())
+			waitChan <- struct{}{}
 		},
 		DisconnectedF: func(nw network.Network, conn network.Conn) {
 			// only when no connection is available, we can remove the peer
 			if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
 				syncCl.RemovePeer(conn.RemotePeer())
 			}
+			waitChan <- struct{}{}
 		},
 	})
 	syncCl.Start()
@@ -323,8 +327,9 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
 	require.NoError(t, err, "failed to connect to peer B from peer A")
 	require.Equal(t, hostA.Network().Connectedness(hostB.ID()), network.Connected)
+
 	//wait for async add process done
-	time.Sleep(100 * time.Millisecond)
+	<-waitChan
 	_, ok := syncCl.peers[hostB.ID()]
 	require.True(t, ok, "peerB should exist in syncClient")
 
@@ -332,7 +337,7 @@ func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
 	require.NoError(t, err, "close peer fail")
 
 	//wait for async removing process done
-	time.Sleep(100 * time.Millisecond)
+	<-waitChan
 	_, peerBExist3 := syncCl.peers[hostB.ID()]
 	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
 
