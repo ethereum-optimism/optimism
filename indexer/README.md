@@ -56,9 +56,7 @@ The indexer service is responsible for polling and processing real-time batches 
 
 
 ### L1 Polling
-L1 blocks are only indexed if they contain:
-- L1 system contract events
-- Batch commitment events
+L1 blocks are only indexed if they contain L1 system contract events. This is done to reduce the amount of unnecessary data that is indexed. Because of this, the `l1_block_headers` table will not contain every L1 block header.
 
 #### API
 The indexer service runs a lightweight health server adjacently to the main service. The health server exposes a single endpoint `/healthz` that can be used to check the health of the indexer service. The health assessment doesn't check dependency health (ie. database) but rather checks the health of the indexer service itself.

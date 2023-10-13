@@ -16,21 +16,6 @@ END $$;
  * BLOCK DATA
  */
 
-
-DROP TABLE IF EXISTS l1_block_headers CASCADE;
-DROP TABLE IF EXISTS l2_block_headers CASCADE;
-DROP TABLE IF EXISTS l1_contract_events CASCADE;
-DROP TABLE IF EXISTS l2_contract_events CASCADE;
-DROP TABLE IF EXISTS l1_transaction_deposits CASCADE;
-DROP TABLE IF EXISTS l2_transaction_withdrawals CASCADE;
-DROP TABLE IF EXISTS l1_bridge_messages CASCADE;
-DROP TABLE IF EXISTS l2_bridge_messages CASCADE;
-DROP TABLE IF EXISTS l1_bridged_tokens CASCADE;
-DROP TABLE IF EXISTS l2_bridged_tokens CASCADE;
-DROP TABLE IF EXISTS l1_bridge_deposits CASCADE;
-DROP TABLE IF EXISTS l2_bridge_withdrawals CASCADE;
-
-
 CREATE TABLE IF NOT EXISTS l1_block_headers (
     -- Searchable fields
     hash        VARCHAR PRIMARY KEY,

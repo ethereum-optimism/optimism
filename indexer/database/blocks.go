@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"gorm.io/gorm"
 )
@@ -177,8 +176,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		// TODO - Embed logging to db
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch latest provided L1 block header in bridge processor", "number", fromL1Height,
-					"processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -189,8 +186,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result := db.gorm.Order("number desc").Take(&header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch recent L1 block header", "number", fromL1Height,
-					"processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -212,8 +207,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result := db.gorm.Where(l1QueryFilter).Order("timestamp DESC").Take(&l1Header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch latest L1 block header in bridge processor", "from_timestamp",
-					fromTimestamp, "max_l1_range", maxL1Range, "processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -226,7 +219,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		result = db.gorm.Where("timestamp <= ?", toTimestamp).Order("timestamp DESC").Take(&l2Header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-				log.Warn("Could not fetch latest L2 block header in bridge processor", "processor", "bridge")
 				return nil, nil
 			}
 			return nil, result.Error
@@ -249,7 +241,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	result := query.Take(&epoch)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			log.Warn("Could not fetch latest observed epoch in bridge processor", "processor", "bridge")
 			return nil, nil
 		}
 		return nil, result.Error
