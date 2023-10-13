@@ -6,13 +6,13 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig
 /// @notice The SuperchainConfig contract is used to manage configuration of global superchain values.
 contract SuperchainConfig is Initializable, ISemver {
     /// @notice Enum representing different types of updates.
-    /// @custom:value SYSTEM_OWNER        Represents an update to the systemOwner.
     /// @custom:value INITIATOR           Represents an update to the initiator.
     /// @custom:value VETOER              Represents an update to the vetoer.
     /// @custom:value GUARDIAN            Represents an update to the guardian.
@@ -21,7 +21,6 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @custom:value ADD_SEQUENCER       Represents an update to add a sequencer to the allowed list.
     /// @custom:value REMOVE_SEQUENCER    Represents an update to remove a sequencer from the allowed list.
     enum UpdateType {
-        SYSTEM_OWNER,
         INITIATOR,
         VETOER,
         GUARDIAN,
@@ -30,11 +29,6 @@ contract SuperchainConfig is Initializable, ISemver {
         ADD_SEQUENCER,
         REMOVE_SEQUENCER
     }
-
-    /// @notice The address of the systemOwner who may trigger an upgrade or change to critical config values.
-    ///         This will be a DelayedVetoable contract.
-    ///         It can only be modified by an upgrade.
-    bytes32 public constant SYSTEM_OWNER_SLOT = bytes32(uint256(keccak256("superchainConfig.systemowner")) - 1);
 
     /// @notice The address of the initiator who may initiate an upgrade or change to critical config values, via the
     ///         DelayedVetoable contract.
@@ -85,13 +79,12 @@ contract SuperchainConfig is Initializable, ISemver {
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
         initialize({
-            _systemOwner: address(0),
             _initiator: address(0),
             _vetoer: address(0),
             _guardian: address(0),
@@ -103,7 +96,6 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Initializer.
     ///         The resource config must be set before the require check.
-    /// @param _systemOwner Owner of the contract.
     /// @param _initiator   Address of the initiator who may initiate an upgrade or change to critical config values.
     /// @param _vetoer      Address of the vetoer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
@@ -111,7 +103,6 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _maxPause    The maximum time in seconds that the system can be paused for.
     /// @param _sequencers  The initial list of allowed sequencers
     function initialize(
-        address _systemOwner,
         address _initiator,
         address _vetoer,
         address _guardian,
@@ -122,7 +113,6 @@ contract SuperchainConfig is Initializable, ISemver {
         public
         reinitializer(2)
     {
-        _setSystemOwner(_systemOwner);
         _setInitiator(_initiator);
         _setVetoer(_vetoer);
         _setGuardian(_guardian);
@@ -136,7 +126,7 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Getter for the systemOwner address.
     function systemOwner() public view returns (address systemOwner_) {
-        systemOwner_ = Storage.getAddress(SYSTEM_OWNER_SLOT);
+        systemOwner_ = Storage.getAddress(Constants.PROXY_OWNER_ADDRESS);
     }
 
     /// @notice Getter for the initiator address.
@@ -235,13 +225,6 @@ contract SuperchainConfig is Initializable, ISemver {
 
         delete allowedSequencers[sequencerHash];
         emit ConfigUpdate(UpdateType.REMOVE_SEQUENCER, abi.encode(_sequencer));
-    }
-
-    /// @notice Sets the system owner address.
-    /// @param _systemOwner The new system owner address.
-    function _setSystemOwner(address _systemOwner) internal {
-        Storage.setAddress(SYSTEM_OWNER_SLOT, _systemOwner);
-        emit ConfigUpdate(UpdateType.SYSTEM_OWNER, abi.encode(_systemOwner));
     }
 
     /// @notice Sets the initiator address.

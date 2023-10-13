@@ -3,39 +3,40 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test, StdUtils } from "forge-std/Test.sol";
-import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
-import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
-import { L1StandardBridge } from "../src/L1/L1StandardBridge.sol";
-import { L2StandardBridge } from "../src/L2/L2StandardBridge.sol";
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
-import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
-import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
-import { OptimismMintableERC20Factory } from "../src/universal/OptimismMintableERC20Factory.sol";
-import { OptimismMintableERC721Factory } from "../src/universal/OptimismMintableERC721Factory.sol";
-import { OptimismMintableERC20 } from "../src/universal/OptimismMintableERC20.sol";
-import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
-import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
-import { L2CrossDomainMessenger } from "../src/L2/L2CrossDomainMessenger.sol";
-import { SequencerFeeVault } from "../src/L2/SequencerFeeVault.sol";
-import { FeeVault } from "../src/universal/FeeVault.sol";
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
-import { LegacyERC20ETH } from "../src/legacy/LegacyERC20ETH.sol";
-import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { Types } from "../src/libraries/Types.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
+import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "../src/legacy/AddressManager.sol";
-import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
-import { IL1ChugSplashDeployer } from "../src/legacy/L1ChugSplashProxy.sol";
-import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
+import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+import { IL1ChugSplashDeployer } from "src/legacy/L1ChugSplashProxy.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { LegacyMintableERC20 } from "../src/legacy/LegacyMintableERC20.sol";
-import { SuperchainConfig } from "../src/L1/SuperchainConfig.sol";
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { Constants } from "../src/libraries/Constants.sol";
+import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -97,11 +98,11 @@ contract SuperchainConfig_Initializer is CommonTest {
     event Unpaused();
     event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
 
-    address systemOwner = makeAddr("SystemOwner");
+    address systemOwner = multisig;
     address initiator = makeAddr("initiator");
     address vetoer = makeAddr("vetoer");
     address guardian = makeAddr("guardian");
-    uint256 delay = 100;
+    uint256 operatingDelay = 14 days;
     uint256 maxPause = 1 weeks;
     Types.SequencerKeyPair dummySequencer;
 
@@ -125,11 +126,57 @@ contract SuperchainConfig_Initializer is CommonTest {
         proxy.upgradeToAndCall(
             address(SuperchainConfigImpl),
             abi.encodeCall(
-                SuperchainConfig.initialize, (systemOwner, initiator, vetoer, guardian, delay, maxPause, sequencers)
+                SuperchainConfig.initialize, (initiator, vetoer, guardian, operatingDelay, maxPause, sequencers)
             )
         );
 
         supConf = SuperchainConfig(address(proxy));
+    }
+}
+
+contract DelayedVetoable_Init is SuperchainConfig_Initializer {
+    error Unauthorized(address expected, address actual);
+    error ForwardingEarly();
+
+    event Initiated(bytes32 indexed callHash, bytes data);
+    event Forwarded(bytes32 indexed callHash, bytes data);
+    event Vetoed(bytes32 indexed callHash, bytes data);
+
+    address target = makeAddr("target");
+    DelayedVetoable delayedVetoable;
+
+    function setUp() public override {
+        super.setUp();
+        delayedVetoable = new DelayedVetoable({
+            _superchainConfig: supConf,
+            _targetContract: target
+        });
+
+        // Transfer ownership of the superchain config proxy to delayedVetoable
+        vm.prank(multisig);
+        Proxy(payable(address(supConf))).changeAdmin(address(delayedVetoable));
+
+        // Most tests will use the operating delay, so we call as the initiator with null data
+        // to set the delay. For tests that need to use the initial zero delay, we'll modify the
+        // value in storage.
+        vm.prank(initiator);
+        (bool success,) = address(delayedVetoable).call(hex"");
+        assertTrue(success);
+    }
+
+    /// @dev This function is used to prevent initiating the delay unintentionally.
+    ///      It should only be used on tests prior to the delay being activated.
+    /// @param data The data to be used in the call.
+    function assumeNonzeroData(bytes memory data) internal pure {
+        vm.assume(data.length > 0);
+    }
+
+    /// @dev This function is used to ensure that the data does not clash with the queuedAt function selector.
+    /// @param data The data to be used in the call.
+    function assumeNoClash(bytes calldata data) internal pure {
+        if (data.length >= 4) {
+            vm.assume(bytes4(data[0:4]) != bytes4(keccak256("queuedAt(bytes32)")));
+        }
     }
 }
 

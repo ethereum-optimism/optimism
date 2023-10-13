@@ -22,7 +22,7 @@ contract SuperchainConfig_Init_Test is SuperchainConfig_Initializer {
         assertEq(supConf.initiator(), initiator);
         assertEq(supConf.vetoer(), vetoer);
         assertEq(supConf.guardian(), guardian);
-        assertEq(supConf.delay(), delay);
+        assertEq(supConf.delay(), operatingDelay);
         assertEq(supConf.maxPause(), maxPause);
         assertFalse(supConf.paused());
         bytes32 sequencerHash = Hashing.hashSequencerKeyPair(dummySequencer);

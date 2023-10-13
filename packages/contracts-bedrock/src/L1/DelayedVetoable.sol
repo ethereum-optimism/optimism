@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ISemver } from "src/universal/ISemver.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title DelayedVetoable
 /// @notice This contract enables a delay before a call is forwarded to a target contract, and during the delay period
@@ -42,17 +43,11 @@ contract DelayedVetoable is ISemver {
     /// @param data The data forwarded to the target.
     event Vetoed(bytes32 indexed callHash, bytes data);
 
-    /// @notice The address that all calls are forwarded to after the delay.
+    /// @notice The target for calls from this contract.
     address internal immutable TARGET;
 
-    /// @notice The address that can veto a call.
-    address internal immutable VETOER;
-
-    /// @notice The address that can initiate a call.
-    address internal immutable INITIATOR;
-
-    /// @notice The delay which will be set after the initial system deployment is completed.
-    uint256 internal immutable OPERATING_DELAY;
+    /// @notice The superchain config contract.
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice The current amount of time to wait before forwarding a call.
     uint256 internal _delay;
@@ -74,43 +69,65 @@ contract DelayedVetoable is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Sets the target admin during contract deployment.
-    /// @param vetoer_ Address of the vetoer.
-    /// @param initiator_ Address of the initiator.
-    /// @param target_ Address of the target.
-    /// @param operatingDelay_ Time to delay when the system is operational.
-    constructor(address vetoer_, address initiator_, address target_, uint256 operatingDelay_) {
-        // Note that the _delay value is not set here. Having an initial delay of 0 is helpful
-        // during the deployment of a new system.
-        VETOER = vetoer_;
-        INITIATOR = initiator_;
-        TARGET = target_;
-        OPERATING_DELAY = operatingDelay_;
+    /// @param _superchainConfig Address of the superchain config contract.
+    /// @param _targetContract Address of the target contract.
+    constructor(SuperchainConfig _superchainConfig, address _targetContract) {
+        SUPERCHAIN_CONFIG = _superchainConfig;
+        TARGET = _targetContract;
     }
 
     /// @notice Gets the initiator
     /// @return initiator_ Initiator address.
-    function initiator() external virtual readOrHandle returns (address initiator_) {
-        initiator_ = INITIATOR;
+    function _initiator() internal view returns (address initiator_) {
+        initiator_ = SUPERCHAIN_CONFIG.initiator();
+    }
+
+    function initiator() external readOrHandle returns (address initiator_) {
+        initiator_ = _initiator();
     }
 
     //// @notice Queries the vetoer address.
     /// @return vetoer_ Vetoer address.
-    function vetoer() external virtual readOrHandle returns (address vetoer_) {
-        vetoer_ = VETOER;
+    function _vetoer() internal view returns (address vetoer_) {
+        vetoer_ = SUPERCHAIN_CONFIG.vetoer();
+    }
+
+    function vetoer() external readOrHandle returns (address vetoer_) {
+        vetoer_ = _vetoer();
     }
 
     //// @notice Queries the target address.
     /// @return target_ Target address.
-    function target() external readOrHandle returns (address target_) {
+    function _target() internal view returns (address target_) {
         target_ = TARGET;
     }
 
+    function target() external readOrHandle returns (address target_) {
+        target_ = _target();
+    }
+
+    /// @notice Gets the operating delay.
+    /// @return operatingDelay_ Delay address.
+    function _operatingDelay() internal view returns (uint256 operatingDelay_) {
+        operatingDelay_ = SUPERCHAIN_CONFIG.delay();
+    }
+
+    function operatingDelay() external readOrHandle returns (uint256 operatingDelay_) {
+        operatingDelay_ = _operatingDelay();
+    }
+
+    /// @notice Gets the SuperchainConfig contract address.
+    /// @return superchainConfig_ Address of the SuperchainConfig contract.
+    function superchainConfig() external readOrHandle returns (address superchainConfig_) {
+        superchainConfig_ = address(SUPERCHAIN_CONFIG);
+    }
+
     /// @notice Gets the delay
-    /// @return delay_ Delay address.
+    /// @return delay_ Delay value.
     function delay() external readOrHandle returns (uint256 delay_) {
         delay_ = _delay;
     }
@@ -131,12 +148,15 @@ contract DelayedVetoable is ISemver {
     ///         This enables transparent initiation and forwarding of calls to the target and avoids
     ///         the need for additional layers of abi encoding.
     function _handleCall() internal {
+        // Cache values on stack to avoid multiple calls to the superchain config.
+        address initiatorCached = _initiator();
+        address vetoerCached = _vetoer();
         // The initiator and vetoer activate the delay by passing in null data.
         if (msg.data.length == 0 && _delay == 0) {
-            if (msg.sender != INITIATOR && msg.sender != VETOER) {
-                revert Unauthorized(INITIATOR, msg.sender);
+            if (msg.sender != initiatorCached && msg.sender != vetoerCached) {
+                revert Unauthorized(initiatorCached, msg.sender);
             }
-            _delay = OPERATING_DELAY;
+            _delay = _operatingDelay();
             emit DelayActivated(_delay);
             return;
         }
@@ -144,7 +164,7 @@ contract DelayedVetoable is ISemver {
         bytes32 callHash = keccak256(msg.data);
 
         // Case 1: The initiator is calling the contract to initiate a call.
-        if (msg.sender == INITIATOR && _queuedAt[callHash] == 0) {
+        if (msg.sender == initiatorCached && _queuedAt[callHash] == 0) {
             if (_delay == 0) {
                 // This forward function will halt the call frame on completion.
                 _forwardAndHalt(callHash);
@@ -157,7 +177,7 @@ contract DelayedVetoable is ISemver {
         // Case 2: The vetoer is calling the contract to veto a call.
         // Note: The vetoer retains the ability to veto even after the delay has passed. This makes censoring the vetoer
         //       more costly, as there is no time limit after which their transaction can be included.
-        if (msg.sender == VETOER && _queuedAt[callHash] != 0) {
+        if (msg.sender == vetoerCached && _queuedAt[callHash] != 0) {
             delete _queuedAt[callHash];
             emit Vetoed(callHash, msg.data);
             return;
@@ -167,7 +187,7 @@ contract DelayedVetoable is ISemver {
         // passed.
         if (_queuedAt[callHash] == 0) {
             // The call has not been initiated, so we'll treat this is an unauthorized initiation attempt.
-            revert Unauthorized(INITIATOR, msg.sender);
+            revert Unauthorized(initiatorCached, msg.sender);
         }
 
         if (_queuedAt[callHash] + _delay < block.timestamp) {
@@ -184,7 +204,7 @@ contract DelayedVetoable is ISemver {
     function _forwardAndHalt(bytes32 callHash) internal {
         // Forward the call
         emit Forwarded(callHash, msg.data);
-        (bool success, bytes memory returndata) = TARGET.call(msg.data);
+        (bool success, bytes memory returndata) = _target().call(msg.data);
         if (success == true) {
             assembly {
                 return(add(returndata, 0x20), mload(returndata))
