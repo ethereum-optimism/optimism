@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -51,7 +52,7 @@ func TestMonitorGames(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
-		source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -93,7 +94,7 @@ func TestMonitorGames(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
-		source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -139,7 +140,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
@@ -151,7 +152,7 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
 	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
-	source.games = []FaultDisputeGame{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
@@ -159,8 +160,8 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	require.Equal(t, []common.Address{addr2}, sched.scheduled[0])
 }
 
-func newFDG(proxy common.Address, timestamp uint64) FaultDisputeGame {
-	return FaultDisputeGame{
+func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
+	return types.GameMetadata{
 		Proxy:     proxy,
 		Timestamp: timestamp,
 	}
@@ -222,14 +223,14 @@ func (m *mockSubscription) Err() <-chan error {
 }
 
 type stubGameSource struct {
-	games []FaultDisputeGame
+	games []types.GameMetadata
 }
 
 func (s *stubGameSource) FetchAllGamesAtBlock(
 	ctx context.Context,
 	earliest uint64,
 	blockNumber *big.Int,
-) ([]FaultDisputeGame, error) {
+) ([]types.GameMetadata, error) {
 	return s.games, nil
 }
 
@@ -237,7 +238,11 @@ type stubScheduler struct {
 	scheduled [][]common.Address
 }
 
-func (s *stubScheduler) Schedule(games []common.Address) error {
-	s.scheduled = append(s.scheduled, games)
+func (s *stubScheduler) Schedule(games []types.GameMetadata) error {
+	var addrs []common.Address
+	for _, game := range games {
+		addrs = append(addrs, game.Proxy)
+	}
+	s.scheduled = append(s.scheduled, addrs)
 	return nil
 }
