@@ -447,9 +447,9 @@ contract Bridge_Initializer is Messenger_Initializer {
     }
 }
 
-contract ERC721Bridge_Initializer is Messenger_Initializer {
-    L1ERC721Bridge L1Bridge;
-    L2ERC721Bridge L2Bridge;
+contract ERC721Bridge_Initializer is Bridge_Initializer {
+    L1ERC721Bridge L1NFTBridge;
+    L2ERC721Bridge L2NFTBridge;
 
     function setUp() public virtual override {
         super.setUp();
@@ -463,10 +463,10 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
             address(l1BridgeImpl), abi.encodeCall(L1ERC721Bridge.initialize, (CrossDomainMessenger(L1Messenger)))
         );
 
-        L1Bridge = L1ERC721Bridge(address(l1BridgeProxy));
+        L1NFTBridge = L1ERC721Bridge(address(l1BridgeProxy));
 
         // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
-        L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(L1Bridge));
+        L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(L1NFTBridge));
         Proxy l2BridgeProxy = new Proxy(multisig);
         vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2BridgeProxy).code);
 
@@ -480,11 +480,11 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
         );
 
         // Set up a reference to the L2ERC721Bridge.
-        L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+        L2NFTBridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
 
         // Label the L1 and L2 bridges.
-        vm.label(address(L1Bridge), "L1ERC721Bridge");
-        vm.label(address(L2Bridge), "L2ERC721Bridge");
+        vm.label(address(L1NFTBridge), "L1ERC721Bridge");
+        vm.label(address(L2NFTBridge), "L2ERC721Bridge");
     }
 }
 
