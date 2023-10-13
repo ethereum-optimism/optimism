@@ -201,7 +201,11 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
-        transferAddressManagerOwnership(); // to the ProxyAdmin
+        transferControl({
+            _controlled: "AddressManager",
+            _newController: "ProxyAdmin",
+            _transferSelector: Ownable.transferOwnership.selector
+        });
     }
 
     /// @notice Deploy all of the implementations
@@ -269,7 +273,10 @@ contract Deploy is Deployer {
     /// @notice Deploy the AddressManager
     function deployAddressManager() public broadcast returns (address addr_) {
         AddressManager manager = new AddressManager();
-        require(manager.owner() == msg.sender);
+        address supConfInitiator = mustGetAddress("SuperchainConfigInitiatorSafe");
+        manager.transferOwnership(supConfInitiator);
+
+        require(manager.owner() == supConfInitiator);
 
         save("AddressManager", address(manager));
         console.log("AddressManager deployed at %s", address(manager));
@@ -339,7 +346,11 @@ contract Deploy is Deployer {
 
         address contractAddr = addressManager.getAddress(contractName);
         if (contractAddr != address(proxy)) {
-            addressManager.setAddress(contractName, address(proxy));
+            _callViaSafe({
+                _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
+                _target: address(addressManager),
+                _data: abi.encodeWithSelector(addressManager.setAddress.selector, contractName, address(proxy))
+            });
         }
 
         require(addressManager.getAddress(contractName) == address(proxy));
@@ -675,19 +686,6 @@ contract Deploy is Deployer {
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
 
         addr_ = address(bridge);
-    }
-
-    /// @notice Transfer ownership of the address manager to the ProxyAdmin
-    function transferAddressManagerOwnership() public broadcast {
-        AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        address owner = addressManager.owner();
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        if (owner != proxyAdmin) {
-            addressManager.transferOwnership(proxyAdmin);
-            console.log("AddressManager ownership transferred to %s", proxyAdmin);
-        }
-
-        require(addressManager.owner() == proxyAdmin);
     }
 
     /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
