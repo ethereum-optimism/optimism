@@ -127,7 +127,7 @@ contract Deploy is Deployer {
 
         deployProxies();
         deployImplementations();
-        initializeImplementations();
+        initializeProxies();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
@@ -201,7 +201,6 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
-
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
 
@@ -221,7 +220,7 @@ contract Deploy is Deployer {
         deployMips();
     }
 
-    function initializeImplementations() public {
+    function initializeProxies() public {
         console.log("Initializing implementations");
         initializeDisputeGameFactory();
         initializeSystemConfig();
