@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -66,7 +67,7 @@ func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *
 
 		mint := depositTx.Mint
 		if mint == nil {
-			mint = big.NewInt(0)
+			mint = bigint.Zero
 		}
 
 		optimismPortalTxDeposits[i] = OptimismPortalTransactionDepositEvent{
