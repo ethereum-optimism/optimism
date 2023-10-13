@@ -169,7 +169,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	// We use timestamps since that translates to both L1 & L2
 	var fromTimestamp, toTimestamp uint64
 
-	// Lower Bound (the default `fromTimestamp = l1_starting_heigh` (default=0) suffices genesis representation)
+	// Lower Bound (the default `fromTimestamp = l1_starting_height` (default=0) suffices genesis representation)
 	var header L1BlockHeader
 	if fromL1Height != nil {
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
