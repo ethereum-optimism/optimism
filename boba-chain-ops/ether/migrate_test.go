@@ -236,7 +236,7 @@ func TestMigrateBalances(t *testing.T) {
 					predeploys.LegacyERC20ETHAddr: types.GenesisAccount{
 						Storage: map[common.Hash]common.Hash{
 							CalcOVMETHTotalSupplyKey():                                    common.BigToHash(common.Big2),
-							CalcOVMETHStorageKey(common.Address{1}):                       common.BigToHash(common.Big1),
+							CalcOVMETHStorageKey(common.Address{3}):                       common.BigToHash(common.Big1),
 							CalcAllowanceStorageKey(common.Address{1}, common.Address{2}): common.BigToHash(common.Big1),
 							CalcAllowanceStorageKey(common.Address{1}, common.Address{3}): common.BigToHash(common.Big1),
 						},
