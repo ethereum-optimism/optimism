@@ -169,17 +169,21 @@ func (b *BridgeProcessor) run() error {
 
 			// First, find all possible initiated bridge events
 			if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
+				batchLog.Error("failed to index legacy l1 initiated bridge events", "err", err)
 				return err
 			}
 			if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
+				batchLog.Error("failed to index legacy l2 initiated bridge events", "err", err)
 				return err
 			}
 
 			// Now that all initiated events have been indexed, it is ensured that all finalization can find their counterpart.
 			if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.metrics, b.l1Etl.EthClient, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
+				batchLog.Error("failed to index legacy l1 finalized bridge events", "err", err)
 				return err
 			}
 			if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
+				batchLog.Error("failed to index legacy l2 finalized bridge events", "err", err)
 				return err
 			}
 
