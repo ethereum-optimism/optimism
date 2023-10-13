@@ -8,6 +8,7 @@ import (
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -33,8 +34,7 @@ type BatchSubmitter struct {
 	killCtx           context.Context
 	cancelKillCtx     context.CancelFunc
 
-	mutex   sync.Mutex
-	running bool
+	running atomic.Bool
 
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
@@ -126,13 +126,9 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.
 func (l *BatchSubmitter) Start() error {
 	l.log.Info("Starting Batch Submitter")
 
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	if l.running {
+	if !l.running.CompareAndSwap(false, true) {
 		return errors.New("batcher is already running")
 	}
-	l.running = true
 
 	l.shutdownCtx, l.cancelShutdownCtx = context.WithCancel(context.Background())
 	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
@@ -154,13 +150,9 @@ func (l *BatchSubmitter) StopIfRunning(ctx context.Context) {
 func (l *BatchSubmitter) Stop(ctx context.Context) error {
 	l.log.Info("Stopping Batch Submitter")
 
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-
-	if !l.running {
+	if !l.running.CompareAndSwap(true, false) {
 		return errors.New("batcher is not running")
 	}
-	l.running = false
 
 	// go routine will call cancelKill() if the passed in ctx is ever Done
 	cancelKill := l.cancelKillCtx
