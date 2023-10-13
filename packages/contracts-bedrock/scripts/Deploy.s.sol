@@ -455,8 +455,8 @@ contract Deploy is Deployer {
         SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
         // address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         DelayedVetoable delayedVetoable = new DelayedVetoable({
-                superchainConfig_: superchainConfigProxy,
-                target_: _target
+                _superchainConfig: superchainConfigProxy,
+                _targetContract: _target
             });
         vm.stopBroadcast();
 

@@ -148,8 +148,8 @@ contract DelayedVetoable_Init is SuperchainConfig_Initializer {
     function setUp() public override {
         super.setUp();
         delayedVetoable = new DelayedVetoable({
-            superchainConfig_: supConf,
-            target_: target
+            _superchainConfig: supConf,
+            _targetContract: target
         });
 
         // Transfer ownership of the superchain config proxy to delayedVetoable

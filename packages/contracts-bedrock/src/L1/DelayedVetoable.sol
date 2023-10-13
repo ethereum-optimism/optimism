@@ -73,11 +73,11 @@ contract DelayedVetoable is ISemver {
     string public constant version = "2.0.0";
 
     /// @notice Sets the target admin during contract deployment.
-    /// @param superchainConfig_ Address of the superchain config contract.
-    /// @param target_ Address of the target contract.
-    constructor(SuperchainConfig superchainConfig_, address target_) {
-        SUPERCHAIN_CONFIG = superchainConfig_;
-        TARGET = target_;
+    /// @param _superchainConfig Address of the superchain config contract.
+    /// @param _targetContract Address of the target contract.
+    constructor(SuperchainConfig _superchainConfig, address _targetContract) {
+        SUPERCHAIN_CONFIG = _superchainConfig;
+        TARGET = _targetContract;
     }
 
     /// @notice Gets the initiator
@@ -148,10 +148,13 @@ contract DelayedVetoable is ISemver {
     ///         This enables transparent initiation and forwarding of calls to the target and avoids
     ///         the need for additional layers of abi encoding.
     function _handleCall() internal {
+        // Cache values on stack to avoid multiple calls to the superchain config.
+        address initiator = _initiator();
+        address vetoer = _vetoer();
         // The initiator and vetoer activate the delay by passing in null data.
         if (msg.data.length == 0 && _delay == 0) {
-            if (msg.sender != _initiator() && msg.sender != _vetoer()) {
-                revert Unauthorized(_initiator(), msg.sender);
+            if (msg.sender != initiator && msg.sender != vetoer) {
+                revert Unauthorized(initiator, msg.sender);
             }
             _delay = _operatingDelay();
             emit DelayActivated(_delay);
@@ -161,7 +164,7 @@ contract DelayedVetoable is ISemver {
         bytes32 callHash = keccak256(msg.data);
 
         // Case 1: The initiator is calling the contract to initiate a call.
-        if (msg.sender == _initiator() && _queuedAt[callHash] == 0) {
+        if (msg.sender == initiator && _queuedAt[callHash] == 0) {
             if (_delay == 0) {
                 // This forward function will halt the call frame on completion.
                 _forwardAndHalt(callHash);
@@ -174,7 +177,7 @@ contract DelayedVetoable is ISemver {
         // Case 2: The vetoer is calling the contract to veto a call.
         // Note: The vetoer retains the ability to veto even after the delay has passed. This makes censoring the vetoer
         //       more costly, as there is no time limit after which their transaction can be included.
-        if (msg.sender == _vetoer() && _queuedAt[callHash] != 0) {
+        if (msg.sender == vetoer && _queuedAt[callHash] != 0) {
             delete _queuedAt[callHash];
             emit Vetoed(callHash, msg.data);
             return;
@@ -184,7 +187,7 @@ contract DelayedVetoable is ISemver {
         // passed.
         if (_queuedAt[callHash] == 0) {
             // The call has not been initiated, so we'll treat this is an unauthorized initiation attempt.
-            revert Unauthorized(_initiator(), msg.sender);
+            revert Unauthorized(initiator, msg.sender);
         }
 
         if (_queuedAt[callHash] + _delay < block.timestamp) {
