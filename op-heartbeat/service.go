@@ -8,11 +8,8 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -47,14 +44,10 @@ func Main(version string) func(ctx *cli.Context) error {
 			l.Crit("error starting application", "err", err)
 		}
 
-		doneCh := make(chan os.Signal, 1)
-		signal.Notify(doneCh, []os.Signal{
-			os.Interrupt,
-			os.Kill,
-			syscall.SIGTERM,
-			syscall.SIGQUIT,
-		}...)
-		<-doneCh
+		select {
+		case <-cliCtx.Done():
+			l.Info("shutting down op-heartbeat")
+		}
 		return srv.Stop(context.Background())
 	}
 }

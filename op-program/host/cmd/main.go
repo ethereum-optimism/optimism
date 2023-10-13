@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-program/host"
@@ -8,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum-optimism/optimism/op-program/host/version"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
@@ -39,7 +41,7 @@ func main() {
 	}
 }
 
-type ConfigAction func(log log.Logger, config *config.Config) error
+type ConfigAction func(ctx context.Context, log log.Logger, config *config.Config) error
 
 // run parses the supplied args to create a config.Config instance, sets up logging
 // then calls the supplied ConfigAction.
@@ -48,6 +50,13 @@ func run(args []string, action ConfigAction) error {
 	// Set up logger with a default INFO level in case we fail to parse flags,
 	// otherwise the final critical log won't show what the parsing error was.
 	oplog.SetupDefaults()
+
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
@@ -66,10 +75,10 @@ func run(args []string, action ConfigAction) error {
 		if err != nil {
 			return err
 		}
-		return action(logger, cfg)
+		return action(ctx.Context, logger, cfg)
 	}
 
-	return app.Run(args)
+	return app.RunContext(ctx, args)
 }
 
 func setupLogging(ctx *cli.Context) (log.Logger, error) {

@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,6 +31,13 @@ var defaultCrossDomainMessageSender = common.HexToAddress("0x0000000000000000000
 // to pull in L1 deploy artifacts and assert that the L2 state is consistent with the L1 state.
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
 
 	app := &cli.App{
 		Name:  "check-l2",
@@ -51,7 +59,7 @@ func main() {
 		Action: entrypoint,
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Crit("error checking l2", "err", err)
 	}
 }

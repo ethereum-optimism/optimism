@@ -1,11 +1,11 @@
 package main
 
 import (
+	"context"
 	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/proxyd"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -25,6 +25,13 @@ func main() {
 			log.StreamHandler(os.Stdout, log.JSONFormat()),
 		),
 	)
+
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
 
 	log.Info("starting proxyd", "version", GitVersion, "commit", GitCommit, "date", GitDate)
 
@@ -57,9 +64,10 @@ func main() {
 		log.Crit("error starting proxyd", "err", err)
 	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	recvSig := <-sig
-	log.Info("caught signal, shutting down", "signal", recvSig)
+	select {
+	case <-ctx.Done():
+		log.Info("shutting down proxyd")
+	}
+
 	shutdown()
 }

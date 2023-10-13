@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -22,6 +24,13 @@ var (
 
 func main() {
 	oplog.SetupDefaults()
+
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(flags.Flags)
@@ -37,7 +46,7 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}

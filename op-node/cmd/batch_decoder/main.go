@@ -10,12 +10,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/reassemble"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli/v2"
 )
 
 func main() {
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
+
 	app := cli.NewApp()
 	app.Name = "batch-decoder"
 	app.Usage = "Optimism Batch Decoding Utility"
@@ -66,7 +74,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+				ctx, cancel := context.WithTimeout(cliCtx.Context, 3*time.Second)
 				defer cancel()
 				chainID, err := client.ChainID(ctx)
 				if err != nil {
@@ -162,7 +170,7 @@ func main() {
 		},
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Fatal(err)
 	}
 }

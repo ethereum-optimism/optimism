@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	wheel "github.com/ethereum-optimism/optimism/op-wheel"
 )
 
@@ -20,6 +22,13 @@ var (
 )
 
 func main() {
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
+
 	app := cli.NewApp()
 	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
 	app.Name = "op-wheel"
@@ -45,7 +54,7 @@ func main() {
 		wheel.EngineCmd,
 	}
 
-	err := app.Run(os.Args)
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}

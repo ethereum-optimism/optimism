@@ -16,7 +16,6 @@ import (
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var (
@@ -57,7 +56,11 @@ func Main(version string) func(cliCtx *cli.Context) error {
 				l.Error("failed to stop metrics server", "err", err)
 			}
 		}()
-		opio.BlockOnInterrupts()
+
+		select {
+		case <-cliCtx.Done():
+			l.Info("shutting down op-endpoint-monitor")
+		}
 
 		return nil
 	}

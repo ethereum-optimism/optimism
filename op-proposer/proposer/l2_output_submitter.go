@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -113,7 +112,10 @@ func Main(version string, cliCtx *cli.Context) error {
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	opio.BlockOnInterrupts()
+	select {
+	case <-cliCtx.Done():
+		l.Info("shutting down L2 Output Submitter")
+	}
 
 	return nil
 }

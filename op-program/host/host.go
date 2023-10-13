@@ -30,14 +30,13 @@ type L2Source struct {
 	*sources.DebugClient
 }
 
-func Main(logger log.Logger, cfg *config.Config) error {
+func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
 	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
 
-	ctx := context.Background()
 	if cfg.ServerMode {
 		preimageChan := cl.CreatePreimageChannel()
 		hinterChan := cl.CreateHinterChannel()

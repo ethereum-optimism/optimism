@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 type gossipNoop struct{}
@@ -46,7 +45,6 @@ func Main(cliCtx *cli.Context) error {
 	logger := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
 	oplog.SetGlobalLogHandler(logger.GetHandler())
 	m := metrics.NewMetrics("default")
-	ctx := context.Background()
 
 	config, err := opnode.NewRollupConfig(logger, cliCtx)
 	if err != nil {
@@ -61,7 +59,7 @@ func Main(cliCtx *cli.Context) error {
 		return fmt.Errorf("failed to load p2p config: %w", err)
 	}
 
-	p2pNode, err := p2p.NewNodeP2P(ctx, config, logger, p2pConfig, &gossipNoop{}, &l2Chain{}, &gossipConfig{}, m)
+	p2pNode, err := p2p.NewNodeP2P(cliCtx.Context, config, logger, p2pConfig, &gossipNoop{}, &l2Chain{}, &gossipConfig{}, m)
 	if err != nil || p2pNode == nil {
 		return err
 	}
@@ -69,7 +67,7 @@ func Main(cliCtx *cli.Context) error {
 		return fmt.Errorf("uninitialized discovery service")
 	}
 
-	go p2pNode.DiscoveryProcess(ctx, logger, config, p2pConfig.TargetPeers())
+	go p2pNode.DiscoveryProcess(cliCtx.Context, logger, config, p2pConfig.TargetPeers())
 
 	metricsCfg := opmetrics.ReadCLIConfig(cliCtx)
 	if metricsCfg.Enabled {
@@ -87,7 +85,10 @@ func Main(cliCtx *cli.Context) error {
 		m.RecordUp()
 	}
 
-	opio.BlockOnInterrupts()
+	select {
+	case <-cliCtx.Done():
+		log.Info("shutting down op-bootnode")
+	}
 
 	return nil
 }

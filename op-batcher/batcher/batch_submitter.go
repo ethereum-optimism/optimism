@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
@@ -104,7 +103,10 @@ func Main(version string, cliCtx *cli.Context) error {
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	opio.BlockOnInterrupts()
+	select {
+	case <-cliCtx.Done():
+		l.Info("shutting down op-batcher")
+	}
 	if err := server.Stop(); err != nil {
 		l.Error("Error shutting down http server: %w", err)
 	}

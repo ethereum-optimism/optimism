@@ -5,9 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/service"
 
@@ -28,6 +27,13 @@ func main() {
 		),
 	)
 
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
+
 	log.Info("initializing",
 		"version", GitVersion,
 		"commit", GitCommit,
@@ -38,15 +44,13 @@ func main() {
 	}
 	cfg := initConfig(os.Args[1])
 
-	ctx := context.Background()
 	svc := service.New(cfg)
 	svc.Start(ctx)
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	recvSig := <-sig
-	log.Info("caught signal, shutting down",
-		"signal", recvSig)
+	select {
+	case <-ctx.Done():
+		log.Info("shutting down op-ufm")
+	}
 
 	svc.Shutdown()
 }

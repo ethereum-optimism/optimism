@@ -22,24 +22,15 @@ import (
 
 // Main executes the client program in a detached context and exits the current process.
 // The client runtime environment must be preset before calling this function.
-func Main(logger log.Logger) {
+func Main(ctx context.Context, logger log.Logger) error {
 	log.Info("Starting fault proof program client")
 	preimageOracle := CreatePreimageChannel()
 	preimageHinter := CreateHinterChannel()
-	if err := RunProgram(logger, preimageOracle, preimageHinter); errors.Is(err, cldr.ErrClaimNotValid) {
-		log.Error("Claim is invalid", "err", err)
-		os.Exit(1)
-	} else if err != nil {
-		log.Error("Program failed", "err", err)
-		os.Exit(2)
-	} else {
-		log.Info("Claim successfully verified")
-		os.Exit(0)
-	}
+	return RunProgram(ctx, logger, preimageOracle, preimageHinter)
 }
 
 // RunProgram executes the Program, while attached to an IO based pre-image oracle, to be served by a host.
-func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter io.ReadWriter) error {
+func RunProgram(ctx context.Context, logger log.Logger, preimageOracle io.ReadWriter, preimageHinter io.ReadWriter) error {
 
 	pClient := preimage.NewOracleClient(preimageOracle)
 	hClient := preimage.NewHintWriter(preimageHinter)
@@ -49,6 +40,7 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 	bootInfo := NewBootstrapClient(pClient).BootInfo()
 	logger.Info("Program Bootstrapped", "bootInfo", bootInfo)
 	return runDerivation(
+		ctx,
 		logger,
 		bootInfo.RollupConfig,
 		bootInfo.L2ChainConfig,
@@ -62,7 +54,7 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 }
 
 // runDerivation executes the L2 state transition, given a minimal interface to retrieve data.
-func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2OutputRoot common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
+func runDerivation(ctx context.Context, logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2OutputRoot common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l2Cfg, l2OutputRoot)
 	if err != nil {
@@ -73,7 +65,7 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 	logger.Info("Starting derivation")
 	d := cldr.NewDriver(logger, cfg, l1Source, l2Source, l2ClaimBlockNum)
 	for {
-		if err = d.Step(context.Background()); errors.Is(err, io.EOF) {
+		if err = d.Step(ctx); errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return err

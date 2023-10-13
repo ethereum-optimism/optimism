@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var (
@@ -47,6 +48,13 @@ type ConfigAction func(ctx context.Context, log log.Logger, config *config.Confi
 func run(args []string, action ConfigAction) error {
 	oplog.SetupDefaults()
 
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
+
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
 	app.Flags = cliapp.ProtectFlags(flags.Flags)
@@ -66,7 +74,7 @@ func run(args []string, action ConfigAction) error {
 		}
 		return action(ctx.Context, logger, cfg)
 	}
-	return app.Run(args)
+	return app.RunContext(ctx, args)
 }
 
 func setupLogging(ctx *cli.Context) (log.Logger, error) {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,12 +19,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/upgrades"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+
+	// Invoke cancel when an interrupt is received.
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		cancel()
+	}()
 
 	app := &cli.App{
 		Name:  "op-upgrade",
@@ -59,7 +68,7 @@ func main() {
 		Action: entrypoint,
 	}
 
-	if err := app.Run(os.Args); err != nil {
+	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Crit("error op-upgrade", "err", err)
 	}
 }
