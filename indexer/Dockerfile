@@ -1,6 +1,6 @@
 FROM --platform=$BUILDPLATFORM golang:1.21.1-alpine3.18 as builder
 
-RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
+RUN apk add --no-cache make ca-certificates gcc musl-dev linux-headers git jq bash
 
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
