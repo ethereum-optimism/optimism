@@ -132,7 +132,6 @@ contract Deploy is Deployer {
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
 
-        transferDisputeGameFactoryOwnership();
         activateDelay();
     }
 
@@ -1101,18 +1100,6 @@ contract Deploy is Deployer {
         require(versions.owner() == superchainConfigVetoer);
         require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
         require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
-    }
-
-    /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() public onlyDevnet broadcast {
-        DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        address owner = disputeGameFactory.owner();
-
-        address safe = mustGetAddress("SuperchainConfigInitiatorSafe");
-        if (owner != safe) {
-            disputeGameFactory.transferOwnership(safe);
-            console.log("DisputeGameFactory ownership transferred to Safe at: %s", safe);
-        }
     }
 
     /// @notice Activates the delay on the DelayedVetoable contracts
