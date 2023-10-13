@@ -9,8 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/loader"
+	registry2 "github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	opClient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -94,15 +94,16 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 	}
 	loader := loader.NewGameLoader(factoryContract)
 
+	registry := registry2.NewGameTypeRegistry()
+	fault.RegisterGameTypes(registry, ctx, logger, m, cfg, txMgr, l1Client)
+
 	disk := newDiskManager(cfg.Datadir)
 	s.sched = scheduler.NewScheduler(
 		logger,
 		m,
 		disk,
 		cfg.MaxConcurrency,
-		func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, l1Client)
-		})
+		registry.CreatePlayer)
 
 	pollClient, err := opClient.NewRPCWithClient(ctx, logger, cfg.L1EthRpc, opClient.NewBaseRPCClient(l1Client.Client()), cfg.PollInterval)
 	if err != nil {
