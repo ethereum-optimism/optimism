@@ -210,6 +210,6 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 		cfg.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
 	}
 
-	log.Info("loaded config")
+	log.Info("loaded config", "config", cfg.Chain)
 	return cfg, nil
 }
