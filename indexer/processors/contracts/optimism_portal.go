@@ -76,7 +76,7 @@ func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *
 			Tx: database.Transaction{
 				FromAddress: txDeposit.From,
 				ToAddress:   txDeposit.To,
-				Amount:      depositTx.Mint,
+				Amount:      mint,
 				Data:        depositTx.Data,
 				Timestamp:   transactionDepositEvents[i].Timestamp,
 			},
