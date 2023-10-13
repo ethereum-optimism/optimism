@@ -183,7 +183,7 @@ func (b *BridgeProcessor) run() error {
 				return err
 			}
 			if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
-				batchLog.Error("failed to index legacy l2 finalized bridge events", "err", err)
+				batchLog.Error("failed to index legacy l2l finalized bridge events", "err", err)
 				return err
 			}
 
