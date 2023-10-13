@@ -35,8 +35,7 @@ func RegisterGameTypes(
 	txMgr txmgr.TxManager,
 	client bind.ContractCaller,
 ) {
-	switch cfg.TraceType {
-	case config.TraceTypeCannon:
+	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
 			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
 			if err != nil {
@@ -52,7 +51,8 @@ func RegisterGameTypes(
 			return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
 		}
 		registry.RegisterGameType(cannonGameType, playerCreator)
-	case config.TraceTypeAlphabet:
+	}
+	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
 		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
 			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 			updater := alphabet.NewOracleUpdater(logger)

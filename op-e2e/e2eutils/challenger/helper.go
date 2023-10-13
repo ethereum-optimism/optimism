@@ -126,7 +126,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 
 func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, config.TraceTypeAlphabet, true, t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, true, t.TempDir(), config.TraceTypeAlphabet)
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {

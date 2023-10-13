@@ -272,7 +272,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
-		TraceType:               traceTypeFlag,
+		TraceTypes:              []config.TraceType{traceTypeFlag},
 		GameFactoryAddress:      gameFactoryAddress,
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),
