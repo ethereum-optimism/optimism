@@ -64,6 +64,11 @@ func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *
 			return nil, err
 		}
 
+		mint := depositTx.Mint
+		if mint == nil {
+			mint = big.NewInt(0)
+		}
+
 		optimismPortalTxDeposits[i] = OptimismPortalTransactionDepositEvent{
 			Event:     &transactionDepositEvents[i].ContractEvent,
 			DepositTx: depositTx,

@@ -201,24 +201,27 @@ func (b *BridgeProcessor) run() error {
 
 		// First, find all possible initiated bridge events
 		if err := bridge.L1ProcessInitiatedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, fromL1Height, toL1Height); err != nil {
+			batchLog.Error("failed to index l1 initiated bridge events", "err", err)
 			return err
 		}
 		if err := bridge.L2ProcessInitiatedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, fromL2Height, toL2Height); err != nil {
+			batchLog.Error("failed to index l2 initiated bridge events", "err", err)
 			return err
 		}
 
 		// Now all finalization events can find their counterpart.
 		if err := bridge.L1ProcessFinalizedBridgeEvents(l1BridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, fromL1Height, toL1Height); err != nil {
+			batchLog.Error("failed to index l1 finalized bridge events", "err", err)
 			return err
 		}
 		if err := bridge.L2ProcessFinalizedBridgeEvents(l2BridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, fromL2Height, toL2Height); err != nil {
+			batchLog.Error("failed to index l2 finalized bridge events", "err", err)
 			return err
 		}
 
 		// a-ok
 		return nil
 	}); err != nil {
-		batchLog.Error("failed to index bridge events", "err", err)
 		return err
 	}
 
