@@ -15,7 +15,7 @@ import (
 func TestSchedulerProcessesGames(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	ctx := context.Background()
-	createPlayer := func(g types.GameData, dir string) (GamePlayer, error) {
+	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
 		return &stubPlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
@@ -43,7 +43,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	createPlayer := func(game types.GameData, dir string) (GamePlayer, error) {
+	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
 		return &stubPlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)

@@ -100,7 +100,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		m,
 		disk,
 		cfg.MaxConcurrency,
-		func(game types.GameData, dir string) (scheduler.GamePlayer, error) {
+		func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, l1Client)
 		})
 

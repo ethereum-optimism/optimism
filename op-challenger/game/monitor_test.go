@@ -52,7 +52,7 @@ func TestMonitorGames(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
-		source.games = []types.GameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -94,7 +94,7 @@ func TestMonitorGames(t *testing.T) {
 		addr1 := common.Address{0xaa}
 		addr2 := common.Address{0xbb}
 		monitor, source, sched, mockHeadSource := setupMonitorTest(t, []common.Address{})
-		source.games = []types.GameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+		source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -140,7 +140,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	source.games = []types.GameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
@@ -152,7 +152,7 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
 	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
-	source.games = []types.GameData{newFDG(addr1, 9999), newFDG(addr2, 9999)}
+	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
 	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
@@ -160,8 +160,8 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	require.Equal(t, []common.Address{addr2}, sched.scheduled[0])
 }
 
-func newFDG(proxy common.Address, timestamp uint64) types.GameData {
-	return types.GameData{
+func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
+	return types.GameMetadata{
 		Proxy:     proxy,
 		Timestamp: timestamp,
 	}
@@ -223,14 +223,14 @@ func (m *mockSubscription) Err() <-chan error {
 }
 
 type stubGameSource struct {
-	games []types.GameData
+	games []types.GameMetadata
 }
 
 func (s *stubGameSource) FetchAllGamesAtBlock(
 	ctx context.Context,
 	earliest uint64,
 	blockNumber *big.Int,
-) ([]types.GameData, error) {
+) ([]types.GameMetadata, error) {
 	return s.games, nil
 }
 
@@ -238,7 +238,7 @@ type stubScheduler struct {
 	scheduled [][]common.Address
 }
 
-func (s *stubScheduler) Schedule(games []types.GameData) error {
+func (s *stubScheduler) Schedule(games []types.GameMetadata) error {
 	var addrs []common.Address
 	for _, game := range games {
 		addrs = append(addrs, game.Proxy)

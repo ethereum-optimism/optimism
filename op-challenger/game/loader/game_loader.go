@@ -38,7 +38,7 @@ func NewGameLoader(caller MinimalDisputeGameFactoryCaller) *GameLoader {
 }
 
 // FetchAllGamesAtBlock fetches all dispute games from the factory at a given block number.
-func (l *GameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]types.GameData, error) {
+func (l *GameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]types.GameMetadata, error) {
 	if blockNumber == nil {
 		return nil, ErrMissingBlockNumber
 	}
@@ -51,7 +51,7 @@ func (l *GameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp
 		return nil, fmt.Errorf("failed to fetch game count: %w", err)
 	}
 
-	games := make([]types.GameData, 0)
+	games := make([]types.GameMetadata, 0)
 	if gameCount.Uint64() == 0 {
 		return games, nil
 	}

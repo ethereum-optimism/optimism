@@ -26,7 +26,7 @@ type Scheduler struct {
 	coordinator    *coordinator
 	m              SchedulerMetricer
 	maxConcurrency uint
-	scheduleQueue  chan []types.GameData
+	scheduleQueue  chan []types.GameMetadata
 	jobQueue       chan job
 	resultQueue    chan job
 	wg             sync.WaitGroup
@@ -41,7 +41,7 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 
 	// scheduleQueue has a size of 1 so backpressure quickly propagates to the caller
 	// allowing them to potentially skip update cycles.
-	scheduleQueue := make(chan []types.GameData, 1)
+	scheduleQueue := make(chan []types.GameMetadata, 1)
 
 	return &Scheduler{
 		logger:         logger,
@@ -84,7 +84,7 @@ func (s *Scheduler) Close() error {
 	return nil
 }
 
-func (s *Scheduler) Schedule(games []types.GameData) error {
+func (s *Scheduler) Schedule(games []types.GameMetadata) error {
 	select {
 	case s.scheduleQueue <- games:
 		return nil

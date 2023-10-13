@@ -14,7 +14,7 @@ import (
 
 var errUnknownGame = errors.New("unknown game")
 
-type PlayerCreator func(game types.GameData, dir string) (GamePlayer, error)
+type PlayerCreator func(game types.GameMetadata, dir string) (GamePlayer, error)
 
 type gameState struct {
 	player   GamePlayer
@@ -44,10 +44,10 @@ type coordinator struct {
 // To avoid deadlock, it may process results from the inbound resultQueue while adding jobs to the outbound jobQueue.
 // Returns an error if a game couldn't be scheduled because of an error. It will continue attempting to progress
 // all games even if an error occurs with one game.
-func (c *coordinator) schedule(ctx context.Context, games []types.GameData) error {
+func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) error {
 	// First remove any game states we no longer require
 	for addr, state := range c.states {
-		if !state.inflight && !slices.ContainsFunc(games, func(candidate types.GameData) bool {
+		if !state.inflight && !slices.ContainsFunc(games, func(candidate types.GameMetadata) bool {
 			return candidate.Proxy == addr
 		}) {
 			delete(c.states, addr)
@@ -96,7 +96,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameData) erro
 
 // createJob updates the state for the specified game and returns the job to enqueue for it, if any
 // Returns (nil, nil) when there is no error and no job to enqueue
-func (c *coordinator) createJob(game types.GameData) (*job, error) {
+func (c *coordinator) createJob(game types.GameMetadata) (*job, error) {
 	state, ok := c.states[game.Proxy]
 	if !ok {
 		state = &gameState{}

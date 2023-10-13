@@ -263,7 +263,7 @@ type createdGames struct {
 	created         map[common.Address]*stubGame
 }
 
-func (c *createdGames) CreateGame(fdg types.GameData, dir string) (GamePlayer, error) {
+func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlayer, error) {
 	addr := fdg.Proxy
 	if c.creationFails == addr {
 		return nil, fmt.Errorf("refusing to create player for game: %v", addr)
@@ -305,10 +305,10 @@ func (s *stubDiskManager) RemoveAllExcept(addrs []common.Address) error {
 	return nil
 }
 
-func asGames(addrs ...common.Address) []types.GameData {
-	var games []types.GameData
+func asGames(addrs ...common.Address) []types.GameMetadata {
+	var games []types.GameMetadata
 	for _, addr := range addrs {
-		games = append(games, types.GameData{
+		games = append(games, types.GameMetadata{
 			Proxy: addr,
 		})
 	}

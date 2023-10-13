@@ -79,18 +79,18 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 			expectedGames := test.caller.games
 			expectedGames = expectedGames[len(expectedGames)-test.expectedLen:]
 			if test.expectedErr != nil {
-				expectedGames = make([]types.GameData, 0)
+				expectedGames = make([]types.GameMetadata, 0)
 			}
 			require.ElementsMatch(t, expectedGames, translateGames(games))
 		})
 	}
 }
 
-func generateMockGames(count uint64) []types.GameData {
-	games := make([]types.GameData, count)
+func generateMockGames(count uint64) []types.GameMetadata {
+	games := make([]types.GameMetadata, count)
 
 	for i := uint64(0); i < count; i++ {
-		games[i] = types.GameData{
+		games[i] = types.GameMetadata{
 			Proxy:     common.BigToAddress(big.NewInt(int64(i))),
 			Timestamp: i * 100,
 		}
@@ -99,8 +99,8 @@ func generateMockGames(count uint64) []types.GameData {
 	return games
 }
 
-func translateGames(games []types.GameData) []types.GameData {
-	translated := make([]types.GameData, len(games))
+func translateGames(games []types.GameMetadata) []types.GameMetadata {
+	translated := make([]types.GameMetadata, len(games))
 
 	for i, game := range games {
 		translated[i] = translateFaultDisputeGame(game)
@@ -109,8 +109,8 @@ func translateGames(games []types.GameData) []types.GameData {
 	return translated
 }
 
-func translateFaultDisputeGame(game types.GameData) types.GameData {
-	return types.GameData{
+func translateFaultDisputeGame(game types.GameMetadata) types.GameMetadata {
+	return types.GameMetadata{
 		Proxy:     game.Proxy,
 		Timestamp: game.Timestamp,
 	}
@@ -132,7 +132,7 @@ type mockMinimalDisputeGameFactoryCaller struct {
 	gameCountErr bool
 	indexErrors  []bool
 	gameCount    uint64
-	games        []types.GameData
+	games        []types.GameMetadata
 }
 
 func newMockMinimalDisputeGameFactoryCaller(count uint64, gameCountErr bool, indexErrors bool) *mockMinimalDisputeGameFactoryCaller {

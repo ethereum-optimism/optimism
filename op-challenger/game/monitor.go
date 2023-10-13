@@ -23,11 +23,11 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]types.GameData, error)
+	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]types.GameMetadata, error)
 }
 
 type gameScheduler interface {
-	Schedule([]types.GameData) error
+	Schedule([]types.GameMetadata) error
 }
 
 type gameMonitor struct {
@@ -105,7 +105,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error 
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	var gamesToPlay []types.GameData
+	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
 		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
