@@ -96,21 +96,13 @@ contract Deploy is Deployer {
         initializeSuperchainConfig();
         deployDelayedVetoable(supConfProxy_, "DelayedVetoableForSuperchain");
 
-        transferControl({
-            _controlled: "SuperchainConfigProxy",
-            _newController: "DelayedVetoableForSuperchain",
-            _transferSelector: Proxy.changeAdmin.selector
-        });
+        changeAdminOfSuperchainConfigProxy();
 
         address protocolVersionsProxy = deployProtocolVersionsProxy();
         deployProtocolVersions();
         initializeProtocolVersions();
         deployDelayedVetoable(protocolVersionsProxy, "DelayedVetoableForProtocolVersions");
-        transferControl({
-            _controlled: "ProtocolVersionsProxy",
-            _newController: "DelayedVetoableForProtocolVersions",
-            _transferSelector: Proxy.changeAdmin.selector
-        });
+        changeAdminOfProtocolVersionsProxy();
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
@@ -186,11 +178,7 @@ contract Deploy is Deployer {
         deployAddressManager();
         address proxyAdmin = deployProxyAdmin();
         deployDelayedVetoable(proxyAdmin, "DelayedVetoableForOpChain");
-        transferControl({
-            _controlled: "ProxyAdmin",
-            _newController: "DelayedVetoableForOpChain",
-            _transferSelector: Ownable.transferOwnership.selector
-        });
+        transferOwnershipOfProxyAdmin();
 
         deployOptimismPortalProxy();
         deployL2OutputOracleProxy();
@@ -200,11 +188,7 @@ contract Deploy is Deployer {
         deployOptimismMintableERC20FactoryProxy();
         deployL1ERC721BridgeProxy();
         deployDisputeGameFactoryProxy();
-        transferControl({
-            _controlled: "AddressManager",
-            _newController: "ProxyAdmin",
-            _transferSelector: Ownable.transferOwnership.selector
-        });
+        transferOwnershipOfAddressManager();
     }
 
     /// @notice Deploy all of the implementations
@@ -513,6 +497,42 @@ contract Deploy is Deployer {
             _data: abi.encodeWithSelector(_transferSelector, mustGetAddress(_newController))
         });
         console.log("%s ownership transferred to %s at %s", _controlled, _newController, mustGetAddress(_newController));
+    }
+
+    /// @notice Transfers ownership of AddressManager
+    function transferOwnershipOfAddressManager() public {
+        transferControl({
+            _controlled: "AddressManager",
+            _newController: "ProxyAdmin",
+            _transferSelector: Ownable.transferOwnership.selector
+        });
+    }
+
+    /// @notice Changes admin of SuperchainConfigProxy
+    function changeAdminOfSuperchainConfigProxy() public {
+        transferControl({
+            _controlled: "SuperchainConfigProxy",
+            _newController: "DelayedVetoableForSuperchain",
+            _transferSelector: Proxy.changeAdmin.selector
+        });
+    }
+
+    /// @notice Changes admin of ProtocolVersionsProxy
+    function changeAdminOfProtocolVersionsProxy() public {
+        transferControl({
+            _controlled: "ProtocolVersionsProxy",
+            _newController: "DelayedVetoableForProtocolVersions",
+            _transferSelector: Proxy.changeAdmin.selector
+        });
+    }
+
+    /// @notice Transfers ownership of ProxyAdmin
+    function transferOwnershipOfProxyAdmin() public {
+        transferControl({
+            _controlled: "ProxyAdmin",
+            _newController: "DelayedVetoableForOpChain",
+            _transferSelector: Ownable.transferOwnership.selector
+        });
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
