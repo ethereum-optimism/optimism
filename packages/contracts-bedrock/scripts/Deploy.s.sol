@@ -95,13 +95,22 @@ contract Deploy is Deployer {
         deploySuperchainConfig();
         initializeSuperchainConfig();
         deployDelayedVetoable(supConfProxy_, "DelayedVetoableForSuperchain");
-        transferSuperchainConfigProxyOwnership();
+
+        transferControl({
+            _controlled: "SuperchainConfigProxy",
+            _newController: "DelayedVetoableForSuperchain",
+            _transferSelector: Proxy.changeAdmin.selector
+        });
 
         address protocolVersionsProxy = deployProtocolVersionsProxy();
         deployProtocolVersions();
         initializeProtocolVersions();
         deployDelayedVetoable(protocolVersionsProxy, "DelayedVetoableForProtocolVersions");
-        transferProtocolVersionsProxyOwnership();
+        transferControl({
+            _controlled: "ProtocolVersionsProxy",
+            _newController: "DelayedVetoableForProtocolVersions",
+            _transferSelector: Proxy.changeAdmin.selector
+        });
     }
 
     /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
@@ -178,7 +187,11 @@ contract Deploy is Deployer {
         deployAddressManager();
         address proxyAdmin = deployProxyAdmin();
         deployDelayedVetoable(proxyAdmin, "DelayedVetoableForOpChain");
-        transferProxyAdminOwnership();
+        transferControl({
+            _controlled: "ProxyAdmin",
+            _newController: "DelayedVetoableForOpChain",
+            _transferSelector: Ownable.transferOwnership.selector
+        });
 
         deployOptimismPortalProxy();
         deployL2OutputOracleProxy();
@@ -450,7 +463,7 @@ contract Deploy is Deployer {
     ///         Note: Because the getters on DelayedVetoable must be read by pranking as the zero
     ///         address, this function does not use the broadcast modifier, and instead starts and
     ///         stops broadcasting, then starts and stops pranking, within the function body.
-    function deployDelayedVetoable(address _target, string memory contractName) public {
+    function deployDelayedVetoable(address _target, string memory _contractName) public {
         vm.startBroadcast();
         SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
         // address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
@@ -472,44 +485,25 @@ contract Deploy is Deployer {
         require(delayedVetoable.vetoer() == cfg.superchainConfigVetoer());
         vm.stopPrank();
 
-        save(contractName, address(delayedVetoable));
-        console.log("%s deployed at %s", contractName, address(delayedVetoable));
+        save(_contractName, address(delayedVetoable));
+        console.log("%s deployed at %s", _contractName, address(delayedVetoable));
     }
 
-    /// @notice Transfer ownership of the SuperchainConfigProxy to the DelayedVetoableForSuperchain contract
-    function transferSuperchainConfigProxyOwnership() public broadcast {
-        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
-        address delayedVetoableForSuperchain = mustGetAddress("DelayedVetoableForSuperchain");
+    /// @notice Transfers control of a contract controlled by the initiator safe
+    function transferControl(
+        string memory _controlled,
+        string memory _newController,
+        bytes4 _transferSelector
+    )
+        public
+        broadcast
+    {
         _callViaSafe({
             _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
-            _target: superchainConfigProxy,
-            _data: abi.encodeCall(Proxy.changeAdmin, (delayedVetoableForSuperchain))
+            _target: mustGetAddress(_controlled),
+            _data: abi.encodeWithSelector(_transferSelector, mustGetAddress(_newController))
         });
-        console.log("SuperchainConfigProxy ownership transferred to %s", delayedVetoableForSuperchain);
-    }
-
-    /// @notice Transfer ownership of the ProxyAdmin to the DelayedVetoableForOpChain contract
-    function transferProxyAdminOwnership() public broadcast {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        address delayedVetoableForOpChain = mustGetAddress("DelayedVetoableForOpChain");
-        _callViaSafe({
-            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
-            _target: proxyAdmin,
-            _data: abi.encodeCall(Ownable.transferOwnership, (delayedVetoableForOpChain))
-        });
-        console.log("ProxyAdmin ownership transferred to %s", delayedVetoableForOpChain);
-    }
-
-    /// @notice Transfer ownership of the ProtocolVersions to the DelayedVetoableForProtocolVersions contract
-    function transferProtocolVersionsProxyOwnership() public broadcast {
-        address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
-        address delayedVetoableForProtocolVersions = mustGetAddress("DelayedVetoableForProtocolVersions");
-        _callViaSafe({
-            _safe: Safe(mustGetAddress("SuperchainConfigInitiatorSafe")),
-            _target: protocolVersionsProxy,
-            _data: abi.encodeCall(Proxy.changeAdmin, (delayedVetoableForProtocolVersions))
-        });
-        console.log("ProxyAdmin ownership transferred to %s", delayedVetoableForProtocolVersions);
+        console.log("%s ownership transferred to %s at %s", _controlled, _newController, mustGetAddress(_newController));
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
