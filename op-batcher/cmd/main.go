@@ -30,7 +30,7 @@ func main() {
 	app.Name = "op-batcher"
 	app.Usage = "Batch Submitter Service"
 	app.Description = "Service for generating and submitting L2 tx batches to L1"
-	app.Action = curryMain(Version)
+	app.Action = cliapp.LifecycleCmd(batcher.Main(Version))
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
@@ -41,13 +41,5 @@ func main() {
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
-	}
-}
-
-// curryMain transforms the batcher.Main function into an app.Action
-// This is done to capture the Version of the batcher.
-func curryMain(version string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		return batcher.Main(version, ctx)
 	}
 }

@@ -11,3 +11,7 @@ func NewRegistry() *prometheus.Registry {
 	registry.MustRegister(collectors.NewGoCollector())
 	return registry
 }
+
+type RegistryMetricer interface {
+	Registry() *prometheus.Registry
+}

@@ -3,51 +3,16 @@ package batcher
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
-	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
-
-type Config struct {
-	log        log.Logger
-	metr       metrics.Metricer
-	L1Client   *ethclient.Client
-	L2Client   *ethclient.Client
-	RollupNode *sources.RollupClient
-	TxManager  txmgr.TxManager
-
-	NetworkTimeout         time.Duration
-	PollInterval           time.Duration
-	MaxPendingTransactions uint64
-
-	// RollupConfig is queried at startup
-	Rollup *rollup.Config
-
-	// Channel builder parameters
-	Channel ChannelConfig
-}
-
-// Check ensures that the [Config] is valid.
-func (c *Config) Check() error {
-	if err := c.Rollup.Check(); err != nil {
-		return err
-	}
-	if err := c.Channel.Check(); err != nil {
-		return err
-	}
-	return nil
-}
 
 type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
@@ -92,7 +57,7 @@ type CLIConfig struct {
 	MetricsConfig    opmetrics.CLIConfig
 	PprofConfig      oppprof.CLIConfig
 	CompressorConfig compressor.CLIConfig
-	RPCFlag          oprpc.CLIConfig
+	RPC              oprpc.CLIConfig
 }
 
 func (c CLIConfig) Check() error {
@@ -107,15 +72,15 @@ func (c CLIConfig) Check() error {
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
-	if err := c.RPCFlag.Check(); err != nil {
+	if err := c.RPC.Check(); err != nil {
 		return err
 	}
 	return nil
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context) CLIConfig {
-	return CLIConfig{
+func NewConfig(ctx *cli.Context) *CLIConfig {
+	return &CLIConfig{
 		/* Required Flags */
 		L1EthRpc:        ctx.String(flags.L1EthRpcFlag.Name),
 		L2EthRpc:        ctx.String(flags.L2EthRpcFlag.Name),
@@ -133,6 +98,6 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:            oppprof.ReadCLIConfig(ctx),
 		CompressorConfig:       compressor.ReadCLIConfig(ctx),
-		RPCFlag:                oprpc.ReadCLIConfig(ctx),
+		RPC:                    oprpc.ReadCLIConfig(ctx),
 	}
 }

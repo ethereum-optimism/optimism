@@ -172,12 +172,12 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
-	l1Client, err := dial.DialEthClientWithTimeout(dial.DefaultDialTimeout, l, cfg.L1EthRpc)
+	l1Client, err := dial.DialEthClientWithTimeout(context.Background(), dial.DefaultDialTimeout, l, cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupClient, err := dial.DialRollupClientWithTimeout(dial.DefaultDialTimeout, l, cfg.RollupRpc)
+	rollupClient, err := dial.DialRollupClientWithTimeout(context.Background(), dial.DefaultDialTimeout, l, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
 	}
