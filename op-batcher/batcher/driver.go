@@ -264,7 +264,11 @@ func (l *BatchSubmitter) loop() {
 			if err := l.loadBlocksIntoState(l.shutdownCtx); errors.Is(err, ErrReorg) {
 				err := l.state.Close()
 				if err != nil {
-					l.Log.Error("error closing the channel manager to handle a L2 reorg", "err", err)
+					if errors.Is(err, ErrPendingAfterClose) {
+						l.Log.Warn("closed channel manager to handle L2 reorg, but pending channel(s) remain to be submitted")
+					} else {
+						l.Log.Error("error closing the channel manager to handle a L2 reorg", "err", err)
+					}
 				}
 				l.publishStateToL1(queue, receiptsCh, true)
 				l.state.Clear()
@@ -274,11 +278,18 @@ func (l *BatchSubmitter) loop() {
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
+			// This removes any pending channels, so these do not have to be drained .
+			// But it also tries to write ev
 			err := l.state.Close()
 			if err != nil {
-				l.Log.Error("error closing the channel manager", "err", err)
+				if errors.Is(err, ErrPendingAfterClose) {
+					l.Log.Warn("closed channel manager, but pending channel(s) remain to be submitted")
+				} else {
+					l.Log.Error("error closing the channel manager", "err", err)
+				}
 			}
 			l.publishStateToL1(queue, receiptsCh, true)
+			l.Log.Info("finished publishing all remaining channel data")
 			return
 		}
 	}

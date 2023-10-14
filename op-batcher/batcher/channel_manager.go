@@ -337,9 +337,15 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 	}
 }
 
-// Close closes the current pending channel, if one exists, outputs any remaining frames,
-// and prevents the creation of any new channels.
-// Any outputted frames still need to be published.
+var ErrPendingAfterClose = errors.New("pending channels remain after closing channel-manager")
+
+// Close clears any pending channels that are not in-flight already, to leave a clean derivation state.
+// Close then marks the remaining current open channel, if any, as "full" so it can be submitted as well.
+// Close does NOT immediately output frames for the current remaining channel:
+// as this might error, due to limitations on a single channel.
+// Instead, this is part of the pending-channel submission work: after closing,
+// the caller SHOULD drain pending channels by generating TxData repeatedly until there is none left (io.EOF).
+// A ErrPendingAfterClose error will be returned if there are any remaining pending channels to submit.
 func (s *channelManager) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -348,19 +354,29 @@ func (s *channelManager) Close() error {
 	}
 
 	s.closed = true
+	s.log.Info("Channel manager is closing")
 
 	// Any pending state can be proactively cleared if there are no submitted transactions
 	for _, ch := range s.channelQueue {
 		if ch.NoneSubmitted() {
+			s.log.Info("Channel has no past or pending submission and might as well not exist, channel will be dropped", "channel", ch.ID(), "")
 			s.removePendingChannel(ch)
+		} else {
+			s.log.Info("Channel is in-flight and will need to be submitted after close", "channel", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))
 		}
 	}
+	s.log.Info("reviewed all pending channels on close", "remaining", len(s.channelQueue))
 
 	if s.currentChannel == nil {
 		return nil
 	}
 
+	// Force-close the remaining open channel early (if not already closed):
+	// it will be marked as "full" due to service termination.
 	s.currentChannel.Close()
 
-	return s.outputFrames()
+	// We do not s.outputFrames():
+	// this will only error if we cannot submit it in one go due to channel limits.
+	// Instead, make it clear to the caller that there is remaining pending work.
+	return ErrPendingAfterClose
 }
