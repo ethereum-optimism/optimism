@@ -59,6 +59,7 @@ type L2BridgeWithdrawalWithTransactionHashes struct {
 
 type BridgeTransfersView interface {
 	L1BridgeDeposit(common.Hash) (*L1BridgeDeposit, error)
+	L1BridgeDepositSum() (float64, error)
 	L1BridgeDepositWithFilter(BridgeTransfer) (*L1BridgeDeposit, error)
 	L1BridgeDepositsByAddress(common.Address, string, int) (*L1BridgeDepositsResponse, error)
 
@@ -126,6 +127,18 @@ type L1BridgeDepositsResponse struct {
 	Deposits    []L1BridgeDepositWithTransactionHashes
 	Cursor      string
 	HasNextPage bool
+}
+
+// L1BridgeDepositSum ... returns the sum of all l1 bridge deposit mints in gwei
+func (db *bridgeTransfersDB) L1BridgeDepositSum() (float64, error) {
+	// (1) Fetch the sum of all deposits in gwei
+	var sum float64
+	result := db.gorm.Model(&L1TransactionDeposit{}).Select("sum(amount)").Scan(&sum)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return sum, nil
 }
 
 // L1BridgeDepositsByAddress retrieves a list of deposits initiated by the specified address,

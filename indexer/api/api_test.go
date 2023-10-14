@@ -93,6 +93,11 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.
 		},
 	}, nil
 }
+
+func (mbv *MockBridgeTransfersView) L1BridgeDepositSum() (float64, error) {
+	return 69, nil
+}
+
 func TestHealthz(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)

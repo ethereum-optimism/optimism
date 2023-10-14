@@ -43,6 +43,8 @@ const (
 	HealthPath      = "/healthz"
 	DepositsPath    = "/api/v0/deposits/"
 	WithdrawalsPath = "/api/v0/withdrawals/"
+
+	SupplyPath = "/api/v0/supply"
 )
 
 // chiMetricsMiddleware ... Injects a metrics recorder into request processing middleware
@@ -69,6 +71,8 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 	// (3) Set GET routes
 	apiRouter.Get(fmt.Sprintf(DepositsPath+addressParam, ethereumAddressRegex), h.L1DepositsHandler)
 	apiRouter.Get(fmt.Sprintf(WithdrawalsPath+addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
+
+	apiRouter.Get(SupplyPath, h.SupplyView)
 
 	return &API{log: logger, router: apiRouter, metricsRegistry: mr, serverConfig: serverConfig, metricsConfig: metricsConfig}
 }

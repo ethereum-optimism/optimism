@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
 
     -- transaction data. NOTE: `to_address` is the recipient of funds transferred in value field of the
     -- L2 deposit transaction and not the amount minted on L1 from the source address. Hence the `amount`
-    -- column in this table does NOT indiciate the amount transferred to the recipient but instead funds
+    -- column in this table does NOT indicate the amount transferred to the recipient but instead funds
     -- bridged from L1 into `from_address`.
     from_address VARCHAR NOT NULL,
     to_address   VARCHAR NOT NULL,

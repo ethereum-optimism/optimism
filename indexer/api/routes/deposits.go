@@ -76,3 +76,28 @@ func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Error writing response", "err", err)
 	}
 }
+
+// SupplyView ... Handles /api/v0/supply GET requests
+func (h Routes) SupplyView(w http.ResponseWriter, r *http.Request) {
+	sum, err := h.view.L1BridgeDepositSum()
+	if err != nil {
+		http.Error(w, "Internal server error reading deposits", http.StatusInternalServerError)
+		h.logger.Error("Unable to read deposits from DB", "err", err.Error())
+		return
+	}
+
+	view := models.BridgeSupplyView{
+		L1DepositSum: sum,
+	}
+
+	// TODO - Add support for:
+	// - L2DepositSum
+	// - L1WithdrawalProvenSum
+	// - L1WithdrawalFinalizedSum
+	// - L2WithdrawalInitiatedSum
+
+	err = jsonResponse(w, view, http.StatusOK)
+	if err != nil {
+		h.logger.Error("Error writing response", "err", err)
+	}
+}

@@ -43,3 +43,7 @@ type WithdrawalResponse struct {
 	HasNextPage bool             `json:"hasNextPage"`
 	Items       []WithdrawalItem `json:"items"`
 }
+
+type BridgeSupplyView struct {
+	L1DepositSum float64 `json:"l1DepositSum"`
+}

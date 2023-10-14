@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	e2etest_utils "github.com/ethereum-optimism/optimism/indexer/e2e_tests/utils"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
@@ -447,7 +448,7 @@ func TestE2EBridgeTransfersCursoredWithdrawals(t *testing.T) {
 	}
 }
 
-func TestClientGetWithdrawals(t *testing.T) {
+func TestClientBridgeFunctions(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	// (1) Generate contract bindings for the L1 and L2 standard bridges
@@ -459,12 +460,14 @@ func TestClientGetWithdrawals(t *testing.T) {
 	// (2) Create test actors that will deposit and withdraw using the standard bridge
 	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
 	bobAddr := testSuite.OpCfg.Secrets.Addresses().Bob
+	malAddr := testSuite.OpCfg.Secrets.Addresses().Mallory
 
 	type actor struct {
 		addr common.Address
 		priv *ecdsa.PrivateKey
 	}
 
+	mintSum := bigint.Zero
 	actors := []actor{
 		{
 			addr: aliceAddr,
@@ -473,6 +476,10 @@ func TestClientGetWithdrawals(t *testing.T) {
 		{
 			addr: bobAddr,
 			priv: testSuite.OpCfg.Secrets.Bob,
+		},
+		{
+			addr: malAddr,
+			priv: testSuite.OpCfg.Secrets.Mallory,
 		},
 	}
 
@@ -490,6 +497,8 @@ func TestClientGetWithdrawals(t *testing.T) {
 		require.NoError(t, err)
 		_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
 		require.NoError(t, err)
+
+		mintSum = new(big.Int).Add(mintSum, depositTx.Value())
 
 		// (3.b) Initiate withdrawal transaction via L2ToL1MessagePasser contract
 		l2ToL1MessagePasserWithdrawTx, err := l2ToL1MessagePasser.Receive(l2Opts)
@@ -513,6 +522,14 @@ func TestClientGetWithdrawals(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, withdrawals, 1)
 		require.Equal(t, l2ToL1MessagePasserWithdrawTx.Hash().String(), withdrawals[0].TransactionHash)
+
 	}
+
+	// (4) Ensure that supply assessment is correct
+	assessment, err := testSuite.Client.GetSupplyAssessment()
+	require.NoError(t, err)
+
+	asFloat, _ := mintSum.Float64()
+	require.Equal(t, asFloat, assessment.L1DepositSum)
 
 }
