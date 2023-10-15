@@ -37,7 +37,7 @@ func RegisterGameTypes(
 ) {
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		registerFaultGameType(ctx, registry, cannonGameType, logger, m, cfg, txMgr, client, func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
+		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
 			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
 			if err != nil {
 				return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
@@ -47,28 +47,20 @@ func RegisterGameTypes(
 				return nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 			}
 			return provider, updater, nil
-		})
+		}
+		playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+			return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
+		}
+		registry.RegisterGameType(cannonGameType, playerCreator)
 	case config.TraceTypeAlphabet:
-		registerFaultGameType(ctx, registry, alphabetGameType, logger, m, cfg, txMgr, client, func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
+		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
 			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 			updater := alphabet.NewOracleUpdater(logger)
 			return provider, updater, nil
-		})
+		}
+		playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+			return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
+		}
+		registry.RegisterGameType(alphabetGameType, playerCreator)
 	}
-}
-
-func registerFaultGameType(
-	ctx context.Context,
-	registry Registry,
-	gameType uint8,
-	logger log.Logger,
-	m metrics.Metricer,
-	cfg *config.Config,
-	txMgr txmgr.TxManager,
-	client bind.ContractCaller,
-	creator resourceCreator,
-) {
-	registry.RegisterGameType(gameType, func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, creator)
-	})
 }
