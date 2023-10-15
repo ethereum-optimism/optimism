@@ -27,6 +27,12 @@ func uint32ToBytes32(v uint32) []byte {
 	return out[:]
 }
 
+func uint64ToBytes32(v uint64) []byte {
+	var out [32]byte
+	binary.BigEndian.PutUint64(out[32-8:], v)
+	return out[:]
+}
+
 func (wit *StepWitness) EncodeStepInput(localContext LocalContext) []byte {
 	abiStateLen := len(wit.State)
 	if abiStateLen%32 != 0 {
@@ -40,7 +46,7 @@ func (wit *StepWitness) EncodeStepInput(localContext LocalContext) []byte {
 	input = append(input, StepBytes4...)
 	input = append(input, uint32ToBytes32(32*3)...)                          // state data offset in bytes
 	input = append(input, uint32ToBytes32(32*3+32+uint32(len(abiState)))...) // proof data offset in bytes
-	input = append(input, uint32ToBytes32(uint32(localContext))...)          // local context in bytes
+	input = append(input, uint64ToBytes32(uint64(localContext))...)          // local context in bytes
 
 	input = append(input, uint32ToBytes32(uint32(len(wit.State)))...) // state data length in bytes
 	input = append(input, abiState[:]...)
@@ -66,7 +72,7 @@ func (wit *StepWitness) EncodePreimageOracleInput(localContext LocalContext) ([]
 		var input []byte
 		input = append(input, LoadLocalDataBytes4...)
 		input = append(input, wit.PreimageKey[:]...)
-		input = append(input, uint32ToBytes32(uint32(localContext))...) // local context in bytes
+		input = append(input, uint64ToBytes32(uint64(localContext))...) // local context in bytes
 
 		preimagePart := wit.PreimageValue[8:]
 		var tmp [32]byte

@@ -15,12 +15,13 @@ library PreimageKeyLib {
             // the [1, 32) bytes in this value.
             key_ := or(shl(248, 1), and(_ident, not(shl(248, 0xFF))))
         }
+        // Localize the key with the given local context.
         key_ = localize(key_, _localContext);
     }
 
     /// @notice Localizes a given local data key for the caller's context.
     /// @dev The localization operation is defined as:
-    ///      localize(k) = H(k .. sender) & ~(0xFF << 248) | (0x01 << 248)
+    ///      localize(k) = H(k .. sender .. local_context) & ~(0xFF << 248) | (0x01 << 248)
     ///      where H is the Keccak-256 hash function.
     /// @param _key The local data key to localize.
     /// @param _localContext The local context for the key.
