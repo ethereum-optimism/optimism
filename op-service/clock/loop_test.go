@@ -23,5 +23,10 @@ func TestLoopFn(t *testing.T) {
 	<-calls
 	cl.AdvanceTime(time.Second * 10)
 	<-calls
+	select {
+	case <-calls:
+		t.Fatal("more calls than expected")
+	default:
+	}
 	require.ErrorIs(t, loopFn.Close(), testErr)
 }

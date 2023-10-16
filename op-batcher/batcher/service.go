@@ -110,10 +110,6 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initRPCServer(cfg); err != nil {
 		return fmt.Errorf("failed to start RPC server: %w", err)
 	}
-	// Validate the setup
-	if err := bs.Check(); err != nil {
-		return fmt.Errorf("failed post-initialization check: %w", err)
-	}
 
 	bs.Metrics.RecordInfo(bs.Version)
 	bs.Metrics.RecordUp()
@@ -257,12 +253,6 @@ func (bs *BatcherService) initRPCServer(cfg *CLIConfig) error {
 		return fmt.Errorf("unable to start RPC server: %w", err)
 	}
 	bs.rpcServer = server
-	return nil
-}
-
-// Check ensures that the [BatcherService] is valid
-func (bs *BatcherService) Check() error {
-
 	return nil
 }
 

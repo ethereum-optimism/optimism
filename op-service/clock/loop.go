@@ -39,8 +39,10 @@ func (lf *LoopFn) work() {
 			return
 		case <-lf.ticker.Ch():
 			ctx, cancel := context.WithCancel(lf.ctx)
-			lf.fn(ctx)
-			cancel()
+			func() {
+				defer cancel()
+				lf.fn(ctx)
+			}()
 		}
 	}
 }
