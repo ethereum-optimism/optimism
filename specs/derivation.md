@@ -679,14 +679,17 @@ To interact with the engine, the [execution engine API][exec-engine] is used, wi
 
 [exec-engine]: exec-engine.md
 
-- [`engine_forkchoiceUpdatedV1`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
+- [`engine_forkchoiceUpdatedV2`] — updates the forkchoice (i.e. the chain head) to `headBlockHash` if different, and
   instructs the engine to start building an execution payload if the payload attributes parameter is not `null`.
-- [`engine_getPayloadV1`] — retrieves a previously requested execution payload build.
-- [`engine_newPayloadV1`] — executes an execution payload to create a block.
+- [`engine_getPayloadV2`] — retrieves a previously requested execution payload build.
+- [`engine_newPayloadV2`] — executes an execution payload to create a block.
 
-[`engine_forkchoiceUpdatedV1`]: exec-engine.md#engine_forkchoiceupdatedv1
-[`engine_getPayloadV1`]: exec-engine.md#engine_getpayloadv1
-[`engine_newPayloadV1`]: exec-engine.md#engine_newpayloadv1
+The current version of `op-node` uses the `v2` RPC methods from the engine API, whereas prior versions used the `v1`
+equivalents. The `v2` methods are backwards compatible with `v1` payloads but support Shanghai.
+
+[`engine_forkchoiceUpdatedV2`]: exec-engine.md#engine_forkchoiceupdatedv2
+[`engine_getPayloadV2`]: exec-engine.md#engine_getpayloadv2
+[`engine_newPayloadV2`]: exec-engine.md#engine_newpayloadv2
 
 The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
 
@@ -703,7 +706,7 @@ This synchronization may happen when:
 - A successful consolidation of unsafe L2 blocks: updating the "safe" L2 block.
 - The first thing after a derivation pipeline reset, to ensure a consistent execution engine forkchoice state.
 
-The new forkchoice state is applied with `engine_forkchoiceUpdatedV1`.
+The new forkchoice state is applied with `engine_forkchoiceUpdatedV2`.
 On forkchoice-state validity errors the derivation pipeline must be reset to recover to consistent state.
 
 #### L1-consolidation: payload attributes matching
@@ -749,11 +752,11 @@ Engine][exec-engine-comm] section.
 
 The payload attributes are then processed with a sequence of:
 
-- `engine_forkchoiceUpdatedV1` with current forkchoice state of the stage, and the attributes to start block building.
+- `engine_forkchoiceUpdatedV2` with current forkchoice state of the stage, and the attributes to start block building.
   - Non-deterministic sources, like the tx-pool, must be disabled to reconstruct the expected block.
 - `engine_getPayload` to retrieve the payload, by the payload-ID in the result of the previous step.
 - `engine_newPayload` to import the new payload into the execution engine.
-- `engine_forkchoiceUpdatedV1` to make the new payload canonical,
+- `engine_forkchoiceUpdatedV2` to make the new payload canonical,
    now with a change of both `safe` and `unsafe` fields to refer to the payload, and no payload attributes.
 
 Engine API Error handling:
@@ -782,8 +785,8 @@ To process unsafe payloads, the payload must:
 
 The payload is then processed with a sequence of:
 
-- `engine_newPayloadV1`: process the payload. It does not become canonical yet.
-- `engine_forkchoiceUpdatedV1`: make the payload the canonical unsafe L2 head, and keep the safe/finalized L2 heads.
+- `engine_newPayloadV2`: process the payload. It does not become canonical yet.
+- `engine_forkchoiceUpdatedV2`: make the payload the canonical unsafe L2 head, and keep the safe/finalized L2 heads.
 
 Engine API Error handling:
 

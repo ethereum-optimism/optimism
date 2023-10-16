@@ -21,13 +21,14 @@
   - [Main content](#main-content)
   - [Epilogue](#epilogue)
   - [Pre-image hinting routes](#pre-image-hinting-routes)
-    - [`l1-header <blockhash>`](#l1-header-blockhash)
+    - [`l1-block-header <blockhash>`](#l1-block-header-blockhash)
     - [`l1-transactions <blockhash>`](#l1-transactions-blockhash)
     - [`l1-receipts <blockhash>`](#l1-receipts-blockhash)
-    - [`l2-header <blockhash>`](#l2-header-blockhash)
+    - [`l2-block-header <blockhash>`](#l2-block-header-blockhash)
     - [`l2-transactions <blockhash>`](#l2-transactions-blockhash)
     - [`l2-code <codehash>`](#l2-code-codehash)
     - [`l2-state-node <nodehash>`](#l2-state-node-nodehash)
+    - [`l2-output <outputroot>`](#l2-output-outputroot)
 - [Fault Proof VM](#fault-proof-vm)
 - [Fault Proof Interactive Dispute Game](#fault-proof-interactive-dispute-game)
 
@@ -171,7 +172,7 @@ and the latest hint may be buffered for lazy execution, or dropped entirely when
 
 When the pre-image oracle serves a request, and the request cannot be served from an existing collection of pre-images
 (e.g. a local pre-image cache) then the VM can execute the hint to retrieve the missing pre-image(s).
-It is the responsiblity of the program to provide sufficient hinting for every pre-image request.
+It is the responsibility of the program to provide sufficient hinting for every pre-image request.
 Some hints may have to be repeated: the VM only has to execute the last hint when handling a missing pre-image.
 
 Note that hints may produce multiple pre-images:
@@ -341,7 +342,7 @@ This can be exposed via a CLI, or alternative inter-process API.
 
 Every instance of `<blockhash>` in the below routes is `0x`-prefixed, lowercase, hex-encoded.
 
-#### `l1-header <blockhash>`
+#### `l1-block-header <blockhash>`
 
 Requests the host to prepare the L1 block header RLP pre-image of the block `<blockhash>`.
 
@@ -355,7 +356,7 @@ prepare the RLP pre-images of each of them, including transactions-list MPT node
 Requests the host to prepare the list of receipts of the L1 block with `<blockhash>`:
 prepare the RLP pre-images of each of them, including receipts-list MPT nodes.
 
-#### `l2-header <blockhash>`
+#### `l2-block-header <blockhash>`
 
 Requests the host to prepare the L2 block header RLP pre-image of the block `<blockhash>`.
 
@@ -371,6 +372,11 @@ Requests the host to prepare the L2 smart-contract code with the given `<codehas
 #### `l2-state-node <nodehash>`
 
 Requests the host to prepare the L2 MPT node preimage with the given `<nodehash>`.
+
+#### `l2-output <outputroot>`
+
+Requests the host to prepare the L2 Output at the l2 output root `<outputroot>`.
+The L2 Output is the preimage of a [computed output root](./proposals.md#l2-output-commitment-construction).
 
 ## Fault Proof VM
 

@@ -197,7 +197,7 @@ As mentioned earlier in [memory](#memory), all memory operations are 4-byte alig
 Since pre-image I/O occurs on memory, all pre-image I/O operations must strictly adhere to alignment boundaries.
 This means the start and end of a read/write operation must fall within the same alignment boundary.
 If an operation were to violate this, the input `count` of the read/write syscall must be
-truncated such that the effective address of the last byte read/writtten matches the input effective address.
+truncated such that the effective address of the last byte read/written matches the input effective address.
 
 The VM must read/write the maximum amount of bytes possible without crossing the input address alignment boundary.
 For example, the effect of a write request for a 3-byte aligned buffer must be exactly 3 bytes.
@@ -215,4 +215,4 @@ outside the general purpose registers).
 
 VM implementations may raise an exception in other cases that is specific to the implementation.
 For example, an on-chain FPVM that relies on pre-supplied merkle proofs for memory access may
-raise an exception if the supplied merkle proof doees not match the pre-state `memRoot`.
+raise an exception if the supplied merkle proof does not match the pre-state `memRoot`.

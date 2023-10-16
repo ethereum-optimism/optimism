@@ -5,6 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -68,29 +69,16 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.3.1
-    string public constant version = "1.3.1";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
-    /// @notice Storage slot 0 holds a legacy value on upgraded networks. It is an empty
-    //          placeholder slot on new networks. Manually set it to 0 so that `Initializable`
-    //          can use the first storage slot. This few lines of code helps to prevent a large
-    //          diff in the source code to preserve the storage layout. This should be removed
-    //          during the next contract upgrade.
-    modifier clearLegacySlot() {
-        assembly {
-            sstore(0, 0)
-        }
-        _;
-    }
-
     /// @notice Initializer
-    ///         The fix modifier should be removed during the next contract upgrade.
-    function initialize(CrossDomainMessenger _messenger) public clearLegacySlot reinitializer(2) {
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
         __StandardBridge_init({ _messenger: _messenger });
     }
 

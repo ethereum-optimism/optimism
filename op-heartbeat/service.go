@@ -3,6 +3,7 @@ package op_heartbeat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -41,12 +42,10 @@ func Main(version string) func(ctx *cli.Context) error {
 		oplog.SetGlobalLogHandler(l.GetHandler())
 		l.Info("starting heartbeat monitor", "version", version)
 
-		ctx, cancel := context.WithCancel(context.Background())
-		go func() {
-			if err := Start(ctx, l, cfg, version); err != nil {
-				l.Crit("error starting application", "err", err)
-			}
-		}()
+		srv, err := Start(cliCtx.Context, l, cfg, version)
+		if err != nil {
+			l.Crit("error starting application", "err", err)
+		}
 
 		doneCh := make(chan os.Signal, 1)
 		signal.Notify(doneCh, []os.Signal{
@@ -56,32 +55,52 @@ func Main(version string) func(ctx *cli.Context) error {
 			syscall.SIGQUIT,
 		}...)
 		<-doneCh
-		cancel()
-		return nil
+		return srv.Stop(context.Background())
 	}
 }
 
-func Start(ctx context.Context, l log.Logger, cfg Config, version string) error {
-	registry := opmetrics.NewRegistry()
+type HeartbeatService struct {
+	pprof, metrics, http *httputil.HTTPServer
+}
 
+func (hs *HeartbeatService) Stop(ctx context.Context) error {
+	var result error
+	if hs.pprof != nil {
+		result = errors.Join(result, hs.pprof.Stop(ctx))
+	}
+	if hs.metrics != nil {
+		result = errors.Join(result, hs.metrics.Stop(ctx))
+	}
+	if hs.http != nil {
+		result = errors.Join(result, hs.http.Stop(ctx))
+	}
+	return result
+}
+
+func Start(ctx context.Context, l log.Logger, cfg Config, version string) (*HeartbeatService, error) {
+	hs := &HeartbeatService{}
+
+	registry := opmetrics.NewRegistry()
 	metricsCfg := cfg.Metrics
 	if metricsCfg.Enabled {
-		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-		go func() {
-			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-				l.Error("error starting metrics server", err)
-			}
-		}()
+		l.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		metricsSrv, err := opmetrics.StartServer(registry, metricsCfg.ListenAddr, metricsCfg.ListenPort)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("failed to start metrics server: %w", err), hs.Stop(ctx))
+		}
+		hs.metrics = metricsSrv
+		l.Info("started metrics server", "addr", metricsSrv.Addr())
 	}
 
 	pprofCfg := cfg.Pprof
 	if pprofCfg.Enabled {
-		l.Info("starting pprof server", "addr", pprofCfg.ListenAddr, "port", pprofCfg.ListenPort)
-		go func() {
-			if err := oppprof.ListenAndServe(ctx, pprofCfg.ListenAddr, pprofCfg.ListenPort); err != nil {
-				l.Error("error starting pprof server", err)
-			}
-		}()
+		l.Debug("starting pprof", "addr", pprofCfg.ListenAddr, "port", pprofCfg.ListenPort)
+		pprofSrv, err := oppprof.StartServer(pprofCfg.ListenAddr, pprofCfg.ListenPort)
+		if err != nil {
+			return nil, errors.Join(fmt.Errorf("failed to start pprof server: %w", err), hs.Stop(ctx))
+		}
+		l.Info("started pprof server", "addr", pprofSrv.Addr())
+		hs.pprof = pprofSrv
 	}
 
 	metrics := NewMetrics(registry)
@@ -92,16 +111,22 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) error 
 	recorder := opmetrics.NewPromHTTPRecorder(registry, MetricsNamespace)
 	mw := opmetrics.NewHTTPRecordingMiddleware(recorder, mux)
 
-	server := &http.Server{
-		Addr:           net.JoinHostPort(cfg.HTTPAddr, strconv.Itoa(cfg.HTTPPort)),
-		MaxHeaderBytes: HTTPMaxHeaderSize,
-		Handler:        mw,
-		WriteTimeout:   30 * time.Second,
-		IdleTimeout:    time.Minute,
-		ReadTimeout:    30 * time.Second,
+	srv, err := httputil.StartHTTPServer(
+		net.JoinHostPort(cfg.HTTPAddr, strconv.Itoa(cfg.HTTPPort)),
+		mw,
+		httputil.WithTimeouts(httputil.HTTPTimeouts{
+			ReadTimeout:       30 * time.Second,
+			ReadHeaderTimeout: 30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       time.Minute,
+		}),
+		httputil.WithMaxHeaderBytes(HTTPMaxHeaderSize))
+	if err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to start HTTP server: %w", err), hs.Stop(ctx))
 	}
+	hs.http = srv
 
-	return httputil.ListenAndServeContext(ctx, server)
+	return hs, nil
 }
 
 func Handler(l log.Logger, metrics Metrics) http.HandlerFunc {

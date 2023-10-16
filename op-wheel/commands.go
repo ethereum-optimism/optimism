@@ -20,8 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-wheel/cheat"
@@ -168,6 +168,14 @@ func (a *TextFlag[T]) String() string {
 
 func (a *TextFlag[T]) Get() T {
 	return a.Value
+}
+
+func (a *TextFlag[T]) Clone() any {
+	var out TextFlag[T]
+	if err := out.Set(a.String()); err != nil {
+		panic(fmt.Errorf("cannot clone invalid text value: %w", err))
+	}
+	return &out
 }
 
 var _ cli.Generic = (*TextFlag[*common.Address])(nil)
@@ -411,9 +419,13 @@ var (
 				metrics := engine.NewMetrics("wheel", registry)
 				if metricsCfg.Enabled {
 					l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-					go func() {
-						if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-							l.Error("error starting metrics server", err)
+					metricsSrv, err := opmetrics.StartServer(registry, metricsCfg.ListenAddr, metricsCfg.ListenPort)
+					if err != nil {
+						return fmt.Errorf("failed to start metrics server: %w", err)
+					}
+					defer func() {
+						if err := metricsSrv.Stop(context.Background()); err != nil {
+							l.Error("failed to stop metrics server: %w", err)
 						}
 					}()
 				}

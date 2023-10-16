@@ -301,7 +301,7 @@ A node may apply the block to their local engine ahead of L1 availability, if it
 
 - The application of the block is reversible, in case of a conflict with delayed L1 information
 - The subsequent forkchoice-update ensures this block is recognized as "unsafe"
-  (see [`engine_forkchoiceUpdatedV1`](./exec-engine.md#engine_forkchoiceupdatedv1))
+  (see [`engine_forkchoiceUpdatedV2`](./exec-engine.md#engine_forkchoiceupdatedv2))
 
 ##### Block topic scoring parameters
 

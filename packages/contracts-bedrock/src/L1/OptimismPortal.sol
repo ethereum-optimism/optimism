@@ -13,6 +13,7 @@ import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title OptimismPortal
@@ -114,7 +115,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         SuperchainConfig _superchainConfig
     )
         public
-        reinitializer(2)
+        reinitializer(Constants.INITIALIZER)
     {
         l2Sender = Constants.DEFAULT_L2_SENDER;
         l2Oracle = _l2Oracle;

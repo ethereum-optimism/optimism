@@ -35,7 +35,7 @@ func NewTraceProvider(state string, depth uint64) *AlphabetTraceProvider {
 
 func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	traceIndex := i.TraceIndex(int(ap.depth))
-	if traceIndex == 0 {
+	if traceIndex.Cmp(common.Big0) == 0 {
 		prestate, err := ap.AbsolutePreState(ctx)
 		if err != nil {
 			return nil, nil, nil, err
@@ -43,22 +43,23 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 		return prestate, []byte{}, nil, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
-	traceIndex--
+	traceIndex = traceIndex.Sub(traceIndex, big.NewInt(1))
 	// The index cannot be larger than the maximum index as computed by the depth.
-	if traceIndex >= ap.maxLen {
+	if traceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
 		return nil, nil, nil, ErrIndexTooLarge
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
-	if traceIndex >= uint64(len(ap.state)) {
-		return ap.GetStepData(ctx, types.NewPosition(int(ap.depth), len(ap.state)))
+	if traceIndex.Cmp(big.NewInt(int64(len(ap.state)))) >= 0 {
+		return ap.GetStepData(ctx, types.NewPosition(int(ap.depth), big.NewInt(int64(len(ap.state)))))
 	}
-	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex]), []byte{}, nil, nil
+	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, nil, nil
 }
 
 // Get returns the claim value at the given index in the trace.
 func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (common.Hash, error) {
 	// Step data returns the pre-state, so add 1 to get the state for index i
-	postPosition := types.NewPosition(int(ap.depth), int(i.TraceIndex(int(ap.depth)))+1)
+	ti := i.TraceIndex(int(ap.depth))
+	postPosition := types.NewPosition(int(ap.depth), new(big.Int).Add(ti, big.NewInt(1)))
 	claimBytes, _, _, err := ap.GetStepData(ctx, postPosition)
 	if err != nil {
 		return common.Hash{}, err
@@ -82,22 +83,14 @@ func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(ctx context.Context)
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
-func BuildAlphabetPreimage(i uint64, letter string) []byte {
-	return append(IndexToBytes(i), LetterToBytes(letter)...)
+func BuildAlphabetPreimage(i *big.Int, letter string) []byte {
+	return append(i.FillBytes(make([]byte, 32)), LetterToBytes(letter)...)
 }
 
 func alphabetStateHash(state []byte) common.Hash {
 	h := crypto.Keccak256Hash(state)
 	h[0] = mipsevm.VMStatusInvalid
 	return h
-}
-
-// IndexToBytes converts an index to a byte slice big endian
-func IndexToBytes(i uint64) []byte {
-	big := new(big.Int)
-	big.SetUint64(i)
-	out := make([]byte, 32)
-	return big.FillBytes(out)
 }
 
 // LetterToBytes converts a letter to a 32 byte array

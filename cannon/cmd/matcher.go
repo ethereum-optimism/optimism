@@ -67,3 +67,11 @@ func (m *StepMatcherFlag) Matcher() StepMatcher {
 	}
 	return m.matcher
 }
+
+func (m *StepMatcherFlag) Clone() any {
+	var out StepMatcherFlag
+	if err := out.Set(m.repr); err != nil {
+		panic(fmt.Errorf("invalid repr: %w", err))
+	}
+	return &out
+}

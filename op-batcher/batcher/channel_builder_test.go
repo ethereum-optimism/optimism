@@ -322,11 +322,11 @@ func FuzzSeqWindowClose(f *testing.F) {
 
 		// Check the timeout
 		cb.timeout = timeout
-		cb.updateSwTimeout(&derive.BatchData{
-			BatchV1: derive.BatchV1{
+		cb.updateSwTimeout(derive.NewSingularBatchData(
+			derive.SingularBatch{
 				EpochNum: rollup.Epoch(epochNum),
 			},
-		})
+		))
 		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
 		if timeout > calculatedTimeout && calculatedTimeout != 0 {
 			cb.checkTimeout(calculatedTimeout)
@@ -354,11 +354,11 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 
 		// Check the timeout
 		cb.timeout = 0
-		cb.updateSwTimeout(&derive.BatchData{
-			BatchV1: derive.BatchV1{
+		cb.updateSwTimeout(derive.NewSingularBatchData(
+			derive.SingularBatch{
 				EpochNum: rollup.Epoch(epochNum),
 			},
-		})
+		))
 		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
 		cb.checkTimeout(calculatedTimeout)
 		if cb.timeout != 0 {

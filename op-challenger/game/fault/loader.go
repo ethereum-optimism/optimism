@@ -92,24 +92,12 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, 
 	claim := types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    fetchedClaim.Claim,
-			Position: types.NewPositionFromGIndex(fetchedClaim.Position.Uint64()),
+			Position: types.NewPositionFromGIndex(fetchedClaim.Position),
 		},
 		Countered:           fetchedClaim.Countered,
 		Clock:               fetchedClaim.Clock.Uint64(),
 		ContractIndex:       int(arrIndex),
 		ParentContractIndex: int(fetchedClaim.ParentIndex),
-	}
-
-	if !claim.IsRootPosition() {
-		parentIndex := uint64(fetchedClaim.ParentIndex)
-		parentClaim, err := l.caller.ClaimData(&callOpts, new(big.Int).SetUint64(parentIndex))
-		if err != nil {
-			return types.Claim{}, err
-		}
-		claim.Parent = types.ClaimData{
-			Value:    parentClaim.Claim,
-			Position: types.NewPositionFromGIndex(parentClaim.Position.Uint64()),
-		}
 	}
 
 	return claim, nil

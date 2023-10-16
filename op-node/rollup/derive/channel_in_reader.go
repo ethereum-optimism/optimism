@@ -5,6 +5,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -17,6 +19,8 @@ import (
 type ChannelInReader struct {
 	log log.Logger
 
+	cfg *rollup.Config
+
 	nextBatchFn func() (BatchWithL1InclusionBlock, error)
 
 	prev *ChannelBank
@@ -27,8 +31,9 @@ type ChannelInReader struct {
 var _ ResettableStage = (*ChannelInReader)(nil)
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
-func NewChannelInReader(log log.Logger, prev *ChannelBank, metrics Metrics) *ChannelInReader {
+func NewChannelInReader(cfg *rollup.Config, log log.Logger, prev *ChannelBank, metrics Metrics) *ChannelInReader {
 	return &ChannelInReader{
+		cfg:     cfg,
 		log:     log,
 		prev:    prev,
 		metrics: metrics,
@@ -41,7 +46,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 
 // TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
-	if f, err := BatchReader(bytes.NewBuffer(data), cr.Origin()); err == nil {
+	if f, err := BatchReader(cr.cfg, bytes.NewBuffer(data), cr.Origin()); err == nil {
 		cr.nextBatchFn = f
 		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil

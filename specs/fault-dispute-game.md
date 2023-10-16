@@ -49,7 +49,7 @@ This is a state transition function (STF) that takes a _pre-state_ and computes 
 The VM may access data referenced during the STF and as such, it also accepts a _proof_ of this data.
 Typically, the pre-state contains a commitment to the _proof_ to verify the integrity of the data referenced.
 
-Mathemtically, we define the STF as $VM(S_i,P_i)$ where
+Mathematically, we define the STF as $VM(S_i,P_i)$ where
 
 - $S_i$ is the pre-state
 - $P_i$ is an optional proof needed for the transition from $S_i$ to $S_{i+1}$.

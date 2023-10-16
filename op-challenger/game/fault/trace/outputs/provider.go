@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -34,7 +34,7 @@ type OutputTraceProvider struct {
 }
 
 func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, gameDepth, prestateBlock, poststateBlock uint64) (*OutputTraceProvider, error) {
-	rollupClient, err := client.DialRollupClientWithTimeout(client.DefaultDialTimeout, logger, rollupRpc)
+	rollupClient, err := dial.DialRollupClientWithTimeout(dial.DefaultDialTimeout, logger, rollupRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,11 @@ func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClie
 }
 
 func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
-	outputBlock := pos.TraceIndex(int(o.gameDepth)) + o.prestateBlock + 1
+	traceIndex := pos.TraceIndex(int(o.gameDepth))
+	if !traceIndex.IsUint64() {
+		return common.Hash{}, fmt.Errorf("trace index %v is greater than max uint64", traceIndex)
+	}
+	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1
 	if outputBlock > o.poststateBlock {
 		outputBlock = o.poststateBlock
 	}
