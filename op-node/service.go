@@ -11,12 +11,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/oppprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
@@ -74,6 +76,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
+	daCfg, err := NewEigenDAConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load da config: %w", err)
+	}
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -111,6 +118,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConductorRpcTimeout: ctx.Duration(flags.ConductorRpcTimeoutFlag.Name),
 
 		Plasma: plasma.ReadCLIConfig(ctx),
+
+		DA:                      daCfg,
+		PrefixDerivationEnabled: ctx.Bool(flags.PrefixDerivationEnabledFlag.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -288,4 +298,12 @@ func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func NewEigenDAConfig(ctx *cli.Context) (eigenda.Config, error) {
+	rpc := ctx.String(flags.DARPC.Name)
+	return eigenda.Config{
+		RPC: rpc,
+		// Can leave everything else unfilled for the node
+	}, nil
 }

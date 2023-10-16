@@ -22,6 +22,7 @@ const (
 	// These local keys are only used for custom chains
 	L2ChainConfigLocalIndex
 	RollupConfigLocalIndex
+	DaConfigIndex
 )
 
 // CustomChainIDIndicator is used to detect when the program should load custom chain configuration

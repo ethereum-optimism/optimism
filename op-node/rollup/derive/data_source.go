@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	plasma "github.com/ethereum-optimism/optimism/op-plasma"
+	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -43,27 +44,40 @@ type PlasmaInputFetcher interface {
 // batch submitter transactions.
 // This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
 type DataSourceFactory struct {
-	log           log.Logger
-	dsCfg         DataSourceConfig
-	fetcher       L1Fetcher
-	blobsFetcher  L1BlobsFetcher
-	plasmaFetcher PlasmaInputFetcher
-	ecotoneTime   *uint64
+	log                     log.Logger
+	dsCfg                   DataSourceConfig
+	fetcher                 L1Fetcher
+	blobsFetcher            L1BlobsFetcher
+	plasmaFetcher           PlasmaInputFetcher
+	ecotoneTime             *uint64
+	daClient                eigenda.IEigenDA
+	prefixDerivationEnabled bool
 }
 
-func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, plasmaFetcher PlasmaInputFetcher) *DataSourceFactory {
+func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Fetcher, blobsFetcher L1BlobsFetcher, plasmaFetcher PlasmaInputFetcher, daCfg *eigenda.Config, prefixDerivationEnabled bool) *DataSourceFactory {
 	config := DataSourceConfig{
 		l1Signer:          cfg.L1Signer(),
 		batchInboxAddress: cfg.BatchInboxAddress,
 		plasmaEnabled:     cfg.UsePlasma,
 	}
+
+	var daClient eigenda.IEigenDA
+	if daCfg != nil {
+		daClient = &eigenda.EigenDA{
+			Log:    log,
+			Config: *daCfg,
+		}
+	}
+
 	return &DataSourceFactory{
-		log:           log,
-		dsCfg:         config,
-		fetcher:       fetcher,
-		blobsFetcher:  blobsFetcher,
-		plasmaFetcher: plasmaFetcher,
-		ecotoneTime:   cfg.EcotoneTime,
+		log:                     log,
+		dsCfg:                   config,
+		fetcher:                 fetcher,
+		blobsFetcher:            blobsFetcher,
+		plasmaFetcher:           plasmaFetcher,
+		ecotoneTime:             cfg.EcotoneTime,
+		daClient:                daClient,
+		prefixDerivationEnabled: prefixDerivationEnabled,
 	}
 }
 
@@ -76,9 +90,9 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, ref eth.L1BlockRef, b
 		if ds.blobsFetcher == nil {
 			return nil, fmt.Errorf("ecotone upgrade active but beacon endpoint not configured")
 		}
-		src = NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr)
+		src = NewBlobDataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ds.blobsFetcher, ref, batcherAddr, ds.daClient, ds.prefixDerivationEnabled)
 	} else {
-		src = NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr)
+		src = NewCalldataSource(ctx, ds.log, ds.dsCfg, ds.fetcher, ref, batcherAddr, ds.daClient, ds.prefixDerivationEnabled)
 	}
 	if ds.dsCfg.plasmaEnabled {
 		// plasma([calldata | blobdata](l1Ref)) -> data

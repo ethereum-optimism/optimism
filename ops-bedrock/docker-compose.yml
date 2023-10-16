@@ -83,7 +83,7 @@ services:
       --p2p.listen.ip=0.0.0.0
       --p2p.listen.tcp=9003
       --p2p.listen.udp=9003
-      --p2p.scoring.peers=light
+      --p2p.scoring=light
       --p2p.ban.peers=true
       --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
@@ -228,6 +228,10 @@ services:
       - "3100:3100"
     volumes:
       - "da_data:/data"
+    environment:
+      DA_SERVER_EIGENDA_RPC: host.docker.internal:32003
+      DA_SERVER_EIGENDA_STATUS_QUERY_INTERVAL: "5s"
+      DA_SERVER_EIGENDA_STATUS_QUERY_TIMEOUT: "30s"
 
   sentinel:
     image: quarry/sentinel # TODO(10141): We need a public image for this (sentinel is out of repo)

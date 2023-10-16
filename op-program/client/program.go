@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
+	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -41,27 +42,28 @@ func Main(logger log.Logger) {
 // RunProgram executes the Program, while attached to an IO based pre-image oracle, to be served by a host.
 func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter io.ReadWriter) error {
 	pClient := preimage.NewOracleClient(preimageOracle)
-	hClient := preimage.NewHintWriter(preimageHinter)
-	l1PreimageOracle := l1.NewCachingOracle(l1.NewPreimageOracle(pClient, hClient))
-	l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient))
+	// hClient := preimage.NewHintWriter(preimageHinter)
+	// l1PreimageOracle := l1.NewCachingOracle(l1.NewPreimageOracle(pClient, hClient))
+	// l2PreimageOracle := l2.NewCachingOracle(l2.NewPreimageOracle(pClient, hClient))
 
 	bootInfo := NewBootstrapClient(pClient).BootInfo()
 	logger.Info("Program Bootstrapped", "bootInfo", bootInfo)
-	return runDerivation(
-		logger,
-		bootInfo.RollupConfig,
-		bootInfo.L2ChainConfig,
-		bootInfo.L1Head,
-		bootInfo.L2OutputRoot,
-		bootInfo.L2Claim,
-		bootInfo.L2ClaimBlockNumber,
-		l1PreimageOracle,
-		l2PreimageOracle,
-	)
+	return nil
+	// return runDerivation(
+	// 	logger,
+	// 	bootInfo.RollupConfig,
+	// 	bootInfo.L2ChainConfig,
+	// 	bootInfo.L1Head,
+	// 	bootInfo.L2OutputRoot,
+	// 	bootInfo.L2Claim,
+	// 	bootInfo.L2ClaimBlockNumber,
+	// 	l1PreimageOracle,
+	// 	l2PreimageOracle,
+	// )
 }
 
 // runDerivation executes the L2 state transition, given a minimal interface to retrieve data.
-func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2OutputRoot common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
+func runDerivation(logger log.Logger, cfg *rollup.Config, daCfg *eigenda.Config, prefixDerivationEnabled bool, l2Cfg *params.ChainConfig, l1Head common.Hash, l2OutputRoot common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	l1BlobsSource := l1.NewBlobFetcher(logger, l1Oracle)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l1Oracle /* kzg oracle */, l2Cfg, l2OutputRoot)
@@ -71,7 +73,7 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend)
 
 	logger.Info("Starting derivation")
-	d := cldr.NewDriver(logger, cfg, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum)
+	d := cldr.NewDriver(logger, cfg, l1Source, l1BlobsSource, l2Source, l2ClaimBlockNum, daCfg, prefixDerivationEnabled)
 	for {
 		if err = d.Step(context.Background()); errors.Is(err, io.EOF) {
 			break

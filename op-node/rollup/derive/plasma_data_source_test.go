@@ -96,7 +96,7 @@ func TestPlasmaDataSource(t *testing.T) {
 
 	signer := cfg.L1Signer()
 
-	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da)
+	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da, nil, false)
 
 	nc := 0
 	firstChallengeExpirationBlock := uint64(95)
@@ -328,7 +328,7 @@ func TestPlasmaDataSourceStall(t *testing.T) {
 
 	signer := cfg.L1Signer()
 
-	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da)
+	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da, nil, false)
 
 	parent := l1Refs[0]
 	// create a new mock l1 ref
@@ -443,7 +443,7 @@ func TestPlasmaDataSourceInvalidData(t *testing.T) {
 
 	signer := cfg.L1Signer()
 
-	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da)
+	factory := NewDataSourceFactory(logger, cfg, l1F, nil, da, nil, false)
 
 	parent := l1Refs[0]
 	// create a new mock l1 ref

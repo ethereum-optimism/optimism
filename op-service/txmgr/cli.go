@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"time"
 
@@ -407,6 +408,13 @@ type Config struct {
 	// Signer is used to sign transactions when the gas price is increased.
 	Signer opcrypto.SignerFn
 	From   common.Address
+}
+
+func SafeConvertUInt64ToUInt32(val uint64) (uint32, bool) {
+	if val <= math.MaxUint32 {
+		return uint32(val), true
+	}
+	return 0, false
 }
 
 func (m Config) Check() error {

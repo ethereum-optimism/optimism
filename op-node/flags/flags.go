@@ -353,12 +353,25 @@ var (
 		Value:    time.Second * 1,
 		Category: SequencerCategory,
 	}
+	DARPC = &cli.StringFlag{
+		Name:    "da-rpc",
+		Usage:   "Data Availability RPC",
+		Value:   "http://da:26658",
+		EnvVars: prefixEnvVars("DA_RPC"),
+	}
+	PrefixDerivationEnabledFlag = &cli.BoolFlag{
+		Name:    "da-prefix-derivation-enabled",
+		Usage:   "Enable prefix derivation",
+		Value:   false,
+		EnvVars: prefixEnvVars("DA_PREFIX_DERIVATION_ENABLED"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddr,
 	L2EngineJWTSecret,
+	DARPC,
 }
 
 var optionalFlags = []cli.Flag{
@@ -399,6 +412,7 @@ var optionalFlags = []cli.Flag{
 	ConductorRpcFlag,
 	ConductorRpcTimeoutFlag,
 	SafeDBPath,
+	PrefixDerivationEnabledFlag,
 }
 
 var DeprecatedFlags = []cli.Flag{

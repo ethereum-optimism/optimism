@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+option go_package = "github.com/ethereum-optimism/optimism/op_service";
+
+package op_service.v1;
+
+// CalldataFrame wraps the frame data or the eigenda blob reference to the frame data
+message CalldataFrame {
+  oneof value {
+    bytes frame = 1;
+    FrameRef frame_ref = 2;
+  }
+}
+
+// This is a copy of BlobRequest here: https://github.com/Layr-Labs/eigenda/blob/main/api/proto/retriever/retriever.proto#L10
+message FrameRef {
+  bytes batch_header_hash = 1;
+	uint32 blob_index = 2;
+	uint32 reference_block_number = 3;
+	repeated uint32 quorum_ids = 4;
+  uint32 blob_length = 5;
+}

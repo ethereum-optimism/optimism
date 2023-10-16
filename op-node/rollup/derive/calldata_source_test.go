@@ -1,11 +1,14 @@
 package derive
 
 import (
+	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
 
+	"github.com/Layr-Labs/eigenda/api/grpc/disperser"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eigenda"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
@@ -49,6 +53,34 @@ type calldataTest struct {
 	txs  []testTx
 }
 
+var _ eigenda.IEigenDA = &EigenDAClientMock{}
+
+type EigenDAClientMock struct {
+	Responses     [][]byte
+	ResponseIndex int
+}
+
+func (c *EigenDAClientMock) RetrieveBlob(ctx context.Context, BatchHeaderHash []byte, BlobIndex uint32) ([]byte, error) {
+	if c.ResponseIndex < len(c.Responses) {
+		res := c.Responses[c.ResponseIndex]
+		c.ResponseIndex += 1
+		return res, nil
+	} else {
+		return nil, fmt.Errorf("Ran out of stub responses")
+	}
+}
+
+func (c *EigenDAClientMock) DisperseBlob(ctx context.Context, txData []byte) (*disperser.BlobInfo, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func NewEigenDAClientMock(responses [][]byte) eigenda.IEigenDA {
+	return &EigenDAClientMock{
+		Responses:     responses,
+		ResponseIndex: 0,
+	}
+}
+
 // TestDataFromEVMTransactions creates some transactions from a specified template and asserts
 // that DataFromEVMTransactions properly filters and returns the data from the authorized transactions
 // inside the transaction set.
@@ -59,6 +91,11 @@ func TestDataFromEVMTransactions(t *testing.T) {
 		L1ChainID:         big.NewInt(100),
 		BatchInboxAddress: crypto.PubkeyToAddress(inboxPriv.PublicKey),
 	}
+
+	daClient := NewEigenDAClientMock([][]byte{
+		[]byte{0x00, 0x01, 0x02},
+	})
+
 	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 
 	altInbox := testutils.RandomAddress(rand.New(rand.NewSource(1234)))
@@ -121,7 +158,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			}
 		}
 
-		out := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress, false}, batcherAddr, txs, testlog.Logger(t, log.LevelCrit))
+		out := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress, false}, batcherAddr, txs, testlog.Logger(t, log.LevelCrit), daClient, false)
 		require.ElementsMatch(t, expectedData, out)
 	}
 
