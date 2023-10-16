@@ -58,7 +58,7 @@ func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) 
 func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
 	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "status"))
 	if err != nil {
-		return 0, fmt.Errorf("failed to fetch claim count: %w", err)
+		return 0, fmt.Errorf("failed to fetch status: %w", err)
 	}
 	return gameTypes.GameStatusFromUint8(result.GetUint8(0))
 }

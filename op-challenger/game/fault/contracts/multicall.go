@@ -52,7 +52,7 @@ func (c *ContractCall) ToCallArgs() (interface{}, error) {
 func (c *ContractCall) Unpack(hex hexutil.Bytes) ([]interface{}, error) {
 	out, err := c.Abi.Unpack(c.Method, hex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to unpack claim data: %w", err)
+		return nil, fmt.Errorf("failed to unpack data: %w", err)
 	}
 	return out, nil
 }
