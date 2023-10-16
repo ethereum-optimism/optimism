@@ -40,7 +40,7 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
     "@changesets/changelog-github": "^0.4.8",
-    "@types/chai": "^4.3.7",
+    "@types/chai": "^4.3.8",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^10.0.2",
     "@types/node": "^20.8.5",
