@@ -25,7 +25,6 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
 			Position: NewPosition(1, common.Big0),
 		},
-		Parent:              root.ClaimData,
 		ContractIndex:       1,
 		ParentContractIndex: 0,
 	}
@@ -34,7 +33,6 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
 			Position: NewPosition(2, big.NewInt(2)),
 		},
-		Parent:              top.ClaimData,
 		ContractIndex:       2,
 		ParentContractIndex: 1,
 	}
@@ -44,7 +42,6 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
 			Position: NewPosition(3, big.NewInt(4)),
 		},
-		Parent:              middle.ClaimData,
 		ContractIndex:       3,
 		ParentContractIndex: 2,
 	}
@@ -74,4 +71,79 @@ func TestGame_Claims(t *testing.T) {
 	// Validate claim pairs.
 	actual := g.Claims()
 	require.ElementsMatch(t, expected, actual)
+}
+
+func TestGame_DefendsParent(t *testing.T) {
+	tests := []struct {
+		name     string
+		game     *gameState
+		expected bool
+	}{
+		{
+			name:     "LeftChildAttacks",
+			game:     buildGameWithClaim(big.NewInt(2), big.NewInt(1)),
+			expected: false,
+		},
+		{
+			name:     "RightChildDoesntDefend",
+			game:     buildGameWithClaim(big.NewInt(3), big.NewInt(1)),
+			expected: false,
+		},
+		{
+			name:     "SubChildDoesntDefend",
+			game:     buildGameWithClaim(big.NewInt(4), big.NewInt(1)),
+			expected: false,
+		},
+		{
+			name:     "SubSecondChildDoesntDefend",
+			game:     buildGameWithClaim(big.NewInt(5), big.NewInt(1)),
+			expected: false,
+		},
+		{
+			name:     "RightLeftChildDefendsParent",
+			game:     buildGameWithClaim(big.NewInt(6), big.NewInt(1)),
+			expected: true,
+		},
+		{
+			name:     "SubThirdChildDefends",
+			game:     buildGameWithClaim(big.NewInt(7), big.NewInt(1)),
+			expected: true,
+		},
+		{
+			name: "RootDoesntDefend",
+			game: NewGameState(false, []Claim{
+				{
+					ClaimData: ClaimData{
+						Position: NewPositionFromGIndex(big.NewInt(0)),
+					},
+					ContractIndex: 0,
+				},
+			}, testMaxDepth),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			claims := test.game.Claims()
+			require.Equal(t, test.expected, test.game.DefendsParent(claims[len(claims)-1]))
+		})
+	}
+}
+
+func buildGameWithClaim(claimGIndex *big.Int, parentGIndex *big.Int) *gameState {
+	parentClaim := Claim{
+		ClaimData: ClaimData{
+			Position: NewPositionFromGIndex(parentGIndex),
+		},
+		ContractIndex: 0,
+	}
+	claim := Claim{
+		ClaimData: ClaimData{
+			Position: NewPositionFromGIndex(claimGIndex),
+		},
+		ContractIndex:       1,
+		ParentContractIndex: 0,
+	}
+	return NewGameState(false, []Claim{parentClaim, claim}, testMaxDepth)
 }

@@ -134,7 +134,6 @@ func (s *claimSolver) attack(ctx context.Context, claim types.Claim) (*types.Cla
 	}
 	return &types.Claim{
 		ClaimData:           types.ClaimData{Value: value, Position: position},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
@@ -151,7 +150,6 @@ func (s *claimSolver) defend(ctx context.Context, claim types.Claim) (*types.Cla
 	}
 	return &types.Claim{
 		ClaimData:           types.ClaimData{Value: value, Position: position},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
@@ -176,12 +174,15 @@ func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, c
 	if !agree {
 		return false, nil
 	}
-	if claim.IsRoot() || claim.Parent.IsRootPosition() {
+	if claim.IsRoot() {
 		return true, nil
 	}
 	parent, err := game.GetParent(claim)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to get parent of claim %v: %w", claim.ContractIndex, err)
+	}
+	if parent.IsRoot() {
+		return true, nil
 	}
 	grandParent, err := game.GetParent(parent)
 	if err != nil {
