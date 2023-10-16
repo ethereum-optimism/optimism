@@ -61,7 +61,7 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^48.0.1",
     "husky": "^8.0.3",
-    "lint-staged": "14.0.1",
+    "lint-staged": "15.0.1",
     "markdownlint": "^0.31.0",
     "markdownlint-cli2": "0.4.0",
     "mocha": "^10.2.0",
