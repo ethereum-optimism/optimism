@@ -35,16 +35,13 @@ func (e *ExponentialStrategy) Duration(attempt int) time.Duration {
 	if attempt < 0 {
 		return e.Min + jitter
 	}
-	durFloat := float64(e.Min) * float64(time.Nanosecond)
+	durFloat := float64(e.Min)
 	durFloat += math.Pow(2, float64(attempt)) * float64(time.Second)
 	dur := time.Duration(durFloat)
 	if durFloat > float64(e.Max) {
 		dur = e.Max
 	}
 	dur += jitter
-	if dur > e.Max {
-		return e.Max
-	}
 
 	return dur
 }
