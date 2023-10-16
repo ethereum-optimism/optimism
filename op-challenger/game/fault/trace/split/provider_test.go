@@ -30,7 +30,7 @@ func TestGet(t *testing.T) {
 
 	t.Run("ReturnsCorrectOutputFromTopProvider", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getOutput: mockOutput}
-		splitProvider := newSplitTraceProvider(t, &mockOutputProvider, &mockTraceProvider{}, 40)
+		splitProvider := newSplitTraceProvider(t, &mockOutputProvider, mockOutputProvider.createLowerProvider, 40)
 		output, err := splitProvider.Get(context.Background(), types.NewPosition(6, big.NewInt(3)))
 		require.NoError(t, err)
 		expectedGIndex := types.NewPosition(6, big.NewInt(3)).ToGIndex()
@@ -39,7 +39,7 @@ func TestGet(t *testing.T) {
 
 	t.Run("ReturnsCorrectOutputWithMultipleProviders", func(t *testing.T) {
 		bottomProvider := mockTraceProvider{getOutput: mockOutput}
-		splitProvider := newSplitTraceProvider(t, &mockTraceProvider{}, &bottomProvider, 40)
+		splitProvider := newSplitTraceProvider(t, &mockTraceProvider{}, bottomProvider.createLowerProvider, 40)
 		output, err := splitProvider.Get(context.Background(), types.NewPosition(42, big.NewInt(17)))
 		require.NoError(t, err)
 		expectedGIndex := types.NewPosition(2, big.NewInt(1)).ToGIndex()
@@ -50,14 +50,16 @@ func TestGet(t *testing.T) {
 func TestAbsolutePreStateCommitment(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{absolutePreStateCommitmentError: mockGetError}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
+		splitProvider := newSplitTraceProvider(t, nil, mockOutputProvider.createLowerProvider, 40)
+		splitProvider.absolutePrestateCommitmentFetcher = mockOutputProvider.AbsolutePreStateCommitment
 		_, err := splitProvider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorIs(t, err, mockGetError)
 	})
 
 	t.Run("ReturnsCorrectOutput", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{absolutePreStateCommitment: mockCommitment}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
+		splitProvider := newSplitTraceProvider(t, nil, mockOutputProvider.createLowerProvider, 40)
+		splitProvider.absolutePrestateCommitmentFetcher = mockOutputProvider.AbsolutePreStateCommitment
 		output, err := splitProvider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, mockCommitment, output)
@@ -67,7 +69,8 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 func TestAbsolutePreState(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{absolutePreStateError: mockGetError}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
+		splitProvider := newSplitTraceProvider(t, nil, mockOutputProvider.createLowerProvider, 40)
+		splitProvider.absolutePrestateFetcher = mockOutputProvider.AbsolutePreState
 		_, err := splitProvider.AbsolutePreState(context.Background())
 		require.ErrorIs(t, err, mockGetError)
 	})
@@ -75,7 +78,8 @@ func TestAbsolutePreState(t *testing.T) {
 	t.Run("ReturnsCorrectPreimageData", func(t *testing.T) {
 		expectedPreimage := []byte{1, 2, 3, 4}
 		mockOutputProvider := mockTraceProvider{preImageData: expectedPreimage}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
+		splitProvider := newSplitTraceProvider(t, nil, mockOutputProvider.createLowerProvider, 40)
+		splitProvider.absolutePrestateFetcher = mockOutputProvider.AbsolutePreState
 		output, err := splitProvider.AbsolutePreState(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, expectedPreimage, output)
@@ -93,7 +97,7 @@ func TestGetStepData(t *testing.T) {
 	t.Run("ReturnsCorrectStepData", func(t *testing.T) {
 		expectedStepData := []byte{1, 2, 3, 4}
 		mockOutputProvider := mockTraceProvider{stepPrestateData: expectedStepData}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
+		splitProvider := newSplitTraceProvider(t, &mockOutputProvider, mockOutputProvider.createLowerProvider, 40)
 		output, _, _, err := splitProvider.GetStepData(context.Background(), types.NewPosition(41, common.Big0))
 		require.NoError(t, err)
 		require.Equal(t, expectedStepData, output)
@@ -111,12 +115,17 @@ type mockTraceProvider struct {
 	stepPrestateData                []byte
 }
 
-func newSplitTraceProvider(t *testing.T, tp *mockTraceProvider, bp *mockTraceProvider, topDepth uint64) SplitTraceProvider {
+func (m *mockTraceProvider) createLowerProvider(ctx context.Context, preClaim, postClaim common.Hash) (types.TraceProvider, error) {
+	return m, nil
+}
+
+func newSplitTraceProvider(t *testing.T, tp *mockTraceProvider, creator CreateLowerProvider, topDepth uint64) SplitTraceProvider {
 	return SplitTraceProvider{
-		logger:         testlog.Logger(t, log.LvlInfo),
-		topProvider:    tp,
-		bottomProvider: bp,
-		topDepth:       topDepth,
+		logger:       testlog.Logger(t, log.LvlInfo),
+		upper:        tp,
+		lower:        make(map[*big.Int]types.TraceProvider),
+		lowerCreator: creator,
+		topDepth:     topDepth,
 	}
 }
 

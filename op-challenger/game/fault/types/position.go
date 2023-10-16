@@ -57,6 +57,14 @@ func (p Position) RelativeToAncestorAtDepth(ancestor uint64) (Position, error) {
 	return NewPosition(int(newPosDepth), newIndexAtDepth), nil
 }
 
+// IndexForParentDepth returns the index of a parent position at a given depth.
+func (p Position) IndexForParentDepth(depth int) *big.Int {
+	if depth > p.depth {
+		return nil
+	}
+	return new(big.Int).Div(p.indexAtDepth, new(big.Int).Lsh(big.NewInt(1), uint(p.depth-depth)))
+}
+
 func (p Position) Depth() int {
 	return p.depth
 }
