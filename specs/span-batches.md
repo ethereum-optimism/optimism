@@ -223,7 +223,7 @@ The assumption makes upper inequality to hold. Therefore, we decided to manage `
   - If the last block references canonical L1 chain as its origin,
     we can ensure the all other blocks' origins are consistent with the canonical L1 chain.
 - Parent hash
-  - In V0 Batch spec, we need batch's parent hash to validate if batch's parent is consistent with current L2 chain.
+  - In V0 Batch spec, we need batch's parent hash to validate if batch's parent is consistent with current L2 safe head.
   - But in the case of Span Batch, because it contains consecutive L2 blocks in the span,
     we do not need to validate all blocks' parent hash except the first block.
 - Transactions
