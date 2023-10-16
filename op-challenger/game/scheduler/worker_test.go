@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
@@ -24,7 +25,7 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	go progressGames(ctx, in, out, &wg, ms.ThreadActive, ms.ThreadIdle)
 
 	in <- job{
-		player: &stubPlayer{status: types.GameStatusInProgress},
+		player: &test.StubGamePlayer{StatusValue: types.GameStatusInProgress},
 	}
 	waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
 		return ms.activeCalls >= 1, nil
@@ -34,7 +35,7 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	require.Equal(t, ms.idleCalls, 1)
 
 	in <- job{
-		player: &stubPlayer{status: types.GameStatusDefenderWon},
+		player: &test.StubGamePlayer{StatusValue: types.GameStatusDefenderWon},
 	}
 	waitErr = wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
 		return ms.activeCalls >= 2, nil
@@ -65,18 +66,6 @@ func (m *metricSink) ThreadActive() {
 
 func (m *metricSink) ThreadIdle() {
 	m.idleCalls++
-}
-
-type stubPlayer struct {
-	status types.GameStatus
-}
-
-func (s *stubPlayer) ProgressGame(ctx context.Context) types.GameStatus {
-	return s.status
-}
-
-func (s *stubPlayer) Status() types.GameStatus {
-	return s.status
 }
 
 func readWithTimeout[T any](t *testing.T, ch <-chan T) T {
