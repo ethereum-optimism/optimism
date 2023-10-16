@@ -278,8 +278,8 @@ func (l *BatchSubmitter) loop() {
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
-			// This removes any pending channels, so these do not have to be drained .
-			// But it also tries to write ev
+			// This removes any never-submitted pending channels, so these do not have to be drained with transactions.
+			// Any remaining unfinished channel is terminated, so its data gets submitted.
 			err := l.state.Close()
 			if err != nil {
 				if errors.Is(err, ErrPendingAfterClose) {
