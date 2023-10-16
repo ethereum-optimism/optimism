@@ -508,8 +508,8 @@ importers:
         specifier: ^2.18.1
         version: 2.18.1(ts-node@10.9.1)(typescript@5.2.2)
       hardhat-deploy:
-        specifier: ^0.11.42
-        version: 0.11.42
+        specifier: ^0.11.43
+        version: 0.11.43
       isomorphic-fetch:
         specifier: ^3.0.0
         version: 3.0.0
@@ -8830,8 +8830,8 @@ packages:
     engines: {node: '>=6'}
     dev: false
 
-  /hardhat-deploy@0.11.42:
-    resolution: {integrity: sha512-sd0zzHV2Px2qxPCvIt0BCJm41rx/aS7ruOOXEUFe54rUk+8ViFNSSUll6BD9YaRzyfVBDMn9FT4Q40DakJ0tJA==}
+  /hardhat-deploy@0.11.43:
+    resolution: {integrity: sha512-D760CjDtinwjOCpKOvdyRtIJYLQIYXmhfgkFe+AkxlYM9bPZ/T4tZ/xIB2tR89ZT+z0hF1YuZFBXIL3/G/9T5g==}
     dependencies:
       '@ethersproject/abi': 5.7.0
       '@ethersproject/abstract-signer': 5.7.0
