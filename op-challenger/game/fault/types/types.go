@@ -16,6 +16,7 @@ var (
 // to load into the onchain oracle.
 type PreimageOracleData struct {
 	IsLocal      bool
+	LocalContext uint64
 	OracleKey    []byte
 	OracleData   []byte
 	OracleOffset uint32
