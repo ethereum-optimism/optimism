@@ -12,8 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -33,7 +33,7 @@ func RegisterGameTypes(
 	m metrics.Metricer,
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
-	client bind.ContractCaller,
+	client *ethclient.Client,
 ) {
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {

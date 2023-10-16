@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+// Note: All of this stuff would wind up moving to somewhere in op-service so it can be easily reused.
+
 type EthRpc interface {
 	CallContext(ctx context.Context, out interface{}, method string, args ...interface{}) error
 	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error

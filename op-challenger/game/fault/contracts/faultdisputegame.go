@@ -31,12 +31,28 @@ func NewFaultDisputeGameContract(addr common.Address, caller *MultiCaller) (*Fau
 	}, nil
 }
 
-func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (*big.Int, error) {
+func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
+	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "GAME_DURATION"))
+	if err != nil {
+		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
+	}
+	return result.GetBigInt(0).Uint64(), nil
+}
+
+func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
 	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "MAX_GAME_DEPTH"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch max game depth: %w", err)
+		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
-	return result.GetBigInt(0), nil
+	return result.GetBigInt(0).Uint64(), nil
+}
+
+func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
+	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "ABSOLUTE_PRESTATE"))
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch absolute prestate hash: %w", err)
+	}
+	return result.GetHash(0), nil
 }
 
 func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
