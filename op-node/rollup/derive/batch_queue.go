@@ -45,6 +45,12 @@ type BatchQueue struct {
 	prev   NextBatchProvider
 	origin eth.L1BlockRef
 
+	// l1Blocks contains consecutive eth.L1BlockRef sorted by time.
+	// Every L1 origin of unsafe L2 blocks must be eventually included in l1Blocks.
+	// Batch queue's job is to ensure below two rules:
+	//  If every L2 block corresponding to single L1 block becomes safe, it will be popped from l1Blocks.
+	//  If new L2 block's L1 origin is not included in l1Blocks, fetch and push to l1Blocks.
+	// length of l1Blocks never exceeds SequencerWindowSize
 	l1Blocks []eth.L1BlockRef
 
 	// batches in order of when we've first seen them

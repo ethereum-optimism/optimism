@@ -236,6 +236,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 
 	endEpochNum := batch.GetBlockEpochNum(batch.GetBlockCount() - 1)
 	originChecked := false
+	// l1Blocks is supplied from batch queue and its length is limited to SequencerWindowSize.
 	for _, l1Block := range l1Blocks {
 		if l1Block.Number == endEpochNum {
 			if !batch.CheckOriginHash(l1Block.Hash) {
