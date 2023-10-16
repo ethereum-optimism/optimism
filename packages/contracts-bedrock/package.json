@@ -21,7 +21,7 @@
     "test": "pnpm build:differential && pnpm build:fuzz && forge test",
     "coverage": "pnpm build:differential && pnpm build:fuzz && forge coverage",
     "coverage:lcov": "pnpm build:differential && pnpm build:fuzz && forge coverage --report lcov",
-    "gas-snapshot:no-build": "forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
+    "gas-snapshot:no-build": "forge snapshot --match-contract GasBenchMark",
     "gas-snapshot": "pnpm build:differential && pnpm build:fuzz && pnpm gas-snapshot:no-build",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "semver-lock": "forge script scripts/SemverLock.s.sol",
