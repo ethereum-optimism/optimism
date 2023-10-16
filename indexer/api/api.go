@@ -2,15 +2,18 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-chi/chi/v5"
@@ -120,41 +123,42 @@ func (a *API) Port() int {
 
 // startServer ... Starts the API server
 func (a *API) startServer(ctx context.Context) error {
-	a.log.Info("api server listening...", "port", a.serverConfig.Port)
-	server := http.Server{Addr: fmt.Sprintf(":%d", a.serverConfig.Port), Handler: a.router}
-
-	addr := fmt.Sprintf(":%d", a.serverConfig.Port)
-	listener, err := net.Listen("tcp", addr)
+	a.log.Debug("api server listening...", "port", a.serverConfig.Port)
+	addr := net.JoinHostPort(a.serverConfig.Host, strconv.Itoa(a.serverConfig.Port))
+	srv, err := httputil.StartHTTPServer(addr, a.router)
 	if err != nil {
-		a.log.Error("Listen:", err)
-		return err
+		return fmt.Errorf("failed to start API server: %w", err)
 	}
-	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
-	if !ok {
-		return fmt.Errorf("failed to get TCP address from network listener")
+
+	host, portStr, err := net.SplitHostPort(srv.Addr().String())
+	if err != nil {
+		return errors.Join(err, srv.Close())
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return errors.Join(err, srv.Close())
 	}
 
 	// Update the port in the config in case the OS chose a different port
 	// than the one we requested (e.g. using port 0 to fetch a random open port)
-	a.serverConfig.Port = tcpAddr.Port
+	a.serverConfig.Host = host
+	a.serverConfig.Port = port
 
-	err = http.Serve(listener, server.Handler)
-	if err != nil {
-		a.log.Error("api server stopped with error", "err", err)
-	} else {
-		a.log.Info("api server stopped")
+	<-ctx.Done()
+	if err := srv.Stop(context.Background()); err != nil {
+		return fmt.Errorf("failed to shutdown api server: %w", err)
 	}
-	return err
+	return nil
 }
 
 // startMetricsServer ... Starts the metrics server
 func (a *API) startMetricsServer(ctx context.Context) error {
-	a.log.Info("starting metrics server...", "port", a.metricsConfig.Port)
-	err := metrics.ListenAndServe(ctx, a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)
+	a.log.Debug("starting metrics server...", "port", a.metricsConfig.Port)
+	srv, err := metrics.StartServer(a.metricsRegistry, a.metricsConfig.Host, a.metricsConfig.Port)
 	if err != nil {
-		a.log.Error("metrics server stopped", "err", err)
-	} else {
-		a.log.Info("metrics server stopped")
+		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	return err
+	<-ctx.Done()
+	defer a.log.Info("metrics server stopped")
+	return srv.Stop(context.Background())
 }

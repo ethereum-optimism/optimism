@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"net/http"
+	"net"
 	"runtime/debug"
+	"strconv"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -105,32 +106,32 @@ func NewIndexer(
 }
 
 func (i *Indexer) startHttpServer(ctx context.Context) error {
-	i.log.Info("starting http server...", "port", i.httpConfig.Host)
+	i.log.Debug("starting http server...", "port", i.httpConfig.Host)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Heartbeat("/healthz"))
 
-	server := http.Server{Addr: fmt.Sprintf("%s:%d", i.httpConfig.Host, i.httpConfig.Port), Handler: r}
-	err := httputil.ListenAndServeContext(ctx, &server)
+	addr := net.JoinHostPort(i.httpConfig.Host, strconv.Itoa(i.httpConfig.Port))
+	srv, err := httputil.StartHTTPServer(addr, r)
 	if err != nil {
-		i.log.Error("http server stopped", "err", err)
-	} else {
-		i.log.Info("http server stopped")
+		return fmt.Errorf("http server failed to start: %w", err)
 	}
-
-	return err
+	i.log.Info("http server started", "addr", srv.Addr())
+	<-ctx.Done()
+	defer i.log.Info("http server stopped")
+	return srv.Stop(context.Background())
 }
 
 func (i *Indexer) startMetricsServer(ctx context.Context) error {
-	i.log.Info("starting metrics server...", "port", i.metricsConfig.Port)
-	err := metrics.ListenAndServe(ctx, i.metricsRegistry, i.metricsConfig.Host, i.metricsConfig.Port)
+	i.log.Debug("starting metrics server...", "port", i.metricsConfig.Port)
+	srv, err := metrics.StartServer(i.metricsRegistry, i.metricsConfig.Host, i.metricsConfig.Port)
 	if err != nil {
-		i.log.Error("metrics server stopped", "err", err)
-	} else {
-		i.log.Info("metrics server stopped")
+		return fmt.Errorf("metrics server failed to start: %w", err)
 	}
-
-	return err
+	i.log.Info("metrics server started", "addr", srv.Addr())
+	<-ctx.Done()
+	defer i.log.Info("metrics server stopped")
+	return srv.Stop(context.Background())
 }
 
 // Start starts the indexing service on L1 and L2 chains

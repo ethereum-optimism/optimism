@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ "$METAMASK_RUN_HEADLESS" == "true" ]; then
+if [ "$METAMASK_PLAYWRIGHT_RUN_HEADLESS" != "false" ]; then
     # Start Xvfb in the background on display :99
     Xvfb :99 &
 

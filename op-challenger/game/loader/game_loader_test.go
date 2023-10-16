@@ -1,4 +1,4 @@
-package game
+package loader
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -78,18 +79,18 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 			expectedGames := test.caller.games
 			expectedGames = expectedGames[len(expectedGames)-test.expectedLen:]
 			if test.expectedErr != nil {
-				expectedGames = make([]FaultDisputeGame, 0)
+				expectedGames = make([]types.GameMetadata, 0)
 			}
 			require.ElementsMatch(t, expectedGames, translateGames(games))
 		})
 	}
 }
 
-func generateMockGames(count uint64) []FaultDisputeGame {
-	games := make([]FaultDisputeGame, count)
+func generateMockGames(count uint64) []types.GameMetadata {
+	games := make([]types.GameMetadata, count)
 
 	for i := uint64(0); i < count; i++ {
-		games[i] = FaultDisputeGame{
+		games[i] = types.GameMetadata{
 			Proxy:     common.BigToAddress(big.NewInt(int64(i))),
 			Timestamp: i * 100,
 		}
@@ -98,8 +99,8 @@ func generateMockGames(count uint64) []FaultDisputeGame {
 	return games
 }
 
-func translateGames(games []FaultDisputeGame) []FaultDisputeGame {
-	translated := make([]FaultDisputeGame, len(games))
+func translateGames(games []types.GameMetadata) []types.GameMetadata {
+	translated := make([]types.GameMetadata, len(games))
 
 	for i, game := range games {
 		translated[i] = translateFaultDisputeGame(game)
@@ -108,8 +109,8 @@ func translateGames(games []FaultDisputeGame) []FaultDisputeGame {
 	return translated
 }
 
-func translateFaultDisputeGame(game FaultDisputeGame) FaultDisputeGame {
-	return FaultDisputeGame{
+func translateFaultDisputeGame(game types.GameMetadata) types.GameMetadata {
+	return types.GameMetadata{
 		Proxy:     game.Proxy,
 		Timestamp: game.Timestamp,
 	}
@@ -131,7 +132,7 @@ type mockMinimalDisputeGameFactoryCaller struct {
 	gameCountErr bool
 	indexErrors  []bool
 	gameCount    uint64
-	games        []FaultDisputeGame
+	games        []types.GameMetadata
 }
 
 func newMockMinimalDisputeGameFactoryCaller(count uint64, gameCountErr bool, indexErrors bool) *mockMinimalDisputeGameFactoryCaller {

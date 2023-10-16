@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -32,18 +31,14 @@ func TestService(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	exitC := make(chan error, 1)
-	go func() {
-		exitC <- Start(ctx, log.New(), cfg, "foobar")
-	}()
-
+	srv, err := Start(ctx, log.New(), cfg, "foobar")
 	// Make sure that the service properly starts
-	select {
-	case <-time.NewTimer(100 * time.Millisecond).C:
-		// pass
-	case err := <-exitC:
-		t.Fatalf("unexpected error on startup: %v", err)
-	}
+	require.NoError(t, err)
+
+	defer cancel()
+	defer func() {
+		require.NoError(t, srv.Stop(ctx), "close heartbeat server")
+	}()
 
 	tests := []struct {
 		name   string
@@ -132,9 +127,6 @@ func TestService(t *testing.T) {
 			require.Contains(t, string(metricsBody), tt.metric)
 		})
 	}
-
-	cancel()
-	require.NoError(t, <-exitC)
 }
 
 func freePort(t *testing.T) int {

@@ -185,13 +185,13 @@ For each iteration of the block derivation loop described above, the rollup driv
 object and send it to the execution engine. The execution engine will then convert the payload attributes object into a
 block, and add it to the chain. The basic sequence the rollup driver is as follows:
 
-1. Call `engine_forkchoiceUpdatedV1` with the payload attributes object. We'll skip over the details of the fork choice
+1. Call `engine_forkchoiceUpdatedV2` with the payload attributes object. We'll skip over the details of the fork choice
 state parameter for now - just know that one of its fields is the L2 chain's `headBlockHash`, and that it is set to the
 block hash of the tip of the L2 chain. The Engine API returns a payload ID.
-2. Call `engine_getPayloadV1` with the payload ID returned in step 1. The engine API returns a payload object that
+2. Call `engine_getPayloadV2` with the payload ID returned in step 1. The engine API returns a payload object that
 includes a block hash as one of its fields.
-3. Call `engine_newPayloadV1` with the payload returned in step 2.
-4. Call `engine_forkchoiceUpdatedV1` with the fork choice parameter's `headBlockHash` set to the block hash returned in
+3. Call `engine_newPayloadV2` with the payload returned in step 2.
+4. Call `engine_forkchoiceUpdatedV2` with the fork choice parameter's `headBlockHash` set to the block hash returned in
 step 2. The tip of the L2 chain is now the block created in step 1.
 
 The swimlane diagram below visualizes the process:

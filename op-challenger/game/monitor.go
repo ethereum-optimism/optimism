@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 
@@ -22,11 +23,11 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]FaultDisputeGame, error)
+	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]types.GameMetadata, error)
 }
 
 type gameScheduler interface {
-	Schedule([]common.Address) error
+	Schedule([]types.GameMetadata) error
 }
 
 type gameMonitor struct {
@@ -104,13 +105,13 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error 
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	var gamesToPlay []common.Address
+	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
 		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
-		gamesToPlay = append(gamesToPlay, game.Proxy)
+		gamesToPlay = append(gamesToPlay, game)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
