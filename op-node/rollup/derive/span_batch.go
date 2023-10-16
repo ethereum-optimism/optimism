@@ -9,12 +9,14 @@ import (
 	"math/big"
 	"sort"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // Batch format
@@ -144,10 +146,14 @@ func (bp *spanBatchPayload) decodeBlockCount(r *bytes.Reader) error {
 	if err != nil {
 		return fmt.Errorf("failed to read block count: %w", err)
 	}
-	bp.blockCount = blockCount
+	// number of L2 block in span batch cannot be greater than MaxSpanBatchFieldSize
+	if blockCount > MaxSpanBatchFieldSize {
+		return ErrTooBigSpanBatchFieldSize
+	}
 	if blockCount == 0 {
 		return ErrEmptySpanBatch
 	}
+	bp.blockCount = blockCount
 	return nil
 }
 
@@ -159,6 +165,11 @@ func (bp *spanBatchPayload) decodeBlockTxCounts(r *bytes.Reader) error {
 		blockTxCount, err := binary.ReadUvarint(r)
 		if err != nil {
 			return fmt.Errorf("failed to read block tx count: %w", err)
+		}
+		// number of txs in single L2 block cannot be greater than MaxSpanBatchFieldSize
+		// every tx will take at least single byte
+		if blockTxCount > MaxSpanBatchFieldSize {
+			return ErrTooBigSpanBatchFieldSize
 		}
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 	}
@@ -176,7 +187,15 @@ func (bp *spanBatchPayload) decodeTxs(r *bytes.Reader) error {
 	}
 	totalBlockTxCount := uint64(0)
 	for i := 0; i < len(bp.blockTxCounts); i++ {
-		totalBlockTxCount += bp.blockTxCounts[i]
+		total, overflow := math.SafeAdd(totalBlockTxCount, bp.blockTxCounts[i])
+		if overflow {
+			return ErrTooBigSpanBatchFieldSize
+		}
+		totalBlockTxCount = total
+	}
+	// total number of txs in span batch cannot be greater than MaxSpanBatchFieldSize
+	if totalBlockTxCount > MaxSpanBatchFieldSize {
+		return ErrTooBigSpanBatchFieldSize
 	}
 	bp.txs.totalBlockTxCount = totalBlockTxCount
 	if err := bp.txs.decode(r); err != nil {
