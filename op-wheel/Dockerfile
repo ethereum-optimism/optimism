@@ -1,21 +1,8 @@
-FROM golang:1.21.1-alpine3.18 as builder
-
-RUN apk add --no-cache make gcc musl-dev linux-headers
-
-COPY ./op-wheel /app/op-wheel
-COPY ./op-node /app/op-node
-COPY ./op-chain-ops /app/op-chain-ops
-COPY ./op-service /app/op-service
-COPY ./op-bindings /app/op-bindings
-COPY ./go.mod /app/go.mod
-COPY ./go.sum /app/go.sum
-
-WORKDIR /app/op-wheel
-
-RUN go build -o op-wheel ./cmd/main.go
-
+ARG OP_STACK_GO_BUILDER=us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:latest
+FROM $OP_STACK_GO_BUILDER as builder
+# See "make golang-docker" and /ops/docker/op-stack-go
 FROM alpine:3.18
 
-COPY --from=builder /app/op-wheel/op-wheel /usr/local/bin
+COPY --from=builder /app/op-wheel/bin/op-wheel /usr/local/bin
 
 CMD ["op-wheel"]

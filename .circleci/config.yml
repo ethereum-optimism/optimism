@@ -168,13 +168,42 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
+      build_args:
+        description: Docker build args
+        type: string
+        default: ""
+      load_base_image:
+        description: Load docker image as base
+        type: string
+        default: ""
+      save_image_tag:
+        description: Save docker image as
+        type: string
+        default: ""
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
+      docker_layer_caching: true
     steps:
       - checkout
+      - restore_cache:
+          name: Restore docker build cache
+          key: docker-build-cache
+      - attach_workspace:
+          at: /tmp/docker_images
       - run:
           command: mkdir -p /tmp/docker_images
+      - when:
+          condition: "<<parameters.load_base_image>>"
+          steps:
+            - run:
+                name: Load OP-Stack Go base image
+                command: |
+                  docker load < "/tmp/docker_images/<<parameters.load_base_image>>.tar"
+      - run:
+          name: build args
+          command: |
+            echo "build args: <<parameters.build_args>>"
       - run:
           name: Build
           command: |
@@ -185,20 +214,30 @@ jobs:
             fi
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            IMAGE_BASE_PREFIX="<<parameters.registry>>/<<parameters.repo>>"
+            IMAGE_BASE="$IMAGE_BASE_PREFIX/<<parameters.docker_name>>"
             docker build --progress plain \
+            <<parameters.build_args>> \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
             -f <<parameters.docker_file>> \
             <<parameters.docker_context>>
-      - run:
-          name: Save
-          command: |
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_LABELS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g")
-            echo -ne $DOCKER_LABELS | tr ' ' '\n' | xargs -I {} docker save -o /tmp/docker_images/<<parameters.docker_name>>_{}.tar $IMAGE_BASE:{}
-      - persist_to_workspace:
-          root: /tmp/docker_images
+      - when:
+          condition: "<<parameters.save_image_tag>>"
+          steps:
+            - run:
+                name: Save
+                command: |
+                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
+                  docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
+            - persist_to_workspace:
+                root: /tmp/docker_images
+                paths:  # only write the one file, to avoid concurrent workspace-file additions
+                  - "<<parameters.docker_name>>.tar"
+      - save_cache:
+          name: Save docker build cache
+          key: docker-build-cache
           paths:
-            - "."
+            - "/tmp/docker-build-cache"
 
   docker-publish:
     environment:
@@ -417,8 +456,8 @@ jobs:
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
-          name: check deploy configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
-          command: pnpm validate-deploy-configs
+          name: check deploy configs
+          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check statuses
@@ -675,53 +714,34 @@ jobs:
           event: fail
           template: basic_fail_1
 
-  fuzz-op-node:
+  fuzz-golang:
+    parameters:
+      package_name:
+        description: Go package name
+        type: string
+      on_changes:
+        description: changed pattern to fire fuzzer on
+        type: string
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
-          patterns: op-node
+          patterns: "<<parameters.package_name>>"
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          name: Restore Go build cache
+          key: golang-build-cache
       - run:
           name: Fuzz
           command: make fuzz
-          working_directory: op-node
-
-  fuzz-op-service:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: op-service
-      - run:
-          name: Fuzz
-          command: make fuzz
-          working_directory: op-service
-
-  fuzz-op-chain-ops:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: op-chain-ops,op-bindings
-      - run:
-          name: Fuzz
-          command: make fuzz
-          working_directory: op-chain-ops
-
-  fuzz-cannon:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon
-      - run:
-          name: Fuzz
-          command: make fuzz
-          working_directory: cannon
+          working_directory: "<<parameters.package_name>>"
+      - save_cache:
+          key: golang-build-cache
+          paths:
+            - "/root/.cache/go-build"
 
   depcheck:
     docker:
@@ -748,19 +768,42 @@ jobs:
           command: npx depcheck
           working_directory: packages/sdk
 
-  go-lint:
-    parameters:
-      module:
-        description: Go Module Name
-        type: string
+  l1-geth-version-check:
     docker:
-      - image: cimg/go:1.21
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
-          name: run lint
-          command: make lint
-          working_directory: <<parameters.module>>
+          name: "Check L1 geth version"
+          command: ./ops/scripts/geth-version-checker.sh || (echo "geth version is wrong, update ci-builder"; false)
+
+  go-lint:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: golang-build-cache
+      - restore_cache:
+          key: golang-lint-cache
+      - run:
+          name: run Go linter
+          command: |
+            # Identify how many cores it defaults to
+            golangci-lint --help | grep concurrency
+            make lint-go
+          working_directory: .
+      - save_cache:
+          key: golang-build-cache
+          paths:
+            - "/root/.cache/go-build"
+      - save_cache:
+          key: golang-lint-cache
+          paths:
+            - "/root/.cache/golangci-lint"
 
   go-test:
     parameters:
@@ -772,6 +815,13 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          keys:
+            - golang-build-cache-<<parameters.module>>
+            - golang-build-cache-
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
@@ -781,6 +831,10 @@ jobs:
             gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
             -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
+      - save_cache:
+          key: golang-build-cache-<<parameters.module>>
+          paths:
+            - "/root/.cache/go-build"
       - run:
           name: upload coverage
           command: codecov --verbose --clean --flags bedrock-go-tests
@@ -805,12 +859,16 @@ jobs:
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
-          name: install geth
-          command: make install-geth
-      - run:
-          name: git submodules
-          command: git submodule update --init --recursive
+          name: Load devnet-allocs
+          command: |
+            mkdir -p .devnet
+            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
+            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
       - run:
           name: print go's available MIPS targets
           command: go tool dist list | grep mips
@@ -881,9 +939,6 @@ jobs:
           command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 4m -e "errors.As" -e "errors.Is" ./...
           working_directory: indexer
       - run:
-          name: install geth
-          command: make install-geth
-      - run:
           name: git submodules
           command: git submodule update --init --recursive
       - run:
@@ -916,6 +971,60 @@ jobs:
           name: Check generated code
           command: npm run generate && git diff --exit-code
           working_directory: indexer/api-ts
+
+  cannon-prestate:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: golang-build-cache
+      - restore_cache:
+          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
+          name: Load cannon prestate cache
+      - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
+      - save_cache:
+          key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
+          name: Save Cannon prestate to cache
+          paths:
+            - "op-program/bin/prestate.json"
+            - "op-program/bin/meta.json"
+            - "op-program/bin/prestate-proof.json"
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "op-program/bin/prestate.json"
+            - "op-program/bin/meta.json"
+            - "op-program/bin/prestate-proof.json"
+
+  devnet-allocs:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: golang-build-cache
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: generate devnet allocs
+          command: make devnet-allocs
+      - persist_to_workspace:
+          root: .
+          paths:
+            - ".devnet/allocs-l1.json"
+            - ".devnet/addresses.json"
+            - "packages/contracts-bedrock/deploy-config/devnetL1.json"
+            - "packages/contracts-bedrock/deployments/devnetL1"
 
   devnet:
     machine:
@@ -968,9 +1077,37 @@ jobs:
           name: Install and build
           command: |
             pnpm install --frozen-lockfile --prefer-offline && pnpm build
+      - attach_workspace:
+          at: /tmp/workspace
       - run:
-          name: generate cannon prestate
-          command: make cannon-prestate
+          name: Load cannon pre-state
+          command: |
+            mkdir -p op-program/bin
+            cp /tmp/workspace/op-program/bin/prestate.json op-program/bin/prestate.json
+            cp /tmp/workspace/op-program/bin/meta.json op-program/bin/meta.json
+            cp /tmp/workspace/op-program/bin/prestate-proof.json op-program/bin/prestate-proof.json
+      - run:
+          name: Load devnet-allocs
+          command: |
+            mkdir -p .devnet
+            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
+            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
+      - run:
+          name: Load and tag docker images
+          command: |
+            IMAGE_BASE_PREFIX="us-docker.pkg.dev/oplabs-tools-artifacts/images"
+            # Load from previous docker-build job
+            docker load < "/tmp/workspace/op_stack_go.tar"
+            docker load < "/tmp/workspace/op-node.tar"
+            docker load < "/tmp/workspace/op-proposer.tar"
+            docker load < "/tmp/workspace/op-batcher.tar"
+            # rename to the tags that the docker-compose of the devnet expects
+            docker tag "$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op_stack_go:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
       - run:
           name: Bring up the stack
           command: make devnet-up
@@ -1054,18 +1191,50 @@ jobs:
           name: "Semgrep scan"
           command: semgrep ci
 
+  go-mod-download:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    parameters:
+      file:
+        default: go.sum
+        description: The file name of checksum for restore_cache and save_cache.
+        type: string
+      key:
+        default: gomod
+        description: The key of restore_cache and save_cache.
+        type: string
+    steps:
+      - checkout
+      - restore_cache:
+          key: << parameters.key >>-{{ checksum "<< parameters.file >>" }}
+          name: Restore Go modules cache
+      - run:
+          name: Sanity check go mod cache path
+          command: test "$(go env GOMODCACHE)" == "/go/pkg/mod" # yes, it's an odd path
+      - run:
+          command: go mod download
+          name: Download Go module dependencies
+      - save_cache:
+          key: << parameters.key >>-{{ checksum "<< parameters.file >>" }}
+          name: Save Go modules cache
+          paths:
+            - "/go/pkg/mod"
+
   go-mod-tidy:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
       - run:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
 
-  bedrock-go-tests:
+  bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
-      - image: cimg/go:1.21
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - run: echo Done
@@ -1167,110 +1336,111 @@ workflows:
       - depcheck:
           requires:
             - pnpm-monorepo
-      - devnet
       - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
       - indexer-tests
-      - go-lint-test-build:
-          name: op-heartbeat-tests
-          binary_name: op-heartbeat
-          working_directory: op-heartbeat
+      - l1-geth-version-check
       - semgrep-scan
-      - go-mod-tidy
-      - fuzz-op-node
-      - fuzz-op-service
-      - fuzz-op-chain-ops
-      - fuzz-cannon
+      - go-mod-download
+      - go-mod-tidy:
+          requires: ["go-mod-download"]
+      - devnet-allocs:  # devnet-allocs uses op-node genesis sub-command
+          requires:
+            - "go-mod-tidy"
+            - l1-geth-version-check
       - bedrock-markdown
-      - go-lint:
-          name: op-batcher-lint
-          module: op-batcher
-      - go-lint:
-          name: op-bootnode-lint
-          module: op-bootnode
-      - go-lint:
-          name: op-bindings-lint
-          module: op-bindings
-      - go-lint:
-          name: op-chain-ops-lint
-          module: op-chain-ops
-      - go-lint:
-          name: op-e2e-lint
-          module: op-e2e
-      - go-lint:
-          name: op-node-lint
-          module: op-node
-      - go-lint:
-          name: op-proposer-lint
-          module: op-proposer
-      - go-lint:
-          name: op-challenger-lint
-          module: op-challenger
-      - go-lint:
-          name: op-program-lint
-          module: op-program
-      - go-lint:
-          name: op-service-lint
-          module: op-service
-      - go-lint:
-          name: op-wheel-lint
-          module: op-wheel
+      - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
+          name: op-stack-go-lint
+          requires: [ "go-mod-tidy" ]
+      - fuzz-golang:
+          name: op-node-fuzz
+          package_name: op-node
+          on_changes: op-node
+          requires: ["op-stack-go-lint"]
+      - fuzz-golang:
+          name: op-service-fuzz
+          package_name: op-service
+          on_changes: op-service
+          requires: ["op-stack-go-lint"]
+      - fuzz-golang:
+          name: op-chain-ops-fuzz
+          package_name: op-chain-ops
+          on_changes: op-chain-ops,op-bindings
+          requires: ["op-stack-go-lint"]
+      - fuzz-golang:
+          name: cannon-fuzz
+          package_name: cannon
+          on_changes: cannon,packages/contracts-bedrock/src/cannon
+          requires: ["op-stack-go-lint"]
+      - go-test:
+          name: op-heartbeat-tests
+          module: op-heartbeat
+          requires: [ "op-stack-go-lint" ]
       - go-test:
           name: op-batcher-tests
           module: op-batcher
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-bindings-tests
           module: op-bindings
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-chain-ops-tests
           module: op-chain-ops
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-node-tests
           module: op-node
-          # TODO: override resource class
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-proposer-tests
           module: op-proposer
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-challenger-tests
           module: op-challenger
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-program-tests
           module: op-program
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-service-tests
           module: op-service
+          requires: ["op-stack-go-lint"]
       - go-e2e-test:
           name: op-e2e-WS-tests
           module: op-e2e
           target: test-ws
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
       - go-e2e-test:
           name: op-e2e-HTTP-tests
           module: op-e2e
           target: test-http
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
       - go-e2e-test:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
+            - l1-geth-version-check
       - bedrock-go-tests:
           requires:
+            - go-mod-download
             - go-mod-tidy
             - cannon-build-test-vectors
             - cannon-go-lint-and-test
             - check-generated-mocks-op-node
             - check-generated-mocks-op-service
-            - op-batcher-lint
-            - op-bootnode-lint
-            - op-bindings-lint
-            - op-chain-ops-lint
-            - op-e2e-lint
-            - op-node-lint
-            - op-proposer-lint
-            - op-challenger-lint
-            - op-program-lint
-            - op-service-lint
+            - op-stack-go-lint
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
@@ -1284,41 +1454,80 @@ workflows:
             - op-e2e-HTTP-tests
             - op-e2e-ext-geth-tests
       - docker-build:
+          name: op-stack-go-docker-build
+          docker_file: ops/docker/op-stack-go/Dockerfile
+          docker_name: op_stack_go
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          build_args: "--build-arg GIT_COMMIT=$(git rev-parse HEAD) --build-arg GIT_DATE=$(git show -s --format='%ct')"
+          save_image_tag: <<pipeline.git.revision>> # other images builds below depend on this image, so we save it to the workspace
+      - docker-build:
           name: op-node-docker-build
           docker_file: op-node/Dockerfile
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          load_base_image: "op_stack_go"
           docker_context: .
+          requires: ['op-stack-go-docker-build']
+          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-batcher-docker-build
           docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          load_base_image: "op_stack_go"
           docker_context: .
+          requires: ['op-stack-go-docker-build']
+          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-program-docker-build
           docker_file: op-program/Dockerfile
           docker_name: op-program
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          load_base_image: "op_stack_go"
           docker_context: .
+          requires: ['op-stack-go-docker-build']
+          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
       - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          load_base_image: "op_stack_go"
           docker_context: .
+          requires: ['op-stack-go-docker-build']
+          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-challenger-docker-build
           docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          load_base_image: "op_stack_go"
           docker_context: .
+          requires: ['op-stack-go-docker-build']
+          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
       - docker-build:
           name: op-heartbeat-docker-build
           docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          load_base_image: "op_stack_go"
           docker_context: .
+          requires: ['op-stack-go-docker-build']
+          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+      - cannon-prestate:
+          requires: ["op-stack-go-lint"]
+      - devnet:
+          requires:
+            - op-node-docker-build
+            - op-batcher-docker-build
+            - op-proposer-docker-build
+            - l1-geth-version-check
+            - devnet-allocs
+            - cannon-prestate
       - docker-build:
           name: indexer-docker-build
           docker_file: indexer/Dockerfile
