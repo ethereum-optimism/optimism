@@ -6,11 +6,16 @@ import { BaseGuard, GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { SignatureDecoder } from "safe-contracts/common/SignatureDecoder.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
-contract LivenessGuard is SignatureDecoder, BaseGuard {
+contract LivenessGuard is ISemver, SignatureDecoder, BaseGuard {
     /// @notice Emitted when a new set of signers is recorded.
     /// @param signers An arrary of signer addresses.
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     Safe public immutable safe;
     mapping(address => uint256) public lastSigned;

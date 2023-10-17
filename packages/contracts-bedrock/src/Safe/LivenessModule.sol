@@ -5,6 +5,7 @@ import { Safe } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 // TODO(maurelian): remove me
 import { console2 as console } from "forge-std/console2.sol";
@@ -27,6 +28,10 @@ contract LivenessModule {
 
     /// @notice The fallback owner of the Safe
     address public fallbackOwner;
+
+    /// @notice Semantic version.
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     // Constructor to initialize the Safe and baseModule instances
     constructor(
