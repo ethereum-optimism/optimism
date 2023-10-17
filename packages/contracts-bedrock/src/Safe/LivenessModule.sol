@@ -12,8 +12,8 @@ import { console2 as console } from "forge-std/console2.sol";
 
 /// @title LivenessModule
 /// @notice This module is intended to be used in conjunction with the LivenessGuard. It should be able to
-///         execute a transaction on the Safe in only a small number of cases:
-contract LivenessModule {
+///         execute a transaction on the Safe in only a small number of cases.
+contract LivenessModule is ISemver {
     /// @notice The Safe contract instance
     Safe public safe;
 
