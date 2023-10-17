@@ -1,4 +1,4 @@
-FROM debian:bullseye-20220822-slim as rust-build
+FROM --platform=linux/amd64 debian:bullseye-slim as rust-build
 
 SHELL ["/bin/bash", "-c"]
 
@@ -6,12 +6,13 @@ WORKDIR /opt
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-  apt-get install -y curl build-essential git && \
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+  apt-get install -y curl build-essential git clang lld curl
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
   ./rustup.sh -y
 
-RUN $HOME/.cargo/bin/cargo install just
+RUN source $HOME/.profile && cargo install just
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
@@ -27,28 +28,29 @@ RUN source $HOME/.profile && \
   strip /opt/foundry/target/release/cast && \
   strip /opt/foundry/target/release/anvil
 
-FROM ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
+FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
-FROM python:3.11.4-slim-bullseye
+FROM --platform=linux/amd64 python:3.11.4-slim-bullseye
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=rust-build /usr/local/cargo/bin/just /usr/local/bin/just
+COPY --from=rust-build /root/.cargo/bin/just /usr/local/bin/just
 COPY --from=rust-build /opt/foundry/target/release/forge /usr/local/bin/forge
 COPY --from=rust-build /opt/foundry/target/release/cast /usr/local/bin/cast
 COPY --from=rust-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
+COPY .nvmrc .nvmrc
+
 RUN apt-get update && \
-  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
-  curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
+  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils g++-x86-64-linux-gnu libc6-dev-amd64-cross && \
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash && \
+  . /root/.bashrc && nvm install && nvm use  && nvm install-latest-npm && \
   curl -sL https://go.dev/dl/go1.21.1.linux-amd64.tar.gz -o go1.21.1.linux-amd64.tar.gz && \
   tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
-  bash nodesource_setup.sh && \
-  apt-get install -y nodejs && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.3 && \
   go install gotest.tools/gotestsum@latest && \
@@ -62,7 +64,7 @@ RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
 
 # We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
 # it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules
-RUN echo "downloading pnpm and yarn" && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
+RUN echo "downloading pnpm and yarn" && . /root/.bashrc && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN echo "downloading solidity compilers" && \
   curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \
