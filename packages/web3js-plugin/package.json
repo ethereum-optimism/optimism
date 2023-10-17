@@ -37,7 +37,7 @@
     "@vitest/coverage-istanbul": "^0.34.6",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
-    "viem": "^1.16.5",
+    "viem": "^1.16.6",
     "vite": "^4.4.10",
     "vitest": "^0.34.1",
     "zod": "^3.22.4"
