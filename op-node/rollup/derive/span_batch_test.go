@@ -529,7 +529,7 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x177288))
 
 	invalidTx := types.NewTx(&types.DynamicFeeTx{
-		Data: testutils.RandomData(rng, MaxSpanBatchFieldSize+1),
+		Data: testutils.RandomData(rng, MaxSpanBatchSize+1),
 	})
 
 	txEncoded, err := invalidTx.MarshalBinary()
@@ -538,7 +538,7 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	r := bytes.NewReader(txEncoded)
 	_, _, err = ReadTxData(r)
 
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchMaxOriginBitsLength(t *testing.T) {
@@ -547,7 +547,7 @@ func TestSpanBatchMaxOriginBitsLength(t *testing.T) {
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchMaxBlockCount(t *testing.T) {
@@ -565,7 +565,7 @@ func TestSpanBatchMaxBlockCount(t *testing.T) {
 	r := bytes.NewReader(result)
 	var sb RawSpanBatch
 	err = sb.decodeBlockCount(r)
-	require.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchMaxBlockTxCount(t *testing.T) {
@@ -584,7 +584,7 @@ func TestSpanBatchMaxBlockTxCount(t *testing.T) {
 	var sb RawSpanBatch
 	sb.blockCount = rawSpanBatch.blockCount
 	err = sb.decodeBlockTxCounts(r)
-	require.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
@@ -592,8 +592,8 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	chainID := big.NewInt(rng.Int63n(1000))
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
-	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchFieldSize - 1
-	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchFieldSize - 1
+	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchSize - 1
+	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchSize - 1
 	// we are sure that totalBlockTxCount will overflow on uint64
 
 	var buf bytes.Buffer
@@ -606,5 +606,5 @@ func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
 	sb.blockTxCounts = rawSpanBatch.blockTxCounts
 	err = sb.decodeTxs(r)
 
-	require.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }

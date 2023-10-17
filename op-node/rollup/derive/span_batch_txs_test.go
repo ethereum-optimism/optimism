@@ -391,7 +391,7 @@ func TestSpanBatchTxsMaxContractCreationBitsLength(t *testing.T) {
 
 	r := bytes.NewReader([]byte{})
 	err := sbt.decodeContractCreationBits(r)
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchTxsMaxYParityBitsLength(t *testing.T) {
@@ -400,5 +400,5 @@ func TestSpanBatchTxsMaxYParityBitsLength(t *testing.T) {
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
