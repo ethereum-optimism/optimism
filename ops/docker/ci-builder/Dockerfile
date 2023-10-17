@@ -57,10 +57,12 @@ RUN apt-get update && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
 
-COPY ./.abigenrc ./.abigenrc
-
 # Install the specific version of abigen from .abigenrc
+COPY ./.abigenrc ./.abigenrc
 RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
+
+COPY ./.gethrc ./.gethrc
+RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(cat .gethrc)
 
 # We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
 # it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules
