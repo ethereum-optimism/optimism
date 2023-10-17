@@ -24,6 +24,10 @@ type Game interface {
 	// GetParent returns the parent of the provided claim.
 	GetParent(claim Claim) (Claim, error)
 
+	// DefendsParent returns true if and only if the claim is a defense (i.e. goes right) of
+	// its parent.
+	DefendsParent(claim Claim) bool
+
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state
 	// referencing the same parent claim
 	IsDuplicate(claim Claim) bool
@@ -38,7 +42,7 @@ type claimID common.Hash
 
 func computeClaimID(claim Claim) claimID {
 	return claimID(crypto.Keccak256Hash(
-		new(big.Int).SetUint64(claim.Position.ToGIndex()).Bytes(),
+		claim.Position.ToGIndex().Bytes(),
 		claim.Value.Bytes(),
 		big.NewInt(int64(claim.ParentContractIndex)).Bytes(),
 	))
@@ -100,6 +104,14 @@ func (g *gameState) GetParent(claim Claim) (Claim, error) {
 		return Claim{}, ErrClaimNotFound
 	}
 	return *parent, nil
+}
+
+func (g *gameState) DefendsParent(claim Claim) bool {
+	parent := g.getParent(claim)
+	if parent == nil {
+		return false
+	}
+	return claim.RightOf(parent.Position)
 }
 
 func (g *gameState) getParent(claim Claim) *Claim {

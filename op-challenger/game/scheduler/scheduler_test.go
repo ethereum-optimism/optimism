@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -14,8 +16,8 @@ import (
 func TestSchedulerProcessesGames(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	ctx := context.Background()
-	createPlayer := func(addr common.Address, dir string) (GamePlayer, error) {
-		return &stubPlayer{}, nil
+	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
+		return &test.StubGamePlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
@@ -25,7 +27,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 	gameAddr1 := common.Address{0xaa}
 	gameAddr2 := common.Address{0xbb}
 	gameAddr3 := common.Address{0xcc}
-	games := []common.Address{gameAddr1, gameAddr2, gameAddr3}
+	games := asGames(gameAddr1, gameAddr2, gameAddr3)
 
 	require.NoError(t, s.Schedule(games))
 
@@ -34,7 +36,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 		kept := <-removeExceptCalls
 		require.Len(t, kept, len(games), "should keep all games")
 		for _, game := range games {
-			require.Containsf(t, kept, game, "should keep game %v", game)
+			require.Containsf(t, kept, game.Proxy, "should keep game %v", game.Proxy)
 		}
 	}
 	require.NoError(t, s.Close())
@@ -42,18 +44,18 @@ func TestSchedulerProcessesGames(t *testing.T) {
 
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	createPlayer := func(addr common.Address, dir string) (GamePlayer, error) {
-		return &stubPlayer{}, nil
+	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
+		return &test.StubGamePlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
 	s := NewScheduler(logger, metrics.NoopMetrics, disk, 2, createPlayer)
 
 	// Scheduler not started - first call fills the queue
-	require.NoError(t, s.Schedule([]common.Address{{0xaa}}))
+	require.NoError(t, s.Schedule(asGames(common.Address{0xaa})))
 
 	// Second call should return busy
-	err := s.Schedule([]common.Address{{0xaa}})
+	err := s.Schedule(asGames(common.Address{0xaa}))
 	require.ErrorIs(t, err, ErrBusy)
 }
 

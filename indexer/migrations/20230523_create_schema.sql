@@ -3,7 +3,12 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
         CREATE DOMAIN UINT256 AS NUMERIC
-            CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
+    ELSE
+        -- To remain backwards compatible, drop the old constraint and re-add.
+        ALTER DOMAIN UINT256 DROP CONSTRAINT uint256_check;
+        ALTER DOMAIN UINT256 ADD
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
     END IF;
 END $$;
 
@@ -87,10 +92,17 @@ CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
     l2_transaction_hash     VARCHAR NOT NULL UNIQUE,
     initiated_l1_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
 
-    -- transaction data
+    -- transaction data. NOTE: `to_address` is the recipient of funds transferred in value field of the
+    -- L2 deposit transaction and not the amount minted on L1 from the source address. Hence the `amount`
+    -- column in this table does NOT indiciate the amount transferred to the recipient but instead funds
+    -- bridged from L1 into `from_address`.
     from_address VARCHAR NOT NULL,
     to_address   VARCHAR NOT NULL,
+
+    -- This refers to the amount MINTED on L2 (msg.value of the L1 transaction). Important distinction from
+    -- the `value` field of the deposit transaction which simply is the value transferred to specified recipient.
     amount       UINT256 NOT NULL,
+
     gas_limit    UINT256 NOT NULL,
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)

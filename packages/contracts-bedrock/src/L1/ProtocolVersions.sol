@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @notice ProtocolVersion is a numeric identifier of the protocol version.
 type ProtocolVersion is uint256;
@@ -35,8 +36,8 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 0.2.0
-    string public constant version = "0.2.0";
+    /// @custom:semver 1.0.0
+    string public constant version = "1.0.0";
 
     /// @notice Constructs the ProtocolVersion contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
@@ -60,7 +61,7 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
         ProtocolVersion _recommended
     )
         public
-        reinitializer(2)
+        reinitializer(Constants.INITIALIZER)
     {
         __Ownable_init();
         transferOwnership(_owner);

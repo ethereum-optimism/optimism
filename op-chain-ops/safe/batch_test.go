@@ -58,7 +58,7 @@ func TestBatchAddCallFinalizeWithdrawalTransaction(t *testing.T) {
 	to := common.Address{19: 0x01}
 	value := big.NewInt(222)
 
-	require.NoError(t, batch.AddCall(to, value, sig, argument, portalABI))
+	require.NoError(t, batch.AddCall(to, value, sig, argument, &portalABI))
 	require.NoError(t, batch.Check())
 	require.Equal(t, batch.Transactions[0].Signature(), "finalizeWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes))")
 
@@ -89,7 +89,7 @@ func TestBatchAddCallDespositTransaction(t *testing.T) {
 		[]byte{},
 	}
 
-	require.NoError(t, batch.AddCall(to, value, sig, argument, portalABI))
+	require.NoError(t, batch.AddCall(to, value, sig, argument, &portalABI))
 	require.NoError(t, batch.Check())
 	require.Equal(t, batch.Transactions[0].Signature(), "depositTransaction(address,uint256,uint64,bool,bytes)")
 

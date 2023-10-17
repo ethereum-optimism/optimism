@@ -5,7 +5,6 @@ import (
 	"fmt"
 	_ "net/http/pprof"
 
-	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
@@ -27,11 +26,15 @@ func Main(version string, cliCtx *cli.Context) error {
 		return err
 	}
 	cfg := NewConfig(cliCtx)
+	if err := cfg.Check(); err != nil {
+		return fmt.Errorf("invalid CLI flags: %w", err)
+	}
 
 	l := oplog.NewLogger(oplog.AppOut(cliCtx), cfg.LogConfig)
 	oplog.SetGlobalLogHandler(l.GetHandler())
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
-	m := metrics.NewMetrics("default")
+	procName := "default"
+	m := metrics.NewMetrics(procName)
 	l.Info("Initializing Batch Submitter")
 
 	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l, m)
@@ -47,47 +50,54 @@ func Main(version string, cliCtx *cli.Context) error {
 		}
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // Stop pprof and metrics only after main loop returns
 	defer batchSubmitter.StopIfRunning(context.Background())
 
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
-		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
-		go func() {
-			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
-				l.Error("error starting pprof", "err", err)
+		l.Debug("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+		pprofSrv, err := oppprof.StartServer(pprofConfig.ListenAddr, pprofConfig.ListenPort)
+		if err != nil {
+			l.Error("failed to start pprof server", "err", err)
+			return err
+		}
+		l.Info("started pprof server", "addr", pprofSrv.Addr())
+		defer func() {
+			if err := pprofSrv.Stop(context.Background()); err != nil {
+				l.Error("failed to stop pprof server", "err", err)
 			}
 		}()
 	}
 
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
-		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-		go func() {
-			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-				l.Error("error starting metrics server", "err", err)
+		l.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		metricsSrv, err := m.Start(metricsCfg.ListenAddr, metricsCfg.ListenPort)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics server: %w", err)
+		}
+		l.Info("started metrics server", "addr", metricsSrv.Addr())
+		defer func() {
+			if err := metricsSrv.Stop(context.Background()); err != nil {
+				l.Error("failed to stop pprof server", "err", err)
 			}
 		}()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
-	rpcCfg := cfg.RPCConfig
 	server := oprpc.NewServer(
-		rpcCfg.ListenAddr,
-		rpcCfg.ListenPort,
+		cfg.RPCFlag.ListenAddr,
+		cfg.RPCFlag.ListenPort,
 		version,
 		oprpc.WithLogger(l),
 	)
-	if rpcCfg.EnableAdmin {
-		server.AddAPI(gethrpc.API{
-			Namespace: "admin",
-			Service:   rpc.NewAdminAPI(batchSubmitter),
-		})
+	if cfg.RPCFlag.EnableAdmin {
+		adminAPI := rpc.NewAdminAPI(batchSubmitter, &m.RPCMetrics, l)
+		server.AddAPI(rpc.GetAdminAPI(adminAPI))
 		l.Info("Admin RPC enabled")
 	}
 	if err := server.Start(); err != nil {
-		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
 

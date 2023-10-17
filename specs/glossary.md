@@ -208,7 +208,7 @@ A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequ
 A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transaction] for epoch
 `N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
 
-> **TODO** specify sequencer window size
+The current default `sws` is 3600 epochs.
 
 Additionally, the first block in the window defines the [depositing transactions][depositing-tx] which determine the
 [deposits] to be included in the first L2 block of the epoch.
@@ -392,7 +392,7 @@ proof][fault-proof].
 
 Data availability is the guarantee that some data will be "available" (i.e. *retrievable*) during a reasonably long time
 window. In Optimism's case, the data in question are [sequencer batches][sequencer-batch] that [validators][validator]
-needs in order to verify the sequencer's work and validate the L2 chain.
+need in order to verify the sequencer's work and validate the L2 chain.
 
 The [finalization period][finalization-period] should be taken as the lower bound on the availability window, since
 that is when data availability is the most crucial, as it is needed to perform a [fault proof][fault-proof].

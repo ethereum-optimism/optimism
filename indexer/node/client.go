@@ -193,8 +193,8 @@ func (c *client) FilterLogs(query ethereum.FilterQuery) ([]types.Log, error) {
 	return result, err
 }
 
-// Modeled off op-node/client.go. We can refactor this once the client/metrics portion
-// of op-node/client has been generalized
+// Modeled off op-service/client.go. We can refactor this once the client/metrics portion
+// of op-service/client has been generalized
 
 type RPC interface {
 	Close()

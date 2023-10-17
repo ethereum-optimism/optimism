@@ -6,6 +6,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -33,7 +34,13 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Initializes the contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
-    function initialize(OptimismPortal _portal, SuperchainConfig _superchainConfig) public reinitializer(2) {
+    function initialize(
+        OptimismPortal _portal,
+        SuperchainConfig _superchainConfig
+    )
+        public
+        reinitializer(Constants.INITIALIZER)
+    {
         PORTAL = _portal;
         superchainConfig = _superchainConfig;
 

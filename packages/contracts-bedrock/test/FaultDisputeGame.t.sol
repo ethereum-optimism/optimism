@@ -483,12 +483,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
-    function testFuzz_addLocalData_oob_reverts(uint256 _ident) public {
+    function testFuzz_addLocalData_oob_reverts(uint256 _ident, uint256 _localContext) public {
         // [1, 5] are valid local data identifiers.
         if (_ident <= 5) _ident = 0;
 
         vm.expectRevert(InvalidLocalIdent.selector);
-        gameProxy.addLocalData(_ident, 0);
+        gameProxy.addLocalData(_ident, _localContext, 0);
     }
 
     /// @dev Tests that local data is loaded into the preimage oracle correctly.
@@ -508,8 +508,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         for (uint256 i = 1; i <= 5; i++) {
             uint256 expectedLen = i > 3 ? 8 : 32;
 
-            gameProxy.addLocalData(i, 0);
-            bytes32 key = _getKey(i);
+            gameProxy.addLocalData(i, 0, 0);
+            bytes32 key = _getKey(i, 0);
             (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
             assertEq(dat >> 0xC0, bytes32(expectedLen));
             // Account for the length prefix if i > 3 (the data stored
@@ -519,8 +519,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             // total.)
             assertEq(datLen, expectedLen + (i > 3 ? 8 : 0));
 
-            gameProxy.addLocalData(i, 8);
-            key = _getKey(i);
+            gameProxy.addLocalData(i, 0, 8);
+            key = _getKey(i, 0);
             (dat, datLen) = oracle.readPreimage(key, 8);
             assertEq(dat, data[i - 1]);
             assertEq(datLen, expectedLen);
@@ -528,8 +528,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
-    function _getKey(uint256 _ident) internal view returns (bytes32) {
-        bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy)));
+    function _getKey(uint256 _ident, uint256 _localContext) internal view returns (bytes32) {
+        bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }
 
@@ -1099,7 +1099,7 @@ contract AlphabetVM is IBigStepper {
     }
 
     /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata) external view returns (bytes32 postState_) {
+    function step(bytes calldata _stateData, bytes calldata, uint256) external view returns (bytes32 postState_) {
         uint256 traceIndex;
         uint256 claim;
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {

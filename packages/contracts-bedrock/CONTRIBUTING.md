@@ -59,7 +59,7 @@ Optimism's smart contracts are written in Solidity and we use [foundry](https://
 1. [golang](https://golang.org/doc/install)
 1. [python](https://www.python.org/downloads/)
 
-Our [Style Guide](STYLE_GUIDE.md) contains information about the project structure, syntax preferences, naming conventions, and more. Please take a look at it before submitting a PR, and let us know if you spot inconcistencies!
+Our [Style Guide](STYLE_GUIDE.md) contains information about the project structure, syntax preferences, naming conventions, and more. Please take a look at it before submitting a PR, and let us know if you spot inconsistencies!
 
 Once you've read the styleguide and are ready to work on your PR, there are a plethora of useful `pnpm` scripts to know about that will help you with development:
 1. `pnpm build` Builds the smart contracts.

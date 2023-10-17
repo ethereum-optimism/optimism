@@ -54,11 +54,15 @@ The indexer service is responsible for polling and processing real-time batches 
 * Process and persist new bridge events
 * Synchronize L1 proven/finalized withdrawals with their L2 initialization counterparts
 
-#### API 
+
+### L1 Polling
+L1 blocks are only indexed if they contain L1 system contract events. This is done to reduce the amount of unnecessary data that is indexed. Because of this, the `l1_block_headers` table will not contain every L1 block header.
+
+#### API
 The indexer service runs a lightweight health server adjacently to the main service. The health server exposes a single endpoint `/healthz` that can be used to check the health of the indexer service. The health assessment doesn't check dependency health (ie. database) but rather checks the health of the indexer service itself.
 
 ### Database
 The indexer service currently supports a Postgres database for storing L1/L2 OP Stack chain data. The most up-to-date database schemas can be found in the `./migrations` directory.
 
-## Metrics 
-The indexer services exposes a set of Prometheus metrics that can be used to monitor the health of the service. The metrics are exposed via the `/metrics` endpoint on the health server. 
+## Metrics
+The indexer services exposes a set of Prometheus metrics that can be used to monitor the health of the service. The metrics are exposed via the `/metrics` endpoint on the health server.

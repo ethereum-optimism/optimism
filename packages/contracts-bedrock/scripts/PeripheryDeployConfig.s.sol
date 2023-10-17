@@ -28,6 +28,12 @@ contract PeripheryDeployConfig is Script {
     uint256 public faucetGelatoBalanceV1DripInterval;
     uint256 public faucetGelatoBalanceV1Value;
     uint256 public faucetGelatoThreshold;
+    address public faucetOnchainAuthModuleAdmin;
+    uint256 public faucetOnchainAuthModuleTtl;
+    uint256 public faucetOnchainAuthModuleAmount;
+    address public faucetOffchainAuthModuleAdmin;
+    uint256 public faucetOffchainAuthModuleTtl;
+    uint256 public faucetOffchainAuthModuleAmount;
 
     constructor(string memory _path) {
         console.log("PeripheryDeployConfig: reading file %s", _path);
@@ -54,5 +60,11 @@ contract PeripheryDeployConfig is Script {
         faucetGelatoBalanceV1DripInterval = stdJson.readUint(_json, "$.faucetGelatoBalanceV1DripInterval");
         faucetGelatoBalanceV1Value = stdJson.readUint(_json, "$.faucetGelatoBalanceV1Value");
         faucetGelatoThreshold = stdJson.readUint(_json, "$.faucetGelatoThreshold");
+        faucetOnchainAuthModuleAdmin = stdJson.readAddress(_json, "$.faucetOnchainAuthModuleAdmin");
+        faucetOnchainAuthModuleTtl = stdJson.readUint(_json, "$.faucetOnchainAuthModuleTtl");
+        faucetOnchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOnchainAuthModuleAmount");
+        faucetOffchainAuthModuleAdmin = stdJson.readAddress(_json, "$.faucetOffchainAuthModuleAdmin");
+        faucetOffchainAuthModuleTtl = stdJson.readUint(_json, "$.faucetOffchainAuthModuleTtl");
+        faucetOffchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAmount");
     }
 }

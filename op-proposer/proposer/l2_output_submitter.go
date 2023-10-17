@@ -9,24 +9,25 @@ import (
 	"sync"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -62,9 +63,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	l.Info("Starting L2 Output Submitter")
-	ctx, cancel := context.WithCancel(context.Background())
 	if err := l2OutputSubmitter.Start(); err != nil {
-		cancel()
 		l.Error("Unable to start L2 Output Submitter", "error", err)
 		return err
 	}
@@ -73,29 +72,45 @@ func Main(version string, cliCtx *cli.Context) error {
 	l.Info("L2 Output Submitter started")
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
-		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
-		go func() {
-			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
-				l.Error("error starting pprof", "err", err)
+		l.Debug("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+		pprofSrv, err := oppprof.StartServer(pprofConfig.ListenAddr, pprofConfig.ListenPort)
+		if err != nil {
+			l.Error("failed to start pprof server", "err", err)
+			return err
+		}
+		l.Info("started pprof server", "addr", pprofSrv.Addr())
+		defer func() {
+			if err := pprofSrv.Stop(context.Background()); err != nil {
+				l.Error("failed to stop pprof server", "err", err)
 			}
 		}()
 	}
 
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
-		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-		go func() {
-			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-				l.Error("error starting metrics server", "err", err)
+		l.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		metricsSrv, err := m.Start(metricsCfg.ListenAddr, metricsCfg.ListenPort)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics server: %w", err)
+		}
+		l.Info("started metrics server", "addr", metricsSrv.Addr())
+		defer func() {
+			if err := metricsSrv.Stop(context.Background()); err != nil {
+				l.Error("failed to stop metrics server", "err", err)
 			}
 		}()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 		m.StartBalanceMetrics(ctx, l, proposerConfig.L1Client, proposerConfig.TxManager.From())
 	}
 
 	rpcCfg := cfg.RPCConfig
 	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, oprpc.WithLogger(l))
+	if rpcCfg.EnableAdmin {
+		server.AddAPI(oprpc.ToGethAdminAPI(oprpc.NewCommonAdminAPI(&m.RPCMetrics, l)))
+		l.Info("Admin RPC enabled")
+	}
 	if err := server.Start(); err != nil {
-		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
 
@@ -103,7 +118,6 @@ func Main(version string, cliCtx *cli.Context) error {
 	m.RecordUp()
 
 	opio.BlockOnInterrupts()
-	cancel()
 
 	return nil
 }
@@ -158,12 +172,12 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
-	l1Client, err := opclient.DialEthClientWithTimeout(opclient.DefaultDialTimeout, l, cfg.L1EthRpc)
+	l1Client, err := dial.DialEthClientWithTimeout(dial.DefaultDialTimeout, l, cfg.L1EthRpc)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupClient, err := opclient.DialRollupClientWithTimeout(opclient.DefaultDialTimeout, l, cfg.RollupRpc)
+	rollupClient, err := dial.DialRollupClientWithTimeout(dial.DefaultDialTimeout, l, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
 	}

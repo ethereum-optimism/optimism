@@ -12,10 +12,10 @@
   - [Base fees (Base Fee Vault)](#base-fees-base-fee-vault)
   - [L1-Cost fees (L1 Fee Vault)](#l1-cost-fees-l1-fee-vault)
 - [Engine API](#engine-api)
-  - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
+  - [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceupdatedv2)
     - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
-  - [`engine_newPayloadV1`](#engine_newpayloadv1)
-  - [`engine_getPayloadV1`](#engine_getpayloadv1)
+  - [`engine_newPayloadV2`](#engine_newpayloadv2)
+  - [`engine_getPayloadV2`](#engine_getpayloadv2)
   - [`engine_signalSuperchainV1`](#engine_signalsuperchainv1)
 - [Networking](#networking)
 - [Sync](#sync)
@@ -127,7 +127,7 @@ can be accessed in two interchangeable ways:
 There may be subtle tweaks, beta starts in a few weeks*
 -->
 
-### `engine_forkchoiceUpdatedV1`
+### `engine_forkchoiceUpdatedV2`
 
 This updates which L2 blocks the engine considers to be canonical (`forkchoiceState` argument),
 and optionally initiates block production (`payloadAttributes` argument).
@@ -140,7 +140,7 @@ Within the rollup, the types of forkchoice updates translate as:
 - `finalizedBlockHash`: irreversible block hash, matches lower boundary of the dispute period.
 
 To support rollup functionality, one backwards-compatible change is introduced
-to [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1]: the extended `PayloadAttributesV1`
+to [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2]: the extended `PayloadAttributesV1`
 
 #### Extended PayloadAttributesV1
 
@@ -181,7 +181,7 @@ The `noTxPool` is optional as well, and extends the `transactions` meaning:
 If the `transactions` field is present, the engine must execute the transactions in order and return `STATUS_INVALID`
 if there is an error processing the transactions. It must return `STATUS_VALID` if all of the transactions could
 be executed without error. **Note**: The state transition rules have been modified such that deposits will never fail
-so if `engine_forkchoiceUpdatedV1` returns `STATUS_INVALID` it is because a batched transaction is invalid.
+so if `engine_forkchoiceUpdatedV2` returns `STATUS_INVALID` it is because a batched transaction is invalid.
 
 The `gasLimit` is optional w.r.t. compatibility with L1, but required when used as rollup.
 This field overrides the gas limit used during block-building.
@@ -189,15 +189,15 @@ If not specified as rollup, a `STATUS_INVALID` is returned.
 
 [rollup-driver]: rollup-node.md
 
-### `engine_newPayloadV1`
+### `engine_newPayloadV2`
 
-No modifications to [`engine_newPayloadV1`][engine_newPayloadV1].
+No modifications to [`engine_newPayloadV2`][engine_newPayloadV2].
 Applies a L2 block to the engine state.
 
-### `engine_getPayloadV1`
+### `engine_getPayloadV2`
 
-No modifications to [`engine_getPayloadV1`][engine_getPayloadV1].
-Retrieves a payload by ID, prepared by `engine_forkchoiceUpdatedV1` when called with `payloadAttributes`.
+No modifications to [`engine_getPayloadV2`][engine_getPayloadV2].
+Retrieves a payload by ID, prepared by `engine_forkchoiceUpdatedV2` when called with `payloadAttributes`.
 
 ### `engine_signalSuperchainV1`
 
@@ -274,8 +274,8 @@ as the engine implementation can sync state faster through methods like [snap-sy
 ### Happy-path sync
 
 1. The rollup node informs the engine of the L2 chain head, unconditionally (part of regular node operation):
-   - [`engine_newPayloadV1`][engine_newPayloadV1] is called with latest L2 block received from P2P.
-   - [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1] is called with the current
+   - [`engine_newPayloadV2`][engine_newPayloadV2] is called with latest L2 block received from P2P.
+   - [`engine_forkchoiceUpdatedV2`][engine_forkchoiceUpdatedV2] is called with the current
      `unsafe`/`safe`/`finalized` L2 block hashes.
 2. The engine requests headers from peers, in reverse till the parent hash matches the local chain
 3. The engine catches up:
@@ -291,7 +291,7 @@ the operation within the engine is the exact same as with L1 (although with an E
 2. The rollup node maintains latest head from engine (poll `eth_getBlockByNumber` and/or maintain a header subscription)
 3. The rollup node activates sync if the engine is out of sync but not syncing through P2P (`eth_syncing`)
 4. The rollup node inserts blocks, derived from L1, one by one, potentially adapting to L1 reorg(s),
-   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV1`, `engine_newPayloadV1`)
+   as outlined in the [rollup node spec] (`engine_forkchoiceUpdatedV2`, `engine_newPayloadV2`)
 
 [rollup node spec]: rollup-node.md
 
@@ -303,8 +303,8 @@ the operation within the engine is the exact same as with L1 (although with an E
 [l1-api-spec]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md
 [PayloadAttributesV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#PayloadAttributesV1
 [ExecutionPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#ExecutionPayloadV1
-[engine_forkchoiceUpdatedV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#engine_forkchoiceupdatedv1
-[engine_newPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#engine_newPayloadV1
-[engine_getPayloadV1]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#engine_getPayloadV1
+[engine_forkchoiceUpdatedV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_forkchoiceupdatedv2
+[engine_newPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_newpayloadv2
+[engine_getPayloadV2]: https://github.com/ethereum/execution-apis/blob/584905270d8ad665718058060267061ecfd79ca5/src/engine/shanghai.md#engine_getpayloadv2
 [HEX value encoding]: https://eth.wiki/json-rpc/API#hex-value-encoding
 [JSON-RPC-API]: https://github.com/ethereum/execution-apis

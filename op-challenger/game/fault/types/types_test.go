@@ -1,6 +1,7 @@
 package types
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -22,4 +23,34 @@ func TestNewPreimageOracleData(t *testing.T) {
 		require.Equal(t, []byte{4, 5, 6}, data.OracleData)
 		require.Equal(t, uint32(7), data.OracleOffset)
 	})
+}
+
+func TestIsRootPosition(t *testing.T) {
+	tests := []struct {
+		name     string
+		position Position
+		expected bool
+	}{
+		{
+			name:     "ZeroRoot",
+			position: NewPositionFromGIndex(big.NewInt(0)),
+			expected: true,
+		},
+		{
+			name:     "ValidRoot",
+			position: NewPositionFromGIndex(big.NewInt(1)),
+			expected: true,
+		},
+		{
+			name:     "NotRoot",
+			position: NewPositionFromGIndex(big.NewInt(2)),
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			require.Equal(t, test.expected, test.position.IsRootPosition())
+		})
+	}
 }

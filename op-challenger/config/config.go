@@ -70,6 +70,11 @@ func (t *TraceType) Set(value string) error {
 	return nil
 }
 
+func (t *TraceType) Clone() any {
+	cpy := *t
+	return &cpy
+}
+
 func ValidTraceType(value TraceType) bool {
 	for _, t := range TraceTypes {
 		if t == value {

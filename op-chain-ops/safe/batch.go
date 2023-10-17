@@ -6,6 +6,7 @@ package safe
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strings"
@@ -19,7 +20,12 @@ import (
 )
 
 // Batch represents a Safe tx-builder transaction.
+// SkipCalldata will skip adding the calldata to the BatchTransaction.
+// This is useful for when using the Safe UI because it prefers using
+// the raw calldata when both the calldata and ABIs with arguments are
+// present.
 type Batch struct {
+	SkipCalldata bool               `json:"-"`
 	Version      string             `json:"version"`
 	ChainID      *big.Int           `json:"chainId"`
 	CreatedAt    uint64             `json:"createdAt"`
@@ -29,7 +35,10 @@ type Batch struct {
 
 // AddCall will add a call to the batch. After a series of calls are
 // added to the batch, it can be serialized to JSON.
-func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []any, iface abi.ABI) error {
+func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []any, iface *abi.ABI) error {
+	if iface == nil {
+		return errors.New("abi cannot be nil")
+	}
 	// Attempt to pull out the signature from the top level methods.
 	// The abi package uses normalization that we do not want to be
 	// coupled to, so attempt to search for the raw name if the top
@@ -87,8 +96,11 @@ func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []an
 		To:          to,
 		Value:       value,
 		Method:      contractMethod,
-		Data:        data,
 		InputValues: inputValues,
+	}
+
+	if !b.SkipCalldata {
+		batchTransaction.Data = data
 	}
 
 	b.Transactions = append(b.Transactions, batchTransaction)

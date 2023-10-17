@@ -38,6 +38,7 @@ import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
+import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -889,11 +890,6 @@ contract Deploy is Deployer {
         require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-
-        // Ensures that the legacy slot is modified correctly. This will fail
-        // during predeployment simulation on OP Mainnet if there is a bug.
-        bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
-        require(slot0 == bytes32(uint256(2)));
     }
 
     /// @notice Initialize the L1ERC721Bridge
@@ -1238,5 +1234,14 @@ contract Deploy is Deployer {
                 vm.toString(GameType.unwrap(_gameType))
             );
         }
+    }
+
+    /// @notice Deploy the StorageSetter contract, used for upgrades.
+    function deployStorageSetter() public broadcast returns (address addr_) {
+        StorageSetter setter = new StorageSetter{ salt: implSalt() }();
+        console.log("StorageSetter deployed at: %s", address(setter));
+        string memory version = setter.version();
+        console.log("StorageSetter version: %s", version);
+        addr_ = address(setter);
     }
 }

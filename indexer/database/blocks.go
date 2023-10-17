@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -170,14 +169,11 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	// We use timestamps since that translates to both L1 & L2
 	var fromTimestamp, toTimestamp uint64
 
-	if fromL1Height == nil {
-		fromL1Height = bigint.Zero
-	}
-
-	// Lower Bound (the default `fromTimestamp = 0` suffices genesis representation)
-	if fromL1Height.BitLen() > 0 {
-		var header L1BlockHeader
+	// Lower Bound (the default `fromTimestamp = l1_starting_height` (default=0) suffices genesis representation)
+	var header L1BlockHeader
+	if fromL1Height != nil {
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
+		// TODO - Embed logging to db
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return nil, nil
@@ -186,6 +182,16 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		}
 
 		fromTimestamp = header.Timestamp
+	} else {
+		result := db.gorm.Order("number desc").Take(&header)
+		if result.Error != nil {
+			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+				return nil, nil
+			}
+			return nil, result.Error
+		}
+
+		fromL1Height = header.Number
 	}
 
 	// Upper Bound (lowest timestamp indexed between L1/L2 bounded by `maxL1Range`)
@@ -196,6 +202,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 			l1QueryFilter = fmt.Sprintf("%s AND number <= %d", l1QueryFilter, maxHeight)
 		}
 
+		// Fetch most recent header from l1_block_headers table
 		var l1Header L1BlockHeader
 		result := db.gorm.Where(l1QueryFilter).Order("timestamp DESC").Take(&l1Header)
 		if result.Error != nil {
@@ -207,6 +214,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 
 		toTimestamp = l1Header.Timestamp
 
+		// Fetch most recent header from l2_block_headers table
 		var l2Header L2BlockHeader
 		result = db.gorm.Where("timestamp <= ?", toTimestamp).Order("timestamp DESC").Take(&l2Header)
 		if result.Error != nil {

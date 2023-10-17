@@ -94,6 +94,7 @@ services:
     ports:
       - "6062:6060"
       - "7302:7300"
+      - "6546:8545"
     environment:
       OP_PROPOSER_L1_ETH_RPC: http://l1:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
@@ -105,6 +106,7 @@ services:
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
+      OP_PROPOSER_RPC_ENABLE_ADMIN: "true"
 
   op-batcher:
     depends_on:

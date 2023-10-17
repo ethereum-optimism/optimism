@@ -3,13 +3,14 @@ package derive
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
+	"github.com/ethereum-optimism/optimism/op-service/testutils/fuzzerutils"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
 )
 
 // FuzzBatchRoundTrip executes a fuzz test similar to TestBatchRoundTrip, which tests that arbitrary BatchData will be
 // encoded and decoded without loss of its original values.
+// Does not test the span batch type because the fuzzer is not aware of the structure of a span batch.
 func FuzzBatchRoundTrip(f *testing.F) {
 	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
 		// Create our fuzzer wrapper to generate complex values
@@ -19,6 +20,10 @@ func FuzzBatchRoundTrip(f *testing.F) {
 		// Create our batch data from fuzzed data
 		var batchData BatchData
 		typeProvider.Fuzz(&batchData)
+
+		// force batchdata to only contain singular batch
+		batchData.BatchType = SingularBatchType
+		batchData.RawSpanBatch = RawSpanBatch{}
 
 		// Encode our batch data
 		enc, err := batchData.MarshalBinary()
