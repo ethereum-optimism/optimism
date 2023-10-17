@@ -91,18 +91,13 @@ contract DeployConfig is Script {
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
+        requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
+        recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
 
         if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
             faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
-            requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
-            recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
-        }
-
-        if (block.chainid == Chains.Goerli || block.chainid == Chains.Sepolia) {
-            requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
-            recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
         }
     }
 
