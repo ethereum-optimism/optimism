@@ -20,16 +20,9 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
 
-    function makeKeys(uint256 num) public pure returns (uint256[] memory keys_) {
-        keys_ = new uint256[](num);
-        for (uint256 i; i < num; i++) {
-            keys_[i] = uint256(keccak256(abi.encodePacked(i)));
-        }
-    }
-
     function setUp() public {
         // Create a Safe with 10 owners
-        uint256[] memory keys = makeKeys(10);
+        (, uint256[] memory keys) = makeAddrsAndKeys(10);
         safeInstance = _setupSafe(keys, 8);
         livenessGuard = new LivenessGuard(safeInstance.safe);
         livenessModule = new LivenessModule({

@@ -20,6 +20,22 @@ function getAddr(uint256 pk) pure returns (address) {
     return Vm(VM_ADDR).addr(pk);
 }
 
+/// @dev Get arrays of addresses and private keys. The arrays are sorted by address, and the addresses are labelled
+function makeAddrsAndKeys(uint256 num) returns (address[] memory addrs, uint256[] memory keys) {
+    keys = new uint256[](num);
+    addrs = new address[](num);
+    for (uint256 i; i < num; i++) {
+        uint256 key = uint256(keccak256(abi.encodePacked(i)));
+        keys[i] = key;
+    }
+
+    keys = sortPKsByComputedAddress(keys);
+    for (uint256 i; i < num; i++) {
+        addrs[i] = Vm(VM_ADDR).addr(keys[i]);
+        Vm(VM_ADDR).label(getAddr(keys[i]), string.concat("SAFETEST: Signer ", string(abi.encodePacked(bytes32(i)))));
+    }
+}
+
 /// @dev Encode a smart contract wallet as a private key
 function encodeSmartContractWalletAsPK(address addr) pure returns (uint256 encodedPK) {
     assembly {
@@ -454,19 +470,7 @@ contract SafeTestTools {
     }
 
     function _setupSafe() public returns (SafeInstance memory) {
-        string[3] memory users;
-        users[0] = "SAFETEST: Signer 0";
-        users[1] = "SAFETEST: Signer 1";
-        users[2] = "SAFETEST: Signer 2";
-
-        uint256[] memory defaultPKs = new uint256[](3);
-        defaultPKs[0] = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-        defaultPKs[1] = 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d;
-        defaultPKs[2] = 0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a;
-
-        for (uint256 i; i < 3; i++) {
-            Vm(VM_ADDR).label(getAddr(defaultPKs[i]), users[i]);
-        }
+        (, uint256[] memory defaultPKs) = makeAddrsAndKeys(3);
 
         return _setupSafe(
             defaultPKs,
