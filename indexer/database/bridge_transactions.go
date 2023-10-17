@@ -79,9 +79,10 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
  * Transactions deposited from L1
  */
 
+// StoreL1TransactionDeposits ... Stores a L1 tx deposit slice of arbitrary length into N chunks
+// of batchInsertSize
 func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
-	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, deposits)
 }
 
 func (db *bridgeTransactionsDB) L1TransactionDeposit(sourceHash common.Hash) (*L1TransactionDeposit, error) {
@@ -133,8 +134,7 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
  */
 
 func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
-	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, withdrawals)
 }
 
 func (db *bridgeTransactionsDB) L2TransactionWithdrawal(withdrawalHash common.Hash) (*L2TransactionWithdrawal, error) {

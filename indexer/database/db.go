@@ -138,3 +138,27 @@ func (db *DB) ExecuteSQLMigration(migrationsFolder string) error {
 
 	return err
 }
+
+// createInBatches ... Utility function to insert a slice of arbitrary length into N chunks
+// of batchInsertSize into the db. This is necessary to ensure that we don't exceed the
+// postgres parameter limit for a given query.
+func createInBatches[E any](db *gorm.DB, values []E) error {
+	for i := 0; i < len(values); i += batchInsertSize {
+		// Determine the end of the batch
+		end := i + batchInsertSize
+		if end > len(values) {
+			end = len(values)
+		}
+
+		// Segment the slice into an insertable chunk
+		chunk := values[i:end]
+		result := db.CreateInBatches(&chunk, batchInsertSize)
+
+		if result.Error != nil {
+			return result.Error
+		}
+
+	}
+
+	return nil
+}

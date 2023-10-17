@@ -91,8 +91,7 @@ func newBridgeTransfersDB(db *gorm.DB) BridgeTransfersDB {
  */
 
 func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []L1BridgeDeposit) error {
-	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, deposits)
 }
 
 func (db *bridgeTransfersDB) L1BridgeDeposit(txSourceHash common.Hash) (*L1BridgeDeposit, error) {
@@ -204,8 +203,7 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
  */
 
 func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []L2BridgeWithdrawal) error {
-	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, withdrawals)
 }
 
 func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*L2BridgeWithdrawal, error) {

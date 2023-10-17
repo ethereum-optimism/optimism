@@ -72,8 +72,7 @@ func newBridgeMessagesDB(db *gorm.DB) BridgeMessagesDB {
  */
 
 func (db bridgeMessagesDB) StoreL1BridgeMessages(messages []L1BridgeMessage) error {
-	result := db.gorm.CreateInBatches(&messages, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, messages)
 }
 
 func (db bridgeMessagesDB) L1BridgeMessage(msgHash common.Hash) (*L1BridgeMessage, error) {
@@ -111,8 +110,7 @@ func (db bridgeMessagesDB) MarkRelayedL1BridgeMessage(messageHash common.Hash, r
  */
 
 func (db bridgeMessagesDB) StoreL2BridgeMessages(messages []L2BridgeMessage) error {
-	result := db.gorm.CreateInBatches(&messages, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, messages)
 }
 
 func (db bridgeMessagesDB) L2BridgeMessage(msgHash common.Hash) (*L2BridgeMessage, error) {

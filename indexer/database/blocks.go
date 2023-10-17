@@ -77,8 +77,7 @@ func newBlocksDB(db *gorm.DB) BlocksDB {
 // L1
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
-	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, headers)
 }
 
 func (db *blocksDB) L1BlockHeader(hash common.Hash) (*L1BlockHeader, error) {
@@ -115,8 +114,7 @@ func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 // L2
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
-	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, headers)
 }
 
 func (db *blocksDB) L2BlockHeader(hash common.Hash) (*L2BlockHeader, error) {

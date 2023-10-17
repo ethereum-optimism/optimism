@@ -109,8 +109,7 @@ func newContractEventsDB(db *gorm.DB) ContractEventsDB {
 // L1
 
 func (db *contractEventsDB) StoreL1ContractEvents(events []L1ContractEvent) error {
-	result := db.gorm.CreateInBatches(&events, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, events)
 }
 
 func (db *contractEventsDB) L1ContractEvent(uuid uuid.UUID) (*L1ContractEvent, error) {
@@ -176,8 +175,7 @@ func (db *contractEventsDB) L1LatestContractEventWithFilter(filter ContractEvent
 // L2
 
 func (db *contractEventsDB) StoreL2ContractEvents(events []L2ContractEvent) error {
-	result := db.gorm.CreateInBatches(&events, batchInsertSize)
-	return result.Error
+	return createInBatches(db.gorm, events)
 }
 
 func (db *contractEventsDB) L2ContractEvent(uuid uuid.UUID) (*L2ContractEvent, error) {
