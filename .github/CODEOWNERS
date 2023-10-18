@@ -16,7 +16,7 @@
 /op-exporter    @ethereum-optimism/go-reviewers
 /op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
-/op-node/rollup @protolambda @trianglesphere
+/op-node/rollup @protolambda @trianglesphere @ajsutton
 /op-preimage    @ethereum-optimism/go-reviewers
 /op-program     @ethereum-optimism/go-reviewers
 /op-proposer    @ethereum-optimism/go-reviewers
