@@ -113,3 +113,12 @@ RUN echo "downloading and verifying Codecov uploader" && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
 
+# within docker use bash
+SHELL [ "/bin/bash", "-c" ]
+# set env to use bash
+ENV SHELL=/bin/bash
+ENV BASH=/bin/bash
+
+ENTRYPOINT ["/bin/bash", "--login", "-eo", "pipefail", "-c"]
+
+
