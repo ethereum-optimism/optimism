@@ -7,6 +7,7 @@ import 'hardhat-deploy'
 
 import './tasks'
 
+
 const config: HardhatUserConfig = {
   solidity: {
     version: '0.8.9',
@@ -22,7 +23,7 @@ const config: HardhatUserConfig = {
       ],
     },
     devnetL1: {
-      url: 'http://localhost:8545',
+      url: 'http://127.0.0.1:50641',
       accounts: [
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       ],

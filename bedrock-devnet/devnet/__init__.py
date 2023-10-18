@@ -293,7 +293,7 @@ def wait_for_rpc_server(url):
 def devnet_test(paths):
     # Check the L2 config
     run_command(
-        ['go', 'run', 'cmd/check-l2/main.go', '--l2-rpc-url', 'http://localhost:9545', '--l1-rpc-url', 'http://localhost:8545'],
+        ['go', 'run', 'cmd/check-l2/main.go', '--l2-rpc-url', 'http://127.0.0.1:50647', '--l1-rpc-url', 'http://127.0.0.1:50641'],
         cwd=paths.ops_chain_ops,
     )
 

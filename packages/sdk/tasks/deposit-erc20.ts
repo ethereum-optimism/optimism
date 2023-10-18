@@ -102,13 +102,13 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
   .addParam(
     'l2ProviderUrl',
     'L2 provider URL.',
-    'http://localhost:9545',
+    'http://localhost:50647',
     types.string
   )
   .addParam(
     'opNodeProviderUrl',
     'op-node provider URL',
-    'http://localhost:7545',
+    'http://localhost:50650',
     types.string
   )
   .addOptionalParam(
