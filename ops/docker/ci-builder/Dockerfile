@@ -66,7 +66,7 @@ COPY --from=go-build /usr/local/go /usr/local/go
 # copy tools
 COPY --from=go-build /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-build /go/bin/mockery /go/bin/mockery
-COPY --from=go-build /go/bin/mockery /go/bin/golangci-lint
+COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
