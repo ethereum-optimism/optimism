@@ -611,6 +611,22 @@ jobs:
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
 
+  todo-issues:
+    machine:
+      image: ubuntu-2204:2022.07.1
+    steps:
+      - checkout
+      - run:
+          name: Install ripgrep
+          command: sudo apt-get install -y ripgrep
+      - run:
+          name: Check TODO issues
+          command: ./ops/scripts/todo-checker.sh --verbose
+      - slack/notify:
+          channel: C03N11M0BBN
+          event: fail
+          template: basic_fail_1
+
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -1501,6 +1517,15 @@ workflows:
             - oplabs-gcr
           requires:
             - hold
+
+  scheduled-todo-issues:
+    when:
+      equal: [ build_four_hours, <<pipeline.schedule.name>> ]
+    jobs:
+      - todo-issues:
+          name: todo-issue-checks
+          context:
+            - slack
 
   scheduled-fpp:
     when:

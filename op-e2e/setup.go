@@ -71,6 +71,7 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 		PrivateKey:                hexPriv(privKey),
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
+		FeeLimitMultiplier:        5,
 		ResubmissionTimeout:       3 * time.Second,
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NetworkTimeout:            2 * time.Second,

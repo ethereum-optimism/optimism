@@ -49,7 +49,7 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim t
 		return nil, nil
 	}
 	step, err := s.claimSolver.AttemptStep(ctx, game, claim)
-	if err == ErrStepIgnoreInvalidPath {
+	if errors.Is(err, ErrStepIgnoreInvalidPath) {
 		return nil, nil
 	}
 	if err != nil {
@@ -78,7 +78,7 @@ func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim t
 	}
 	return &types.Action{
 		Type:      types.ActionTypeMove,
-		IsAttack:  !move.DefendsParent(),
+		IsAttack:  !game.DefendsParent(*move),
 		ParentIdx: move.ParentContractIndex,
 		Value:     move.Value,
 	}, nil

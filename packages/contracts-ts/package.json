@@ -48,13 +48,13 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-bedrock": "workspace:*",
-    "@testing-library/jest-dom": "^6.0.1",
+    "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
     "@vitest/coverage-istanbul": "^0.34.6",
     "@wagmi/cli": "^1.5.2",
-    "@wagmi/core": "^1.4.3",
-    "abitype": "^0.10.0",
+    "@wagmi/core": "^1.4.4",
+    "abitype": "^0.10.1",
     "glob": "^10.3.10",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
@@ -78,8 +78,10 @@
   },
   "dependencies": {
     "@testing-library/react": "^14.0.0",
+    "@types/change-case": "^2.3.1",
+    "change-case": "4.1.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "viem": "^1.16.3"
+    "viem": "^1.16.6"
   }
 }

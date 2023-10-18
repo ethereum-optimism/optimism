@@ -24,6 +24,10 @@ type Game interface {
 	// GetParent returns the parent of the provided claim.
 	GetParent(claim Claim) (Claim, error)
 
+	// DefendsParent returns true if and only if the claim is a defense (i.e. goes right) of
+	// its parent.
+	DefendsParent(claim Claim) bool
+
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state
 	// referencing the same parent claim
 	IsDuplicate(claim Claim) bool
@@ -100,6 +104,14 @@ func (g *gameState) GetParent(claim Claim) (Claim, error) {
 		return Claim{}, ErrClaimNotFound
 	}
 	return *parent, nil
+}
+
+func (g *gameState) DefendsParent(claim Claim) bool {
+	parent := g.getParent(claim)
+	if parent == nil {
+		return false
+	}
+	return claim.RightOf(parent.Position)
 }
 
 func (g *gameState) getParent(claim Claim) *Claim {

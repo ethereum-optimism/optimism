@@ -14,8 +14,8 @@ import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
 contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @custom:semver 1.6.0
-    string public constant version = "1.6.0";
+    /// @custom:semver 1.6.1
+    string public constant version = "1.6.1";
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.

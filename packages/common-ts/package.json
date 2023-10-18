@@ -35,10 +35,10 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "workspace:*",
-    "@sentry/node": "^7.73.0",
+    "@sentry/node": "^7.74.0",
     "bcfg": "^0.2.1",
     "body-parser": "^1.20.2",
-    "commander": "^11.0.0",
+    "commander": "^11.1.0",
     "dotenv": "^16.3.1",
     "envalid": "^8.0.0",
     "ethers": "^5.7.2",

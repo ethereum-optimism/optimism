@@ -6,6 +6,9 @@ During this early phase of ongoing development, we invite security researchers a
 The current system is not production ready, however the core infrastructure for creating an instruction trace ([Cannon][cannon] + the [`op-program`][op-program]), the off-chain challenge agent ([`op-challenger`][op-challenger]),
 and the on-chain infrastructure for the [Dispute Game][dispute-game] are all in place.
 
+For the Fault Proof Alpha security review, we've pinned `546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f` as the commit hash in the monorepo. This commit hash was the head of the `develop` branch at the time of the alpha's launch. All
+security reviews and PoCs should be derived from this commit hash, as the contracts and off-chain agents are being updated frequently at this stage of development.
+
 ### Resources
 
 > **Note**

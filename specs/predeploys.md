@@ -67,6 +67,8 @@ or `Bedrock`. Deprecated contracts should not be used.
 | ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         | Yes     |
 | BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         | Yes     |
 | L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         | Yes     |
+| SchemaRegistry                | 0x4200000000000000000000000000000000000020 | Bedrock    | No         | Yes     |
+| EAS                           | 0x4200000000000000000000000000000000000021 | Bedrock    | No         | Yes     |
 
 ## LegacyMessagePasser
 

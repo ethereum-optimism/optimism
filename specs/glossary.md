@@ -392,7 +392,7 @@ proof][fault-proof].
 
 Data availability is the guarantee that some data will be "available" (i.e. *retrievable*) during a reasonably long time
 window. In Optimism's case, the data in question are [sequencer batches][sequencer-batch] that [validators][validator]
-needs in order to verify the sequencer's work and validate the L2 chain.
+need in order to verify the sequencer's work and validate the L2 chain.
 
 The [finalization period][finalization-period] should be taken as the lower bound on the availability window, since
 that is when data availability is the most crucial, as it is needed to perform a [fault proof][fault-proof].

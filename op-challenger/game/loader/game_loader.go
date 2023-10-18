@@ -1,4 +1,4 @@
-package game
+package loader
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -25,25 +26,19 @@ type MinimalDisputeGameFactoryCaller interface {
 	}, error)
 }
 
-type FaultDisputeGame struct {
-	GameType  uint8
-	Timestamp uint64
-	Proxy     common.Address
-}
-
-type gameLoader struct {
+type GameLoader struct {
 	caller MinimalDisputeGameFactoryCaller
 }
 
 // NewGameLoader creates a new services that can be used to fetch on chain dispute games.
-func NewGameLoader(caller MinimalDisputeGameFactoryCaller) *gameLoader {
-	return &gameLoader{
+func NewGameLoader(caller MinimalDisputeGameFactoryCaller) *GameLoader {
+	return &GameLoader{
 		caller: caller,
 	}
 }
 
 // FetchAllGamesAtBlock fetches all dispute games from the factory at a given block number.
-func (l *gameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]FaultDisputeGame, error) {
+func (l *GameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]types.GameMetadata, error) {
 	if blockNumber == nil {
 		return nil, ErrMissingBlockNumber
 	}
@@ -56,7 +51,7 @@ func (l *gameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp
 		return nil, fmt.Errorf("failed to fetch game count: %w", err)
 	}
 
-	games := make([]FaultDisputeGame, 0)
+	games := make([]types.GameMetadata, 0)
 	if gameCount.Uint64() == 0 {
 		return games, nil
 	}

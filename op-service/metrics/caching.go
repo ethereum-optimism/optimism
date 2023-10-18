@@ -1,7 +1,6 @@
 package metrics
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -34,7 +33,7 @@ func (m *CacheMetrics) CacheGet(typeLabel string, hit bool) {
 	}
 }
 
-func NewCacheMetrics(factory metrics.Factory, ns string, name string, displayName string) *CacheMetrics {
+func NewCacheMetrics(factory Factory, ns string, name string, displayName string) *CacheMetrics {
 	return &CacheMetrics{
 		SizeVec: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,

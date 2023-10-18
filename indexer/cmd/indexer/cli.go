@@ -49,6 +49,7 @@ func runIndexer(ctx *cli.Context) error {
 		return err
 	}
 
+	log.Info("running indexer...")
 	return indexer.Run(ctx.Context)
 }
 
@@ -68,12 +69,13 @@ func runApi(ctx *cli.Context) error {
 	}
 	defer db.Close()
 
+	log.Info("running api...")
 	api := api.NewApi(log, db.BridgeTransfers, cfg.HTTPServer, cfg.MetricsServer)
 	return api.Run(ctx.Context)
 }
 
 func runMigrations(ctx *cli.Context) error {
-	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
+	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "migrations")
 	oplog.SetGlobalLogHandler(log.GetHandler())
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	migrationsDir := ctx.String(MigrationsFlag.Name)
@@ -89,6 +91,7 @@ func runMigrations(ctx *cli.Context) error {
 	}
 	defer db.Close()
 
+	log.Info("running migrations...")
 	return db.ExecuteSQLMigration(migrationsDir)
 }
 

@@ -31,18 +31,19 @@ import (
 )
 
 const (
-	ContextKeyAuth              = "authorization"
-	ContextKeyReqID             = "req_id"
-	ContextKeyXForwardedFor     = "x_forwarded_for"
-	MaxBatchRPCCallsHardLimit   = 100
-	cacheStatusHdr              = "X-Proxyd-Cache-Status"
-	defaultRPCTimeout           = 10 * time.Second
-	defaultBodySizeLimit        = 256 * opt.KiB
-	defaultWSHandshakeTimeout   = 10 * time.Second
-	defaultWSReadTimeout        = 2 * time.Minute
-	defaultWSWriteTimeout       = 10 * time.Second
-	maxRequestBodyLogLen        = 2000
-	defaultMaxUpstreamBatchSize = 10
+	ContextKeyAuth               = "authorization"
+	ContextKeyReqID              = "req_id"
+	ContextKeyXForwardedFor      = "x_forwarded_for"
+	DefaultMaxBatchRPCCallsLimit = 100
+	MaxBatchRPCCallsHardLimit    = 1000
+	cacheStatusHdr               = "X-Proxyd-Cache-Status"
+	defaultRPCTimeout            = 10 * time.Second
+	defaultBodySizeLimit         = 256 * opt.KiB
+	defaultWSHandshakeTimeout    = 10 * time.Second
+	defaultWSReadTimeout         = 2 * time.Minute
+	defaultWSWriteTimeout        = 10 * time.Second
+	maxRequestBodyLogLen         = 2000
+	defaultMaxUpstreamBatchSize  = 10
 )
 
 var emptyArrayResponse = json.RawMessage("[]")
@@ -108,7 +109,11 @@ func NewServer(
 		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
 	}
 
-	if maxBatchSize == 0 || maxBatchSize > MaxBatchRPCCallsHardLimit {
+	if maxBatchSize == 0 {
+		maxBatchSize = DefaultMaxBatchRPCCallsLimit
+	}
+
+	if maxBatchSize > MaxBatchRPCCallsHardLimit {
 		maxBatchSize = MaxBatchRPCCallsHardLimit
 	}
 
