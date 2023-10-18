@@ -247,8 +247,8 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@types/express':
-        specifier: ^4.17.19
-        version: 4.17.19
+        specifier: ^4.17.20
+        version: 4.17.20
       '@types/morgan':
         specifier: ^1.9.6
         version: 1.9.6
@@ -3984,8 +3984,8 @@ packages:
       '@types/send': 0.17.1
     dev: true
 
-  /@types/express@4.17.19:
-    resolution: {integrity: sha512-UtOfBtzN9OvpZPPbnnYunfjM7XCI4jyk1NvnFhTVz5krYAnW4o5DCoIekvms+8ApqhB4+9wSge1kBijdfTSmfg==}
+  /@types/express@4.17.20:
+    resolution: {integrity: sha512-rOaqlkgEvOW495xErXMsmyX3WKBInbhG5eqojXYi3cGUaLoRDlXa5d52fkfWZT963AZ3v2eZ4MbKE6WpDAGVsw==}
     dependencies:
       '@types/body-parser': 1.19.1
       '@types/express-serve-static-core': 4.17.35
