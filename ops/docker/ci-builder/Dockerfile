@@ -117,9 +117,9 @@ RUN echo "downloading and verifying Codecov uploader" && \
   rm codecov
 
 # within docker use bash
-SHELL ["/bin/bash"]
+SHELL ["/bin/bash", "-c"]
 # set env to use bash
 ENV SHELL=/bin/bash
 ENV BASH=/bin/bash
 
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT ["/bin/bash", "-c"]
