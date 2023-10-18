@@ -117,16 +117,9 @@ RUN echo "downloading and verifying Codecov uploader" && \
   rm codecov
 
 # within docker use bash
-SHELL [ "/bin/bash", "-c" ]
+SHELL ["/bin/bash"]
 # set env to use bash
 ENV SHELL=/bin/bash
 ENV BASH=/bin/bash
 
-# See https://circleci.com/docs/custom-images/#adding-an-entrypoint
-# and https://circleci.com/docs/configuration-reference/#default-shell-options
-# We need a login shell for nvm to work, and need circleci to not override it back to a regular bash shell.
-LABEL com.circleci.preserve-entrypoint=true
-
-ENTRYPOINT ["/bin/bash", "--login", "-eo", "pipefail", "-c"]
-
-
+ENTRYPOINT ["/bin/bash"]
