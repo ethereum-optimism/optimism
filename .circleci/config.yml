@@ -313,6 +313,7 @@ jobs:
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
+          no_output_timeout: 45m
       - run:
           name: Tag
           command: |
