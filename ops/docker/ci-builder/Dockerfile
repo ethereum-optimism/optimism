@@ -31,7 +31,18 @@ RUN source $HOME/.profile && \
 
 FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
-FROM --platform=linux/amd64 golang:1.21-bullseye as go-build
+FROM --platform=linux/amd64 debian:bullseye-slim as go-build
+
+RUN apt-get update && apt-get install -y curl ca-certificates
+
+ENV GO_VERSION=1.21.1
+
+# Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
+RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
+  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz
+
+ENV GOPATH=/go
+ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 
 # Install the specific version of abigen from .abigenrc
 COPY ./.abigenrc ./.abigenrc
@@ -40,12 +51,22 @@ RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
 COPY ./.gethrc ./.gethrc
 RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(cat .gethrc)
 
+RUN go install gotest.tools/gotestsum@latest
+RUN go install github.com/vektra/mockery/v2@v2.28.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
+
 FROM --platform=linux/amd64 python:3.11.4-slim-bullseye
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
 
+# copy the go installation, but not the module cache (cache will get stale, and would add a lot of weight)
+COPY --from=go-build /usr/local/go /usr/local/go
+# copy tools
+COPY --from=go-build /go/bin/gotestsum /go/bin/gotestsum
+COPY --from=go-build /go/bin/mockery /go/bin/mockery
+COPY --from=go-build /go/bin/mockery /go/bin/golangci-lint
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
@@ -57,21 +78,23 @@ COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 COPY .nvmrc .nvmrc
 
-ENV GO_VERSION=1.21.1
-
-RUN apt-get update && \
-  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils g++-x86-64-linux-gnu libc6-dev-amd64-cross && \
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash && \
-  . /root/.bashrc && nvm install && nvm use  && nvm install-latest-npm && \
-  curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz && \
-  rm go$GO_VERSION.linux-amd64.tar.gz && \
-  ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
-  npm i -g depcheck && \
-  pip install slither-analyzer==0.9.3 && \
-  go install gotest.tools/gotestsum@latest && \
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2 && \
-  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
+# not installed, unused
+# musl coreutils g++-x86-64-linux-gnu libc6-dev-amd64-cross
+#
+# note: python3 package in apt is python 3.9, while base image already has python 3.11
+RUN /bin/sh -c set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu; \
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash; \
+  . /root/.bashrc && nvm install && nvm use  && nvm install-latest-npm; \
+  ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
+  npm i -g depcheck; \
+  pip install slither-analyzer==0.9.3 capstone pyelftools; \
+  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
+  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+  rm -rf /var/lib/apt/lists/*; \
+  rm -rf /root/.cache/pip; \
+  rm -rf /root/.cache/npm;
 
 
 RUN echo "downloading pnpm and yarn" && . /root/.bashrc && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
@@ -90,15 +113,3 @@ RUN echo "downloading and verifying Codecov uploader" && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
 
-RUN echo "downloading mockery tool" && \
-  mkdir -p mockery-tmp-dir && \
-  curl -o mockery-tmp-dir/mockery.tar.gz -sL https://github.com/vektra/mockery/releases/download/v2.28.1/mockery_2.28.1_Linux_x86_64.tar.gz && \
-  tar -xzvf mockery-tmp-dir/mockery.tar.gz -C mockery-tmp-dir && \
-  cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
-  chmod +x /usr/local/bin/mockery && \
-  rm -rf mockery-tmp-dir
-
-
-RUN echo "installing mips binutils" && \
-  apt-get install -y binutils-mips-linux-gnu python3 python3-pip && \
-  pip3 install capstone pyelftools
