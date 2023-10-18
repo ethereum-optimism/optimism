@@ -257,3 +257,49 @@ func TestLocalDevnet(t *testing.T) {
 
 	require.Equal(t, devnetPreset.ChainConfig.L1Contracts, conf.Chain.L1Contracts)
 }
+
+func TestThrowsOnUnknownKeys(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	tmpfile, err := os.CreateTemp("", "test.toml")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+
+	testData := `
+		[chain]
+    unknown_key = 420
+		preset = 420
+
+		[rpcs]
+		l1-rpc = "https://l1.example.com"
+		l2-rpc = "https://l2.example.com"
+
+		[db]
+	  another_unknownKey = 420
+		host = "127.0.0.1"
+		port = 5432
+		user = "postgres"
+		password = "postgres"
+	    name = "indexer"
+
+		[http]
+		host = "127.0.0.1"
+		port = 8080
+
+		[metrics]
+		host = "127.0.0.1"
+		port = 7300
+	`
+
+	data := []byte(testData)
+	err = os.WriteFile(tmpfile.Name(), data, 0644)
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	err = tmpfile.Close()
+	require.NoError(t, err)
+
+	_, err = LoadConfig(logger, tmpfile.Name())
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unknown fields in config file")
+}

@@ -153,8 +153,15 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	data = []byte(os.ExpandEnv(string(data)))
 	log.Debug("parsed config file", "data", string(data))
 
-	if _, err := toml.Decode(string(data), &cfg); err != nil {
+	md, err := toml.Decode(string(data), &cfg)
+	if err != nil {
 		log.Error("failed to decode config file", "err", err)
+		return cfg, err
+	}
+
+	if len(md.Undecoded()) > 0 {
+		log.Error("unknown fields in config file", "fields", md.Undecoded())
+		err = fmt.Errorf("unknown fields in config file: %v", md.Undecoded())
 		return cfg, err
 	}
 
