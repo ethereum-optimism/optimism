@@ -78,18 +78,21 @@ COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 COPY .nvmrc .nvmrc
 
-# not installed, unused
-# musl coreutils g++-x86-64-linux-gnu libc6-dev-amd64-cross
-#
+ENV NODE_MAJOR=18
+ENV SLITHER_VERSION=0.10.0
+
 # note: python3 package in apt is python 3.9, while base image already has python 3.11
 RUN /bin/sh -c set -eux; \
   apt-get update; \
   apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu; \
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash; \
-  . /root/.bashrc && nvm install && nvm use  && nvm install-latest-npm; \
+  mkdir -p /etc/apt/keyrings; \
+  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
+  apt-get update; \
+  apt-get install -y nodejs; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
-  pip install slither-analyzer==0.9.3 capstone pyelftools; \
+  pip install slither-analyzer==$SLITHER_VERSION capstone pyelftools; \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \
@@ -97,7 +100,7 @@ RUN /bin/sh -c set -eux; \
   rm -rf /root/.cache/npm;
 
 
-RUN echo "downloading pnpm and yarn" && . /root/.bashrc && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
+RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN svm install 0.5.17 && \
   svm install 0.8.15
