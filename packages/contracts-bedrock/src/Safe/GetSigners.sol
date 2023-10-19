@@ -6,7 +6,8 @@ import { SignatureDecoder } from "safe-contracts/common/SignatureDecoder.sol";
 abstract contract GetSigners is SignatureDecoder {
     /// @notice Extract the signers from a set of signatures.
     function _getNSigners(bytes32 dataHash, bytes memory signatures) internal pure returns (address[] memory _owners) {
-        uint256 numSignatures = signatures.length / 65;
+        uint256 numSignatures = signatures.length / 65; // this is wrong. There can be extra data appended to the
+            // signatures for contract signatures. We should use SignatureDecoder to parse the signatures.
         _owners = new address[](numSignatures);
 
         /// The following code is extracted from the Safe.checkNSignatures() method. It removes the signature
