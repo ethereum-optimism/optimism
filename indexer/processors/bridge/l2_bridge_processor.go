@@ -28,11 +28,16 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		log.Info("detected transaction withdrawals", "size", len(l2ToL1MPMessagesPassed))
 	}
 
+	totalWithdrawalAmount := 0
 	messagesPassed := make(map[logKey]*contracts.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
 		messagePassed := l2ToL1MPMessagesPassed[i]
 		messagesPassed[logKey{messagePassed.Event.BlockHash, messagePassed.Event.LogIndex}] = &messagePassed
+		if len(messagePassed.Tx.Data) == 0 {
+			totalWithdrawalAmount = totalWithdrawalAmount + int(messagePassed.Tx.Amount.Int64())
+		}
+
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       messagePassed.WithdrawalHash,
 			InitiatedL2EventGUID: messagePassed.Event.GUID,
@@ -45,6 +50,8 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
 		}
+
+		metrics.RecordL2InitiatedBridgeTransfers(database.ETHTokenPair.LocalTokenAddress, totalWithdrawalAmount)
 		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals))
 	}
 

@@ -31,17 +31,19 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction deposits", "size", len(ctcTxDepositEvents))
 	}
 
+	totalDepositAmount := 0
 	ctcTxDeposits := make(map[logKey]*contracts.LegacyCTCDepositEvent, len(ctcTxDepositEvents))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(ctcTxDepositEvents))
 	for i := range ctcTxDepositEvents {
 		deposit := ctcTxDepositEvents[i]
 		ctcTxDeposits[logKey{deposit.Event.BlockHash, deposit.Event.LogIndex}] = &deposit
+		if len(deposit.Tx.Data) == 0 {
+			totalDepositAmount = totalDepositAmount + int(deposit.Tx.Amount.Uint64())
+		}
 		transactionDeposits[i] = database.L1TransactionDeposit{
-			// We re-use the L2 Transaction hash as the source hash
-			// to remain consistent in the schema.
-			SourceHash:        deposit.TxHash,
-			L2TransactionHash: deposit.TxHash,
-
+			// We re-use the L2 Transaction hash as the source hash to remain consistent in the schema.
+			SourceHash:           deposit.TxHash,
+			L2TransactionHash:    deposit.TxHash,
 			InitiatedL1EventGUID: deposit.Event.GUID,
 			GasLimit:             deposit.GasLimit,
 			Tx:                   deposit.Tx,
@@ -52,6 +54,7 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 			return err
 		}
 		metrics.RecordL1TransactionDeposits(len(transactionDeposits))
+		metrics.RecordL1InitiatedBridgeTransfers(database.ETHTokenPair.LocalTokenAddress, totalDepositAmount)
 	}
 
 	// (2) L1CrossDomainMessenger
@@ -158,12 +161,16 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction withdrawals (via L2CrossDomainMessenger)", "size", len(crossDomainSentMessages))
 	}
 
+	totalWithdrawalAmount := 0
 	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
+		if len(sentMessage.BridgeMessage.Tx.Data) == 0 {
+			totalWithdrawalAmount = totalWithdrawalAmount + int(sentMessage.BridgeMessage.Tx.Amount.Int64())
+		}
 
 		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
 		// passer contract is sha3(calldata + sender). The sender always being the L2CrossDomainMessenger pre-bedrock.
@@ -196,6 +203,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		}
 		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals))
 		metrics.RecordL2CrossDomainSentMessages(len(bridgeMessages))
+		metrics.RecordL2InitiatedBridgeTransfers(database.ETHTokenPair.LocalTokenAddress, totalWithdrawalAmount)
 	}
 
 	// (2) L2StandardBridge
