@@ -116,7 +116,7 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		txWithdrawnETH: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "tx_withdrawn_eth",
-			Help:      "amount of eth withdrawan from l2",
+			Help:      "amount of eth withdrawn from l2",
 		}),
 		provenWithdrawals: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
