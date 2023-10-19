@@ -28,8 +28,8 @@ importers:
         specifier: ^7.1.4
         version: 7.1.5
       '@types/mocha':
-        specifier: ^10.0.2
-        version: 10.0.2
+        specifier: ^10.0.3
+        version: 10.0.3
       '@types/node':
         specifier: ^20.8.6
         version: 20.8.6
@@ -490,8 +490,8 @@ importers:
         specifier: ^7.1.5
         version: 7.1.5
       '@types/mocha':
-        specifier: ^10.0.2
-        version: 10.0.2
+        specifier: ^10.0.3
+        version: 10.0.3
       '@types/node':
         specifier: ^20.8.6
         version: 20.8.6
@@ -4059,8 +4059,8 @@ packages:
       '@types/node': 20.8.6
     dev: true
 
-  /@types/mocha@10.0.2:
-    resolution: {integrity: sha512-NaHL0+0lLNhX6d9rs+NSt97WH/gIlRHmszXbQ/8/MV/eVcFNdeJ/GYhrFuUc8K7WuPhRhTSdMkCp8VMzhUq85w==}
+  /@types/mocha@10.0.3:
+    resolution: {integrity: sha512-RsOPImTriV/OE4A9qKjMtk2MnXiuLLbcO3nCXK+kvq4nr0iMfFgpjaX3MPLb6f7+EL1FGSelYvuJMV6REH+ZPQ==}
     dev: true
 
   /@types/morgan@1.9.6:
