@@ -28,15 +28,13 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected transaction deposits", "size", len(optimismPortalTxDeposits))
 	}
 
-	portalDepositAmount := 0
+	mintedETH := 0
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
 		depositTx := optimismPortalTxDeposits[i]
 		portalDeposits[logKey{depositTx.Event.BlockHash, depositTx.Event.LogIndex}] = &depositTx
-		if len(depositTx.Tx.Data) == 0 {
-			portalDepositAmount = portalDepositAmount + int(depositTx.Tx.Amount.Uint64())
-		}
+		mintedETH = mintedETH + int(depositTx.Tx.Amount.Uint64())
 
 		transactionDeposits[i] = database.L1TransactionDeposit{
 			SourceHash:           depositTx.DepositTx.SourceHash,
@@ -50,8 +48,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
 		}
-		metrics.RecordL1TransactionDeposits(len(transactionDeposits))
-		metrics.RecordL1InitiatedBridgeTransfers(database.ETHTokenPair.LocalTokenAddress, portalDepositAmount)
+		metrics.RecordL1TransactionDeposits(len(transactionDeposits), mintedETH)
 	}
 
 	// (2) L1CrossDomainMessenger
@@ -183,7 +180,6 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected finalized withdrawals", "size", len(finalizedWithdrawals))
 	}
 
-	portalWithdrawalAmount := 0
 	for i := range finalizedWithdrawals {
 		finalizedWithdrawal := finalizedWithdrawals[i]
 		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(finalizedWithdrawal.WithdrawalHash)
@@ -194,10 +190,6 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 			return fmt.Errorf("missing indexed withdrawal on finalization! tx_hash: %s", finalizedWithdrawal.Event.TransactionHash.String())
 		}
 
-		if len(withdrawal.Tx.Data) == 0 {
-			portalWithdrawalAmount = portalWithdrawalAmount + int(withdrawal.Tx.Amount.Int64())
-		}
-
 		if err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(finalizedWithdrawal.WithdrawalHash, finalizedWithdrawal.Event.GUID, finalizedWithdrawal.Success); err != nil {
 			log.Error("failed to mark withdrawal as finalized", "err", err, "tx_hash", finalizedWithdrawal.Event.TransactionHash.String())
 			return err
@@ -205,7 +197,6 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 	}
 	if len(finalizedWithdrawals) > 0 {
 		metrics.RecordL1FinalizedWithdrawals(len(finalizedWithdrawals))
-		metrics.RecordL1FinalizedBridgeTransfers(database.ETHTokenPair.LocalTokenAddress, portalWithdrawalAmount)
 	}
 
 	// (3) L1CrossDomainMessenger
