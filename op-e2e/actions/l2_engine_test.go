@@ -46,7 +46,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	chainA, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(i int, gen *core.BlockGen) {
 		gen.SetCoinbase(common.Address{'A'})
 	})
-	payloadA, err := eth.BlockAsPayload(chainA[0])
+	payloadA, err := eth.BlockAsPayload(chainA[0], sd.RollupCfg.CanyonTime)
 	require.NoError(t, err)
 
 	// apply the payload
@@ -69,7 +69,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	chainB, _ := core.GenerateChain(sd.L2Cfg.Config, genesisBlock, consensus, db, 1, func(i int, gen *core.BlockGen) {
 		gen.SetCoinbase(common.Address{'B'})
 	})
-	payloadB, err := eth.BlockAsPayload(chainB[0])
+	payloadB, err := eth.BlockAsPayload(chainB[0], sd.RollupCfg.CanyonTime)
 	require.NoError(t, err)
 
 	// apply the payload
@@ -125,18 +125,26 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 		require.NoError(t, err)
 
+		nextBlockTime := eth.Uint64Quantity(parent.Time) + 2
+
+		var w *eth.Withdrawals
+		if sd.RollupCfg.IsCanyon(uint64(nextBlockTime)) {
+			w = &eth.Withdrawals{}
+		}
+
 		// Now let's ask the engine to build a block
 		fcRes, err := l2Cl.ForkchoiceUpdate(t.Ctx(), &eth.ForkchoiceState{
 			HeadBlockHash:      parent.Hash(),
 			SafeBlockHash:      genesisBlock.Hash(),
 			FinalizedBlockHash: genesisBlock.Hash(),
 		}, &eth.PayloadAttributes{
-			Timestamp:             eth.Uint64Quantity(parent.Time) + 2,
+			Timestamp:             nextBlockTime,
 			PrevRandao:            eth.Bytes32{},
 			SuggestedFeeRecipient: common.Address{'C'},
 			Transactions:          nil,
 			NoTxPool:              false,
 			GasLimit:              (*eth.Uint64Quantity)(&sd.RollupCfg.Genesis.SystemConfig.GasLimit),
+			Withdrawals:           w,
 		})
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)

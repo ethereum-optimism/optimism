@@ -181,6 +181,7 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 type rpcBlock struct {
 	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
+	Withdrawals  *eth.Withdrawals     `json:"withdrawals,omitempty"`
 }
 
 func (block *rpcBlock) verify() error {
@@ -252,6 +253,7 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		BaseFeePerGas: baseFee,
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
+		Withdrawals:   block.Withdrawals,
 	}, nil
 }
 

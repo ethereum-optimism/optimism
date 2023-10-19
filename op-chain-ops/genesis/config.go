@@ -112,8 +112,11 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
 	// L2GenesisRegolithTimeOffset is the number of seconds after genesis block that Regolith hard fork activates.
-	// Set it to 0 to activate at genesis. Nil to disable regolith.
+	// Set it to 0 to activate at genesis. Nil to disable Regolith.
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+	// L2GenesisCanyonTimeOffset is the number of seconds after genesis block that Canyon hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Canyon.
+	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"L2GenesisCanyonTimeOffset,omitempty"`
 	// L2GenesisSpanBatchTimeOffset is the number of seconds after genesis block that Span Batch hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable SpanBatch.
 	L2GenesisSpanBatchTimeOffset *hexutil.Uint64 `json:"l2GenesisSpanBatchTimeOffset,omitempty"`
@@ -449,6 +452,17 @@ func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
+func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisCanyonTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisCanyonTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
 func (d *DeployConfig) SpanBatchTime(genesisTime uint64) *uint64 {
 	if d.L2GenesisSpanBatchTimeOffset == nil {
 		return nil
@@ -497,6 +511,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
+		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
 		SpanBatchTime:          d.SpanBatchTime(l1StartBlock.Time()),
 	}, nil
 }
