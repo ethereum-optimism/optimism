@@ -476,7 +476,7 @@ contract ERC721Bridge_Initializer is Bridge_Initializer {
 
         vm.prank(multisig);
         Proxy(payable(Predeploys.L2_ERC721_BRIDGE)).upgradeToAndCall(
-            address(l2BridgeImpl), abi.encodeCall(L2ERC721Bridge.initialize, (L2Messenger))
+            address(l2BridgeImpl), abi.encodeCall(L2ERC721Bridge.initialize, ())
         );
 
         // Set up a reference to the L2ERC721Bridge.
