@@ -29,7 +29,6 @@ function makeAddrsAndKeys(uint256 num) returns (address[] memory addrs, uint256[
         keys[i] = key;
     }
 
-    keys = sortPKsByComputedAddress(keys);
     for (uint256 i; i < num; i++) {
         addrs[i] = Vm(VM_ADDR).addr(keys[i]);
         Vm(VM_ADDR).label(getAddr(keys[i]), string.concat("SAFETEST: Signer ", string(abi.encodePacked(bytes32(i)))));
