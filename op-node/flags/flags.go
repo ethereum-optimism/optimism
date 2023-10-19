@@ -100,6 +100,12 @@ var (
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
 	}
+	L1ProxydDebug = &cli.BoolFlag{
+		Name:    "l1.proxyd-debug",
+		Usage:   "Capture proxyd debug data on RPC requests, and report it on RPC errors",
+		EnvVars: prefixEnvVars("L1_PROXYD_DEBUG"),
+	}
+
 	L2EngineJWTSecret = &cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -275,6 +281,7 @@ var optionalFlags = []cli.Flag{
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
 	L1HTTPPollInterval,
+	L1ProxydDebug,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,

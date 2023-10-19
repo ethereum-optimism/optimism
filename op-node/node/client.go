@@ -156,6 +156,9 @@ type L1EndpointConfig struct {
 	// It is recommended to use websockets or IPC for efficient following of the changing block.
 	// Setting this to 0 disables polling.
 	HttpPollInterval time.Duration
+
+	// ProxydDebug adds proxyd debug data to errors
+	ProxydDebug bool
 }
 
 var _ L1EndpointSetup = (*L1EndpointConfig)(nil)
@@ -178,12 +181,16 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
 	}
+	if cfg.ProxydDebug {
+		opts = append(opts, client.WithHTTPInterceptor()) // required for RPC client to allow HTTP response interception
+	}
 
 	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
 	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
+	rpcCfg.ProxydDebug = cfg.ProxydDebug
 	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize
 	return l1Node, rpcCfg, nil
 }

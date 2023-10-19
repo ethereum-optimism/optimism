@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
@@ -62,6 +63,9 @@ type EthClientConfig struct {
 	// till we re-attempt the user-preferred methods.
 	// If this is 0 then the client does not fall back to less optimal but available methods.
 	MethodResetDuration time.Duration
+
+	// ProxydDebug adds proxyd debug data to errors
+	ProxydDebug bool
 }
 
 func (c *EthClientConfig) Check() error {
@@ -132,6 +136,9 @@ type EthClient struct {
 
 	// methodResetDuration defines how long we take till we reset lastMethodsReset
 	methodResetDuration time.Duration
+
+	// proxydDebug makes the client capture proxyd metadata, and log it on errors
+	proxydDebug bool
 }
 
 func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
@@ -220,6 +227,22 @@ func (n numberID) CheckID(id eth.BlockID) error {
 }
 
 func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
+	var proxydInspector *httputil.ProxydInspector
+	if s.proxydDebug {
+		proxydInspector = new(httputil.ProxydInspector)
+		ctx = httputil.NewInterceptorContext(ctx, proxydInspector)
+	}
+	info, err := s.headerCallInner(ctx, method, id)
+	if err != nil {
+		if s.proxydDebug {
+			proxydInspector.LogContext(s.log).Warn("failed to fetch block header", "block", id.Arg(), "err", err)
+		}
+		return nil, err
+	}
+	return info, nil
+}
+
+func (s *EthClient) headerCallInner(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
 	var header *rpcHeader
 	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
@@ -240,6 +263,22 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 }
 
 func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
+	var proxydInspector *httputil.ProxydInspector
+	if s.proxydDebug {
+		proxydInspector = new(httputil.ProxydInspector)
+		ctx = httputil.NewInterceptorContext(ctx, proxydInspector)
+	}
+	info, txs, err := s.blockCallInner(ctx, method, id)
+	if err != nil {
+		if s.proxydDebug {
+			proxydInspector.LogContext(s.log).Warn("failed to fetch block", "block", id.Arg(), "err", err)
+		}
+		return nil, nil, err
+	}
+	return info, txs, nil
+}
+
+func (s *EthClient) blockCallInner(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
 	var block *rpcBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
@@ -360,8 +399,16 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
 		s.receiptsCache.Add(blockHash, job)
 	}
+	var proxydInspector *httputil.ProxydInspector
+	if s.proxydDebug {
+		proxydInspector = new(httputil.ProxydInspector)
+		ctx = httputil.NewInterceptorContext(ctx, proxydInspector)
+	}
 	receipts, err := job.Fetch(ctx)
 	if err != nil {
+		if s.proxydDebug {
+			proxydInspector.LogContext(s.log).Warn("failed to fetch receipts", "block", blockHash, "err", err)
+		}
 		return nil, nil, err
 	}
 

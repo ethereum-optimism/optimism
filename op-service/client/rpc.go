@@ -4,18 +4,21 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"regexp"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/time/rate"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 var httpRegex = regexp.MustCompile("^http(s)?://")
@@ -33,6 +36,14 @@ type rpcConfig struct {
 	backoffAttempts  int
 	limit            float64
 	burst            int
+	interceptor      bool
+}
+
+func WithHTTPInterceptor() RPCOption {
+	return func(cfg *rpcConfig) error {
+		cfg.interceptor = true
+		return nil
+	}
 }
 
 type RPCOption func(cfg *rpcConfig) error
@@ -84,6 +95,12 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 	if cfg.backoffAttempts < 1 { // default to at least 1 attempt, or it always fails to dial.
 		cfg.backoffAttempts = 1
 	}
+
+	var cl http.Client
+	if cfg.interceptor {
+		cl.Transport = httputil.InterceptorRoundTripper{Inner: http.DefaultTransport}
+	}
+	cfg.gethRPCOptions = append(cfg.gethRPCOptions, rpc.WithHTTPClient(&cl))
 
 	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
 	if err != nil {
