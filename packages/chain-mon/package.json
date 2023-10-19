@@ -55,6 +55,6 @@
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "hardhat": "^2.18.1",
     "ts-node": "^10.9.1",
-    "tsx": "^3.12.7"
+    "tsx": "^3.14.0"
   }
 }
