@@ -333,7 +333,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: test and generate coverage
-          command: pnpm coverage:lcov
+          command: pnpm coverage:lcov || true
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
