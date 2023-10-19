@@ -28,11 +28,14 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		log.Info("detected transaction withdrawals", "size", len(l2ToL1MPMessagesPassed))
 	}
 
+	withdrawnETH := 0
 	messagesPassed := make(map[logKey]*contracts.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
 		messagePassed := l2ToL1MPMessagesPassed[i]
 		messagesPassed[logKey{messagePassed.Event.BlockHash, messagePassed.Event.LogIndex}] = &messagePassed
+		withdrawnETH = withdrawnETH + int(messagePassed.Tx.Amount.Int64())
+
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       messagePassed.WithdrawalHash,
 			InitiatedL2EventGUID: messagePassed.Event.GUID,
@@ -45,7 +48,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
 		}
-		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals))
+		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), withdrawnETH)
 	}
 
 	// (2) L2CrossDomainMessenger
@@ -68,6 +71,9 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		if !ok {
 			log.Error("expected MessagePassedEvent preceding SentMessage", "tx_hash", sentMessage.Event.TransactionHash.String())
 			return fmt.Errorf("expected MessagePassedEvent preceding SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+		} else if messagePassed.Event.TransactionHash != sentMessage.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "withdraw_tx_hash", messagePassed.Event.TransactionHash.String(), "message_tx_hash", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -93,16 +99,23 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 	for i := range initiatedBridges {
 		initiatedBridge := initiatedBridges[i]
 
-		// extract the cross domain message hash & deposit source hash from the following events
+		// extract the cross domain message hash & withdraw hash from the following events
 		messagePassed, ok := messagesPassed[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
 		if !ok {
 			log.Error("expected MessagePassed following BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
 			return fmt.Errorf("expected MessagePassed following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+		} else if messagePassed.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "withdraw_tx_hash", messagePassed.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
+
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
 		if !ok {
-			log.Error("expected SentMessage following MessagePassed event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage following MessagePassed event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			log.Error("expected SentMessage following BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected SentMessage following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -180,6 +193,9 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		if !ok {
 			log.Error("expected RelayedMessage following BridgeFinalized event", "tx_hash", finalizedBridge.Event.TransactionHash.String())
 			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash.String())
+		} else if relayedMessage.Event.TransactionHash != finalizedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "message_tx_hash", relayedMessage.Event.TransactionHash.String(), "bridge_tx_hash", finalizedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		// Since the message hash is computed from the relayed message, this ensures the withdrawal fields must match
