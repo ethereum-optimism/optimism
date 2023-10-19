@@ -72,8 +72,11 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// extract the deposit hash from the previous TransactionDepositedEvent
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("missing transaction deposit for cross domain message", "tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("missing preceding TransactionEnqueued for SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+			log.Error("expected TransactionEnqueued preceding SentMessage event", "tx_hash", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+		} else if ctcTxDeposit.Event.TransactionHash != sentMessage.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "deposit_tx_hash", ctcTxDeposit.Event.TransactionHash.String(), "message_tx_hash", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		bridgeMessages[i] = database.L1BridgeMessage{TransactionSourceHash: ctcTxDeposit.TxHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -104,13 +107,20 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// 	- Event Flow: TransactionEnqueued -> SentMessage -> DepositInitiated
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("missing cross domain message for bridge transfer", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			log.Error("expected SentMessage preceding BridgeInitiated event", "tx_hash", sentMessage.Event.TransactionHash.String())
 			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
+
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 2}]
 		if !ok {
-			log.Error("missing transaction deposit for bridge transfer", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected TransactionEnqueued preceding DepostInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			log.Error("expected TransactionEnqueued preceding BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+		} else if ctcTxDeposit.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "deposit_tx_hash", ctcTxDeposit.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -207,12 +217,15 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// 	- Event Flow: TransactionEnqueued -> SentMessage -> DepositInitiated
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected SentMessage preceding DepositInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			log.Error("expected SentMessage preceding BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected SentMessage preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
-		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 		l2BridgeWithdrawals[i] = database.L2BridgeWithdrawal{
 			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
 			BridgeTransfer:            initiatedBridge.BridgeTransfer,
