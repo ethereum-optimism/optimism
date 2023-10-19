@@ -355,7 +355,7 @@ func toGethWithdrawals(payload *eth.ExecutionPayload) []*types.Withdrawal {
 		return nil
 	}
 
-	result := []*types.Withdrawal{}
+	result := make([]*types.Withdrawal, 0, len(*payload.Withdrawals))
 
 	for _, w := range *payload.Withdrawals {
 		result = append(result, &types.Withdrawal{

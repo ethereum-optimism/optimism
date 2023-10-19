@@ -26,7 +26,7 @@ const blockV1FixedPart = 32 + 20 + 32 + 32 + 256 + 32 + 8 + 8 + 8 + 8 + 4 + 32 +
 // V1 + Withdrawals offset
 const blockV2FixedPart = blockV1FixedPart + 4
 
-const withdrawalSize = 8 + 8 + 32 + 8
+const withdrawalSize = 8 + 8 + 20 + 8
 
 // MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
 // https://github.com/ethereum/consensus-specs/blob/ef434e87165e9a4c82a99f54ffd4974ae113f732/specs/bellatrix/beacon-chain.md#execution
@@ -194,8 +194,8 @@ func marshalWithdrawals(out []byte, withdrawals *Withdrawals) {
 		offset += 8
 		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Validator)
 		offset += 8
-		copy(out[offset:offset+32], withdrawal.Address[:])
-		offset += 32
+		copy(out[offset:offset+20], withdrawal.Address[:])
+		offset += 20
 		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Amount)
 		offset += 8
 	}
@@ -335,8 +335,8 @@ func unmarshalWithdrawals(in []byte) (*Withdrawals, error) {
 		withdrawal.Validator = binary.LittleEndian.Uint64(in[offset : offset+8])
 		offset += 8
 
-		copy(withdrawal.Address[:], in[offset:offset+32])
-		offset += 32
+		copy(withdrawal.Address[:], in[offset:offset+20])
+		offset += 20
 
 		withdrawal.Amount = binary.LittleEndian.Uint64(in[offset : offset+8])
 		offset += 8

@@ -621,8 +621,10 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum
 		return fmt.Errorf("failed to read response: %w", err)
 	}
 
+	expectedBlockTime := s.cfg.TimestampForBlock(expectedBlockNum)
+
 	blockVersion := eth.BlockV1
-	if s.cfg.IsCanyon(expectedBlockNum) {
+	if s.cfg.IsCanyon(expectedBlockTime) {
 		blockVersion = eth.BlockV2
 	}
 	var res eth.ExecutionPayload
