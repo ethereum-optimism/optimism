@@ -665,9 +665,9 @@ type BackendGroup struct {
 	Consensus *ConsensusPoller
 }
 
-func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
+func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
 	if len(rpcReqs) == 0 {
-		return nil, nil
+		return nil, "", nil
 	}
 
 	backends := bg.Backends
@@ -731,7 +731,7 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
 				errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) ||
 				errors.Is(err, ErrMethodNotWhitelisted) {
-				return nil, err
+				return nil, "", err
 			}
 			if errors.Is(err, ErrBackendOffline) {
 				log.Warn(
@@ -773,11 +773,12 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			}
 		}
 
-		return res, nil
+		servedBy := fmt.Sprintf("%s/%s", bg.Name, back.Name)
+		return res, servedBy, nil
 	}
 
 	RecordUnserviceableRequest(ctx, RPCRequestSourceHTTP)
-	return nil, ErrNoBackends
+	return nil, "", ErrNoBackends
 }
 
 func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
