@@ -144,7 +144,7 @@ func (db *contractEventsDB) L1ContractEventsWithFilter(filter ContractEvent, fro
 	query := db.gorm.Table("l1_contract_events").Where(&filter)
 	query = query.Joins("INNER JOIN l1_block_headers ON l1_contract_events.block_hash = l1_block_headers.hash")
 	query = query.Where("l1_block_headers.number >= ? AND l1_block_headers.number <= ?", fromHeight, toHeight)
-	query = query.Order("l1_block_headers.number ASC").Select("l1_contract_events.*")
+	query = query.Order("l1_block_headers.number ASC, l1_contract_events.log_index ASC").Select("l1_contract_events.*")
 
 	// NOTE: We use `Find` here instead of `Scan` since `Scan` doesn't not support
 	// model hooks like `ContractEvent#AfterFind`. Functionally they are the same
@@ -211,7 +211,7 @@ func (db *contractEventsDB) L2ContractEventsWithFilter(filter ContractEvent, fro
 	query := db.gorm.Table("l2_contract_events").Where(&filter)
 	query = query.Joins("INNER JOIN l2_block_headers ON l2_contract_events.block_hash = l2_block_headers.hash")
 	query = query.Where("l2_block_headers.number >= ? AND l2_block_headers.number <= ?", fromHeight, toHeight)
-	query = query.Order("l2_block_headers.number ASC").Select("l2_contract_events.*")
+	query = query.Order("l2_block_headers.number ASC, l2_contract_events.log_index ASC").Select("l2_contract_events.*")
 
 	// NOTE: We use `Find` here instead of `Scan` since `Scan` doesn't not support
 	// model hooks like `ContractEvent#AfterFind`. Functionally they are the same
