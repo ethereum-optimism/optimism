@@ -162,13 +162,17 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction withdrawals (via L2CrossDomainMessenger)", "size", len(crossDomainSentMessages))
 	}
 
+	type sentMessageEvent struct {
+		*contracts.CrossDomainMessengerSentMessageEvent
+		WithdrawalHash common.Hash
+	}
+
 	withdrawnWEI := bigint.Zero
-	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
+	sentMessages := make(map[logKey]sentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
-		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
 		withdrawnWEI = new(big.Int).Add(withdrawnWEI, sentMessage.BridgeMessage.Tx.Amount)
 
 		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
@@ -188,6 +192,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 			},
 		}
 
+		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
 		bridgeMessages[i] = database.L2BridgeMessage{
 			TransactionWithdrawalHash: withdrawalHash,
 			BridgeMessage:             sentMessage.BridgeMessage,
@@ -235,7 +240,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 		l2BridgeWithdrawals[i] = database.L2BridgeWithdrawal{
-			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
+			TransactionWithdrawalHash: sentMessage.WithdrawalHash,
 			BridgeTransfer:            initiatedBridge.BridgeTransfer,
 		}
 	}

@@ -186,7 +186,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	var header L1BlockHeader
 	if fromL1Height != nil {
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
-		// TODO - Embed logging to db
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return nil, nil
@@ -196,7 +195,8 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 
 		fromTimestamp = header.Timestamp
 	} else {
-		result := db.gorm.Order("number desc").Take(&header)
+		// Take the lowest indexed L1 block to compute the lower bound
+		result := db.gorm.Order("number ASC").Take(&header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return nil, nil
@@ -205,6 +205,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		}
 
 		fromL1Height = header.Number
+		fromTimestamp = header.Timestamp
 	}
 
 	// Upper Bound (lowest timestamp indexed between L1/L2 bounded by `maxL1Range`)
