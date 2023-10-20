@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
@@ -28,13 +29,13 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected transaction deposits", "size", len(optimismPortalTxDeposits))
 	}
 
-	mintedETH := 0
+	var mintedGWEI = bigint.Zero
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
 		depositTx := optimismPortalTxDeposits[i]
 		portalDeposits[logKey{depositTx.Event.BlockHash, depositTx.Event.LogIndex}] = &depositTx
-		mintedETH = mintedETH + int(depositTx.Tx.Amount.Uint64())
+		mintedGWEI = new(big.Int).Add(mintedGWEI, depositTx.Tx.Amount)
 
 		transactionDeposits[i] = database.L1TransactionDeposit{
 			SourceHash:           depositTx.DepositTx.SourceHash,
@@ -43,11 +44,16 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 			GasLimit:             depositTx.GasLimit,
 			Tx:                   depositTx.Tx,
 		}
+
 	}
+
 	if len(transactionDeposits) > 0 {
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
 		}
+
+		// Convert to from wei to eth
+		mintedETH, _ := bigint.WeiToETH(mintedGWEI).Float64()
 		metrics.RecordL1TransactionDeposits(len(transactionDeposits), mintedETH)
 	}
 
