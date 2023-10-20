@@ -9,47 +9,10 @@ import { Chains } from "./Chains.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
-///         to read the file from JSON. A future improvement would be to have fallback
-///         values if they are not defined in the JSON themselves.
+///         to read the file from JSON. Values are accessed lazily via getter funtions.
+///         Need to use crazy hacks with assembly to cast function pointers to view.
 contract DeployConfig is Script {
     string internal _json;
-
-    address public finalSystemOwner;
-    address public portalGuardian;
-    uint256 public l1ChainID;
-    uint256 public l2ChainID;
-    uint256 public l2BlockTime;
-    uint256 public maxSequencerDrift;
-    uint256 public sequencerWindowSize;
-    uint256 public channelTimeout;
-    address public p2pSequencerAddress;
-    address public batchInboxAddress;
-    address public batchSenderAddress;
-    uint256 public l2OutputOracleSubmissionInterval;
-    int256 internal _l2OutputOracleStartingTimestamp;
-    uint256 public l2OutputOracleStartingBlockNumber;
-    address public l2OutputOracleProposer;
-    address public l2OutputOracleChallenger;
-    uint256 public finalizationPeriodSeconds;
-    address public proxyAdminOwner;
-    address public baseFeeVaultRecipient;
-    address public l1FeeVaultRecipient;
-    address public sequencerFeeVaultRecipient;
-    string public governanceTokenName;
-    string public governanceTokenSymbol;
-    address public governanceTokenOwner;
-    uint256 public l2GenesisBlockGasLimit;
-    uint256 public l2GenesisBlockBaseFeePerGas;
-    uint256 public gasPriceOracleOverhead;
-    uint256 public gasPriceOracleScalar;
-    uint256 public eip1559Denominator;
-    uint256 public eip1559Elasticity;
-    uint256 public faultGameAbsolutePrestate;
-    uint256 public faultGameMaxDepth;
-    uint256 public faultGameMaxDuration;
-    uint256 public systemConfigStartBlock;
-    uint256 public requiredProtocolVersion;
-    uint256 public recommendedProtocolVersion;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -57,48 +20,314 @@ contract DeployConfig is Script {
             _json = data;
         } catch {
             console.log("Warning: unable to read config. Do not deploy unless you are not using config.");
-            return;
         }
+    }
 
-        finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
-        portalGuardian = stdJson.readAddress(_json, "$.portalGuardian");
-        l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
-        l2ChainID = stdJson.readUint(_json, "$.l2ChainID");
-        l2BlockTime = stdJson.readUint(_json, "$.l2BlockTime");
-        maxSequencerDrift = stdJson.readUint(_json, "$.maxSequencerDrift");
-        sequencerWindowSize = stdJson.readUint(_json, "$.sequencerWindowSize");
-        channelTimeout = stdJson.readUint(_json, "$.channelTimeout");
-        p2pSequencerAddress = stdJson.readAddress(_json, "$.p2pSequencerAddress");
-        batchInboxAddress = stdJson.readAddress(_json, "$.batchInboxAddress");
-        batchSenderAddress = stdJson.readAddress(_json, "$.batchSenderAddress");
-        l2OutputOracleSubmissionInterval = stdJson.readUint(_json, "$.l2OutputOracleSubmissionInterval");
-        _l2OutputOracleStartingTimestamp = stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
-        l2OutputOracleStartingBlockNumber = stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
-        l2OutputOracleProposer = stdJson.readAddress(_json, "$.l2OutputOracleProposer");
-        l2OutputOracleChallenger = stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
-        finalizationPeriodSeconds = stdJson.readUint(_json, "$.finalizationPeriodSeconds");
-        proxyAdminOwner = stdJson.readAddress(_json, "$.proxyAdminOwner");
-        baseFeeVaultRecipient = stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
-        l1FeeVaultRecipient = stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
-        sequencerFeeVaultRecipient = stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
-        governanceTokenName = stdJson.readString(_json, "$.governanceTokenName");
-        governanceTokenSymbol = stdJson.readString(_json, "$.governanceTokenSymbol");
-        governanceTokenOwner = stdJson.readAddress(_json, "$.governanceTokenOwner");
-        l2GenesisBlockGasLimit = stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
-        l2GenesisBlockBaseFeePerGas = stdJson.readUint(_json, "$.l2GenesisBlockBaseFeePerGas");
-        gasPriceOracleOverhead = stdJson.readUint(_json, "$.gasPriceOracleOverhead");
-        gasPriceOracleScalar = stdJson.readUint(_json, "$.gasPriceOracleScalar");
-        eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
-        eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
-        systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
-        requiredProtocolVersion = stdJson.readUint(_json, "$.requiredProtocolVersion");
-        recommendedProtocolVersion = stdJson.readUint(_json, "$.recommendedProtocolVersion");
-
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
-            faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
-            faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
+    function _castViewUint256(function () returns (uint256) f) internal view returns (uint256) {
+        function() view returns (uint256) inner;
+        function() returns (uint256) i = f;
+        assembly {
+            inner := i
         }
+        return inner();
+    }
+
+    function _castViewAddress(function () returns (address) f) internal view returns (address) {
+        function() view returns (address) inner;
+        function() returns (address) i = f;
+        assembly {
+            inner := i
+        }
+        return inner();
+    }
+
+    function _castViewString(function () returns (string memory) f) internal view returns (string memory) {
+        function() view returns (string memory) inner;
+        function() returns (string memory) i = f;
+        assembly {
+            inner := i
+        }
+        return inner();
+    }
+
+    function finalSystemOwner() public view returns (address) {
+        return _castViewAddress(_finalSystemOwner);
+    }
+
+    function _finalSystemOwner() internal returns (address) {
+        return stdJson.readAddress(_json, "$.finalSystemOwner");
+    }
+
+    function portalGuardian() public view returns (address) {
+        return _castViewAddress(_portalGuardian);
+    }
+
+    function _portalGuardian() internal returns (address) {
+        return stdJson.readAddress(_json, "$.portalGuardian");
+    }
+
+    function l1ChainID() public view returns (uint256) {
+        return _castViewUint256(_l1ChainID);
+    }
+
+    function _l1ChainID() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l1ChainID");
+    }
+
+    function l2ChainID() public view returns (uint256) {
+        return _castViewUint256(_l2ChainID);
+    }
+
+    function _l2ChainID() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l2ChainID");
+    }
+
+    function l2BlockTime() public view returns (uint256) {
+        return _castViewUint256(_l2BlockTime);
+    }
+
+    function _l2BlockTime() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l2BlockTime");
+    }
+
+    function maxSequencerDrift() public view returns (uint256) {
+        return _castViewUint256(_maxSequencerDrift);
+    }
+
+    function _maxSequencerDrift() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.maxSequencerDrift");
+    }
+
+    function sequencerWindowSize() public view returns (uint256) {
+        return _castViewUint256(_sequencerWindowSize);
+    }
+
+    function _sequencerWindowSize() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.sequencerWindowSize");
+    }
+
+    function channelTimeout() public view returns (uint256) {
+        return _castViewUint256(_channelTimeout);
+    }
+
+    function _channelTimeout() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.channelTimeout");
+    }
+
+    function p2pSequencerAddress() public view returns (address) {
+        return _castViewAddress(_p2pSequencerAddress);
+    }
+
+    function _p2pSequencerAddress() internal returns (address) {
+        return stdJson.readAddress(_json, "$.p2pSequencerAddress");
+    }
+
+    function batchInboxAddress() public view returns (address) {
+        return _castViewAddress(_batchInboxAddress);
+    }
+
+    function _batchInboxAddress() internal returns (address) {
+        return stdJson.readAddress(_json, "$.batchInboxAddress");
+    }
+
+    function batchSenderAddress() public view returns (address) {
+        return _castViewAddress(_batchSenderAddress);
+    }
+
+    function _batchSenderAddress() internal returns (address) {
+        return stdJson.readAddress(_json, "$.batchSenderAddress");
+    }
+
+    function l2OutputOracleSubmissionInterval() public view returns (uint256) {
+        return _castViewUint256(_l2OutputOracleSubmissionInterval);
+    }
+
+    function _l2OutputOracleSubmissionInterval() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l2OutputOracleSubmissionInterval");
+    }
+
+    function l2OutputOracleStartingBlockNumber() public view returns (uint256) {
+        return _castViewUint256(_l2OutputOracleStartingBlockNumber);
+    }
+
+    function _l2OutputOracleStartingBlockNumber() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l2OutputOracleStartingBlockNumber");
+    }
+
+    function l2OutputOracleProposer() public view returns (address) {
+        return _castViewAddress(_l2OutputOracleProposer);
+    }
+
+    function _l2OutputOracleProposer() internal returns (address) {
+        return stdJson.readAddress(_json, "$.l2OutputOracleProposer");
+    }
+
+    function l2OutputOracleChallenger() public view returns (address) {
+        return _castViewAddress(_l2OutputOracleChallenger);
+    }
+
+    function _l2OutputOracleChallenger() internal returns (address) {
+        return stdJson.readAddress(_json, "$.l2OutputOracleChallenger");
+    }
+
+    function finalizationPeriodSeconds() public view returns (uint256) {
+        return _castViewUint256(_finalizationPeriodSeconds);
+    }
+
+    function _finalizationPeriodSeconds() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.finalizationPeriodSeconds");
+    }
+
+    function proxyAdminOwner() public view returns (address) {
+        return _castViewAddress(_proxyAdminOwner);
+    }
+
+    function _proxyAdminOwner() internal returns (address) {
+        return stdJson.readAddress(_json, "$.proxyAdminOwner");
+    }
+
+    function baseFeeVaultRecipient() public view returns (address) {
+        return _castViewAddress(_baseFeeVaultRecipient);
+    }
+
+    function _baseFeeVaultRecipient() internal returns (address) {
+        return stdJson.readAddress(_json, "$.baseFeeVaultRecipient");
+    }
+
+    function l1FeeVaultRecipient() public view returns (address) {
+        return _castViewAddress(_l1FeeVaultRecipient);
+    }
+
+    function _l1FeeVaultRecipient() internal returns (address) {
+        return stdJson.readAddress(_json, "$.l1FeeVaultRecipient");
+    }
+
+    function sequencerFeeVaultRecipient() public view returns (address) {
+        return _castViewAddress(_sequencerFeeVaultRecipient);
+    }
+
+    function _sequencerFeeVaultRecipient() internal returns (address) {
+        return stdJson.readAddress(_json, "$.sequencerFeeVaultRecipient");
+    }
+
+    function governanceTokenName() public view returns (string memory) {
+        return _castViewString(_governanceTokenName);
+    }
+
+    function _governanceTokenName() internal returns (string memory) {
+        return stdJson.readString(_json, "$.governanceTokenName");
+    }
+
+    function governanceTokenSymbol() public view returns (string memory) {
+        return _castViewString(_governanceTokenSymbol);
+    }
+
+    function _governanceTokenSymbol() internal returns (string memory) {
+        return stdJson.readString(_json, "$.governanceTokenSymbol");
+    }
+
+    function governanceTokenOwner() public view returns (address) {
+        return _castViewAddress(_governanceTokenOwner);
+    }
+
+    function _governanceTokenOwner() internal returns (address) {
+        return stdJson.readAddress(_json, "$.governanceTokenOwner");
+    }
+
+    function l2GenesisBlockGasLimit() public view returns (uint256) {
+        return _castViewUint256(_l2GenesisBlockGasLimit);
+    }
+
+    function _l2GenesisBlockGasLimit() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l2GenesisBlockGasLimit");
+    }
+
+    function l2GenesisBlockBaseFeePerGas() public view returns (uint256) {
+        return _castViewUint256(_l2GenesisBlockBaseFeePerGas);
+    }
+
+    function _l2GenesisBlockBaseFeePerGas() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.l2GenesisBlockBaseFeePerGas");
+    }
+
+    function gasPriceOracleOverhead() public view returns (uint256) {
+        return _castViewUint256(_gasPriceOracleOverhead);
+    }
+
+    function _gasPriceOracleOverhead() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.gasPriceOracleOverhead");
+    }
+
+    function gasPriceOracleScalar() public view returns (uint256) {
+        return _castViewUint256(_gasPriceOracleScalar);
+    }
+
+    function _gasPriceOracleScalar() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.gasPriceOracleScalar");
+    }
+
+    function eip1559Denominator() public view returns (uint256) {
+        return _castViewUint256(_eip1559Denominator);
+    }
+
+    function _eip1559Denominator() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.eip1559Denominator");
+    }
+
+    function eip1559Elasticity() public view returns (uint256) {
+        return _castViewUint256(_eip1559Elasticity);
+    }
+
+    function _eip1559Elasticity() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.eip1559Elasticity");
+    }
+
+    function systemConfigStartBlock() public view returns (uint256) {
+        return _castViewUint256(_systemConfigStartBlock);
+    }
+
+    function _systemConfigStartBlock() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.systemConfigStartBlock");
+    }
+
+    function requiredProtocolVersion() public view returns (uint256) {
+        return _castViewUint256(_requiredProtocolVersion);
+    }
+
+    function _requiredProtocolVersion() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.requiredProtocolVersion");
+    }
+
+    function recommendedProtocolVersion() public view returns (uint256) {
+        return _castViewUint256(_recommendedProtocolVersion);
+    }
+
+    function _recommendedProtocolVersion() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.recommendedProtocolVersion");
+    }
+
+    function faultGameAbsolutePrestate() public view returns (uint256) {
+        return _castViewUint256(_faultGameAbsolutePrestate);
+    }
+
+    function _faultGameAbsolutePrestate() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+    }
+
+    function faultGameMaxDepth() public view returns (uint256) {
+        return _castViewUint256(_faultGameMaxDepth);
+    }
+
+    function _faultGameMaxDepth() internal returns (uint256) {
+        return stdJson.readUint(_json, "$.faultGameMaxDepth");
+    }
+
+    function faultGameMaxDuration() public view returns (uint256) {
+        return _castViewUint256(_faultGameMaxDuration);
+    }
+
+    function _faultGameMaxDuration() public returns (uint256) {
+        return stdJson.readUint(_json, "$.faultGameMaxDuration");
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
@@ -117,6 +346,7 @@ contract DeployConfig is Script {
     }
 
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
+        int256 _l2OutputOracleStartingTimestamp = stdJson.readInt(_json, "$.l2OutputOracleStartingTimestamp");
         if (_l2OutputOracleStartingTimestamp < 0) {
             bytes32 tag = l1StartingBlockTag();
             string[] memory cmd = new string[](3);
