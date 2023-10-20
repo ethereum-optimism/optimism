@@ -65,7 +65,7 @@
     "markdownlint": "^0.31.0",
     "markdownlint-cli2": "0.4.0",
     "mocha": "^10.2.0",
-    "nx": "16.10.0",
+    "nx": "17.0.1",
     "nyc": "^15.1.0",
     "patch-package": "^8.0.0",
     "prettier": "^2.8.0",
