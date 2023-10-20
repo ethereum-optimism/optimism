@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-ts
 
+## 0.17.0
+
+### Minor Changes
+
+- [#7644](https://github.com/ethereum-optimism/optimism/pull/7644) [`86bdaa075`](https://github.com/ethereum-optimism/optimism/commit/86bdaa075f424974531ce98ac9e21037e43db1bb) Thanks [@roninjin10](https://github.com/roninjin10)! - Removed unused hooks and actions
+
 ## 0.16.2
 
 ### Patch Changes
