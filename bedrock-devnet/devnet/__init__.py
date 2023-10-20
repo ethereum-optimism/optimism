@@ -96,7 +96,9 @@ def main():
 
     log.info('Building docker images')
     run_command(['docker', 'compose', 'build', '--progress', 'plain'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
+        'PWD': paths.ops_bedrock_dir,
+        'DOCKER_BUILDKIT': '1', # (should be available by default in later versions, but explicitly enable it anyway)
+        'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
     })
 
     log.info('Devnet starting')
