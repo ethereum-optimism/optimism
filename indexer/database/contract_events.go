@@ -116,7 +116,7 @@ func (db *contractEventsDB) StoreL1ContractEvents(events []L1ContractEvent) erro
 	// that the RLP bytes match when doing conflict resolution.
 	deduped := db.gorm.Clauses(clause.OnConflict{OnConstraint: "l1_contract_events_block_hash_log_index_key", DoNothing: true})
 	result := deduped.CreateInBatches(&events, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(events) {
+	if result.Error == nil && int(result.RowsAffected) < len(events) {
 		db.log.Warn("ignored L1 contract event duplicates", "duplicates", len(events)-int(result.RowsAffected))
 	}
 
@@ -190,7 +190,7 @@ func (db *contractEventsDB) StoreL2ContractEvents(events []L2ContractEvent) erro
 	// that the RLP bytes match when doing conflict resolution.
 	deduped := db.gorm.Clauses(clause.OnConflict{OnConstraint: "l2_contract_events_block_hash_log_index_key", DoNothing: true})
 	result := deduped.CreateInBatches(&events, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(events) {
+	if result.Error == nil && int(result.RowsAffected) < len(events) {
 		db.log.Warn("ignored L2 contract event duplicates", "duplicates", len(events)-int(result.RowsAffected))
 	}
 

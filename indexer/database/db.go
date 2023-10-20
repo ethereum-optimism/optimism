@@ -103,6 +103,7 @@ func (db *DB) Transaction(fn func(db *DB) error) error {
 }
 
 func (db *DB) Close() error {
+	db.log.Info("closing database")
 	sql, err := db.gorm.DB()
 	if err != nil {
 		return err

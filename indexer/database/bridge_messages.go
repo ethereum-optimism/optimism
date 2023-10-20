@@ -77,7 +77,7 @@ func newBridgeMessagesDB(log log.Logger, db *gorm.DB) BridgeMessagesDB {
 func (db bridgeMessagesDB) StoreL1BridgeMessages(messages []L1BridgeMessage) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
 	result := deduped.CreateInBatches(&messages, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(messages) {
+	if result.Error == nil && int(result.RowsAffected) < len(messages) {
 		db.log.Warn("ignored L1 bridge message duplicates", "duplicates", len(messages)-int(result.RowsAffected))
 	}
 
@@ -127,8 +127,8 @@ func (db bridgeMessagesDB) MarkRelayedL1BridgeMessage(messageHash common.Hash, r
 func (db bridgeMessagesDB) StoreL2BridgeMessages(messages []L2BridgeMessage) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
 	result := deduped.CreateInBatches(&messages, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(messages) {
-		db.log.Warn("ignored L1 bridge message duplicates", "duplicates", len(messages)-int(result.RowsAffected))
+	if result.Error == nil && int(result.RowsAffected) < len(messages) {
+		db.log.Warn("ignored L2 bridge message duplicates", "duplicates", len(messages)-int(result.RowsAffected))
 	}
 
 	return result.Error

@@ -96,7 +96,7 @@ func newBridgeTransfersDB(log log.Logger, db *gorm.DB) BridgeTransfersDB {
 func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []L1BridgeDeposit) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "transaction_source_hash"}}, DoNothing: true})
 	result := deduped.CreateInBatches(&deposits, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(deposits) {
+	if result.Error == nil && int(result.RowsAffected) < len(deposits) {
 		db.log.Warn("ignored L1 bridge transfer duplicates", "duplicates", len(deposits)-int(result.RowsAffected))
 	}
 
@@ -214,7 +214,7 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
 func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []L2BridgeWithdrawal) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "transaction_withdrawal_hash"}}, DoNothing: true})
 	result := deduped.CreateInBatches(&withdrawals, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(withdrawals) {
+	if result.Error == nil && int(result.RowsAffected) < len(withdrawals) {
 		db.log.Warn("ignored L2 bridge transfer duplicates", "duplicates", len(withdrawals)-int(result.RowsAffected))
 	}
 

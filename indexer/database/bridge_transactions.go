@@ -85,7 +85,7 @@ func newBridgeTransactionsDB(log log.Logger, db *gorm.DB) BridgeTransactionsDB {
 func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "source_hash"}}, DoNothing: true})
 	result := deduped.CreateInBatches(&deposits, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(deposits) {
+	if result.Error == nil && int(result.RowsAffected) < len(deposits) {
 		db.log.Warn("ignored L1 tx deposit duplicates", "duplicates", len(deposits)-int(result.RowsAffected))
 	}
 
@@ -143,8 +143,8 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "withdrawal_hash"}}, DoNothing: true})
 	result := deduped.CreateInBatches(&withdrawals, batchInsertSize)
-	if result.Error != nil && int(result.RowsAffected) < len(withdrawals) {
-		db.log.Warn("ignored L2 tx deposit withdrawals", "duplicates", len(withdrawals)-int(result.RowsAffected))
+	if result.Error == nil && int(result.RowsAffected) < len(withdrawals) {
+		db.log.Warn("ignored L2 tx withdrawal duplicates", "duplicates", len(withdrawals)-int(result.RowsAffected))
 	}
 
 	return result.Error
