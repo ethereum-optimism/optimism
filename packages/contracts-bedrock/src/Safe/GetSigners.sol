@@ -5,10 +5,19 @@ import { SignatureDecoder } from "safe-contracts/common/SignatureDecoder.sol";
 
 abstract contract GetSigners is SignatureDecoder {
     /// @notice Extract the signers from a set of signatures.
-    function _getNSigners(bytes32 dataHash, bytes memory signatures) internal pure returns (address[] memory _owners) {
-        uint256 numSignatures = signatures.length / 65; // this is wrong. There can be extra data appended to the
-            // signatures for contract signatures. We should use SignatureDecoder to parse the signatures.
-        _owners = new address[](numSignatures);
+    /// @param dataHash Hash of the data.
+    /// @param signatures Signature data for identifying signers.
+    /// @param requiredSignatures Amount of required valid signatures.
+    function _getNSigners(
+        bytes32 dataHash,
+        bytes memory signatures,
+        uint256 requiredSignatures
+    )
+        internal
+        pure
+        returns (address[] memory _owners)
+    {
+        _owners = new address[](requiredSignatures);
 
         /// The following code is extracted from the Safe.checkNSignatures() method. It removes the signature
         /// validation code, and keeps only the parsing code necessary to extract the owner addresses from the
@@ -19,7 +28,7 @@ abstract contract GetSigners is SignatureDecoder {
         bytes32 r;
         bytes32 s;
         uint256 i;
-        for (i = 0; i < numSignatures; i++) {
+        for (i = 0; i < requiredSignatures; i++) {
             (v, r, s) = signatureSplit(signatures, i);
             if (v == 0) {
                 // If v is 0 then it is a contract signature

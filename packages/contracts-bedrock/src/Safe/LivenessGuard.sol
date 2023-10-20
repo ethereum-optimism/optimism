@@ -66,7 +66,11 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
             // Signature info
             Safe(payable(msg.sender)).nonce() - 1
         );
-        address[] memory signers = _getNSigners(txHash, signatures);
+
+        uint256 threshold = safe.getThreshold();
+        address[] memory signers =
+            _getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
+
         for (uint256 i = 0; i < signers.length; i++) {
             lastSigned[signers[i]] = block.timestamp;
         }
