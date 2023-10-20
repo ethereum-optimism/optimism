@@ -29,13 +29,13 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		log.Info("detected transaction withdrawals", "size", len(l2ToL1MPMessagesPassed))
 	}
 
-	var withdrawnGWEI = bigint.Zero
+	var withdrawnWEI = bigint.Zero
 	messagesPassed := make(map[logKey]*contracts.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
 		messagePassed := l2ToL1MPMessagesPassed[i]
 		messagesPassed[logKey{messagePassed.Event.BlockHash, messagePassed.Event.LogIndex}] = &messagePassed
-		withdrawnGWEI = new(big.Int).Add(withdrawnGWEI, messagePassed.Tx.Amount)
+		withdrawnWEI = new(big.Int).Add(withdrawnWEI, messagePassed.Tx.Amount)
 
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       messagePassed.WithdrawalHash,
@@ -50,9 +50,9 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 			return err
 		}
 
-		// Convert the withdrawn GWEI to ETH
-		withdrawnETH := new(big.Int).Div(withdrawnGWEI, big.NewInt(1e9)).Uint64()
-		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), int(withdrawnETH))
+		// Convert the withdrawn WEI to ETH
+		withdrawnETH, _ := bigint.WeiToETH(withdrawnWEI).Float64()
+		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), withdrawnETH)
 	}
 
 	// (2) L2CrossDomainMessenger

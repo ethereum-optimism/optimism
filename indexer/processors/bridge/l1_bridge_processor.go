@@ -53,8 +53,8 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		}
 
 		// Convert to from wei to eth
-		mintedETH := new(big.Int).Div(mintedGWEI, big.NewInt(1e18)).Uint64()
-		metrics.RecordL1TransactionDeposits(len(transactionDeposits), int(mintedETH))
+		mintedETH, _ := bigint.WeiToETH(mintedGWEI).Float64()
+		metrics.RecordL1TransactionDeposits(len(transactionDeposits), mintedETH)
 	}
 
 	// (2) L1CrossDomainMessenger

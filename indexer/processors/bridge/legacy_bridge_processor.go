@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -31,13 +32,13 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction deposits", "size", len(ctcTxDepositEvents))
 	}
 
-	mintedETH := 0
+	mintedWEI := bigint.Zero
 	ctcTxDeposits := make(map[logKey]*contracts.LegacyCTCDepositEvent, len(ctcTxDepositEvents))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(ctcTxDepositEvents))
 	for i := range ctcTxDepositEvents {
 		deposit := ctcTxDepositEvents[i]
 		ctcTxDeposits[logKey{deposit.Event.BlockHash, deposit.Event.LogIndex}] = &deposit
-		mintedETH = mintedETH + int(deposit.Tx.Amount.Uint64())
+		mintedWEI = new(big.Int).Add(mintedWEI, deposit.Tx.Amount)
 
 		transactionDeposits[i] = database.L1TransactionDeposit{
 			// We re-use the L2 Transaction hash as the source hash to remain consistent in the schema.
@@ -52,6 +53,8 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
 		}
+
+		mintedETH, _ := bigint.WeiToETH(mintedWEI).Float64()
 		metrics.RecordL1TransactionDeposits(len(transactionDeposits), mintedETH)
 	}
 
@@ -159,14 +162,14 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction withdrawals (via L2CrossDomainMessenger)", "size", len(crossDomainSentMessages))
 	}
 
-	withdrawnETH := 0
+	withdrawnWEI := bigint.Zero
 	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
-		withdrawnETH = withdrawnETH + int(sentMessage.BridgeMessage.Tx.Amount.Int64())
+		withdrawnWEI = new(big.Int).Add(withdrawnWEI, sentMessage.BridgeMessage.Tx.Amount)
 
 		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
 		// passer contract is sha3(calldata + sender). The sender always being the L2CrossDomainMessenger pre-bedrock.
@@ -197,6 +200,8 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err := db.BridgeMessages.StoreL2BridgeMessages(bridgeMessages); err != nil {
 			return err
 		}
+
+		withdrawnETH, _ := bigint.WeiToETH(withdrawnWEI).Float64()
 		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), withdrawnETH)
 		metrics.RecordL2CrossDomainSentMessages(len(bridgeMessages))
 	}
