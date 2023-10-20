@@ -82,7 +82,6 @@ func runMigrations(ctx *cli.Context) error {
 	log.Info("running migrations...")
 
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
-	migrationsDir := ctx.String(MigrationsFlag.Name)
 	if err != nil {
 		log.Error("failed to load config", "err", err)
 		return err
@@ -93,8 +92,9 @@ func runMigrations(ctx *cli.Context) error {
 		log.Error("failed to connect to database", "err", err)
 		return err
 	}
-
 	defer db.Close()
+
+	migrationsDir := ctx.String(MigrationsFlag.Name)
 	return db.ExecuteSQLMigration(migrationsDir)
 }
 
