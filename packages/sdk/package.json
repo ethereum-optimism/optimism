@@ -48,7 +48,7 @@
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
-    "hardhat": "^2.18.1",
+    "hardhat": "^2.18.2",
     "hardhat-deploy": "^0.11.43",
     "isomorphic-fetch": "^3.0.0",
     "mocha": "^10.2.0",
