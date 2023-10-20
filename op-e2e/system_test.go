@@ -592,6 +592,10 @@ func TestSystemRPCAltSync(t *testing.T) {
 		opts.VerifyOnClients(l2Verif)
 	})
 
+	// Sometimes we get duplicate blocks on the sequencer which makes this test flaky
+	published = slices.Compact(published)
+	received = slices.Compact(received)
+
 	// Verify that the tx was received via RPC sync (P2P is disabled)
 	require.Contains(t, received, eth.BlockID{Hash: receiptSeq.BlockHash, Number: receiptSeq.BlockNumber.Uint64()}.String())
 
