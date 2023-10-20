@@ -14,12 +14,15 @@ contract GetSigners_Test is Test, SafeTestTools, GetSigners {
     enum SigTypes {
         Eoa,
         EthSign,
-        ApprovedHash //,
-            // Contract
+        ApprovedHash,
+        Contract
     }
 
-    function sigType(uint256 _key) internal view returns (SigTypes sigType_) {
-        uint256 t = _key % 3; //4;
+    /// @dev Maps every key to one of the 4 signatures types.
+    ///      This is used in the tests below as a pseudorandom mechanism for determining which
+    ///      signature type to use for each key.
+    function sigType(uint256 _key) internal pure returns (SigTypes sigType_) {
+        uint256 t = _key % 4;
         sigType_ = SigTypes(t);
     }
 
@@ -29,61 +32,75 @@ contract GetSigners_Test is Test, SafeTestTools, GetSigners {
     ///      3. the expected signers are all owners of the safe.
     ///      Demonstrating these three properties is sufficient to prove that the getSigners() method
     ///      returns the same signatures as those recovered by safe.checkNSignatures().
-    /// todo(maurelian): include tests for EIP1271 signatures, and contract signatures.
-    function testDiff_getSignaturesVsCheckSignatures_succeeds(bytes32 _digest, uint256 _numSigs) external {
-        // Limit the number of each signature type to 25
+    function testDiff_getSignaturesVsCheckSignatures_succeeds(bytes memory _data, uint256 _numSigs) external {
+        bytes32 digest = keccak256(_data);
+
+        // Limit the number of signatures to 25
         uint256 numSigs = bound(_numSigs, 1, 25);
 
         (, uint256[] memory keys) = makeAddrsAndKeys(numSigs);
-        keys = sortPKsByComputedAddress(keys);
+        for (uint256 i = 0; i < keys.length; i++) {
+            if (sigType(keys[i]) == SigTypes.Contract) {
+                keys[i] = encodeSmartContractWalletAsPK(decodeSmartContractWalletAsAddress(keys[i]));
+            }
+        }
 
         // Create a new safeInstance with M=N, so that it requires a signature from each key.
         SafeInstance memory safeInstance = SafeTestTools._setupSafe(keys, numSigs, 0);
 
-        // Create an empty array of signature data
-        bytes memory signatures;
-
-        // Populate the signatures by iterating over the keys, and choosing the signature type based
-        // on the key.
+        // Next we will generate signatures by iterating over the keys, and choosing the signature type
+        // based on the key.
         uint8 v;
         bytes32 r;
         bytes32 s;
-        for (uint256 i; i < keys.length; i++) {
-            if (sigType(keys[i]) == SigTypes.Eoa) {
-                (v, r, s) = vm.sign(keys[i], _digest);
-                // Safe signatures are encoded as r, s, v, not v, r, s.
+        uint256 contractSigs;
+        bytes memory signatures;
+        uint256[] memory pks = safeInstance.ownerPKs;
+        for (uint256 i; i < pks.length; i++) {
+            if (sigType(pks[i]) == SigTypes.Eoa) {
+                (v, r, s) = vm.sign(pks[i], digest);
                 signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-            } else if (sigType(keys[i]) == SigTypes.EthSign) {
-                (v, r, s) = vm.sign(keys[i], keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", _digest)));
+            } else if (sigType(pks[i]) == SigTypes.EthSign) {
+                (v, r, s) = vm.sign(pks[i], keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", digest)));
                 v += 4;
                 signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-            } else if (sigType(keys[i]) == SigTypes.ApprovedHash) {
-                vm.prank(getAddr(keys[i]));
-                safeInstance.safe.approveHash(_digest);
+            } else if (sigType(pks[i]) == SigTypes.ApprovedHash) {
+                vm.prank(getAddr(pks[i]));
+                safeInstance.safe.approveHash(digest);
                 v = 1;
-                s; // s is not checked on approved hash signatures.
-                r = bytes32(uint256(uint160(getAddr(keys[i]))));
+                // s is not checked on approved hash signatures, so we can leave it as zero.
+                r = bytes32(uint256(uint160(getAddr(pks[i]))));
                 signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-            } // else if (sigType(keys[i]) == SigTypes.Contract) {
-                //     address addr = decodeSmartContractWalletAsAddress(keys[i]);
-                //     r = bytes32(uint256(uint160(addr)));
-                //     vm.mockCall(
-                //         addr, abi.encodeWithSignature("isValidSignature(bytes,bytes)"),
-                // abi.encode(EIP1271_MAGIC_VALUE)
-                //     );
-                //     v = 1;
-                //     s; // s is not checked on approved hash signatures.
-                //     signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-                // }
+            } else if (sigType(pks[i]) == SigTypes.Contract) {
+                contractSigs++;
+                address addr = decodeSmartContractWalletAsAddress(pks[i]);
+                r = bytes32(uint256(uint160(addr)));
+                vm.mockCall(
+                    addr, abi.encodeWithSignature("isValidSignature(bytes,bytes)"), abi.encode(EIP1271_MAGIC_VALUE)
+                );
+                v = 0;
+                // s needs to point to data that comes after the signatures
+                s = bytes32(numSigs * 65);
+                signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
+            }
         }
+
+        // For each contract sig, add 64 bytes to the signature data. This is necessary to satisfy
+        // the validation checks that the Safe contract performs on the value of s on contract
+        // signatures. The Safe contract checks that s correctly points to additional data appended
+        // after the signatures, and that the length of the data is within bounds.
+        for (uint256 i = 0; i < contractSigs; i++) {
+            signatures = bytes.concat(signatures, abi.encode(32, 1));
+        }
+
         // Signature checking on the Safe should succeed.
-        // temp note: the second arg is the data, which is only used in the contract signatures type.
-        safeInstance.safe.checkNSignatures(_digest, hex"", signatures, numSigs);
+        safeInstance.safe.checkNSignatures(digest, _data, signatures, numSigs);
 
-        // Recover the signatures using the getSigners() method.
-        address[] memory gotSigners = _getNSigners(_digest, signatures);
+        // Recover the signatures using the _getNSigners() method.
+        address[] memory gotSigners =
+            _getNSigners({ dataHash: digest, signatures: signatures, requiredSignatures: numSigs });
 
-        // Compare the recovered signers to the expected signers.
+        // Compare the list of recovered signers to the expected signers.
         assertEq(gotSigners.length, numSigs);
         assertEq(gotSigners.length, safeInstance.owners.length);
         for (uint256 i; i < numSigs; i++) {
