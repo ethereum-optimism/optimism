@@ -75,7 +75,7 @@ type bridgeTransactionsDB struct {
 }
 
 func newBridgeTransactionsDB(log log.Logger, db *gorm.DB) BridgeTransactionsDB {
-	return &bridgeTransactionsDB{log: log.New("table", "txs"), gorm: db}
+	return &bridgeTransactionsDB{log: log.New("table", "bridge_transactions"), gorm: db}
 }
 
 /**
@@ -175,7 +175,7 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalProvenEvent(withdrawa
 	if withdrawal.ProvenL1EventGUID != nil && withdrawal.ProvenL1EventGUID.ID() == provenL1EventGuid.ID() {
 		return nil
 	} else if withdrawal.ProvenL1EventGUID != nil {
-		return fmt.Errorf("proven withdrawal %s re-proven with a different event %d", withdrawalHash, provenL1EventGuid)
+		return fmt.Errorf("proven withdrawal %s re-proven with a different event %s", withdrawalHash, provenL1EventGuid)
 	}
 
 	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
@@ -197,7 +197,7 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 	if withdrawal.FinalizedL1EventGUID != nil && withdrawal.FinalizedL1EventGUID.ID() == finalizedL1EventGuid.ID() {
 		return nil
 	} else if withdrawal.FinalizedL1EventGUID != nil {
-		return fmt.Errorf("finalized withdrawal %s re-finalized with a different event %d", withdrawalHash, finalizedL1EventGuid)
+		return fmt.Errorf("finalized withdrawal %s re-finalized with a different event %s", withdrawalHash, finalizedL1EventGuid)
 	}
 
 	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid

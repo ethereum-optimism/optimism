@@ -86,7 +86,7 @@ type bridgeTransfersDB struct {
 }
 
 func newBridgeTransfersDB(log log.Logger, db *gorm.DB) BridgeTransfersDB {
-	return &bridgeTransfersDB{log: log.New("table", "transfers"), gorm: db}
+	return &bridgeTransfersDB{log: log.New("table", "bridge_transfers"), gorm: db}
 }
 
 /**
