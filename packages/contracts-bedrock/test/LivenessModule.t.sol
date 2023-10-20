@@ -36,6 +36,33 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
     }
 }
 
+contract LivenessModule_Get75PercentThreshold_Test is LivnessModule_TestInit {
+    /// @dev check the return values of the get75PercentThreshold function against manually
+    ///      calculated values.
+    function test_get75PercentThreshold_Works() external {
+        assertEq(livenessModule.get75PercentThreshold(20), 15);
+        assertEq(livenessModule.get75PercentThreshold(19), 15);
+        assertEq(livenessModule.get75PercentThreshold(18), 14);
+        assertEq(livenessModule.get75PercentThreshold(17), 13);
+        assertEq(livenessModule.get75PercentThreshold(16), 12);
+        assertEq(livenessModule.get75PercentThreshold(15), 12);
+        assertEq(livenessModule.get75PercentThreshold(14), 11);
+        assertEq(livenessModule.get75PercentThreshold(13), 10);
+        assertEq(livenessModule.get75PercentThreshold(12), 9);
+        assertEq(livenessModule.get75PercentThreshold(11), 9);
+        assertEq(livenessModule.get75PercentThreshold(10), 8);
+        assertEq(livenessModule.get75PercentThreshold(9), 7);
+        assertEq(livenessModule.get75PercentThreshold(8), 6);
+        assertEq(livenessModule.get75PercentThreshold(7), 6);
+        assertEq(livenessModule.get75PercentThreshold(6), 5);
+        assertEq(livenessModule.get75PercentThreshold(5), 4);
+        assertEq(livenessModule.get75PercentThreshold(4), 3);
+        assertEq(livenessModule.get75PercentThreshold(3), 3);
+        assertEq(livenessModule.get75PercentThreshold(2), 2);
+        assertEq(livenessModule.get75PercentThreshold(1), 1);
+    }
+}
+
 contract LivenessModule_RemoveOwner_Test is LivnessModule_TestInit {
     function test_removeOwner_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;

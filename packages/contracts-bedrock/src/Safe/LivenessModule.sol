@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Safe } from "safe-contracts/Safe.sol";
+import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
@@ -28,6 +28,9 @@ contract LivenessModule is ISemver {
 
     /// @notice The fallback owner of the Safe
     address public fallbackOwner;
+
+    /// @notice The address of the first owner in the linked list of owners
+    address internal constant SENTINEL_OWNERS = address(0x1);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -120,15 +123,15 @@ contract LivenessModule is ISemver {
         address[] memory owners = safe.getOwners();
         uint256 numOwners = owners.length;
         require(
-            (numOwners == 1 && owners[0] == fallbackOwner) || (numOwners >= minOwners),
-            "LivenessModule: Safe must have at least 1 owner or minOwners"
+            (numOwners >= minOwners) || (numOwners == 1 && owners[0] == fallbackOwner),
+            "LivenessModule: Safe must have the minimum number of owners, or be owned solely by the fallback owner"
         );
 
         // Check that the threshold is correct
         uint256 threshold = safe.getThreshold();
         require(
-            threshold == get75PercentThreshold(numOwners) || (numOwners == 1 && threshold == 1),
-            "LivenessModule: threshold must be 75% of the number of owners, or 1 if there is only 1 owner"
+            threshold == get75PercentThreshold(numOwners),
+            "LivenessModule: threshold must be 75% of the number of owners"
         );
     }
 
@@ -137,7 +140,7 @@ contract LivenessModule is ISemver {
         for (uint256 i = 0; i < owners.length; i++) {
             if (owners[i] == owner) {
                 if (i == 0) {
-                    prevOwner_ = address(0x1); // OwnerManager.SENTINEL_OWNERS
+                    prevOwner_ = SENTINEL_OWNERS;
                     break;
                 }
                 prevOwner_ = owners[i - 1];
@@ -147,6 +150,7 @@ contract LivenessModule is ISemver {
     }
 
     /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
+    ///         Note: this function returns 1 for numOwners == 1.
     function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
         threshold_ = (_numOwners * 75 + 99) / 100;
     }
