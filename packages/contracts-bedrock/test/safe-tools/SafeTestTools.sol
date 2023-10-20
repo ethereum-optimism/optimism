@@ -67,6 +67,7 @@ library Sort {
 }
 
 /// @dev Sorts an array of private keys by the computed address
+///      If the private key is a smart contract wallet, it will be decoded and sorted by the address
 function sortPKsByComputedAddress(uint256[] memory _pks) pure returns (uint256[] memory) {
     uint256[] memory sortedPKs = new uint256[](_pks.length);
 
@@ -74,10 +75,14 @@ function sortPKsByComputedAddress(uint256[] memory _pks) pure returns (uint256[]
     bytes32[2][] memory accounts = new bytes32[2][](_pks.length);
 
     for (uint256 i; i < _pks.length; i++) {
-        address signer = getAddr(_pks[i]);
+        uint256 pk = _pks[i];
+        address signer = getAddr(pk);
+        if (isSmartContractPK(pk)) {
+            signer = decodeSmartContractWalletAsAddress(pk);
+        }
         addresses[i] = signer;
         accounts[i][0] = bytes32(abi.encode(signer));
-        accounts[i][1] = bytes32(_pks[i]);
+        accounts[i][1] = bytes32(pk);
     }
 
     addresses = Sort.sort(addresses);
