@@ -1170,6 +1170,6 @@ func RecordBatchRPCForward(ctx context.Context, backendName string, reqs []*RPCR
 }
 
 func stripXFF(xff string) string {
-	ipList := strings.Split(xff, ", ")
+	ipList := strings.Split(xff, ",")
 	return strings.TrimSpace(ipList[0])
 }
