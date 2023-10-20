@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
@@ -28,13 +29,13 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		log.Info("detected transaction withdrawals", "size", len(l2ToL1MPMessagesPassed))
 	}
 
-	withdrawnETH := 0
+	var withdrawnGWEI = bigint.Zero
 	messagesPassed := make(map[logKey]*contracts.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
 		messagePassed := l2ToL1MPMessagesPassed[i]
 		messagesPassed[logKey{messagePassed.Event.BlockHash, messagePassed.Event.LogIndex}] = &messagePassed
-		withdrawnETH = withdrawnETH + int(messagePassed.Tx.Amount.Int64())
+		withdrawnGWEI = new(big.Int).Add(withdrawnGWEI, messagePassed.Tx.Amount)
 
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       messagePassed.WithdrawalHash,
@@ -48,7 +49,10 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
 		}
-		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), withdrawnETH)
+
+		// Convert the withdrawn GWEI to ETH
+		withdrawnETH := new(big.Int).Div(withdrawnGWEI, big.NewInt(1e9)).Uint64()
+		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), int(withdrawnETH))
 	}
 
 	// (2) L2CrossDomainMessenger
