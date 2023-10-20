@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { Safe } from "safe-contracts/Safe.sol";
+import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
@@ -37,12 +37,20 @@ contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     function test_checkTransaction_succeeds() external {
+        // Create an array of the addresses who will sign the transaction. SafeTestTools
+        // will generate these signatures up to the threshold by iterating over the owners array.
+        address[] memory signers = new address[](safeInstance.threshold);
+        signers[0] = safeInstance.owners[0];
+        signers[1] = safeInstance.owners[1];
+
         // Don't check topic1 so that we can avoid the ugly txHash calculation.
         vm.expectEmit(false, true, true, true, address(livenessGuard));
-        emit SignersRecorded(0x0, safeInstance.owners);
+        emit SignersRecorded(0x0, signers);
+        vm.expectCall(address(safeInstance.safe), abi.encodeWithSignature("nonce()"));
+        vm.expectCall(address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()));
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
 
-        for (uint256 i; i < safeInstance.owners.length; i++) {
+        for (uint256 i; i < safeInstance.threshold; i++) {
             assertEq(livenessGuard.lastSigned(safeInstance.owners[i]), block.timestamp);
         }
     }
