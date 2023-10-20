@@ -85,9 +85,6 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
 
-        // todo(maurelian): Is there any need for this event to be differentiated from the one emitted in
-        // checkTransaction?
-        //                  Technically the 0x0 txHash does serve to identiy a call to this method.
         emit SignersRecorded(0x0, signers);
     }
 }
