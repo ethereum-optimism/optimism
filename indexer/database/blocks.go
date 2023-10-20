@@ -81,7 +81,7 @@ func newBlocksDB(log log.Logger, db *gorm.DB) BlocksDB {
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "hash"}}, DoNothing: true})
-	result := deduped.CreateInBatches(&headers, batchInsertSize)
+	result := deduped.Create(&headers)
 	if result.Error == nil && int(result.RowsAffected) < len(headers) {
 		db.log.Warn("ignored L1 block duplicates", "duplicates", len(headers)-int(result.RowsAffected))
 	}
@@ -124,7 +124,7 @@ func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "hash"}}, DoNothing: true})
-	result := deduped.CreateInBatches(&headers, batchInsertSize)
+	result := deduped.Create(&headers)
 	if result.Error == nil && int(result.RowsAffected) < len(headers) {
 		db.log.Warn("ignored L2 block duplicates", "duplicates", len(headers)-int(result.RowsAffected))
 	}

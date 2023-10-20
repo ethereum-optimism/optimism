@@ -19,14 +19,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var (
-	// The postgres parameter counter for a given query is stored via a  uint16,
-	// resulting in a parameter limit of 65535. In order to avoid reaching this limit
-	// we'll utilize a batch size of 3k for inserts, well below as long as the the number
-	// of columns < 20.
-	batchInsertSize int = 3_000
-)
-
 type DB struct {
 	gorm *gorm.DB
 	log  log.Logger
@@ -53,9 +45,16 @@ func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 	}
 
 	gormConfig := gorm.Config{
+		Logger: newLogger(log),
+
 		// The indexer will explicitly manage the transactions
 		SkipDefaultTransaction: true,
-		Logger:                 newLogger(log),
+
+		// The postgres parameter counter for a given query is represented with uint16,
+		// resulting in a parameter limit of 65535. In order to avoid reaching this limit
+		// we'll utilize a batch size of 3k for inserts, well below the limit as long as
+		// the number of columns < 20.
+		CreateBatchSize: 3_000,
 	}
 
 	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
@@ -125,12 +124,14 @@ func (db *DB) ExecuteSQLMigration(migrationsFolder string) error {
 		}
 
 		// Read the migration file content
+		db.log.Info("reading sql file", "path", path)
 		fileContent, readErr := os.ReadFile(path)
 		if readErr != nil {
 			return errors.Wrap(readErr, fmt.Sprintf("Error reading SQL file: %s", path))
 		}
 
 		// Execute the migration
+		db.log.Info("executing sql file", "path", path)
 		execErr := db.gorm.Exec(string(fileContent)).Error
 		if execErr != nil {
 			return errors.Wrap(execErr, fmt.Sprintf("Error executing SQL script: %s", path))
@@ -139,5 +140,6 @@ func (db *DB) ExecuteSQLMigration(migrationsFolder string) error {
 		return nil
 	})
 
+	db.log.Info("finished migrations")
 	return err
 }
