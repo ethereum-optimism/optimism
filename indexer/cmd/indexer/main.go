@@ -27,5 +27,6 @@ func main() {
 	app := newCli(GitCommit, GitDate)
 	if err := app.RunContext(ctx, os.Args); err != nil {
 		log.Error("application failed", "err", err)
+		os.Exit(1)
 	}
 }

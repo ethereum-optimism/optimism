@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	_ "github.com/ethereum-optimism/optimism/indexer/database/serializers"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+
 	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -28,6 +29,7 @@ var (
 
 type DB struct {
 	gorm *gorm.DB
+	log  log.Logger
 
 	Blocks             BlocksDB
 	ContractEvents     ContractEventsDB
@@ -37,7 +39,7 @@ type DB struct {
 }
 
 func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
-	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
+	log = log.New("module", "db")
 
 	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)
 	if dbConfig.Port != 0 {
@@ -56,6 +58,7 @@ func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 		Logger:                 newLogger(log),
 	}
 
+	retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
 	gorm, err := retry.Do[*gorm.DB](context.Background(), 10, retryStrategy, func() (*gorm.DB, error) {
 		gorm, err := gorm.Open(postgres.Open(dsn), &gormConfig)
 		if err != nil {
@@ -66,16 +69,17 @@ func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database after multiple retries: %w", err)
+		return nil, err
 	}
 
 	db := &DB{
 		gorm:               gorm,
-		Blocks:             newBlocksDB(gorm),
-		ContractEvents:     newContractEventsDB(gorm),
-		BridgeTransfers:    newBridgeTransfersDB(gorm),
-		BridgeMessages:     newBridgeMessagesDB(gorm),
-		BridgeTransactions: newBridgeTransactionsDB(gorm),
+		log:                log,
+		Blocks:             newBlocksDB(log, gorm),
+		ContractEvents:     newContractEventsDB(log, gorm),
+		BridgeTransfers:    newBridgeTransfersDB(log, gorm),
+		BridgeMessages:     newBridgeMessagesDB(log, gorm),
+		BridgeTransactions: newBridgeTransactionsDB(log, gorm),
 	}
 
 	return db, nil
@@ -85,7 +89,16 @@ func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 // transaction. If the supplied function errors, the transaction is rolled back.
 func (db *DB) Transaction(fn func(db *DB) error) error {
 	return db.gorm.Transaction(func(tx *gorm.DB) error {
-		return fn(dbFromGormTx(tx))
+		txDB := &DB{
+			gorm:               tx,
+			Blocks:             newBlocksDB(db.log, tx),
+			ContractEvents:     newContractEventsDB(db.log, tx),
+			BridgeTransfers:    newBridgeTransfersDB(db.log, tx),
+			BridgeMessages:     newBridgeMessagesDB(db.log, tx),
+			BridgeTransactions: newBridgeTransactionsDB(db.log, tx),
+		}
+
+		return fn(txDB)
 	})
 }
 
@@ -96,17 +109,6 @@ func (db *DB) Close() error {
 	}
 
 	return sql.Close()
-}
-
-func dbFromGormTx(tx *gorm.DB) *DB {
-	return &DB{
-		gorm:               tx,
-		Blocks:             newBlocksDB(tx),
-		ContractEvents:     newContractEventsDB(tx),
-		BridgeTransfers:    newBridgeTransfersDB(tx),
-		BridgeMessages:     newBridgeMessagesDB(tx),
-		BridgeTransactions: newBridgeTransactionsDB(tx),
-	}
 }
 
 func (db *DB) ExecuteSQLMigration(migrationsFolder string) error {
