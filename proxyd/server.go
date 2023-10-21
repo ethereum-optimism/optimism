@@ -319,7 +319,13 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"remote_ip", xff,
 	)
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
+	body, err := io.ReadAll(LimitReader(r.Body, s.maxBodySize))
+	if errors.Is(err, ErrLimitReaderOverLimit) {
+		log.Error("request body too large", "req_id", GetReqID(ctx))
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrRequestBodyTooLarge)
+		writeRPCError(ctx, w, nil, ErrRequestBodyTooLarge)
+		return
+	}
 	if err != nil {
 		log.Error("error reading request body", "err", err)
 		writeRPCError(ctx, w, nil, ErrInternal)

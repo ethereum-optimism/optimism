@@ -98,6 +98,18 @@ var (
 		HTTPErrorCode: 400,
 	}
 
+	ErrRequestBodyTooLarge = &RPCErr{
+		Code:          JSONRPCErrorInternal - 21,
+		Message:       "request body too large",
+		HTTPErrorCode: 413,
+	}
+
+	ErrBackendResponseTooLarge = &RPCErr{
+		Code:          JSONRPCErrorInternal - 20,
+		Message:       "backend response too large",
+		HTTPErrorCode: 500,
+	}
+
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 
 	ErrConsensusGetReceiptsCantBeBatched = errors.New("consensus_getReceipts cannot be batched")
@@ -339,6 +351,14 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		res, err := b.doForward(ctx, reqs, isBatch)
 		switch err {
 		case nil: // do nothing
+		case ErrBackendResponseTooLarge:
+			log.Warn(
+				"backend response too large",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"max", b.maxResponseSize,
+			)
+			RecordBatchRPCError(ctx, b.Name, reqs, err)
 		case ErrConsensusGetReceiptsCantBeBatched:
 			log.Warn(
 				"Received unsupported batch request for consensus_getReceipts",
@@ -543,7 +563,10 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	}
 
 	defer httpRes.Body.Close()
-	resB, err := io.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
+	resB, err := io.ReadAll(LimitReader(httpRes.Body, b.maxResponseSize))
+	if errors.Is(err, ErrLimitReaderOverLimit) {
+		return nil, ErrBackendResponseTooLarge
+	}
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
 		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
@@ -726,12 +749,17 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 		res := make([]*RPCRes, 0)
 		var err error
 
+		servedBy := fmt.Sprintf("%s/%s", bg.Name, back.Name)
+
 		if len(rpcReqs) > 0 {
 			res, err = back.Forward(ctx, rpcReqs, isBatch)
 			if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
 				errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) ||
 				errors.Is(err, ErrMethodNotWhitelisted) {
 				return nil, "", err
+			}
+			if errors.Is(err, ErrBackendResponseTooLarge) {
+				return nil, servedBy, err
 			}
 			if errors.Is(err, ErrBackendOffline) {
 				log.Warn(
@@ -773,7 +801,6 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			}
 		}
 
-		servedBy := fmt.Sprintf("%s/%s", bg.Name, back.Name)
 		return res, servedBy, nil
 	}
 
