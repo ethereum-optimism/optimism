@@ -31,8 +31,10 @@ var (
 // VersionWithMeta holds the textual version string including the metadata.
 var VersionWithMeta = func() string {
 	v := version.Version
-	if GitCommit != "" {
+	if len(GitCommit) >= 8 {
 		v += "-" + GitCommit[:8]
+	} else {
+		v += "-" + GitCommit
 	}
 	if GitDate != "" {
 		v += "-" + GitDate
