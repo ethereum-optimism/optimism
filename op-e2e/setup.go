@@ -775,7 +775,7 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,
-		L1RPCKind:        sources.RPCKindBasic,
+		L1RPCKind:        sources.RPCKindStandard,
 		RateLimit:        0,
 		BatchSize:        20,
 		HttpPollInterval: time.Millisecond * 100,
