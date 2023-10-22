@@ -35,6 +35,7 @@ import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
+import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
 
@@ -352,7 +353,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the ProtocolVersionsProxy
-    function deployProtocolVersionsProxy() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+    function deployProtocolVersionsProxy() public broadcast returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -457,7 +458,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the ProtocolVersions
-    function deployProtocolVersions() public onlyTestnetOrDevnet broadcast returns (address addr_) {
+    function deployProtocolVersions() public broadcast returns (address addr_) {
         ProtocolVersions versions = new ProtocolVersions{ salt: implSalt() }();
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
@@ -860,7 +861,7 @@ contract Deploy is Deployer {
         require(portal.paused() == false);
     }
 
-    function initializeProtocolVersions() public onlyTestnetOrDevnet broadcast {
+    function initializeProtocolVersions() public broadcast {
         address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         address protocolVersions = mustGetAddress("ProtocolVersions");
 
@@ -998,5 +999,14 @@ contract Deploy is Deployer {
                 vm.toString(GameType.unwrap(_gameType))
             );
         }
+    }
+
+    /// @notice Deploy the StorageSetter contract, used for upgrades.
+    function deployStorageSetter() public broadcast returns (address addr_) {
+        StorageSetter setter = new StorageSetter{ salt: implSalt() }();
+        console.log("StorageSetter deployed at: %s", address(setter));
+        string memory version = setter.version();
+        console.log("StorageSetter version: %s", version);
+        addr_ = address(setter);
     }
 }

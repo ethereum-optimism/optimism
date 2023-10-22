@@ -14,7 +14,7 @@ import (
 var (
 	_ logger.Interface = Logger{}
 
-	SlowThresholdMilliseconds = 200
+	SlowThresholdMilliseconds int64 = 500
 )
 
 type Logger struct {
@@ -22,7 +22,7 @@ type Logger struct {
 }
 
 func newLogger(log log.Logger) Logger {
-	return Logger{log.New("module", "db")}
+	return Logger{log}
 }
 
 func (l Logger) LogMode(lvl logger.LogLevel) logger.Interface {
@@ -50,7 +50,7 @@ func (l Logger) Trace(ctx context.Context, begin time.Time, fc func() (sql strin
 		sql = fmt.Sprintf("%sVALUES (...)", sql[:i])
 	}
 
-	if elapsedMs < 200 {
+	if elapsedMs < SlowThresholdMilliseconds {
 		l.log.Debug("database operation", "duration_ms", elapsedMs, "rows_affected", rows, "sql", sql)
 	} else {
 		l.log.Warn("database operation", "duration_ms", elapsedMs, "rows_affected", rows, "sql", sql)

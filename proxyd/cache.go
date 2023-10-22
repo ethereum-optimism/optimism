@@ -128,7 +128,7 @@ type rpcCache struct {
 func newRPCCache(cache Cache) RPCCache {
 	staticHandler := &StaticMethodHandler{cache: cache}
 	debugGetRawReceiptsHandler := &StaticMethodHandler{cache: cache,
-		filter: func(req *RPCReq) bool {
+		filterGet: func(req *RPCReq) bool {
 			// cache only if the request is for a block hash
 
 			var p []rpc.BlockNumberOrHash
@@ -140,6 +140,14 @@ func newRPCCache(cache Cache) RPCCache {
 				return false
 			}
 			return p[0].BlockHash != nil
+		},
+		filterPut: func(req *RPCReq, res *RPCRes) bool {
+			// don't cache if response contains 0 receipts
+			rawReceipts, ok := res.Result.([]interface{})
+			if !ok {
+				return false
+			}
+			return len(rawReceipts) > 0
 		},
 	}
 	handlers := map[string]RPCMethodHandler{

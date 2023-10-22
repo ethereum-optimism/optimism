@@ -16,7 +16,7 @@ var (
 type L1Metricer interface {
 	RecordLatestIndexedL1Height(height *big.Int)
 
-	RecordL1TransactionDeposits(size int)
+	RecordL1TransactionDeposits(size int, mintedETH float64)
 	RecordL1ProvenWithdrawals(size int)
 	RecordL1FinalizedWithdrawals(size int)
 
@@ -30,7 +30,7 @@ type L1Metricer interface {
 type L2Metricer interface {
 	RecordLatestIndexedL2Height(height *big.Int)
 
-	RecordL2TransactionWithdrawals(size int)
+	RecordL2TransactionWithdrawals(size int, withdrawnETH float64)
 
 	RecordL2CrossDomainSentMessages(size int)
 	RecordL2CrossDomainRelayedMessages(size int)
@@ -55,7 +55,9 @@ type bridgeMetrics struct {
 	latestL2Height prometheus.Gauge
 
 	txDeposits           prometheus.Counter
+	txMintedETH          prometheus.Counter
 	txWithdrawals        prometheus.Counter
+	txWithdrawnETH       prometheus.Counter
 	provenWithdrawals    prometheus.Counter
 	finalizedWithdrawals prometheus.Counter
 
@@ -101,10 +103,20 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 			Name:      "tx_deposits",
 			Help:      "number of processed transactions deposited from l1",
 		}),
+		txMintedETH: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "tx_minted_eth",
+			Help:      "amount of eth bridged from l1",
+		}),
 		txWithdrawals: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "tx_withdrawals",
 			Help:      "number of processed transactions withdrawn from l2",
+		}),
+		txWithdrawnETH: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "tx_withdrawn_eth",
+			Help:      "amount of eth withdrawn from l2",
 		}),
 		provenWithdrawals: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
@@ -166,8 +178,9 @@ func (m *bridgeMetrics) RecordLatestIndexedL1Height(height *big.Int) {
 	m.latestL1Height.Set(float64(height.Uint64()))
 }
 
-func (m *bridgeMetrics) RecordL1TransactionDeposits(size int) {
+func (m *bridgeMetrics) RecordL1TransactionDeposits(size int, mintedETH float64) {
 	m.txDeposits.Add(float64(size))
+	m.txMintedETH.Add(mintedETH)
 }
 
 func (m *bridgeMetrics) RecordL1ProvenWithdrawals(size int) {
@@ -200,8 +213,9 @@ func (m *bridgeMetrics) RecordLatestIndexedL2Height(height *big.Int) {
 	m.latestL2Height.Set(float64(height.Uint64()))
 }
 
-func (m *bridgeMetrics) RecordL2TransactionWithdrawals(size int) {
+func (m *bridgeMetrics) RecordL2TransactionWithdrawals(size int, withdrawnETH float64) {
 	m.txWithdrawals.Add(float64(size))
+	m.txWithdrawnETH.Add(withdrawnETH)
 }
 
 func (m *bridgeMetrics) RecordL2CrossDomainSentMessages(size int) {

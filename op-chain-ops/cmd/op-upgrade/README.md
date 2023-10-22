@@ -34,5 +34,5 @@ be read out of the directory as needed.
 
 #### Outfile
 
-The file that the bundle shoudl be written to. If omitted, the file
+The file that the bundle should be written to. If omitted, the file
 will be written to stdout.

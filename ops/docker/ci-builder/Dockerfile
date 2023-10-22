@@ -1,4 +1,4 @@
-FROM debian:bullseye-20220822-slim as foundry-build
+FROM --platform=linux/amd64 debian:bullseye-slim as rust-build
 
 SHELL ["/bin/bash", "-c"]
 
@@ -6,10 +6,14 @@ WORKDIR /opt
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-  apt-get install -y curl build-essential git && \
-  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+  apt-get install -y curl build-essential git clang lld curl
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
   ./rustup.sh -y
+
+RUN source $HOME/.profile && cargo install just
+RUN source $HOME/.profile && cargo install svm-rs
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
@@ -25,70 +29,81 @@ RUN source $HOME/.profile && \
   strip /opt/foundry/target/release/cast && \
   strip /opt/foundry/target/release/anvil
 
-FROM ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
+FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
-FROM python:3.11.4-slim-bullseye
+FROM --platform=linux/amd64 debian:bullseye-slim as go-build
+
+RUN apt-get update && apt-get install -y curl ca-certificates
+
+ENV GO_VERSION=1.21.1
+
+# Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
+RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
+  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz
+
+ENV GOPATH=/go
+ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
+
+# Install the specific version of abigen from .abigenrc
+COPY ./.abigenrc ./.abigenrc
+RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
+
+COPY ./.gethrc ./.gethrc
+RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(cat .gethrc)
+
+RUN go install gotest.tools/gotestsum@latest
+RUN go install github.com/vektra/mockery/v2@v2.28.1
+RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
+
+FROM --platform=linux/amd64 python:3.11.4-slim-bullseye
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=foundry-build /opt/foundry/target/release/forge /usr/local/bin/forge
-COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
-COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
+# copy the go installation, but not the module cache (cache will get stale, and would add a lot of weight)
+COPY --from=go-build /usr/local/go /usr/local/go
+# copy tools
+COPY --from=go-build /go/bin/gotestsum /go/bin/gotestsum
+COPY --from=go-build /go/bin/mockery /go/bin/mockery
+COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
+COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
+COPY --from=go-build /go/bin/geth /usr/local/bin/geth
+COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
+COPY --from=rust-build /root/.cargo/bin/just /usr/local/bin/just
+COPY --from=rust-build /opt/foundry/target/release/forge /usr/local/bin/forge
+COPY --from=rust-build /opt/foundry/target/release/cast /usr/local/bin/cast
+COPY --from=rust-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
-RUN apt-get update && \
-  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
-  curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
-  curl -sL https://go.dev/dl/go1.21.1.linux-amd64.tar.gz -o go1.21.1.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz && \
-  ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
-  bash nodesource_setup.sh && \
-  apt-get install -y nodejs && \
-  npm i -g depcheck && \
-  pip install slither-analyzer==0.9.3 && \
-  go install gotest.tools/gotestsum@latest && \
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3 && \
-  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
+COPY .nvmrc .nvmrc
 
-COPY ./.abigenrc ./.abigenrc
+ENV NODE_MAJOR=18
+ENV SLITHER_VERSION=0.10.0
 
-# Install the specific version of abigen from .abigenrc
-RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
+# note: python3 package in apt is python 3.9, while base image already has python 3.11
+RUN /bin/sh -c set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu; \
+  mkdir -p /etc/apt/keyrings; \
+  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
+  apt-get update; \
+  apt-get install -y nodejs; \
+  ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
+  npm i -g depcheck; \
+  pip install slither-analyzer==$SLITHER_VERSION capstone pyelftools; \
+  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
+  apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
+  rm -rf /var/lib/apt/lists/*; \
+  rm -rf /root/.cache/pip; \
+  rm -rf /root/.cache/npm;
 
-# We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
-# it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules
-RUN echo "downloading pnpm and yarn" && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
-RUN echo "downloading solidity compilers" && \
-  curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \
-  curl -o solc-linux-amd64-v0.8.9+commit.e5eed63a -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.9+commit.e5eed63a  && \
-  curl -o solc-linux-amd64-v0.8.10+commit.fc410830 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.10+commit.fc410830 && \
-  curl -o solc-linux-amd64-v0.8.12+commit.f00d7308 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.12+commit.f00d7308 && \
-  echo "verifying checksums" && \
-  (echo "c35ce7a4d3ffa5747c178b1e24c8541b2e5d8a82c1db3719eb4433a1f19e16f3 solc-linux-amd64-v0.5.17+commit.d19bba13" | sha256sum --check --status - || exit 1) && \
-  (echo "f851f11fad37496baabaf8d6cb5c057ca0d9754fddb7a351ab580d7fd728cb94 solc-linux-amd64-v0.8.9+commit.e5eed63a"  | sha256sum --check --status - || exit 1) && \
-  (echo "c7effacf28b9d64495f81b75228fbf4266ac0ec87e8f1adc489ddd8a4dd06d89 solc-linux-amd64-v0.8.10+commit.fc410830" | sha256sum --check --status - || exit 1) && \
-  (echo "556c3ec44faf8ff6b67933fa8a8a403abe82c978d6e581dbfec4bd07360bfbf3 solc-linux-amd64-v0.8.12+commit.f00d7308" | sha256sum --check --status - || exit 1) && \
-  echo "caching compilers" && \
-  mkdir -p ~/.cache/hardhat-nodejs/compilers/linux-amd64 && \
-  cp solc-linux-amd64-v0.5.17+commit.d19bba13 ~/.cache/hardhat-nodejs/compilers/linux-amd64/ && \
-  cp solc-linux-amd64-v0.8.9+commit.e5eed63a  ~/.cache/hardhat-nodejs/compilers/linux-amd64/ && \
-  cp solc-linux-amd64-v0.8.10+commit.fc410830 ~/.cache/hardhat-nodejs/compilers/linux-amd64/ && \
-  cp solc-linux-amd64-v0.8.12+commit.f00d7308 ~/.cache/hardhat-nodejs/compilers/linux-amd64/ && \
-  mkdir -p ~/.svm/0.5.17 && \
-  cp solc-linux-amd64-v0.5.17+commit.d19bba13 ~/.svm/0.5.17/solc-0.5.17 && \
-  mkdir -p ~/.svm/0.8.9  && \
-  cp solc-linux-amd64-v0.8.9+commit.e5eed63a  ~/.svm/0.8.9/solc-0.8.9   && \
-  mkdir -p ~/.svm/0.8.10 && \
-  cp solc-linux-amd64-v0.8.10+commit.fc410830 ~/.svm/0.8.10/solc-0.8.10 && \
-  mkdir -p ~/.svm/0.8.12 && \
-  cp solc-linux-amd64-v0.8.12+commit.f00d7308 ~/.svm/0.8.12/solc-0.8.12 && \
-  rm solc-linux-amd64-v0.5.17+commit.d19bba13 && \
-  rm solc-linux-amd64-v0.8.9+commit.e5eed63a && \
-  rm solc-linux-amd64-v0.8.10+commit.fc410830 && \
-  rm solc-linux-amd64-v0.8.12+commit.f00d7308
+RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
+
+RUN svm install 0.5.17 && \
+  svm install 0.8.15
 
 RUN echo "downloading and verifying Codecov uploader" && \
   curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import && \
@@ -101,15 +116,10 @@ RUN echo "downloading and verifying Codecov uploader" && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
 
-RUN echo "downloading mockery tool" && \
-  mkdir -p mockery-tmp-dir && \
-  curl -o mockery-tmp-dir/mockery.tar.gz -sL https://github.com/vektra/mockery/releases/download/v2.28.1/mockery_2.28.1_Linux_x86_64.tar.gz && \
-  tar -xzvf mockery-tmp-dir/mockery.tar.gz -C mockery-tmp-dir && \
-  cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
-  chmod +x /usr/local/bin/mockery && \
-  rm -rf mockery-tmp-dir
+# within docker use bash
+SHELL ["/bin/bash", "-c"]
+# set env to use bash
+ENV SHELL=/bin/bash
+ENV BASH=/bin/bash
 
-
-RUN echo "installing mips binutils" && \
-  apt-get install -y binutils-mips-linux-gnu python3 python3-pip && \
-  pip3 install capstone pyelftools
+ENTRYPOINT ["/bin/bash", "-c"]

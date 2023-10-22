@@ -396,3 +396,54 @@ func TestConfig_Check(t *testing.T) {
 		})
 	}
 }
+
+func TestTimestampForBlock(t *testing.T) {
+	config := randConfig()
+
+	tests := []struct {
+		name              string
+		genesisTime       uint64
+		genesisBlock      uint64
+		blockTime         uint64
+		blockNum          uint64
+		expectedBlockTime uint64
+	}{
+		{
+			name:              "FirstBlock",
+			genesisTime:       100,
+			genesisBlock:      0,
+			blockTime:         2,
+			blockNum:          0,
+			expectedBlockTime: 100,
+		},
+		{
+			name:              "SecondBlock",
+			genesisTime:       100,
+			genesisBlock:      0,
+			blockTime:         2,
+			blockNum:          1,
+			expectedBlockTime: 102,
+		},
+		{
+			name:              "NBlock",
+			genesisTime:       100,
+			genesisBlock:      0,
+			blockTime:         2,
+			blockNum:          25,
+			expectedBlockTime: 150,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("TestTimestampForBlock_%s", test.name), func(t *testing.T) {
+			config.Genesis.L2Time = test.genesisTime
+			config.Genesis.L2.Number = test.genesisBlock
+			config.BlockTime = test.blockTime
+
+			timestamp := config.TimestampForBlock(test.blockNum)
+			assert.Equal(t, timestamp, test.expectedBlockTime)
+		})
+	}
+
+}

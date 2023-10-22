@@ -110,7 +110,7 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 			},
 			res: &RPCRes{
 				JSONRPC: "2.0",
-				Result:  `{"debug_getRawReceipts":"!"}`,
+				Result:  []interface{}{"a"},
 				ID:      ID,
 			},
 			name: "debug_getRawReceipts",

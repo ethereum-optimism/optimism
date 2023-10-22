@@ -15,14 +15,14 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
         super.setUp();
 
         // Set up the token pair.
-        factory = new OptimismMintableERC721Factory(address(L2Bridge), 1);
+        factory = new OptimismMintableERC721Factory(address(L2NFTBridge), 1);
 
         // Label the addresses for nice traces.
         vm.label(address(factory), "OptimismMintableERC721Factory");
     }
 
     function test_constructor_succeeds() external {
-        assertEq(factory.BRIDGE(), address(L2Bridge));
+        assertEq(factory.BRIDGE(), address(L2NFTBridge));
         assertEq(factory.REMOTE_CHAIN_ID(), 1);
     }
 
@@ -49,7 +49,7 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
         assertEq(created.name(), "L2Token");
         assertEq(created.symbol(), "L2T");
         assertEq(created.REMOTE_TOKEN(), remote);
-        assertEq(created.BRIDGE(), address(L2Bridge));
+        assertEq(created.BRIDGE(), address(L2NFTBridge));
         assertEq(created.REMOTE_CHAIN_ID(), 1);
     }
 
@@ -80,7 +80,7 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
         view
         returns (address)
     {
-        bytes memory constructorArgs = abi.encode(address(L2Bridge), 1, _remote, _name, _symbol);
+        bytes memory constructorArgs = abi.encode(address(L2NFTBridge), 1, _remote, _name, _symbol);
         bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC721).creationCode, constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol));
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(factory), salt, keccak256(bytecode)));

@@ -118,6 +118,7 @@ func (u *cannonUpdater) BuildLocalOracleData(data *types.PreimageOracleData) ([]
 	return u.fdgAbi.Pack(
 		"addLocalData",
 		data.GetIdent(),
+		big.NewInt(int64(data.LocalContext)),
 		big.NewInt(int64(data.OracleOffset)),
 	)
 }

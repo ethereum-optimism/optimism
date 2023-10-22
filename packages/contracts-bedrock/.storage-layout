@@ -92,6 +92,18 @@
 | startBlock      | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 
 =======================
+➡ src/L1/L1ERC721Bridge.sol:L1ERC721Bridge
+=======================
+
+| Name          | Type                                                             | Slot | Offset | Bytes | Contract                                 |
+|---------------|------------------------------------------------------------------|------|--------|-------|------------------------------------------|
+| _initialized  | uint8                                                            | 0    | 0      | 1     | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+| _initializing | bool                                                             | 0    | 1      | 1     | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+| messenger     | contract CrossDomainMessenger                                    | 0    | 2      | 20    | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+| __gap         | uint256[48]                                                      | 1    | 0      | 1536  | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+| deposits      | mapping(address => mapping(address => mapping(uint256 => bool))) | 49   | 0      | 32    | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+
+=======================
 ➡ src/legacy/DeployerWhitelist.sol:DeployerWhitelist
 =======================
 
@@ -204,6 +216,17 @@
 | Name           | Type    | Slot | Offset | Bytes | Contract                         |
 |----------------|---------|------|--------|-------|----------------------------------|
 | totalProcessed | uint256 | 0    | 0      | 32    | src/L2/L1FeeVault.sol:L1FeeVault |
+
+=======================
+➡ src/L2/L2ERC721Bridge.sol:L2ERC721Bridge
+=======================
+
+| Name          | Type                          | Slot | Offset | Bytes | Contract                                 |
+|---------------|-------------------------------|------|--------|-------|------------------------------------------|
+| _initialized  | uint8                         | 0    | 0      | 1     | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
+| _initializing | bool                          | 0    | 1      | 1     | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
+| messenger     | contract CrossDomainMessenger | 0    | 2      | 20    | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
+| __gap         | uint256[48]                   | 1    | 0      | 1536  | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
 
 =======================
 ➡ src/vendor/WETH9.sol:WETH9
