@@ -1256,9 +1256,14 @@ jobs:
 
   op-program-compat:
     docker:
-      - image: cimg/go:1.21
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: golang-build-cache
       - run:
           name: compat-goerli
           command: |
