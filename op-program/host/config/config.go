@@ -130,7 +130,7 @@ func NewConfig(
 		L2OutputRoot:        l2OutputRoot,
 		L2Claim:             l2Claim,
 		L2ClaimBlockNumber:  l2ClaimBlockNum,
-		L1RPCKind:           sources.RPCKindBasic,
+		L1RPCKind:           sources.RPCKindStandard,
 		IsCustomChainConfig: isCustomConfig,
 	}
 }

@@ -55,17 +55,25 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		txRlp, err := tx.MarshalBinary()
 		api.assert.NoError(err)
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		nextBlockTime := eth.Uint64Quantity(genesis.Time + 1)
+
+		var w *eth.Withdrawals
+		if api.backend.Config().IsCanyon(uint64(nextBlockTime)) {
+			w = &eth.Withdrawals{}
+		}
+
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
 		}, &eth.PayloadAttributes{
-			Timestamp:             eth.Uint64Quantity(genesis.Time + 1),
+			Timestamp:             nextBlockTime,
 			PrevRandao:            eth.Bytes32(genesis.MixDigest),
 			SuggestedFeeRecipient: feeRecipient,
 			Transactions:          []eth.Data{txRlp},
 			NoTxPool:              true,
 			GasLimit:              &gasLimit,
+			Withdrawals:           w,
 		})
 		api.assert.Error(err)
 		api.assert.Equal(eth.ExecutionInvalid, result.PayloadStatus.Status)
@@ -103,9 +111,16 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 	t.Run("RejectInvalidBlockHash", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
 
+		var w *eth.Withdrawals
+		if api.backend.Config().IsCanyon(uint64(0)) {
+			w = &eth.Withdrawals{}
+		}
+
 		// Invalid because BlockHash won't be correct (among many other reasons)
-		block := &eth.ExecutionPayload{}
-		r, err := api.engine.NewPayloadV1(api.ctx, block)
+		block := &eth.ExecutionPayload{
+			Withdrawals: w,
+		}
+		r, err := api.engine.NewPayloadV2(api.ctx, block)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalidBlockHash, r.Status)
 	})
@@ -122,7 +137,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		newBlock.StateRoot = eth.Bytes32(genesis.TxHash)
 		updateBlockHash(newBlock)
 
-		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
+		r, err := api.engine.NewPayloadV2(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
 	})
@@ -139,7 +154,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		newBlock.Timestamp = eth.Uint64Quantity(genesis.Time)
 		updateBlockHash(newBlock)
 
-		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
+		r, err := api.engine.NewPayloadV2(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
 	})
@@ -156,7 +171,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		newBlock.Timestamp = eth.Uint64Quantity(genesis.Time - 1)
 		updateBlockHash(newBlock)
 
-		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
+		r, err := api.engine.NewPayloadV2(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
 	})
@@ -165,7 +180,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
@@ -185,7 +200,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentHeader()
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
@@ -207,7 +222,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		gasLimit := eth.Uint64Quantity(params.MaxGasLimit + 1)
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
 			SafeBlockHash:      genesis.Hash(),
 			FinalizedBlockHash: genesis.Hash(),
@@ -246,7 +261,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		chainB1 := api.addBlockWithParent(genesis, eth.Uint64Quantity(genesis.Time+3))
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      chainA3.BlockHash,
 			SafeBlockHash:      chainB1.BlockHash,
 			FinalizedBlockHash: chainA2.BlockHash,
@@ -266,7 +281,7 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		chainB1 := api.addBlockWithParent(genesis, eth.Uint64Quantity(genesis.Time+3))
 
-		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      chainA3.BlockHash,
 			SafeBlockHash:      chainA2.BlockHash,
 			FinalizedBlockHash: chainB1.BlockHash,
@@ -349,7 +364,7 @@ func (h *testHelper) addBlockWithParent(head *types.Header, timestamp eth.Uint64
 
 func (h *testHelper) forkChoiceUpdated(head common.Hash, safe common.Hash, finalized common.Hash) {
 	h.Log("forkChoiceUpdated", "head", head, "safe", safe, "finalized", finalized)
-	result, err := h.engine.ForkchoiceUpdatedV1(h.ctx, &eth.ForkchoiceState{
+	result, err := h.engine.ForkchoiceUpdatedV2(h.ctx, &eth.ForkchoiceState{
 		HeadBlockHash:      head,
 		SafeBlockHash:      safe,
 		FinalizedBlockHash: finalized,
@@ -368,7 +383,14 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 		h.assert.NoError(err, "Failed to marshall tx %v", tx)
 		txData = append(txData, rlp)
 	}
-	result, err := h.engine.ForkchoiceUpdatedV1(h.ctx, &eth.ForkchoiceState{
+
+	canyonTime := h.backend.Config().CanyonTime
+	var w *eth.Withdrawals
+	if canyonTime != nil && *canyonTime <= uint64(newBlockTimestamp) {
+		w = &eth.Withdrawals{}
+	}
+
+	result, err := h.engine.ForkchoiceUpdatedV2(h.ctx, &eth.ForkchoiceState{
 		HeadBlockHash:      head.Hash(),
 		SafeBlockHash:      head.Hash(),
 		FinalizedBlockHash: head.Hash(),
@@ -379,6 +401,7 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 		Transactions:          txData,
 		NoTxPool:              true,
 		GasLimit:              &gasLimit,
+		Withdrawals:           w,
 	})
 	h.assert.NoError(err)
 	h.assert.Equal(eth.ExecutionValid, result.PayloadStatus.Status)
@@ -389,15 +412,16 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 
 func (h *testHelper) getPayload(id *eth.PayloadID) *eth.ExecutionPayload {
 	h.Log("getPayload", "id", id)
-	block, err := h.engine.GetPayloadV1(h.ctx, *id)
+	envelope, err := h.engine.GetPayloadV2(h.ctx, *id)
 	h.assert.NoError(err)
-	h.assert.NotNil(block)
-	return block
+	h.assert.NotNil(envelope)
+	h.assert.NotNil(envelope.ExecutionPayload)
+	return envelope.ExecutionPayload
 }
 
 func (h *testHelper) newPayload(block *eth.ExecutionPayload) {
 	h.Log("newPayload", "hash", block.BlockHash)
-	r, err := h.engine.NewPayloadV1(h.ctx, block)
+	r, err := h.engine.NewPayloadV2(h.ctx, block)
 	h.assert.NoError(err)
 	h.assert.Equal(eth.ExecutionValid, r.Status)
 	h.assert.Nil(r.ValidationError)

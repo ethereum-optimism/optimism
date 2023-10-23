@@ -6,6 +6,7 @@ import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -51,8 +52,8 @@ contract L2StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    /// @custom:semver 1.3.1
-    string public constant version = "1.3.1";
+    /// @custom:semver 1.4.0
+    string public constant version = "1.4.0";
 
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
@@ -61,7 +62,7 @@ contract L2StandardBridge is StandardBridge, ISemver {
     }
 
     /// @notice Initializer
-    function initialize() public reinitializer(2) {
+    function initialize() public reinitializer(Constants.INITIALIZER) {
         __StandardBridge_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
     }
 

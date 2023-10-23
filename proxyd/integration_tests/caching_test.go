@@ -27,6 +27,7 @@ func TestCaching(t *testing.T) {
 	hdlr.SetRoute("eth_getTransactionByBlockHashAndIndex", "999", "eth_getTransactionByBlockHashAndIndex")
 	hdlr.SetRoute("eth_getUncleByBlockHashAndIndex", "999", "eth_getUncleByBlockHashAndIndex")
 	hdlr.SetRoute("eth_getTransactionReceipt", "999", "eth_getTransactionReceipt")
+	hdlr.SetRoute("debug_getRawReceipts", "999", "debug_getRawReceipts")
 	/* not cacheable */
 	hdlr.SetRoute("eth_getBlockByNumber", "999", "eth_getBlockByNumber")
 	hdlr.SetRoute("eth_blockNumber", "999", "eth_blockNumber")
@@ -179,6 +180,30 @@ func TestCaching(t *testing.T) {
 		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":null}"), resRaw)
 		RequireEqualJSON(t, resRaw, resCache)
 		require.Equal(t, 2, countRequests(backend, "eth_getBlockByHash"))
+	})
+
+	t.Run("debug_getRawReceipts with 0 receipts should not be cached", func(t *testing.T) {
+		backend.Reset()
+		hdlr.SetRoute("debug_getRawReceipts", "999", []string{})
+		resRaw, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560ff"})
+		require.NoError(t, err)
+		resCache, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560ff"})
+		require.NoError(t, err)
+		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":[]}"), resRaw)
+		RequireEqualJSON(t, resRaw, resCache)
+		require.Equal(t, 2, countRequests(backend, "debug_getRawReceipts"))
+	})
+
+	t.Run("debug_getRawReceipts with more than 0 receipts should be cached", func(t *testing.T) {
+		backend.Reset()
+		hdlr.SetRoute("debug_getRawReceipts", "999", []string{"a"})
+		resRaw, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560bb"})
+		require.NoError(t, err)
+		resCache, _, err := client.SendRPC("debug_getRawReceipts", []interface{}{"0x88420081ab9c6d50dc57af36b541c6b8a7b3e9c0d837b0414512c4c5883560bb"})
+		require.NoError(t, err)
+		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":[\"a\"]}"), resRaw)
+		RequireEqualJSON(t, resRaw, resCache)
+		require.Equal(t, 1, countRequests(backend, "debug_getRawReceipts"))
 	})
 }
 

@@ -1,5 +1,5 @@
-GITCOMMIT := $(shell git rev-parse HEAD)
-GITDATE := $(shell git show -s --format='%ct')
+GITCOMMIT ?= $(shell git rev-parse HEAD)
+GITDATE ?= $(shell git show -s --format='%ct')
 VERSION := v0.0.0
 
 LDFLAGSSTRING +=-X main.GitCommit=$(GITCOMMIT)
@@ -16,9 +16,6 @@ clean:
 test:
 	go test -v ./...
 
-lint:
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
-
 fuzz:
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzChannelConfig_CheckTimeout ./batcher
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzDurationZero ./batcher
@@ -33,5 +30,4 @@ fuzz:
 	op-batcher \
 	clean \
 	test \
-	lint \
 	fuzz

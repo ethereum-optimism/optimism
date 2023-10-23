@@ -105,7 +105,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
 	require.Nil(t, err)
 
-	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
+	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))
 
 	require.Nil(t, err)
 	return &OpGeth{
@@ -209,11 +209,18 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		}
 		txBytes = append(txBytes, bin)
 	}
+
+	var withdrawals *eth.Withdrawals
+	if d.L2ChainConfig.IsCanyon(uint64(timestamp)) {
+		withdrawals = &eth.Withdrawals{}
+	}
+
 	attrs := eth.PayloadAttributes{
 		Timestamp:    timestamp,
 		Transactions: txBytes,
 		NoTxPool:     true,
 		GasLimit:     (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
+		Withdrawals:  withdrawals,
 	}
 	return &attrs, nil
 }

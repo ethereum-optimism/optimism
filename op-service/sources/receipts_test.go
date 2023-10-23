@@ -306,6 +306,16 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 			setup:        fallbackCase(4, EthGetTransactionReceiptBatch),
 		},
 		{
+			name:         "standard",
+			providerKind: RPCKindStandard,
+			setup:        fallbackCase(4, EthGetBlockReceipts),
+		},
+		{
+			name:         "standard fallback",
+			providerKind: RPCKindStandard,
+			setup:        fallbackCase(4, EthGetBlockReceipts, EthGetTransactionReceiptBatch),
+		},
+		{
 			name:         "any discovers alchemy",
 			providerKind: RPCKindAny,
 			setup:        fallbackCase(4, AlchemyGetTransactionReceipts),

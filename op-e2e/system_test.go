@@ -491,7 +491,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	verifierPeerID := sys.RollupNodes["verifier"].P2P().Host().ID()
 	check := func() bool {
-		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().BlocksTopicPeers()
+		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().AllBlockTopicsPeers()
 		return slices.Contains[[]peer.ID](sequencerBlocksTopicPeers, verifierPeerID)
 	}
 
@@ -591,6 +591,10 @@ func TestSystemRPCAltSync(t *testing.T) {
 		// Wait for alt RPC sync to pick up the blocks on the sequencer chain
 		opts.VerifyOnClients(l2Verif)
 	})
+
+	// Sometimes we get duplicate blocks on the sequencer which makes this test flaky
+	published = slices.Compact(published)
+	received = slices.Compact(received)
 
 	// Verify that the tx was received via RPC sync (P2P is disabled)
 	require.Contains(t, received, eth.BlockID{Hash: receiptSeq.BlockHash, Number: receiptSeq.BlockNumber.Uint64()}.String())

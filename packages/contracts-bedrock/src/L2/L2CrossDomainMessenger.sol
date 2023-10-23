@@ -6,6 +6,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000007
@@ -14,8 +15,8 @@ import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 ///         L2 on the L2 side. Users are generally encouraged to use this contract instead of lower
 ///         level message passing contracts.
 contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @custom:semver 1.6.1
-    string public constant version = "1.6.1";
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
@@ -24,7 +25,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @notice Initializer.
-    function initialize() public reinitializer(2) {
+    function initialize() public reinitializer(Constants.INITIALIZER) {
         __CrossDomainMessenger_init();
     }
 
