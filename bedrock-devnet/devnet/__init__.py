@@ -10,6 +10,9 @@ import time
 import shutil
 import http.client
 from multiprocessing import Process, Queue
+import concurrent.futures
+from collections import namedtuple
+
 
 import devnet.log_setup
 
@@ -301,6 +304,10 @@ def wait_for_rpc_server(url):
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
 
+
+CommandPreset = namedtuple('Command', ['name', 'args', 'cwd', 'timeout'])
+
+
 def devnet_test(paths):
     # Check the L2 config
     run_command(
@@ -308,17 +315,57 @@ def devnet_test(paths):
         cwd=paths.ops_chain_ops,
     )
 
-    run_command(
-         ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1', '--l1-contracts-json-path', paths.addresses_json_path],
-         cwd=paths.sdk_dir,
-         timeout=8*60,
-    )
+    # Run the two commands with different signers, so the ethereum nonce management does not conflict
+    # And do not use devnet system addresses, to avoid breaking fee-estimation or nonce values.
+    run_commands([
+        CommandPreset('erc20-test',
+          ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
+           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
+          cwd=paths.sdk_dir, timeout=8*60),
+        CommandPreset('eth-test',
+          ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
+           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
+          cwd=paths.sdk_dir, timeout=8*60)
+    ], max_workers=2)
 
-    run_command(
-         ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1', '--l1-contracts-json-path', paths.addresses_json_path],
-         cwd=paths.sdk_dir,
-         timeout=8*60,
-    )
+
+def run_commands(commands: list[CommandPreset], max_workers=2):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(run_command_preset, cmd) for cmd in commands]
+
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                print(result.stdout)
+
+
+def run_command_preset(command: CommandPreset):
+    with subprocess.Popen(command.args, cwd=command.cwd,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
+        try:
+            # Live output processing
+            for line in proc.stdout:
+                # Annotate and print the line with timestamp and command name
+                timestamp = datetime.datetime.utcnow().strftime('%H:%M:%S.%f')
+                # Annotate and print the line with the timestamp
+                print(f"[{timestamp}][{command.name}] {line}", end='')
+
+            stdout, stderr = proc.communicate(timeout=command.timeout)
+
+            if proc.returncode != 0:
+                raise RuntimeError(f"Command '{' '.join(command.args)}' failed with return code {proc.returncode}: {stderr}")
+
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Command '{' '.join(command.args)}' timed out!")
+
+        except Exception as e:
+            raise RuntimeError(f"Error executing '{' '.join(command.args)}': {e}")
+
+        finally:
+            # Ensure process is terminated
+            proc.kill()
+    return proc.returncode
+
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, timeout=None):
     env = env if env else {}
