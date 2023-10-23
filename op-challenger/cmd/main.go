@@ -24,7 +24,11 @@ var (
 var VersionWithMeta = func() string {
 	v := version.Version
 	if GitCommit != "" {
-		v += "-" + GitCommit[:8]
+		if len(GitCommit) >= 8 {
+			v += "-" + GitCommit[:8]
+		} else {
+			v += "-" + GitCommit
+		}
 	}
 	if GitDate != "" {
 		v += "-" + GitDate
