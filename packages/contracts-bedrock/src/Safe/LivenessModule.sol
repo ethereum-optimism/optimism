@@ -11,8 +11,11 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
 /// @title LivenessModule
-/// @notice This module is intended to be used in conjunction with the LivenessGuard. It should be able to
-///         execute a transaction on the Safe in only a small number of cases.
+/// @notice This module is intended to be used in conjunction with the LivenessGuard. In the event
+///         that an owner of the safe is not recorded by the guard during the liveness interval,
+///         the owner will be considered inactive and will be removed from the list of owners.
+///         If the number of owners falls below the minimum number of owners, the ownership of the
+///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
     /// @notice The Safe contract instance
     Safe public safe;

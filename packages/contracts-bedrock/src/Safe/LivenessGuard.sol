@@ -20,11 +20,20 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
 
+    /// @notice The safe account for which this contract will be the guard.
     Safe public immutable safe;
 
+    /// @notice A mapping of the timestamp at which an owner last participated in signing a
+    ///         an executed transaction.
     mapping(address => uint256) public lastLive;
+
+    /// @notice An enumerable set of addresses used to store the list of owners before execution,
+    ///         and then to update the lastSigned mapping according to changes in the set observed
+    ///         after execution.
     EnumerableSet.AddressSet private ownersBefore;
 
+    /// @notice Constructor.
+    /// @param _safe The safe account for which this contract will be the guard.
     constructor(Safe _safe) {
         safe = _safe;
     }
