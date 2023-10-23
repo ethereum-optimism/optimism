@@ -72,7 +72,7 @@ contract LivenessModule is ISemver {
             "LivenessModule: guard has been changed"
         );
 
-        // Check that the owner has not signed a transaction in the last 30 days
+        // Check that the owner to remove has not signed a transaction in the last 30 days
         require(
             livenessGuard.lastLive(owner) < block.timestamp - livenessInterval,
             "LivenessModule: owner has signed recently"
@@ -83,20 +83,13 @@ contract LivenessModule is ISemver {
         uint256 numOwners = owners.length - 1;
         uint256 thresholdAfter;
         if (hasMinOwners(numOwners)) {
-            // Preserves the invariant that the Safe has at least numOwners
-
+            // Call the Safe to remove the owner and update the threshold
             thresholdAfter = get75PercentThreshold(numOwners);
-            console.log("removing one owner. numOwners: %s, thresholdAfter: %s", numOwners, thresholdAfter);
             address prevOwner = _getPrevOwner(owner, owners);
-            // Call the Safe to remove the owner
             _removeOwner({ _prevOwner: prevOwner, _owner: owner, _threshold: thresholdAfter });
         } else {
-            console.log("removing all owners. numOwnersAfter: %s", numOwners);
             // The number of owners is dangerously low, so we wish to transfer the ownership of this Safe
             // to the fallback owner.
-
-            // The threshold will be 1 because we are removing all owners except the fallback owner
-            // thresholdAfter = 1; // todo: why is this here? We should be able to delete it.
 
             // Remove owners one at a time starting from the last owner.
             // Since we're removing them in order from last to first, the ordering will remain constant,
