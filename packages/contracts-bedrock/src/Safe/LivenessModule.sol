@@ -67,10 +67,7 @@ contract LivenessModule is ISemver {
     ///         ownership of the Safe is transferred to the fallback owner.
     function removeOwner(address owner) external {
         // Check that the guard has not been changed
-        require(
-            address(livenessGuard) == address(uint160(uint256(bytes32(safe.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
-            "LivenessModule: guard has been changed"
-        );
+        _verifyGuard();
 
         // Check that the owner to remove has not signed a transaction in the last 30 days
         require(
@@ -142,14 +139,20 @@ contract LivenessModule is ISemver {
             "LivenessModule: Safe must have the minimum number of owners, or be owned solely by the fallback owner"
         );
 
-        // Check that the threshold is correct
+        // Check that the threshold is correct. This check is also correct when there is a single
+        // owner, because get75PercentThreshold(1) returns 1.
         uint256 threshold = safe.getThreshold();
         require(
             threshold == get75PercentThreshold(numOwners),
             "LivenessModule: threshold must be 75% of the number of owners"
         );
 
-        // Check that the guard has not been changed
+        // Check that the guard has not been changed.
+        _verifyGuard();
+    }
+
+    /// @notice Reverts if the guard address does not match the expected value.
+    function _verifyGuard() internal view {
         require(
             address(livenessGuard) == address(uint160(uint256(bytes32(safe.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
             "LivenessModule: guard has been changed"
