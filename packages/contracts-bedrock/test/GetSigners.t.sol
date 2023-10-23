@@ -8,7 +8,7 @@ import "test/safe-tools/SafeTestTools.sol";
 
 import { SignatureDecoder } from "safe-contracts/common/SignatureDecoder.sol";
 
-contract GetSigners_Test is Test, SafeTestTools, GetSigners {
+contract GetSigners_Test is Test, SafeTestTools {
     bytes4 internal constant EIP1271_MAGIC_VALUE = 0x20c13b0b;
 
     enum SigTypes {
@@ -98,7 +98,7 @@ contract GetSigners_Test is Test, SafeTestTools, GetSigners {
 
         // Recover the signatures using the _getNSigners() method.
         address[] memory gotSigners =
-            _getNSigners({ dataHash: digest, signatures: signatures, requiredSignatures: numSigs });
+            GetSigners.getNSigners({ dataHash: digest, signatures: signatures, requiredSignatures: numSigs });
 
         // Compare the list of recovered signers to the expected signers.
         assertEq(gotSigners.length, numSigs);

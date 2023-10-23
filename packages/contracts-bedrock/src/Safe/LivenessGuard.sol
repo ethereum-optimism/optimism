@@ -9,7 +9,7 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-contract LivenessGuard is ISemver, GetSigners, BaseGuard {
+contract LivenessGuard is ISemver, BaseGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice Emitted when a new set of signers is recorded.
@@ -110,7 +110,7 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
 
         uint256 threshold = safe.getThreshold();
         address[] memory signers =
-            _getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
+            GetSigners.getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
 
         for (uint256 i = 0; i < signers.length; i++) {
             lastLive[signers[i]] = block.timestamp;
