@@ -7,8 +7,11 @@ import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { GetSigners } from "src/Safe/GetSigners.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 contract LivenessGuard is ISemver, GetSigners, BaseGuard {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
     /// @notice Emitted when a new set of signers is recorded.
     /// @param signers An arrary of signer addresses.
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
@@ -20,12 +23,33 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
     Safe public immutable safe;
     mapping(address => uint256) public lastSigned;
 
+    EnumerableSet.AddressSet private ownersBefore;
+
     constructor(Safe _safe) {
         safe = _safe;
     }
 
-    /// @notice We just need to satisfy the BaseGuard interfae, but we don't actually need to use this method.
-    function checkAfterExecution(bytes32, bool) external pure {
+    /// @notice We use this post execution hook to compare the set of owners before and after.
+    ///         If the set of owners has changed then we:
+    ///         1. Add new owners to the lastSigned mapping
+    ///         2. Delete removed owners from the lastSigned mapping
+    function checkAfterExecution(bytes32, bool) external {
+        address[] memory ownersAfter = safe.getOwners();
+        for (uint256 i = 0; i < ownersAfter.length; i++) {
+            if (ownersBefore.contains(ownersAfter[i])) {
+                // This address was already present, no change, remove it from the set.
+                ownersBefore.remove(ownersAfter[i]);
+            } else {
+                // This address is newly added, add it to the lastSigned mapping
+                lastSigned[ownersAfter[i]] = block.timestamp;
+            }
+            // Iterate over ownersSet. Any remaining addresses are no longer an owner, so we delete
+            // it from the lastSigned mapping.
+            for (uint256 j = 0; j < ownersBefore.length(); j++) {
+                address owner = ownersBefore.at(j);
+                delete lastSigned[owner];
+            }
+        }
         return;
     }
 
@@ -48,6 +72,13 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
         external
     {
         require(msg.sender == address(safe), "LivenessGuard: only Safe can call this function");
+
+        // Cache the set of owners prior to execution.
+        // This will be used in the checkAfterExecution method.
+        address[] memory owners = safe.getOwners();
+        for (uint256 i = 0; i < owners.length; i++) {
+            ownersBefore.add(owners[i]);
+        }
 
         // This call will reenter to the Safe which is calling it. This is OK because it is only reading the
         // nonce, and using the getTransactionHash() method.
