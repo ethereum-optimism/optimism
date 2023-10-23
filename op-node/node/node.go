@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
 
@@ -49,14 +51,13 @@ type OpNode struct {
 
 	rollupHalt string // when to halt the rollup, disabled if empty
 
+	pprofSrv   *httputil.HTTPServer
+	metricsSrv *httputil.HTTPServer
+
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
 	resourcesClose context.CancelFunc
-
-	// resource context for anything that stays around for the post-processing phase: e.g. metrics.
-	postResourcesCtx   context.Context
-	postResourcesClose context.CancelFunc
 
 	// Indicates when it's safe to close data sources used by the runtimeConfig bg loader
 	runtimeConfigReloaderDone chan struct{}
@@ -88,8 +89,6 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 	}
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
-
-	n.postResourcesCtx, n.postResourcesClose = context.WithCancel(context.Background())
 
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
@@ -130,13 +129,15 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initRPCServer(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the RPC server: %w", err)
 	}
-	if err := n.initMetricsServer(ctx, cfg); err != nil {
+	if err := n.initMetricsServer(cfg); err != nil {
 		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
 	n.metrics.RecordInfo(n.appVersion)
 	n.metrics.RecordUp()
 	n.initHeartbeat(cfg)
-	n.initPProf(cfg)
+	if err := n.initPProf(cfg); err != nil {
+		return fmt.Errorf("failed to init pprof server: %w", err)
+	}
 	return nil
 }
 
@@ -341,17 +342,18 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
+func (n *OpNode) initMetricsServer(cfg *Config) error {
 	if !cfg.Metrics.Enabled {
 		n.log.Info("metrics disabled")
 		return nil
 	}
-	n.log.Info("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)
-	go func() {
-		if err := n.metrics.Serve(n.postResourcesCtx, cfg.Metrics.ListenAddr, cfg.Metrics.ListenPort); err != nil {
-			log.Crit("error starting metrics server", "err", err)
-		}
-	}()
+	n.log.Debug("starting metrics server", "addr", cfg.Metrics.ListenAddr, "port", cfg.Metrics.ListenPort)
+	metricsSrv, err := n.metrics.StartServer(cfg.Metrics.ListenAddr, cfg.Metrics.ListenPort)
+	if err != nil {
+		return fmt.Errorf("failed to start metrics server: %w", err)
+	}
+	n.log.Info("started metrics server", "addr", metricsSrv.Addr())
+	n.metricsSrv = metricsSrv
 	return nil
 }
 
@@ -381,16 +383,18 @@ func (n *OpNode) initHeartbeat(cfg *Config) {
 	}(cfg.Heartbeat.URL)
 }
 
-func (n *OpNode) initPProf(cfg *Config) {
+func (n *OpNode) initPProf(cfg *Config) error {
 	if !cfg.Pprof.Enabled {
-		return
+		return nil
 	}
-	log.Info("pprof server started", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
-	go func(listenAddr string, listenPort int) {
-		if err := oppprof.ListenAndServe(n.resourcesCtx, listenAddr, listenPort); err != nil {
-			log.Error("error starting pprof", "err", err)
-		}
-	}(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
+	log.Debug("starting pprof server", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
+	srv, err := oppprof.StartServer(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
+	if err != nil {
+		return err
+	}
+	n.pprofSrv = srv
+	log.Info("started pprof server", "addr", srv.Addr())
+	return nil
 }
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
@@ -551,7 +555,9 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	var result *multierror.Error
 
 	if n.server != nil {
-		n.server.Stop()
+		if err := n.server.Stop(ctx); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close RPC server: %w", err))
+		}
 	}
 	if n.p2pNode != nil {
 		if err := n.p2pNode.Close(); err != nil {
@@ -617,9 +623,17 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		}
 	}
 
-	// Close metrics only after we are done idling
-	// TODO(7534): This should be refactored to a series of Close() calls to the respective resources.
-	n.postResourcesClose()
+	// Close metrics and pprof only after we are done idling
+	if n.pprofSrv != nil {
+		if err := n.pprofSrv.Stop(ctx); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close pprof server: %w", err))
+		}
+	}
+	if n.metricsSrv != nil {
+		if err := n.metricsSrv.Stop(ctx); err != nil {
+			result = multierror.Append(result, fmt.Errorf("failed to close metrics server: %w", err))
+		}
+	}
 
 	return result.ErrorOrNil()
 }
@@ -628,10 +642,9 @@ func (n *OpNode) Stopped() bool {
 	return n.closed.Load()
 }
 
-func (n *OpNode) ListenAddr() string {
-	return n.server.listenAddr.String()
-}
-
 func (n *OpNode) HTTPEndpoint() string {
-	return fmt.Sprintf("http://%s", n.ListenAddr())
+	if n.server == nil {
+		return ""
+	}
+	return fmt.Sprintf("http://%s", n.server.Addr().String())
 }

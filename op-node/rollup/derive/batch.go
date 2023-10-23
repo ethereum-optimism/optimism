@@ -7,48 +7,44 @@ import (
 	"io"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Batch format
 // first byte is type followed by bytestring.
 //
-// BatchV1Type := 0
-// batchV1 := BatchV1Type ++ RLP([epoch, timestamp, transaction_list]
-//
 // An empty input is not a valid batch.
 //
 // Note: the type system is based on L1 typed transactions.
-
+//
 // encodeBufferPool holds temporary encoder buffers for batch encoding
 var encodeBufferPool = sync.Pool{
 	New: func() any { return new(bytes.Buffer) },
 }
 
 const (
-	BatchV1Type = iota
+	// SingularBatchType is the first version of Batch format, representing a single L2 block.
+	SingularBatchType = iota
+	// SpanBatchType is the Batch version used after SpanBatch hard fork, representing a span of L2 blocks.
+	SpanBatchType
 )
 
-type BatchV1 struct {
-	ParentHash common.Hash  // parent L2 block hash
-	EpochNum   rollup.Epoch // aka l1 num
-	EpochHash  common.Hash  // block hash
-	Timestamp  uint64
-	// no feeRecipient address input, all fees go to a L2 contract
-	Transactions []hexutil.Bytes
+// Batch contains information to build one or multiple L2 blocks.
+// Batcher converts L2 blocks into Batch and writes encoded bytes to Channel.
+// Derivation pipeline decodes Batch from Channel, and converts to one or multiple payload attributes.
+type Batch interface {
+	GetBatchType() int
+	GetTimestamp() uint64
+	LogContext(log.Logger) log.Logger
 }
 
+// BatchData is a composition type that contains raw data of each batch version.
+// It has encoding & decoding methods to implement typed encoding.
 type BatchData struct {
-	BatchV1
-	// batches may contain additional data with new upgrades
-}
-
-func (b *BatchV1) Epoch() eth.BlockID {
-	return eth.BlockID{Hash: b.EpochHash, Number: uint64(b.EpochNum)}
+	BatchType int
+	SingularBatch
+	RawSpanBatch
 }
 
 // EncodeRLP implements rlp.Encoder
@@ -69,9 +65,18 @@ func (b *BatchData) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
+// encodeTyped encodes batch type and payload for each batch type.
 func (b *BatchData) encodeTyped(buf *bytes.Buffer) error {
-	buf.WriteByte(BatchV1Type)
-	return rlp.Encode(buf, &b.BatchV1)
+	switch b.BatchType {
+	case SingularBatchType:
+		buf.WriteByte(SingularBatchType)
+		return rlp.Encode(buf, &b.SingularBatch)
+	case SpanBatchType:
+		buf.WriteByte(SpanBatchType)
+		return b.RawSpanBatch.encode(buf)
+	default:
+		return fmt.Errorf("unrecognized batch type: %d", b.BatchType)
+	}
 }
 
 // DecodeRLP implements rlp.Decoder
@@ -94,14 +99,35 @@ func (b *BatchData) UnmarshalBinary(data []byte) error {
 	return b.decodeTyped(data)
 }
 
+// decodeTyped decodes batch type and payload for each batch type.
 func (b *BatchData) decodeTyped(data []byte) error {
 	if len(data) == 0 {
 		return fmt.Errorf("batch too short")
 	}
 	switch data[0] {
-	case BatchV1Type:
-		return rlp.DecodeBytes(data[1:], &b.BatchV1)
+	case SingularBatchType:
+		b.BatchType = SingularBatchType
+		return rlp.DecodeBytes(data[1:], &b.SingularBatch)
+	case SpanBatchType:
+		b.BatchType = int(data[0])
+		return b.RawSpanBatch.decodeBytes(data[1:])
 	default:
 		return fmt.Errorf("unrecognized batch type: %d", data[0])
+	}
+}
+
+// NewSingularBatchData creates new BatchData with SingularBatch
+func NewSingularBatchData(singularBatch SingularBatch) *BatchData {
+	return &BatchData{
+		BatchType:     SingularBatchType,
+		SingularBatch: singularBatch,
+	}
+}
+
+// NewSpanBatchData creates new BatchData with SpanBatch
+func NewSpanBatchData(spanBatch RawSpanBatch) *BatchData {
+	return &BatchData{
+		BatchType:    SpanBatchType,
+		RawSpanBatch: spanBatch,
 	}
 }

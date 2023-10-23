@@ -419,9 +419,13 @@ var (
 				metrics := engine.NewMetrics("wheel", registry)
 				if metricsCfg.Enabled {
 					l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-					go func() {
-						if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-							l.Error("error starting metrics server", err)
+					metricsSrv, err := opmetrics.StartServer(registry, metricsCfg.ListenAddr, metricsCfg.ListenPort)
+					if err != nil {
+						return fmt.Errorf("failed to start metrics server: %w", err)
+					}
+					defer func() {
+						if err := metricsSrv.Stop(context.Background()); err != nil {
+							l.Error("failed to stop metrics server: %w", err)
 						}
 					}()
 				}

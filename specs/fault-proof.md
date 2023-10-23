@@ -172,7 +172,7 @@ and the latest hint may be buffered for lazy execution, or dropped entirely when
 
 When the pre-image oracle serves a request, and the request cannot be served from an existing collection of pre-images
 (e.g. a local pre-image cache) then the VM can execute the hint to retrieve the missing pre-image(s).
-It is the responsiblity of the program to provide sufficient hinting for every pre-image request.
+It is the responsibility of the program to provide sufficient hinting for every pre-image request.
 Some hints may have to be repeated: the VM only has to execute the last hint when handling a missing pre-image.
 
 Note that hints may produce multiple pre-images:

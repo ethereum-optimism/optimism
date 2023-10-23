@@ -15,6 +15,7 @@ contracts=(
   src/L1/L2OutputOracle.sol:L2OutputOracle
   src/L1/OptimismPortal.sol:OptimismPortal
   src/L1/SystemConfig.sol:SystemConfig
+  src/L1/L1ERC721Bridge.sol:L1ERC721Bridge
   src/legacy/DeployerWhitelist.sol:DeployerWhitelist
   src/L2/L1Block.sol:L1Block
   src/legacy/L1BlockNumber.sol:L1BlockNumber
@@ -25,6 +26,7 @@ contracts=(
   src/L2/SequencerFeeVault.sol:SequencerFeeVault
   src/L2/BaseFeeVault.sol:BaseFeeVault
   src/L2/L1FeeVault.sol:L1FeeVault
+  src/L2/L2ERC721Bridge.sol:L2ERC721Bridge
   src/vendor/WETH9.sol:WETH9
   src/universal/ProxyAdmin.sol:ProxyAdmin
   src/universal/Proxy.sol:Proxy
