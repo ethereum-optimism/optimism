@@ -3,14 +3,15 @@ package derive
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func TestWithdrawalsMatch(t *testing.T) {
 	tests := []struct {
-		attrs       *eth.Withdrawals
-		block       *eth.Withdrawals
+		attrs       *types.Withdrawals
+		block       *types.Withdrawals
 		shouldMatch bool
 	}{
 		{
@@ -19,36 +20,36 @@ func TestWithdrawalsMatch(t *testing.T) {
 			shouldMatch: true,
 		},
 		{
-			attrs:       &eth.Withdrawals{},
+			attrs:       &types.Withdrawals{},
 			block:       nil,
 			shouldMatch: false,
 		},
 		{
 			attrs:       nil,
-			block:       &eth.Withdrawals{},
+			block:       &types.Withdrawals{},
 			shouldMatch: false,
 		},
 		{
-			attrs:       &eth.Withdrawals{},
-			block:       &eth.Withdrawals{},
+			attrs:       &types.Withdrawals{},
+			block:       &types.Withdrawals{},
 			shouldMatch: true,
 		},
 		{
-			attrs: &eth.Withdrawals{
+			attrs: &types.Withdrawals{
 				{
 					Index: 1,
 				},
 			},
-			block:       &eth.Withdrawals{},
+			block:       &types.Withdrawals{},
 			shouldMatch: false,
 		},
 		{
-			attrs: &eth.Withdrawals{
+			attrs: &types.Withdrawals{
 				{
 					Index: 1,
 				},
 			},
-			block: &eth.Withdrawals{
+			block: &types.Withdrawals{
 				{
 					Index: 2,
 				},

@@ -47,7 +47,7 @@ func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 	return nil
 }
 
-func checkWithdrawalsMatch(attrWithdrawals *eth.Withdrawals, blockWithdrawals *eth.Withdrawals) error {
+func checkWithdrawalsMatch(attrWithdrawals *types.Withdrawals, blockWithdrawals *types.Withdrawals) error {
 	if attrWithdrawals == nil && blockWithdrawals == nil {
 		return nil
 	}
@@ -67,7 +67,7 @@ func checkWithdrawalsMatch(attrWithdrawals *eth.Withdrawals, blockWithdrawals *e
 	for idx, expected := range *attrWithdrawals {
 		actual := (*blockWithdrawals)[idx]
 
-		if expected != actual {
+		if *expected != *actual {
 			return fmt.Errorf("expected withdrawal %d to be %v, actual %v", idx, expected, actual)
 		}
 	}
