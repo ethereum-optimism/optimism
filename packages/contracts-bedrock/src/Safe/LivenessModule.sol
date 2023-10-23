@@ -83,57 +83,62 @@ contract LivenessModule is ISemver {
         uint256 numOwners = owners.length - 1;
         uint256 thresholdAfter;
         if (hasMinOwners(numOwners)) {
-            // Preserves the invariant that the Safe has at least 8 owners
+            // Preserves the invariant that the Safe has at least numOwners
 
             thresholdAfter = get75PercentThreshold(numOwners);
             console.log("removing one owner. numOwners: %s, thresholdAfter: %s", numOwners, thresholdAfter);
-            safe.execTransactionFromModule({
-                to: address(safe),
-                value: 0,
-                data: abi.encodeCall(
-                    // Call the Safe to remove the owner
-                    OwnerManager.removeOwner,
-                    (getPrevOwner(owner, owners), owner, thresholdAfter)
-                    ),
-                operation: Enum.Operation.Call
-            });
+            address prevOwner = _getPrevOwner(owner, owners);
+            // Call the Safe to remove the owner
+            _removeOwner({ _prevOwner: prevOwner, _owner: owner, _threshold: thresholdAfter });
         } else {
             console.log("removing all owners. numOwnersAfter: %s", numOwners);
-            // The number of owners is dangerously low, so we wish to transfer the ownership of this Safe to a new
+            // The number of owners is dangerously low, so we wish to transfer the ownership of this Safe
             // to the fallback owner.
 
             // The threshold will be 1 because we are removing all owners except the fallback owner
-            thresholdAfter = 1;
+            // thresholdAfter = 1; // todo: why is this here? We should be able to delete it.
 
             // Remove owners one at a time starting from the last owner.
-            // Since we're removing them in order, the ordering will remain constant,
-            //  and we shouldn't need to query the list of owners again.
+            // Since we're removing them in order from last to first, the ordering will remain constant,
+            // and we shouldn't need to query the list of owners again.
             for (uint256 i = owners.length - 1; i >= 0; i--) {
                 address currentOwner = owners[i];
-                address prevOwner = getPrevOwner(currentOwner, owners);
+                address prevOwner = _getPrevOwner(currentOwner, owners);
                 if (currentOwner != address(this)) {
-                    safe.execTransactionFromModule({
-                        to: address(safe),
-                        value: 0,
-                        data: abi.encodeCall(
-                            // Call the Safe to remove the owner
-                            OwnerManager.removeOwner,
-                            (prevOwner, currentOwner, 1)
-                            ),
-                        operation: Enum.Operation.Call
-                    });
+                    // Call the Safe to remove the owner
+                    _removeOwner({ _prevOwner: prevOwner, _owner: currentOwner, _threshold: 1 });
                 }
             }
 
             // Add the fallback owner as the sole owner of the Safe
-            safe.execTransactionFromModule({
-                to: address(safe),
-                value: 0,
-                data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (fallbackOwner, 1)),
-                operation: Enum.Operation.Call
-            });
+            _addOwnerWithThreshold({ _owner: fallbackOwner, _threshold: 1 });
         }
         _verifyFinalState();
+    }
+
+    /// @notice Adds the owner `owner` to the Safe and updates the threshold to `_threshold`.
+    /// @param _owner New owner address.
+    /// @param _threshold New threshold.
+    function _addOwnerWithThreshold(address _owner, uint256 _threshold) internal {
+        safe.execTransactionFromModule({
+            to: address(safe),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (_owner, _threshold))
+        });
+    }
+
+    /// @notice Removes the owner `owner` from the Safe and updates the threshold to `_threshold`.
+    /// @param _prevOwner Owner that pointed to the owner to be removed in the linked list
+    /// @param _owner Owner address to be removed.
+    /// @param _threshold New threshold.
+    function _removeOwner(address _prevOwner, address _owner, uint256 _threshold) internal {
+        safe.execTransactionFromModule({
+            to: address(safe),
+            value: 0,
+            operation: Enum.Operation.Call,
+            data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
+        });
     }
 
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
@@ -154,16 +159,14 @@ contract LivenessModule is ISemver {
     }
 
     /// @notice Get the previous owner in the linked list of owners
-    function getPrevOwner(address owner, address[] memory owners) public pure returns (address prevOwner_) {
+    function _getPrevOwner(address owner, address[] memory owners) internal pure returns (address prevOwner_) {
         for (uint256 i = 0; i < owners.length; i++) {
-            if (owners[i] == owner) {
-                if (i == 0) {
-                    prevOwner_ = SENTINEL_OWNERS;
-                    break;
-                }
-                prevOwner_ = owners[i - 1];
+            if (owners[i] != owner) continue;
+            if (i == 0) {
+                prevOwner_ = SENTINEL_OWNERS;
                 break;
             }
+            prevOwner_ = owners[i - 1];
         }
     }
 
