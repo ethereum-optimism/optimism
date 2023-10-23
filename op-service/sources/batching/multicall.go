@@ -1,84 +1,18 @@
-package contracts
+package batching
 
 import (
 	"context"
 	"fmt"
 	"io"
-	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// Note: All of this stuff would wind up moving to somewhere in op-service so it can be easily reused.
-
 type EthRpc interface {
 	CallContext(ctx context.Context, out interface{}, method string, args ...interface{}) error
 	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
-}
-
-type ContractCall struct {
-	Abi    *abi.ABI
-	Addr   common.Address
-	Method string
-	Args   []interface{}
-}
-
-func NewContractCall(abi *abi.ABI, addr common.Address, method string, args ...interface{}) *ContractCall {
-	return &ContractCall{
-		Abi:    abi,
-		Addr:   addr,
-		Method: method,
-		Args:   args,
-	}
-}
-
-func (c *ContractCall) ToCallArgs() (interface{}, error) {
-	data, err := c.Abi.Pack(c.Method, c.Args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pack arguments: %w", err)
-	}
-	msg := ethereum.CallMsg{
-		To:   &c.Addr,
-		Data: data,
-	}
-	return toCallArg(msg), nil
-}
-
-func (c *ContractCall) Unpack(hex hexutil.Bytes) ([]interface{}, error) {
-	out, err := c.Abi.Unpack(c.Method, hex)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unpack data: %w", err)
-	}
-	return out, nil
-}
-
-type CallResult struct {
-	out []interface{}
-}
-
-func (c *CallResult) GetUint8(i int) uint8 {
-	return *abi.ConvertType(c.out[i], new(uint8)).(*uint8)
-}
-
-func (c *CallResult) GetUint32(i int) uint32 {
-	return *abi.ConvertType(c.out[i], new(uint32)).(*uint32)
-}
-
-func (c *CallResult) GetBool(i int) bool {
-	return *abi.ConvertType(c.out[i], new(bool)).(*bool)
-}
-
-func (c *CallResult) GetHash(i int) common.Hash {
-	return *abi.ConvertType(c.out[i], new([32]byte)).(*[32]byte)
-}
-
-func (c *CallResult) GetBigInt(i int) *big.Int {
-	return *abi.ConvertType(c.out[i], new(*big.Int)).(**big.Int)
 }
 
 type MultiCaller struct {
@@ -110,7 +44,7 @@ func (m *MultiCaller) CallLatest(ctx context.Context, calls ...*ContractCall) ([
 		}
 		keys[i] = args
 	}
-	fetcher := sources.NewIterativeBatchCall[interface{}, *hexutil.Bytes](
+	fetcher := NewIterativeBatchCall[interface{}, *hexutil.Bytes](
 		keys,
 		func(args interface{}) (*hexutil.Bytes, rpc.BatchElem) {
 			out := new(hexutil.Bytes)

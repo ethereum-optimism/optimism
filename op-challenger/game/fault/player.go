@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -46,7 +47,7 @@ func NewGamePlayer(
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
-	loader, err := contracts.NewFaultDisputeGameContract(addr, contracts.NewMultiCaller(client.Client(), 100))
+	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), 100))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fault dispute game contract wrapper: %w", err)
 	}

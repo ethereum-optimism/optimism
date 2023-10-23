@@ -8,17 +8,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type FaultDisputeGameContract struct {
-	multiCaller *MultiCaller
-	addr        common.Address
-	abi         *abi.ABI
+	multiCaller *batching.MultiCaller
+	contract    *batching.BoundContract
 }
 
-func NewFaultDisputeGameContract(addr common.Address, caller *MultiCaller) (*FaultDisputeGameContract, error) {
+func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
@@ -26,13 +25,12 @@ func NewFaultDisputeGameContract(addr common.Address, caller *MultiCaller) (*Fau
 
 	return &FaultDisputeGameContract{
 		multiCaller: caller,
-		abi:         fdgAbi,
-		addr:        addr,
+		contract:    batching.NewBoundContract(fdgAbi, addr),
 	}, nil
 }
 
 func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
-	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "GAME_DURATION"))
+	result, err := f.multiCaller.SingleCallLatest(ctx, f.contract.Call("GAME_DURATION"))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
 	}
@@ -40,7 +38,7 @@ func (f *FaultDisputeGameContract) GetGameDuration(ctx context.Context) (uint64,
 }
 
 func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
-	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "MAX_GAME_DEPTH"))
+	result, err := f.multiCaller.SingleCallLatest(ctx, f.contract.Call("MAX_GAME_DEPTH"))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
@@ -48,7 +46,7 @@ func (f *FaultDisputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64,
 }
 
 func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
-	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "ABSOLUTE_PRESTATE"))
+	result, err := f.multiCaller.SingleCallLatest(ctx, f.contract.Call("ABSOLUTE_PRESTATE"))
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch absolute prestate hash: %w", err)
 	}
@@ -56,7 +54,7 @@ func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) 
 }
 
 func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
-	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "status"))
+	result, err := f.multiCaller.SingleCallLatest(ctx, f.contract.Call("status"))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch status: %w", err)
 	}
@@ -64,7 +62,7 @@ func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.Gam
 }
 
 func (f *FaultDisputeGameContract) GetClaimCount(ctx context.Context) (uint64, error) {
-	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "claimDataLen"))
+	result, err := f.multiCaller.SingleCallLatest(ctx, f.contract.Call("claimDataLen"))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch claim count: %w", err)
 	}
@@ -72,7 +70,7 @@ func (f *FaultDisputeGameContract) GetClaimCount(ctx context.Context) (uint64, e
 }
 
 func (f *FaultDisputeGameContract) GetClaim(ctx context.Context, idx uint64) (types.Claim, error) {
-	result, err := f.multiCaller.SingleCallLatest(ctx, NewContractCall(f.abi, f.addr, "claimData", new(big.Int).SetUint64(idx)))
+	result, err := f.multiCaller.SingleCallLatest(ctx, f.contract.Call("claimData", new(big.Int).SetUint64(idx)))
 	if err != nil {
 		return types.Claim{}, fmt.Errorf("failed to fetch claim %v: %w", idx, err)
 	}
@@ -85,9 +83,9 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 		return nil, fmt.Errorf("failed to load claim count: %w", err)
 	}
 
-	calls := make([]*ContractCall, count)
+	calls := make([]*batching.ContractCall, count)
 	for i := uint64(0); i < count; i++ {
-		calls[i] = NewContractCall(f.abi, f.addr, "claimData", new(big.Int).SetUint64(i))
+		calls[i] = f.contract.Call("claimData", new(big.Int).SetUint64(i))
 	}
 
 	results, err := f.multiCaller.CallLatest(ctx, calls...)
@@ -102,7 +100,7 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 	return claims, nil
 }
 
-func (f *FaultDisputeGameContract) decodeClaim(result *CallResult, contractIndex int) types.Claim {
+func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {
 	parentIndex := result.GetUint32(0)
 	countered := result.GetBool(1)
 	claim := result.GetHash(2)
