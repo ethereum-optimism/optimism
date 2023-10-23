@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -79,11 +81,12 @@ type BridgeTransfersDB interface {
  */
 
 type bridgeTransfersDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newBridgeTransfersDB(db *gorm.DB) BridgeTransfersDB {
-	return &bridgeTransfersDB{gorm: db}
+func newBridgeTransfersDB(log log.Logger, db *gorm.DB) BridgeTransfersDB {
+	return &bridgeTransfersDB{log: log.New("table", "bridge_transfers"), gorm: db}
 }
 
 /**
@@ -91,7 +94,12 @@ func newBridgeTransfersDB(db *gorm.DB) BridgeTransfersDB {
  */
 
 func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []L1BridgeDeposit) error {
-	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "transaction_source_hash"}}, DoNothing: true})
+	result := deduped.Create(&deposits)
+	if result.Error == nil && int(result.RowsAffected) < len(deposits) {
+		db.log.Warn("ignored L1 bridge transfer duplicates", "duplicates", len(deposits)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -204,7 +212,12 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
  */
 
 func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []L2BridgeWithdrawal) error {
-	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "transaction_withdrawal_hash"}}, DoNothing: true})
+	result := deduped.Create(&withdrawals)
+	if result.Error == nil && int(result.RowsAffected) < len(withdrawals) {
+		db.log.Warn("ignored L2 bridge transfer duplicates", "duplicates", len(withdrawals)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 

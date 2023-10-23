@@ -371,19 +371,19 @@ func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 
 		// Address manager owner
 		// Ownable, first storage slot
-		headState.SetState(addressManager, common.Hash{}, conf.Owner.Hash())
+		headState.SetState(addressManager, common.Hash{}, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// L1SB proxy owner
-		headState.SetState(l1SBProxy, ownerSlot, conf.Owner.Hash())
+		headState.SetState(l1SBProxy, ownerSlot, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// L1XDM owner
 		// 0x33 = 51. L1CrossDomainMessenger is L1CrossDomainMessenger (0) Lib_AddressResolver (1) OwnableUpgradeable (1, but covered by gap) + ContextUpgradeable (special gap of 50) and then _owner
-		headState.SetState(l1XDMProxy, common.Hash{31: 0x33}, conf.Owner.Hash())
+		headState.SetState(l1XDMProxy, common.Hash{31: 0x33}, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// L1 ERC721 bridge owner
-		headState.SetState(l1ERC721BridgeProxy, ownerSlot, conf.Owner.Hash())
+		headState.SetState(l1ERC721BridgeProxy, ownerSlot, eth.AddressAsLeftPaddedHash(conf.Owner))
 		// Legacy sequencer/proposer addresses
 		// See AddressManager.sol "addresses" mapping(bytes32 => address), at slot position 1
 		addressesSlot := common.BigToHash(big.NewInt(1))
-		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Sequencer")), addressesSlot.Bytes()), conf.Sequencer.Hash())
-		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Proposer")), addressesSlot.Bytes()), conf.Proposer.Hash())
+		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Sequencer")), addressesSlot.Bytes()), eth.AddressAsLeftPaddedHash(conf.Sequencer))
+		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Proposer")), addressesSlot.Bytes()), eth.AddressAsLeftPaddedHash(conf.Proposer))
 		// Fund sequencer and proposer with 100 ETH
 		headState.SetBalance(conf.Sequencer, HundredETH)
 		headState.SetBalance(conf.Proposer, HundredETH)

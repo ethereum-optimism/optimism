@@ -1,0 +1,2 @@
+# ignore everything but the dockerfile, the op-stack-go base image performs the build
+*

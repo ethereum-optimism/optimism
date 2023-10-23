@@ -112,7 +112,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 					n.syncCl.AddPeer(conn.RemotePeer())
 				},
 				DisconnectedF: func(nw network.Network, conn network.Conn) {
-					n.syncCl.RemovePeer(conn.RemotePeer())
+					// only when no connection is available, we can remove the peer
+					if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
+						n.syncCl.RemovePeer(conn.RemotePeer())
+					}
 				},
 			})
 			n.syncCl.Start()

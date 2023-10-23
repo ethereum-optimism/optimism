@@ -30,6 +30,8 @@ var (
 func runIndexer(ctx *cli.Context) error {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "indexer")
 	oplog.SetGlobalLogHandler(log.GetHandler())
+	log.Info("running indexer...")
+
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
@@ -49,13 +51,14 @@ func runIndexer(ctx *cli.Context) error {
 		return err
 	}
 
-	log.Info("running indexer...")
 	return indexer.Run(ctx.Context)
 }
 
 func runApi(ctx *cli.Context) error {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
 	oplog.SetGlobalLogHandler(log.GetHandler())
+	log.Info("running api...")
+
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
@@ -69,7 +72,6 @@ func runApi(ctx *cli.Context) error {
 	}
 	defer db.Close()
 
-	log.Info("running api...")
 	api := api.NewApi(log, db.BridgeTransfers, cfg.HTTPServer, cfg.MetricsServer)
 	return api.Run(ctx.Context)
 }
@@ -77,8 +79,9 @@ func runApi(ctx *cli.Context) error {
 func runMigrations(ctx *cli.Context) error {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "migrations")
 	oplog.SetGlobalLogHandler(log.GetHandler())
+	log.Info("running migrations...")
+
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
-	migrationsDir := ctx.String(MigrationsFlag.Name)
 	if err != nil {
 		log.Error("failed to load config", "err", err)
 		return err
@@ -91,7 +94,7 @@ func runMigrations(ctx *cli.Context) error {
 	}
 	defer db.Close()
 
-	log.Info("running migrations...")
+	migrationsDir := ctx.String(MigrationsFlag.Name)
 	return db.ExecuteSQLMigration(migrationsDir)
 }
 

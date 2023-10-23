@@ -121,8 +121,9 @@ const (
 	RPCKindNethermind RPCProviderKind = "nethermind"
 	RPCKindDebugGeth  RPCProviderKind = "debug_geth"
 	RPCKindErigon     RPCProviderKind = "erigon"
-	RPCKindBasic      RPCProviderKind = "basic" // try only the standard most basic receipt fetching
-	RPCKindAny        RPCProviderKind = "any"   // try any method available
+	RPCKindBasic      RPCProviderKind = "basic"    // try only the standard most basic receipt fetching
+	RPCKindAny        RPCProviderKind = "any"      // try any method available
+	RPCKindStandard   RPCProviderKind = "standard" // try standard methods, including newer optimized standard RPC methods
 )
 
 var RPCProviderKinds = []RPCProviderKind{
@@ -135,6 +136,7 @@ var RPCProviderKinds = []RPCProviderKind{
 	RPCKindErigon,
 	RPCKindBasic,
 	RPCKindAny,
+	RPCKindStandard,
 }
 
 func (kind RPCProviderKind) String() string {
@@ -235,11 +237,14 @@ const (
 	//   - Alchemy: https://docs.alchemy.com/reference/eth-getblockreceipts
 	//   - Nethermind: https://docs.nethermind.io/nethermind/ethereum-client/json-rpc/parity#parity_getblockreceipts
 	ParityGetBlockReceipts
-	// EthGetBlockReceipts is a non-standard receipt fetching method in the eth namespace,
+	// EthGetBlockReceipts is a previously non-standard receipt fetching method in the eth namespace,
 	// supported by some RPC platforms.
+	// This since has been standardized in https://github.com/ethereum/execution-apis/pull/438 and adopted in Geth:
+	// https://github.com/ethereum/go-ethereum/pull/27702
 	// Available in:
 	//   - Alchemy: 500 CU total  (and deprecated)
 	//   - QuickNode: 59 credits total       (does not seem to work with block hash arg, inaccurate docs)
+	//   - Standard, incl. Geth, Besu and Reth, and Nethermind has a PR in review.
 	// Method: eth_getBlockReceipts
 	// Params:
 	//   - QuickNode: string, "quantity or tag", docs say incl. block hash, but API does not actually accept it.
@@ -296,6 +301,8 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 		return AlchemyGetTransactionReceipts | EthGetBlockReceipts |
 			DebugGetRawReceipts | ErigonGetBlockReceiptsByBlockHash |
 			ParityGetBlockReceipts | EthGetTransactionReceiptBatch
+	case RPCKindStandard:
+		return EthGetBlockReceipts | EthGetTransactionReceiptBatch
 	default:
 		return EthGetTransactionReceiptBatch
 	}
