@@ -74,6 +74,10 @@ func (c *CallResult) GetUint32(i int) uint32 {
 	return *abi.ConvertType(c.out[i], new(uint32)).(*uint32)
 }
 
+func (c *CallResult) GetUint64(i int) uint64 {
+	return *abi.ConvertType(c.out[i], new(uint64)).(*uint64)
+}
+
 func (c *CallResult) GetBool(i int) bool {
 	return *abi.ConvertType(c.out[i], new(bool)).(*bool)
 }
