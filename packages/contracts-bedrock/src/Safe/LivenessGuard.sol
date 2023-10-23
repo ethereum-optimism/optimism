@@ -34,21 +34,22 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
     ///         1. Add new owners to the lastSigned mapping
     ///         2. Delete removed owners from the lastSigned mapping
     function checkAfterExecution(bytes32, bool) external {
+        // Get the current set of owners
         address[] memory ownersAfter = safe.getOwners();
+
+        // Iterate over the current owners, and remove one at a time from the ownersBefore set.
         for (uint256 i = 0; i < ownersAfter.length; i++) {
-            if (ownersBefore.contains(ownersAfter[i])) {
-                // This address was already present, no change, remove it from the set.
-                ownersBefore.remove(ownersAfter[i]);
-            } else {
-                // This address is newly added, add it to the lastSigned mapping
+            // If the value was present, remove() returns true.
+            if (ownersBefore.remove(ownersAfter[i]) == false) {
+                // This address was not already an owner, add it to the lastSigned mapping
                 lastSigned[ownersAfter[i]] = block.timestamp;
             }
-            // Iterate over ownersSet. Any remaining addresses are no longer an owner, so we delete
-            // it from the lastSigned mapping.
-            for (uint256 j = 0; j < ownersBefore.length(); j++) {
-                address owner = ownersBefore.at(j);
-                delete lastSigned[owner];
-            }
+        }
+        // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
+        // delete them from the lastSigned mapping.
+        for (uint256 j = 0; j < ownersBefore.length(); j++) {
+            address owner = ownersBefore.at(j);
+            delete lastSigned[owner];
         }
         return;
     }
