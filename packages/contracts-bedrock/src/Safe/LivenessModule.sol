@@ -148,6 +148,12 @@ contract LivenessModule is ISemver {
             threshold == get75PercentThreshold(numOwners),
             "LivenessModule: threshold must be 75% of the number of owners"
         );
+
+        // Check that the guard has not been changed
+        require(
+            address(livenessGuard) == address(uint160(uint256(bytes32(safe.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
+            "LivenessModule: guard has been changed"
+        );
     }
 
     /// @notice Get the previous owner in the linked list of owners
