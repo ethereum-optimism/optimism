@@ -41,6 +41,37 @@ func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 	if *attrs.GasLimit != block.GasLimit {
 		return fmt.Errorf("gas limit does not match. expected %d. got: %d", *attrs.GasLimit, block.GasLimit)
 	}
+	if withdrawalErr := checkWithdrawalsMatch(attrs.Withdrawals, block.Withdrawals); withdrawalErr != nil {
+		return withdrawalErr
+	}
+	return nil
+}
+
+func checkWithdrawalsMatch(attrWithdrawals *eth.Withdrawals, blockWithdrawals *eth.Withdrawals) error {
+	if attrWithdrawals == nil && blockWithdrawals == nil {
+		return nil
+	}
+
+	if attrWithdrawals == nil && blockWithdrawals != nil {
+		return fmt.Errorf("expected withdrawals in block to be nil, actual %v", *blockWithdrawals)
+	}
+
+	if attrWithdrawals != nil && blockWithdrawals == nil {
+		return fmt.Errorf("expected withdrawals in block to be non-nil %v, actual nil", *attrWithdrawals)
+	}
+
+	if len(*attrWithdrawals) != len(*blockWithdrawals) {
+		return fmt.Errorf("expected withdrawals in block to be %d, actual %d", len(*attrWithdrawals), len(*blockWithdrawals))
+	}
+
+	for idx, expected := range *attrWithdrawals {
+		actual := (*blockWithdrawals)[idx]
+
+		if expected != actual {
+			return fmt.Errorf("expected withdrawal %d to be %v, actual %v", idx, expected, actual)
+		}
+	}
+
 	return nil
 }
 

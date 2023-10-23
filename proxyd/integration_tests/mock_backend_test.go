@@ -77,6 +77,7 @@ func (h *BatchRPCResponseRouter) SetRoute(method string, id string, result inter
 
 	switch result.(type) {
 	case string:
+	case []string:
 	case nil:
 		break
 	default:

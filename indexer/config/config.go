@@ -164,7 +164,7 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 			return cfg, err
 		}
 
-		log.Info("loaded local devnet preset")
+		log.Info("detected preset", "preset", DevnetPresetId, "name", preset.Name)
 		cfg.Chain = preset.ChainConfig
 	} else if cfg.Chain.Preset != 0 {
 		preset, ok := Presets[cfg.Chain.Preset]
@@ -191,25 +191,21 @@ func LoadConfig(log log.Logger, path string) (Config, error) {
 	// Defaults for any unset options
 
 	if cfg.Chain.L1PollingInterval == 0 {
-		log.Info("setting default L1 polling interval", "interval", defaultLoopInterval)
 		cfg.Chain.L1PollingInterval = defaultLoopInterval
 	}
 
 	if cfg.Chain.L2PollingInterval == 0 {
-		log.Info("setting default L2 polling interval", "interval", defaultLoopInterval)
 		cfg.Chain.L2PollingInterval = defaultLoopInterval
 	}
 
 	if cfg.Chain.L1HeaderBufferSize == 0 {
-		log.Info("setting default L1 header buffer", "size", defaultHeaderBufferSize)
 		cfg.Chain.L1HeaderBufferSize = defaultHeaderBufferSize
 	}
 
 	if cfg.Chain.L2HeaderBufferSize == 0 {
-		log.Info("setting default L2 header buffer", "size", defaultHeaderBufferSize)
 		cfg.Chain.L2HeaderBufferSize = defaultHeaderBufferSize
 	}
 
-	log.Info("loaded config", "config", cfg.Chain)
+	log.Info("loaded chain config", "config", cfg.Chain)
 	return cfg, nil
 }

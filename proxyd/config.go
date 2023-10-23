@@ -24,6 +24,8 @@ type ServerConfig struct {
 
 	EnableRequestLog     bool `toml:"enable_request_log"`
 	MaxRequestBodyLogLen int  `toml:"max_request_body_log_len"`
+	EnablePprof          bool `toml:"enable_pprof"`
+	EnableXServedByHeader bool `toml:"enable_served_by_header"`
 }
 
 type CacheConfig struct {

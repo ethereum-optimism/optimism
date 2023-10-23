@@ -182,6 +182,7 @@ func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
 		eq.log.Warn("cannot add nil unsafe payload")
 		return
 	}
+
 	if err := eq.unsafePayloads.Push(payload); err != nil {
 		eq.log.Warn("Could not add unsafe payload", "id", payload.ID(), "timestamp", uint64(payload.Timestamp), "err", err)
 		return

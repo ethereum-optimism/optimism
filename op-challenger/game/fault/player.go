@@ -8,8 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -34,6 +32,8 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
+type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
+
 func NewGamePlayer(
 	ctx context.Context,
 	logger log.Logger,
@@ -43,6 +43,7 @@ func NewGamePlayer(
 	addr common.Address,
 	txMgr txmgr.TxManager,
 	client bind.ContractCaller,
+	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
@@ -76,24 +77,9 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	var provider types.TraceProvider
-	var updater types.OracleUpdater
-	switch cfg.TraceType {
-	case config.TraceTypeCannon:
-		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
-		if err != nil {
-			return nil, fmt.Errorf("create cannon trace provider: %w", err)
-		}
-		provider = cannonProvider
-		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
-		}
-	case config.TraceTypeAlphabet:
-		provider = alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
-		updater = alphabet.NewOracleUpdater(logger)
-	default:
-		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
+	provider, updater, err := creator(addr, gameDepth, dir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
 
 	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {

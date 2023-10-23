@@ -194,7 +194,7 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 			dump.TotalConnected += 1
 		}
 	}
-	for _, id := range s.node.GossipOut().BlocksTopicPeers() {
+	for _, id := range s.node.GossipOut().AllBlockTopicsPeers() {
 		if p, ok := dump.Peers[id.String()]; ok {
 			p.GossipBlocks = true
 		}
@@ -208,11 +208,12 @@ func (s *APIBackend) Peers(ctx context.Context, connected bool) (*PeerDump, erro
 }
 
 type PeerStats struct {
-	Connected   uint `json:"connected"`
-	Table       uint `json:"table"`
-	BlocksTopic uint `json:"blocksTopic"`
-	Banned      uint `json:"banned"`
-	Known       uint `json:"known"`
+	Connected     uint `json:"connected"`
+	Table         uint `json:"table"`
+	BlocksTopic   uint `json:"blocksTopic"`
+	BlocksTopicV2 uint `json:"blocksTopicV2"`
+	Banned        uint `json:"banned"`
+	Known         uint `json:"known"`
 }
 
 func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
@@ -223,11 +224,12 @@ func (s *APIBackend) PeerStats(_ context.Context) (*PeerStats, error) {
 	pstore := h.Peerstore()
 
 	stats := &PeerStats{
-		Connected:   uint(len(nw.Peers())),
-		Table:       0,
-		BlocksTopic: uint(len(s.node.GossipOut().BlocksTopicPeers())),
-		Banned:      0,
-		Known:       uint(len(pstore.Peers())),
+		Connected:     uint(len(nw.Peers())),
+		Table:         0,
+		BlocksTopic:   uint(len(s.node.GossipOut().BlocksTopicV1Peers())),
+		BlocksTopicV2: uint(len(s.node.GossipOut().BlocksTopicV2Peers())),
+		Banned:        0,
+		Known:         uint(len(pstore.Peers())),
 	}
 	if gater := s.node.ConnectionGater(); gater != nil {
 		stats.Banned = uint(len(gater.ListBlockedPeers()))

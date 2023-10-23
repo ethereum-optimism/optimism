@@ -46,14 +46,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true, datadir)
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, true, datadir, config.TraceTypeAlphabet)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.AlphabetTrace = alphabetTrace
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true, datadir)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, true, datadir, config.TraceTypeAlphabet)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.AlphabetTrace = alphabetTrace
@@ -82,12 +82,47 @@ func TestTraceType(t *testing.T) {
 		traceType := traceType
 		t.Run("Valid_"+traceType.String(), func(t *testing.T) {
 			cfg := configForArgs(t, addRequiredArgs(traceType))
-			require.Equal(t, traceType, cfg.TraceType)
+			require.Equal(t, []config.TraceType{traceType}, cfg.TraceTypes)
 		})
 	}
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, "unknown trace type: \"foo\"", addRequiredArgsExcept(config.TraceTypeAlphabet, "--trace-type", "--trace-type=foo"))
+	})
+}
+
+func TestMultipleTraceTypes(t *testing.T) {
+	t.Run("WithAllOptions", func(t *testing.T) {
+		argsMap := requiredArgs(config.TraceTypeCannon)
+		addRequiredOutputCannonArgs(argsMap)
+		addRequiredAlphabetArgs(argsMap)
+		args := toArgList(argsMap)
+		// Add extra trace types (cannon is already specified)
+		args = append(args,
+			"--trace-type", config.TraceTypeOutputCannon.String(),
+			"--trace-type", config.TraceTypeAlphabet.String())
+		cfg := configForArgs(t, args)
+		require.Equal(t, []config.TraceType{config.TraceTypeCannon, config.TraceTypeOutputCannon, config.TraceTypeAlphabet}, cfg.TraceTypes)
+	})
+	t.Run("WithSomeOptions", func(t *testing.T) {
+		argsMap := requiredArgs(config.TraceTypeCannon)
+		addRequiredAlphabetArgs(argsMap)
+		args := toArgList(argsMap)
+		// Add extra trace types (cannon is already specified)
+		args = append(args,
+			"--trace-type", config.TraceTypeAlphabet.String())
+		cfg := configForArgs(t, args)
+		require.Equal(t, []config.TraceType{config.TraceTypeCannon, config.TraceTypeAlphabet}, cfg.TraceTypes)
+	})
+
+	t.Run("SpecifySameOptionMultipleTimes", func(t *testing.T) {
+		argsMap := requiredArgs(config.TraceTypeCannon)
+		args := toArgList(argsMap)
+		// Add cannon trace type again
+		args = append(args, "--trace-type", config.TraceTypeCannon.String())
+		// We're fine with the same option being listed multiple times, just deduplicate them.
+		cfg := configForArgs(t, args)
+		require.Equal(t, []config.TraceType{config.TraceTypeCannon}, cfg.TraceTypes)
 	})
 }
 
@@ -441,18 +476,30 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 	}
 	switch traceType {
 	case config.TraceTypeAlphabet:
-		args["--alphabet"] = alphabetTrace
-	case config.TraceTypeCannon, config.TraceTypeOutputCannon:
-		args["--cannon-network"] = cannonNetwork
-		args["--cannon-bin"] = cannonBin
-		args["--cannon-server"] = cannonServer
-		args["--cannon-prestate"] = cannonPreState
-		args["--cannon-l2"] = cannonL2
-	}
-	if traceType == config.TraceTypeOutputCannon {
-		args["--rollup-rpc"] = rollupRpc
+		addRequiredAlphabetArgs(args)
+	case config.TraceTypeCannon:
+		addRequiredCannonArgs(args)
+	case config.TraceTypeOutputCannon:
+		addRequiredOutputCannonArgs(args)
 	}
 	return args
+}
+
+func addRequiredAlphabetArgs(args map[string]string) {
+	args["--alphabet"] = alphabetTrace
+}
+
+func addRequiredOutputCannonArgs(args map[string]string) {
+	addRequiredCannonArgs(args)
+	args["--rollup-rpc"] = rollupRpc
+}
+
+func addRequiredCannonArgs(args map[string]string) {
+	args["--cannon-network"] = cannonNetwork
+	args["--cannon-bin"] = cannonBin
+	args["--cannon-server"] = cannonServer
+	args["--cannon-prestate"] = cannonPreState
+	args["--cannon-l2"] = cannonL2
 }
 
 func toArgList(req map[string]string) []string {

@@ -86,7 +86,7 @@ var (
 			openum.EnumString(sources.RPCProviderKinds),
 		EnvVars: prefixEnvVars("L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
-			out := sources.RPCKindBasic
+			out := sources.RPCKindStandard
 			return &out
 		}(),
 	}

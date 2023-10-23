@@ -118,7 +118,7 @@ _Note: This is a work in progress, not all test files are compliant with these g
 
 Test function names are split by underscores, into 3 or 4 parts. An example function name is `test_onlyOwner_callerIsNotOwner_reverts()`.
 
-The parts are: `[method]_[FunctionName]_[reason]_[success]`, where:
+The parts are: `[method]_[FunctionName]_[reason]_[status]`, where:
 
 - `[method]` is either `test`, `testFuzz`, or `testDiff`
 - `[FunctionName]` is the name of the function or higher level behavior being tested.

@@ -235,6 +235,7 @@ func Start(config *Config) (*Server, func(), error) {
 		resolvedAuth,
 		secondsToDuration(config.Server.TimeoutSeconds),
 		config.Server.MaxUpstreamBatchSize,
+		config.Server.EnableXServedByHeader,
 		rpcCache,
 		config.RateLimit,
 		config.SenderRateLimit,

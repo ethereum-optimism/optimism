@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -16,7 +17,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	ctx := context.Background()
 	createPlayer := func(g types.GameMetadata, dir string) (GamePlayer, error) {
-		return &stubPlayer{}, nil
+		return &test.StubGamePlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}
@@ -44,7 +45,7 @@ func TestSchedulerProcessesGames(t *testing.T) {
 func TestReturnBusyWhenScheduleQueueFull(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	createPlayer := func(game types.GameMetadata, dir string) (GamePlayer, error) {
-		return &stubPlayer{}, nil
+		return &test.StubGamePlayer{}, nil
 	}
 	removeExceptCalls := make(chan []common.Address)
 	disk := &trackingDiskManager{removeExceptCalls: removeExceptCalls}

@@ -48,15 +48,19 @@ func (o *OracleEngine) L2OutputRoot() (eth.Bytes32, error) {
 }
 
 func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
-	return o.api.GetPayloadV1(ctx, payloadId)
+	res, err := o.api.GetPayloadV2(ctx, payloadId)
+	if err != nil {
+		return nil, err
+	}
+	return res.ExecutionPayload, nil
 }
 
 func (o *OracleEngine) ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
-	return o.api.ForkchoiceUpdatedV1(ctx, state, attr)
+	return o.api.ForkchoiceUpdatedV2(ctx, state, attr)
 }
 
 func (o *OracleEngine) NewPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
-	return o.api.NewPayloadV1(ctx, payload)
+	return o.api.NewPayloadV2(ctx, payload)
 }
 
 func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
@@ -64,7 +68,7 @@ func (o *OracleEngine) PayloadByHash(ctx context.Context, hash common.Hash) (*et
 	if block == nil {
 		return nil, ErrNotFound
 	}
-	return eth.BlockAsPayload(block)
+	return eth.BlockAsPayload(block, o.rollupCfg.CanyonTime)
 }
 
 func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayload, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"gorm.io/gorm/schema"
@@ -70,5 +71,5 @@ func (BytesSerializer) Value(ctx context.Context, field *schema.Field, dst refle
 	}
 
 	hexStr := hexutil.Encode(fieldBytes.Bytes())
-	return hexStr, nil
+	return strings.ToLower(hexStr), nil
 }

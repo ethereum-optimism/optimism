@@ -63,6 +63,7 @@ CREATE INDEX IF NOT EXISTS l1_contract_events_timestamp ON l1_contract_events(ti
 CREATE INDEX IF NOT EXISTS l1_contract_events_block_hash ON l1_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l1_contract_events_event_signature ON l1_contract_events(event_signature);
 CREATE INDEX IF NOT EXISTS l1_contract_events_contract_address ON l1_contract_events(contract_address);
+ALTER TABLE l1_contract_events ADD UNIQUE (block_hash, log_index);
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Searchable fields
@@ -81,6 +82,7 @@ CREATE INDEX IF NOT EXISTS l2_contract_events_timestamp ON l2_contract_events(ti
 CREATE INDEX IF NOT EXISTS l2_contract_events_block_hash ON l2_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l2_contract_events_event_signature ON l2_contract_events(event_signature);
 CREATE INDEX IF NOT EXISTS l2_contract_events_contract_address ON l2_contract_events(contract_address);
+ALTER TABLE l2_contract_events ADD UNIQUE (block_hash, log_index);
 
 /**
  * BRIDGING DATA

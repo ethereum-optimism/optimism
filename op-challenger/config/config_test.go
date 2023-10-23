@@ -25,7 +25,7 @@ var (
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, traceType, agreeWithProposedOutput, validDatadir)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, agreeWithProposedOutput, validDatadir, traceType)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
@@ -193,4 +193,27 @@ func TestNetworkMustBeValid(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
 	cfg.CannonNetwork = "unknown"
 	require.ErrorIs(t, cfg.Check(), ErrCannonNetworkUnknown)
+}
+
+func TestRequireConfigForAllSupportedTraceTypes(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeOutputCannon, TraceTypeAlphabet}
+	// Set all required options and check its valid
+	cfg.RollupRpc = validRollupRpc
+	cfg.AlphabetTrace = validAlphabetTrace
+	require.NoError(t, cfg.Check())
+
+	// Require output cannon specific args
+	cfg.RollupRpc = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+	cfg.RollupRpc = validRollupRpc
+
+	// Require cannon specific args
+	cfg.CannonL2 = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2)
+	cfg.CannonL2 = validCannonL2
+
+	// Require alphabet specific args
+	cfg.AlphabetTrace = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAlphabetTrace)
 }
