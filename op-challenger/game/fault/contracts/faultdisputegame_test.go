@@ -161,7 +161,7 @@ func setup(t *testing.T) (*test.AbiBasedRpc, *FaultDisputeGameContract) {
 	address := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 
 	stubRpc := test.NewAbiBasedRpc(t, fdgAbi, address)
-	caller := batching.NewMultiCaller(stubRpc, 1)
+	caller := batching.NewMultiCaller(stubRpc, 100)
 	game, err := NewFaultDisputeGameContract(address, caller)
 	require.NoError(t, err)
 	return stubRpc, game

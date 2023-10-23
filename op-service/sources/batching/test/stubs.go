@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -59,8 +60,13 @@ func (l *AbiBasedRpc) SetResponse(method string, expected []interface{}, output 
 	})
 }
 
-func (l *AbiBasedRpc) BatchCallContext(_ context.Context, b []rpc.BatchElem) error {
-	panic("Not implemented")
+func (l *AbiBasedRpc) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
+	var errs []error
+	for _, elem := range b {
+		elem.Error = l.CallContext(ctx, elem.Result, elem.Method, elem.Args...)
+		errs = append(errs, elem.Error)
+	}
+	return errors.Join(errs...)
 }
 
 func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method string, args ...interface{}) error {
