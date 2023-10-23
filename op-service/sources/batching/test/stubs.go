@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -10,24 +11,33 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
+
+type expectedCall struct {
+	args       []interface{}
+	packedArgs []byte
+	outputs    []interface{}
+}
+
+func (e *expectedCall) String() string {
+	return fmt.Sprintf("{args: %v, outputs: %v}", e.args, e.outputs)
+}
 
 type AbiBasedRpc struct {
 	t    *testing.T
 	abi  *abi.ABI
 	addr common.Address
 
-	expectedArgs map[string][]interface{}
-	outputs      map[string][]interface{}
+	expectedCalls map[string][]*expectedCall
 }
 
 func NewAbiBasedRpc(t *testing.T, contractAbi *abi.ABI, addr common.Address) *AbiBasedRpc {
 	return &AbiBasedRpc{
-		t:            t,
-		abi:          contractAbi,
-		addr:         addr,
-		expectedArgs: make(map[string][]interface{}),
-		outputs:      make(map[string][]interface{}),
+		t:             t,
+		abi:           contractAbi,
+		addr:          addr,
+		expectedCalls: make(map[string][]*expectedCall),
 	}
 }
 
@@ -38,8 +48,15 @@ func (l *AbiBasedRpc) SetResponse(method string, expected []interface{}, output 
 	if output == nil {
 		output = []interface{}{}
 	}
-	l.expectedArgs[method] = expected
-	l.outputs[method] = output
+	abiMethod, ok := l.abi.Methods[method]
+	require.Truef(l.t, ok, "No method: %v", method)
+	packedArgs, err := abiMethod.Inputs.Pack(expected...)
+	require.NoErrorf(l.t, err, "Invalid expected arguments for method %v: %v", method, expected)
+	l.expectedCalls[method] = append(l.expectedCalls[method], &expectedCall{
+		args:       expected,
+		packedArgs: packedArgs,
+		outputs:    output,
+	})
 }
 
 func (l *AbiBasedRpc) BatchCallContext(_ context.Context, b []rpc.BatchElem) error {
@@ -58,17 +75,24 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 	abiMethod, err := l.abi.MethodById(data[0:4])
 	require.NoError(l.t, err)
 
-	args, err = abiMethod.Inputs.Unpack(data[4:])
+	argData := data[4:]
+	args, err = abiMethod.Inputs.Unpack(argData)
 	require.NoError(l.t, err)
 	require.Len(l.t, args, len(abiMethod.Inputs))
-	expectedArgs, ok := l.expectedArgs[abiMethod.Name]
-	require.Truef(l.t, ok, "Unexpected call to %v", abiMethod.Name)
-	require.EqualValues(l.t, expectedArgs, args, "Unexpected args")
 
-	outputs, ok := l.outputs[abiMethod.Name]
-	require.True(l.t, ok)
-	output, err := abiMethod.Outputs.Pack(outputs...)
-	require.NoError(l.t, err)
+	expectedCalls, ok := l.expectedCalls[abiMethod.Name]
+	require.Truef(l.t, ok, "Unexpected call to %v", abiMethod.Name)
+	var call *expectedCall
+	for _, candidate := range expectedCalls {
+		if slices.Equal(candidate.packedArgs, argData) {
+			call = candidate
+			break
+		}
+	}
+	require.NotNilf(l.t, call, "No expected calls to %v with arguments: %v\nExpected calls: %v", abiMethod.Name, args, expectedCalls)
+
+	output, err := abiMethod.Outputs.Pack(call.outputs...)
+	require.NoErrorf(l.t, err, "Invalid outputs for method %v: %v", abiMethod.Name, call.outputs)
 
 	// I admit I do not understand Go reflection.
 	// So leverage json.Unmarshal to set the out value correctly.

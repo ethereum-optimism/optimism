@@ -2,6 +2,7 @@ package contracts
 
 import (
 	"context"
+	"math"
 	"math/big"
 	"testing"
 
@@ -99,13 +100,68 @@ func TestGetClaim(t *testing.T) {
 	}, status)
 }
 
+func TestGetAllClaims(t *testing.T) {
+	stubRpc, game := setup(t)
+	claim0 := faultTypes.Claim{
+		ClaimData: faultTypes.ClaimData{
+			Value:    common.Hash{0xaa},
+			Position: faultTypes.NewPositionFromGIndex(big.NewInt(1)),
+		},
+		Countered:           true,
+		Clock:               1234,
+		ContractIndex:       0,
+		ParentContractIndex: math.MaxUint32,
+	}
+	claim1 := faultTypes.Claim{
+		ClaimData: faultTypes.ClaimData{
+			Value:    common.Hash{0xab},
+			Position: faultTypes.NewPositionFromGIndex(big.NewInt(2)),
+		},
+		Countered:           true,
+		Clock:               4455,
+		ContractIndex:       1,
+		ParentContractIndex: 0,
+	}
+	claim2 := faultTypes.Claim{
+		ClaimData: faultTypes.ClaimData{
+			Value:    common.Hash{0xbb},
+			Position: faultTypes.NewPositionFromGIndex(big.NewInt(6)),
+		},
+		Countered:           false,
+		Clock:               7777,
+		ContractIndex:       2,
+		ParentContractIndex: 1,
+	}
+	expectedClaims := []faultTypes.Claim{claim0, claim1, claim2}
+	stubRpc.SetResponse(methodClaimCount, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
+	for _, claim := range expectedClaims {
+		expectGetClaim(stubRpc, claim)
+	}
+	claims, err := game.GetAllClaims(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedClaims, claims)
+}
+
+func expectGetClaim(stubRpc *test.AbiBasedRpc, claim faultTypes.Claim) {
+	stubRpc.SetResponse(
+		methodClaim,
+		[]interface{}{big.NewInt(int64(claim.ContractIndex))},
+		[]interface{}{
+			uint32(claim.ParentContractIndex),
+			claim.Countered,
+			claim.Value,
+			claim.Position.ToGIndex(),
+			big.NewInt(int64(claim.Clock)),
+		})
+}
+
 func setup(t *testing.T) (*test.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
 	address := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 
 	stubRpc := test.NewAbiBasedRpc(t, fdgAbi, address)
-	caller := batching.NewMultiCaller(stubRpc, 100)
+	caller := batching.NewMultiCaller(stubRpc, 1)
 	game, err := NewFaultDisputeGameContract(address, caller)
 	require.NoError(t, err)
 	return stubRpc, game
