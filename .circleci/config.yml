@@ -1031,6 +1031,7 @@ jobs:
       image: ubuntu-2204:2022.10.2
     environment:
       DOCKER_BUILDKIT: 1
+      DEVNET_NO_BUILD: 'true'
     steps:
       - checkout
       - check-changed:

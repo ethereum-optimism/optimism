@@ -97,14 +97,18 @@ def main():
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
     git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
 
-    log.info(f'Building docker images for git commit {git_commit} ({git_date})')
-    run_command(['docker', 'compose', 'build', '--progress', 'plain',
-                 '--build-arg', f'GIT_COMMIT={git_commit}', '--build-arg', f'GIT_DATE={git_date}'],
-                cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir,
-        'DOCKER_BUILDKIT': '1', # (should be available by default in later versions, but explicitly enable it anyway)
-        'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
-    })
+    # CI loads the images from workspace, and does not otherwise know the images are good as-is
+    if os.getenv('DEVNET_NO_BUILD') == "true":
+        log.info('Skipping docker images build')
+    else:
+        log.info(f'Building docker images for git commit {git_commit} ({git_date})')
+        run_command(['docker', 'compose', 'build', '--progress', 'plain',
+                     '--build-arg', f'GIT_COMMIT={git_commit}', '--build-arg', f'GIT_DATE={git_date}'],
+                    cwd=paths.ops_bedrock_dir, env={
+            'PWD': paths.ops_bedrock_dir,
+            'DOCKER_BUILDKIT': '1', # (should be available by default in later versions, but explicitly enable it anyway)
+            'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
+        })
 
     log.info('Devnet starting')
     devnet_deploy(paths)
