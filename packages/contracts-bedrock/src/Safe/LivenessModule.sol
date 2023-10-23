@@ -111,20 +111,19 @@ contract LivenessModule is ISemver {
             }
 
             // Add the fallback owner as the sole owner of the Safe
-            _addOwnerWithThreshold({ _owner: fallbackOwner, _threshold: 1 });
+            _giveToFallbackOwner();
         }
+
         _verifyFinalState();
     }
 
-    /// @notice Adds the owner `owner` to the Safe and updates the threshold to `_threshold`.
-    /// @param _owner New owner address.
-    /// @param _threshold New threshold.
-    function _addOwnerWithThreshold(address _owner, uint256 _threshold) internal {
+    /// @notice Sets the fallback owner as the sole owner of the Safe with a threshold of 1
+    function _giveToFallbackOwner() internal {
         safe.execTransactionFromModule({
             to: address(safe),
             value: 0,
             operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (_owner, _threshold))
+            data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (fallbackOwner, 1))
         });
     }
 
