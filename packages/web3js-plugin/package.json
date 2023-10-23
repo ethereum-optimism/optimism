@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-ts": "workspace:^",
-    "@swc/core": "^1.3.92",
+    "@swc/core": "^1.3.94",
     "@vitest/coverage-istanbul": "^0.34.6",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
