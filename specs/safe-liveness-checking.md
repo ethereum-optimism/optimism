@@ -40,7 +40,7 @@ Signers may also call the contract directly in order to prove liveness.
 
 A `LivenessModule` is also created which does the following:
 
-1. Has a function `removeSigner()` that anyone may call to specify a signer to be removed from the
+1. Has a function `removeOwner()` that anyone may call to specify an owner to be removed from the
    Safe.
 1. The Module would then check the `LivenessGuard.lastSigned()` to determine if the signer is
    eligible for removal.
@@ -58,11 +58,13 @@ In the unlikely event that the signer set (`N`) is reduced below 8, then (and on
 
 ### Security Properties
 
+The following security properties must be upheld:
+
 1. Signatures are assigned to the correct signer.
 2. Non-signers are unable to create a record of having signed.
-3. A signer cannot be censored or grieffed such that their signing is not recorded.
+3. A signer cannot be censored or griefed such that their signing is not recorded.
 4. Signers may demonstrate liveness either by signing a transaction or by calling directly to the
    guard.
-5. The module implements the correct checks priort to removing a signer.
+5. The module implements the correct checks prior to removing a signer.
 6. The module sets the correct threshold upon removing a signer.
 7. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
