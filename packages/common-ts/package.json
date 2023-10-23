@@ -46,7 +46,7 @@
     "express-prom-bundle": "^6.6.0",
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
-    "pino": "^8.16.0",
+    "pino": "^8.16.1",
     "pino-multi-stream": "^6.0.0",
     "pino-sentry": "^0.14.0",
     "prom-client": "^14.2.0"
