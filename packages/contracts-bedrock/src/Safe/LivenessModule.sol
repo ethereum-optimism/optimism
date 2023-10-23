@@ -36,6 +36,10 @@ contract LivenessModule is ISemver {
     ///         This can be updated by replacing with a new module.
     address public immutable fallbackOwner;
 
+    /// @notice The storage slot used in the safe to store the guard address
+    ///         keccak256("guard_manager.guard.address")
+    uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
+
     /// @notice The address of the first owner in the linked list of owners
     address internal constant SENTINEL_OWNERS = address(0x1);
 
@@ -63,7 +67,10 @@ contract LivenessModule is ISemver {
     ///         ownership of the Safe is transferred to the fallback owner.
     function removeOwner(address owner) external {
         // Check that the guard has not been changed
-        require(livenessGuard == safe.getGuard(), "LivenessModule: guard has been changed");
+        require(
+            address(livenessGuard) == address(uint160(uint256(bytes32(safe.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
+            "LivenessModule: guard has been changed"
+        );
 
         // Check that the owner has not signed a transaction in the last 30 days
         require(

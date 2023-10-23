@@ -33,6 +33,7 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
             _fallbackOwner: makeAddr("fallbackOwner")
         });
         safeInstance.enableModule(address(livenessModule));
+        safeInstance.setGuard(address(livenessGuard));
     }
 }
 
