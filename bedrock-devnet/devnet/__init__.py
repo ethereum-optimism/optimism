@@ -95,7 +95,7 @@ def main():
         return
 
     git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
-    git_date = subprocess.run(['git', 'show', '-s', "--format='%ct'"], capture_output=True, text=True).stdout.strip()
+    git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
 
     log.info(f'Building docker images for git commit {git_commit} ({git_date})')
     run_command(['docker', 'compose', 'build', '--progress', 'plain',
