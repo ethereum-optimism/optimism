@@ -18,19 +18,23 @@ import { console2 as console } from "forge-std/console2.sol";
 ///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
     /// @notice The Safe contract instance
-    Safe public safe;
+    Safe public immutable safe;
 
     /// @notice The LivenessGuard contract instance
-    LivenessGuard public livenessGuard;
+    ///         This can be updated by replacing with a new module and switching out the guard.
+    LivenessGuard public immutable livenessGuard;
 
     /// @notice The interval, in seconds, during which an owner must have demonstrated liveness
-    uint256 public livenessInterval;
+    ///         This can be updated by replacing with a new module.
+    uint256 public immutable livenessInterval;
 
     /// @notice The minimum number of owners before ownership of the safe is transferred to the fallback owner.
-    uint256 public minOwners;
+    ///         This can be updated by replacing with a new module.
+    uint256 public immutable minOwners;
 
     /// @notice The fallback owner of the Safe
-    address public fallbackOwner;
+    ///         This can be updated by replacing with a new module.
+    address public immutable fallbackOwner;
 
     /// @notice The address of the first owner in the linked list of owners
     address internal constant SENTINEL_OWNERS = address(0x1);
@@ -55,8 +59,12 @@ contract LivenessModule is ISemver {
     }
 
     /// @notice This function can be called by anyone to remove an owner that has not signed a transaction
-    ///         during the livness interval. If the number of owners drops below
+    ///         during the liveness interval. If the number of owners drops below the minimum, then the
+    ///         ownership of the Safe is transferred to the fallback owner.
     function removeOwner(address owner) external {
+        // Check that the guard has not been changed
+        require(livenessGuard == safe.getGuard(), "LivenessModule: guard has been changed");
+
         // Check that the owner has not signed a transaction in the last 30 days
         require(
             livenessGuard.lastLive(owner) < block.timestamp - livenessInterval,
@@ -67,7 +75,7 @@ contract LivenessModule is ISemver {
         address[] memory owners = safe.getOwners();
         uint256 numOwners = owners.length - 1;
         uint256 thresholdAfter;
-        if (numOwners > minOwners) {
+        if (hasMinOwners(numOwners)) {
             // Preserves the invariant that the Safe has at least 8 owners
 
             thresholdAfter = get75PercentThreshold(numOwners);
@@ -126,7 +134,7 @@ contract LivenessModule is ISemver {
         address[] memory owners = safe.getOwners();
         uint256 numOwners = owners.length;
         require(
-            (numOwners >= minOwners) || (numOwners == 1 && owners[0] == fallbackOwner),
+            hasMinOwners(numOwners) || (numOwners == 1 && owners[0] == fallbackOwner),
             "LivenessModule: Safe must have the minimum number of owners, or be owned solely by the fallback owner"
         );
 
@@ -156,5 +164,12 @@ contract LivenessModule is ISemver {
     ///         Note: this function returns 1 for numOwners == 1.
     function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
         threshold_ = (_numOwners * 75 + 99) / 100;
+    }
+
+    /// @notice Check if the number of owners is greater than or equal to the minimum number of owners.
+    /// @param numOwners The number of owners.
+    /// @return A boolean indicating if the number of owners is greater than or equal to the minimum number of owners.
+    function hasMinOwners(uint256 numOwners) public view returns (bool) {
+        return numOwners >= minOwners;
     }
 }
