@@ -21,8 +21,8 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
     string public constant version = "1.0.0";
 
     Safe public immutable safe;
-    mapping(address => uint256) public lastSigned;
 
+    mapping(address => uint256) public lastLive;
     EnumerableSet.AddressSet private ownersBefore;
 
     constructor(Safe _safe) {
@@ -42,14 +42,14 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
             // If the value was present, remove() returns true.
             if (ownersBefore.remove(ownersAfter[i]) == false) {
                 // This address was not already an owner, add it to the lastSigned mapping
-                lastSigned[ownersAfter[i]] = block.timestamp;
+                lastLive[ownersAfter[i]] = block.timestamp;
             }
         }
         // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
         // delete them from the lastSigned mapping.
         for (uint256 j = 0; j < ownersBefore.length(); j++) {
             address owner = ownersBefore.at(j);
-            delete lastSigned[owner];
+            delete lastLive[owner];
         }
         return;
     }
@@ -104,7 +104,7 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
             _getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
 
         for (uint256 i = 0; i < signers.length; i++) {
-            lastSigned[signers[i]] = block.timestamp;
+            lastLive[signers[i]] = block.timestamp;
         }
         emit SignersRecorded(txHash, signers);
     }
@@ -113,7 +113,7 @@ contract LivenessGuard is ISemver, GetSigners, BaseGuard {
     ///         This is useful for owners who have not recently signed a transaction via the Safe.
     function showLiveness() external {
         require(safe.isOwner(msg.sender), "LivenessGuard: only Safe owners may demontstrate liveness");
-        lastSigned[msg.sender] = block.timestamp;
+        lastLive[msg.sender] = block.timestamp;
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
 

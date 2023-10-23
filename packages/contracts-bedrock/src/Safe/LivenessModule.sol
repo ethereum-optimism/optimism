@@ -56,7 +56,7 @@ contract LivenessModule is ISemver {
     function removeOwner(address owner) external {
         // Check that the owner has not signed a transaction in the last 30 days
         require(
-            livenessGuard.lastSigned(owner) < block.timestamp - livenessInterval,
+            livenessGuard.lastLive(owner) < block.timestamp - livenessInterval,
             "LivenessModule: owner has signed recently"
         );
 

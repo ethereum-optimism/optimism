@@ -51,7 +51,7 @@ contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
 
         for (uint256 i; i < safeInstance.threshold; i++) {
-            assertEq(livenessGuard.lastSigned(safeInstance.owners[i]), block.timestamp);
+            assertEq(livenessGuard.lastLive(safeInstance.owners[i]), block.timestamp);
         }
     }
 }
@@ -70,6 +70,6 @@ contract LivenessGuard_ShowLiveness_Test is LivnessGuard_TestInit {
         vm.prank(caller);
         livenessGuard.showLiveness();
 
-        assertEq(livenessGuard.lastSigned(caller), block.timestamp);
+        assertEq(livenessGuard.lastLive(caller), block.timestamp);
     }
 }

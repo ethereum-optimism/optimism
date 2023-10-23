@@ -32,7 +32,7 @@ This is achieved using two types of contracts which the Safe contract has built-
 
 For implementing liveness checks a `LivenessGuard` is created which receives the signatures from
 each executed transaction, and tracks the latest time at which a transaction was signed by each
-signer. This time is made publicly available by calling a `lastSigned(address)(Timestamp)` method.
+signer. This time is made publicly available by calling a `lastLive(address)(Timestamp)` method.
 
 Signers may also call the contract directly in order to prove liveness.
 
@@ -42,13 +42,12 @@ A `LivenessModule` is also created which does the following:
 
 1. Has a function `removeOwner()` that anyone may call to specify an owner to be removed from the
    Safe.
-1. The Module would then check the `LivenessGuard.lastSigned()` to determine if the signer is
+1. The Module would then check the `LivenessGuard.lastLive()` to determine if the signer is
    eligible for removal.
 1. If so, it will call the Safe's `removeSigner()` to remove the non-live signer, and if necessary
    reduce the threshold.
 1. When a member is removed, the signing parameters are modified such that `M/N` is the lowest ratio
-   which remains above 75%. These ratios are (9 of 12, 9 of 11, 8 of 10, 7 of 9, 6 of 8). Using
-   integer math, this can be expressed as `M = (N * 75 + 99) / 100`.
+   which remains above 75%. Using integer math, this can be expressed as `M = (N * 75 + 99) / 100`.
 
 ### Shutdown
 
