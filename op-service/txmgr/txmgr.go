@@ -265,6 +265,8 @@ func (m *SimpleTxManager) signWithNextNonce(ctx context.Context, rawTx *types.Dy
 	}
 
 	rawTx.Nonce = *m.nonce
+	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+	defer cancel()
 	tx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 	if err != nil {
 		// decrement the nonce, so we can retry signing with the same nonce next time
