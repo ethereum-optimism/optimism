@@ -10,7 +10,7 @@ import (
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
+	batchingTest "github.com/ethereum-optimism/optimism/op-service/sources/batching/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -142,7 +142,7 @@ func TestGetAllClaims(t *testing.T) {
 	require.Equal(t, expectedClaims, claims)
 }
 
-func expectGetClaim(stubRpc *test.AbiBasedRpc, claim faultTypes.Claim) {
+func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 	stubRpc.SetResponse(
 		methodClaim,
 		[]interface{}{big.NewInt(int64(claim.ContractIndex))},
@@ -155,12 +155,12 @@ func expectGetClaim(stubRpc *test.AbiBasedRpc, claim faultTypes.Claim) {
 		})
 }
 
-func setup(t *testing.T) (*test.AbiBasedRpc, *FaultDisputeGameContract) {
+func setup(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
 	address := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 
-	stubRpc := test.NewAbiBasedRpc(t, fdgAbi, address)
+	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAbi, address)
 	caller := batching.NewMultiCaller(stubRpc, 100)
 	game, err := NewFaultDisputeGameContract(address, caller)
 	require.NoError(t, err)
