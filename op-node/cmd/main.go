@@ -29,23 +29,7 @@ var (
 )
 
 // VersionWithMeta holds the textual version string including the metadata.
-var VersionWithMeta = func() string {
-	v := version.Version
-	if GitCommit != "" {
-		if len(GitCommit) >= 8 {
-			v += "-" + GitCommit[:8]
-		} else {
-			v += "-" + GitCommit
-		}
-	}
-	if GitDate != "" {
-		v += "-" + GitDate
-	}
-	if version.Meta != "" {
-		v += "-" + version.Meta
-	}
-	return v
-}()
+var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDate, version.Meta)
 
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags,

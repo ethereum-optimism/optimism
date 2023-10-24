@@ -5,6 +5,7 @@ import (
 	"os"
 
 	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
@@ -21,23 +22,7 @@ var (
 )
 
 // VersionWithMeta holds the textual version string including the metadata.
-var VersionWithMeta = func() string {
-	v := version.Version
-	if GitCommit != "" {
-		if len(GitCommit) >= 8 {
-			v += "-" + GitCommit[:8]
-		} else {
-			v += "-" + GitCommit
-		}
-	}
-	if GitDate != "" {
-		v += "-" + GitDate
-	}
-	if version.Meta != "" {
-		v += "-" + version.Meta
-	}
-	return v
-}()
+var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDate, version.Meta)
 
 func main() {
 	args := os.Args
