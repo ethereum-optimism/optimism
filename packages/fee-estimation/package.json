@@ -45,7 +45,7 @@
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
     "viem": "^1.16.6",
-    "vite": "^4.4.10",
+    "vite": "^4.5.0",
     "vitest": "^0.34.2"
   },
   "peerDependencies": {
