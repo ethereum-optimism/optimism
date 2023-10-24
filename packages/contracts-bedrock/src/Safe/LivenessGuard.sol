@@ -15,6 +15,9 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 ///      If an owner does not participate in a transaction for a certain period of time, they are considered inactive.
 ///      This Guard is intended to be used in conjunction with the LivenessModule contract, but does
 ///      not depend on it.
+///      Note: Both `checkTransaction` and `checkAfterExecution` are called once each by the Safe contract
+///      before and after the execution of a transaction. It is critical that neither function revert,
+///      otherwise the Safe contract will be unable to execute a transaction.
 contract LivenessGuard is ISemver, BaseGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -44,35 +47,8 @@ contract LivenessGuard is ISemver, BaseGuard {
         SAFE = _safe;
     }
 
-    /// @notice We use this post execution hook to compare the set of owners before and after.
-    ///         If the set of owners has changed then we:
-    ///         1. Add new owners to the lastLive mapping
-    ///         2. Delete removed owners from the lastLive mapping
-    function checkAfterExecution(bytes32, bool) external {
-        // Get the current set of owners
-        address[] memory ownersAfter = SAFE.getOwners();
-
-        // Iterate over the current owners, and remove one at a time from the ownersBefore set.
-        uint256 ownersAfterLength = ownersAfter.length;
-        for (uint256 i = 0; i < ownersAfterLength; i++) {
-            // If the value was present, remove() returns true.
-            address ownerAfter = ownersAfter[i];
-            if (ownersBefore.remove(ownerAfter) == false) {
-                // This address was not already an owner, add it to the lastLive mapping
-                lastLive[ownerAfter] = block.timestamp;
-            }
-        }
-        // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
-        // delete them from the lastLive mapping.
-        for (uint256 j = 0; j < ownersBefore.length(); j++) {
-            address ownerBefore = ownersBefore.at(j);
-            delete lastLive[ownerBefore];
-        }
-    }
-
     /// @notice Records the most recent time which any owner has signed a transaction.
-    /// @dev This method is called by the Safe contract, it is critical that it does not revert, otherwise
-    ///      the Safe contract will be unable to execute transactions.
+    /// @dev Called by the Safe contract before execution of a transaction.
     function checkTransaction(
         address to,
         uint256 value,
@@ -120,6 +96,35 @@ contract LivenessGuard is ISemver, BaseGuard {
             lastLive[signers[i]] = block.timestamp;
         }
         emit SignersRecorded(txHash, signers);
+    }
+
+    /// @notice Update the lastLive mapping according to the set of owners before and after execution.
+    /// @dev Called by the Safe contract after the execution of a transaction.
+    ///      We use this post execution hook to compare the set of owners before and after.
+    ///      If the set of owners has changed then we:
+    ///      1. Add new owners to the lastLive mapping
+    ///      2. Delete removed owners from the lastLive mapping
+    function checkAfterExecution(bytes32, bool) external {
+
+        // Get the current set of owners
+        address[] memory ownersAfter = SAFE.getOwners();
+
+        // Iterate over the current owners, and remove one at a time from the ownersBefore set.
+        uint256 ownersAfterLength = ownersAfter.length;
+        for (uint256 i = 0; i < ownersAfterLength; i++) {
+            // If the value was present, remove() returns true.
+            address ownerAfter = ownersAfter[i];
+            if (ownersBefore.remove(ownerAfter) == false) {
+                // This address was not already an owner, add it to the lastLive mapping
+                lastLive[ownerAfter] = block.timestamp;
+            }
+        }
+        // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
+        // delete them from the lastLive mapping.
+        for (uint256 j = 0; j < ownersBefore.length(); j++) {
+            address ownerBefore = ownersBefore.at(j);
+            delete lastLive[ownerBefore];
+        }
     }
 
     /// @notice Enables an owner to demonstrate liveness by calling this method directly.
