@@ -25,10 +25,15 @@ ci-builder:
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
 
 golang-docker:
-	DOCKER_BUILDKIT=1 docker build -t op-stack-go \
-		--build-arg GIT_COMMIT=$$(git rev-parse HEAD) \
-		--build-arg GIT_DATE=$$(git show -s --format='%ct') \
- 		-f ops/docker/op-stack-go/Dockerfile .
+	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
+	GIT_COMMIT=$$(git rev-parse HEAD) \
+	GIT_DATE=$$(git show -s --format='%ct') \
+	IMAGE_TAGS=$$GIT_COMMIT,latest \
+	docker buildx bake \
+			--progress plain \
+			--load \
+			-f docker-bake.hcl \
+			op-node op-batcher op-proposer op-challenger
 .PHONY: golang-docker
 
 submodules:
