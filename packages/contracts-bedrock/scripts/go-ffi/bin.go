@@ -1,6 +1,9 @@
 package main
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 func main() {
 	switch os.Args[1] {
@@ -8,5 +11,7 @@ func main() {
 		DiffTestUtils()
 	case "trie":
 		FuzzTrie()
+	default:
+		log.Fatal("Must pass a subcommand")
 	}
 }
