@@ -9,6 +9,7 @@
 
 - [Introduction](#introduction)
 - [Span batch format](#span-batch-format)
+- [Span batch Hard Fork Rule](#span-batch-hard-fork-rule)
 - [Optimization Strategies](#optimization-strategies)
   - [Truncating information and storing only necessary data](#truncating-information-and-storing-only-necessary-data)
   - [`tx_data_headers` removal from initial specs](#tx_data_headers-removal-from-initial-specs)
@@ -152,6 +153,20 @@ limit for span batch is helpful for several reasons. We may save computation cos
 decoding. For example, lets say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return using
 the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for decoding
 because we know the upper limit of memory usage.
+
+## Span batch Hard Fork Rule
+
+Span batch hard fork is activated based on timestamp.
+
+Activation Rule: `x != null && x >= upgradeTime && y != null && y >= upgradeTime`
+
+Let `inclusion_block` be the L1 block when the span batch was first fully derived.
+
+`x == span_start.timestamp`, which is the timestamp of first L2 block timestamp derived from span batch.
+
+`y == inclusion_block.timestamp`, which is the timestamp of L1 block when span batch was first fully derived.
+We need this additional check because span batch hard fork is a derivation update, and
+`x` becomes dependent of the hard fork(we must run span batch decoding to find `x`).
 
 ## Optimization Strategies
 
