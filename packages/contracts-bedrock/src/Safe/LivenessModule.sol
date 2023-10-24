@@ -66,9 +66,6 @@ contract LivenessModule is ISemver {
     ///         during the liveness interval. If the number of owners drops below the minimum, then the
     ///         ownership of the Safe is transferred to the fallback owner.
     function removeOwner(address owner) external {
-        // Check that the guard has not been changed
-        _verifyGuard();
-
         // Check that the owner to remove has not signed a transaction in the last 30 days
         require(
             LIVENESS_GUARD.lastLive(owner) < block.timestamp - LIVENESS_INTERVAL,
