@@ -60,8 +60,8 @@ type CLIConfig struct {
 	RPC              oprpc.CLIConfig
 }
 
-func (c CLIConfig) Check() error {
-	// TODO: check the sanity of flags loaded directly https://github.com/ethereum-optimism/optimism/issues/7512
+func (c *CLIConfig) Check() error {
+	// TODO(7512): check the sanity of flags loaded directly https://github.com/ethereum-optimism/optimism/issues/7512
 
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
