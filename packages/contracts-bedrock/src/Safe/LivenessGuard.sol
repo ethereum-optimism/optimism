@@ -47,20 +47,21 @@ contract LivenessGuard is ISemver, BaseGuard {
         address[] memory ownersAfter = safe.getOwners();
 
         // Iterate over the current owners, and remove one at a time from the ownersBefore set.
-        for (uint256 i = 0; i < ownersAfter.length; i++) {
+        uint256 ownersAfterLength = ownersAfter.length;
+        for (uint256 i = 0; i < ownersAfterLength; i++) {
             // If the value was present, remove() returns true.
-            if (ownersBefore.remove(ownersAfter[i]) == false) {
+            address ownerAfter = ownersAfter[i];
+            if (ownersBefore.remove(ownerAfter) == false) {
                 // This address was not already an owner, add it to the lastSigned mapping
-                lastLive[ownersAfter[i]] = block.timestamp;
+                lastLive[ownerAfter] = block.timestamp;
             }
         }
         // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
         // delete them from the lastSigned mapping.
         for (uint256 j = 0; j < ownersBefore.length(); j++) {
-            address owner = ownersBefore.at(j);
-            delete lastLive[owner];
+            address ownerBefore = ownersBefore.at(j);
+            delete lastLive[ownerBefore];
         }
-        return;
     }
 
     /// @notice Records the most recent time which any owner has signed a transaction.
@@ -92,21 +93,18 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         // This call will reenter to the Safe which is calling it. This is OK because it is only reading the
         // nonce, and using the getTransactionHash() method.
-        bytes32 txHash = Safe(payable(msg.sender)).getTransactionHash(
-            // Transaction info
-            to,
-            value,
-            data,
-            operation,
-            safeTxGas,
-            // Payment info
-            baseGas,
-            gasPrice,
-            gasToken,
-            refundReceiver,
-            // Signature info
-            Safe(payable(msg.sender)).nonce() - 1
-        );
+        bytes32 txHash = Safe(payable(msg.sender)).getTransactionHash({
+            to: to,
+            value: value,
+            data: data,
+            operation: operation,
+            safeTxGas: safeTxGas,
+            baseGas: baseGas,
+            gasPrice: gasPrice,
+            gasToken: gasToken,
+            refundReceiver: refundReceiver,
+            _nonce: Safe(payable(msg.sender)).nonce() - 1
+        });
 
         uint256 threshold = safe.getThreshold();
         address[] memory signers =
