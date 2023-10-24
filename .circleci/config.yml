@@ -220,8 +220,6 @@ jobs:
             fi
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            IMAGE_BASE_PREFIX="<<parameters.registry>>/<<parameters.repo>>"
-            IMAGE_BASE="$IMAGE_BASE_PREFIX/<<parameters.docker_name>>"
             docker build --progress plain \
             <<parameters.build_args>> \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
@@ -1123,7 +1121,7 @@ jobs:
       - run:
           name: Load and tag docker images
           command: |
-            IMAGE_BASE_PREFIX="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+            IMAGE_BASE_PREFIX="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
             # Load from previous docker-build job
             docker load < "/tmp/workspace/op_stack_go.tar"
             docker load < "/tmp/workspace/op-node.tar"

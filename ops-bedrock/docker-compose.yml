@@ -79,13 +79,8 @@ services:
       context: ../
       dockerfile: ./op-node/Dockerfile
       args:
-<<<<<<< HEAD
-        - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
-        - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
-=======
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
->>>>>>> origin/develop
+        - OP_STACK_GO_BUILDER=us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op_stack_go:devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-node:devnet
     command: >
       op-node
       --l1=ws://l1:8546

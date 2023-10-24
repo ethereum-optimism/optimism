@@ -52,6 +52,7 @@ COPY ./.gethrc ./.gethrc
 RUN go install github.com/ethereum/go-ethereum/cmd/geth@$(cat .gethrc)
 
 RUN go install gotest.tools/gotestsum@latest
+RUN go install golang.org/x/tools/cmd/goimports@latest
 RUN go install github.com/vektra/mockery/v2@v2.28.1
 RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.54.2
 
@@ -67,6 +68,7 @@ COPY --from=go-build /usr/local/go /usr/local/go
 COPY --from=go-build /go/bin/gotestsum /go/bin/gotestsum
 COPY --from=go-build /go/bin/mockery /go/bin/mockery
 COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
+COPY --from=go-build /go/bin/goimports /go/bin/goimports
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
 COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
