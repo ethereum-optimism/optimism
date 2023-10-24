@@ -50,12 +50,10 @@ func FuzzTrie() {
 	switch variant {
 	case valid:
 		testCase = genTrieTestCase(false)
-		break
 	case extraProofElems:
 		testCase = genTrieTestCase(false)
 		// Duplicate the last element of the proof
 		testCase.Proof = append(testCase.Proof, [][]byte{testCase.Proof[len(testCase.Proof)-1]}...)
-		break
 	case corruptedProof:
 		testCase = genTrieTestCase(false)
 
@@ -63,17 +61,17 @@ func FuzzTrie() {
 		idx := randRange(0, int64(len(testCase.Proof)))
 		encoded, _ := rlp.EncodeToBytes(testCase.Proof[idx])
 		testCase.Proof[idx] = encoded
-		break
 	case invalidDataRemainder:
 		testCase = genTrieTestCase(false)
 
 		// Alter true length of random proof element by appending random bytes
 		// Do not update the encoded length
 		idx := randRange(0, int64(len(testCase.Proof)))
-		bytes := make([]byte, randRange(1, 512))
-		rand.Read(bytes)
-		testCase.Proof[idx] = append(testCase.Proof[idx], bytes...)
-		break
+		b := make([]byte, randRange(1, 512))
+		if _, err := rand.Read(b); err != nil {
+			log.Fatal("Error generating random bytes")
+		}
+		testCase.Proof[idx] = append(testCase.Proof[idx], b...)
 	case invalidLargeInternalHash:
 		testCase = genTrieTestCase(false)
 
@@ -82,7 +80,9 @@ func FuzzTrie() {
 		// bytes to overwrite.
 		idx := randRange(1, int64(len(testCase.Proof)))
 		b := make([]byte, 4)
-		rand.Read(b)
+		if _, err := rand.Read(b); err != nil {
+			log.Fatal("Error generating random bytes")
+		}
 		testCase.Proof[idx] = append(
 			testCase.Proof[idx][:20],
 			append(
@@ -90,27 +90,26 @@ func FuzzTrie() {
 				testCase.Proof[idx][24:]...,
 			)...,
 		)
-
-		break
 	case invalidInternalNodeHash:
 		testCase = genTrieTestCase(false)
 		// Assign the last proof element to an encoded list containing a
 		// random 29 byte value
 		b := make([]byte, 29)
-		rand.Read(b)
+		if _, err := rand.Read(b); err != nil {
+			log.Fatal("Error generating random bytes")
+		}
 		e, _ := rlp.EncodeToBytes(b)
 		testCase.Proof[len(testCase.Proof)-1] = append([]byte{0xc0 + 30}, e...)
-		break
 	case prefixedValidKey:
 		testCase = genTrieTestCase(false)
 
-		bytes := make([]byte, randRange(1, 16))
-		rand.Read(bytes)
-		testCase.Key = append(bytes, testCase.Key...)
-		break
+		b := make([]byte, randRange(1, 16))
+		if _, err := rand.Read(b); err != nil {
+			log.Fatal("Error generating random bytes")
+		}
+		testCase.Key = append(b, testCase.Key...)
 	case emptyKey:
 		testCase = genTrieTestCase(true)
-		break
 	case partialProof:
 		testCase = genTrieTestCase(false)
 
@@ -122,7 +121,6 @@ func FuzzTrie() {
 		}
 
 		testCase.Proof = newProof
-		break
 	default:
 		log.Fatal("Invalid variant passed to trie fuzzer!")
 	}
@@ -154,8 +152,12 @@ func genTrieTestCase(selectEmptyKey bool) trieTestCase {
 	// Add `randN` elements to the trie
 	for i := int64(0); i < randN; i++ {
 		// Randomize the contents of `randKey` and `randValue`
-		rand.Read(randKey)
-		rand.Read(randValue)
+		if _, err := rand.Read(randKey); err != nil {
+			log.Fatal("Error generating random bytes")
+		}
+		if _, err := rand.Read(randValue); err != nil {
+			log.Fatal("Error generating random bytes")
+		}
 
 		// Clear the selected key if `selectEmptyKey` is true
 		if i == randSelect && selectEmptyKey {
