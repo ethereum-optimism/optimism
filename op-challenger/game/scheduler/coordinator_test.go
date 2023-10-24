@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -30,7 +31,7 @@ func TestScheduleNewGames(t *testing.T) {
 		players = append(players, j.player)
 	}
 	for addr, player := range games.created {
-		require.Equal(t, disk.DirForGame(addr), player.dir, "should use allocated directory")
+		require.Equal(t, disk.DirForGame(addr), player.Dir, "should use allocated directory")
 		require.Containsf(t, players, player, "should have created a job for player %v", addr)
 	}
 }
@@ -233,34 +234,18 @@ func setupCoordinatorTest(t *testing.T, bufferSize int) (*coordinator, <-chan jo
 	resultQueue := make(chan job, bufferSize)
 	games := &createdGames{
 		t:       t,
-		created: make(map[common.Address]*stubGame),
+		created: make(map[common.Address]*test.StubGamePlayer),
 	}
 	disk := &stubDiskManager{gameDirExists: make(map[common.Address]bool)}
 	c := newCoordinator(logger, metrics.NoopMetrics, workQueue, resultQueue, games.CreateGame, disk)
 	return c, workQueue, resultQueue, games, disk
 }
 
-type stubGame struct {
-	addr          common.Address
-	progressCount int
-	status        types.GameStatus
-	dir           string
-}
-
-func (g *stubGame) ProgressGame(_ context.Context) types.GameStatus {
-	g.progressCount++
-	return g.status
-}
-
-func (g *stubGame) Status() types.GameStatus {
-	return g.status
-}
-
 type createdGames struct {
 	t               *testing.T
 	createCompleted common.Address
 	creationFails   common.Address
-	created         map[common.Address]*stubGame
+	created         map[common.Address]*test.StubGamePlayer
 }
 
 func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlayer, error) {
@@ -275,10 +260,10 @@ func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlaye
 	if addr == c.createCompleted {
 		status = types.GameStatusDefenderWon
 	}
-	game := &stubGame{
-		addr:   addr,
-		status: status,
-		dir:    dir,
+	game := &test.StubGamePlayer{
+		Addr:        addr,
+		StatusValue: status,
+		Dir:         dir,
 	}
 	c.created[addr] = game
 	return game, nil

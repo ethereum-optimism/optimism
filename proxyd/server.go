@@ -31,18 +31,19 @@ import (
 )
 
 const (
-	ContextKeyAuth              = "authorization"
-	ContextKeyReqID             = "req_id"
-	ContextKeyXForwardedFor     = "x_forwarded_for"
-	MaxBatchRPCCallsHardLimit   = 100
-	cacheStatusHdr              = "X-Proxyd-Cache-Status"
-	defaultRPCTimeout           = 10 * time.Second
-	defaultBodySizeLimit        = 256 * opt.KiB
-	defaultWSHandshakeTimeout   = 10 * time.Second
-	defaultWSReadTimeout        = 2 * time.Minute
-	defaultWSWriteTimeout       = 10 * time.Second
-	maxRequestBodyLogLen        = 2000
-	defaultMaxUpstreamBatchSize = 10
+	ContextKeyAuth               = "authorization"
+	ContextKeyReqID              = "req_id"
+	ContextKeyXForwardedFor      = "x_forwarded_for"
+	DefaultMaxBatchRPCCallsLimit = 100
+	MaxBatchRPCCallsHardLimit    = 1000
+	cacheStatusHdr               = "X-Proxyd-Cache-Status"
+	defaultRPCTimeout            = 10 * time.Second
+	defaultBodySizeLimit         = 256 * opt.KiB
+	defaultWSHandshakeTimeout    = 10 * time.Second
+	defaultWSReadTimeout         = 2 * time.Minute
+	defaultWSWriteTimeout        = 10 * time.Second
+	maxRequestBodyLogLen         = 2000
+	defaultMaxUpstreamBatchSize  = 10
 )
 
 var emptyArrayResponse = json.RawMessage("[]")
@@ -59,6 +60,7 @@ type Server struct {
 	timeout                time.Duration
 	maxUpstreamBatchSize   int
 	maxBatchSize           int
+	enableServedByHeader   bool
 	upgrader               *websocket.Upgrader
 	mainLim                FrontendRateLimiter
 	overrideLims           map[string]FrontendRateLimiter
@@ -84,6 +86,7 @@ func NewServer(
 	authenticatedPaths map[string]string,
 	timeout time.Duration,
 	maxUpstreamBatchSize int,
+	enableServedByHeader bool,
 	cache RPCCache,
 	rateLimitConfig RateLimitConfig,
 	senderRateLimitConfig SenderRateLimitConfig,
@@ -108,7 +111,11 @@ func NewServer(
 		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
 	}
 
-	if maxBatchSize == 0 || maxBatchSize > MaxBatchRPCCallsHardLimit {
+	if maxBatchSize == 0 {
+		maxBatchSize = DefaultMaxBatchRPCCallsLimit
+	}
+
+	if maxBatchSize > MaxBatchRPCCallsHardLimit {
 		maxBatchSize = MaxBatchRPCCallsHardLimit
 	}
 
@@ -170,6 +177,7 @@ func NewServer(
 		authenticatedPaths:   authenticatedPaths,
 		timeout:              timeout,
 		maxUpstreamBatchSize: maxUpstreamBatchSize,
+		enableServedByHeader: enableServedByHeader,
 		cache:                cache,
 		enableRequestLog:     enableRequestLog,
 		maxRequestBodyLogLen: maxRequestBodyLogLen,
@@ -311,7 +319,13 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"remote_ip", xff,
 	)
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
+	body, err := io.ReadAll(LimitReader(r.Body, s.maxBodySize))
+	if errors.Is(err, ErrLimitReaderOverLimit) {
+		log.Error("request body too large", "req_id", GetReqID(ctx))
+		RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrRequestBodyTooLarge)
+		writeRPCError(ctx, w, nil, ErrRequestBodyTooLarge)
+		return
+	}
 	if err != nil {
 		log.Error("error reading request body", "err", err)
 		writeRPCError(ctx, w, nil, ErrInternal)
@@ -349,7 +363,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		batchRes, batchContainsCached, err := s.handleBatchRPC(ctx, reqs, isLimited, true)
+		batchRes, batchContainsCached, servedBy, err := s.handleBatchRPC(ctx, reqs, isLimited, true)
 		if err == context.DeadlineExceeded {
 			writeRPCError(ctx, w, nil, ErrGatewayTimeout)
 			return
@@ -363,14 +377,16 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			writeRPCError(ctx, w, nil, ErrInternal)
 			return
 		}
-
+		if s.enableServedByHeader {
+			w.Header().Set("x-served-by", servedBy)
+		}
 		setCacheHeader(w, batchContainsCached)
 		writeBatchRPCRes(ctx, w, batchRes)
 		return
 	}
 
 	rawBody := json.RawMessage(body)
-	backendRes, cached, err := s.handleBatchRPC(ctx, []json.RawMessage{rawBody}, isLimited, false)
+	backendRes, cached, servedBy, err := s.handleBatchRPC(ctx, []json.RawMessage{rawBody}, isLimited, false)
 	if err != nil {
 		if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
 			errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) {
@@ -380,11 +396,14 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		writeRPCError(ctx, w, nil, ErrInternal)
 		return
 	}
+	if s.enableServedByHeader {
+		w.Header().Set("x-served-by", servedBy)
+	}
 	setCacheHeader(w, cached)
 	writeRPCRes(ctx, w, backendRes[0])
 }
 
-func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isLimited limiterFunc, isBatch bool) ([]*RPCRes, bool, error) {
+func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isLimited limiterFunc, isBatch bool) ([]*RPCRes, bool, string, error) {
 	// A request set is transformed into groups of batches.
 	// Each batch group maps to a forwarded JSON-RPC batch request (subject to maxUpstreamBatchSize constraints)
 	// A groupID is used to decouple Requests that have duplicate ID so they're not part of the same batch that's
@@ -470,6 +489,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 		batches[batchGroup] = append(batches[batchGroup], batchElem{parsedReq, i})
 	}
 
+	servedBy := make(map[string]bool, 0)
 	var cached bool
 	for group, batch := range batches {
 		var cacheMisses []batchElem
@@ -494,17 +514,18 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 					"batch_index", i,
 				)
 				batchRPCShortCircuitsTotal.Inc()
-				return nil, false, context.DeadlineExceeded
+				return nil, false, "", context.DeadlineExceeded
 			}
 
 			start := i * s.maxUpstreamBatchSize
 			end := int(math.Min(float64(start+s.maxUpstreamBatchSize), float64(len(cacheMisses))))
 			elems := cacheMisses[start:end]
-			res, err := s.BackendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
+			res, sb, err := s.BackendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
+			servedBy[sb] = true
 			if err != nil {
 				if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
 					errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) {
-					return nil, false, err
+					return nil, false, "", err
 				}
 				log.Error(
 					"error forwarding RPC batch",
@@ -536,7 +557,15 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 		}
 	}
 
-	return responses, cached, nil
+	servedByString := ""
+	for sb, _ := range servedBy {
+		if servedByString != "" {
+			servedByString += ", "
+		}
+		servedByString += sb
+	}
+
+	return responses, cached, servedByString, nil
 }
 
 func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {

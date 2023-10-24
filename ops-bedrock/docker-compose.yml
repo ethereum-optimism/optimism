@@ -11,6 +11,16 @@ volumes:
 
 
 services:
+  op_stack_go_builder:  # Not an actual service, but builds the prerequisite go images
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      args:
+        GIT_COMMIT: "dev"
+        GIT_DATE: "0"
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+    entrypoint: ["echo", "build complete"]
+
   l1:
     build:
       context: .
@@ -42,11 +52,15 @@ services:
 
   op-node:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     command: >
       op-node
       --l1=ws://l1:8546
@@ -85,12 +99,16 @@ services:
 
   op-proposer:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
     ports:
       - "6062:6060"
       - "7302:7300"
@@ -110,12 +128,16 @@ services:
 
   op-batcher:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+      args:
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
     ports:
       - "6061:6060"
       - "7301:7300"
@@ -145,16 +167,16 @@ services:
     security_opt:
       - "no-new-privileges:true"
 
-  stateviz:
-    build:
-      context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.stateviz
-    command:
-      - stateviz
-      - -addr=0.0.0.0:8080
-      - -snapshot=/op_log/snapshot.log
-      - -refresh=10s
-    ports:
-      - "9090:8080"
-    volumes:
-      - op_log:/op_log:ro
+#  stateviz:
+#    build:
+#      context: ../
+#      dockerfile: ./ops-bedrock/Dockerfile.stateviz
+#    command:
+#      - stateviz
+#      - -addr=0.0.0.0:8080
+#      - -snapshot=/op_log/snapshot.log
+#      - -refresh=10s
+#    ports:
+#      - "9090:8080"
+#    volumes:
+#      - op_log:/op_log:ro

@@ -94,9 +94,6 @@ type Proof struct {
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
 	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
 	OracleOffset uint32        `json:"oracle-offset,omitempty"`
-
-	StepInput   hexutil.Bytes `json:"step-input"`
-	OracleInput hexutil.Bytes `json:"oracle-input"`
 }
 
 type rawHint string
@@ -348,14 +345,8 @@ func Run(ctx *cli.Context) error {
 				Post:      postStateHash,
 				StateData: witness.State,
 				ProofData: witness.MemProof,
-				StepInput: witness.EncodeStepInput(),
 			}
 			if witness.HasPreimage() {
-				inp, err := witness.EncodePreimageOracleInput()
-				if err != nil {
-					return fmt.Errorf("failed to encode pre-image oracle input: %w", err)
-				}
-				proof.OracleInput = inp
 				proof.OracleKey = witness.PreimageKey[:]
 				proof.OracleValue = witness.PreimageValue
 				proof.OracleOffset = witness.PreimageOffset

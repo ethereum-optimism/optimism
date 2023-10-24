@@ -11,8 +11,8 @@
   "scripts": {
     "bindings": "pnpm bindings:ts && pnpm bindings:go",
     "bindings:ts": "nx generate @eth-optimism/contracts-ts",
-    "bindings:go:no-build": "cd ../../op-bindings && make binding-build",
-    "bindings:go": "pnpm clean && pnpm build && bindings:go:no-build",
+    "bindings:go:no-build": "cd ../../op-bindings && make bindings-build",
+    "bindings:go": "pnpm clean && pnpm build && pnpm bindings:go:no-build",
     "prebuild": "./scripts/verify-foundry-install.sh",
     "build": "forge build",
     "build:differential": "go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
@@ -46,8 +46,8 @@
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^6.7.5",
-    "@typescript-eslint/parser": "^6.7.5",
-    "tsx": "^3.12.7",
+    "@typescript-eslint/parser": "^6.8.0",
+    "tsx": "^3.14.0",
     "typescript": "^5.2.2"
   }
 }

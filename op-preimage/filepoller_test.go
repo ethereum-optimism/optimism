@@ -15,9 +15,9 @@ func TestFilePoller_Read(t *testing.T) {
 	chanAPoller := NewFilePoller(ctx, chanA, time.Millisecond*100)
 
 	go func() {
-		chanB.Write([]byte("hello"))
+		_, _ = chanB.Write([]byte("hello"))
 		time.Sleep(time.Second * 1)
-		chanB.Write([]byte("world"))
+		_, _ = chanB.Write([]byte("world"))
 	}()
 	var buf [10]byte
 	n, err := chanAPoller.Read(buf[:])
@@ -34,9 +34,9 @@ func TestFilePoller_Write(t *testing.T) {
 	bufch := make(chan []byte, 1)
 	go func() {
 		var buf [10]byte
-		chanB.Read(buf[:5])
+		_, _ = chanB.Read(buf[:5])
 		time.Sleep(time.Second * 1)
-		chanB.Read(buf[5:])
+		_, _ = chanB.Read(buf[5:])
 		bufch <- buf[:]
 		close(bufch)
 	}()
@@ -59,7 +59,7 @@ func TestFilePoller_ReadCancel(t *testing.T) {
 	chanAPoller := NewFilePoller(ctx, chanA, time.Millisecond*100)
 
 	go func() {
-		chanB.Write([]byte("hello"))
+		_, _ = chanB.Write([]byte("hello"))
 		cancel()
 	}()
 	var buf [10]byte
@@ -76,7 +76,7 @@ func TestFilePoller_WriteCancel(t *testing.T) {
 
 	go func() {
 		var buf [5]byte
-		chanB.Read(buf[:])
+		_, _ = chanB.Read(buf[:])
 		cancel()
 	}()
 	// use a large buffer to overflow the kernel buffer provided to pipe(2) so the write actually blocks

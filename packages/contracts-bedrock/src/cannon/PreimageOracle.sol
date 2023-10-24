@@ -34,6 +34,7 @@ contract PreimageOracle is IPreimageOracle {
     /// @inheritdoc IPreimageOracle
     function loadLocalData(
         uint256 _ident,
+        uint256 _localContext,
         bytes32 _word,
         uint256 _size,
         uint256 _partOffset
@@ -42,7 +43,7 @@ contract PreimageOracle is IPreimageOracle {
         returns (bytes32 key_)
     {
         // Compute the localized key from the given local identifier.
-        key_ = PreimageKeyLib.localizeIdent(_ident);
+        key_ = PreimageKeyLib.localizeIdent(_ident, _localContext);
 
         // Revert if the given part offset is not within bounds.
         if (_partOffset > _size + 8 || _size > 32) {

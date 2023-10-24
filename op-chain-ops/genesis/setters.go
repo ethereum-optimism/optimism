@@ -4,13 +4,14 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // PrecompileCount represents the number of precompile addresses
@@ -46,7 +47,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		}
 
 		db.SetCode(addr, depBytecode)
-		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
+		db.SetState(addr, AdminSlot, eth.AddressAsLeftPaddedHash(proxyAdminAddr))
 		log.Trace("Set proxy", "address", addr, "admin", proxyAdminAddr)
 	}
 

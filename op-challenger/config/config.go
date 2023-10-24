@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,7 +16,7 @@ import (
 )
 
 var (
-	ErrMissingTraceType              = errors.New("missing trace type")
+	ErrMissingTraceType              = errors.New("no supported trace types specified")
 	ErrMissingDatadir                = errors.New("missing datadir")
 	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
 	ErrMissingCannonL2               = errors.New("missing cannon L2")
@@ -108,7 +109,7 @@ type Config struct {
 	MaxConcurrency          uint             // Maximum number of threads to use when progressing games
 	PollInterval            time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 
-	TraceType TraceType // Type of trace
+	TraceTypes []TraceType // Type of traces supported
 
 	// Specific to the alphabet trace provider
 	AlphabetTrace string // String for the AlphabetTraceProvider
@@ -135,9 +136,9 @@ type Config struct {
 func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
-	traceType TraceType,
 	agreeWithProposedOutput bool,
 	datadir string,
+	supportedTraceTypes ...TraceType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -147,7 +148,7 @@ func NewConfig(
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 
-		TraceType: traceType,
+		TraceTypes: supportedTraceTypes,
 
 		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
@@ -161,6 +162,10 @@ func NewConfig(
 	}
 }
 
+func (c Config) TraceTypeEnabled(t TraceType) bool {
+	return slices.Contains(c.TraceTypes, t)
+}
+
 func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
@@ -168,7 +173,7 @@ func (c Config) Check() error {
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
 	}
-	if c.TraceType == "" {
+	if len(c.TraceTypes) == 0 {
 		return ErrMissingTraceType
 	}
 	if c.Datadir == "" {
@@ -177,12 +182,12 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceType == TraceTypeOutputCannon {
+	if c.TraceTypeEnabled(TraceTypeOutputCannon) {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
 	}
-	if c.TraceType == TraceTypeCannon || c.TraceType == TraceTypeOutputCannon {
+	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypeOutputCannon) {
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
 		}
@@ -220,7 +225,7 @@ func (c Config) Check() error {
 			return ErrMissingCannonInfoFreq
 		}
 	}
-	if c.TraceType == TraceTypeAlphabet && c.AlphabetTrace == "" {
+	if c.TraceTypeEnabled(TraceTypeAlphabet) && c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {

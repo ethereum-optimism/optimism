@@ -116,7 +116,7 @@ func (n noResetHasher) Reset() {}
 func WriteTrie(values []hexutil.Bytes) (common.Hash, []hexutil.Bytes) {
 	var out []hexutil.Bytes
 	st := noResetHasher{trie.NewStackTrie(
-		func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
+		func(path []byte, hash common.Hash, blob []byte) {
 			out = append(out, common.CopyBytes(blob)) // the stack hasher may mutate the blob bytes, so copy them.
 		})}
 	root := types.DeriveSha(rawList(values), st)

@@ -7,6 +7,9 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -18,6 +21,10 @@ const (
 	// defaultDialTimeout is default duration the processor will wait on
 	// startup to make a connection to the backend
 	defaultDialTimeout = 5 * time.Second
+
+	// defaultDialAttempts is the default attempts a connection will be made
+	// before failing
+	defaultDialAttempts = 5
 
 	// defaultRequestTimeout is the default duration the processor will
 	// wait for a request to be fulfilled
@@ -35,7 +42,7 @@ type EthClient interface {
 	FilterLogs(ethereum.FilterQuery) ([]types.Log, error)
 }
 
-type client struct {
+type clnt struct {
 	rpc RPC
 }
 
@@ -43,17 +50,29 @@ func DialEthClient(rpcUrl string, metrics Metricer) (EthClient, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
 	defer cancel()
 
-	rpcClient, err := rpc.DialContext(ctxwt, rpcUrl)
+	bOff := retry.Exponential()
+	rpcClient, err := retry.Do(ctxwt, defaultDialAttempts, bOff, func() (*rpc.Client, error) {
+		if !client.IsURLAvailable(rpcUrl) {
+			return nil, fmt.Errorf("address unavailable (%s)", rpcUrl)
+		}
+
+		client, err := rpc.DialContext(ctxwt, rpcUrl)
+		if err != nil {
+			return nil, fmt.Errorf("failed to dial address (%s): %w", rpcUrl, err)
+		}
+
+		return client, nil
+	})
+
 	if err != nil {
 		return nil, err
 	}
 
-	client := &client{rpc: NewRPC(rpcClient, metrics)}
-	return client, nil
+	return &clnt{rpc: NewRPC(rpcClient, metrics)}, nil
 }
 
 // BlockHeaderByHash retrieves the block header attributed to the supplied hash
-func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
+func (c *clnt) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
@@ -74,7 +93,7 @@ func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 }
 
 // BlockHeaderByNumber retrieves the block header attributed to the supplied height
-func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
+func (c *clnt) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
@@ -92,7 +111,7 @@ func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 // BlockHeadersByRange will retrieve block headers within the specified range -- inclusive. No restrictions
 // are placed on the range such as blocks in the "latest", "safe" or "finalized" states. If the specified
 // range is too large, `endHeight > latest`, the resulting list is truncated to the available headers
-func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Header, error) {
+func (c *clnt) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Header, error) {
 	// avoid the batch call if there's no range
 	if startHeight.Cmp(endHeight) == 0 {
 		header, err := c.BlockHeaderByNumber(startHeight)
@@ -149,7 +168,7 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.H
 	return headers, nil
 }
 
-func (c *client) TxByHash(hash common.Hash) (*types.Transaction, error) {
+func (c *clnt) TxByHash(hash common.Hash) (*types.Transaction, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
@@ -165,7 +184,7 @@ func (c *client) TxByHash(hash common.Hash) (*types.Transaction, error) {
 }
 
 // StorageHash returns the sha3 of the storage root for the specified account
-func (c *client) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {
+func (c *clnt) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
@@ -179,7 +198,7 @@ func (c *client) StorageHash(address common.Address, blockNumber *big.Int) (comm
 }
 
 // FilterLogs returns logs that fit the query parameters
-func (c *client) FilterLogs(query ethereum.FilterQuery) ([]types.Log, error) {
+func (c *clnt) FilterLogs(query ethereum.FilterQuery) ([]types.Log, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 

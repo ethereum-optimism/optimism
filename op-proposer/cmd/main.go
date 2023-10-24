@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
@@ -26,7 +26,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(flags.Flags)
-	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-proposer"
 	app.Usage = "L2Output Submitter"
 	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"

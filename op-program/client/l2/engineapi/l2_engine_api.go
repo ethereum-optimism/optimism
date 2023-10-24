@@ -264,7 +264,7 @@ func (ea *L2EngineAPI) getPayload(ctx context.Context, payloadId eth.PayloadID) 
 		ea.log.Error("failed to finish block building", "err", err)
 		return nil, engine.UnknownPayload
 	}
-	return eth.BlockAsPayload(bl)
+	return eth.BlockAsPayload(bl, ea.config().CanyonTime)
 }
 
 func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
@@ -350,6 +350,25 @@ func (ea *L2EngineAPI) forkchoiceUpdated(ctx context.Context, state *eth.Forkcho
 	return valid(nil), nil
 }
 
+func toGethWithdrawals(payload *eth.ExecutionPayload) []*types.Withdrawal {
+	if payload.Withdrawals == nil {
+		return nil
+	}
+
+	result := make([]*types.Withdrawal, 0, len(*payload.Withdrawals))
+
+	for _, w := range *payload.Withdrawals {
+		result = append(result, &types.Withdrawal{
+			Index:     w.Index,
+			Validator: w.Validator,
+			Address:   w.Address,
+			Amount:    w.Amount,
+		})
+	}
+
+	return result
+}
+
 func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPayload) (*eth.PayloadStatusV1, error) {
 	ea.log.Trace("L2Engine API request received", "method", "ExecutePayload", "number", payload.BlockNumber, "hash", payload.BlockHash)
 	txs := make([][]byte, len(payload.Transactions))
@@ -371,6 +390,7 @@ func (ea *L2EngineAPI) newPayload(ctx context.Context, payload *eth.ExecutionPay
 		BaseFeePerGas: payload.BaseFeePerGas.ToBig(),
 		BlockHash:     payload.BlockHash,
 		Transactions:  txs,
+		Withdrawals:   toGethWithdrawals(payload),
 	}, nil, nil)
 	if err != nil {
 		log.Debug("Invalid NewPayload params", "params", payload, "error", err)

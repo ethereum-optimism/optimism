@@ -7,8 +7,10 @@ import (
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 /**
@@ -68,11 +70,12 @@ type BridgeTransactionsDB interface {
  */
 
 type bridgeTransactionsDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
-	return &bridgeTransactionsDB{gorm: db}
+func newBridgeTransactionsDB(log log.Logger, db *gorm.DB) BridgeTransactionsDB {
+	return &bridgeTransactionsDB{log: log.New("table", "bridge_transactions"), gorm: db}
 }
 
 /**
@@ -80,7 +83,12 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
  */
 
 func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
-	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "source_hash"}}, DoNothing: true})
+	result := deduped.Create(&deposits)
+	if result.Error == nil && int(result.RowsAffected) < len(deposits) {
+		db.log.Warn("ignored L1 tx deposit duplicates", "duplicates", len(deposits)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -133,7 +141,12 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
  */
 
 func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
-	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "withdrawal_hash"}}, DoNothing: true})
+	result := deduped.Create(&withdrawals)
+	if result.Error == nil && int(result.RowsAffected) < len(withdrawals) {
+		db.log.Warn("ignored L2 tx withdrawal duplicates", "duplicates", len(withdrawals)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -155,9 +168,14 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalProvenEvent(withdrawa
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {
 		return err
-	}
-	if withdrawal == nil {
+	} else if withdrawal == nil {
 		return fmt.Errorf("transaction withdrawal hash %s not found", withdrawalHash)
+	}
+
+	if withdrawal.ProvenL1EventGUID != nil && withdrawal.ProvenL1EventGUID.ID() == provenL1EventGuid.ID() {
+		return nil
+	} else if withdrawal.ProvenL1EventGUID != nil {
+		return fmt.Errorf("proven withdrawal %s re-proven with a different event %s", withdrawalHash, provenL1EventGuid)
 	}
 
 	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
@@ -170,12 +188,16 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {
 		return err
-	}
-	if withdrawal == nil {
+	} else if withdrawal == nil {
 		return fmt.Errorf("transaction withdrawal hash %s not found", withdrawalHash)
-	}
-	if withdrawal.ProvenL1EventGUID == nil {
+	} else if withdrawal.ProvenL1EventGUID == nil {
 		return fmt.Errorf("cannot mark unproven withdrawal hash %s as finalized", withdrawal.WithdrawalHash)
+	}
+
+	if withdrawal.FinalizedL1EventGUID != nil && withdrawal.FinalizedL1EventGUID.ID() == finalizedL1EventGuid.ID() {
+		return nil
+	} else if withdrawal.FinalizedL1EventGUID != nil {
+		return fmt.Errorf("finalized withdrawal %s re-finalized with a different event %s", withdrawalHash, finalizedL1EventGuid)
 	}
 
 	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
