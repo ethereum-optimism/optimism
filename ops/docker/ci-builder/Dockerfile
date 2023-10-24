@@ -78,7 +78,7 @@ COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 COPY .nvmrc .nvmrc
 
-ENV NODE_MAJOR=18
+ENV NODE_MAJOR=20
 ENV SLITHER_VERSION=0.10.0
 
 # note: python3 package in apt is python 3.9, while base image already has python 3.11
