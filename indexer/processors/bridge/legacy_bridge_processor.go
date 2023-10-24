@@ -282,7 +282,8 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			// for OP-Mainnet pre-regensis withdrawals that no longer exist on L2.
 			tx, err := l1Client.TxByHash(relayedMessage.Event.TransactionHash)
 			if err != nil {
-				return err
+				log.Error("unable to query legacy relayed tx", "tx_hash", relayedMessage.Event.TransactionHash.String(), "err", err)
+				return fmt.Errorf("unable to query legacy relayed tx_hash = %s: %w", relayedMessage.Event.TransactionHash.String(), err)
 			} else if tx == nil {
 				log.Error("missing tx for relayed message", "tx_hash", relayedMessage.Event.TransactionHash.String())
 				return fmt.Errorf("missing tx for relayed message. tx_hash = %s", relayedMessage.Event.TransactionHash.String())
