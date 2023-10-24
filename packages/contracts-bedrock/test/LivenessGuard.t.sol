@@ -21,7 +21,7 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    event SignersRecorded(bytes32 indexed txHash, address[] signers);
+    event SignerRecorded(bytes32 indexed txHash, address signer);
 
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
@@ -69,9 +69,11 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
         signers[0] = safeInstance.owners[0];
         signers[1] = safeInstance.owners[1];
 
-        // Don't check topic1 so that we can avoid the ugly txHash calculation.
-        vm.expectEmit(false, true, true, true, address(livenessGuard));
-        emit SignersRecorded(0x0, signers);
+        for (uint256 i; i < signers.length; i++) {
+            // Don't check topic1 so that we can avoid the ugly txHash calculation.
+            vm.expectEmit(false, true, true, true, address(livenessGuard));
+            emit SignerRecorded(0x0, signers[i]);
+        }
         vm.expectCall(address(safeInstance.safe), abi.encodeWithSignature("nonce()"));
         vm.expectCall(address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()));
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
@@ -96,11 +98,8 @@ contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
         // Cache the caller
         address caller = safeInstance.owners[0];
 
-        // Construct a signers array with just the caller to identify the expected event.
-        address[] memory signers = new address[](1);
-        signers[0] = caller;
         vm.expectEmit(address(livenessGuard));
-        emit SignersRecorded(0x0, signers);
+        emit SignerRecorded(0x0, caller);
 
         vm.prank(caller);
         livenessGuard.showLiveness();
