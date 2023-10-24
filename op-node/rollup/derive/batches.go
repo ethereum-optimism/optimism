@@ -47,7 +47,7 @@ func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Block
 			log.Error("failed type assertion to SpanBatch")
 			return BatchDrop
 		}
-		if !cfg.IsSpanBatch(batch.Batch.GetTimestamp()) {
+		if !cfg.IsSpanBatch(batch.Batch.GetTimestamp()) || !cfg.IsSpanBatch(batch.L1InclusionBlock.Time) {
 			log.Warn("received SpanBatch before SpanBatch hard fork")
 			return BatchDrop
 		}
