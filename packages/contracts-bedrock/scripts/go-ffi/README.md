@@ -13,7 +13,25 @@ A lightweight binary for utilities accessed via `forge`'s `ffi` cheatcode in the
 
 To build, run `pnpm build:go-ffi` from this directory or the `contract-bedrock` package.
 
+### In a Forge Test
+
+To use `go-ffi` in a forge test, simply invoke the binary via the `vm.ffi` cheatcode.
+
+```solidity
+function myFFITest() public {
+    string[] memory commands = new string[](3);
+    commands[0] = "./scripts/go-ffi/go-ffi";
+    commands[1] = "trie";
+    commands[2] = "valid";
+    bytes memory result = vm.ffi(commands);
+
+    // Do something with the result of the command
+}
+```
+
 ### Available Modes
+
+There are two modes available in `go-ffi`: `diff` and `trie`. Each are present as a subcommand to the `go-ffi` binary, with their own set of variants.
 
 #### `diff`
 
