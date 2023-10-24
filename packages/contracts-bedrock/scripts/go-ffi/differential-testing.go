@@ -74,8 +74,8 @@ var (
 	}
 )
 
-func main() {
-	args := os.Args[1:]
+func DiffTestUtils() {
+	args := os.Args[2:]
 
 	// This command requires arguments
 	if len(args) == 0 {

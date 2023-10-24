@@ -1,15 +1,16 @@
-package trie
+package main
 
 import (
 	"crypto/rand"
 	"fmt"
 	"log"
 	"math/big"
+	"os"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -39,7 +40,8 @@ const (
 )
 
 // Generate an abi-encoded `trieTestCase` of a specified variant
-func FuzzTrie(variant string) {
+func FuzzTrie() {
+	variant := os.Args[2]
 	if len(variant) < 1 {
 		log.Fatal("Must pass a variant to the trie fuzzer!")
 	}
@@ -132,8 +134,8 @@ func FuzzTrie(variant string) {
 // Generate a random test case for Bedrock's MerkleTrie verifier.
 func genTrieTestCase(selectEmptyKey bool) trieTestCase {
 	// Create an empty merkle trie
-	memdb := memorydb.New()
-	randTrie := trie.NewEmpty(trie.NewDatabase(memdb))
+	memdb := rawdb.NewMemoryDatabase()
+	randTrie := trie.NewEmpty(trie.NewDatabase(memdb, nil))
 
 	// Get a random number of elements to put into the trie
 	randN := randRange(2, 1024)
@@ -161,7 +163,7 @@ func genTrieTestCase(selectEmptyKey bool) trieTestCase {
 		}
 
 		// Insert the random k/v pair into the trie
-		if err := randTrie.TryUpdate(randKey, randValue); err != nil {
+		if err := randTrie.Update(randKey, randValue); err != nil {
 			log.Fatal("Error adding key-value pair to trie")
 		}
 
@@ -174,7 +176,7 @@ func genTrieTestCase(selectEmptyKey bool) trieTestCase {
 
 	// Generate proof for `key`'s inclusion in our trie
 	var proof proofList
-	if err := randTrie.Prove(key, 0, &proof); err != nil {
+	if err := randTrie.Prove(key, &proof); err != nil {
 		log.Fatal("Error creating proof for randomly selected key's inclusion in generated trie")
 	}
 
@@ -232,16 +234,4 @@ func randRange(min int64, max int64) int64 {
 	}
 
 	return (new(big.Int).Add(r, new(big.Int).SetInt64(min))).Int64()
-}
-
-// Custom type to write the generated proof to
-type proofList [][]byte
-
-func (n *proofList) Put(key []byte, value []byte) error {
-	*n = append(*n, value)
-	return nil
-}
-
-func (n *proofList) Delete(key []byte) error {
-	panic("not supported")
 }
