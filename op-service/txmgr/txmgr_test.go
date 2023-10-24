@@ -450,6 +450,40 @@ func TestTxMgr_EstimateGasFails(t *testing.T) {
 	require.Equal(t, lastNonce+1, tx.Nonce())
 }
 
+func TestTxMgr_SigningFails(t *testing.T) {
+	t.Parallel()
+	errorSigning := false
+	cfg := configWithNumConfs(1)
+	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		if errorSigning {
+			return nil, fmt.Errorf("signer error")
+		} else {
+			return tx, nil
+		}
+	}
+	h := newTestHarnessWithConfig(t, cfg)
+	candidate := h.createTxCandidate()
+
+	// Set the gas limit to zero to trigger gas estimation.
+	candidate.GasLimit = 0
+
+	// Craft a successful transaction.
+	tx, err := h.mgr.craftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	lastNonce := tx.Nonce()
+
+	// Mock signer failure.
+	errorSigning = true
+	_, err = h.mgr.craftTx(context.Background(), candidate)
+	require.ErrorContains(t, err, "signer error")
+
+	// Ensure successful craft uses the correct nonce
+	errorSigning = false
+	tx, err = h.mgr.craftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.Equal(t, lastNonce+1, tx.Nonce())
+}
+
 // TestTxMgrOnlyOnePublicationSucceeds asserts that the tx manager will return a
 // receipt so long as at least one of the publications is able to succeed with a
 // simulated rpc failure.

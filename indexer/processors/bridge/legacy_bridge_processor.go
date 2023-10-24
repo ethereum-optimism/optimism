@@ -162,13 +162,17 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction withdrawals (via L2CrossDomainMessenger)", "size", len(crossDomainSentMessages))
 	}
 
+	type sentMessageEvent struct {
+		*contracts.CrossDomainMessengerSentMessageEvent
+		WithdrawalHash common.Hash
+	}
+
 	withdrawnWEI := bigint.Zero
-	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
+	sentMessages := make(map[logKey]sentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
-		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
 		withdrawnWEI = new(big.Int).Add(withdrawnWEI, sentMessage.BridgeMessage.Tx.Amount)
 
 		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
@@ -188,6 +192,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 			},
 		}
 
+		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
 		bridgeMessages[i] = database.L2BridgeMessage{
 			TransactionWithdrawalHash: withdrawalHash,
 			BridgeMessage:             sentMessage.BridgeMessage,
@@ -235,7 +240,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 		l2BridgeWithdrawals[i] = database.L2BridgeWithdrawal{
-			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
+			TransactionWithdrawalHash: sentMessage.WithdrawalHash,
 			BridgeTransfer:            initiatedBridge.BridgeTransfer,
 		}
 	}
@@ -330,10 +335,12 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Warn("skipped pre-regensis relayed L2CrossDomainMessenger withdrawals", "size", skippedPreRegenesisMessages)
 	}
 
-	// (2) L2StandardBridge -- no-op for now as there's nothing actionable to do here besides
-	// santiy checks which is not important for legacy code. Not worth extra code pre-bedrock.
-	// The message status is already tracked via the relayed bridge messed through the cross domain messenger.
-	//  - NOTE: This means we dont increment metrics for finalized bridge transfers
+	// (2) L1StandardBridge
+	// 	- Nothing actionable on the database. Since the StandardBridge is layered ontop of the
+	// CrossDomainMessenger, there's no need for any sanity or invariant checks as the previous step
+	// ensures a relayed message (finalized bridge) can be linked with a sent message (initiated bridge).
+
+	//  - NOTE: Ignoring metrics for pre-bedrock transfers
 
 	// a-ok!
 	return nil
@@ -372,10 +379,12 @@ func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		metrics.RecordL2CrossDomainRelayedMessages(len(crossDomainRelayedMessages))
 	}
 
-	// (2) L2StandardBridge -- no-op for now as there's nothing actionable to do here besides
-	// santiy checks which is not important for legacy code. Not worth the extra code pre-bedorck.
-	// The message status is already tracked via the relayed bridge messed through the cross domain messenger.
-	//  - NOTE: This means we dont increment metrics for finalized bridge transfers
+	// (2) L2StandardBridge
+	// 	- Nothing actionable on the database. Since the StandardBridge is layered ontop of the
+	// CrossDomainMessenger, there's no need for any sanity or invariant checks as the previous step
+	// ensures a relayed message (finalized bridge) can be linked with a sent message (initiated bridge).
+
+	//  - NOTE: Ignoring metrics for pre-bedrock transfers
 
 	// a-ok!
 	return nil

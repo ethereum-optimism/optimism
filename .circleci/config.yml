@@ -1254,6 +1254,22 @@ jobs:
           event: fail
           template: basic_fail_1
 
+  op-program-compat:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: golang-build-cache
+      - run:
+          name: compat-goerli
+          command: |
+            make run-goerli-verify
+          working_directory: op-program
+
   check-generated-mocks-op-node:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1432,6 +1448,9 @@ workflows:
             - op-stack-go-lint
             - devnet-allocs
             - l1-geth-version-check
+      - op-program-compat:
+          requires:
+            - op-program-tests
       - bedrock-go-tests:
           requires:
             - go-mod-download
@@ -1449,6 +1468,7 @@ workflows:
             - op-proposer-tests
             - op-challenger-tests
             - op-program-tests
+            - op-program-compat
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
