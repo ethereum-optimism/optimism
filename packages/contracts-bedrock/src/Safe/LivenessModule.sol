@@ -79,7 +79,7 @@ contract LivenessModule is ISemver {
         address[] memory owners = safe.getOwners();
         uint256 numOwners = owners.length - 1;
         uint256 thresholdAfter;
-        if (hasMinOwners(numOwners)) {
+        if (_isAboveMinOwners(numOwners)) {
             // Call the Safe to remove the owner and update the threshold
             thresholdAfter = get75PercentThreshold(numOwners);
             address prevOwner = _getPrevOwner(owner, owners);
@@ -135,8 +135,8 @@ contract LivenessModule is ISemver {
         address[] memory owners = safe.getOwners();
         uint256 numOwners = owners.length;
         require(
-            hasMinOwners(numOwners) || (numOwners == 1 && owners[0] == fallbackOwner),
-            "LivenessModule: Safe must have the minimum number of owners, or be owned solely by the fallback owner"
+            _isAboveMinOwners(numOwners) || (numOwners == 1 && owners[0] == fallbackOwner),
+            "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
         );
 
         // Check that the threshold is correct. This check is also correct when there is a single
@@ -180,7 +180,7 @@ contract LivenessModule is ISemver {
     /// @notice Check if the number of owners is greater than or equal to the minimum number of owners.
     /// @param numOwners The number of owners.
     /// @return A boolean indicating if the number of owners is greater than or equal to the minimum number of owners.
-    function hasMinOwners(uint256 numOwners) public view returns (bool) {
+    function _isAboveMinOwners(uint256 numOwners) internal view returns (bool) {
         return numOwners >= minOwners;
     }
 }
