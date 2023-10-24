@@ -6,12 +6,15 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/stretchr/testify/assert"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestSpanBatchForBatchInterface(t *testing.T) {
@@ -31,6 +34,39 @@ func TestSpanBatchForBatchInterface(t *testing.T) {
 	assert.Equal(t, singularBatches[0].EpochNum, spanBatch.GetStartEpochNum())
 	assert.True(t, spanBatch.CheckOriginHash(singularBatches[blockCount-1].EpochHash))
 	assert.True(t, spanBatch.CheckParentHash(singularBatches[0].ParentHash))
+}
+
+func TestEmptySpanBatch(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556691))
+	chainID := big.NewInt(rng.Int63n(1000))
+	spanTxs, err := newSpanBatchTxs(nil, chainID)
+	require.NoError(t, err)
+
+	rawSpanBatch := RawSpanBatch{
+		spanBatchPrefix: spanBatchPrefix{
+			relTimestamp:  uint64(rng.Uint32()),
+			l1OriginNum:   rng.Uint64(),
+			parentCheck:   testutils.RandomData(rng, 20),
+			l1OriginCheck: testutils.RandomData(rng, 20),
+		},
+		spanBatchPayload: spanBatchPayload{
+			blockCount:    0,
+			originBits:    big.NewInt(0),
+			blockTxCounts: []uint64{},
+			txs:           spanTxs,
+		},
+	}
+
+	var buf bytes.Buffer
+	err = rawSpanBatch.encodeBlockCount(&buf)
+	assert.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+
+	err = sb.decodeBlockCount(r)
+	require.ErrorIs(t, err, ErrEmptySpanBatch)
 }
 
 func TestSpanBatchOriginBits(t *testing.T) {

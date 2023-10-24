@@ -70,7 +70,12 @@ func (bq *BatchQueue) Origin() eth.L1BlockRef {
 	return bq.prev.Origin()
 }
 
+// popNextBatch pops the next batch from the current queued up span-batch nextSpan.
+// The queue must be non-empty, or the function will panic.
 func (bq *BatchQueue) popNextBatch(safeL2Head eth.L2BlockRef) *SingularBatch {
+	if len(bq.nextSpan) == 0 {
+		panic("popping non-existent span-batch, invalid state")
+	}
 	nextBatch := bq.nextSpan[0]
 	bq.nextSpan = bq.nextSpan[1:]
 	// Must set ParentHash before return. we can use safeL2Head because the parentCheck is verified in CheckBatch().
@@ -78,7 +83,7 @@ func (bq *BatchQueue) popNextBatch(safeL2Head eth.L2BlockRef) *SingularBatch {
 	return nextBatch
 }
 
-func (bq *BatchQueue) advanceEpochMaybe(nextBatch *SingularBatch) {
+func (bq *BatchQueue) maybeAdvanceEpoch(nextBatch *SingularBatch) {
 	if len(bq.l1Blocks) == 0 {
 		return
 	}
@@ -92,7 +97,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	if len(bq.nextSpan) > 0 {
 		// If there are cached singular batches, pop first one and return.
 		nextBatch := bq.popNextBatch(safeL2Head)
-		bq.advanceEpochMaybe(nextBatch)
+		bq.maybeAdvanceEpoch(nextBatch)
 		return nextBatch, nil
 	}
 
@@ -167,12 +172,13 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 			return nil, NewCriticalError(err)
 		}
 		bq.nextSpan = singularBatches
+		// span-batches are non-empty, so the below pop is safe.
 		nextBatch = bq.popNextBatch(safeL2Head)
 	default:
 		return nil, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", batch.GetBatchType()))
 	}
 
-	bq.advanceEpochMaybe(nextBatch)
+	bq.maybeAdvanceEpoch(nextBatch)
 	return nextBatch, nil
 }
 

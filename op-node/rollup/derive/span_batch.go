@@ -27,6 +27,8 @@ import (
 
 var ErrTooBigSpanBatchFieldSize = errors.New("batch would cause field bytes to go over limit")
 
+var ErrEmptySpanBatch = errors.New("span-batch must not be empty")
+
 type spanBatchPrefix struct {
 	relTimestamp  uint64 // Relative timestamp of the first block
 	l1OriginNum   uint64 // L1 origin number
@@ -139,9 +141,12 @@ func (bp *spanBatchPrefix) decodePrefix(r *bytes.Reader) error {
 // decodeBlockCount parses data into bp.blockCount
 func (bp *spanBatchPayload) decodeBlockCount(r *bytes.Reader) error {
 	blockCount, err := binary.ReadUvarint(r)
-	bp.blockCount = blockCount
 	if err != nil {
 		return fmt.Errorf("failed to read block count: %w", err)
+	}
+	bp.blockCount = blockCount
+	if blockCount == 0 {
+		return ErrEmptySpanBatch
 	}
 	return nil
 }
@@ -362,6 +367,9 @@ func (b *RawSpanBatch) encodeBytes() ([]byte, error) {
 // derive converts RawSpanBatch into SpanBatch, which has a list of spanBatchElement.
 // We need chain config constants to derive values for making payload attributes.
 func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.Int) (*SpanBatch, error) {
+	if b.blockCount == 0 {
+		return nil, ErrEmptySpanBatch
+	}
 	blockOriginNums := make([]uint64, b.blockCount)
 	l1OriginBlockNumber := b.l1OriginNum
 	for i := int(b.blockCount) - 1; i >= 0; i-- {
