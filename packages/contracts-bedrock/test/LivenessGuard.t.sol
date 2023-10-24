@@ -33,6 +33,13 @@ contract LivnessGuard_TestInit is Test, SafeTestTools {
     }
 }
 
+contract LivenessGuard_Getters_Test is LivnessGuard_TestInit {
+    function test_getters_works() external {
+        assertEq(address(livenessGuard.safe()), address(safeInstance.safe));
+        assertEq(livenessGuard.lastLive(address(0)), 0);
+    }
+}
+
 contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 

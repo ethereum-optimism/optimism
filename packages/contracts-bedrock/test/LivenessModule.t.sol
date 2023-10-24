@@ -19,21 +19,33 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
     LivenessModule livenessModule;
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
+    address fallbackOwner;
 
     function setUp() public {
         // Create a Safe with 10 owners
         (, uint256[] memory keys) = makeAddrsAndKeys(10);
         safeInstance = _setupSafe(keys, 8);
         livenessGuard = new LivenessGuard(safeInstance.safe);
+        fallbackOwner = makeAddr("fallbackOwner");
         livenessModule = new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
             _livenessInterval: 30 days,
             _minOwners: 6,
-            _fallbackOwner: makeAddr("fallbackOwner")
+            _fallbackOwner: fallbackOwner
         });
         safeInstance.enableModule(address(livenessModule));
         safeInstance.setGuard(address(livenessGuard));
+    }
+}
+
+contract LivenessModule_Getters_Test is LivnessModule_TestInit {
+    function test_getters_works() external {
+        assertEq(address(livenessModule.safe()), address(safeInstance.safe));
+        assertEq(address(livenessModule.livenessGuard()), address(livenessGuard));
+        assertEq(livenessModule.livenessInterval(), 30 days);
+        assertEq(livenessModule.minOwners(), 6);
+        assertEq(livenessModule.fallbackOwner(), fallbackOwner);
     }
 }
 

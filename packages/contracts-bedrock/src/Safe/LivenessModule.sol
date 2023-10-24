@@ -18,23 +18,23 @@ import { console2 as console } from "forge-std/console2.sol";
 ///         safe will be transferred to the fallback owner.
 contract LivenessModule is ISemver {
     /// @notice The Safe contract instance
-    Safe public immutable safe;
+    Safe internal immutable SAFE;
 
     /// @notice The LivenessGuard contract instance
     ///         This can be updated by replacing with a new module and switching out the guard.
-    LivenessGuard public immutable livenessGuard;
+    LivenessGuard internal immutable LIVENESS_GUARD;
 
     /// @notice The interval, in seconds, during which an owner must have demonstrated liveness
     ///         This can be updated by replacing with a new module.
-    uint256 public immutable livenessInterval;
+    uint256 internal immutable LIVENESS_INTERVAL;
 
     /// @notice The minimum number of owners before ownership of the safe is transferred to the fallback owner.
     ///         This can be updated by replacing with a new module.
-    uint256 public immutable minOwners;
+    uint256 internal immutable MIN_OWNERS;
 
     /// @notice The fallback owner of the Safe
     ///         This can be updated by replacing with a new module.
-    address public immutable fallbackOwner;
+    address internal immutable FALLBACK_OWNER;
 
     /// @notice The storage slot used in the safe to store the guard address
     ///         keccak256("guard_manager.guard.address")
@@ -55,11 +55,11 @@ contract LivenessModule is ISemver {
         uint256 _minOwners,
         address _fallbackOwner
     ) {
-        safe = _safe;
-        livenessGuard = _livenessGuard;
-        livenessInterval = _livenessInterval;
-        minOwners = _minOwners;
-        fallbackOwner = _fallbackOwner;
+        SAFE = _safe;
+        LIVENESS_GUARD = _livenessGuard;
+        LIVENESS_INTERVAL = _livenessInterval;
+        MIN_OWNERS = _minOwners;
+        FALLBACK_OWNER = _fallbackOwner;
     }
 
     /// @notice This function can be called by anyone to remove an owner that has not signed a transaction
@@ -71,12 +71,12 @@ contract LivenessModule is ISemver {
 
         // Check that the owner to remove has not signed a transaction in the last 30 days
         require(
-            livenessGuard.lastLive(owner) < block.timestamp - livenessInterval,
+            LIVENESS_GUARD.lastLive(owner) < block.timestamp - LIVENESS_INTERVAL,
             "LivenessModule: owner has signed recently"
         );
 
         // Calculate the new threshold
-        address[] memory owners = safe.getOwners();
+        address[] memory owners = SAFE.getOwners();
         uint256 numOwners = owners.length - 1;
         uint256 thresholdAfter;
         if (_isAboveMinOwners(numOwners)) {
@@ -109,11 +109,11 @@ contract LivenessModule is ISemver {
 
     /// @notice Sets the fallback owner as the sole owner of the Safe with a threshold of 1
     function _giveToFallbackOwner() internal {
-        safe.execTransactionFromModule({
-            to: address(safe),
+        SAFE.execTransactionFromModule({
+            to: address(SAFE),
             value: 0,
             operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (fallbackOwner, 1))
+            data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (FALLBACK_OWNER, 1))
         });
     }
 
@@ -122,8 +122,8 @@ contract LivenessModule is ISemver {
     /// @param _owner Owner address to be removed.
     /// @param _threshold New threshold.
     function _removeOwner(address _prevOwner, address _owner, uint256 _threshold) internal {
-        safe.execTransactionFromModule({
-            to: address(safe),
+        SAFE.execTransactionFromModule({
+            to: address(SAFE),
             value: 0,
             operation: Enum.Operation.Call,
             data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
@@ -132,16 +132,16 @@ contract LivenessModule is ISemver {
 
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
     function _verifyFinalState() internal view {
-        address[] memory owners = safe.getOwners();
+        address[] memory owners = SAFE.getOwners();
         uint256 numOwners = owners.length;
         require(
-            _isAboveMinOwners(numOwners) || (numOwners == 1 && owners[0] == fallbackOwner),
+            _isAboveMinOwners(numOwners) || (numOwners == 1 && owners[0] == FALLBACK_OWNER),
             "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
         );
 
         // Check that the threshold is correct. This check is also correct when there is a single
         // owner, because get75PercentThreshold(1) returns 1.
-        uint256 threshold = safe.getThreshold();
+        uint256 threshold = SAFE.getThreshold();
         require(
             threshold == get75PercentThreshold(numOwners),
             "LivenessModule: threshold must be 75% of the number of owners"
@@ -154,7 +154,7 @@ contract LivenessModule is ISemver {
     /// @notice Reverts if the guard address does not match the expected value.
     function _verifyGuard() internal view {
         require(
-            address(livenessGuard) == address(uint160(uint256(bytes32(safe.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
+            address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
             "LivenessModule: guard has been changed"
         );
     }
@@ -181,6 +181,36 @@ contract LivenessModule is ISemver {
     /// @param numOwners The number of owners.
     /// @return A boolean indicating if the number of owners is greater than or equal to the minimum number of owners.
     function _isAboveMinOwners(uint256 numOwners) internal view returns (bool) {
-        return numOwners >= minOwners;
+        return numOwners >= MIN_OWNERS;
+    }
+
+    /// @notice Getter function for the Safe contract instance
+    /// @return safe_ The Safe contract instance
+    function safe() public view returns (Safe safe_) {
+        safe_ = SAFE;
+    }
+
+    /// @notice Getter function for the LivenessGuard contract instance
+    /// @return livenessGuard_ The LivenessGuard contract instance
+    function livenessGuard() public view returns (LivenessGuard livenessGuard_) {
+        livenessGuard_ = LIVENESS_GUARD;
+    }
+
+    /// @notice Getter function for the liveness interval
+    /// @return livenessInterval_ The liveness interval, in seconds
+    function livenessInterval() public view returns (uint256 livenessInterval_) {
+        livenessInterval_ = LIVENESS_INTERVAL;
+    }
+
+    /// @notice Getter function for the minimum number of owners
+    /// @return minOwners_ The minimum number of owners
+    function minOwners() public view returns (uint256 minOwners_) {
+        minOwners_ = MIN_OWNERS;
+    }
+
+    /// @notice Getter function for the fallback owner
+    /// @return fallbackOwner_ The fallback owner of the Safe
+    function fallbackOwner() public view returns (address fallbackOwner_) {
+        fallbackOwner_ = FALLBACK_OWNER;
     }
 }

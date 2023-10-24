@@ -27,7 +27,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     string public constant version = "1.0.0";
 
     /// @notice The safe account for which this contract will be the guard.
-    Safe public immutable safe;
+    Safe internal immutable SAFE;
 
     /// @notice A mapping of the timestamp at which an owner last participated in signing a
     ///         an executed transaction, or called showLiveness.
@@ -41,7 +41,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     /// @notice Constructor.
     /// @param _safe The safe account for which this contract will be the guard.
     constructor(Safe _safe) {
-        safe = _safe;
+        SAFE = _safe;
     }
 
     /// @notice We use this post execution hook to compare the set of owners before and after.
@@ -50,7 +50,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     ///         2. Delete removed owners from the lastLive mapping
     function checkAfterExecution(bytes32, bool) external {
         // Get the current set of owners
-        address[] memory ownersAfter = safe.getOwners();
+        address[] memory ownersAfter = SAFE.getOwners();
 
         // Iterate over the current owners, and remove one at a time from the ownersBefore set.
         uint256 ownersAfterLength = ownersAfter.length;
@@ -88,11 +88,11 @@ contract LivenessGuard is ISemver, BaseGuard {
     )
         external
     {
-        require(msg.sender == address(safe), "LivenessGuard: only Safe can call this function");
+        require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
 
         // Cache the set of owners prior to execution.
         // This will be used in the checkAfterExecution method.
-        address[] memory owners = safe.getOwners();
+        address[] memory owners = SAFE.getOwners();
         for (uint256 i = 0; i < owners.length; i++) {
             ownersBefore.add(owners[i]);
         }
@@ -112,7 +112,7 @@ contract LivenessGuard is ISemver, BaseGuard {
             _nonce: Safe(payable(msg.sender)).nonce() - 1
         });
 
-        uint256 threshold = safe.getThreshold();
+        uint256 threshold = SAFE.getThreshold();
         address[] memory signers =
             SafeSigners.getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
 
@@ -125,11 +125,17 @@ contract LivenessGuard is ISemver, BaseGuard {
     /// @notice Enables an owner to demonstrate liveness by calling this method directly.
     ///         This is useful for owners who have not recently signed a transaction via the Safe.
     function showLiveness() external {
-        require(safe.isOwner(msg.sender), "LivenessGuard: only Safe owners may demontstrate liveness");
+        require(SAFE.isOwner(msg.sender), "LivenessGuard: only Safe owners may demontstrate liveness");
         lastLive[msg.sender] = block.timestamp;
         address[] memory signers = new address[](1);
         signers[0] = msg.sender;
 
         emit SignersRecorded(0x0, signers);
+    }
+
+    /// @notice Getter function for the Safe contract instance
+    /// @return safe_ The Safe contract instance
+    function safe() public view returns (Safe safe_) {
+        safe_ = SAFE;
     }
 }
