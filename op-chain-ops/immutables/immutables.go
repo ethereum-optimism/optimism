@@ -159,7 +159,11 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 // inserted into the state via state surgery.
 func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
 	log.Info("Creating L2 state")
-	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
+	backend, err := deployer.NewL2Backend()
+	if err != nil {
+		return nil, err
+	}
+	deployments, err := deployer.Deploy(backend, constructors, l2Deployer)
 	if err != nil {
 		return nil, err
 	}

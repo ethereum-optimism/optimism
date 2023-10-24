@@ -2,12 +2,16 @@ package genesis
 
 import (
 	"fmt"
+	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -51,27 +55,56 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 	}
 	for name, predeploy := range predeploys.Predeploys {
 		addr := *predeploy
-		if addr == predeploys.GovernanceTokenAddr && !config.EnableGovernance {
-			// there is no governance token configured, so skip the governance token predeploy
-			log.Warn("Governance is not enabled, skipping governance token predeploy.")
-			continue
-		}
+
 		codeAddr := addr
-		if predeploys.IsProxied(addr) {
-			codeAddr, err = AddressToCodeNamespace(addr)
+		switch name {
+		case "Safe_v130", "SafeL2", "MultiSendCallOnly", "Multicall3", "Create2Deployer", "SafeSingletonFactory", "DeterministicDeploymentProxy", "EntryPoint":
+			db.CreateAccount(addr)
+		case "MultiSend", "Permit2":
+			deployerAddress, err := bindings.GetDeployerAddress(name)
 			if err != nil {
-				return nil, fmt.Errorf("error converting to code namespace: %w", err)
+				return nil, err
 			}
-			db.CreateAccount(codeAddr)
-			db.SetState(addr, ImplementationSlot, eth.AddressAsLeftPaddedHash(codeAddr))
-			log.Info("Set proxy", "name", name, "address", addr, "implementation", codeAddr)
-		} else {
-			db.DeleteState(addr, AdminSlot)
+			deployerAddressPtr := common.BytesToAddress(deployerAddress)
+			predeploys := map[string]*common.Address{
+				"DeterministicDeploymentProxy": &deployerAddressPtr,
+			}
+			backend, err := deployer.NewL2BackendWithChainIDAndPredeploys(
+				new(big.Int).SetUint64(config.L2ChainID),
+				predeploys,
+			)
+			if err != nil {
+				return nil, err
+			}
+			deployedBin, err := deployer.DeployWithDeterministicDeployer(backend, name)
+			if err != nil {
+				return nil, err
+			}
+			deployResults[name] = deployedBin
+			db.CreateAccount(addr)
+		default:
+			if addr == predeploys.GovernanceTokenAddr && !config.EnableGovernance {
+				// there is no governance token configured, so skip the governance token predeploy
+				log.Warn("Governance is not enabled, skipping governance token predeploy.")
+				continue
+			}
+			if predeploys.IsProxied(addr) {
+				codeAddr, err = AddressToCodeNamespace(addr)
+				if err != nil {
+					return nil, fmt.Errorf("error converting to code namespace: %w", err)
+				}
+				db.CreateAccount(codeAddr)
+				db.SetState(addr, ImplementationSlot, eth.AddressAsLeftPaddedHash(codeAddr))
+				log.Info("Set proxy", "name", name, "address", addr, "implementation", codeAddr)
+			} else {
+				db.DeleteState(addr, AdminSlot)
+			}
 		}
+
 		if err := setupPredeploy(db, deployResults, storage, name, addr, codeAddr); err != nil {
 			return nil, err
 		}
-		code := db.GetCode(codeAddr)
+		code := db.GetCode(addr)
 		if len(code) == 0 {
 			return nil, fmt.Errorf("code not set for %s", name)
 		}

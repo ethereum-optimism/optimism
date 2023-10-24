@@ -3,8 +3,10 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"log"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -42,19 +44,28 @@ type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) 
 
 // NewL1Backend returns a SimulatedBackend suitable for L1. It has
 // the latest L1 hardforks enabled.
-func NewL1Backend() *backends.SimulatedBackend {
-	return NewBackendWithGenesisTimestamp(0, true)
+func NewL1Backend() (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, true, nil)
+	return backend, err
 }
 
 // NewL2Backend returns a SimulatedBackend suitable for L2.
 // It has the latest L2 hardforks enabled.
-func NewL2Backend() *backends.SimulatedBackend {
-	return NewBackendWithGenesisTimestamp(0, false)
+func NewL2Backend() (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(ChainID, 0, false, nil)
+	return backend, err
 }
 
-func NewBackendWithGenesisTimestamp(ts uint64, shanghai bool) *backends.SimulatedBackend {
+// NewL2BackendWithChainIDAndPredeploys returns a SimulatedBackend suitable for L2.
+// It has the latest L2 hardforks enabled, and allows for the configuration of the network's chain ID and predeploys.
+func NewL2BackendWithChainIDAndPredeploys(chainID *big.Int, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
+	backend, err := NewBackendWithGenesisTimestamp(chainID, 0, false, predeploys)
+	return backend, err
+}
+
+func NewBackendWithGenesisTimestamp(chainID *big.Int, ts uint64, shanghai bool, predeploys map[string]*common.Address) (*backends.SimulatedBackend, error) {
 	chainConfig := params.ChainConfig{
-		ChainID:             ChainID,
+		ChainID:             chainID,
 		HomesteadBlock:      big.NewInt(0),
 		DAOForkBlock:        nil,
 		DAOForkSupport:      false,
@@ -82,6 +93,21 @@ func NewBackendWithGenesisTimestamp(ts uint64, shanghai bool) *backends.Simulate
 		chainConfig.ShanghaiTime = u64ptr(0)
 	}
 
+	var alloc core.GenesisAlloc = core.GenesisAlloc{
+		crypto.PubkeyToAddress(TestKey.PublicKey): core.GenesisAccount{
+			Balance: thousandETH,
+		},
+	}
+	for name, address := range predeploys {
+		bytecode, err := bindings.GetDeployedBytecode(name)
+		if err != nil {
+			return nil, err
+		}
+		alloc[*address] = core.GenesisAccount{
+			Code: bytecode,
+		}
+	}
+
 	return backends.NewSimulatedBackendWithOpts(
 		backends.WithCacheConfig(&core.CacheConfig{
 			Preimages: true,
@@ -90,13 +116,11 @@ func NewBackendWithGenesisTimestamp(ts uint64, shanghai bool) *backends.Simulate
 			Config:     &chainConfig,
 			Timestamp:  ts,
 			Difficulty: big.NewInt(0),
-			Alloc: core.GenesisAlloc{
-				crypto.PubkeyToAddress(TestKey.PublicKey): {Balance: thousandETH},
-			},
-			GasLimit: 15000000,
+			Alloc:      alloc,
+			GasLimit:   30_000_000,
 		}),
 		backends.WithConsensus(beacon.New(ethash.NewFaker())),
-	)
+	), nil
 }
 
 func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb Deployer) ([]Deployment, error) {
@@ -107,7 +131,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 		return nil, err
 	}
 
-	opts.GasLimit = 15_000_000
+	opts.GasLimit = 30_000_000
 
 	ctx := context.Background()
 	for i, deployment := range constructors {
@@ -145,6 +169,95 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 	return results, nil
 }
 
+// DeployWithDeterministicDeployer deploys a smart contract on a simulated Ethereum blockchain using a deterministic deployment proxy (Arachnid's).
+//
+// Parameters:
+// - backend: A pointer to backends.SimulatedBackend, representing the simulated Ethereum blockchain.
+// Expected to have Arachnid's proxy deployer predeploys at 0x4e59b44847b379578588920cA78FbF26c0B4956C, NewL2BackendWithChainIDAndPredeploys handles this for you.
+// - contractName: A string representing the name of the contract to be deployed.
+//
+// Returns:
+// - []byte: The deployed bytecode of the contract.
+// - error: An error object indicating any issues encountered during the deployment process.
+//
+// The function logs a fatal error and exits if there are any issues with transaction mining, if the deployment fails,
+// or if the deployed bytecode is not found at the computed address.
+func DeployWithDeterministicDeployer(backend *backends.SimulatedBackend, contractName string) ([]byte, error) {
+	opts, err := bind.NewKeyedTransactorWithChainID(TestKey, backend.Blockchain().Config().ChainID)
+	if err != nil {
+		return nil, err
+	}
+
+	deployerAddress, err := bindings.GetDeployerAddress(contractName)
+	if err != nil {
+		return nil, err
+	}
+
+	deploymentSalt, err := bindings.GetDeploymentSalt(contractName)
+	if err != nil {
+		return nil, err
+	}
+
+	initBytecode, err := bindings.GetInitBytecode(contractName)
+	if err != nil {
+		return nil, err
+	}
+
+	transactor, err := bindings.NewDeterministicDeploymentProxyTransactor(common.BytesToAddress(deployerAddress), backend)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize deployment proxy transactor at %s: %w", deployerAddress, err)
+	}
+
+	tx, err := transactor.Fallback(opts, append(deploymentSalt, initBytecode...))
+	if err != nil {
+		return nil, err
+	}
+
+	backend.Commit()
+
+	receipt, err := bind.WaitMined(context.Background(), backend, tx)
+	if err != nil {
+		log.Fatalf("Failed to get transaction receipt: %v", err)
+	}
+	if receipt.Status == 0 {
+		log.Fatalf("Failed to deploy contract using proxy deployer")
+	}
+
+	address := create2Address(
+		deployerAddress,
+		deploymentSalt,
+		initBytecode,
+	)
+
+	code, _ := backend.CodeAt(context.Background(), address, nil)
+	if len(code) == 0 {
+		return nil, fmt.Errorf("no code found for %s at: %s", contractName, address)
+	}
+
+	return code, nil
+}
+
 func u64ptr(n uint64) *uint64 {
 	return &n
+}
+
+// create2Address computes the Ethereum address for a contract created using the CREATE2 opcode.
+//
+// The CREATE2 opcode allows for more deterministic address generation in Ethereum, as it computes the
+// address based on the creator's address, a salt value, and the contract's initialization code.
+//
+// Parameters:
+// - creatorAddress: A byte slice representing the address of the account creating the contract.
+// - salt: A byte slice representing the salt used in the address generation process. This can be any 32-byte value.
+// - initCode: A byte slice representing the contract's initialization bytecode.
+//
+// Returns:
+// - common.Address: The Ethereum address calculated using the CREATE2 opcode logic.
+func create2Address(creatorAddress, salt, initCode []byte) common.Address {
+	payload := append([]byte{0xff}, creatorAddress...)
+	payload = append(payload, salt...)
+	initCodeHash := crypto.Keccak256(initCode)
+	payload = append(payload, initCodeHash...)
+
+	return common.BytesToAddress(crypto.Keccak256(payload)[12:])
 }

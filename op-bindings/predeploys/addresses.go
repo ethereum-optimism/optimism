@@ -25,6 +25,16 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+	Safe_v130                     = "0x69f4D1788e39c87893C980c06EdF4b7f686e2938"
+	SafeL2                        = "0xfb1bffC9d739B8D520DaF37dF666da4C687191EA"
+	MultiSend                     = "0x998739BFdAAdde7C933B942a68053933098f9EDa"
+	MultiSendCallOnly             = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
+	Multicall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
+	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+	Permit2                       = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+	EntryPoint                    = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
+	SafeSingletonFactory          = "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7"
+	DeterministicDeploymentProxy  = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
 )
 
 var (
@@ -47,6 +57,16 @@ var (
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
+	Safe_v130Addr                     = common.HexToAddress(Safe_v130)
+	SafeL2Addr                        = common.HexToAddress(SafeL2)
+	MultiSendAddr                     = common.HexToAddress(MultiSend)
+	MultiSendCallOnlyAddr             = common.HexToAddress(MultiSendCallOnly)
+	Multicall3Addr                    = common.HexToAddress(Multicall3)
+	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
+	Permit2Addr                       = common.HexToAddress(Permit2)
+	EntryPointAddr                    = common.HexToAddress(EntryPoint)
+	SafeSingletonFactoryAddr          = common.HexToAddress(SafeSingletonFactory)
+	DeterministicDeploymentProxyAddr  = common.HexToAddress(DeterministicDeploymentProxy)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -56,6 +76,16 @@ func IsProxied(predeployAddr common.Address) bool {
 	switch predeployAddr {
 	case WETH9Addr:
 	case GovernanceTokenAddr:
+	case Safe_v130Addr:
+	case SafeL2Addr:
+	case MultiSendAddr:
+	case MultiSendCallOnlyAddr:
+	case Multicall3Addr:
+	case Create2DeployerAddr:
+	case Permit2Addr:
+	case EntryPointAddr:
+	case SafeSingletonFactoryAddr:
+	case DeterministicDeploymentProxyAddr:
 	default:
 		return true
 	}
@@ -82,4 +112,15 @@ func init() {
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
 	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
 	Predeploys["EAS"] = &EASAddr
+
+	Predeploys["Safe_v130"] = &Safe_v130Addr
+	Predeploys["SafeL2"] = &SafeL2Addr
+	Predeploys["MultiSend"] = &MultiSendAddr
+	Predeploys["MultiSendCallOnly"] = &MultiSendCallOnlyAddr
+	Predeploys["Multicall3"] = &Multicall3Addr
+	Predeploys["Create2Deployer"] = &Create2DeployerAddr
+	Predeploys["Permit2"] = &Permit2Addr
+	Predeploys["EntryPoint"] = &EntryPointAddr
+	Predeploys["SafeSingletonFactory"] = &SafeSingletonFactoryAddr
+	Predeploys["DeterministicDeploymentProxy"] = &DeterministicDeploymentProxyAddr
 }
