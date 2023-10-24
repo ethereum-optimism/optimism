@@ -7,9 +7,6 @@ import { OwnerManager } from "safe-contracts/base/OwnerManager.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-// TODO(maurelian): remove me
-import { console2 as console } from "forge-std/console2.sol";
-
 /// @title LivenessModule
 /// @notice This module is intended to be used in conjunction with the LivenessGuard. In the event
 ///         that an owner of the safe is not recorded by the guard during the liveness interval,
