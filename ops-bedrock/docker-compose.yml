@@ -18,7 +18,7 @@ services:
       args:
         GIT_COMMIT: "dev"
         GIT_DATE: "0"
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op_stack_go:devnet
     entrypoint: ["echo", "build complete"]
 
   l1:
@@ -79,7 +79,9 @@ services:
       context: ../
       dockerfile: ./op-node/Dockerfile
       args:
-        - OP_STACK_GO_BUILDER=us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op_stack_go:devnet
+        - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+        - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
+        - OP_STACK_GO_BUILDER_TAG=devnet
     image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-node:devnet
     command: >
       op-node
@@ -127,8 +129,10 @@ services:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
       args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
+        - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+        - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
+        - OP_STACK_GO_BUILDER_TAG=devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-proposer:devnet
     ports:
       - "6062:6060"
       - "7302:7300"
@@ -164,8 +168,10 @@ services:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
       args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
+        - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+        - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
+        - OP_STACK_GO_BUILDER_TAG=devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-batcher:devnet
     ports:
       - "6061:6060"
       - "7301:7300"

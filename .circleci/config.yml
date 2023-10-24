@@ -173,7 +173,7 @@ jobs:
       repo:
         description: Docker repo
         type: string
-        default: "${GCP_ARTIFACT_REPOSITORY}/images"
+        default: "${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
       build_args:
         description: Docker build args
         type: string
@@ -218,6 +218,7 @@ jobs:
             if [[ -v DOCKER_HUB_READ_ONLY_TOKEN ]]; then
               echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
             fi
+            IMAGE_BASE_PREFIX="<<parameters.registry>>/<<parameters.repo>>"
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker build --progress plain \
@@ -1224,6 +1225,37 @@ jobs:
           name: Install and build
           command: |
             pnpm install --frozen-lockfile --prefer-offline && pnpm build
+      - attach_workspace:
+          at: /tmp/workspace
+      - run:
+          name: Load cannon pre-state
+          command: |
+            mkdir -p op-program/bin
+            cp /tmp/workspace/op-program/bin/prestate.json op-program/bin/prestate.json
+            cp /tmp/workspace/op-program/bin/meta.json op-program/bin/meta.json
+            cp /tmp/workspace/op-program/bin/prestate-proof.json op-program/bin/prestate-proof.json
+      - run:
+          name: Load devnet-allocs
+          command: |
+            mkdir -p .devnet
+            cp /tmp/workspace/.devnet/allocs-l1.json .devnet/allocs-l1.json
+            cp /tmp/workspace/.devnet/addresses.json .devnet/addresses.json
+            cp /tmp/workspace/packages/contracts-bedrock/deploy-config/devnetL1.json packages/contracts-bedrock/deploy-config/devnetL1.json
+            cp -r /tmp/workspace/packages/contracts-bedrock/deployments/devnetL1 packages/contracts-bedrock/deployments/devnetL1
+      - run:
+          name: Load and tag docker images
+          command: |
+            IMAGE_BASE_PREFIX="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
+            # Load from previous docker-build job
+            docker load < "/tmp/workspace/op_stack_go.tar"
+            docker load < "/tmp/workspace/op-node.tar"
+            docker load < "/tmp/workspace/op-proposer.tar"
+            docker load < "/tmp/workspace/op-batcher.tar"
+            # rename to the tags that the docker-compose of the devnet expects
+            docker tag "$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op_stack_go:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
       - run:
           name: Bring up the stack
           command: make devnet-hardhat-up

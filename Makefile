@@ -3,7 +3,13 @@ ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
 # Requires at least Python v3.9; specify a minor version below if needed
 PYTHON=python3
-OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:latest
+GCP_PROJECT_ID?=local
+GCP_ARTIFACT_REPOSITORY?=local
+OP_STACK_GO_BUILDER?=us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op_stack_go:latest
+
+export GCP_PROJECT_ID
+export GCP_ARTIFACT_REPOSITORY
+export OP_STACK_GO_BUILDER
 
 build: build-go build-ts
 .PHONY: build
