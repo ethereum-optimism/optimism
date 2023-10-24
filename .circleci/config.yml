@@ -358,6 +358,35 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
+  contracts-bedrock-build:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
+    steps:
+      - checkout
+      - check-changed:
+          patterns: contracts-bedrock,op-node
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - restore_cache:
+          name: Restore Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
+      - run:
+          name: Build contracts
+          command: pnpm build
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
+      - save_cache:
+          name: Save Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
+          paths:
+            - "packages/contracts-bedrock/forge-artifacts"
+            - "packages/contracts-bedrock/scripts/go-ffi/go-ffi"
+
   contracts-bedrock-coverage:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -370,6 +399,9 @@ jobs:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      - restore_cache:
+          name: Restore Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
       - run:
           name: test and generate coverage
           command: pnpm coverage:lcov || true
@@ -395,6 +427,9 @@ jobs:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      - restore_cache:
+          name: Restore Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
       - run:
           name: run tests
           command: pnpm test
@@ -419,6 +454,9 @@ jobs:
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile --prefer-offline
+      - restore_cache:
+          name: Restore Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
       - run:
           name: build contracts
           command: pnpm build
@@ -519,6 +557,9 @@ jobs:
           command: pnpm install --frozen-lockfile --prefer-offline
       - check-changed:
           patterns: contracts-bedrock
+      - restore_cache:
+          name: Restore Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
       - run:
           name: validate spacers
           command: pnpm validate-spacers
@@ -1012,6 +1053,9 @@ jobs:
           key: gomod-{{ checksum "go.sum" }}
       - restore_cache:
           key: golang-build-cache
+      - restore_cache:
+          name: Restore Forge Artifacts Cache
+          key: ctb-artifacts-cache-{{ checksum "packages/contracts-bedrock/semver-lock.json" }}
       - run:
           name: git submodules
           command: git submodule update --init --recursive
@@ -1311,15 +1355,22 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-tests
-      - contracts-bedrock-coverage
+      - contracts-bedrock-build
+      - contracts-bedrock-tests:
+          requires:
+            - contracts-bedrock-build
+      - contracts-bedrock-coverage:
+          requires:
+            - contracts-bedrock-build
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
+            - contracts-bedrock-build
       - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
+            - contracts-bedrock-build
       - op-bindings-build
       - js-lint-test:
           name: chain-mon-tests
@@ -1366,6 +1417,7 @@ workflows:
           requires:
             - "go-mod-tidy"
             - l1-geth-version-check
+            - contracts-bedrock-build
       - bedrock-markdown
       - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
           name: op-stack-go-lint
