@@ -60,10 +60,11 @@ contract LivenessGuard is ISemver, BaseGuard {
         address gasToken,
         address payable refundReceiver,
         bytes memory signatures,
-        address
+        address msgSender
     )
         external
     {
+        msgSender; // silence unused variable warning
         require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
 
         // Cache the set of owners prior to execution.
@@ -105,6 +106,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     ///      1. Add new owners to the lastLive mapping
     ///      2. Delete removed owners from the lastLive mapping
     function checkAfterExecution(bytes32, bool) external {
+        require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
 
         // Get the current set of owners
         address[] memory ownersAfter = SAFE.getOwners();

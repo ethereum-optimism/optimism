@@ -40,6 +40,25 @@ contract LivenessGuard_Getters_Test is LivnessGuard_TestInit {
     }
 }
 
+contract LivnessGuard_CheckTx_TestFails is LivnessGuard_TestInit {
+    function test_checkTransaction_callerIsNotSafe_revert() external {
+        vm.expectRevert("LivenessGuard: only Safe can call this function");
+        livenessGuard.checkTransaction({
+            to: address(0),
+            value: 0,
+            data: hex"00",
+            operation: Enum.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: hex"00",
+            msgSender: address(0)
+        });
+    }
+}
+
 contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
@@ -62,6 +81,15 @@ contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
         }
     }
 }
+
+contract LivnessGuard_CheckAfterExecution_TestFails is LivnessGuard_TestInit {
+    function test_checkAfterExecution_callerIsNotSafe_revert() external {
+        vm.expectRevert("LivenessGuard: only Safe can call this function");
+        livenessGuard.checkAfterExecution(bytes32(0), false);
+    }
+}
+
+contract LivnessGuard_CheckAfterExecution_Test is LivnessGuard_TestInit { }
 
 contract LivenessGuard_ShowLiveness_Test is LivnessGuard_TestInit {
     function test_showLiveness_succeeds() external {
