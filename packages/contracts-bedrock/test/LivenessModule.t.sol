@@ -11,7 +11,7 @@ import "test/safe-tools/SafeTestTools.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 
-contract LivnessModule_TestInit is Test, SafeTestTools {
+contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
@@ -39,7 +39,7 @@ contract LivnessModule_TestInit is Test, SafeTestTools {
     }
 }
 
-contract LivenessModule_Getters_Test is LivnessModule_TestInit {
+contract LivenessModule_Getters_Test is LivenessModule_TestInit {
     function test_getters_works() external {
         assertEq(address(livenessModule.safe()), address(safeInstance.safe));
         assertEq(address(livenessModule.livenessGuard()), address(livenessGuard));
@@ -49,7 +49,7 @@ contract LivenessModule_Getters_Test is LivnessModule_TestInit {
     }
 }
 
-contract LivenessModule_Get75PercentThreshold_Test is LivnessModule_TestInit {
+contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
     /// @dev check the return values of the get75PercentThreshold function against manually
     ///      calculated values.
     function test_get75PercentThreshold_Works() external {
@@ -76,7 +76,7 @@ contract LivenessModule_Get75PercentThreshold_Test is LivnessModule_TestInit {
     }
 }
 
-contract LivenessModule_RemoveOwner_Test is LivnessModule_TestInit {
+contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
     function test_removeOwner_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;
         vm.warp(block.timestamp + 30 days);

@@ -18,7 +18,7 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 //   - Signers may call directly to prove liveness (must be an owner).
 //   - Unexpected length of signature data
 
-contract LivnessGuard_TestInit is Test, SafeTestTools {
+contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
@@ -33,14 +33,14 @@ contract LivnessGuard_TestInit is Test, SafeTestTools {
     }
 }
 
-contract LivenessGuard_Getters_Test is LivnessGuard_TestInit {
+contract LivenessGuard_Getters_Test is LivenessGuard_TestInit {
     function test_getters_works() external {
         assertEq(address(livenessGuard.safe()), address(safeInstance.safe));
         assertEq(livenessGuard.lastLive(address(0)), 0);
     }
 }
 
-contract LivnessGuard_CheckTx_TestFails is LivnessGuard_TestInit {
+contract LivenessGuard_CheckTx_TestFails is LivenessGuard_TestInit {
     function test_checkTransaction_callerIsNotSafe_revert() external {
         vm.expectRevert("LivenessGuard: only Safe can call this function");
         livenessGuard.checkTransaction({
@@ -59,7 +59,7 @@ contract LivnessGuard_CheckTx_TestFails is LivnessGuard_TestInit {
     }
 }
 
-contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
+contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
     function test_checkTransaction_succeeds() external {
@@ -82,16 +82,16 @@ contract LivnessGuard_CheckTx_Test is LivnessGuard_TestInit {
     }
 }
 
-contract LivnessGuard_CheckAfterExecution_TestFails is LivnessGuard_TestInit {
+contract LivenessGuard_CheckAfterExecution_TestFails is LivenessGuard_TestInit {
     function test_checkAfterExecution_callerIsNotSafe_revert() external {
         vm.expectRevert("LivenessGuard: only Safe can call this function");
         livenessGuard.checkAfterExecution(bytes32(0), false);
     }
 }
 
-contract LivnessGuard_CheckAfterExecution_Test is LivnessGuard_TestInit { }
+contract LivenessGuard_CheckAfterExecution_Test is LivenessGuard_TestInit { }
 
-contract LivenessGuard_ShowLiveness_Test is LivnessGuard_TestInit {
+contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
     function test_showLiveness_succeeds() external {
         // Cache the caller
         address caller = safeInstance.owners[0];
