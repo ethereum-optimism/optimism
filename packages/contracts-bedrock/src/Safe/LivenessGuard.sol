@@ -9,6 +9,12 @@ import { Enum } from "safe-contracts/common/Enum.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+/// @title LivenessGuard
+/// @notice This Guard contract is used to track the liveness of Safe owners.
+/// @dev It keeps track of the last time each owner participated in signing a transaction.
+///      If an owner does not participate in a transaction for a certain period of time, they are considered inactive.
+///      This Guard is intended to be used in conjunction with the LivenessModule contract, but does
+///      not depend on it.
 contract LivenessGuard is ISemver, BaseGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -24,11 +30,11 @@ contract LivenessGuard is ISemver, BaseGuard {
     Safe public immutable safe;
 
     /// @notice A mapping of the timestamp at which an owner last participated in signing a
-    ///         an executed transaction.
+    ///         an executed transaction, or called showLiveness.
     mapping(address => uint256) public lastLive;
 
     /// @notice An enumerable set of addresses used to store the list of owners before execution,
-    ///         and then to update the lastSigned mapping according to changes in the set observed
+    ///         and then to update the lastLive mapping according to changes in the set observed
     ///         after execution.
     EnumerableSet.AddressSet private ownersBefore;
 
@@ -40,8 +46,8 @@ contract LivenessGuard is ISemver, BaseGuard {
 
     /// @notice We use this post execution hook to compare the set of owners before and after.
     ///         If the set of owners has changed then we:
-    ///         1. Add new owners to the lastSigned mapping
-    ///         2. Delete removed owners from the lastSigned mapping
+    ///         1. Add new owners to the lastLive mapping
+    ///         2. Delete removed owners from the lastLive mapping
     function checkAfterExecution(bytes32, bool) external {
         // Get the current set of owners
         address[] memory ownersAfter = safe.getOwners();
@@ -52,12 +58,12 @@ contract LivenessGuard is ISemver, BaseGuard {
             // If the value was present, remove() returns true.
             address ownerAfter = ownersAfter[i];
             if (ownersBefore.remove(ownerAfter) == false) {
-                // This address was not already an owner, add it to the lastSigned mapping
+                // This address was not already an owner, add it to the lastLive mapping
                 lastLive[ownerAfter] = block.timestamp;
             }
         }
         // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
-        // delete them from the lastSigned mapping.
+        // delete them from the lastLive mapping.
         for (uint256 j = 0; j < ownersBefore.length(); j++) {
             address ownerBefore = ownersBefore.at(j);
             delete lastLive[ownerBefore];
