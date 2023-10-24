@@ -1,9 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
@@ -26,7 +26,7 @@ func main() {
 
 	app := cli.NewApp()
 	app.Flags = cliapp.ProtectFlags(flags.Flags)
-	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
+	app.Version = opservice.FormatVersion(Version, GitCommit, GitDate, "")
 	app.Name = "op-batcher"
 	app.Usage = "Batch Submitter Service"
 	app.Description = "Service for generating and submitting L2 tx batches to L1"
