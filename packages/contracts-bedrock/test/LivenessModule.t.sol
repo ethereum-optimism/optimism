@@ -86,9 +86,17 @@ contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
 
     function test_removeOwner_allOwners_succeeds() external {
         vm.warp(block.timestamp + 30 days);
-        // The safe is initialized with 10 owners, so we need to remove 3 to get below the minOwners threshold
-        livenessModule.removeOwner(safeInstance.owners[0]);
-        livenessModule.removeOwner(safeInstance.owners[1]);
-        livenessModule.removeOwner(safeInstance.owners[2]);
+        uint256 numOwners = safeInstance.owners.length;
+        uint256 minOwners = livenessModule.minOwners();
+
+        // Remove enough owners to trigger the transfer to the fallbackOwner
+        uint256 numToRemove = numOwners - minOwners + 1;
+
+        for (uint256 i = 0; i < numToRemove; i++) {
+            livenessModule.removeOwner(safeInstance.owners[i]);
+        }
+        assertEq(safeInstance.safe.getOwners().length, 1);
+        assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
+        assertEq(safeInstance.safe.getThreshold(), 1);
     }
 }

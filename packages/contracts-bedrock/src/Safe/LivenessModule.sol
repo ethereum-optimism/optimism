@@ -88,29 +88,32 @@ contract LivenessModule is ISemver {
             // Remove owners one at a time starting from the last owner.
             // Since we're removing them in order from last to first, the ordering will remain constant,
             // and we shouldn't need to query the list of owners again.
-            for (uint256 i = owners.length - 1; i >= 0; i--) {
+            address prevOwner;
+            for (uint256 i = owners.length - 1; i > 0; i--) {
                 address currentOwner = owners[i];
-                address prevOwner = _getPrevOwner(currentOwner, owners);
-                if (currentOwner != address(this)) {
-                    // Call the Safe to remove the owner
-                    _removeOwner({ _prevOwner: prevOwner, _owner: currentOwner, _threshold: 1 });
-                }
+                prevOwner = _getPrevOwner(currentOwner, owners);
+
+                // Call the Safe to remove the owner
+                _removeOwner({ _prevOwner: prevOwner, _owner: currentOwner, _threshold: 1 });
             }
 
+            prevOwner = _getPrevOwner(owners[0], owners);
             // Add the fallback owner as the sole owner of the Safe
-            _giveToFallbackOwner();
+            _swapToFallbackOwner({ _prevOwner: prevOwner, _oldOwner: owners[0] });
         }
 
         _verifyFinalState();
     }
 
     /// @notice Sets the fallback owner as the sole owner of the Safe with a threshold of 1
-    function _giveToFallbackOwner() internal {
+    /// @param _prevOwner Owner that pointed to the owner to be replaced in the linked list
+    /// @param _oldOwner Owner address to be replaced.
+    function _swapToFallbackOwner(address _prevOwner, address _oldOwner) internal {
         SAFE.execTransactionFromModule({
             to: address(SAFE),
             value: 0,
             operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.addOwnerWithThreshold, (FALLBACK_OWNER, 1))
+            data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
         });
     }
 
@@ -157,14 +160,16 @@ contract LivenessModule is ISemver {
     }
 
     /// @notice Get the previous owner in the linked list of owners
-    function _getPrevOwner(address owner, address[] memory owners) internal pure returns (address prevOwner_) {
-        for (uint256 i = 0; i < owners.length; i++) {
-            if (owners[i] != owner) continue;
+    /// @param _owner The owner whose previous owner we want to find
+    /// @param _owners The list of owners
+    function _getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
+        for (uint256 i = 0; i < _owners.length; i++) {
+            if (_owners[i] != _owner) continue;
             if (i == 0) {
                 prevOwner_ = SENTINEL_OWNERS;
                 break;
             }
-            prevOwner_ = owners[i - 1];
+            prevOwner_ = _owners[i - 1];
         }
     }
 
