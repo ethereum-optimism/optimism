@@ -150,6 +150,27 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "SchemaRegistry",
 		},
+		{
+			Name: "SafeL2",
+		},
+		{
+			Name: "MultiSend",
+		},
+		{
+			Name: "MultiSendCallOnly",
+		},
+		{
+			Name: "Multicall3",
+		},
+		{
+			Name: "Create2Deployer",
+		},
+		{
+			Name: "Permit2",
+		},
+		{
+			Name: "EntryPoint",
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -245,6 +266,20 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "SafeL2":
+		_, tx, _, err = bindings.DeploySafeL2(opts, backend)
+	case "MultiSend":
+		_, tx, _, err = bindings.DeployMultiSend(opts, backend)
+	case "MultiSendCallOnly":
+		_, tx, _, err = bindings.DeployMultiSendCallOnly(opts, backend)
+	case "Multicall3":
+		_, tx, _, err = bindings.DeployMulticall3(opts, backend)
+	case "Create2Deployer":
+		_, tx, _, err = bindings.DeployCreate2Deployer(opts, backend)
+	case "Permit2":
+		_, tx, _, err = bindings.DeployPermit2(opts, backend)
+	case "EntryPoint":
+		_, tx, _, err = bindings.DeployEntryPoint(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

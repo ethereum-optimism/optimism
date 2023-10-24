@@ -264,6 +264,41 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			if err := checkEAS(p, client); err != nil {
 				return err
 			}
+
+		case predeploys.SafeL2Addr:
+			if err := checkPredeployBytecode(p, "SafeL2", client, []byte(bindings.SafeL2ABI)); err != nil {
+				return err
+			}
+
+		case predeploys.MultiSendAddr:
+			if err := checkPredeployBytecode(p, "MultiSend", client, []byte(bindings.MultiSendABI)); err != nil {
+				return err
+			}
+
+		case predeploys.MultiSendCallOnlyAddr:
+			if err := checkPredeployBytecode(p, "MultiSendCallOnly", client, []byte(bindings.MultiSendCallOnlyABI)); err != nil {
+				return err
+			}
+
+		case predeploys.Multicall3Addr:
+			if err := checkPredeployBytecode(p, "Multicall3", client, []byte(bindings.Multicall3ABI)); err != nil {
+				return err
+			}
+
+		case predeploys.Create2DeployerAddr:
+			if err := checkPredeployBytecode(p, "Create2Deployer", client, []byte(bindings.Create2DeployerABI)); err != nil {
+				return err
+			}
+
+		case predeploys.Permit2Addr:
+			if err := checkPredeployBytecode(p, "Permit2", client, []byte(bindings.Permit2ABI)); err != nil {
+				return err
+			}
+
+		case predeploys.EntryPointAddr:
+			if err := checkPredeployBytecode(p, "EntryPoint", client, []byte(bindings.EntryPointABI)); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -844,6 +879,17 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 		return err
 	}
 	log.Info("EAS version", "version", version)
+	return nil
+}
+
+func checkPredeployBytecode(addr common.Address, name string, client *ethclient.Client, expectedBytecode []byte) error {
+	code, err := client.CodeAt(context.Background(), addr, nil)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(code, expectedBytecode) {
+		return fmt.Errorf("Deployed bytecode at %s, doesn't match expected for %s", addr, name)
+	}
 	return nil
 }
 

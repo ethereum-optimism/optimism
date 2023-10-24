@@ -65,6 +65,13 @@ func TestBuildOptimism(t *testing.T) {
 		"LegacyERC20ETH":                true,
 		"EAS":                           true,
 		"SchemaRegistry":                true,
+		"SafeL2":                        true,
+		"MultiSend":                     true,
+		"MultiSendCallOnly":             true,
+		"Multicall3":                    true,
+		"Create2Deployer":               true,
+		"Permit2":                       true,
+		"EntryPoint":                    true,
 	}
 
 	// Only the exact contracts that we care about are being

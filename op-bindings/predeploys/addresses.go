@@ -25,6 +25,14 @@ const (
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
+
+	SafeL2                        = "0xfb1bffC9d739B8D520DaF37dF666da4C687191EA"
+	MultiSend                     = "0x998739BFdAAdde7C933B942a68053933098f9EDa"
+	MultiSendCallOnly             = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
+	Multicall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
+	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+	Permit2                       = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+	EntryPoint                    = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
 )
 
 var (
@@ -47,6 +55,14 @@ var (
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
+
+	SafeL2Addr                        = common.HexToAddress(SafeL2)
+	MultiSendAddr                     = common.HexToAddress(MultiSend)
+	MultiSendCallOnlyAddr             = common.HexToAddress(MultiSendCallOnly)
+	Multicall3Addr                    = common.HexToAddress(Multicall3)
+	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
+	Permit2Addr                       = common.HexToAddress(Permit2)
+	EntryPointAddr                    = common.HexToAddress(EntryPoint)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -82,4 +98,12 @@ func init() {
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
 	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
 	Predeploys["EAS"] = &EASAddr
+
+	Predeploys["SafeL2"] = &SafeL2Addr
+	Predeploys["MultiSend"] = &MultiSendAddr
+	Predeploys["MultiSendCallOnly"] = &MultiSendCallOnlyAddr
+	Predeploys["Multicall3"] = &Multicall3Addr
+	Predeploys["Create2Deployer"] = &Create2DeployerAddr
+	Predeploys["Permit2"] = &Permit2Addr
+	Predeploys["EntryPoint"] = &EntryPointAddr
 }
