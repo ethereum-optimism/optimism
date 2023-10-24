@@ -94,7 +94,7 @@ Where:
   - `l1_origin_check`: the block hash of the last L1 origin is referenced.
     The hash is truncated to 20 bytes for efficiency, i.e. `span_end.l1_origin.hash[:20]`.
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs`:
-  - `block_count`: `uvarint` number of L2 blocks.
+  - `block_count`: `uvarint` number of L2 blocks. This is at least 1, empty span batches are invalid.
   - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
@@ -130,6 +130,7 @@ Where:
 - `prefix = rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check`:
   - Identical to `batch_version` 1
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs ++ fee_recipients`:
+  - An empty span-batch, i.e. with `block_count == 0`, is invalid and must not be processed.
   - Every field definition identical to `batch_version` 1 except that `fee_recipients` is
     added to support more decentralized sequencing.
   - `fee_recipients = fee_recipients_idxs + fee_recipients_set`
