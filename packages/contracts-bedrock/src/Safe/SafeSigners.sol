@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
-library GetSigners {
+library SafeSigners {
     /// @notice Splits signature bytes into `uint8 v, bytes32 r, bytes32 s`.
     ///         Copied directly from
     /// https://github.com/safe-global/safe-contracts/blob/e870f514ad34cd9654c72174d6d4a839e3c6639f/contracts/common/SignatureDecoder.sol
@@ -41,6 +41,7 @@ library GetSigners {
     /// @param dataHash Hash of the data.
     /// @param signatures Signature data for identifying signers.
     /// @param requiredSignatures Amount of required valid signatures.
+    /// @return _owners List of unique signers.
     function getNSigners(
         bytes32 dataHash,
         bytes memory signatures,

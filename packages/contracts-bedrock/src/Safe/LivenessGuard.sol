@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Safe } from "safe-contracts/Safe.sol";
 import { BaseGuard, GuardManager } from "safe-contracts/base/GuardManager.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
-import { GetSigners } from "src/Safe/GetSigners.sol";
+import { SafeSigners } from "src/Safe/SafeSigners.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -110,7 +110,7 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         uint256 threshold = safe.getThreshold();
         address[] memory signers =
-            GetSigners.getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
+            SafeSigners.getNSigners({ dataHash: txHash, signatures: signatures, requiredSignatures: threshold });
 
         for (uint256 i = 0; i < signers.length; i++) {
             lastLive[signers[i]] = block.timestamp;
