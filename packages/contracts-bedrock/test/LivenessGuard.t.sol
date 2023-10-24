@@ -21,7 +21,7 @@ import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    event SignerRecorded(bytes32 indexed txHash, address signer);
+    event OwnerRecorded(bytes32 indexed txHash, address signer);
 
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
@@ -72,7 +72,7 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
         for (uint256 i; i < signers.length; i++) {
             // Don't check topic1 so that we can avoid the ugly txHash calculation.
             vm.expectEmit(false, true, true, true, address(livenessGuard));
-            emit SignerRecorded(0x0, signers[i]);
+            emit OwnerRecorded(0x0, signers[i]);
         }
         vm.expectCall(address(safeInstance.safe), abi.encodeWithSignature("nonce()"));
         vm.expectCall(address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()));
@@ -99,7 +99,7 @@ contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
         address caller = safeInstance.owners[0];
 
         vm.expectEmit(address(livenessGuard));
-        emit SignerRecorded(0x0, caller);
+        emit OwnerRecorded(0x0, caller);
 
         vm.prank(caller);
         livenessGuard.showLiveness();

@@ -21,9 +21,9 @@ import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableS
 contract LivenessGuard is ISemver, BaseGuard {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @notice Emitted when a signer is recorded.
-    /// @param signer The signer's address.
-    event SignerRecorded(bytes32 indexed txHash, address signer);
+    /// @notice Emitted when an owner is recorded.
+    /// @param owner The owner's address.
+    event OwnerRecorded(bytes32 indexed txHash, address owner);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -95,7 +95,7 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         for (uint256 i = 0; i < signers.length; i++) {
             lastLive[signers[i]] = block.timestamp;
-            emit SignerRecorded(txHash, signers[i]);
+            emit OwnerRecorded(txHash, signers[i]);
         }
     }
 
@@ -135,7 +135,7 @@ contract LivenessGuard is ISemver, BaseGuard {
         require(SAFE.isOwner(msg.sender), "LivenessGuard: only Safe owners may demontstrate liveness");
         lastLive[msg.sender] = block.timestamp;
 
-        emit SignerRecorded(0x0, msg.sender);
+        emit OwnerRecorded(0x0, msg.sender);
     }
 
     /// @notice Getter function for the Safe contract instance

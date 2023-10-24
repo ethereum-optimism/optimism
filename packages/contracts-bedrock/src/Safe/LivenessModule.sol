@@ -147,11 +147,11 @@ contract LivenessModule is ISemver {
         );
 
         // Check that the guard has not been changed.
-        _verifyGuard();
+        _requireCorrectGuard();
     }
 
     /// @notice Reverts if the guard address does not match the expected value.
-    function _verifyGuard() internal view {
+    function _requireCorrectGuard() internal view {
         require(
             address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
             "LivenessModule: guard has been changed"
