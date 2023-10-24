@@ -8,7 +8,8 @@ import "safe-contracts/interfaces/IERC165.sol";
 import "safe-contracts/interfaces/ISignatureValidator.sol";
 import { Safe as GnosisSafe } from "safe-contracts/Safe.sol";
 
-/// @dev NOTE: removed VERSION and NAME due to inheritance conflicts
+/// @author: Colin Nielsen
+///      https://github.com/colinnielsen/safe-tools/blob/ce6c654a76d91b619ab7778c77d1a76b3ced6666/src/CompatibilityFallbackHandler_1_3_0.sol
 contract DefaultCallbackHandler is ERC1155TokenReceiver, ERC777TokensRecipient, ERC721TokenReceiver, IERC165 {
     function onERC1155Received(
         address,

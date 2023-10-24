@@ -75,10 +75,9 @@ contract LivenessModule is ISemver {
         // Calculate the new threshold
         address[] memory owners = SAFE.getOwners();
         uint256 numOwnersAfter = owners.length - 1;
-        uint256 thresholdAfter;
         if (_isAboveMinOwners(numOwnersAfter)) {
             // Call the Safe to remove the owner and update the threshold
-            thresholdAfter = get75PercentThreshold(numOwnersAfter);
+            uint256 thresholdAfter = get75PercentThreshold(numOwnersAfter);
             address prevOwner = _getPrevOwner(owner, owners);
             _removeOwner({ _prevOwner: prevOwner, _owner: owner, _threshold: thresholdAfter });
         } else {

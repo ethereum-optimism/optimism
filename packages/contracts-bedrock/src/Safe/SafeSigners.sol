@@ -53,10 +53,10 @@ library SafeSigners {
     {
         _owners = new address[](requiredSignatures);
 
-        /// The following code is extracted from the Safe.checkNSignatures() method. It removes the signature
-        /// validation code, and keeps only the parsing code necessary to extract the owner addresses from the
-        /// signatures. We do not double check if the owner derived from a signature is valid. As this is handled
-        /// in the final require statement of Safe.checkNSignatures().
+        // The following code is extracted from the Safe.checkNSignatures() method. It removes the signature
+        // validation code, and keeps only the parsing code necessary to extract the owner addresses from the
+        // signatures. We do not double check if the owner derived from a signature is valid. As this is handled
+        // in the final require statement of Safe.checkNSignatures().
         address currentOwner;
         uint8 v;
         bytes32 r;
