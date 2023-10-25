@@ -104,7 +104,7 @@ func NewPromHTTPRecorder(r *prometheus.Registry, ns string) HTTPRecorder {
 }
 
 func (p *PromHTTPRecorder) RecordHTTPRequestDuration(params *HTTPParams, dur time.Duration) {
-	// TODO: remove this in the future when services opted in to new metric
+	// TODO(INF-509): remove this in the future when services opted in to new metric
 	p.HTTPRequestDuration.WithLabelValues(params.Method, strconv.Itoa(params.StatusCode)).
 		Observe(float64(dur.Milliseconds()))
 
