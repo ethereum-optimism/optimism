@@ -44,7 +44,7 @@
     "@types/chai": "^4.3.8",
     "@types/chai-as-promised": "^7.1.5",
     "@types/mocha": "^10.0.3",
-    "@types/node": "^20.8.8",
+    "@types/node": "^20.8.9",
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.2",
