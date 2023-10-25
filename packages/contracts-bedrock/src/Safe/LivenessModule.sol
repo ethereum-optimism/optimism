@@ -37,9 +37,6 @@ contract LivenessModule is ISemver {
     ///         keccak256("guard_manager.guard.address")
     uint256 internal constant GUARD_STORAGE_SLOT = 0x4a204f620c8c5ccdca3fd54d003badd85ba500436a431f0cbda4f558c93c34c8;
 
-    /// @notice The address of the first owner in the linked list of owners
-    address internal constant SENTINEL_OWNERS = address(0x1);
-
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
     string public constant version = "1.0.0";
@@ -62,71 +59,73 @@ contract LivenessModule is ISemver {
         );
     }
 
+    function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
+        require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
+        for (uint256 i = 0; i < _previousOwners.length; i++) {
+            _removeOwner(_previousOwners[i], _ownersToRemove[i]);
+        }
+        _verifyFinalState();
+    }
+
     /// @notice This function can be called by anyone to remove an owner that has not signed a transaction
     ///         during the liveness interval. If the number of owners drops below the minimum, then the
     ///         ownership of the Safe is transferred to the fallback owner.
-    function removeOwner(address owner) external {
-        // Check that the owner to remove has not signed a transaction in the last 30 days
-        require(
-            LIVENESS_GUARD.lastLive(owner) < block.timestamp - LIVENESS_INTERVAL,
-            "LivenessModule: owner has signed recently"
-        );
-
+    function _removeOwner(address _prevOwner, address _ownerToRemove) internal {
         // Calculate the new threshold
         address[] memory owners = SAFE.getOwners();
         uint256 numOwnersAfter = owners.length - 1;
         if (_isAboveMinOwners(numOwnersAfter)) {
+            // Check that the owner to remove has not signed a transaction in the last 30 days
+            require(
+                LIVENESS_GUARD.lastLive(_ownerToRemove) < block.timestamp - LIVENESS_INTERVAL,
+                "LivenessModule: owner has signed recently"
+            );
             // Call the Safe to remove the owner and update the threshold
             uint256 thresholdAfter = get75PercentThreshold(numOwnersAfter);
-            address prevOwner = _getPrevOwner(owner, owners);
-            _removeOwner({ _prevOwner: prevOwner, _owner: owner, _threshold: thresholdAfter });
+            _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: thresholdAfter });
         } else {
             // The number of owners is dangerously low, so we wish to transfer the ownership of this Safe
-            // to the fallback owner.
-
-            // Remove owners one at a time starting from the last owner.
-            // Since we're removing them in order from last to first, the ordering will remain constant,
-            // and we shouldn't need to query the list of owners again.
-            address prevOwner;
-            for (uint256 i = owners.length - 1; i > 0; i--) {
-                address currentOwner = owners[i];
-                prevOwner = _getPrevOwner(currentOwner, owners);
-
-                // Call the Safe to remove the owner
-                _removeOwner({ _prevOwner: prevOwner, _owner: currentOwner, _threshold: 1 });
+            // to the fallback owner. Therefore we no longer need to validate the liveness of the owners
+            // before removing them.
+            if (numOwnersAfter == 0) {
+                // Add the fallback owner as the sole owner of the Safe
+                _swapToFallbackOwnerSafeCall({ _prevOwner: _prevOwner, _oldOwner: _ownerToRemove });
+            } else {
+                // Remove the owner and set the threshold to 1
+                _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: 1 });
             }
-
-            prevOwner = _getPrevOwner(owners[0], owners);
-            // Add the fallback owner as the sole owner of the Safe
-            _swapToFallbackOwner({ _prevOwner: prevOwner, _oldOwner: owners[0] });
         }
-
-        _verifyFinalState();
     }
 
     /// @notice Sets the fallback owner as the sole owner of the Safe with a threshold of 1
     /// @param _prevOwner Owner that pointed to the owner to be replaced in the linked list
     /// @param _oldOwner Owner address to be replaced.
-    function _swapToFallbackOwner(address _prevOwner, address _oldOwner) internal {
-        SAFE.execTransactionFromModule({
-            to: address(SAFE),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
-        });
+    function _swapToFallbackOwnerSafeCall(address _prevOwner, address _oldOwner) internal {
+        require(
+            SAFE.execTransactionFromModule({
+                to: address(SAFE),
+                value: 0,
+                operation: Enum.Operation.Call,
+                data: abi.encodeCall(OwnerManager.swapOwner, (_prevOwner, _oldOwner, FALLBACK_OWNER))
+            }),
+            "LivenessModule: failed to swap to fallback owner"
+        );
     }
 
     /// @notice Removes the owner `owner` from the Safe and updates the threshold to `_threshold`.
     /// @param _prevOwner Owner that pointed to the owner to be removed in the linked list
     /// @param _owner Owner address to be removed.
     /// @param _threshold New threshold.
-    function _removeOwner(address _prevOwner, address _owner, uint256 _threshold) internal {
-        SAFE.execTransactionFromModule({
-            to: address(SAFE),
-            value: 0,
-            operation: Enum.Operation.Call,
-            data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
-        });
+    function _removeOwnerSafeCall(address _prevOwner, address _owner, uint256 _threshold) internal {
+        require(
+            SAFE.execTransactionFromModule({
+                to: address(SAFE),
+                value: 0,
+                operation: Enum.Operation.Call,
+                data: abi.encodeCall(OwnerManager.removeOwner, (_prevOwner, _owner, _threshold))
+            }),
+            "LivenessModule: failed to remove owner"
+        );
     }
 
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
@@ -156,20 +155,6 @@ contract LivenessModule is ISemver {
             address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
             "LivenessModule: guard has been changed"
         );
-    }
-
-    /// @notice Get the previous owner in the linked list of owners
-    /// @param _owner The owner whose previous owner we want to find
-    /// @param _owners The list of owners
-    function _getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
-        for (uint256 i = 0; i < _owners.length; i++) {
-            if (_owners[i] != _owner) continue;
-            if (i == 0) {
-                prevOwner_ = SENTINEL_OWNERS;
-                break;
-            }
-            prevOwner_ = _owners[i - 1];
-        }
     }
 
     /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
