@@ -218,7 +218,7 @@ jobs:
 
             export REGISTRY="<<parameters.registry>>"
             export REPOSITORY="<<parameters.repo>>"
-            export IMAGE_TAGS="<<parameters.docker_tags>>"
+            export IMAGE_TAGS=$(echo "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
             export GIT_VERSION="<<pipeline.git.tag>>"
