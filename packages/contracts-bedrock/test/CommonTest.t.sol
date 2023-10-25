@@ -36,6 +36,7 @@ import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { Deploy } from "scripts/Deploy.s.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -56,6 +57,7 @@ contract CommonTest is Test {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     FFIInterface ffi;
+    Deploy deploy;
 
     function setUp() public virtual {
         // Give alice and bob some ETH
@@ -70,7 +72,16 @@ contract CommonTest is Test {
         // Make sure we have a non-zero base fee
         vm.fee(1000000000);
 
+        // Set the deterministic deployer in state
+        vm.etch(
+            0x4e59b44847b379578588920cA78FbF26c0B4956C,
+            hex"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
+        );
+
         ffi = new FFIInterface();
+        deploy = new Deploy();
+        deploy.setUp();
+        deploy.run();
     }
 
     function emitTransactionDeposited(
@@ -96,17 +107,9 @@ contract L2OutputOracle_Initializer is CommonTest {
     L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
-    address internal proposer = 0x000000000000000000000000000000000000AbBa;
-    address internal owner = 0x000000000000000000000000000000000000ACDC;
-    uint256 internal submissionInterval = 1800;
-    uint256 internal l2BlockTime = 2;
-    uint256 internal startingBlockNumber = 200;
-    uint256 internal startingTimestamp = 1000;
-    uint256 internal finalizationPeriodSeconds = 7 days;
     address guardian;
 
     // Test data
-    uint256 initL1Time;
 
     event OutputProposed(
         bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
@@ -127,6 +130,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         warpToProposeTime(nextBlockNumber);
         uint256 proposedNumber = oracle.latestBlockNumber();
 
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
         // Ensure the submissionInterval is enforced
         assertEq(nextBlockNumber, proposedNumber + submissionInterval);
 
@@ -135,6 +139,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.expectEmit(true, true, true, true);
         emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
 
+        address proposer = deploy.cfg().l2OutputOracleProposer();
         vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
@@ -145,27 +150,15 @@ contract L2OutputOracle_Initializer is CommonTest {
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
-        initL1Time = startingTimestamp + 1;
-        vm.warp(initL1Time);
-        vm.roll(startingBlockNumber);
-        // Deploy the L2OutputOracle and transfer owernship to the proposer
-        oracleImpl = new L2OutputOracle({
-            _submissionInterval: submissionInterval,
-            _l2BlockTime: l2BlockTime,
-            _finalizationPeriodSeconds: finalizationPeriodSeconds
-        });
-        Proxy proxy = new Proxy(multisig);
-        vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp, proposer, owner))
-        );
-        oracle = L2OutputOracle(address(proxy));
+        vm.warp(deploy.cfg().l2OutputOracleStartingTimestamp() + 1);
+        vm.roll(deploy.cfg().l2OutputOracleStartingBlockNumber() + 1);
+
+        oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
+        oracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
         vm.label(address(oracle), "L2OutputOracle");
 
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
-
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
 }

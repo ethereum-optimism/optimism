@@ -50,7 +50,7 @@ import "src/libraries/DisputeTypes.sol";
 ///         Then add a call to that function inside of `run`. Be sure to call the `save` function after each
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
 contract Deploy is Deployer {
-    DeployConfig cfg;
+    DeployConfig public cfg;
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
@@ -103,7 +103,7 @@ contract Deploy is Deployer {
 
     /// @notice Modifier that wraps a function in broadcasting.
     modifier broadcast() {
-        vm.startBroadcast();
+        vm.startBroadcast(msg.sender);
         _;
         vm.stopBroadcast();
     }
