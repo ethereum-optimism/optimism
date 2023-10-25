@@ -9,15 +9,32 @@ import (
 	"sync"
 )
 
+type BlockVersion int
+
+const ( // iota is reset to 0
+	BlockV1 BlockVersion = iota
+	BlockV2              = iota
+)
+
 // ExecutionPayload is the only SSZ type we have to marshal/unmarshal,
 // so instead of importing a SSZ lib we implement the bare minimum.
 // This is more efficient than RLP, and matches the L1 consensus-layer encoding of ExecutionPayload.
 
 // All fields (4s are offsets to dynamic data)
-const executionPayloadFixedPart = 32 + 20 + 32 + 32 + 256 + 32 + 8 + 8 + 8 + 8 + 4 + 32 + 32 + 4
+const blockV1FixedPart = 32 + 20 + 32 + 32 + 256 + 32 + 8 + 8 + 8 + 8 + 4 + 32 + 32 + 4
+
+// V1 + Withdrawals offset
+const blockV2FixedPart = blockV1FixedPart + 4
+
+const withdrawalSize = 8 + 8 + 20 + 8
 
 // MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
+// https://github.com/ethereum/consensus-specs/blob/ef434e87165e9a4c82a99f54ffd4974ae113f732/specs/bellatrix/beacon-chain.md#execution
 const maxTransactionsPerPayload = 1 << 20
+
+// MAX_WITHDRAWALS_PER_PAYLOAD	 in consensus spec
+// https://github.com/ethereum/consensus-specs/blob/dev/specs/capella/beacon-chain.md#execution
+const maxWithdrawalsPerPayload = 1 << 4
 
 // ErrExtraDataTooLarge occurs when the ExecutionPayload's ExtraData field
 // is too large to be properly represented in SSZ.
@@ -31,16 +48,44 @@ var payloadBufPool = sync.Pool{New: func() any {
 }}
 
 var ErrBadTransactionOffset = errors.New("transactions offset is smaller than extra data offset, aborting")
+var ErrBadWithdrawalsOffset = errors.New("withdrawals offset is smaller than transaction offset, aborting")
+
+func executionPayloadFixedPart(version BlockVersion) uint32 {
+	if version == BlockV2 {
+		return blockV2FixedPart
+	} else {
+		return blockV1FixedPart
+	}
+}
+
+func (payload *ExecutionPayload) inferVersion() BlockVersion {
+	if payload.Withdrawals != nil {
+		return BlockV2
+	} else {
+		return BlockV1
+	}
+}
 
 func (payload *ExecutionPayload) SizeSSZ() (full uint32) {
-	full = executionPayloadFixedPart + uint32(len(payload.ExtraData))
+	return executionPayloadFixedPart(payload.inferVersion()) + uint32(len(payload.ExtraData)) + payload.transactionSize() + payload.withdrawalSize()
+}
+
+func (payload *ExecutionPayload) withdrawalSize() uint32 {
+	if payload.Withdrawals == nil {
+		return 0
+	}
+
+	return uint32(len(*payload.Withdrawals) * withdrawalSize)
+}
+
+func (payload *ExecutionPayload) transactionSize() uint32 {
 	// One offset to each transaction
-	full += uint32(len(payload.Transactions)) * 4
+	result := uint32(len(payload.Transactions)) * 4
 	// Each transaction
 	for _, tx := range payload.Transactions {
-		full += uint32(len(tx))
+		result += uint32(len(tx))
 	}
-	return full
+	return result
 }
 
 // marshalBytes32LE returns the value of z as a 32-byte little-endian array.
@@ -62,9 +107,13 @@ func unmarshalBytes32LE(in []byte, z *Uint256Quantity) {
 
 // MarshalSSZ encodes the ExecutionPayload as SSZ type
 func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
+	fixedSize := executionPayloadFixedPart(payload.inferVersion())
+	transactionSize := payload.transactionSize()
+
 	// Cast to uint32 to enable 32-bit MIPS support where math.MaxUint32-executionPayloadFixedPart is too big for int
 	// In that case, len(payload.ExtraData) can't be longer than an int so this is always false anyway.
-	if uint32(len(payload.ExtraData)) > math.MaxUint32-uint32(executionPayloadFixedPart) {
+	extraDataSize := uint32(len(payload.ExtraData))
+	if extraDataSize > math.MaxUint32-fixedSize {
 		return 0, ErrExtraDataTooLarge
 	}
 
@@ -100,24 +149,56 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 	binary.LittleEndian.PutUint64(buf[offset:offset+8], uint64(payload.Timestamp))
 	offset += 8
 	// offset to ExtraData
-	binary.LittleEndian.PutUint32(buf[offset:offset+4], executionPayloadFixedPart)
+	binary.LittleEndian.PutUint32(buf[offset:offset+4], fixedSize)
 	offset += 4
 	marshalBytes32LE(buf[offset:offset+32], &payload.BaseFeePerGas)
 	offset += 32
 	copy(buf[offset:offset+32], payload.BlockHash[:])
 	offset += 32
 	// offset to Transactions
-	binary.LittleEndian.PutUint32(buf[offset:offset+4], executionPayloadFixedPart+uint32(len(payload.ExtraData)))
+	binary.LittleEndian.PutUint32(buf[offset:offset+4], fixedSize+extraDataSize)
 	offset += 4
-	if offset != executionPayloadFixedPart {
-		panic("fixed part size is inconsistent")
+
+	if payload.Withdrawals == nil && offset != fixedSize {
+		panic("transactions - fixed part size is inconsistent")
 	}
+
+	if payload.Withdrawals != nil {
+		binary.LittleEndian.PutUint32(buf[offset:offset+4], fixedSize+extraDataSize+transactionSize)
+		offset += 4
+
+		if offset != fixedSize {
+			panic("withdrawals - fixed part size is inconsistent")
+		}
+	}
+
 	// dynamic value 1: ExtraData
-	copy(buf[offset:offset+uint32(len(payload.ExtraData))], payload.ExtraData[:])
-	offset += uint32(len(payload.ExtraData))
+	copy(buf[offset:offset+extraDataSize], payload.ExtraData[:])
+	offset += extraDataSize
 	// dynamic value 2: Transactions
-	marshalTransactions(buf[offset:], payload.Transactions)
+	marshalTransactions(buf[offset:offset+transactionSize], payload.Transactions)
+	offset += transactionSize
+	// dyanmic value 3: Withdrawals
+	if payload.Withdrawals != nil {
+		marshalWithdrawals(buf[offset:], payload.Withdrawals)
+	}
+
 	return w.Write(buf)
+}
+
+func marshalWithdrawals(out []byte, withdrawals *Withdrawals) {
+	offset := uint32(0)
+
+	for _, withdrawal := range *withdrawals {
+		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Index)
+		offset += 8
+		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Validator)
+		offset += 8
+		copy(out[offset:offset+20], withdrawal.Address[:])
+		offset += 20
+		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Amount)
+		offset += 8
+	}
 }
 
 func marshalTransactions(out []byte, txs []Data) {
@@ -133,8 +214,10 @@ func marshalTransactions(out []byte, txs []Data) {
 }
 
 // UnmarshalSSZ decodes the ExecutionPayload as SSZ type
-func (payload *ExecutionPayload) UnmarshalSSZ(scope uint32, r io.Reader) error {
-	if scope < executionPayloadFixedPart {
+func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32, r io.Reader) error {
+	fixedSize := executionPayloadFixedPart(version)
+
+	if scope < fixedSize {
 		return fmt.Errorf("scope too small to decode execution payload: %d", scope)
 	}
 
@@ -171,34 +254,97 @@ func (payload *ExecutionPayload) UnmarshalSSZ(scope uint32, r io.Reader) error {
 	payload.Timestamp = Uint64Quantity(binary.LittleEndian.Uint64(buf[offset : offset+8]))
 	offset += 8
 	extraDataOffset := binary.LittleEndian.Uint32(buf[offset : offset+4])
-	if extraDataOffset != executionPayloadFixedPart {
-		return fmt.Errorf("unexpected extra data offset: %d <> %d", extraDataOffset, executionPayloadFixedPart)
+	if extraDataOffset != fixedSize {
+		return fmt.Errorf("unexpected extra data offset: %d <> %d", extraDataOffset, fixedSize)
 	}
 	offset += 4
 	unmarshalBytes32LE(buf[offset:offset+32], &payload.BaseFeePerGas)
 	offset += 32
 	copy(payload.BlockHash[:], buf[offset:offset+32])
 	offset += 32
+
 	transactionsOffset := binary.LittleEndian.Uint32(buf[offset : offset+4])
 	if transactionsOffset < extraDataOffset {
 		return ErrBadTransactionOffset
 	}
 	offset += 4
-	if offset != executionPayloadFixedPart {
+	if version == BlockV1 && offset != fixedSize {
 		panic("fixed part size is inconsistent")
 	}
+
+	withdrawalsOffset := scope
+	if version == BlockV2 {
+		withdrawalsOffset = binary.LittleEndian.Uint32(buf[offset : offset+4])
+		// No offset increment, due to this being the last field
+
+		if withdrawalsOffset < transactionsOffset {
+			return ErrBadWithdrawalsOffset
+		}
+	}
+
 	if transactionsOffset > extraDataOffset+32 || transactionsOffset > scope {
 		return fmt.Errorf("extra-data is too large: %d", transactionsOffset-extraDataOffset)
 	}
+
 	extraDataSize := transactionsOffset - extraDataOffset
 	payload.ExtraData = make(BytesMax32, extraDataSize)
 	copy(payload.ExtraData, buf[extraDataOffset:transactionsOffset])
-	txs, err := unmarshalTransactions(buf[transactionsOffset:])
+
+	txs, err := unmarshalTransactions(buf[transactionsOffset:withdrawalsOffset])
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal transactions list: %w", err)
 	}
 	payload.Transactions = txs
+
+	if version == BlockV2 {
+		if withdrawalsOffset > scope {
+			return fmt.Errorf("withdrawals offset is too large: %d", withdrawalsOffset)
+		}
+
+		withdrawals, err := unmarshalWithdrawals(buf[withdrawalsOffset:])
+		if err != nil {
+			return fmt.Errorf("failed to unmarshal withdrawals list: %w", err)
+		}
+		payload.Withdrawals = withdrawals
+	}
+
 	return nil
+}
+
+func unmarshalWithdrawals(in []byte) (*Withdrawals, error) {
+	result := &Withdrawals{}
+
+	if len(in)%withdrawalSize != 0 {
+		return nil, errors.New("invalid withdrawals data")
+	}
+
+	withdrawalCount := len(in) / withdrawalSize
+
+	if withdrawalCount > maxWithdrawalsPerPayload {
+		return nil, fmt.Errorf("too many withdrawals: %d > %d", withdrawalCount, maxWithdrawalsPerPayload)
+	}
+
+	offset := 0
+
+	for i := 0; i < withdrawalCount; i++ {
+		withdrawal := Withdrawal{}
+
+		withdrawal.Index = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
+
+		withdrawal.Validator = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
+
+		copy(withdrawal.Address[:], in[offset:offset+20])
+		offset += 20
+
+		withdrawal.Amount = binary.LittleEndian.Uint64(in[offset : offset+8])
+		offset += 8
+
+		*result = append(*result, withdrawal)
+	}
+
+	return result, nil
 }
 
 func unmarshalTransactions(in []byte) (txs []Data, err error) {

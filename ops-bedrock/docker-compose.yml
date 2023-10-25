@@ -11,6 +11,16 @@ volumes:
 
 
 services:
+  op_stack_go_builder:  # Not an actual service, but builds the prerequisite go images
+    build:
+      context: ../
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      args:
+        GIT_COMMIT: "dev"
+        GIT_DATE: "0"
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op_stack_go:devnet
+    entrypoint: ["echo", "build complete"]
+
   l1:
     build:
       context: .
@@ -62,6 +72,7 @@ services:
 
   op-node:
     depends_on:
+      - op_stack_go_builder
       - l1
 #      - l2
     build:
@@ -70,6 +81,8 @@ services:
       args:
         - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
         - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
+        - OP_STACK_GO_BUILDER_TAG=devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-node:devnet
     command: >
       op-node
       --l1=ws://l1:8546
@@ -107,6 +120,7 @@ services:
 
   op-proposer:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
       - op-node
@@ -114,6 +128,11 @@ services:
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+      args:
+        - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+        - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
+        - OP_STACK_GO_BUILDER_TAG=devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-proposer:devnet
     ports:
       - "6062:6060"
       - "7302:7300"
@@ -140,6 +159,7 @@ services:
 
   op-batcher:
     depends_on:
+      - op_stack_go_builder
       - l1
       - l2
       - op-node
@@ -147,6 +167,11 @@ services:
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+      args:
+        - GCP_PROJECT_ID=${GCP_PROJECT_ID:-populate-manually}
+        - GCP_ARTIFACT_REPOSITORY=${GCP_ARTIFACT_REPOSITORY:-populate-manually}
+        - OP_STACK_GO_BUILDER_TAG=devnet
+    image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op-batcher:devnet
     ports:
       - "6061:6060"
       - "7301:7300"
@@ -182,21 +207,6 @@ services:
       - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
     security_opt:
       - "no-new-privileges:true"
-
-  stateviz:
-    build:
-      context: ../
-      dockerfile: ./ops-bedrock/Dockerfile.stateviz
-    command:
-      - stateviz
-      - -addr=0.0.0.0:8080
-      - -snapshot=/op_log/snapshot.log
-      - -refresh=10s
-    ports:
-      - "9090:8080"
-    volumes:
-      - op_log:/op_log:ro
-
   #in no way should this be running in production
   kms:
     image: bobanetwork/local-kms:latest
@@ -209,3 +219,16 @@ services:
         target: /init/seed.yaml
     ports:
       - 8888:8888
+#  stateviz:
+#    build:
+#      context: ../
+#      dockerfile: ./ops-bedrock/Dockerfile.stateviz
+#    command:
+#      - stateviz
+#      - -addr=0.0.0.0:8080
+#      - -snapshot=/op_log/snapshot.log
+#      - -refresh=10s
+#    ports:
+#      - "9090:8080"
+#    volumes:
+#      - op_log:/op_log:ro

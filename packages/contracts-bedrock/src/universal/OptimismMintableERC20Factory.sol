@@ -32,8 +32,8 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.6.0
-    string public constant version = "1.6.0";
+    /// @custom:semver 1.6.1
+    string public constant version = "1.6.1";
 
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC20 token contract since this contract

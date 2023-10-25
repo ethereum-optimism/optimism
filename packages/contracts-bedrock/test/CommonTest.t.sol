@@ -3,38 +3,38 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test, StdUtils } from "forge-std/Test.sol";
-import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
-import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
-import { L1StandardBridge } from "../src/L1/L1StandardBridge.sol";
-import { L2StandardBridge } from "../src/L2/L2StandardBridge.sol";
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
-import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
-import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
-import { OptimismMintableERC20Factory } from "../src/universal/OptimismMintableERC20Factory.sol";
-import { OptimismMintableERC721Factory } from "../src/universal/OptimismMintableERC721Factory.sol";
-import { OptimismMintableERC20 } from "../src/universal/OptimismMintableERC20.sol";
-import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
-import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
-import { L2CrossDomainMessenger } from "../src/L2/L2CrossDomainMessenger.sol";
-import { SequencerFeeVault } from "../src/L2/SequencerFeeVault.sol";
-import { FeeVault } from "../src/universal/FeeVault.sol";
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
-import { LegacyERC20ETH } from "../src/legacy/LegacyERC20ETH.sol";
-import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { Types } from "../src/libraries/Types.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
+import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Types } from "src/libraries/Types.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "../src/legacy/AddressManager.sol";
-import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
-import { IL1ChugSplashDeployer } from "../src/legacy/L1ChugSplashProxy.sol";
-import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
+import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+import { IL1ChugSplashDeployer } from "src/legacy/L1ChugSplashProxy.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { LegacyMintableERC20 } from "../src/legacy/LegacyMintableERC20.sol";
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { Constants } from "../src/libraries/Constants.sol";
+import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -447,9 +447,9 @@ contract Bridge_Initializer is Messenger_Initializer {
     }
 }
 
-contract ERC721Bridge_Initializer is Messenger_Initializer {
-    L1ERC721Bridge L1Bridge;
-    L2ERC721Bridge L2Bridge;
+contract ERC721Bridge_Initializer is Bridge_Initializer {
+    L1ERC721Bridge L1NFTBridge;
+    L2ERC721Bridge L2NFTBridge;
 
     function setUp() public virtual override {
         super.setUp();
@@ -463,10 +463,10 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
             address(l1BridgeImpl), abi.encodeCall(L1ERC721Bridge.initialize, (CrossDomainMessenger(L1Messenger)))
         );
 
-        L1Bridge = L1ERC721Bridge(address(l1BridgeProxy));
+        L1NFTBridge = L1ERC721Bridge(address(l1BridgeProxy));
 
         // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
-        L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(L1Bridge));
+        L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(L1NFTBridge));
         Proxy l2BridgeProxy = new Proxy(multisig);
         vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2BridgeProxy).code);
 
@@ -476,15 +476,15 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
 
         vm.prank(multisig);
         Proxy(payable(Predeploys.L2_ERC721_BRIDGE)).upgradeToAndCall(
-            address(l2BridgeImpl), abi.encodeCall(L2ERC721Bridge.initialize, (L2Messenger))
+            address(l2BridgeImpl), abi.encodeCall(L2ERC721Bridge.initialize, ())
         );
 
         // Set up a reference to the L2ERC721Bridge.
-        L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+        L2NFTBridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
 
         // Label the L1 and L2 bridges.
-        vm.label(address(L1Bridge), "L1ERC721Bridge");
-        vm.label(address(L2Bridge), "L2ERC721Bridge");
+        vm.label(address(L1NFTBridge), "L1ERC721Bridge");
+        vm.label(address(L2NFTBridge), "L2ERC721Bridge");
     }
 }
 

@@ -54,24 +54,18 @@
     "420": "0x4200000000000000000000000000000000000015"
   },
   "L1CrossDomainMessenger": {
-    "1": "0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1"
-  },
-  "L1CrossDomainMessenger_goerli": {
+    "1": "0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1",
     "5": "0x5086d1eEF304eb5284A0f6720f79403b4e9bE294"
   },
   "L1ERC721Bridge": {
-    "1": "0x5a7749f83b81B301cAb5f48EB8516B986DAef23D"
-  },
-  "L1ERC721Bridge_goerli": {
+    "1": "0x5a7749f83b81B301cAb5f48EB8516B986DAef23D",
     "5": "0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9"
   },
   "L1FeeVault": {
     "420": "0x420000000000000000000000000000000000001a"
   },
   "L1StandardBridge": {
-    "1": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1"
-  },
-  "L1StandardBridge_goerli": {
+    "1": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
     "5": "0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"
   },
   "L2CrossDomainMessenger": {
@@ -84,9 +78,7 @@
     "420": "0x4200000000000000000000000000000000000014"
   },
   "L2OutputOracle": {
-    "1": "0xdfe97868233d1aa22e815a266982f2cf17685a27"
-  },
-  "L2OutputOracle_goerli": {
+    "1": "0xdfe97868233d1aa22e815a266982f2cf17685a27",
     "5": "0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0"
   },
   "L2StandardBridge": {
@@ -115,9 +107,7 @@
     "420": "0x4200000000000000000000000000000000000017"
   },
   "OptimismPortal": {
-    "1": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"
-  },
-  "OptimismPortal_goerli": {
+    "1": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
     "5": "0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"
   },
   "Optimist": {
@@ -151,9 +141,7 @@
     "420": "0x4200000000000000000000000000000000000011"
   },
   "SystemConfig": {
-    "1": "0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"
-  },
-  "SystemConfig_goerli": {
+    "1": "0x229047fed2591dbec1eF1118d64F7aF3dB9EB290",
     "5": "0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"
   },
   "SystemDictator": {

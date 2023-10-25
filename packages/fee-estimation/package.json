@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-ts": "workspace:^",
-    "@testing-library/jest-dom": "^6.0.1",
+    "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/react-hooks": "^8.0.1",
     "@vitest/coverage-istanbul": "^0.34.6",
     "abitype": "^0.10.1",
@@ -44,7 +44,7 @@
     "jsdom": "^22.1.0",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
-    "viem": "^1.16.5",
+    "viem": "^1.16.6",
     "vite": "^4.4.10",
     "vitest": "^0.34.2"
   },

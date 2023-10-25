@@ -3,12 +3,23 @@ ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
 # Requires at least Python v3.9; specify a minor version below if needed
 PYTHON=python3
+GCP_PROJECT_ID?=local
+GCP_ARTIFACT_REPOSITORY?=local
+OP_STACK_GO_BUILDER?=us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/op_stack_go:latest
+
+export GCP_PROJECT_ID
+export GCP_ARTIFACT_REPOSITORY
+export OP_STACK_GO_BUILDER
 
 build: build-go build-ts
 .PHONY: build
 
 build-go: submodules op-node op-proposer op-batcher op-erigon
 .PHONY: build-go
+
+lint-go:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+.PHONY: lint-go
 
 build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
@@ -20,6 +31,13 @@ build-ts: submodules
 
 ci-builder:
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
+
+golang-docker:
+	DOCKER_BUILDKIT=1 docker build -t op-stack-go \
+		--build-arg GIT_COMMIT=$$(git rev-parse HEAD) \
+		--build-arg GIT_DATE=$$(git show -s --format='%ct') \
+ 		-f ops/docker/op-stack-go/Dockerfile .
+.PHONY: golang-docker
 
 submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
@@ -183,4 +201,10 @@ bedrock-markdown-links:
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
 
 install-geth:
-	go install github.com/ethereum/go-ethereum/cmd/geth@v1.12.0
+	./ops/scripts/geth-version-checker.sh && \
+	 	(echo "Geth versions match, not installing geth..."; true) || \
+ 		(echo "Versions do not match, installing geth!"; \
+ 			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell cat .gethrc); \
+ 			echo "Installed geth!"; true)
+.PHONY: install-geth
+

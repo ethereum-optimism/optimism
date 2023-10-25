@@ -123,7 +123,8 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	}
 	var oracleData *types.PreimageOracleData
 	if len(proof.OracleKey) > 0 {
-		oracleData = types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset)
+		// TODO(client-pod#104): Replace the LocalContext `0` argument below with the correct local context.
+		oracleData = types.NewPreimageOracleData(0, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	}
 	return value, data, oracleData, nil
 }

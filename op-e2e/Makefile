@@ -51,7 +51,3 @@ clean:
 	rm -r ../.devnet
 	rm -r ../op-program/bin
 .PHONY: clean
-
-lint:
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
-.PHONY: lint

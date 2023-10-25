@@ -85,16 +85,11 @@ func (c *ClaimBuilder) CreateRootClaim(correct bool) types.Claim {
 }
 
 func (c *ClaimBuilder) CreateLeafClaim(traceIndex *big.Int, correct bool) types.Claim {
-	parentPos := types.NewPosition(c.maxDepth-1, common.Big0)
 	pos := types.NewPosition(c.maxDepth, traceIndex)
 	return types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    c.claim(pos, correct),
 			Position: pos,
-		},
-		Parent: types.ClaimData{
-			Value:    c.claim(parentPos, !correct),
-			Position: parentPos,
 		},
 	}
 }
@@ -106,7 +101,6 @@ func (c *ClaimBuilder) AttackClaim(claim types.Claim, correct bool) types.Claim 
 			Value:    c.claim(pos, correct),
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }
@@ -118,7 +112,6 @@ func (c *ClaimBuilder) AttackClaimWithValue(claim types.Claim, value common.Hash
 			Value:    value,
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }
@@ -130,7 +123,6 @@ func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim 
 			Value:    c.claim(pos, correct),
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }
@@ -142,7 +134,6 @@ func (c *ClaimBuilder) DefendClaimWithValue(claim types.Claim, value common.Hash
 			Value:    value,
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }

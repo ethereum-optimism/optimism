@@ -6,9 +6,11 @@ import (
 	"math/big"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/google/uuid"
 )
@@ -99,17 +101,25 @@ type ContractEventsDB interface {
  */
 
 type contractEventsDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newContractEventsDB(db *gorm.DB) ContractEventsDB {
-	return &contractEventsDB{gorm: db}
+func newContractEventsDB(log log.Logger, db *gorm.DB) ContractEventsDB {
+	return &contractEventsDB{log: log.New("table", "events"), gorm: db}
 }
 
 // L1
 
 func (db *contractEventsDB) StoreL1ContractEvents(events []L1ContractEvent) error {
-	result := db.gorm.CreateInBatches(&events, batchInsertSize)
+	// Since the block hash refers back to L1, we dont necessarily have to check
+	// that the RLP bytes match when doing conflict resolution.
+	deduped := db.gorm.Clauses(clause.OnConflict{OnConstraint: "l1_contract_events_block_hash_log_index_key", DoNothing: true})
+	result := deduped.Create(&events)
+	if result.Error == nil && int(result.RowsAffected) < len(events) {
+		db.log.Warn("ignored L1 contract event duplicates", "duplicates", len(events)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -144,7 +154,7 @@ func (db *contractEventsDB) L1ContractEventsWithFilter(filter ContractEvent, fro
 	query := db.gorm.Table("l1_contract_events").Where(&filter)
 	query = query.Joins("INNER JOIN l1_block_headers ON l1_contract_events.block_hash = l1_block_headers.hash")
 	query = query.Where("l1_block_headers.number >= ? AND l1_block_headers.number <= ?", fromHeight, toHeight)
-	query = query.Order("l1_block_headers.number ASC").Select("l1_contract_events.*")
+	query = query.Order("l1_block_headers.number ASC, l1_contract_events.log_index ASC").Select("l1_contract_events.*")
 
 	// NOTE: We use `Find` here instead of `Scan` since `Scan` doesn't not support
 	// model hooks like `ContractEvent#AfterFind`. Functionally they are the same
@@ -176,7 +186,14 @@ func (db *contractEventsDB) L1LatestContractEventWithFilter(filter ContractEvent
 // L2
 
 func (db *contractEventsDB) StoreL2ContractEvents(events []L2ContractEvent) error {
-	result := db.gorm.CreateInBatches(&events, batchInsertSize)
+	// Since the block hash refers back to L2, we dont necessarily have to check
+	// that the RLP bytes match when doing conflict resolution.
+	deduped := db.gorm.Clauses(clause.OnConflict{OnConstraint: "l2_contract_events_block_hash_log_index_key", DoNothing: true})
+	result := deduped.Create(&events)
+	if result.Error == nil && int(result.RowsAffected) < len(events) {
+		db.log.Warn("ignored L2 contract event duplicates", "duplicates", len(events)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -211,7 +228,7 @@ func (db *contractEventsDB) L2ContractEventsWithFilter(filter ContractEvent, fro
 	query := db.gorm.Table("l2_contract_events").Where(&filter)
 	query = query.Joins("INNER JOIN l2_block_headers ON l2_contract_events.block_hash = l2_block_headers.hash")
 	query = query.Where("l2_block_headers.number >= ? AND l2_block_headers.number <= ?", fromHeight, toHeight)
-	query = query.Order("l2_block_headers.number ASC").Select("l2_contract_events.*")
+	query = query.Order("l2_block_headers.number ASC, l2_contract_events.log_index ASC").Select("l2_contract_events.*")
 
 	// NOTE: We use `Find` here instead of `Scan` since `Scan` doesn't not support
 	// model hooks like `ContractEvent#AfterFind`. Functionally they are the same
