@@ -65,6 +65,7 @@ var LatencyBuckets = []float64{.025, .05, .1, .25, .5, 1, 2.5, 5, 10, 25, 50}
 
 func NewPromHTTPRecorder(r *prometheus.Registry, ns string) HTTPRecorder {
 	return &PromHTTPRecorder{
+		// nosemgrep: todos_require_linear
 		// TODO: remove this in the future when services opted in to HTTPRequestLatency
 		HTTPRequestDuration: promauto.With(r).NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
