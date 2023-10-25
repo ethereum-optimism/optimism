@@ -237,11 +237,10 @@ var (
 		Value:    false,
 	}
 	BetaExtraNetworks = &cli.BoolFlag{
-		Name: "beta.extra-networks",
-		Usage: fmt.Sprintf("Beta feature: enable selection of a predefined-network from the superchain-registry. "+
-			"The superchain-registry is experimental, and the availability of configurations may change."+
-			"Available networks: %s", strings.Join(chaincfg.BetaAvailableNetworks(), ", ")),
+		Name:    "beta.extra-networks",
+		Usage:   "Legacy flag, ignored, all superchain-registry networks are enabled by default.",
 		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
+		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:    "rollup.halt",
