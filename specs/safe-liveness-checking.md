@@ -34,7 +34,7 @@ For implementing liveness checks a `LivenessGuard` is created which receives the
 each executed transaction, and tracks the latest time at which a transaction was signed by each
 signer. This time is made publicly available by calling a `lastLive(address)(Timestamp)` method.
 
-Signers may also call the contract directly in order to prove liveness.
+Signers may also call the contract's `showLiveness()()` method directly in order to prove liveness.
 
 ### The Liveness Module
 
@@ -47,7 +47,7 @@ A `LivenessModule` is also created which does the following:
 1. If so, it will call the Safe's `removeSigner()` to remove the non-live signer, and if necessary
    reduce the threshold.
 1. When a member is removed, the signing parameters are modified such that `M/N` is the lowest ratio
-   which remains above 75%. Using integer math, this can be expressed as `M = (N * 75 + 99) / 100`.
+   which remains greater than or equal to 75%. Using integer math, this can be expressed as `M = (N * 75 + 99) / 100`.
 
 ### Shutdown
 
