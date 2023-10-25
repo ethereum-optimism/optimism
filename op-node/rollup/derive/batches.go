@@ -53,7 +53,7 @@ func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Block
 		}
 		return checkSpanBatch(ctx, cfg, log, l1Blocks, l2SafeHead, spanBatch, batch.L1InclusionBlock, l2Fetcher)
 	default:
-		log.Warn("unrecognized batch type: %d", batch.Batch.GetBatchType())
+		log.Warn("Unrecognized batch type: %d", batch.Batch.GetBatchType())
 		return BatchDrop
 	}
 }

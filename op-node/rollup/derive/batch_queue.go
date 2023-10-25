@@ -247,7 +247,7 @@ batchLoop:
 			remaining = append(remaining, batch)
 			continue
 		case BatchDrop:
-			batch.Batch.LogContext(bq.log).Warn("dropping batch",
+			batch.Batch.LogContext(bq.log).Warn("Dropping batch",
 				"l2_safe_head", l2SafeHead.ID(),
 				"l2_safe_head_time", l2SafeHead.Time,
 			)
