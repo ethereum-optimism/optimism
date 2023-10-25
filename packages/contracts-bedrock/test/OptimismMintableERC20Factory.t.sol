@@ -8,12 +8,8 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    function setUp() public override {
-        super.setUp();
-    }
-
     function test_bridge_succeeds() external {
-        assertEq(address(L2TokenFactory.BRIDGE()), address(L2Bridge));
+        assertEq(address(l2OptimismMintableERC20Factory.BRIDGE()), address(l2StandardBridge));
     }
 
     function test_createStandardL2Token_succeeds() external {
@@ -29,7 +25,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         emit OptimismMintableERC20Created(local, remote, alice);
 
         vm.prank(alice);
-        address addr = L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
+        address addr = l2OptimismMintableERC20Factory.createStandardL2Token(remote, "Beep", "BOOP");
         assertTrue(addr == local);
         assertTrue(OptimismMintableERC20(local).decimals() == 18);
     }
@@ -45,7 +41,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         emit OptimismMintableERC20Created(local, remote, alice);
 
         vm.prank(alice);
-        address addr = L2TokenFactory.createOptimismMintableERC20WithDecimals(remote, "Beep", "BOOP", 6);
+        address addr = l2OptimismMintableERC20Factory.createOptimismMintableERC20WithDecimals(remote, "Beep", "BOOP", 6);
         assertTrue(addr == local);
 
         assertTrue(OptimismMintableERC20(local).decimals() == 6);
@@ -55,18 +51,18 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         address remote = address(4);
 
         vm.prank(alice);
-        L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
+        l2OptimismMintableERC20Factory.createStandardL2Token(remote, "Beep", "BOOP");
 
         vm.expectRevert();
 
         vm.prank(alice);
-        L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
+        l2OptimismMintableERC20Factory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 
     function test_createStandardL2Token_remoteIsZero_reverts() external {
         address remote = address(0);
         vm.expectRevert("OptimismMintableERC20Factory: must provide remote token address");
-        L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
+        l2OptimismMintableERC20Factory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 
     function calculateTokenAddress(
@@ -79,10 +75,12 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         view
         returns (address)
     {
-        bytes memory constructorArgs = abi.encode(address(L2Bridge), _remote, _name, _symbol, _decimals);
+        bytes memory constructorArgs = abi.encode(address(l2StandardBridge), _remote, _name, _symbol, _decimals);
         bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC20).creationCode, constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol, _decimals));
-        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(L2TokenFactory), salt, keccak256(bytecode)));
+        bytes32 hash = keccak256(
+            abi.encodePacked(bytes1(0xff), address(l2OptimismMintableERC20Factory), salt, keccak256(bytecode))
+        );
         return address(uint160(uint256(hash)));
     }
 }

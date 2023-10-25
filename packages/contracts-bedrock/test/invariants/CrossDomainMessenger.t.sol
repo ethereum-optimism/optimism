@@ -96,10 +96,10 @@ contract XDM_MinGasLimits is Messenger_Initializer {
         super.setUp();
 
         // Deploy a relay actor
-        actor = new RelayActor(op, L1Messenger, vm, doFail);
+        actor = new RelayActor(optimismPortal, l1CrossDomainMessenger, vm, doFail);
 
         // Give the portal some ether to send to `relayMessage`
-        vm.deal(address(op), type(uint128).max);
+        vm.deal(address(optimismPortal), type(uint128).max);
 
         // Target the `RelayActor` contract
         targetContract(address(actor));
@@ -138,9 +138,9 @@ contract XDM_MinGasLimits_Succeeds is XDM_MinGasLimits {
         for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = actor.hashes(i);
             // The message hash is set in the successfulMessages mapping
-            assertTrue(L1Messenger.successfulMessages(hash));
+            assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
             // The message hash is not set in the failedMessages mapping
-            assertFalse(L1Messenger.failedMessages(hash));
+            assertFalse(l1CrossDomainMessenger.failedMessages(hash));
         }
         assertFalse(actor.reverted());
     }
@@ -171,9 +171,9 @@ contract XDM_MinGasLimits_Reverts is XDM_MinGasLimits {
         for (uint256 i = 0; i < length; ++i) {
             bytes32 hash = actor.hashes(i);
             // The message hash is not set in the successfulMessages mapping
-            assertFalse(L1Messenger.successfulMessages(hash));
+            assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
             // The message hash is set in the failedMessages mapping
-            assertTrue(L1Messenger.failedMessages(hash));
+            assertTrue(l1CrossDomainMessenger.failedMessages(hash));
         }
         assertFalse(actor.reverted());
     }

@@ -63,7 +63,7 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         vm.recordLogs();
 
         vm.prank(alice);
-        op.depositTransaction({
+        optimismPortal.depositTransaction({
             _to: address(setter),
             _value: 0,
             _gasLimit: 30_000,

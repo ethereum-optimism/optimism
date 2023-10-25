@@ -5,10 +5,10 @@ import { ERC721, IERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol
 import { IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { ERC721Bridge_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
 import { OptimismMintableERC721, IOptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
 
-contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
+contract OptimismMintableERC721_Test is Bridge_Initializer {
     ERC721 internal L1NFT;
     OptimismMintableERC721 internal L2NFT;
 
@@ -24,7 +24,7 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
         // Set up the token pair.
         L1NFT = new ERC721("L1NFT", "L1T");
         L2NFT = new OptimismMintableERC721(
-            address(L2NFTBridge),
+            address(l2ERC721Bridge),
             1,
             address(L1NFT),
             "L2NFT",
@@ -40,10 +40,10 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
         assertEq(L2NFT.name(), "L2NFT");
         assertEq(L2NFT.symbol(), "L2T");
         assertEq(L2NFT.remoteToken(), address(L1NFT));
-        assertEq(L2NFT.bridge(), address(L2NFTBridge));
+        assertEq(L2NFT.bridge(), address(l2ERC721Bridge));
         assertEq(L2NFT.remoteChainId(), 1);
         assertEq(L2NFT.REMOTE_TOKEN(), address(L1NFT));
-        assertEq(L2NFT.BRIDGE(), address(L2NFTBridge));
+        assertEq(L2NFT.BRIDGE(), address(l2ERC721Bridge));
         assertEq(L2NFT.REMOTE_CHAIN_ID(), 1);
     }
 
@@ -69,7 +69,7 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
         emit Mint(alice, 1);
 
         // Mint the token.
-        vm.prank(address(L2NFTBridge));
+        vm.prank(address(l2ERC721Bridge));
         L2NFT.safeMint(alice, 1);
 
         // Token should be owned by alice.
@@ -85,7 +85,7 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
 
     function test_burn_succeeds() external {
         // Mint the token first.
-        vm.prank(address(L2NFTBridge));
+        vm.prank(address(l2ERC721Bridge));
         L2NFT.safeMint(alice, 1);
 
         // Expect a transfer event.
@@ -97,7 +97,7 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
         emit Burn(alice, 1);
 
         // Burn the token.
-        vm.prank(address(L2NFTBridge));
+        vm.prank(address(l2ERC721Bridge));
         L2NFT.burn(alice, 1);
 
         // Token should be owned by address(0).
@@ -107,7 +107,7 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
 
     function test_burn_notBridge_reverts() external {
         // Mint the token first.
-        vm.prank(address(L2NFTBridge));
+        vm.prank(address(l2ERC721Bridge));
         L2NFT.safeMint(alice, 1);
 
         // Try to burn the token.
@@ -118,7 +118,7 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
 
     function test_tokenURI_succeeds() external {
         // Mint the token first.
-        vm.prank(address(L2NFTBridge));
+        vm.prank(address(l2ERC721Bridge));
         L2NFT.safeMint(alice, 1);
 
         // Token URI should be correct.
