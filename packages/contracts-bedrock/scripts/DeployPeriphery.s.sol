@@ -468,7 +468,7 @@ contract DeployPeriphery is Deployer {
     /// @notice installs the OnChain AuthModule on the Faucet contract.
     function installOnChainAuthModule() public broadcast {
         string memory moduleName = "OnChainAuthModule";
-        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         AdminFaucetAuthModule onChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
         if (faucet.isModuleEnabled(onChainAuthModule)) {
             console.log("%s already installed.", moduleName);
@@ -488,7 +488,7 @@ contract DeployPeriphery is Deployer {
     /// @notice installs the OffChain AuthModule on the Faucet contract.
     function installOffChainAuthModule() public broadcast {
         string memory moduleName = "OffChainAuthModule";
-        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         AdminFaucetAuthModule offChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
         if (faucet.isModuleEnabled(offChainAuthModule)) {
             console.log("%s already installed.", moduleName);
@@ -507,7 +507,7 @@ contract DeployPeriphery is Deployer {
 
     /// @notice installs all of the auth module in the faucet contract.
     function installFaucetAuthModulesConfigs() public {
-        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         console.log("Installing auth modules at %s", address(faucet));
         installOnChainAuthModule();
         installOffChainAuthModule();
