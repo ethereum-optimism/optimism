@@ -198,7 +198,7 @@ type Logs struct {
 }
 
 // FilterLogs returns logs that fit the query parameters. The underlying request is a batch
-// request including `eth_getBlockHeaderByNumber` to allow the caller to check that connected
+// request including `eth_getBlockByNumber` to allow the caller to check that connected
 // node has the state necessary to fulfill this request
 func (c *clnt) FilterLogs(query ethereum.FilterQuery) (Logs, error) {
 	arg, err := toFilterArg(query)
