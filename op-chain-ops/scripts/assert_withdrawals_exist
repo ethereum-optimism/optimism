@@ -1,0 +1,19 @@
+#!/bin/bash
+
+set -uo pipefail
+
+NUMBER=$1
+DEFAULT_RPC=http://localhost:9545
+RPC=${2:-$DEFAULT_RPC}
+
+# Run the command and store the return code
+output=$(cast block "$NUMBER" --rpc-url="$RPC" -j | jq .withdrawals -e)
+return_code=$?
+
+# Check the return code and print an error message if it's 1
+if [ $return_code -eq 1 ]; then
+    echo "Error: Withdrawals are null"
+    exit 1
+else
+    echo "Withdrawals are non-null"
+fi
