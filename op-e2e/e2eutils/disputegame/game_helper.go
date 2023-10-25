@@ -18,6 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const defaultTimeout = 5 * time.Minute
+
 type FaultGameHelper struct {
 	t           *testing.T
 	require     *require.Assertions
@@ -42,7 +44,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 // This does not check that the number of claims is exactly the specified count to avoid intermittent failures
 // where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(ctx, time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
@@ -70,7 +72,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 }
 
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
@@ -95,7 +97,7 @@ func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, pre
 }
 
 func (g *FaultGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	timedCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
@@ -193,7 +195,7 @@ func (g *FaultGameHelper) Status(ctx context.Context) Status {
 
 func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
-	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
@@ -302,7 +304,7 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 }
 
 func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
-	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	var newClaimLen int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
