@@ -256,8 +256,8 @@ importers:
         specifier: ^7.0.5
         version: 7.0.5
       '@types/pino-multi-stream':
-        specifier: ^5.1.4
-        version: 5.1.4
+        specifier: ^5.1.5
+        version: 5.1.5
       chai:
         specifier: ^4.3.10
         version: 4.3.10
@@ -4083,8 +4083,8 @@ packages:
       '@types/node': 20.8.8
     dev: true
 
-  /@types/pino-multi-stream@5.1.4:
-    resolution: {integrity: sha512-+UrFCcIx4cUo473GwCt5/v8m0r+W08iuaphu8L5bx76zcShvQRWPtKkRxImUCLXW9bHpPFHAJZKANMP/vAbycA==}
+  /@types/pino-multi-stream@5.1.5:
+    resolution: {integrity: sha512-md4VfNYACuZZVgBbYqv9D4msKIyLmIdyf/kdjT7HG/xhjM18pKseDGylME0nPvNR66bpYQ2i4v4zPWe8FzwZPA==}
     dependencies:
       '@types/pino': 6.3.11
     dev: true
