@@ -9,6 +9,12 @@
     "dist/*"
   ],
   "scripts": {
+    "dev:balance-mon": "tsx watch ./src/balance-mon/service.ts",
+    "dev:wallet-mon": "tsx watch ./src/wallet-mon/service.ts",
+    "dev:drippie-mon": "tsx watch ./src/drippie-mon/service.ts",
+    "dev:wd-mon": "tsx watch ./src/wd-mon/service.ts",
+    "dev:fault-mon": "tsx watch ./src/fault-mon/service.ts",
+    "dev:replica-mon": "tsx watch ./src/replica-mon/service.ts",
     "start:balance-mon": "tsx ./src/balance-mon/service.ts",
     "start:wallet-mon": "tsx ./src/wallet-mon/service.ts",
     "start:drippie-mon": "tsx ./src/drippie-mon/service.ts",
