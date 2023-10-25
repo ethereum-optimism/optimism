@@ -55,8 +55,11 @@ contract LivenessModule is ISemver {
         SAFE = _safe;
         LIVENESS_GUARD = _livenessGuard;
         LIVENESS_INTERVAL = _livenessInterval;
-        MIN_OWNERS = _minOwners;
         FALLBACK_OWNER = _fallbackOwner;
+        MIN_OWNERS = _minOwners;
+        require(
+            _minOwners < _safe.getOwners().length, "LivenessModule: minOwners must be less than the number of owners"
+        );
     }
 
     /// @notice This function can be called by anyone to remove an owner that has not signed a transaction
