@@ -218,7 +218,7 @@ jobs:
 
             export REGISTRY="<<parameters.registry>>"
             export REPOSITORY="<<parameters.repo>>"
-            export IMAGE_TAGS="<<parameters.docker_tags>>"
+            export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
             export GIT_VERSION="<<pipeline.git.tag>>"
@@ -273,7 +273,7 @@ jobs:
                   gcloud auth configure-docker <<parameters.registry>>
                   IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
                   # tags, without the '-t ' here, so we can loop over them
-                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
+                  DOCKER_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")"
                   for docker_image_tag in $DOCKER_TAGS; do
                     docker image push $docker_image_tag
                   done
