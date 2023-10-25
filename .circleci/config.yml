@@ -1476,7 +1476,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+              only: /^(chain-mon|proxyd|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-build: # just to warm up the cache (other jobs run in parallel)
@@ -1587,6 +1587,19 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           publish: true
           release: true
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: chain-mon-docker-release
+          filters:
+            tags:
+              only: /^chain-mon\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: chain-mon
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr-release
           requires:
