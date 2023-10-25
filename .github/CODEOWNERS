@@ -25,9 +25,10 @@
 /ops-bedrock    @ethereum-optimism/go-reviewers
 
 # Ops
-/.circleci    @ethereum-optimism/infra-reviewers
-/.github      @ethereum-optimism/infra-reviewers
-/ops          @ethereum-optimism/infra-reviewers
+/.circleci       @ethereum-optimism/infra-reviewers
+/.github         @ethereum-optimism/infra-reviewers
+/ops             @ethereum-optimism/infra-reviewers
+/docker-bake.hcl @ethereum-optimism/infra-reviewers
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers
