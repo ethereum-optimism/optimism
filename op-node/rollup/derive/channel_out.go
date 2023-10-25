@@ -52,7 +52,7 @@ type ChannelOut interface {
 	ID() ChannelID
 	Reset() error
 	AddBlock(*types.Block) (uint64, error)
-	AddSingularBatch(*SingularBatch) (uint64, error)
+	AddSingularBatch(*SingularBatch, uint64) (uint64, error)
 	InputBytes() int
 	ReadyBytes() int
 	Flush() error
@@ -123,11 +123,11 @@ func (co *SingularChannelOut) AddBlock(block *types.Block) (uint64, error) {
 		return 0, errors.New("already closed")
 	}
 
-	batch, _, err := BlockToSingularBatch(block)
+	batch, l1Info, err := BlockToSingularBatch(block)
 	if err != nil {
 		return 0, err
 	}
-	return co.AddSingularBatch(batch)
+	return co.AddSingularBatch(batch, l1Info.SequenceNumber)
 }
 
 // AddSingularBatch adds a batch to the channel. It returns the RLP encoded byte size
@@ -138,7 +138,7 @@ func (co *SingularChannelOut) AddBlock(block *types.Block) (uint64, error) {
 // AddSingularBatch should be used together with BlockToBatch if you need to access the
 // BatchData before adding a block to the channel. It isn't possible to access
 // the batch data with AddBlock.
-func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch) (uint64, error) {
+func (co *SingularChannelOut) AddSingularBatch(batch *SingularBatch, _ uint64) (uint64, error) {
 	if co.closed {
 		return 0, errors.New("already closed")
 	}

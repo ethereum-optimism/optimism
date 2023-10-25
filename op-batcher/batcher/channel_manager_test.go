@@ -14,7 +14,6 @@ import (
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -55,7 +54,7 @@ func TestChannelManagerBatchType(t *testing.T) {
 func ChannelManagerReturnsErrReorg(t *testing.T, batchType uint) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{BatchType: batchType}, &rollup.Config{})
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
@@ -97,7 +96,7 @@ func ChannelManagerReturnsErrReorgWhenDrained(t *testing.T, batchType uint) {
 		},
 		&rollup.Config{},
 	)
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
 	a := newMiniL2Block(0)
 	x := newMiniL2BlockWithNumberParent(0, big.NewInt(1), common.Hash{0xff})
@@ -134,7 +133,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 		},
 		BatchType: batchType,
 	},
-		&rollup.Config{},
+		&defaultTestRollupConfig,
 	)
 
 	// Channel Manager state should be empty by default
@@ -143,12 +142,11 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Nil(m.currentChannel)
 	require.Empty(m.channelQueue)
 	require.Empty(m.txChannels)
-	require.Nil(m.lastProcessedBlock)
 	// Set the last block
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
 	// Add a block to the channel manager
-	a, _ := derivetest.RandomL2Block(rng, 4)
+	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 	newL1Tip := a.Hash()
 	l1BlockID := eth.BlockID{
 		Hash:   a.Hash(),
@@ -185,8 +183,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Equal(b.Hash(), m.tip)
 
 	// Clear the channel manager
-	safeHead := testutils.RandomL2BlockRef(rng)
-	m.Clear(&safeHead)
+	m.Clear()
 
 	// Check that the entire channel manager state cleared
 	require.Empty(m.blocks)
@@ -194,7 +191,6 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	require.Nil(m.currentChannel)
 	require.Empty(m.channelQueue)
 	require.Empty(m.txChannels)
-	require.Equal(m.lastProcessedBlock, &safeHead)
 }
 
 func ChannelManager_TxResend(t *testing.T, batchType uint) {
@@ -211,11 +207,11 @@ func ChannelManager_TxResend(t *testing.T, batchType uint) {
 			},
 			BatchType: batchType,
 		},
-		&rollup.Config{},
+		&defaultTestRollupConfig,
 	)
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
-	a, _ := derivetest.RandomL2Block(rng, 4)
+	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 
 	require.NoError(m.AddL2Block(a))
 
@@ -259,11 +255,11 @@ func ChannelManagerCloseBeforeFirstUse(t *testing.T, batchType uint) {
 			},
 			BatchType: batchType,
 		},
-		&rollup.Config{},
+		&defaultTestRollupConfig,
 	)
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
-	a, _ := derivetest.RandomL2Block(rng, 4)
+	a := derivetest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 
 	m.Close()
 
@@ -291,9 +287,9 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 			},
 			BatchType: batchType,
 		},
-		&rollup.Config{},
+		&defaultTestRollupConfig,
 	)
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 	a := newMiniL2Block(0)
 	b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
 
@@ -322,30 +318,30 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 // new channel frames after this point.
 func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	require := require.New(t)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			MaxFrameSize:   1000,
+			MaxFrameSize:   10000,
 			ChannelTimeout: 1000,
 			CompressorConfig: compressor.Config{
 				TargetNumFrames:  1,
-				TargetFrameSize:  1000,
+				TargetFrameSize:  10000,
 				ApproxComprRatio: 1.0,
 			},
 			BatchType: batchType,
 		},
-		&rollup.Config{},
+		&defaultTestRollupConfig,
 	)
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
-	numTx := 50000
-	if batchType == derive.SpanBatchType {
-		// Adjust number of txs to make 2 frames
-		// Encoding empty txs as span batch requires more data size because span batch encodes tx signature to fixed length
-		numTx = 20000
-	}
-	a := newMiniL2Block(numTx)
-	b := newMiniL2BlockWithNumberParent(10, big.NewInt(1), a.Hash())
+	numTx := 20 // Adjust number of txs to make 2 frames
+	a := derivetest.RandomL2BlockWithChainId(rng, numTx, defaultTestRollupConfig.L2ChainID)
+	b := derivetest.RandomL2BlockWithChainId(rng, 10, defaultTestRollupConfig.L2ChainID)
+	bHeader := b.Header()
+	bHeader.Number = new(big.Int).Add(a.Number(), big.NewInt(1))
+	bHeader.ParentHash = a.Hash()
+	b = b.WithSeal(bHeader)
 
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")
@@ -377,6 +373,7 @@ func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 // have successfully landed on chain.
 func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 	require := require.New(t)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
@@ -388,11 +385,11 @@ func ChannelManagerCloseAllTxsFailed(t *testing.T, batchType uint) {
 				ApproxComprRatio: 1.0,
 			},
 			BatchType: batchType,
-		}, &rollup.Config{},
+		}, &defaultTestRollupConfig,
 	)
-	m.Clear(&eth.L2BlockRef{})
+	m.Clear()
 
-	a := newMiniL2Block(50_000)
+	a := derivetest.RandomL2BlockWithChainId(rng, 50000, defaultTestRollupConfig.L2ChainID)
 
 	err := m.AddL2Block(a)
 	require.NoError(err, "Failed to add L2 block")

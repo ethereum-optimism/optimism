@@ -70,11 +70,11 @@ func (co *SpanChannelOut) AddBlock(block *types.Block) (uint64, error) {
 		return 0, errors.New("already closed")
 	}
 
-	batch, _, err := BlockToSingularBatch(block)
+	batch, l1Info, err := BlockToSingularBatch(block)
 	if err != nil {
 		return 0, err
 	}
-	return co.AddSingularBatch(batch)
+	return co.AddSingularBatch(batch, l1Info.SequenceNumber)
 }
 
 // AddSingularBatch adds a batch to the channel. It returns the RLP encoded byte size
@@ -90,7 +90,7 @@ func (co *SpanChannelOut) AddBlock(block *types.Block) (uint64, error) {
 // A channel can have only one SpanBatch. And compressed results should not be accessible until the channel is closed, since the prefix and payload can be changed.
 // So it resets channel contents and rewrites the entire SpanBatch each time, and compressed results are copied to reader after the channel is closed.
 // It makes we can only get frames once the channel is full or closed, in the case of SpanBatch.
-func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch) (uint64, error) {
+func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) (uint64, error) {
 	if co.closed {
 		return 0, errors.New("already closed")
 	}
@@ -100,7 +100,7 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch) (uint64, error)
 	}
 	var buf bytes.Buffer
 	// Append Singular batch to its span batch builder
-	co.spanBatchBuilder.AppendSingularBatch(batch)
+	co.spanBatchBuilder.AppendSingularBatch(batch, seqNum)
 	// Convert Span batch to RawSpanBatch
 	rawSpanBatch, err := co.spanBatchBuilder.GetRawSpanBatch()
 	if err != nil {

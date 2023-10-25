@@ -35,12 +35,9 @@ var defaultTestChannelConfig = ChannelConfig{
 	BatchType: derive.SingularBatchType,
 }
 
-func getSpanBatchBuilder(batchType uint) *derive.SpanBatchBuilder {
-	if batchType == derive.SpanBatchType {
-		chainId := big.NewInt(1234)
-		return derive.NewSpanBatchBuilder(uint64(0), uint64(0), chainId)
-	}
-	return nil
+var defaultTestRollupConfig = rollup.Config{
+	Genesis:   rollup.Genesis{L2: eth.BlockID{Number: 0}},
+	L2ChainID: big.NewInt(1234),
 }
 
 // TestChannelConfig_Check tests the [ChannelConfig] [Check] function.
@@ -169,7 +166,7 @@ func newMiniL2BlockWithNumberParent(numTx int, number *big.Int, parent common.Ha
 func addTooManyBlocks(cb *channelBuilder) error {
 	rng := rand.New(rand.NewSource(1234))
 	for i := 0; i < 10_000; i++ {
-		block, _ := dtest.RandomL2Block(rng, 1000)
+		block := dtest.RandomL2BlockWithChainId(rng, 1000, defaultTestRollupConfig.L2ChainID)
 		_, err := cb.AddBlock(block)
 		if err != nil {
 			return err
@@ -518,7 +515,7 @@ func TestChannelBuilder_OutputFramesWorks_SpanBatch(t *testing.T) {
 	channelConfig.BatchType = derive.SpanBatchType
 
 	// Construct the channel builder
-	cb, err := newChannelBuilder(channelConfig, getSpanBatchBuilder(derive.SpanBatchType))
+	cb, err := newChannelBuilder(channelConfig, &defaultTestRollupConfig)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
 	require.Equal(t, 0, cb.PendingFrames())
@@ -571,7 +568,7 @@ func ChannelBuilder_MaxRLPBytesPerChannel(t *testing.T, batchType uint) {
 	channelConfig.BatchType = batchType
 
 	// Construct the channel builder
-	cb, err := newChannelBuilder(channelConfig, getSpanBatchBuilder(batchType))
+	cb, err := newChannelBuilder(channelConfig, &defaultTestRollupConfig)
 	require.NoError(t, err)
 
 	// Add a block that overflows the [ChannelOut]
@@ -594,12 +591,12 @@ func ChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T, batchType uint) {
 	// Continuously add blocks until the max frame index is reached
 	// This should cause the [channelBuilder.OutputFrames] function
 	// to error
-	cb, err := newChannelBuilder(channelConfig, getSpanBatchBuilder(batchType))
+	cb, err := newChannelBuilder(channelConfig, &defaultTestRollupConfig)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
 	require.Equal(t, 0, cb.PendingFrames())
 	for {
-		a, _ := dtest.RandomL2Block(rng, 1)
+		a := dtest.RandomL2BlockWithChainId(rng, 1, defaultTestRollupConfig.L2ChainID)
 		_, err = cb.AddBlock(a)
 		if cb.IsFull() {
 			fullErr := cb.FullErr()
@@ -627,7 +624,7 @@ func ChannelBuilder_AddBlock(t *testing.T, batchType uint) {
 	channelConfig.CompressorConfig.ApproxComprRatio = 1
 
 	// Construct the channel builder
-	cb, err := newChannelBuilder(channelConfig, getSpanBatchBuilder(batchType))
+	cb, err := newChannelBuilder(channelConfig, &defaultTestRollupConfig)
 	require.NoError(t, err)
 
 	// Add a nonsense block to the channel builder
@@ -660,7 +657,7 @@ func ChannelBuilder_Reset(t *testing.T, batchType uint) {
 	channelConfig.CompressorConfig.TargetFrameSize = 24
 	channelConfig.CompressorConfig.ApproxComprRatio = 1
 
-	cb, err := newChannelBuilder(channelConfig, getSpanBatchBuilder(batchType))
+	cb, err := newChannelBuilder(channelConfig, &defaultTestRollupConfig)
 	require.NoError(t, err)
 
 	// Add a nonsense block to the channel builder
@@ -771,7 +768,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 	cfg.CompressorConfig.TargetNumFrames = tnf
 	cfg.CompressorConfig.Kind = "shadow"
 	cfg.BatchType = batchType
-	cb, err := newChannelBuilder(cfg, getSpanBatchBuilder(batchType))
+	cb, err := newChannelBuilder(cfg, &defaultTestRollupConfig)
 	require.NoError(err)
 
 	// initial builder should be empty
@@ -780,7 +777,7 @@ func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
 
 	// fill up
 	for {
-		block, _ := dtest.RandomL2Block(rng, 4)
+		block := dtest.RandomL2BlockWithChainId(rng, 4, defaultTestRollupConfig.L2ChainID)
 		_, err := cb.AddBlock(block)
 		if cb.IsFull() {
 			break
@@ -810,21 +807,25 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 	rng := rand.New(rand.NewSource(4982432))
 	cfg := defaultTestChannelConfig
 	cfg.BatchType = batchType
-	spanBatchBuilder := getSpanBatchBuilder(batchType)
-	cb, err := newChannelBuilder(cfg, getSpanBatchBuilder(batchType))
+	var spanBatchBuilder *derive.SpanBatchBuilder
+	if batchType == derive.SpanBatchType {
+		chainId := big.NewInt(1234)
+		spanBatchBuilder = derive.NewSpanBatchBuilder(uint64(0), chainId)
+	}
+	cb, err := newChannelBuilder(cfg, &defaultTestRollupConfig)
 	require.NoError(err)
 
 	require.Zero(cb.InputBytes())
 
 	var l int
 	for i := 0; i < 5; i++ {
-		block := newMiniL2Block(rng.Intn(32))
+		block := dtest.RandomL2BlockWithChainId(rng, rng.Intn(32), defaultTestRollupConfig.L2ChainID)
 		if batchType == derive.SingularBatchType {
 			l += blockBatchRlpSize(t, block)
 		} else {
-			singularBatch, _, err := derive.BlockToSingularBatch(block)
+			singularBatch, l1Info, err := derive.BlockToSingularBatch(block)
 			require.NoError(err)
-			spanBatchBuilder.AppendSingularBatch(singularBatch)
+			spanBatchBuilder.AppendSingularBatch(singularBatch, l1Info.SequenceNumber)
 			rawSpanBatch, err := spanBatchBuilder.GetRawSpanBatch()
 			require.NoError(err)
 			batch := derive.NewSpanBatchData(*rawSpanBatch)
@@ -847,13 +848,13 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 	cfg.CompressorConfig.TargetNumFrames = 16
 	cfg.CompressorConfig.ApproxComprRatio = 1.0
 	cfg.BatchType = batchType
-	cb, err := newChannelBuilder(cfg, getSpanBatchBuilder(batchType))
+	cb, err := newChannelBuilder(cfg, &defaultTestRollupConfig)
 	require.NoError(err, "newChannelBuilder")
 
 	require.Zero(cb.OutputBytes())
 
 	for {
-		block, _ := dtest.RandomL2Block(rng, rng.Intn(32))
+		block := dtest.RandomL2BlockWithChainId(rng, rng.Intn(32), defaultTestRollupConfig.L2ChainID)
 		_, err := cb.AddBlock(block)
 		if errors.Is(err, derive.CompressorFullErr) {
 			break

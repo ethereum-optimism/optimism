@@ -8,6 +8,7 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -134,10 +135,14 @@ type channelBuilder struct {
 
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
-func newChannelBuilder(cfg ChannelConfig, spanBatchBuilder *derive.SpanBatchBuilder) (*channelBuilder, error) {
+func newChannelBuilder(cfg ChannelConfig, rcfg *rollup.Config) (*channelBuilder, error) {
 	c, err := cfg.CompressorConfig.NewCompressor()
 	if err != nil {
 		return nil, err
+	}
+	var spanBatchBuilder *derive.SpanBatchBuilder
+	if cfg.BatchType == derive.SpanBatchType {
+		spanBatchBuilder = derive.NewSpanBatchBuilder(rcfg.Genesis.L2Time, rcfg.L2ChainID)
 	}
 	co, err := derive.NewChannelOut(cfg.BatchType, c, spanBatchBuilder)
 	if err != nil {
@@ -206,7 +211,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
-	if _, err = c.co.AddSingularBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
+	if _, err = c.co.AddSingularBatch(batch, l1info.SequenceNumber); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()
 	} else if err != nil {
