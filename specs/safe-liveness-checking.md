@@ -49,6 +49,25 @@ A `LivenessModule` is also created which does the following:
 1. When a member is removed, the signing parameters are modified such that `M/N` is the lowest ratio
    which remains greater than or equal to 75%. Using integer math, this can be expressed as `M = (N * 75 + 99) / 100`.
 
+### Owner removal call flow
+
+The following diagram illustrates the flow for removing a single owner.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant LivenessModule
+    participant LivenessGuard
+    participant Safe
+    User->>LivenessModule: removeOwner(owner)
+    LivenessModule->>LivenessGuard: lastLive(owner)
+    LivenessModule->>Safe: getOwners()
+    LivenessModule->>LivenessModule: get75PercentThreshold(numOwnersAfter)
+    LivenessModule->>LivenessModule: _getPrevOwner(owner, owners)
+    LivenessModule->>LivenessModule: _removeOwner(prevOwner, owner, thresholdAfter)
+    LivenessModule->>LivenessModule: _verifyFinalState()
+```
+
 ### Shutdown
 
 In the unlikely event that the signer set (`N`) is reduced below 8, then (and only then) is a
