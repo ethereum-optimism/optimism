@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	MetricsNamespace string = "bridge"
+	MetricsNamespace string = "op_indexer_bridge"
 )
 
 type L1Metricer interface {

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	MetricsNamespace string = "etl"
+	MetricsNamespace string = "op_indexer_etl"
 )
 
 type Metricer interface {

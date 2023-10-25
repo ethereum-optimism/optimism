@@ -109,6 +109,17 @@ func (b *BridgeProcessor) run() error {
 			b.log.Error("bridge events indexed, but no observed epoch returned", "latest_bridge_l1_block_number", b.LatestL1Header.Number)
 			return errors.New("bridge events indexed, but no observed epoch returned")
 		}
+
+		latestL1Header, err := b.db.Blocks.L1LatestBlockHeader()
+		if err != nil {
+		}
+
+		latestL2Header, err := b.db.Blocks.L2LatestBlockHeader()
+		if err != nil {
+		}
+
+		b.LatestL1Header = latestL1Header.RLPHeader.Header()
+		b.LatestL2Header = latestL2Header.RLPHeader.Header()
 		b.log.Warn("no observed epochs available. waiting...")
 		return nil
 	}
