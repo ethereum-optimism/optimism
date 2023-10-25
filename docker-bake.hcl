@@ -142,7 +142,7 @@ target "indexer" {
     GITVERSION = "${GIT_VERSION}"
   }
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/proxyd:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/indexer:${tag}"]
 }
 
 target "ufm-metamask" {
@@ -177,7 +177,7 @@ type "ci-builder" {
   dockerfile = "Dockerfile"
   context = "ops/docker/ci-builder"
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/chain-mon:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder:${tag}"]
 }
 
 
