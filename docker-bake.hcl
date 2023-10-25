@@ -38,17 +38,17 @@ target "op-stack-go" {
     GIT_DATE = "${GIT_DATE}"
   }
   platforms = split(",", PLATFORMS)
-  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op_stack_go:${tag}"]
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-stack-go:${tag}"]
 }
 
 target "op-node" {
   dockerfile = "Dockerfile"
   context = "./op-node"
   args = {
-    OP_STACK_GO_BUILDER = "op_stack_go"
+    OP_STACK_GO_BUILDER = "op-stack-go"
   }
   contexts = {
-    op_stack_go: "target:op-stack-go"
+    op-stack-go: "target:op-stack-go"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-node:${tag}"]
@@ -58,10 +58,10 @@ target "op-batcher" {
   dockerfile = "Dockerfile"
   context = "./op-batcher"
   args = {
-    OP_STACK_GO_BUILDER = "op_stack_go"
+    OP_STACK_GO_BUILDER = "op-stack-go"
   }
   contexts = {
-    op_stack_go: "target:op-stack-go"
+    op-stack-go: "target:op-stack-go"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-batcher:${tag}"]
@@ -71,10 +71,10 @@ target "op-proposer" {
   dockerfile = "Dockerfile"
   context = "./op-proposer"
   args = {
-    OP_STACK_GO_BUILDER = "op_stack_go"
+    OP_STACK_GO_BUILDER = "op-stack-go"
   }
   contexts = {
-    op_stack_go: "target:op-stack-go"
+    op-stack-go: "target:op-stack-go"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-proposer:${tag}"]
@@ -84,10 +84,10 @@ target "op-challenger" {
   dockerfile = "Dockerfile"
   context = "./op-challenger"
   args = {
-    OP_STACK_GO_BUILDER = "op_stack_go"
+    OP_STACK_GO_BUILDER = "op-stack-go"
   }
   contexts = {
-    op_stack_go: "target:op-stack-go"
+    op-stack-go: "target:op-stack-go"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-challenger:${tag}"]
@@ -97,13 +97,26 @@ target "op-heartbeat" {
   dockerfile = "Dockerfile"
   context = "./op-heartbeat"
   args = {
-    OP_STACK_GO_BUILDER = "op_stack_go"
+    OP_STACK_GO_BUILDER = "op-stack-go"
   }
   contexts = {
-    op_stack_go: "target:op-stack-go"
+    op-stack-go: "target:op-stack-go"
   }
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-heartbeat:${tag}"]
+}
+
+target "op-program" {
+  dockerfile = "Dockerfile"
+  context = "./op-program"
+  args = {
+    OP_STACK_GO_BUILDER = "op-stack-go"
+  }
+  contexts = {
+    op-stack-go: "target:op-stack-go"
+  }
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/op-program:${tag}"]
 }
 
 target "proxyd" {

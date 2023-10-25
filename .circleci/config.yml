@@ -1406,6 +1406,7 @@ workflows:
           name: op-stack-go-docker-build
           docker_name: op-stack-go
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
