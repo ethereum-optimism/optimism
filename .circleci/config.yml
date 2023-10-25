@@ -361,7 +361,7 @@ jobs:
   contracts-bedrock-coverage:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
@@ -372,7 +372,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: test and generate coverage
-          command: pnpm coverage:lcov || true
+          command: pnpm coverage:lcov
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci

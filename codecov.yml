@@ -22,7 +22,7 @@ flag_management:
   individual_flags:
     - name: contracts-bedrock-tests
       paths:
-        - packages/contracts-bedrock/contracts
+        - packages/contracts-bedrock
       statuses:
         - type: patch
           target: 100%
