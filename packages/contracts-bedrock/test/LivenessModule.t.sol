@@ -33,6 +33,8 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
 
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
 
+    uint256 livenessInterval = 30 days;
+    uint256 minOwners = 6;
     LivenessModule livenessModule;
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
@@ -82,12 +84,26 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         livenessModule = new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
-            _livenessInterval: 30 days,
-            _minOwners: 6,
+            _livenessInterval: livenessInterval,
+            _minOwners: minOwners,
             _fallbackOwner: fallbackOwner
         });
         safeInstance.enableModule(address(livenessModule));
         safeInstance.setGuard(address(livenessGuard));
+    }
+}
+
+contract LivenessModule_Constructor_Test is LivenessModule_TestInit {
+    /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
+    function test_constructor_minOwnersGreaterThanOwners_revert() external {
+        vm.expectRevert("LivenessModule: minOwners must be less than the number of owners");
+        new LivenessModule({
+            _safe: safeInstance.safe,
+            _livenessGuard: livenessGuard,
+            _livenessInterval: livenessInterval,
+            _minOwners: 11,
+            _fallbackOwner: address(0)
+        });
     }
 }
 
