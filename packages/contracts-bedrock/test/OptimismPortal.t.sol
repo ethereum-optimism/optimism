@@ -997,6 +997,8 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         vm.assume(((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier) == _maxResourceLimit);
         _prevBoughtGas = uint64(bound(_prevBoughtGas, 0, _maxResourceLimit - _gasLimit));
         _blockDiff = uint8(bound(_blockDiff, 0, 3));
+        // Pick a pseudorandom block number
+        vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
         // Create a resource config to mock the call to the system config with
         ResourceMetering.ResourceConfig memory rcfg = ResourceMetering.ResourceConfig({
