@@ -1,8 +1,11 @@
 package actions
 
 import (
+	"context"
 	"math/big"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
@@ -95,11 +98,19 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
-		i := s.pendingIndices[from]
-		txs, q := s.eth.TxPool().ContentFrom(from)
-		if uint64(len(txs)) <= i {
-			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
-		}
+		var i uint64
+		var txs []*types.Transaction
+		var q []*types.Transaction
+		// Wait for the tx to be in the pending tx queue
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		err := wait.For(ctx, time.Second, func() (bool, error) {
+			i = s.pendingIndices[from]
+			txs, q = s.eth.TxPool().ContentFrom(from)
+			return uint64(len(txs)) > i, nil
+		})
+		require.NoError(t, err,
+			"no pending txs from %s, and have %d unprocessable queued txs from this account: %w", from, len(q), err)
 		tx := txs[i]
 		s.IncludeTx(t, tx)
 		s.pendingIndices[from] = i + 1 // won't retry the tx
