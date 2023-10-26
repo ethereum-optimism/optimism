@@ -56,9 +56,18 @@ contract CommonTest is Deploy, Test {
     /// @dev OpenZeppelin Ownable.sol transferOwnership event
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
+    OptimismPortal optimismPortal;
+    L2OutputOracle l2OutputOracle;
+    /*
+    L1StandardBridge l1StandardBridge;
+    L1CrossDomainMessenger l1CrossDomainMessenger;
+    L1ERC721Bridge l1ERC721Bridge;
+    SystemConfig systemConfig;
+    */
+
     FFIInterface ffi;
 
-    function setUp() public virtual {
+    function setUp() public virtual override {
         // Give alice and bob some ETH
         vm.deal(alice, 1 << 16);
         vm.deal(bob, 1 << 16);
@@ -78,8 +87,20 @@ contract CommonTest is Deploy, Test {
         );
 
         ffi = new FFIInterface();
-        //Deploy.setUp();
-        //Deploy.run();
+
+        Deploy.setUp();
+        Deploy.run();
+
+        optimismPortal = OptimismPortal(mustGetAddress("OptimismPortalProxy"));
+        l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
+
+        vm.label(address(l2OutputOracle), "L2OutputOracle");
+        /*
+        l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
+        l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
+        l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
+        systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
+        */
     }
 
     function emitTransactionDeposited(
@@ -98,10 +119,6 @@ contract CommonTest is Deploy, Test {
 }
 
 contract L2OutputOracle_Initializer is CommonTest {
-    // Test target
-    L2OutputOracle oracle;
-    L2OutputOracle oracleImpl;
-
     L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
@@ -117,18 +134,18 @@ contract L2OutputOracle_Initializer is CommonTest {
 
     // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
-        vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
+        vm.warp(l2OutputOracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 
     /// @dev Helper function to propose an output.
     function proposeAnotherOutput() public {
         bytes32 proposedOutput2 = keccak256(abi.encode());
-        uint256 nextBlockNumber = oracle.nextBlockNumber();
-        uint256 nextOutputIndex = oracle.nextOutputIndex();
+        uint256 nextBlockNumber = l2OutputOracle.nextBlockNumber();
+        uint256 nextOutputIndex = l2OutputOracle.nextOutputIndex();
         warpToProposeTime(nextBlockNumber);
-        uint256 proposedNumber = oracle.latestBlockNumber();
+        uint256 proposedNumber = l2OutputOracle.latestBlockNumber();
 
-        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 submissionInterval = cfg.l2OutputOracleSubmissionInterval();
         // Ensure the submissionInterval is enforced
         assertEq(nextBlockNumber, proposedNumber + submissionInterval);
 
@@ -137,9 +154,9 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.expectEmit(true, true, true, true);
         emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
 
-        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address proposer = cfg.l2OutputOracleProposer();
         vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
+        l2OutputOracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
 
     function setUp() public virtual override {
@@ -148,12 +165,9 @@ contract L2OutputOracle_Initializer is CommonTest {
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
-        vm.warp(deploy.cfg().l2OutputOracleStartingTimestamp() + 1);
-        vm.roll(deploy.cfg().l2OutputOracleStartingBlockNumber() + 1);
+        vm.warp(cfg.l2OutputOracleStartingTimestamp() + 1);
+        vm.roll(cfg.l2OutputOracleStartingBlockNumber() + 1);
 
-        oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
-        oracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
-        vm.label(address(oracle), "L2OutputOracle");
 
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
@@ -196,7 +210,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
                         l1CrossDomainMessenger: address(0),
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),
-                        l2OutputOracle: address(oracle),
+                        l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(op),
                         optimismMintableERC20Factory: address(0)
                     })
@@ -211,7 +225,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
-            address(opImpl), abi.encodeCall(OptimismPortal.initialize, (oracle, guardian, systemConfig, false))
+            address(opImpl), abi.encodeCall(OptimismPortal.initialize, (l2OutputOracle, guardian, systemConfig, false))
         );
         op = OptimismPortal(payable(address(proxy)));
         vm.label(address(op), "OptimismPortal");

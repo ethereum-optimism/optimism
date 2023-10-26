@@ -26,8 +26,8 @@ contract OptimismPortal_Test is Portal_Initializer {
 
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
-        assertEq(address(op.L2_ORACLE()), address(oracle));
-        assertEq(address(op.l2Oracle()), address(oracle));
+        assertEq(address(op.L2_ORACLE()), address(l2OutputOracle));
+        assertEq(address(op.l2Oracle()), address(l2OutputOracle));
         assertEq(op.GUARDIAN(), guardian);
         assertEq(op.guardian(), guardian);
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
@@ -287,7 +287,7 @@ contract OptimismPortal_Test is Portal_Initializer {
 
     /// @dev Tests that `isOutputFinalized` succeeds for an EOA depositing a tx with ETH and data.
     function test_simple_isOutputFinalized_succeeds() external {
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
+        uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
 
         uint256 ts = block.timestamp;
         vm.mockCall(
@@ -297,25 +297,25 @@ contract OptimismPortal_Test is Portal_Initializer {
         );
 
         // warp to the finalization period
-        vm.warp(ts + oracle.FINALIZATION_PERIOD_SECONDS());
+        vm.warp(ts + l2OutputOracle.FINALIZATION_PERIOD_SECONDS());
         assertEq(op.isOutputFinalized(0), false);
 
         // warp past the finalization period
-        vm.warp(ts + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(ts + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         assertEq(op.isOutputFinalized(0), true);
     }
 
     /// @dev Tests `isOutputFinalized` for a finalized output.
     function test_isOutputFinalized_succeeds() external {
-        uint256 checkpoint = oracle.nextBlockNumber();
-        uint256 nextOutputIndex = oracle.nextOutputIndex();
+        uint256 checkpoint = l2OutputOracle.nextBlockNumber();
+        uint256 nextOutputIndex = l2OutputOracle.nextOutputIndex();
         vm.roll(checkpoint);
-        vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        vm.prank(oracle.PROPOSER());
-        oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
+        vm.warp(l2OutputOracle.computeL2Timestamp(checkpoint) + 1);
+        vm.prank(l2OutputOracle.PROPOSER());
+        l2OutputOracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
-        uint256 finalizationHorizon = block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS();
+        uint256 finalizationHorizon = block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS();
         vm.warp(finalizationHorizon);
         // The checkpointed block should not be finalized until 1 second from now.
         assertEq(op.isOutputFinalized(nextOutputIndex), false);
@@ -368,19 +368,19 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.nextBlockNumber();
-        _proposedOutputIndex = oracle.nextOutputIndex();
+        _proposedBlockNumber = l2OutputOracle.nextBlockNumber();
+        _proposedOutputIndex = l2OutputOracle.nextOutputIndex();
     }
 
     /// @dev Setup the system for a ready-to-use state.
     function setUp() public override {
         // Configure the oracle to return the output root we've prepared.
-        vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(oracle.PROPOSER());
-        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+        vm.warp(l2OutputOracle.computeL2Timestamp(_proposedBlockNumber) + 1);
+        vm.prank(l2OutputOracle.PROPOSER());
+        l2OutputOracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(oracle.getL2Output(_proposedOutputIndex).timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(op), 0xFFFFFFFF);
     }
@@ -537,7 +537,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectEmit(true, true, false, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -598,7 +598,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
@@ -624,7 +624,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Mock an outputRoot change on the output proposal before attempting
         // to finalize the withdrawal.
@@ -655,7 +655,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Mock a timestamp change on the output proposal that has not passed the
         // finalization period.
@@ -682,7 +682,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(_withdrawalHash, false);
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -714,7 +714,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -761,7 +761,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         op.proveWithdrawalTransaction(insufficientGasTx, _proposedOutputIndex, outputRootProof, withdrawalProof);
 
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectRevert("SafeCall: Not enough gas");
         op.finalizeWithdrawalTransaction{ gas: gasLimit }(insufficientGasTx);
     }
@@ -793,7 +793,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         });
 
         // Setup the Oracle to return the outputRoot we want as well as a finalized timestamp.
-        uint256 finalizedTimestamp = block.timestamp - oracle.FINALIZATION_PERIOD_SECONDS() - 1;
+        uint256 finalizedTimestamp = block.timestamp - l2OutputOracle.FINALIZATION_PERIOD_SECONDS() - 1;
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
@@ -804,7 +804,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(withdrawalHash, alice, address(this));
         op.proveWithdrawalTransaction(_testTx, _proposedBlockNumber, outputRootProof, withdrawalProof);
 
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectCall(address(this), _testTx.data);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(withdrawalHash, true);
@@ -869,8 +869,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         // Setup the Oracle to return the outputRoot
         vm.mockCall(
-            address(oracle),
-            abi.encodeWithSelector(oracle.getL2Output.selector),
+            address(l2OutputOracle),
+            abi.encodeWithSelector(l2OutputOracle.getL2Output.selector),
             abi.encode(outputRoot, block.timestamp, 100)
         );
 
@@ -885,7 +885,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertTrue(_root != bytes32(0));
 
         // Warp past the finalization period
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Finalize the withdrawal transaction
         vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);

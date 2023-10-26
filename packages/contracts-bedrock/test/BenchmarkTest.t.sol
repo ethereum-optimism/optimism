@@ -15,8 +15,8 @@ function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
 
 contract SetPrevBaseFee_Test is Portal_Initializer {
     function test_setPrevBaseFee_succeeds() external {
-        setPrevBaseFee(vm, address(op), 100 gwei);
-        (uint128 prevBaseFee,, uint64 prevBlockNum) = op.params();
+        setPrevBaseFee(vm, address(optimismPortal), 100 gwei);
+        (uint128 prevBaseFee,, uint64 prevBlockNum) = optimismPortal.params();
         assertEq(uint256(prevBaseFee), 100 gwei);
         assertEq(uint256(prevBlockNum), block.number);
     }
@@ -61,19 +61,19 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.nextBlockNumber();
-        _proposedOutputIndex = oracle.nextOutputIndex();
+        _proposedBlockNumber = l2OutputOracle.nextBlockNumber();
+        _proposedOutputIndex = l2OutputOracle.nextOutputIndex();
     }
 
     // Get the system into a nice ready-to-use state.
     function setUp() public virtual override {
         // Configure the oracle to return the output root we've prepared.
-        vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(oracle.PROPOSER());
-        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+        vm.warp(l2OutputOracle.computeL2Timestamp(_proposedBlockNumber) + 1);
+        vm.prank(l2OutputOracle.PROPOSER());
+        l2OutputOracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(oracle.getL2Output(_proposedOutputIndex).timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(op), 0xFFFFFFFF);
@@ -194,13 +194,13 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
 
     function setUp() public override {
         super.setUp();
-        nextBlockNumber = oracle.nextBlockNumber();
+        nextBlockNumber = l2OutputOracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address proposer = cfg.l2OutputOracleProposer();
         vm.startPrank(proposer);
     }
 
     function test_proposeL2Output_benchmark() external {
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+        l2OutputOracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 }

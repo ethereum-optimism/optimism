@@ -36,7 +36,7 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
         super.setUp();
 
         // Create a proposer actor.
-        actor = new L2OutputOracle_Proposer(oracle, vm);
+        actor = new L2OutputOracle_Proposer(l2OutputOracle, vm);
 
         // Set the target contract to the proposer actor.
         targetContract(address(actor));
@@ -57,6 +57,6 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
     ///                   correspond to a block number that is less than the current output.
     function invariant_monotonicBlockNumIncrease() external {
         // Assert that the block number of proposals must monotonically increase.
-        assertTrue(oracle.nextBlockNumber() >= oracle.latestBlockNumber());
+        assertTrue(l2OutputOracle.nextBlockNumber() >= l2OutputOracle.latestBlockNumber());
     }
 }
