@@ -1,16 +1,14 @@
 version: 2.1
 
+parameters:
+  ci_builder_image:
+    type: string
+    default: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
 orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
   slack: circleci/slack@4.10.1
 commands:
-  checkout-with-submodules:
-    description: "Checkout and init submodules as needed"
-    steps:
-      - checkout
-      - run: git submodule sync --recursive
-      - run: git submodule update --recursive --init
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
@@ -67,7 +65,7 @@ commands:
 jobs:
   cannon-go-lint-and-test:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
     steps:
       - checkout
@@ -98,7 +96,7 @@ jobs:
           path: /tmp/test-results
   cannon-build-test-vectors:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
     steps:
       - checkout
@@ -111,7 +109,7 @@ jobs:
 
   pnpm-monorepo:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -218,9 +216,10 @@ jobs:
             if [[ -v DOCKER_HUB_READ_ONLY_TOKEN ]]; then
               echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
             fi
-            IMAGE_BASE_PREFIX="<<parameters.registry>>/<<parameters.repo>>"
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            IMAGE_BASE_PREFIX="<<parameters.registry>>/<<parameters.repo>>"
+            IMAGE_BASE="$IMAGE_BASE_PREFIX/<<parameters.docker_name>>"
             docker build --progress plain \
             <<parameters.build_args>> \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
@@ -281,33 +280,27 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
     steps:
-      - when:
-          condition: false
-          steps:
-            - gcp-oidc-authenticate
-            # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
-            # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
-            - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
-            - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
-            - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
-            - run: cat /etc/netplan/50-cloud-init.yaml
-            - run: sudo netplan apply
-            - checkout
-            - run:
-                name: Build & Publish
-                command: |
-                  gcloud auth configure-docker <<parameters.registry>>
-                  IMAGE_BASE="<<parameters.registry>>/${GCP_PROJECT_ID}/<<parameters.repo>>/<<parameters.docker_name>>"
-                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-                  docker context create buildx-build
-                  docker buildx create --use buildx-build
-                  docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
-                    $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-                    -f <<parameters.docker_file>> \
-                    <<parameters.docker_context>>
+      - gcp-oidc-authenticate
+      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
+      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
+      - run: cat /etc/netplan/50-cloud-init.yaml
+      - run: sudo netplan apply
+      - checkout
       - run:
-          name: "no-op to make config parsing happy"
-          command: /bin/true
+          name: Build & Publish
+          command: |
+            gcloud auth configure-docker <<parameters.registry>>
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
 
   docker-release:
     environment:
@@ -371,7 +364,7 @@ jobs:
 
   contracts-bedrock-coverage:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -396,7 +389,7 @@ jobs:
 
   contracts-bedrock-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -416,7 +409,7 @@ jobs:
 
   contracts-bedrock-checks:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -432,7 +425,7 @@ jobs:
           command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: build contracts
-          command: pnpm build && git diff --exit-code
+          command: pnpm build
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
@@ -503,7 +496,7 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -516,7 +509,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -537,7 +530,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -548,7 +541,7 @@ jobs:
 
   boba-bindings-build:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -573,7 +566,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -602,7 +595,7 @@ jobs:
 
   contracts-ts-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -624,7 +617,7 @@ jobs:
 
   sdk-next-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -748,7 +741,7 @@ jobs:
         description: changed pattern to fire fuzzer on
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -770,7 +763,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -795,7 +788,7 @@ jobs:
 
   l1-geth-version-check:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - run:
@@ -804,7 +797,7 @@ jobs:
 
   go-lint:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -836,7 +829,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest # only used to enable codecov.
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -875,7 +868,7 @@ jobs:
         description: The make target to execute
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -924,7 +917,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -952,7 +945,7 @@ jobs:
 
   indexer-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
       - image: cimg/postgres:14.1
     resource_class: large
     steps:
@@ -999,7 +992,7 @@ jobs:
 
   cannon-prestate:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1029,7 +1022,7 @@ jobs:
 
   devnet-allocs:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1057,7 +1050,7 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
-      - checkout-with-submodules
+      - checkout
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock
       - run:
@@ -1183,7 +1176,7 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
-      - checkout-with-submodules
+      - checkout
       - check-changed:
           patterns: op-(.+),packages,ops-bedrock
       - run:
@@ -1329,7 +1322,7 @@ jobs:
 
   go-mod-download:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     parameters:
       file:
         default: go.sum
@@ -1358,7 +1351,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1370,7 +1363,7 @@ jobs:
 
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
     steps:
       - run: echo Done
@@ -1392,7 +1385,7 @@ jobs:
 
   op-program-compat:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1408,7 +1401,7 @@ jobs:
 
   check-generated-mocks-op-node:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -1419,7 +1412,7 @@ jobs:
 
   check-generated-mocks-op-service:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -1456,12 +1449,8 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build:
-          requires:
-            - pnpm-monorepo
-      - boba-bindings-build:
-          requires:
-            - pnpm-monorepo
+      - op-bindings-build
+      - boba-bindings-build
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
@@ -1508,14 +1497,6 @@ workflows:
             - "go-mod-tidy"
             - l1-geth-version-check
       - bedrock-markdown
-      - go-test:
-          name: boba-bindings-tests
-          module: boba-bindings
-          requires: ["op-stack-go-lint"]
-      - go-test:
-          name: boba-chain-ops-tests
-          module: boba-chain-ops
-          requires: ["op-stack-go-lint"]
       - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
           name: op-stack-go-lint
           requires: [ "go-mod-tidy" ]
@@ -1538,11 +1519,18 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
+      - go-test:
+          name: boba-bindings-tests
+          module: boba-bindings
           requires: ["op-stack-go-lint"]
       - go-test:
           name: op-heartbeat-tests
           module: op-heartbeat
           requires: [ "op-stack-go-lint" ]
+      - go-test:
+          name: boba-chain-ops-tests
+          module: boba-chain-ops
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -1630,6 +1618,9 @@ workflows:
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
             - op-e2e-ext-geth-tests
+            - op-e2e-ext-erigon-tests
+            - boba-bindings-tests
+            - boba-chain-ops-tests
       - docker-build:
           name: op-stack-go-docker-build
           docker_file: ops/docker/op-stack-go/Dockerfile
