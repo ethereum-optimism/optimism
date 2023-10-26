@@ -231,6 +231,7 @@ jobs:
 
             DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
+              gcloud auth configure-docker <<parameters.registry>>
               echo "Building for platforms $PLATFORMS and then publishing to registry"
               DOCKER_OUTPUT_DESTINATION="--push"
               if [ "<<parameters.save_image_tag>>" != "" ]; then
@@ -271,20 +272,6 @@ jobs:
                 root: /tmp/docker_images
                 paths:  # only write the one file, to avoid concurrent workspace-file additions
                   - "<<parameters.docker_name>>.tar"
-      - when:
-          condition: "<<parameters.publish>>"
-          steps:
-            - run:
-                name: Publish
-                command: |
-                  gcloud auth configure-docker <<parameters.registry>>
-                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-                  # tags, without the '-t ' here, so we can loop over them
-                  DOCKER_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")"
-                  for docker_image_tag in $DOCKER_TAGS; do
-                    docker image push $docker_image_tag
-                  done
-                no_output_timeout: 45m
       - when:
           condition: "<<parameters.release>>"
           steps:
@@ -1506,7 +1493,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1521,7 +1508,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-node
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1536,7 +1523,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1551,7 +1538,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1566,7 +1553,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1581,7 +1568,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
           context:
@@ -1596,7 +1583,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: proxyd
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
           context:
@@ -1611,7 +1598,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
           context:
