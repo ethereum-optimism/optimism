@@ -1,5 +1,9 @@
 version: 2.1
 
+parameters:
+  ci_builder_image:
+    type: string
+    default: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
 orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
@@ -61,7 +65,7 @@ commands:
 jobs:
   cannon-go-lint-and-test:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
     steps:
       - checkout
@@ -92,7 +96,7 @@ jobs:
           path: /tmp/test-results
   cannon-build-test-vectors:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
     steps:
       - checkout
@@ -105,7 +109,7 @@ jobs:
 
   pnpm-monorepo:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -360,7 +364,7 @@ jobs:
 
   contracts-bedrock-coverage:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -385,7 +389,7 @@ jobs:
 
   contracts-bedrock-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -405,7 +409,7 @@ jobs:
 
   contracts-bedrock-checks:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -492,7 +496,7 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -505,7 +509,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -526,7 +530,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -537,7 +541,7 @@ jobs:
 
   boba-bindings-build:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -562,7 +566,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -591,7 +595,7 @@ jobs:
 
   contracts-ts-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -613,7 +617,7 @@ jobs:
 
   sdk-next-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: large
     steps:
       - checkout
@@ -737,7 +741,7 @@ jobs:
         description: changed pattern to fire fuzzer on
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -759,7 +763,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -784,7 +788,7 @@ jobs:
 
   l1-geth-version-check:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - run:
@@ -793,7 +797,7 @@ jobs:
 
   go-lint:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -825,7 +829,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest # only used to enable codecov.
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -864,7 +868,7 @@ jobs:
         description: The make target to execute
         type: string
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
@@ -913,7 +917,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -941,7 +945,7 @@ jobs:
 
   indexer-tests:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
       - image: cimg/postgres:14.1
     resource_class: large
     steps:
@@ -988,7 +992,7 @@ jobs:
 
   cannon-prestate:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1018,7 +1022,7 @@ jobs:
 
   devnet-allocs:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1318,7 +1322,7 @@ jobs:
 
   go-mod-download:
     docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     parameters:
       file:
         default: go.sum
@@ -1347,7 +1351,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1359,7 +1363,7 @@ jobs:
 
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: medium
     steps:
       - run: echo Done
@@ -1381,7 +1385,7 @@ jobs:
 
   op-program-compat:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - restore_cache:
@@ -1397,7 +1401,7 @@ jobs:
 
   check-generated-mocks-op-node:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
@@ -1408,7 +1412,7 @@ jobs:
 
   check-generated-mocks-op-service:
     docker:
-      - image: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - check-changed:
