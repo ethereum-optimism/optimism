@@ -1506,7 +1506,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1521,7 +1521,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-node
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1536,7 +1536,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1551,7 +1551,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1566,7 +1566,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1581,7 +1581,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           publish: true
           release: true
           context:
@@ -1596,7 +1596,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: proxyd
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           publish: true
           release: true
           context:
@@ -1611,7 +1611,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
           publish: true
           release: true
           context:
