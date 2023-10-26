@@ -3,7 +3,7 @@ ifdef JUNIT_FILE
 	go_test = OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=standard-verbose --junitfile=$(JUNIT_FILE) --
   # Note: -parallel must be set to match the number of cores in the resource class
 	go_test_flags = -timeout=20m -parallel=8
-	go_test_target = $(go list ./... | circleci tests split --split-by=timings)
+	go_test_target = $$(go list ./... | circleci tests split --split-by=timings)
 else
 	go_test = go test
 	go_test_flags = -v
@@ -15,14 +15,20 @@ test: pre-test test-ws
 
 test-external-%: pre-test
 	make -C ./external_$*/
-	$(go_test) $(go_test_flags) --externalL2 ./external_$*/ $(go_test_target)
+	export TESTLIST=$(go_test_target); \
+	echo "Running tests: $${TESTLIST}"; \
+	$(go_test) $(go_test_flags) --externalL2 ./external_$*/ "$${TESTLIST}"
 
 test-ws: pre-test
-	$(go_test) $(go_test_flags) $(go_test_target)
+	export TESTLIST=$(go_test_target); \
+	echo "Running tests: $${TESTLIST}"; \
+	$(go_test) $(go_test_flags) "$${TESTLIST}"
 .PHONY: test-ws
 
 test-http: pre-test
-	OP_E2E_USE_HTTP=true $(go_test) $(go_test_flags) $(go_test_target)
+	export TESTLIST=$(go_test_target); \
+	echo "Running tests: $${TESTLIST}"; \
+	OP_E2E_USE_HTTP=true $(go_test) $(go_test_flags) "$${TESTLIST}"
 .PHONY: test-ws
 
 cannon-prestate:
