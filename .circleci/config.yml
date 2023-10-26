@@ -1222,6 +1222,46 @@ jobs:
           name: check-generated-mocks
           command: make generate-mocks-op-service && git diff --exit-code
 
+  check-values-match:
+    parameters:
+      pattern_file1:
+        type: string
+        default: "uint8 internal constant INITIALIZER ="
+      pattern_file2:
+        type: string
+        default: "const initializedValue ="
+      file1_path:
+        type: string
+        default: "packages/contracts-bedrock/src/libraries/Constants.sol"
+      file2_path:
+        type: string
+        default: "op-chain-ops/genesis/config.go"
+
+    docker:
+      - image: cimg/base:2020.01
+
+    steps:
+      - checkout
+      - run:
+          name: Extract value from file1
+          command: |
+            VALUE1=$(grep '<< parameters.pattern_file1 >>' << parameters.file1_path >> | awk -F'=' '{print $2}' | tr -d ' ;')
+            echo "export VALUE1=$VALUE1" >> $BASH_ENV
+      - run:
+          name: Extract value from file2
+          command: |
+            VALUE2=$(grep '<< parameters.pattern_file2 >>' << parameters.file2_path >> | awk -F'=' '{print $2}' | tr -d ' ;')
+            echo "export VALUE2=$VALUE2" >> $BASH_ENV
+      - run:
+          name: Compare values
+          command: |
+            if [ "$VALUE1" != "$VALUE2" ]; then
+              echo "Error: Values from file1 ($VALUE1) and file2 ($VALUE2) don't match."
+              exit 1
+            else
+              echo "Values match!"
+            fi
+
 workflows:
   main:
     when:
@@ -1466,7 +1506,11 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
-
+      - check-values-match:
+          pattern_file1: "uint8 internal constant INITIALIZER ="
+          pattern_file2: "const initializedValue ="
+          file1_path: "packages/contracts-bedrock/src/libraries/Constants.sol"
+          file2_path: "op-chain-ops/genesis/config.go"
   release:
     when:
       not:
