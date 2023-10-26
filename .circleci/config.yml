@@ -1244,24 +1244,24 @@ jobs:
           name: Filter comments and match only 1 script
           command: |
             SCRIPT=$(cat <<'EOF'
-              BEGIN { in_comment = 0; matches = 0; }
-              /^ *\/\*/ { in_comment = 1; }
-              in_comment && /\*\// { in_comment = 0; next; }
-              !in_comment && !/^ *\/\// && /PATTERN/ { matches++; matched_line = $0; }
-              END {
-                  if (matches == 1) {
-                      print matched_line;
-                  } else if (matches > 1) {
-                      print "Multiple matches found. Exiting.";
-                      exit 1;
-                  } else {
-                      print "No matches found. Exiting.";
-                      exit 1;
-                  }
-              }
-              EOF
-              )
-              echo "export SCRIPT=$SCRIPT" >> $BASH_ENV
+            BEGIN { in_comment = 0; matches = 0; }
+            /^ *\/\*/ { in_comment = 1; }
+            in_comment && /\*\// { in_comment = 0; next; }
+            !in_comment && !/^ *\/\// && /PATTERN/ { matches++; matched_line = $0; }
+            END {
+                if (matches == 1) {
+                    print matched_line;
+                } else if (matches > 1) {
+                    print "Multiple matches found. Exiting.";
+                    exit 1;
+                } else {
+                    print "No matches found. Exiting.";
+                    exit 1;
+                }
+            }
+            EOF
+            )
+            echo "export SCRIPT=$SCRIPT" >> $BASH_ENV
       - run:
           name: Extract value from file1
           command: |
