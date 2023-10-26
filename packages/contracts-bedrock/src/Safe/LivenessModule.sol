@@ -88,14 +88,12 @@ contract LivenessModule is ISemver {
     )
         internal
     {
+        require(
+            !_isAboveMinOwners(_newOwnersCount)
+                || LIVENESS_GUARD.lastLive(_ownerToRemove) < block.timestamp - LIVENESS_INTERVAL,
+            "LivenessModule: owner has signed recently"
+        );
         if (_newOwnersCount > 0) {
-            if (_isAboveMinOwners(_newOwnersCount)) {
-                // Check that the owner to remove has not signed a transaction in the last 30 days
-                require(
-                    LIVENESS_GUARD.lastLive(_ownerToRemove) < block.timestamp - LIVENESS_INTERVAL,
-                    "LivenessModule: owner has signed recently"
-                );
-            }
             // Remove the owner and update the threshold
             _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: _newThreshold });
         } else {
