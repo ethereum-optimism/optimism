@@ -1241,47 +1241,9 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Filter comments and match only 1 script
+          name: Verify Values Match
           command: |
-            SCRIPT='BEGIN { in_comment = 0; matches = 0; } /^ *\/\*/ { in_comment = 1; } in_comment && /\*\// { in_comment = 0; next; } !in_comment && !/^ *\/\// && $0 ~ PATTERN { matches++; matched_line = $0; } END { if (matches == 1) { print matched_line; } else if (matches > 1) { print "Multiple matches found. Exiting."; exit 1; } else { print "No matches found. Exiting."; exit 1; } }'
-            echo "export SCRIPT='$SCRIPT'" >> $BASH_ENV
-      - run:
-          name: Extract value from file1
-          command: |
-            VALUE1_MATCH=$(echo "$SCRIPT" | awk -v PATTERN='<< parameters.pattern_file1 >>' -f- "<< parameters.file1_path >>")
-            if [ $? -ne 0 ]; then
-            exit 1
-            fi
-
-            VALUE1=$(echo "$VALUE1_MATCH" | awk -F'=' '{print $2}' | tr -d ' ;')
-            echo "Value:"
-            echo "$VALUE1"
-            echo "export VALUE1=$VALUE1" >> $BASH_ENV
-
-      - run:
-          name: Extract value from file2
-          command: |
-            VALUE2_MATCH=$(echo "$SCRIPT" | awk -v PATTERN='<< parameters.pattern_file2 >>' -f- "<< parameters.file2_path >>")
-            if [ $? -ne 0 ]; then
-            exit 1
-            fi
-
-            VALUE2=$(echo "$VALUE2_MATCH" | awk -F'=' '{print $2}' | tr -d ' ;')
-            echo "Value:"
-            echo "$VALUE2"
-            echo "export VALUE2=$VALUE2" >> $BASH_ENV
-
-      - run:
-          name: Compare values
-          command: |
-            if [ "$VALUE1" != "$VALUE2" ]; then
-              echo "Error: Values from file1 ($VALUE1) and file2 ($VALUE2) don't match."
-              exit 1
-            else
-              echo "Values match!"
-            fi
-
-
+            ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
 workflows:
   main:
     when:
