@@ -1249,10 +1249,10 @@ jobs:
           name: Extract value from file1
           command: |
             VALUE1_MATCH=$(echo "$SCRIPT" | awk -v PATTERN='<< parameters.pattern_file1 >>' -f- "<< parameters.file1_path >>")
-
             if [ $? -ne 0 ]; then
             exit 1
             fi
+
             VALUE1=$(echo "$VALUE1_MATCH" | awk -F'=' '{print $2}' | tr -d ' ;')
             echo "Value:"
             echo "$VALUE1"
@@ -1262,7 +1262,6 @@ jobs:
           name: Extract value from file2
           command: |
             VALUE2_MATCH=$(echo "$SCRIPT" | awk -v PATTERN='<< parameters.pattern_file2 >>' -f- "<< parameters.file2_path >>")
-
             if [ $? -ne 0 ]; then
             exit 1
             fi
