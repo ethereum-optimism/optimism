@@ -836,7 +836,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.deal(address(optimismPortal), value);
 
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
-        uint256 nonce = messagePasser.messageNonce();
+        uint256 nonce = l2ToL1MessagePasser.messageNonce();
 
         // Get a withdrawal transaction and mock proof from the differential testing script.
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({

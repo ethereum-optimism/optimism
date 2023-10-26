@@ -64,6 +64,10 @@ contract CommonTest is Deploy, Test {
     AddressManager addressManager;
     L1ERC721Bridge l1ERC721Bridge;
 
+    L2CrossDomainMessenger l2CrossDomainMessenger;
+    L2StandardBridge l2StandardBridge;
+    L2ToL1MessagePasser l2ToL1MessagePasser;
+
     FFIInterface ffi;
 
     function setUp() public virtual override {
@@ -90,6 +94,7 @@ contract CommonTest is Deploy, Test {
         Deploy.setUp();
         Deploy.run();
 
+        // Set up L1
         optimismPortal = OptimismPortal(mustGetAddress("OptimismPortalProxy"));
         l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
@@ -105,6 +110,20 @@ contract CommonTest is Deploy, Test {
         vm.label(address(l1CrossDomainMessenger), "L1CrossDomainMessenger");
         vm.label(address(addressManager), "AddressManager");
         vm.label(address(l1ERC721Bridge), "L1ERC721Bridge");
+
+        // Set up L2. There are currently no proxies set in the L2 initialization.
+        vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code);
+        l2CrossDomainMessenger = L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
+        l2CrossDomainMessenger.initialize();
+
+        vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
+        l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
+
+        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
+        vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
+        vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
+        vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
+        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
 
     function emitTransactionDeposited(
@@ -123,7 +142,6 @@ contract CommonTest is Deploy, Test {
 }
 
 contract L2OutputOracle_Initializer is CommonTest {
-    L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
     event OutputProposed(
@@ -166,10 +184,6 @@ contract L2OutputOracle_Initializer is CommonTest {
         // tests, so we'll move forward to these block values.
         vm.warp(cfg.l2OutputOracleStartingTimestamp() + 1);
         vm.roll(cfg.l2OutputOracleStartingBlockNumber() + 1);
-
-        // Set the L2ToL1MessagePasser at the correct address
-        vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
-        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
 }
 
@@ -213,18 +227,12 @@ contract Messenger_Initializer is Portal_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code);
-        L2Messenger.initialize();
-
         // Label addresses
-        vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
-        vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
 }
 
 contract Bridge_Initializer is Messenger_Initializer {
-    L1StandardBridge L1Bridge;
     L2StandardBridge L2Bridge;
     OptimismMintableERC20Factory L2TokenFactory;
     OptimismMintableERC20Factory L1TokenFactory;
@@ -285,29 +293,10 @@ contract Bridge_Initializer is Messenger_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
-        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
-
-        // Deploy the L1 bridge and initialize it with the address of the
-        // L1CrossDomainMessenger
-        L1ChugSplashProxy proxy = new L1ChugSplashProxy(multisig);
-        vm.mockCall(multisig, abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector), abi.encode(true));
-        vm.startPrank(multisig);
-        proxy.setCode(address(new L1StandardBridge()).code);
-        vm.clearMockedCalls();
-        address L1Bridge_Impl = proxy.getImplementation();
-        vm.stopPrank();
-
-        L1Bridge = L1StandardBridge(payable(address(proxy)));
-        L1Bridge.initialize({ _messenger: l1CrossDomainMessenger });
-
-        vm.label(address(proxy), "L1StandardBridge_Proxy");
-        vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
-
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it. It is safe to call initialize directly
         // on the proxy because the bytecode was set in state with `etch`.
-        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(proxy)))).code);
+        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code);
         L2Bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
         L2Bridge.initialize();
 
@@ -352,7 +341,7 @@ contract Bridge_Initializer is Messenger_Initializer {
 
         vm.prank(multisig);
         factoryProxy.upgradeToAndCall(
-            address(L1TokenFactoryImpl), abi.encodeCall(OptimismMintableERC20Factory.initialize, address(L1Bridge))
+            address(L1TokenFactoryImpl), abi.encodeCall(OptimismMintableERC20Factory.initialize, address(l1StandardBridge))
         );
 
         L1TokenFactory = OptimismMintableERC20Factory(address(factoryProxy));

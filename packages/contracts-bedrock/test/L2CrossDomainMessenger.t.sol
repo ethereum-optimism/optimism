@@ -32,7 +32,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         bytes memory xDomainCallData =
             Encoding.encodeCrossDomainMessage(L2Messenger.messageNonce(), alice, recipient, 0, 100, hex"ff");
         vm.expectCall(
-            address(messagePasser),
+            address(l2ToL1MessagePasser),
             abi.encodeWithSelector(
                 L2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(l1CrossDomainMessenger),
@@ -44,7 +44,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         // MessagePassed event
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            messagePasser.messageNonce(),
+            l2ToL1MessagePasser.messageNonce(),
             address(L2Messenger),
             address(l1CrossDomainMessenger),
             0,
@@ -52,7 +52,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             xDomainCallData,
             Hashing.hashWithdrawal(
                 Types.WithdrawalTransaction({
-                    nonce: messagePasser.messageNonce(),
+                    nonce: l2ToL1MessagePasser.messageNonce(),
                     sender: address(L2Messenger),
                     target: address(l1CrossDomainMessenger),
                     value: 0,
@@ -138,7 +138,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev Tests that `relayMessage` reverts if attempting to relay
     ///      a message sent to an L1 system contract.
     function test_relayMessage_toSystemContract_reverts() external {
-        address target = address(messagePasser);
+        address target = address(l2ToL1MessagePasser);
         address sender = address(l1CrossDomainMessenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
         bytes memory message = hex"1111";
