@@ -20,6 +20,7 @@ contract OwnerSimulator is OwnerManager {
         setupOwners(_owners, _threshold);
     }
 
+    /// @dev Exposes the OwnerManager's removeOwner function so that anyone may call without needing auth
     function removeOwnerWrapped(address prevOwner, address owner, uint256 _threshold) public {
         OwnerManager(address(this)).removeOwner(prevOwner, owner, _threshold);
     }
@@ -194,9 +195,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         /// Will sign a transaction with the first M owners in the owners list
         vm.warp(block.timestamp + livenessInterval);
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
-        vm.expectRevert(
-            "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
-        );
+        vm.expectRevert("LivenessModule: the owner to remove has signed recently");
         _removeAnOwner(safeInstance.owners[0]);
     }
 
@@ -206,9 +205,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         vm.warp(block.timestamp + livenessInterval);
         vm.prank(safeInstance.owners[0]);
         livenessGuard.showLiveness();
-        vm.expectRevert(
-            "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
-        );
+        vm.expectRevert("LivenessModule: the owner to remove has signed recently");
         _removeAnOwner(safeInstance.owners[0]);
     }
 
@@ -242,8 +239,8 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
-    /// @dev Tests if remove owners reverts if it removes too many owners without swapping to the fallback owner
-    function test_removeOwners_belowMinButNotToFallbackOwner_reverts() external {
+    /// @dev Tests if remove owners reverts if it removes too many owners without removing all of them
+    function test_removeOwners_belowMinButNotEmptied_reverts() external {
         // Remove all but one owner
         uint256 numOwners = safeInstance.owners.length - 1;
 
@@ -254,9 +251,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         address[] memory prevOwners = _getPrevOwners(ownersToRemove);
 
         vm.warp(block.timestamp + livenessInterval + 1);
-        vm.expectRevert(
-            "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
-        );
+        vm.expectRevert("LivenessModule: must transfer ownership to fallback owner");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 

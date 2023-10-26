@@ -29,6 +29,7 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
 }
 
 contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
+    /// @dev Tests that the constructor correctly sets the current time as the lastLive time for each owner
     function test_constructor_works() external {
         address[] memory owners = safeInstance.owners;
         livenessGuard = new LivenessGuard(safeInstance.safe);

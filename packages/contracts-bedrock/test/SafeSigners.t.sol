@@ -21,6 +21,7 @@ contract SafeSigners_Test is Test, SafeTestTools {
     /// @dev Maps every key to one of the 4 signatures types.
     ///      This is used in the tests below as a pseudorandom mechanism for determining which
     ///      signature type to use for each key.
+    /// @param _key The key to map to a signature type.
     function sigType(uint256 _key) internal pure returns (SigTypes sigType_) {
         uint256 t = _key % 4;
         sigType_ = SigTypes(t);
