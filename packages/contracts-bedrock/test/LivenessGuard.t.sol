@@ -137,7 +137,7 @@ contract LivenessGuard_OwnerManagement_Test is LivenessGuard_TestInit {
         safeInstance.execTransaction({
             to: address(safeInstance.safe),
             value: 0,
-            data: abi.encodeWithSelector(OwnerManager.removeOwner.selector, SENTINEL_OWNERS, ownerToRemove, 1)
+            data: abi.encodeWithSelector(OwnerManager.removeOwner.selector, SafeTestLib.SENTINEL_OWNERS, ownerToRemove, 1)
         });
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));

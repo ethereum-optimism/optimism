@@ -42,7 +42,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         vm.warp(initTime);
 
         // Create a Safe with 10 owners
-        (, uint256[] memory keys) = makeAddrsAndKeys(10);
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys(10);
         safeInstance = _setupSafe(keys, 8);
 
         livenessGuard = new LivenessGuard(safeInstance.safe);

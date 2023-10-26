@@ -11,104 +11,7 @@ import "./CompatibilityFallbackHandler_1_3_0.sol";
 
 // Tools to simplify testing Safe contracts
 // Author: Colin Nielsen (https://github.com/colinnielsen/safe-tools)
-
-address constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
-bytes12 constant ADDR_MASK = 0xffffffffffffffffffffffff;
-
-/// @dev The address of the first owner in the linked list of owners
-address constant SENTINEL_OWNERS = address(0x1);
-
-/// @dev Get the address from a private key
-function getAddr(uint256 pk) pure returns (address) {
-    return Vm(VM_ADDR).addr(pk);
-}
-
-/// @dev Get arrays of addresses and private keys. The arrays are sorted by address, and the addresses are labelled
-function makeAddrsAndKeys(uint256 num) returns (address[] memory addrs, uint256[] memory keys) {
-    keys = new uint256[](num);
-    addrs = new address[](num);
-    for (uint256 i; i < num; i++) {
-        uint256 key = uint256(keccak256(abi.encodePacked(i)));
-        keys[i] = key;
-    }
-
-    for (uint256 i; i < num; i++) {
-        addrs[i] = Vm(VM_ADDR).addr(keys[i]);
-        Vm(VM_ADDR).label(getAddr(keys[i]), string.concat("SAFETEST: Signer ", string(abi.encodePacked(bytes32(i)))));
-    }
-}
-
-/// @dev Encode a smart contract wallet as a private key
-function encodeSmartContractWalletAsPK(address addr) pure returns (uint256 encodedPK) {
-    assembly {
-        let addr_b32 := addr
-        encodedPK := or(addr, ADDR_MASK)
-    }
-}
-
-/// @dev Decode a smart contract wallet as an address from a private key
-function decodeSmartContractWalletAsAddress(uint256 pk) pure returns (address decodedAddr) {
-    assembly {
-        let addr := shl(96, pk)
-        decodedAddr := shr(96, addr)
-    }
-}
-
-/// @dev Checks if a private key is an encoded smart contract address
-function isSmartContractPK(uint256 pk) pure returns (bool isEncoded) {
-    assembly {
-        isEncoded := eq(shr(160, pk), shr(160, ADDR_MASK))
-    }
-}
-
-library Sort {
-    /// @dev Sorts an array of addresses in place
-    function sort(address[] memory arr) public pure returns (address[] memory) {
-        LibSort.sort(arr);
-        return arr;
-    }
-}
-
-/// @dev Sorts an array of private keys by the computed address
-///      If the private key is a smart contract wallet, it will be decoded and sorted by the address
-function sortPKsByComputedAddress(uint256[] memory _pks) pure returns (uint256[] memory) {
-    uint256[] memory sortedPKs = new uint256[](_pks.length);
-
-    address[] memory addresses = new address[](_pks.length);
-    bytes32[2][] memory accounts = new bytes32[2][](_pks.length);
-
-    for (uint256 i; i < _pks.length; i++) {
-        uint256 pk = _pks[i];
-        address signer = getAddr(pk);
-        if (isSmartContractPK(pk)) {
-            signer = decodeSmartContractWalletAsAddress(pk);
-        }
-        addresses[i] = signer;
-        accounts[i][0] = bytes32(abi.encode(signer));
-        accounts[i][1] = bytes32(pk);
-    }
-
-    addresses = Sort.sort(addresses);
-
-    uint256 found;
-    for (uint256 j; j < addresses.length; j++) {
-        address signer = addresses[j];
-        uint256 pk;
-        for (uint256 k; k < accounts.length; k++) {
-            if (address(uint160(uint256(accounts[k][0]))) == signer) {
-                pk = uint256(accounts[k][1]);
-                found++;
-            }
-        }
-
-        sortedPKs[j] = pk;
-    }
-
-    if (found < _pks.length) {
-        revert("SAFETESTTOOLS: issue with private key sorting, please open a ticket on github");
-    }
-    return sortedPKs;
-}
+// With expanded and improved functionality by OP Labs
 
 /// @dev A minimal wrapper around the OwnerManager contract. This contract is meant to be initialized with
 ///      the same owners as a Safe instance, and then used to simulate the resulting owners list
@@ -146,7 +49,108 @@ struct SafeInstance {
     DeployedSafe safe;
 }
 
+library Sort {
+    /// @dev Sorts an array of addresses in place
+    function sort(address[] memory arr) public pure returns (address[] memory) {
+        LibSort.sort(arr);
+        return arr;
+    }
+}
+
 library SafeTestLib {
+    /// @dev The address of foundry's VM contract
+    address constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
+    /// @dev The address of the first owner in the linked list of owners
+    address constant SENTINEL_OWNERS = address(0x1);
+
+    /// @dev Get the address from a private key
+    function getAddr(uint256 pk) internal pure returns (address) {
+        return Vm(VM_ADDR).addr(pk);
+    }
+
+    /// @dev Get arrays of addresses and private keys. The arrays are sorted by address, and the addresses are labelled
+    function makeAddrsAndKeys(uint256 num) internal returns (address[] memory addrs, uint256[] memory keys) {
+        keys = new uint256[](num);
+        addrs = new address[](num);
+        for (uint256 i; i < num; i++) {
+            uint256 key = uint256(keccak256(abi.encodePacked(i)));
+            keys[i] = key;
+        }
+
+        for (uint256 i; i < num; i++) {
+            addrs[i] = Vm(VM_ADDR).addr(keys[i]);
+            Vm(VM_ADDR).label(
+                getAddr(keys[i]), string.concat("SAFETEST: Signer ", string(abi.encodePacked(bytes32(i))))
+            );
+        }
+    }
+
+    bytes12 constant ADDR_MASK = 0xffffffffffffffffffffffff;
+
+    /// @dev Encode a smart contract wallet as a private key
+    function encodeSmartContractWalletAsPK(address addr) internal pure returns (uint256 encodedPK) {
+        assembly {
+            let addr_b32 := addr
+            encodedPK := or(addr, ADDR_MASK)
+        }
+    }
+
+    /// @dev Decode a smart contract wallet as an address from a private key
+    function decodeSmartContractWalletAsAddress(uint256 pk) internal pure returns (address decodedAddr) {
+        assembly {
+            let addr := shl(96, pk)
+            decodedAddr := shr(96, addr)
+        }
+    }
+
+    /// @dev Checks if a private key is an encoded smart contract address
+    function isSmartContractPK(uint256 pk) internal pure returns (bool isEncoded) {
+        assembly {
+            isEncoded := eq(shr(160, pk), shr(160, ADDR_MASK))
+        }
+    }
+
+    /// @dev Sorts an array of private keys by the computed address
+    ///      If the private key is a smart contract wallet, it will be decoded and sorted by the address
+    function sortPKsByComputedAddress(uint256[] memory _pks) internal pure returns (uint256[] memory) {
+        uint256[] memory sortedPKs = new uint256[](_pks.length);
+
+        address[] memory addresses = new address[](_pks.length);
+        bytes32[2][] memory accounts = new bytes32[2][](_pks.length);
+
+        for (uint256 i; i < _pks.length; i++) {
+            uint256 pk = _pks[i];
+            address signer = SafeTestLib.getAddr(pk);
+            if (isSmartContractPK(pk)) {
+                signer = decodeSmartContractWalletAsAddress(pk);
+            }
+            addresses[i] = signer;
+            accounts[i][0] = bytes32(abi.encode(signer));
+            accounts[i][1] = bytes32(pk);
+        }
+
+        addresses = Sort.sort(addresses);
+
+        uint256 found;
+        for (uint256 j; j < addresses.length; j++) {
+            address signer = addresses[j];
+            uint256 pk;
+            for (uint256 k; k < accounts.length; k++) {
+                if (address(uint160(uint256(accounts[k][0]))) == signer) {
+                    pk = uint256(accounts[k][1]);
+                    found++;
+                }
+            }
+
+            sortedPKs[j] = pk;
+        }
+
+        if (found < _pks.length) {
+            revert("SAFETESTTOOLS: issue with private key sorting, please open a ticket on github");
+        }
+        return sortedPKs;
+    }
+
     /// @dev A wrapper for the full execTransaction method, if no signatures are provided it will
     ///         generate them for all owners.
     function execTransaction(
@@ -442,14 +446,14 @@ contract SafeTestTools {
         public
         returns (SafeInstance memory)
     {
-        uint256[] memory sortedPKs = sortPKsByComputedAddress(ownerPKs);
+        uint256[] memory sortedPKs = SafeTestLib.sortPKsByComputedAddress(ownerPKs);
         address[] memory owners = new address[](sortedPKs.length);
 
         for (uint256 i; i < sortedPKs.length; i++) {
-            if (isSmartContractPK(sortedPKs[i])) {
-                owners[i] = decodeSmartContractWalletAsAddress(sortedPKs[i]);
+            if (SafeTestLib.isSmartContractPK(sortedPKs[i])) {
+                owners[i] = SafeTestLib.decodeSmartContractWalletAsAddress(sortedPKs[i]);
             } else {
-                owners[i] = getAddr(sortedPKs[i]);
+                owners[i] = SafeTestLib.getAddr(sortedPKs[i]);
             }
         }
         // store the initialization parameters
@@ -482,7 +486,7 @@ contract SafeTestTools {
         });
         instances.push(instance0);
 
-        Vm(VM_ADDR).deal(address(safe0), initialBalance);
+        Vm(SafeTestLib.VM_ADDR).deal(address(safe0), initialBalance);
 
         return instance0;
     }
@@ -531,7 +535,7 @@ contract SafeTestTools {
     }
 
     function _setupSafe() public returns (SafeInstance memory) {
-        (, uint256[] memory defaultPKs) = makeAddrsAndKeys(3);
+        (, uint256[] memory defaultPKs) = SafeTestLib.makeAddrsAndKeys(3);
 
         return _setupSafe(
             defaultPKs,

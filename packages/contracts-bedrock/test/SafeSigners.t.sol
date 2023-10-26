@@ -39,10 +39,11 @@ contract SafeSigners_Test is Test, SafeTestTools {
         // Limit the number of signatures to 25
         uint256 numSigs = bound(_numSigs, 1, 25);
 
-        (, uint256[] memory keys) = makeAddrsAndKeys(numSigs);
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys(numSigs);
         for (uint256 i = 0; i < keys.length; i++) {
             if (sigType(keys[i]) == SigTypes.Contract) {
-                keys[i] = encodeSmartContractWalletAsPK(decodeSmartContractWalletAsAddress(keys[i]));
+                keys[i] =
+                    SafeTestLib.encodeSmartContractWalletAsPK(SafeTestLib.decodeSmartContractWalletAsAddress(keys[i]));
             }
         }
 
@@ -66,15 +67,15 @@ contract SafeSigners_Test is Test, SafeTestTools {
                 v += 4;
                 signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
             } else if (sigType(pks[i]) == SigTypes.ApprovedHash) {
-                vm.prank(getAddr(pks[i]));
+                vm.prank(SafeTestLib.getAddr(pks[i]));
                 safeInstance.safe.approveHash(digest);
                 v = 1;
                 // s is not checked on approved hash signatures, so we can leave it as zero.
-                r = bytes32(uint256(uint160(getAddr(pks[i]))));
+                r = bytes32(uint256(uint160(SafeTestLib.getAddr(pks[i]))));
                 signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
             } else if (sigType(pks[i]) == SigTypes.Contract) {
                 contractSigs++;
-                address addr = decodeSmartContractWalletAsAddress(pks[i]);
+                address addr = SafeTestLib.decodeSmartContractWalletAsAddress(pks[i]);
                 r = bytes32(uint256(uint160(addr)));
                 vm.mockCall(
                     addr, abi.encodeWithSignature("isValidSignature(bytes,bytes)"), abi.encode(EIP1271_MAGIC_VALUE)
