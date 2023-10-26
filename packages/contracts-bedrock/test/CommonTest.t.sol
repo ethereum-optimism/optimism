@@ -58,11 +58,11 @@ contract CommonTest is Deploy, Test {
 
     OptimismPortal optimismPortal;
     L2OutputOracle l2OutputOracle;
+    SystemConfig systemConfig;
     /*
     L1StandardBridge l1StandardBridge;
     L1CrossDomainMessenger l1CrossDomainMessenger;
     L1ERC721Bridge l1ERC721Bridge;
-    SystemConfig systemConfig;
     */
 
     FFIInterface ffi;
@@ -93,6 +93,7 @@ contract CommonTest is Deploy, Test {
 
         optimismPortal = OptimismPortal(mustGetAddress("OptimismPortalProxy"));
         l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
+        systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(address(optimismPortal), "OptimismPortal");
@@ -101,7 +102,6 @@ contract CommonTest is Deploy, Test {
         l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
-        systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
         */
     }
 
@@ -173,47 +173,9 @@ contract L2OutputOracle_Initializer is CommonTest {
 }
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
-    SystemConfig systemConfig;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        Proxy systemConfigProxy = new Proxy(multisig);
-
-        SystemConfig systemConfigImpl = new SystemConfig();
-
-        vm.prank(multisig);
-        systemConfigProxy.upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    address(1), //_owner,
-                    0, //_overhead,
-                    10000, //_scalar,
-                    bytes32(0), //_batcherHash,
-                    30_000_000, //_gasLimit,
-                    address(0), //_unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), //_config,
-                    0, //_startBlock
-                    address(0xff), // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: address(0),
-                        l1ERC721Bridge: address(0),
-                        l1StandardBridge: address(0),
-                        l2OutputOracle: address(l2OutputOracle),
-                        optimismPortal: address(optimismPortal),
-                        optimismMintableERC20Factory: address(0)
-                    })
-                )
-            )
-        );
-
-        systemConfig = SystemConfig(address(systemConfigProxy));
-    }
 }
 
 contract Messenger_Initializer is Portal_Initializer {

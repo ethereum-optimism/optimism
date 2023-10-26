@@ -895,32 +895,20 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 }
 
 contract OptimismPortalUpgradeable_Test is Portal_Initializer {
-    Proxy internal proxy;
-    uint64 initialBlockNum;
-
-    /// @dev Sets up the test.
-    function setUp() public override {
-        super.setUp();
-        initialBlockNum = uint64(block.number);
-        proxy = Proxy(payable(mustGetAddress("OptimismPortalProxy")));
-    }
-
     /// @dev Tests that the proxy is initialized correctly.
     function test_params_initValuesOnProxy_succeeds() external {
-        OptimismPortal p = OptimismPortal(payable(address(proxy)));
-
-        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = p.params();
-
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal.params();
         ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
-        assertEq(prevBlockNum, initialBlockNum);
+        assertEq(prevBlockNum, block.number - 1);
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initialize_cannotInitProxy_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(proxy)).initialize({
+        optimismPortal.initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
             _guardian: address(0),
@@ -952,10 +940,10 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         vm.startPrank(multisig);
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
-        proxy.upgradeToAndCall(
+        Proxy(payable(address(optimismPortal))).upgradeToAndCall(
             address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, Constants.INITIALIZER + 1)
         );
-        assertEq(proxy.implementation(), address(nextImpl));
+        assertEq(Proxy(payable(address(optimismPortal))).implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected
         bytes32 slot21After = vm.load(address(optimismPortal), bytes32(uint256(21)));
