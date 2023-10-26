@@ -150,6 +150,7 @@ contract LivenessModule is ISemver {
     function _verifyFinalState() internal view {
         address[] memory owners = SAFE.getOwners();
         uint256 numOwners = owners.length;
+        // Ensure that the safe is not being left in an unsafe state with too few owners.
         require(
             numOwners >= MIN_OWNERS || (numOwners == 1 && owners[0] == FALLBACK_OWNER),
             "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
@@ -163,12 +164,7 @@ contract LivenessModule is ISemver {
             "LivenessModule: threshold must be 75% of the number of owners"
         );
 
-        // Check that the guard has not been changed.
-        _requireCorrectGuard();
-    }
-
-    /// @notice Reverts if the guard address does not match the expected value.
-    function _requireCorrectGuard() internal view {
+        // Check that the guard has not been changed
         require(
             address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
             "LivenessModule: guard has been changed"
