@@ -79,26 +79,33 @@ RUN git submodule update --init --recursive
 
 RUN pnpm build
 
+ENTRYPOINT ["pnpm", "run"]
+
+FROM base as chain-mon
+WORKDIR /opt/optimism/packages/chain-mon
+
+# TODO keeping the rest of these here for now because they are being used
+# but we should really delete them we only need one image
 FROM base as replica-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["pnpm", "run", "start:replica-mon"]
+CMD ["start:replica-mon"]
 
 FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["pnpm", "run", "start:balance-mon"]
+CMD ["start:balance-mon"]
 
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["pnpm", "run", "start:drippie-mon"]
+CMD ["start:drippie-mon"]
 
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["pnpm", "run", "start:wd-mon"]
+CMD ["start:wd-mon"]
 
 FROM base as wallet-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["pnpm", "run", "start:wallet-mon"]
+CMD ["start:wallet-mon"]
 
 from base as fault-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["pnpm", "run", "start:fault-mon"]
+CMD ["start:fault-mon"]

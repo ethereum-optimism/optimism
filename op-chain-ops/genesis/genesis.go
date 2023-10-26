@@ -65,9 +65,9 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		CanyonTime:                    config.CanyonTime(block.Time()),
 		ShanghaiTime:                  config.CanyonTime(block.Time()),
 		Optimism: &params.OptimismConfig{
-			EIP1559Denominator:           eip1559Denom,
-			EIP1559Elasticity:            eip1559Elasticity,
-			EIP1559DenominatorPostCanyon: eip1559DenomCanyon,
+			EIP1559Denominator:       eip1559Denom,
+			EIP1559Elasticity:        eip1559Elasticity,
+			EIP1559DenominatorCanyon: eip1559DenomCanyon,
 		},
 	}
 
