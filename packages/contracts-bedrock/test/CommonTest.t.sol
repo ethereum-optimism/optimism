@@ -60,8 +60,9 @@ contract CommonTest is Deploy, Test {
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
     L1StandardBridge l1StandardBridge;
-    /*
     L1CrossDomainMessenger l1CrossDomainMessenger;
+    AddressManager addressManager;
+    /*
     L1ERC721Bridge l1ERC721Bridge;
     */
 
@@ -95,14 +96,17 @@ contract CommonTest is Deploy, Test {
         l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
         l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
+        l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
+        addressManager = AddressManager(mustGetAddress("AddressManager"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(address(optimismPortal), "OptimismPortal");
         vm.label(address(systemConfig), "SystemConfig");
         vm.label(address(l1StandardBridge), "L1StandardBridge");
+        vm.label(address(l1CrossDomainMessenger), "L1CrossDomainMessenger");
+        vm.label(address(addressManager), "AddressManager");
 
         /*
-        l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
         */
     }
@@ -167,7 +171,6 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(cfg.l2OutputOracleStartingTimestamp() + 1);
         vm.roll(cfg.l2OutputOracleStartingBlockNumber() + 1);
 
-
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
@@ -175,14 +178,11 @@ contract L2OutputOracle_Initializer is CommonTest {
 }
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
-
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
 }
 
 contract Messenger_Initializer is Portal_Initializer {
-    AddressManager internal addressManager;
-    L1CrossDomainMessenger internal L1Messenger;
     L2CrossDomainMessenger internal L2Messenger = L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
     event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit);
@@ -217,35 +217,13 @@ contract Messenger_Initializer is Portal_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        // Deploy the address manager
-        vm.prank(multisig);
-        addressManager = new AddressManager();
-
-        // Setup implementation
-        L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger();
-
-        // Setup the address manager and proxy
-        vm.prank(multisig);
-        addressManager.setAddress("OVM_L1CrossDomainMessenger", address(L1MessengerImpl));
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(
-            addressManager,
-            "OVM_L1CrossDomainMessenger"
-        );
-        L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize(optimismPortal);
-
-        vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(L1Messenger))).code);
-
+        vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code);
         L2Messenger.initialize();
 
         // Label addresses
-        vm.label(address(addressManager), "AddressManager");
-        vm.label(address(L1MessengerImpl), "L1CrossDomainMessenger_Impl");
-        vm.label(address(L1Messenger), "L1CrossDomainMessenger_Proxy");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
-
-        vm.label(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)), "L1CrossDomainMessenger_aliased");
+        vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
 }
 
@@ -325,7 +303,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.stopPrank();
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
-        L1Bridge.initialize({ _messenger: L1Messenger });
+        L1Bridge.initialize({ _messenger: l1CrossDomainMessenger });
 
         vm.label(address(proxy), "L1StandardBridge_Proxy");
         vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
@@ -414,7 +392,7 @@ contract ERC721Bridge_Initializer is Bridge_Initializer {
 
         vm.prank(multisig);
         l1BridgeProxy.upgradeToAndCall(
-            address(l1BridgeImpl), abi.encodeCall(L1ERC721Bridge.initialize, (CrossDomainMessenger(L1Messenger)))
+            address(l1BridgeImpl), abi.encodeCall(L1ERC721Bridge.initialize, (CrossDomainMessenger(l1CrossDomainMessenger)))
         );
 
         L1NFTBridge = L1ERC721Bridge(address(l1BridgeProxy));

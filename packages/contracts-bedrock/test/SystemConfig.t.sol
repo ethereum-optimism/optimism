@@ -28,7 +28,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     uint64 gasLimit;
     address unsafeBlockSigner;
     address systemConfigImpl;
-    address l1CrossDomainMessenger;
     address l1ERC721Bridge;
     address optimismMintableERC20Factory;
 
@@ -42,7 +41,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         gasLimit = uint64(cfg.l2GenesisBlockGasLimit());
         unsafeBlockSigner = cfg.p2pSequencerAddress();
         systemConfigImpl = mustGetAddress("SystemConfig");
-        l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessengerProxy");
         l1ERC721Bridge = mustGetAddress("L1ERC721BridgeProxy");
         optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20FactoryProxy");
 
@@ -106,7 +104,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                     startBlock, // _startBlock
                     batchInbox, // _batchInbox
                     SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1CrossDomainMessenger: address(l1CrossDomainMessenger),
                         l1ERC721Bridge: l1ERC721Bridge,
                         l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),
@@ -146,7 +144,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                     1, // _startBlock
                     batchInbox, // _batchInbox
                     SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1CrossDomainMessenger: address(l1CrossDomainMessenger),
                         l1ERC721Bridge: l1ERC721Bridge,
                         l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),
@@ -198,7 +196,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                     0, // _startBlock
                     batchInbox, // _batchInbox
                     SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1CrossDomainMessenger: address(l1CrossDomainMessenger),
                         l1ERC721Bridge: l1ERC721Bridge,
                         l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),

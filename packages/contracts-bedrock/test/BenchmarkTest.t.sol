@@ -105,7 +105,7 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
         bytes memory data =
             hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         vm.resumeGasMetering();
-        L1Messenger.sendMessage(bob, data, uint32(100));
+        l1CrossDomainMessenger.sendMessage(bob, data, uint32(100));
     }
 
     function test_sendMessage_benchmark_1() external {
@@ -115,7 +115,7 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
         bytes memory data =
             hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         vm.resumeGasMetering();
-        L1Messenger.sendMessage(bob, data, uint32(100));
+        l1CrossDomainMessenger.sendMessage(bob, data, uint32(100));
     }
 }
 

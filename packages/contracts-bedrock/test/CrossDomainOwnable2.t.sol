@@ -69,7 +69,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true);
         emit FailedRelayedMessage(hash);
 
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
         L2Messenger.relayMessage(Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message);
 
         assertEq(setter.value(), 0);
@@ -81,7 +81,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
 
         // Simulate the L2 execution where the call is coming from
         // the L1CrossDomainMessenger
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
         L2Messenger.relayMessage(
             Encoding.encodeVersionedNonce(1, 1),
             owner,

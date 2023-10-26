@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { Test } from "forge-std/Test.sol";
+
 // Testing utilities
 import { Messenger_Initializer, Reverter, CallerCaller, CommonTest } from "test/CommonTest.t.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
@@ -16,12 +18,12 @@ contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
     /// @dev Ensure that baseGas passes for the max value of _minGasLimit,
     ///      this is about 4 Billion.
     function test_baseGas_succeeds() external view {
-        L1Messenger.baseGas(hex"ff", type(uint32).max);
+        l1CrossDomainMessenger.baseGas(hex"ff", type(uint32).max);
     }
 
     /// @dev Fuzz for other values which might cause a revert in baseGas.
     function testFuzz_baseGas_succeeds(uint32 _minGasLimit) external view {
-        L1Messenger.baseGas(hex"ff", _minGasLimit);
+        l1CrossDomainMessenger.baseGas(hex"ff", _minGasLimit);
     }
 
     /// @notice The baseGas function should always return a value greater than
@@ -30,7 +32,7 @@ contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
     ///         gas to the OptimismPortal.
     function testFuzz_baseGas_portalMinGasLimit_succeeds(bytes memory _data, uint32 _minGasLimit) external {
         vm.assume(_data.length <= type(uint64).max);
-        uint64 baseGas = L1Messenger.baseGas(_data, _minGasLimit);
+        uint64 baseGas = l1CrossDomainMessenger.baseGas(_data, _minGasLimit);
         uint64 minGasLimit = optimismPortal.minimumGasLimit(uint64(_data.length));
         assertTrue(baseGas >= minGasLimit);
     }
@@ -39,21 +41,21 @@ contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
 /// @title ExternalRelay
 /// @notice A mock external contract called via the SafeCall inside
 ///         the CrossDomainMessenger's `relayMessage` function.
-contract ExternalRelay is CommonTest {
+contract ExternalRelay is Test {
     address internal op;
     address internal fuzzedSender;
-    L1CrossDomainMessenger internal L1Messenger;
+    L1CrossDomainMessenger internal l1CrossDomainMessenger;
 
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
     constructor(L1CrossDomainMessenger _l1Messenger, address _op) {
-        L1Messenger = _l1Messenger;
+        l1CrossDomainMessenger = _l1Messenger;
         op = _op;
     }
 
     /// @notice Internal helper function to relay a message and perform assertions.
     function _internalRelay(address _innerSender) internal {
-        address initialSender = L1Messenger.xDomainMessageSender();
+        address initialSender = l1CrossDomainMessenger.xDomainMessageSender();
 
         bytes memory callMessage = getCallData();
 
@@ -70,7 +72,7 @@ contract ExternalRelay is CommonTest {
         emit FailedRelayedMessage(hash);
 
         vm.prank(address(op));
-        L1Messenger.relayMessage({
+        l1CrossDomainMessenger.relayMessage({
             _nonce: Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             _sender: _innerSender,
             _target: address(this),
@@ -79,9 +81,9 @@ contract ExternalRelay is CommonTest {
             _message: callMessage
         });
 
-        assertTrue(L1Messenger.failedMessages(hash));
-        assertFalse(L1Messenger.successfulMessages(hash));
-        assertEq(initialSender, L1Messenger.xDomainMessageSender());
+        assertTrue(l1CrossDomainMessenger.failedMessages(hash));
+        assertFalse(l1CrossDomainMessenger.successfulMessages(hash));
+        assertEq(initialSender, l1CrossDomainMessenger.xDomainMessageSender());
     }
 
     /// @notice externalCallWithMinGas is called by the CrossDomainMessenger.
@@ -116,7 +118,7 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
 
     function setUp() public override {
         super.setUp();
-        er = new ExternalRelay(L1Messenger, address(optimismPortal));
+        er = new ExternalRelay(l1CrossDomainMessenger, address(optimismPortal));
     }
 
     /// @dev This test mocks an OptimismPortal call to the L1CrossDomainMessenger via
@@ -150,7 +152,7 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
         // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
         vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(optimismPortal));
-        L1Messenger.relayMessage({
+        l1CrossDomainMessenger.relayMessage({
             _nonce: Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             _sender: sender,
             _target: target,
@@ -159,11 +161,11 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
             _message: callMessage
         });
 
-        assertTrue(L1Messenger.successfulMessages(hash));
-        assertEq(L1Messenger.failedMessages(hash), false);
+        assertTrue(l1CrossDomainMessenger.successfulMessages(hash));
+        assertEq(l1CrossDomainMessenger.failedMessages(hash), false);
 
         // Ensures that the `xDomainMsgSender` is set back to `Predeploys.L2_CROSS_DOMAIN_MESSENGER`
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
-        L1Messenger.xDomainMessageSender();
+        l1CrossDomainMessenger.xDomainMessageSender();
     }
 }

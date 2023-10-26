@@ -35,7 +35,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             address(messagePasser),
             abi.encodeWithSelector(
                 L2ToL1MessagePasser.initiateWithdrawal.selector,
-                address(L1Messenger),
+                address(l1CrossDomainMessenger),
                 L2Messenger.baseGas(hex"ff", 100),
                 xDomainCallData
             )
@@ -46,7 +46,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         emit MessagePassed(
             messagePasser.messageNonce(),
             address(L2Messenger),
-            address(L1Messenger),
+            address(l1CrossDomainMessenger),
             0,
             L2Messenger.baseGas(hex"ff", 100),
             xDomainCallData,
@@ -54,7 +54,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
                 Types.WithdrawalTransaction({
                     nonce: messagePasser.messageNonce(),
                     sender: address(L2Messenger),
-                    target: address(L1Messenger),
+                    target: address(l1CrossDomainMessenger),
                     value: 0,
                     gasLimit: L2Messenger.baseGas(hex"ff", 100),
                     data: xDomainCallData
@@ -85,8 +85,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev Tests that `sendMessage` reverts if the message version is not supported.
     function test_relayMessage_v2_reverts() external {
         address target = address(0xabcd);
-        address sender = address(L1Messenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        address sender = address(l1CrossDomainMessenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
 
         // Expect a revert.
         vm.expectRevert("CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
@@ -106,8 +106,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev Tests that `relayMessage` executes successfully.
     function test_relayMessage_succeeds() external {
         address target = address(0xabcd);
-        address sender = address(L1Messenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        address sender = address(l1CrossDomainMessenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
 
         vm.expectCall(target, hex"1111");
 
@@ -139,13 +139,13 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     ///      a message sent to an L1 system contract.
     function test_relayMessage_toSystemContract_reverts() external {
         address target = address(messagePasser);
-        address sender = address(L1Messenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        address sender = address(l1CrossDomainMessenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
         bytes memory message = hex"1111";
 
         vm.prank(caller);
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
-        L1Messenger.relayMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, 0, 0, message);
+        l1CrossDomainMessenger.relayMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, 0, 0, message);
     }
 
     /// @dev Tests that `relayMessage` correctly resets the `xDomainMessageSender`
@@ -154,7 +154,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
 
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
         vm.prank(caller);
         L2Messenger.relayMessage(Encoding.encodeVersionedNonce(0, 1), address(0), address(0), 0, 0, hex"");
 
@@ -167,8 +167,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     ///      gets stuck, but the second message succeeds.
     function test_relayMessage_retry_succeeds() external {
         address target = address(0xabcd);
-        address sender = address(L1Messenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        address sender = address(l1CrossDomainMessenger);
+        address caller = AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger));
         uint256 value = 100;
 
         bytes32 hash =

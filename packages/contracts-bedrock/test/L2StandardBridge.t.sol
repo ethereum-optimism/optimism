@@ -49,7 +49,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             Types.WithdrawalTransaction({
                 nonce: nonce,
                 sender: address(L2Messenger),
-                target: address(L1Messenger),
+                target: address(l1CrossDomainMessenger),
                 value: 100,
                 gasLimit: baseGas,
                 data: withdrawalData
@@ -65,7 +65,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // L2ToL1MessagePasser will emit a MessagePassed event
         vm.expectEmit(true, true, true, true, address(messagePasser));
         emit MessagePassed(
-            nonce, address(L2Messenger), address(L1Messenger), 100, baseGas, withdrawalData, withdrawalHash
+            nonce, address(L2Messenger), address(l1CrossDomainMessenger), 100, baseGas, withdrawalData, withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -89,7 +89,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector, address(L1Messenger), baseGas, withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector, address(l1CrossDomainMessenger), baseGas, withdrawalData
             )
         );
 
@@ -157,7 +157,7 @@ contract PreBridgeERC20 is Bridge_Initializer {
             Types.WithdrawalTransaction({
                 nonce: nonce,
                 sender: address(L2Messenger),
-                target: address(L1Messenger),
+                target: address(l1CrossDomainMessenger),
                 value: 0,
                 gasLimit: baseGas,
                 data: withdrawalData
@@ -183,7 +183,7 @@ contract PreBridgeERC20 is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector, address(L1Messenger), baseGas, withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector, address(l1CrossDomainMessenger), baseGas, withdrawalData
             )
         );
 
@@ -198,7 +198,7 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            nonce, address(L2Messenger), address(L1Messenger), 0, baseGas, withdrawalData, withdrawalHash
+            nonce, address(L2Messenger), address(l1CrossDomainMessenger), 0, baseGas, withdrawalData, withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -277,7 +277,7 @@ contract PreBridgeERC20To is Bridge_Initializer {
             Types.WithdrawalTransaction({
                 nonce: nonce,
                 sender: address(L2Messenger),
-                target: address(L1Messenger),
+                target: address(l1CrossDomainMessenger),
                 value: 0,
                 gasLimit: baseGas,
                 data: withdrawalData
@@ -292,7 +292,7 @@ contract PreBridgeERC20To is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true, address(messagePasser));
         emit MessagePassed(
-            nonce, address(L2Messenger), address(L1Messenger), 0, baseGas, withdrawalData, withdrawalHash
+            nonce, address(L2Messenger), address(l1CrossDomainMessenger), 0, baseGas, withdrawalData, withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -324,7 +324,7 @@ contract PreBridgeERC20To is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector, address(L1Messenger), baseGas, withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector, address(l1CrossDomainMessenger), baseGas, withdrawalData
             )
         );
 
