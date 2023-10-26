@@ -63,10 +63,12 @@ contract CommonTest is Deploy, Test {
     L1CrossDomainMessenger l1CrossDomainMessenger;
     AddressManager addressManager;
     L1ERC721Bridge l1ERC721Bridge;
+    OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
 
     L2CrossDomainMessenger l2CrossDomainMessenger;
     L2StandardBridge l2StandardBridge;
     L2ToL1MessagePasser l2ToL1MessagePasser;
+    OptimismMintableERC20Factory l2OptimismMintableERC20Factory;
 
     FFIInterface ffi;
 
@@ -102,6 +104,7 @@ contract CommonTest is Deploy, Test {
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         addressManager = AddressManager(mustGetAddress("AddressManager"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
+        l1OptimismMintableERC20Factory = OptimismMintableERC20Factory(mustGetAddress("OptimismMintableERC20FactoryProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(address(optimismPortal), "OptimismPortal");
@@ -110,6 +113,7 @@ contract CommonTest is Deploy, Test {
         vm.label(address(l1CrossDomainMessenger), "L1CrossDomainMessenger");
         vm.label(address(addressManager), "AddressManager");
         vm.label(address(l1ERC721Bridge), "L1ERC721Bridge");
+        vm.label(address(l1OptimismMintableERC20Factory), "OptimismMintableERC20Factory");
 
         // Set up L2. There are currently no proxies set in the L2 initialization.
         vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code);
@@ -122,6 +126,12 @@ contract CommonTest is Deploy, Test {
         vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code);
         l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
         l2StandardBridge.initialize();
+
+        vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, address(new OptimismMintableERC20Factory()).code);
+        l2OptimismMintableERC20Factory = OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
+        l2OptimismMintableERC20Factory.initialize(Predeploys.L2_STANDARD_BRIDGE);
+
+        vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
         vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
@@ -225,8 +235,6 @@ contract Messenger_Initializer is Portal_Initializer {
 }
 
 contract Bridge_Initializer is Messenger_Initializer {
-    OptimismMintableERC20Factory L2TokenFactory;
-    OptimismMintableERC20Factory L1TokenFactory;
     ERC20 L1Token;
     ERC20 BadL1Token;
     OptimismMintableERC20 L2Token;
@@ -289,12 +297,6 @@ contract Bridge_Initializer is Messenger_Initializer {
         // on the proxy because the bytecode was set in state with `etch`.
 
         // Set up the L2 mintable token factory
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory();
-        vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, address(factory).code);
-        L2TokenFactory = OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
-        L2TokenFactory.initialize(Predeploys.L2_STANDARD_BRIDGE);
-
-        vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
         L1Token = new ERC20("Native L1 Token", "L1T");
 
@@ -308,7 +310,7 @@ contract Bridge_Initializer is Messenger_Initializer {
 
         // Deploy the L2 ERC20 now
         L2Token = OptimismMintableERC20(
-            L2TokenFactory.createStandardL2Token(
+            l2OptimismMintableERC20Factory.createStandardL2Token(
                 address(L1Token),
                 string(abi.encodePacked("L2-", L1Token.name())),
                 string(abi.encodePacked("L2-", L1Token.symbol()))
@@ -316,7 +318,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         );
 
         BadL2Token = OptimismMintableERC20(
-            L2TokenFactory.createStandardL2Token(
+            l2OptimismMintableERC20Factory.createStandardL2Token(
                 address(1),
                 string(abi.encodePacked("L2-", L1Token.name())),
                 string(abi.encodePacked("L2-", L1Token.symbol()))
@@ -324,18 +326,9 @@ contract Bridge_Initializer is Messenger_Initializer {
         );
 
         NativeL2Token = new ERC20("Native L2 Token", "L2T");
-        Proxy factoryProxy = new Proxy(multisig);
-        OptimismMintableERC20Factory L1TokenFactoryImpl = new OptimismMintableERC20Factory();
-
-        vm.prank(multisig);
-        factoryProxy.upgradeToAndCall(
-            address(L1TokenFactoryImpl), abi.encodeCall(OptimismMintableERC20Factory.initialize, address(l1StandardBridge))
-        );
-
-        L1TokenFactory = OptimismMintableERC20Factory(address(factoryProxy));
 
         RemoteL1Token = OptimismMintableERC20(
-            L1TokenFactory.createStandardL2Token(
+            l1OptimismMintableERC20Factory.createStandardL2Token(
                 address(NativeL2Token),
                 string(abi.encodePacked("L1-", NativeL2Token.name())),
                 string(abi.encodePacked("L1-", NativeL2Token.symbol()))
@@ -343,7 +336,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         );
 
         BadL1Token = OptimismMintableERC20(
-            L1TokenFactory.createStandardL2Token(
+            l1OptimismMintableERC20Factory.createStandardL2Token(
                 address(1),
                 string(abi.encodePacked("L1-", NativeL2Token.name())),
                 string(abi.encodePacked("L1-", NativeL2Token.symbol()))
