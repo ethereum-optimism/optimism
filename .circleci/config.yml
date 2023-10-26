@@ -1261,7 +1261,6 @@ jobs:
       - run:
           name: Extract value from file2
           command: |
-            VALUE2=$(echo "$SCRIPT" | awk -v PATTERN='<< parameters.pattern_file2 >>' -f- << parameters.file2_path >> | awk -F'=' '{print $2}' | tr -d ' ;')
             VALUE2_MATCH=$(echo "$SCRIPT" | awk -v PATTERN='<< parameters.pattern_file2 >>' -f- "<< parameters.file2_path >>")
 
             if [ $? -ne 0 ]; then
