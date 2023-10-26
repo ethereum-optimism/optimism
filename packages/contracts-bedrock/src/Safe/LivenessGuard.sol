@@ -47,6 +47,11 @@ contract LivenessGuard is ISemver, BaseGuard {
         SAFE = _safe;
     }
 
+    /// @notice Internal function to ensure that only the Safe can call certain functions.
+    function _onlySafe() internal view {
+        require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
+    }
+
     /// @notice Records the most recent time which any owner has signed a transaction.
     /// @dev Called by the Safe contract before execution of a transaction.
     function checkTransaction(
@@ -65,7 +70,7 @@ contract LivenessGuard is ISemver, BaseGuard {
         external
     {
         msgSender; // silence unused variable warning
-        require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
+        _onlySafe();
 
         // Cache the set of owners prior to execution.
         // This will be used in the checkAfterExecution method.
@@ -106,8 +111,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     ///      1. Add new owners to the lastLive mapping
     ///      2. Delete removed owners from the lastLive mapping
     function checkAfterExecution(bytes32, bool) external {
-        require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
-
+        _onlySafe();
         // Get the current set of owners
         address[] memory ownersAfter = SAFE.getOwners();
 
@@ -132,7 +136,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     /// @notice Enables an owner to demonstrate liveness by calling this method directly.
     ///         This is useful for owners who have not recently signed a transaction via the Safe.
     function showLiveness() external {
-        require(SAFE.isOwner(msg.sender), "LivenessGuard: only Safe owners may demontstrate liveness");
+        require(SAFE.isOwner(msg.sender), "LivenessGuard: only Safe owners may demonstrate liveness");
         lastLive[msg.sender] = block.timestamp;
 
         emit OwnerRecorded(0x0, msg.sender);

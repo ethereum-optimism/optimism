@@ -93,7 +93,7 @@ contract LivenessGuard_CheckAfterExecution_Test is LivenessGuard_TestInit { }
 contract LivenessGuard_ShowLiveness_TestFail is LivenessGuard_TestInit {
     /// @dev Tests that the showLiveness function reverts if the caller is not an owner
     function test_showLiveness_callIsNotSafeOwner_reverts() external {
-        vm.expectRevert("LivenessGuard: only Safe owners can call this function");
+        vm.expectRevert("LivenessGuard: only Safe owners may demonstrate liveness");
         livenessGuard.showLiveness();
     }
 }
