@@ -106,8 +106,8 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
             _minOwners: minOwners,
             _fallbackOwner: fallbackOwner
         });
-        safeInstance.enableModule(address(livenessModule));
         safeInstance.setGuard(address(livenessGuard));
+        safeInstance.enableModule(address(livenessModule));
     }
 }
 

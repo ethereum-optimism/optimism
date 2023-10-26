@@ -86,3 +86,14 @@ The following security properties must be upheld:
 5. The module implements the correct checks prior to removing a signer.
 6. The module sets the correct threshold upon removing a signer.
 7. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
+### Deployment
+
+The module are guard are intended to be deployed and installed on the safe in the following sequence:
+
+1. Deploy the guard contract, this will set a timestamp for each existing owner on the Safe.
+1. Deploy the module.
+1. Enable the module on the safe.
+1. Set the guard on the safe.
+
+This order of operations is necessary to satisfy the constructor checks in the module, and is
+intended to prevent owners from being immediately removable.
