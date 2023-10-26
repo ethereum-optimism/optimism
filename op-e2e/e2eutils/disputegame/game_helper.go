@@ -304,7 +304,10 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 }
 
 func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
+}
+func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
+	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var newClaimLen int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
