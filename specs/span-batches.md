@@ -320,7 +320,6 @@ Span-batch rules, in validation order:
     - `safe_block`: an L2 block from the current L2 safe chain, at same timestamp as `block_input`
   - Rules:
     - For each `block_input`, whose timestamp is less than `next_timestamp`:
-      - If there's no `safe_block` for the `block_input` -> `drop`: i.e. misaligned timestamp
       - `block_input.l1_origin.number != safe_block.l1_origin.number` -> `drop`
       - `block_input.transactions != safe_block.transactions` -> `drop`
         - compare excluding deposit transactions
