@@ -59,6 +59,11 @@ contract LivenessModule is ISemver {
         );
     }
 
+    /// @notice This function can be called by anyone to remove a set of owners that have not signed a transaction
+    ///         during the liveness interval. If the number of owners drops below the minimum, then all owners
+    ///         must be removed.
+    /// @param _previousOwners The previous owners in the linked list of owners
+    /// @param _ownersToRemove The owners to remove
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
 
@@ -80,9 +85,11 @@ contract LivenessModule is ISemver {
         _verifyFinalState();
     }
 
-    /// @notice This function can be called by anyone to remove an owner that has not signed a transaction
-    ///         during the liveness interval. If the number of owners drops below the minimum, then the
-    ///         ownership of the Safe is transferred to the fallback owner.
+    /// @notice Removes an owner from the Safe and updates the threshold.
+    /// @param _prevOwner Owner that pointed to the owner to be removed in the linked list
+    /// @param _ownerToRemove Owner address to be removed.
+    /// @param _newOwnersCount New number of owners after removal.
+    /// @param _newThreshold New threshold.
     function _removeOwner(
         address _prevOwner,
         address _ownerToRemove,
@@ -95,7 +102,8 @@ contract LivenessModule is ISemver {
             // Remove the owner and update the threshold
             _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: _newThreshold });
         } else {
-            // Add the fallback owner as the sole owner of the Safe
+            // There is only one owner left. The Safe will not allow a safe with no owners, so we will
+            // need to swap owners instead.
             _swapToFallbackOwnerSafeCall({ _prevOwner: _prevOwner, _oldOwner: _ownerToRemove });
         }
     }
