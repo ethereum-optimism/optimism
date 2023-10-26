@@ -135,6 +135,10 @@ func (s *L2Verifier) L2Safe() eth.L2BlockRef {
 	return s.derivation.SafeL2Head()
 }
 
+func (s *L2Verifier) L2PendingSafe() eth.L2BlockRef {
+	return s.derivation.PendingSafeL2Head()
+}
+
 func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
 	return s.derivation.UnsafeL2Head()
 }

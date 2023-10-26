@@ -89,22 +89,27 @@ func (bq *BatchQueue) popNextBatch(safeL2Head eth.L2BlockRef) *SingularBatch {
 	return nextBatch
 }
 
-func (bq *BatchQueue) maybeAdvanceEpoch(nextBatch *SingularBatch) {
-	if len(bq.l1Blocks) == 0 {
-		return
-	}
-	if nextBatch.GetEpochNum() == rollup.Epoch(bq.l1Blocks[0].Number)+1 {
-		// Advance epoch if necessary
-		bq.l1Blocks = bq.l1Blocks[1:]
-	}
-}
-
-func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) (*SingularBatch, error) {
+// NextBatch return next valid batch upon the given safe head.
+// It also returns the boolean that indicates if the batch is the last block in the batch.
+func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) (*SingularBatch, bool, error) {
 	if len(bq.nextSpan) > 0 {
-		// If there are cached singular batches, pop first one and return.
-		nextBatch := bq.popNextBatch(safeL2Head)
-		bq.maybeAdvanceEpoch(nextBatch)
-		return nextBatch, nil
+		if bq.nextSpan[0].Timestamp == safeL2Head.Time+bq.config.BlockTime {
+			// If there are cached singular batches, pop first one and return.
+			nextBatch := bq.popNextBatch(safeL2Head)
+			return nextBatch, len(bq.nextSpan) == 0, nil
+		} else {
+			bq.nextSpan = bq.nextSpan[:0]
+		}
+	}
+
+	// If the epoch is advanced, update bq.l1Blocks
+	if len(bq.l1Blocks) > 0 && safeL2Head.L1Origin.Number > bq.l1Blocks[0].Number {
+		for i, l1Block := range bq.l1Blocks {
+			if safeL2Head.L1Origin.Number == l1Block.Number {
+				bq.l1Blocks = bq.l1Blocks[i:]
+				break
+			}
+		}
 	}
 
 	// Note: We use the origin that we will have to determine if it's behind. This is important
@@ -134,7 +139,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	if batch, err := bq.prev.NextBatch(ctx); err == io.EOF {
 		outOfData = true
 	} else if err != nil {
-		return nil, err
+		return nil, false, err
 	} else if !originBehind {
 		bq.AddBatch(ctx, batch, safeL2Head)
 	}
@@ -143,20 +148,20 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	// empty the previous stages
 	if originBehind {
 		if outOfData {
-			return nil, io.EOF
+			return nil, false, io.EOF
 		} else {
-			return nil, NotEnoughData
+			return nil, false, NotEnoughData
 		}
 	}
 
 	// Finally attempt to derive more batches
 	batch, err := bq.deriveNextBatch(ctx, outOfData, safeL2Head)
 	if err == io.EOF && outOfData {
-		return nil, io.EOF
+		return nil, false, io.EOF
 	} else if err == io.EOF {
-		return nil, NotEnoughData
+		return nil, false, NotEnoughData
 	} else if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var nextBatch *SingularBatch
@@ -164,28 +169,27 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	case SingularBatchType:
 		singularBatch, ok := batch.(*SingularBatch)
 		if !ok {
-			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
+			return nil, false, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
 		}
 		nextBatch = singularBatch
 	case SpanBatchType:
 		spanBatch, ok := batch.(*SpanBatch)
 		if !ok {
-			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
+			return nil, false, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
 		}
 		// If next batch is SpanBatch, convert it to SingularBatches.
 		singularBatches, err := spanBatch.GetSingularBatches(bq.l1Blocks, safeL2Head)
 		if err != nil {
-			return nil, NewCriticalError(err)
+			return nil, false, NewCriticalError(err)
 		}
 		bq.nextSpan = singularBatches
 		// span-batches are non-empty, so the below pop is safe.
 		nextBatch = bq.popNextBatch(safeL2Head)
 	default:
-		return nil, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", batch.GetBatchType()))
+		return nil, false, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", batch.GetBatchType()))
 	}
 
-	bq.maybeAdvanceEpoch(nextBatch)
-	return nextBatch, nil
+	return nextBatch, len(bq.nextSpan) == 0, nil
 }
 
 func (bq *BatchQueue) Reset(ctx context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {

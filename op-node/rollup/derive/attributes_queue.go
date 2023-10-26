@@ -28,11 +28,12 @@ type AttributesBuilder interface {
 }
 
 type AttributesQueue struct {
-	log     log.Logger
-	config  *rollup.Config
-	builder AttributesBuilder
-	prev    *BatchQueue
-	batch   *SingularBatch
+	log          log.Logger
+	config       *rollup.Config
+	builder      AttributesBuilder
+	prev         *BatchQueue
+	batch        *SingularBatch
+	isLastInSpan bool
 }
 
 func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev *BatchQueue) *AttributesQueue {
@@ -48,14 +49,15 @@ func (aq *AttributesQueue) Origin() eth.L1BlockRef {
 	return aq.prev.Origin()
 }
 
-func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2BlockRef) (*eth.PayloadAttributes, error) {
+func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2BlockRef) (*AttributesWithParent, error) {
 	// Get a batch if we need it
 	if aq.batch == nil {
-		batch, err := aq.prev.NextBatch(ctx, l2SafeHead)
+		batch, isLastInSpan, err := aq.prev.NextBatch(ctx, l2SafeHead)
 		if err != nil {
 			return nil, err
 		}
 		aq.batch = batch
+		aq.isLastInSpan = isLastInSpan
 	}
 
 	// Actually generate the next attributes
@@ -63,8 +65,10 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2
 		return nil, err
 	} else {
 		// Clear out the local state once we will succeed
+		attr := AttributesWithParent{attrs, l2SafeHead, aq.isLastInSpan}
 		aq.batch = nil
-		return attrs, nil
+		aq.isLastInSpan = false
+		return &attr, nil
 	}
 
 }
