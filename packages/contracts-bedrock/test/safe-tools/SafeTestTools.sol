@@ -151,6 +151,178 @@ library SafeTestLib {
         return sortedPKs;
     }
 
+    /// @dev Sign a transaction as a safe owner with a private key.
+    function signTransaction(
+        SafeInstance memory instance,
+        uint256 pk,
+        address to,
+        uint256 value,
+        bytes memory data,
+        Enum.Operation operation,
+        uint256 safeTxGas,
+        uint256 baseGas,
+        uint256 gasPrice,
+        address gasToken,
+        address refundReceiver
+    )
+        internal
+        view
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        bytes32 txDataHash;
+        {
+            uint256 _nonce = instance.safe.nonce();
+            txDataHash = instance.safe.getTransactionHash({
+                to: to,
+                value: value,
+                data: data,
+                operation: operation,
+                safeTxGas: safeTxGas,
+                baseGas: baseGas,
+                gasPrice: gasPrice,
+                gasToken: gasToken,
+                refundReceiver: refundReceiver,
+                _nonce: _nonce
+            });
+        }
+
+        (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
+    }
+
+    /// @notice Get the previous owner in the linked list of owners
+    /// @param _owner The owner whose previous owner we want to find
+    /// @param _owners The list of owners
+    function getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
+        for (uint256 i = 0; i < _owners.length; i++) {
+            if (_owners[i] != _owner) continue;
+            if (i == 0) {
+                prevOwner_ = SENTINEL_OWNERS;
+                break;
+            }
+            prevOwner_ = _owners[i - 1];
+        }
+    }
+
+    /// @dev Given an array of owners to remove, this function will return an array of the previous owners
+    ///         in the order that they must be provided to the LivenessMoules's removeOwners() function.
+    ///         Because owners are removed one at a time, and not necessarily in order, we need to simulate
+    ///         the owners list after each removal, in order to identify the correct previous owner.
+    /// @param _ownersToRemove The owners to remove
+    /// @return prevOwners_ The previous owners in the linked list
+    function getPrevOwners(
+        SafeInstance memory instance,
+        address[] memory _ownersToRemove
+    )
+        internal
+        returns (address[] memory prevOwners_)
+    {
+        OwnerSimulator ownerSimulator = new OwnerSimulator(instance.owners, 1);
+        prevOwners_ = new address[](_ownersToRemove.length);
+        address[] memory currentOwners;
+        for (uint256 i = 0; i < _ownersToRemove.length; i++) {
+            currentOwners = ownerSimulator.getOwners();
+            prevOwners_[i] = SafeTestLib.getPrevOwner(instance.owners[i], currentOwners);
+
+            // Don't try to remove the last owner
+            if (currentOwners.length == 1) break;
+            ownerSimulator.removeOwnerWrapped(prevOwners_[i], _ownersToRemove[i], 1);
+        }
+    }
+
+    /// @dev Enables a module on the Safe.
+    function enableModule(SafeInstance memory instance, address module) internal {
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(ModuleManager.enableModule.selector, module),
+            Enum.Operation.Call,
+            0,
+            0,
+            0,
+            address(0),
+            address(0),
+            ""
+        );
+    }
+
+    /// @dev Disables a module on the Safe.
+    function disableModule(SafeInstance memory instance, address module) internal {
+        (address[] memory modules,) = instance.safe.getModulesPaginated(SENTINEL_MODULES, 1000);
+        address prevModule = SENTINEL_MODULES;
+        bool moduleFound;
+        for (uint256 i; i < modules.length; i++) {
+            if (modules[i] == module) {
+                moduleFound = true;
+                break;
+            }
+            prevModule = modules[i];
+        }
+        if (!moduleFound) revert("SAFETESTTOOLS: cannot disable module that is not enabled");
+
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(ModuleManager.disableModule.selector, prevModule, module),
+            Enum.Operation.Call,
+            0,
+            0,
+            0,
+            address(0),
+            address(0),
+            ""
+        );
+    }
+
+    /// @dev Sets the guard address on the Safe. Unlike modules there can only be one guard, so
+    ///      this method will remove the previous guard. If the guard is set to the 0 address, the
+    ///      guard will be disabled.
+    function setGuard(SafeInstance memory instance, address guard) internal {
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(GuardManager.setGuard.selector, guard),
+            Enum.Operation.Call,
+            0,
+            0,
+            0,
+            address(0),
+            address(0),
+            ""
+        );
+    }
+
+    /// @dev Signs message data using EIP1271: Standard Signature Validation Method for Contracts
+    function EIP1271Sign(SafeInstance memory instance, bytes memory data) internal {
+        address signMessageLib = address(new SignMessageLib());
+        execTransaction({
+            instance: instance,
+            to: signMessageLib,
+            value: 0,
+            data: abi.encodeWithSelector(SignMessageLib.signMessage.selector, data),
+            operation: Enum.Operation.DelegateCall,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: ""
+        });
+    }
+
+    /// @dev Signs a data hash using EIP1271: Standard Signature Validation Method for Contracts
+    function EIP1271Sign(SafeInstance memory instance, bytes32 digest) internal {
+        EIP1271Sign(instance, abi.encodePacked(digest));
+    }
+
+    /// @dev Increments the nonce of the Safe by sending an empty transaction.
+    function incrementNonce(SafeInstance memory instance) internal returns (uint256 newNonce) {
+        execTransaction(instance, address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
+        return instance.safe.nonce();
+    }
+
     /// @dev A wrapper for the full execTransaction method, if no signatures are provided it will
     ///         generate them for all owners.
     function execTransaction(
@@ -245,178 +417,6 @@ library SafeTestLib {
         returns (bool)
     {
         return execTransaction(instance, to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
-    }
-
-    /// @dev Enables a module on the Safe.
-    function enableModule(SafeInstance memory instance, address module) internal {
-        execTransaction(
-            instance,
-            address(instance.safe),
-            0,
-            abi.encodeWithSelector(ModuleManager.enableModule.selector, module),
-            Enum.Operation.Call,
-            0,
-            0,
-            0,
-            address(0),
-            address(0),
-            ""
-        );
-    }
-
-    /// @dev Disables a module on the Safe.
-    function disableModule(SafeInstance memory instance, address module) internal {
-        (address[] memory modules,) = instance.safe.getModulesPaginated(SENTINEL_MODULES, 1000);
-        address prevModule = SENTINEL_MODULES;
-        bool moduleFound;
-        for (uint256 i; i < modules.length; i++) {
-            if (modules[i] == module) {
-                moduleFound = true;
-                break;
-            }
-            prevModule = modules[i];
-        }
-        if (!moduleFound) revert("SAFETESTTOOLS: cannot disable module that is not enabled");
-
-        execTransaction(
-            instance,
-            address(instance.safe),
-            0,
-            abi.encodeWithSelector(ModuleManager.disableModule.selector, prevModule, module),
-            Enum.Operation.Call,
-            0,
-            0,
-            0,
-            address(0),
-            address(0),
-            ""
-        );
-    }
-
-    /// @dev Sets the guard address on the Safe. Unlike modules there can only be one guard, so
-    ///      this method will remove the previous guard. If the guard is set to the 0 address, the
-    ///      guard will be disabled.
-    function setGuard(SafeInstance memory instance, address guard) internal {
-        execTransaction(
-            instance,
-            address(instance.safe),
-            0,
-            abi.encodeWithSelector(GuardManager.setGuard.selector, guard),
-            Enum.Operation.Call,
-            0,
-            0,
-            0,
-            address(0),
-            address(0),
-            ""
-        );
-    }
-
-    /// @dev Signs message data using EIP1271: Standard Signature Validation Method for Contracts
-    function EIP1271Sign(SafeInstance memory instance, bytes memory data) internal {
-        address signMessageLib = address(new SignMessageLib());
-        execTransaction({
-            instance: instance,
-            to: signMessageLib,
-            value: 0,
-            data: abi.encodeWithSelector(SignMessageLib.signMessage.selector, data),
-            operation: Enum.Operation.DelegateCall,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: ""
-        });
-    }
-
-    /// @dev Signs a data hash using EIP1271: Standard Signature Validation Method for Contracts
-    function EIP1271Sign(SafeInstance memory instance, bytes32 digest) internal {
-        EIP1271Sign(instance, abi.encodePacked(digest));
-    }
-
-    /// @dev Sign a transaction as a safe owner with a private key.
-    function signTransaction(
-        SafeInstance memory instance,
-        uint256 pk,
-        address to,
-        uint256 value,
-        bytes memory data,
-        Enum.Operation operation,
-        uint256 safeTxGas,
-        uint256 baseGas,
-        uint256 gasPrice,
-        address gasToken,
-        address refundReceiver
-    )
-        internal
-        view
-        returns (uint8 v, bytes32 r, bytes32 s)
-    {
-        bytes32 txDataHash;
-        {
-            uint256 _nonce = instance.safe.nonce();
-            txDataHash = instance.safe.getTransactionHash({
-                to: to,
-                value: value,
-                data: data,
-                operation: operation,
-                safeTxGas: safeTxGas,
-                baseGas: baseGas,
-                gasPrice: gasPrice,
-                gasToken: gasToken,
-                refundReceiver: refundReceiver,
-                _nonce: _nonce
-            });
-        }
-
-        (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
-    }
-
-    /// @dev Increments the nonce of the Safe by sending an empty transaction.
-    function incrementNonce(SafeInstance memory instance) internal returns (uint256 newNonce) {
-        execTransaction(instance, address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
-        return instance.safe.nonce();
-    }
-
-    /// @notice Get the previous owner in the linked list of owners
-    /// @param _owner The owner whose previous owner we want to find
-    /// @param _owners The list of owners
-    function getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
-        for (uint256 i = 0; i < _owners.length; i++) {
-            if (_owners[i] != _owner) continue;
-            if (i == 0) {
-                prevOwner_ = SENTINEL_OWNERS;
-                break;
-            }
-            prevOwner_ = _owners[i - 1];
-        }
-    }
-
-    /// @dev Given an array of owners to remove, this function will return an array of the previous owners
-    ///         in the order that they must be provided to the LivenessMoules's removeOwners() function.
-    ///         Because owners are removed one at a time, and not necessarily in order, we need to simulate
-    ///         the owners list after each removal, in order to identify the correct previous owner.
-    /// @param _ownersToRemove The owners to remove
-    /// @return prevOwners_ The previous owners in the linked list
-    function getPrevOwners(
-        SafeInstance memory instance,
-        address[] memory _ownersToRemove
-    )
-        internal
-        returns (address[] memory prevOwners_)
-    {
-        OwnerSimulator ownerSimulator = new OwnerSimulator(instance.owners, 1);
-        prevOwners_ = new address[](_ownersToRemove.length);
-        address[] memory currentOwners;
-        for (uint256 i = 0; i < _ownersToRemove.length; i++) {
-            currentOwners = ownerSimulator.getOwners();
-            prevOwners_[i] = SafeTestLib.getPrevOwner(instance.owners[i], currentOwners);
-
-            // Don't try to remove the last owner
-            if (currentOwners.length == 1) break;
-            ownerSimulator.removeOwnerWrapped(prevOwners_[i], _ownersToRemove[i], 1);
-        }
     }
 }
 
