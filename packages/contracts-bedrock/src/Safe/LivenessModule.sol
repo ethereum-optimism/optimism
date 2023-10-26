@@ -89,9 +89,8 @@ contract LivenessModule is ISemver {
         internal
     {
         require(
-            !_isAboveMinOwners(_newOwnersCount)
-                || LIVENESS_GUARD.lastLive(_ownerToRemove) < block.timestamp - LIVENESS_INTERVAL,
-            "LivenessModule: owner has signed recently"
+            _newOwnersCount < MIN_OWNERS || _canRemove(_ownerToRemove),
+            "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
         );
         if (_newOwnersCount > 0) {
             // Remove the owner and update the threshold
@@ -133,12 +132,19 @@ contract LivenessModule is ISemver {
         );
     }
 
+    /// @notice Checks if the owner can be removed
+    /// @param _owner The owner to be removed
+    /// @return canRemove_ bool indicating if the owner can be removed
+    function _canRemove(address _owner) internal view returns (bool canRemove_) {
+        canRemove_ = LIVENESS_GUARD.lastLive(_owner) + LIVENESS_INTERVAL < block.timestamp;
+    }
+
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.
     function _verifyFinalState() internal view {
         address[] memory owners = SAFE.getOwners();
         uint256 numOwners = owners.length;
         require(
-            _isAboveMinOwners(numOwners) || (numOwners == 1 && owners[0] == FALLBACK_OWNER),
+            numOwners >= MIN_OWNERS || (numOwners == 1 && owners[0] == FALLBACK_OWNER),
             "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
         );
 
@@ -166,13 +172,6 @@ contract LivenessModule is ISemver {
     ///         Note: this function returns 1 for numOwners == 1.
     function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
         threshold_ = (_numOwners * 75 + 99) / 100;
-    }
-
-    /// @notice Check if the number of owners is greater than or equal to the minimum number of owners.
-    /// @param numOwners The number of owners.
-    /// @return A boolean indicating if the number of owners is greater than or equal to the minimum number of owners.
-    function _isAboveMinOwners(uint256 numOwners) internal view returns (bool) {
-        return numOwners >= MIN_OWNERS;
     }
 
     /// @notice Getter function for the Safe contract instance
