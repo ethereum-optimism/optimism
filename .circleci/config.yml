@@ -1226,16 +1226,16 @@ jobs:
     parameters:
       pattern_file1:
         type: string
-        default: "uint8 internal constant INITIALIZER ="
+        default: ""
       pattern_file2:
         type: string
-        default: "const initializedValue ="
+        default: ""
       file1_path:
         type: string
-        default: "packages/contracts-bedrock/src/libraries/Constants.sol"
+        default: ""
       file2_path:
         type: string
-        default: "op-chain-ops/genesis/config.go"
+        default: ""
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
