@@ -59,8 +59,7 @@ library Constants {
     uint8 internal constant INITIALIZER = 3; */
     /* uint8 internal constant INITIALIZER = 3;
     */
-    /*
     uint8 internal constant INITIALIZER = 3;
-    */
+    
 
 }
