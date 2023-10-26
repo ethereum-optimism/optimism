@@ -185,6 +185,8 @@ type DeployConfig struct {
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
 	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+	// EIP1559DenominatorCanyon is the denominator of EIP1559 base fee market when Canyon is active.
+	EIP1559DenominatorCanyon uint64 `json:"eip1559DenominatorCanyon"`
 	// SystemConfigStartBlock represents the block at which the op-node should start syncing
 	// from. It is an override to set this value on legacy networks where it is not set by
 	// default. It can be removed once all networks have this value set in their storage.
@@ -317,6 +319,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.EIP1559Denominator == 0 {
 		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisCanyonTimeOffset != nil && d.EIP1559DenominatorCanyon == 0 {
+		return fmt.Errorf("%w: EIP1559DenominatorCanyon cannot be 0 if Canyon is activated", ErrInvalidDeployConfig)
 	}
 	if d.EIP1559Elasticity == 0 {
 		return fmt.Errorf("%w: EIP1559Elasticity cannot be 0", ErrInvalidDeployConfig)
