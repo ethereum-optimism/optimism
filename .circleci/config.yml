@@ -229,17 +229,24 @@ jobs:
             # and naming allows us to use the DLC (docker-layer-cache)
             docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
 
-            DOCKER_OUTPUT_DESTINATION="--load"
-            # if we are publishing, change the destination
+            DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
-              DOCKER_OUTPUT_DESTINATION="--push"
               echo "Building for platforms $PLATFORMS and then publishing to registry"
+              DOCKER_OUTPUT_DESTINATION="--push"
+              if [ "<<parameters.save_image_tag>>" != "" ]; then
+                echo "ERROR: cannot save image to docker when publishing to registry"
+                exit 1
+              fi
             else
-              if [[ $PLATFORMS == *,* ]]; then
-                echo "ERROR: cannot perform multi-arch build while also loading the result into regular docker"
+              if [ "<<parameters.save_image_tag>>" == "" ]; then
+                echo "Running $PLATFORMS build without destination (cache warm-up)"
+                DOCKER_OUTPUT_DESTINATION=""
+              elif [[ $PLATFORMS == *,* ]]; then
+                echo "ERROR: cannot perform multi-arch (platforms: $PLATFORMS) build while also loading the result into regular docker"
                 exit 1
               else
                 echo "Running single-platform $PLATFORMS build and loading into docker"
+                DOCKER_OUTPUT_DESTINATION="--load"
               fi
             fi
 
