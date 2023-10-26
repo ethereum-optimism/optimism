@@ -22,8 +22,8 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     /// @dev Test that the accessors return the correct initialized values.
     function test_getters_succeeds() external view {
-        assert(l1StandardBridge.l2TokenBridge() == address(L2Bridge));
-        assert(l1StandardBridge.OTHER_BRIDGE() == L2Bridge);
+        assert(l1StandardBridge.l2TokenBridge() == address(l2StandardBridge));
+        assert(l1StandardBridge.OTHER_BRIDGE() == l2StandardBridge);
         assert(l1StandardBridge.messenger() == l1CrossDomainMessenger);
         assert(l1StandardBridge.MESSENGER() == l1CrossDomainMessenger);
     }
@@ -34,7 +34,7 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
     function test_initialize_succeeds() external {
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
-        assertEq(address(L2Bridge), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
         bytes32 slot0 = vm.load(address(l1StandardBridge), bytes32(uint256(0)));
         assertEq(slot0, bytes32(uint256(Constants.INITIALIZER)));
     }
@@ -58,7 +58,7 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
             address(l1CrossDomainMessenger),
             abi.encodeWithSelector(
                 CrossDomainMessenger.sendMessage.selector,
-                address(L2Bridge),
+                address(l2StandardBridge),
                 abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex""),
                 200_000
             )
@@ -95,11 +95,11 @@ contract PreBridgeETH is Bridge_Initializer {
         vm.expectCall(
             address(l1CrossDomainMessenger),
             500,
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(L2Bridge), message, 50000)
+            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l2StandardBridge), message, 50000)
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(L2Bridge), 500, 50000, message
+            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 500, 50000, message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 50000);
@@ -107,7 +107,7 @@ contract PreBridgeETH is Bridge_Initializer {
             address(optimismPortal),
             500,
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(L2Messenger), 500, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 500, baseGas, false, innerMessage
             )
         );
 
@@ -121,11 +121,11 @@ contract PreBridgeETH is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(true, true, true, true, address(optimismPortal));
-        emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
-        emit SentMessage(address(L2Bridge), address(l1StandardBridge), message, nonce, 50000);
+        emit SentMessage(address(l2StandardBridge), address(l1StandardBridge), message, nonce, 50000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
@@ -197,18 +197,18 @@ contract PreBridgeETHTo is Bridge_Initializer {
         // L1CrossDomainMessenger.sendMessage
         vm.expectCall(
             address(l1CrossDomainMessenger),
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(L2Bridge), message, 60000)
+            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l2StandardBridge), message, 60000)
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(L2Bridge), 600, 60000, message
+            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 600, 60000, message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 60000);
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(L2Messenger), 600, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 600, baseGas, false, innerMessage
             )
         );
 
@@ -222,11 +222,11 @@ contract PreBridgeETHTo is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(true, true, true, true, address(optimismPortal));
-        emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
-        emit SentMessage(address(L2Bridge), address(l1StandardBridge), message, nonce, 60000);
+        emit SentMessage(address(l2StandardBridge), address(l1StandardBridge), message, nonce, 60000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
@@ -301,18 +301,18 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
         // the L1 bridge should call L1CrossDomainMessenger.sendMessage
         vm.expectCall(
             address(l1CrossDomainMessenger),
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(L2Bridge), message, 10000)
+            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l2StandardBridge), message, 10000)
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(L2Bridge), 0, 10000, message
+            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 0, 10000, message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 10000);
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(L2Messenger), 0, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 0, baseGas, false, innerMessage
             )
         );
 
@@ -327,11 +327,11 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(true, true, true, true, address(optimismPortal));
-        emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
-        emit SentMessage(address(L2Bridge), address(l1StandardBridge), message, nonce, 10000);
+        emit SentMessage(address(l2StandardBridge), address(l1StandardBridge), message, nonce, 10000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
@@ -373,7 +373,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(L2Bridge), 0, 10000, message
+            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 0, 10000, message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 10000);
@@ -393,11 +393,11 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(true, true, true, true, address(optimismPortal));
-        emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
+        emit TransactionDeposited(l1MessengerAliased, address(l2CrossDomainMessenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
-        emit SentMessage(address(L2Bridge), address(l1StandardBridge), message, nonce, 10000);
+        emit SentMessage(address(l2StandardBridge), address(l1StandardBridge), message, nonce, 10000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(l1CrossDomainMessenger));
@@ -406,13 +406,13 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         // the L1 bridge should call L1CrossDomainMessenger.sendMessage
         vm.expectCall(
             address(l1CrossDomainMessenger),
-            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(L2Bridge), message, 10000)
+            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(l2StandardBridge), message, 10000)
         );
         // The L1 XDM should call OptimismPortal.depositTransaction
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(L2Messenger), 0, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 0, baseGas, false, innerMessage
             )
         );
         vm.expectCall(

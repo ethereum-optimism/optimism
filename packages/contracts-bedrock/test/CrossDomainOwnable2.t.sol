@@ -44,9 +44,9 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
         bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(alice));
-        vm.store(address(L2Messenger), key, value);
+        vm.store(address(l2CrossDomainMessenger), key, value);
 
-        vm.prank(address(L2Messenger));
+        vm.prank(address(l2CrossDomainMessenger));
         vm.expectRevert("CrossDomainOwnable2: caller is not the owner");
         setter.set(1);
     }
@@ -70,7 +70,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         emit FailedRelayedMessage(hash);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
-        L2Messenger.relayMessage(Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message);
+        l2CrossDomainMessenger.relayMessage(Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message);
 
         assertEq(setter.value(), 0);
     }
@@ -82,7 +82,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         // Simulate the L2 execution where the call is coming from
         // the L1CrossDomainMessenger
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
-        L2Messenger.relayMessage(
+        l2CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce(1, 1),
             owner,
             address(setter),

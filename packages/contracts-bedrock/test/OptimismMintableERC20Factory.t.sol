@@ -13,7 +13,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     }
 
     function test_bridge_succeeds() external {
-        assertEq(address(L2TokenFactory.BRIDGE()), address(L2Bridge));
+        assertEq(address(L2TokenFactory.BRIDGE()), address(l2StandardBridge));
     }
 
     function test_createStandardL2Token_succeeds() external {
@@ -79,7 +79,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         view
         returns (address)
     {
-        bytes memory constructorArgs = abi.encode(address(L2Bridge), _remote, _name, _symbol, _decimals);
+        bytes memory constructorArgs = abi.encode(address(l2StandardBridge), _remote, _name, _symbol, _decimals);
         bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC20).creationCode, constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol, _decimals));
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(L2TokenFactory), salt, keccak256(bytecode)));

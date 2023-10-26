@@ -14,7 +14,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
     }
 
     function test_bridge_succeeds() external {
-        assertEq(L2Token.bridge(), address(L2Bridge));
+        assertEq(L2Token.bridge(), address(l2StandardBridge));
     }
 
     function test_l1Token_succeeds() external {
@@ -22,7 +22,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
     }
 
     function test_l2Bridge_succeeds() external {
-        assertEq(L2Token.l2Bridge(), address(L2Bridge));
+        assertEq(L2Token.l2Bridge(), address(l2StandardBridge));
     }
 
     function test_legacy_succeeds() external {
@@ -31,16 +31,16 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.remoteToken(), address(L1Token));
         assertEq(L2Token.l1Token(), address(L1Token));
         // Getters for the bridge
-        assertEq(L2Token.BRIDGE(), address(L2Bridge));
-        assertEq(L2Token.bridge(), address(L2Bridge));
-        assertEq(L2Token.l2Bridge(), address(L2Bridge));
+        assertEq(L2Token.BRIDGE(), address(l2StandardBridge));
+        assertEq(L2Token.bridge(), address(l2StandardBridge));
+        assertEq(L2Token.l2Bridge(), address(l2StandardBridge));
     }
 
     function test_mint_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit Mint(alice, 100);
 
-        vm.prank(address(L2Bridge));
+        vm.prank(address(l2StandardBridge));
         L2Token.mint(alice, 100);
 
         assertEq(L2Token.balanceOf(alice), 100);
@@ -54,13 +54,13 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
     }
 
     function test_burn_succeeds() external {
-        vm.prank(address(L2Bridge));
+        vm.prank(address(l2StandardBridge));
         L2Token.mint(alice, 100);
 
         vm.expectEmit(true, true, true, true);
         emit Burn(alice, 100);
 
-        vm.prank(address(L2Bridge));
+        vm.prank(address(l2StandardBridge));
         L2Token.burn(alice, 100);
 
         assertEq(L2Token.balanceOf(alice), 0);
