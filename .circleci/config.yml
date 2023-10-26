@@ -1236,10 +1236,8 @@ jobs:
       file2_path:
         type: string
         default: "op-chain-ops/genesis/config.go"
-
     docker:
-      - image: cimg/base:2020.01
-
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
