@@ -62,9 +62,7 @@ contract CommonTest is Deploy, Test {
     L1StandardBridge l1StandardBridge;
     L1CrossDomainMessenger l1CrossDomainMessenger;
     AddressManager addressManager;
-    /*
     L1ERC721Bridge l1ERC721Bridge;
-    */
 
     FFIInterface ffi;
 
@@ -98,6 +96,7 @@ contract CommonTest is Deploy, Test {
         l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         addressManager = AddressManager(mustGetAddress("AddressManager"));
+        l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(address(optimismPortal), "OptimismPortal");
@@ -105,10 +104,7 @@ contract CommonTest is Deploy, Test {
         vm.label(address(l1StandardBridge), "L1StandardBridge");
         vm.label(address(l1CrossDomainMessenger), "L1CrossDomainMessenger");
         vm.label(address(addressManager), "AddressManager");
-
-        /*
-        l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
-        */
+        vm.label(address(l1ERC721Bridge), "L1ERC721Bridge");
     }
 
     function emitTransactionDeposited(
