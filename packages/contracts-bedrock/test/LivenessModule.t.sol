@@ -67,9 +67,21 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         for (uint256 i = 0; i < _ownersToRemove.length; i++) {
             currentOwners = ownerSimulator.getOwners();
             prevOwners_[i] = _getPrevOwner(safeInstance.owners[i], currentOwners);
+
+            // Don't try to remove the last owner
             if (currentOwners.length == 1) break;
             ownerSimulator.removeOwnerWrapped(prevOwners_[i], _ownersToRemove[i], 1);
         }
+    }
+
+    /// @dev Removes an owner from the safe
+    function _removeAnOwner(address _ownerToRemove) internal {
+        address[] memory prevOwners = new address[](1);
+        address[] memory ownersToRemove = new address[](1);
+        ownersToRemove[0] = _ownerToRemove;
+        prevOwners[0] = _getPrevOwner(_ownerToRemove, safeInstance.owners);
+
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
     /// @dev Sets up the test environment
@@ -145,18 +157,35 @@ contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
     }
 }
 
+contract LivenessModule_RemoveOwner_TestFail is LivenessModule_TestInit {
+    using SafeTestLib for SafeInstance;
+    // "LivenessModule: guard has been changed"
+
+    function test_removeOwner_guardChanged_revert() external {
+        address[] memory ownersToRemove = new address[](1);
+        ownersToRemove[0] = safeInstance.owners[0];
+        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+
+        // Change the guard
+        livenessGuard = new LivenessGuard(safeInstance.safe);
+        safeInstance.setGuard(address(livenessGuard));
+
+        vm.warp(block.timestamp + livenessInterval + 1);
+        vm.expectRevert("LivenessModule: guard has been changed");
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
+}
+
 contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
     /// @dev Tests if removing one owner works correctly
     function test_removeOwner_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;
-        address[] memory prevOwners = new address[](1);
-        address[] memory ownersToRemove = new address[](1);
-        ownersToRemove[0] = safeInstance.owners[0];
-        prevOwners[0] = _getPrevOwner(safeInstance.owners[0], safeInstance.owners);
+        address ownerToRemove = safeInstance.owners[0];
 
-        vm.warp(block.timestamp + 30 days);
+        // vm.warp(block.timestamp + 30 days);
+        _removeAnOwner(ownerToRemove);
 
-        livenessModule.removeOwners(prevOwners, ownersToRemove);
+        assertFalse(safeInstance.safe.isOwner(ownerToRemove));
         assertEq(safeInstance.safe.getOwners().length, ownersBefore - 1);
     }
 
