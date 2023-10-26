@@ -67,7 +67,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			MixDigest:  common.Hash{}, // TODO: maybe randomize this (prev-randao value)
 		}
 		if s.l1Cfg.Config.IsLondon(header.Number) {
-			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent)
+			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent, header.Time)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
