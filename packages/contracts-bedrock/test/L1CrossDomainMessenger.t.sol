@@ -37,7 +37,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     function test_sendMessage_succeeds() external {
         // deposit transaction on the optimism portal should be called
         vm.expectCall(
-            address(op),
+            address(optimismPortal),
             abi.encodeWithSelector(
                 OptimismPortal.depositTransaction.selector,
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER,
@@ -95,13 +95,13 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Expect a revert.
         vm.expectRevert("CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
 
         // Try to relay a v2 message.
-        vm.prank(address(op));
+        vm.prank(address(optimismPortal));
         L2Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 2 }), // nonce
             sender,
@@ -121,8 +121,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectCall(target, hex"1111");
 
         // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.prank(address(op));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.prank(address(optimismPortal));
 
         vm.expectEmit(true, true, true, true);
 
@@ -151,17 +151,17 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     ///      sent to an L1 system contract.
     function test_relayMessage_toSystemContract_reverts() external {
         // set the target to be the OptimismPortal
-        address target = address(op);
+        address target = address(optimismPortal);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
 
-        vm.prank(address(op));
+        vm.prank(address(optimismPortal));
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
         );
 
-        vm.store(address(op), 0, bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), 0, bytes32(abi.encode(sender)));
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
@@ -189,8 +189,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.prank(address(op));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), address(0), address(0), 0, 0, hex""
         );
@@ -213,10 +213,10 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, value, 0, hex"1111"
         );
 
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.etch(target, address(new Reverter()).code);
-        vm.deal(address(op), value);
-        vm.prank(address(op));
+        vm.deal(address(optimismPortal), value);
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage{ value: value }(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,
@@ -271,7 +271,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
 
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Target should be called with expected data.
         vm.expectCall(target, hex"1111");
@@ -281,7 +281,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         emit RelayedMessage(hash);
 
         // Relay the message.
-        vm.prank(address(op));
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
@@ -313,8 +313,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
 
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         // Mark legacy message as already relayed.
         uint256 successfulMessagesSlot = 203;
         bytes32 oldHash = Hashing.hashCrossDomainMessageV0(target, sender, hex"1111", 0);
@@ -325,7 +324,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectRevert("CrossDomainMessenger: legacy withdrawal already relayed");
 
         // Relay the message.
-        vm.prank(address(op));
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
@@ -358,7 +357,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
 
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Turn the target into a Reverter.
         vm.etch(target, address(new Reverter()).code);
@@ -371,8 +370,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         emit FailedRelayedMessage(hash);
 
         // Relay the message.
-        vm.deal(address(op), value);
-        vm.prank(address(op));
+        vm.deal(address(optimismPortal), value);
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage{ value: value }(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
@@ -434,7 +433,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
 
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Target should be called with expected data.
         vm.expectCall(target, hex"1111");
@@ -444,8 +443,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         emit RelayedMessage(hash);
 
         // Relay the message.
-        vm.deal(address(op), value);
-        vm.prank(address(op));
+        vm.deal(address(optimismPortal), value);
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage{ value: value }(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
@@ -494,7 +493,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
 
         // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+        vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Turn the target into a Reverter.
         vm.etch(target, address(new Reverter()).code);
@@ -503,8 +502,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectCall(target, hex"1111");
 
         // Relay the message.
-        vm.deal(address(op), value);
-        vm.prank(address(op));
+        vm.deal(address(optimismPortal), value);
+        vm.prank(address(optimismPortal));
         L1Messenger.relayMessage{ value: value }(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,

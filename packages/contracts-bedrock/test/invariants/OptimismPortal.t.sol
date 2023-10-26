@@ -120,7 +120,7 @@ contract OptimismPortal_Invariant_Harness is Portal_Initializer {
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         // Fund the portal so that we can withdraw ETH.
-        vm.deal(address(op), 0xFFFFFFFF);
+        vm.deal(address(optimismPortal), 0xFFFFFFFF);
     }
 }
 
@@ -130,7 +130,7 @@ contract OptimismPortal_Deposit_Invariant is Portal_Initializer {
     function setUp() public override {
         super.setUp();
         // Create a deposit actor.
-        actor = new OptimismPortal_Depositor(vm, op);
+        actor = new OptimismPortal_Depositor(vm, optimismPortal);
 
         targetContract(address(actor));
 
@@ -155,10 +155,10 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
         super.setUp();
 
         // Prove the withdrawal transaction
-        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         // Set the target contract to the portal proxy
-        targetContract(address(op));
+        targetContract(address(optimismPortal));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
         excludeSender(EIP1967Helper.getAdmin(address(op)));
     }
@@ -170,7 +170,7 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
     ///                   until after the finalization period has elapsed.
     function invariant_cannotFinalizeBeforePeriodHasPassed() external {
         vm.expectRevert("OptimismPortal: proven withdrawal finalization period has not elapsed");
-        op.finalizeWithdrawalTransaction(_defaultTx);
+        optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
 
@@ -179,18 +179,18 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
         super.setUp();
 
         // Prove the withdrawal transaction
-        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         // Warp past the finalization period.
         vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Finalize the withdrawal transaction.
-        op.finalizeWithdrawalTransaction(_defaultTx);
+        optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         // Set the target contract to the portal proxy
-        targetContract(address(op));
+        targetContract(address(optimismPortal));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(op)));
+        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal)));
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal
@@ -200,7 +200,7 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
     ///                   allows a withdrawal to be finalized twice.
     function invariant_cannotFinalizeTwice() external {
         vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
-        op.finalizeWithdrawalTransaction(_defaultTx);
+        optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
 
@@ -209,15 +209,15 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
         super.setUp();
 
         // Prove the withdrawal transaction
-        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
 
         // Warp past the finalization period.
         vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Set the target contract to the portal proxy
-        targetContract(address(op));
+        targetContract(address(optimismPortal));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(op)));
+        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal)));
     }
 
     /// @custom:invariant A withdrawal should **always** be able to be finalized
@@ -230,7 +230,7 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
     function invariant_canAlwaysFinalize() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
-        op.finalizeWithdrawalTransaction(_defaultTx);
+        optimismPortal.finalizeWithdrawalTransaction(_defaultTx);
 
         assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
     }

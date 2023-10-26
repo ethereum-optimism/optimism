@@ -96,10 +96,10 @@ contract XDM_MinGasLimits is Messenger_Initializer {
         super.setUp();
 
         // Deploy a relay actor
-        actor = new RelayActor(op, L1Messenger, vm, doFail);
+        actor = new RelayActor(optimismPortal, L1Messenger, vm, doFail);
 
         // Give the portal some ether to send to `relayMessage`
-        vm.deal(address(op), type(uint128).max);
+        vm.deal(address(optimismPortal), type(uint128).max);
 
         // Target the `RelayActor` contract
         targetContract(address(actor));

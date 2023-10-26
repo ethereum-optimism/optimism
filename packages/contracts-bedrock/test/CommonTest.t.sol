@@ -95,6 +95,8 @@ contract CommonTest is Deploy, Test {
         l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
+        vm.label(address(optimismPortal), "OptimismPortal");
+
         /*
         l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
@@ -122,10 +124,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
-    address guardian;
-
-    // Test data
-
     event OutputProposed(
         bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
     );
@@ -161,7 +159,6 @@ contract L2OutputOracle_Initializer is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        guardian = makeAddr("guardian");
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
@@ -176,9 +173,6 @@ contract L2OutputOracle_Initializer is CommonTest {
 }
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
-    // Test target
-    OptimismPortal internal opImpl;
-    OptimismPortal internal op;
     SystemConfig systemConfig;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
@@ -211,7 +205,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),
                         l2OutputOracle: address(l2OutputOracle),
-                        optimismPortal: address(op),
+                        optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: address(0)
                     })
                 )
@@ -219,16 +213,6 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         );
 
         systemConfig = SystemConfig(address(systemConfigProxy));
-
-        opImpl = new OptimismPortal();
-
-        Proxy proxy = new Proxy(multisig);
-        vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(opImpl), abi.encodeCall(OptimismPortal.initialize, (l2OutputOracle, guardian, systemConfig, false))
-        );
-        op = OptimismPortal(payable(address(proxy)));
-        vm.label(address(op), "OptimismPortal");
     }
 }
 
@@ -284,7 +268,7 @@ contract Messenger_Initializer is Portal_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize(op);
+        L1Messenger.initialize(optimismPortal);
 
         vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(L1Messenger))).code);
 

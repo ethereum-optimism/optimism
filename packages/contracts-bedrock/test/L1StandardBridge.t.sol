@@ -45,7 +45,7 @@ contract L1StandardBridge_Initialize_TestFail is Bridge_Initializer { }
 contract L1StandardBridge_Receive_Test is Bridge_Initializer {
     /// @dev Tests receive bridges ETH successfully.
     function test_receive_succeeds() external {
-        assertEq(address(op).balance, 0);
+        assertEq(address(optimismPortal).balance, 0);
 
         // The legacy event must be emitted for backwards compatibility
         vm.expectEmit(true, true, true, true, address(L1Bridge));
@@ -67,7 +67,7 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
         vm.prank(alice, alice);
         (bool success,) = address(L1Bridge).call{ value: 100 }(hex"");
         assertEq(success, true);
-        assertEq(address(op).balance, 100);
+        assertEq(address(optimismPortal).balance, 100);
     }
 }
 
@@ -77,7 +77,7 @@ contract PreBridgeETH is Bridge_Initializer {
     /// @dev Asserts the expected calls and events for bridging ETH depending
     ///      on whether the bridge call is legacy or not.
     function _preBridgeETH(bool isLegacy) internal {
-        assertEq(address(op).balance, 0);
+        assertEq(address(optimismPortal).balance, 0);
         uint256 nonce = L1Messenger.messageNonce();
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
         address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
@@ -104,7 +104,7 @@ contract PreBridgeETH is Bridge_Initializer {
 
         uint64 baseGas = L1Messenger.baseGas(message, 50000);
         vm.expectCall(
-            address(op),
+            address(optimismPortal),
             500,
             abi.encodeWithSelector(
                 OptimismPortal.depositTransaction.selector, address(L2Messenger), 500, baseGas, false, innerMessage
@@ -120,7 +120,7 @@ contract PreBridgeETH is Bridge_Initializer {
         emit ETHBridgeInitiated(alice, alice, 500, hex"dead");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
-        vm.expectEmit(true, true, true, true, address(op));
+        vm.expectEmit(true, true, true, true, address(optimismPortal));
         emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -144,7 +144,7 @@ contract L1StandardBridge_DepositETH_Test is PreBridgeETH {
     function test_depositETH_succeeds() external {
         _preBridgeETH({ isLegacy: true });
         L1Bridge.depositETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(op).balance, 500);
+        assertEq(address(optimismPortal).balance, 500);
     }
 }
 
@@ -157,7 +157,7 @@ contract L1StandardBridge_BridgeETH_Test is PreBridgeETH {
     function test_bridgeETH_succeeds() external {
         _preBridgeETH({ isLegacy: false });
         L1Bridge.bridgeETH{ value: 500 }(50000, hex"dead");
-        assertEq(address(op).balance, 500);
+        assertEq(address(optimismPortal).balance, 500);
     }
 }
 
@@ -175,7 +175,7 @@ contract PreBridgeETHTo is Bridge_Initializer {
     /// @dev Asserts the expected calls and events for bridging ETH to a different
     ///      address depending on whether the bridge call is legacy or not.
     function _preBridgeETHTo(bool isLegacy) internal {
-        assertEq(address(op).balance, 0);
+        assertEq(address(optimismPortal).balance, 0);
         uint256 nonce = L1Messenger.messageNonce();
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
         address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
@@ -206,7 +206,7 @@ contract PreBridgeETHTo is Bridge_Initializer {
 
         uint64 baseGas = L1Messenger.baseGas(message, 60000);
         vm.expectCall(
-            address(op),
+            address(optimismPortal),
             abi.encodeWithSelector(
                 OptimismPortal.depositTransaction.selector, address(L2Messenger), 600, baseGas, false, innerMessage
             )
@@ -221,7 +221,7 @@ contract PreBridgeETHTo is Bridge_Initializer {
         emit ETHBridgeInitiated(alice, bob, 600, hex"dead");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
-        vm.expectEmit(true, true, true, true, address(op));
+        vm.expectEmit(true, true, true, true, address(optimismPortal));
         emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -246,7 +246,7 @@ contract L1StandardBridge_DepositETHTo_Test is PreBridgeETHTo {
     function test_depositETHTo_succeeds() external {
         _preBridgeETHTo({ isLegacy: true });
         L1Bridge.depositETHTo{ value: 600 }(bob, 60000, hex"dead");
-        assertEq(address(op).balance, 600);
+        assertEq(address(optimismPortal).balance, 600);
     }
 }
 
@@ -259,7 +259,7 @@ contract L1StandardBridge_BridgeETHTo_Test is PreBridgeETHTo {
     function test_bridgeETHTo_succeeds() external {
         _preBridgeETHTo({ isLegacy: false });
         L1Bridge.bridgeETHTo{ value: 600 }(bob, 60000, hex"dead");
-        assertEq(address(op).balance, 600);
+        assertEq(address(optimismPortal).balance, 600);
     }
 }
 
@@ -310,7 +310,7 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
 
         uint64 baseGas = L1Messenger.baseGas(message, 10000);
         vm.expectCall(
-            address(op),
+            address(optimismPortal),
             abi.encodeWithSelector(
                 OptimismPortal.depositTransaction.selector, address(L2Messenger), 0, baseGas, false, innerMessage
             )
@@ -326,7 +326,7 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
         emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
-        vm.expectEmit(true, true, true, true, address(op));
+        vm.expectEmit(true, true, true, true, address(optimismPortal));
         emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -392,7 +392,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
-        vm.expectEmit(true, true, true, true, address(op));
+        vm.expectEmit(true, true, true, true, address(optimismPortal));
         emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -410,7 +410,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         );
         // The L1 XDM should call OptimismPortal.depositTransaction
         vm.expectCall(
-            address(op),
+            address(optimismPortal),
             abi.encodeWithSelector(
                 OptimismPortal.depositTransaction.selector, address(L2Messenger), 0, baseGas, false, innerMessage
             )
