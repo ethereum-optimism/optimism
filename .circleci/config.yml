@@ -1591,7 +1591,7 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
+      - docker-build:
           name: chain-mon-docker-release
           filters:
             tags:
