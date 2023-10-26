@@ -12,6 +12,9 @@ import "test/safe-tools/SafeTestTools.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 
+/// @dev A minimal wrapper around the OwnerManager contract. This contract is meant to be initialized with
+///      the same owners as a Safe instance, and then used to simulate the resulting owners list
+///      after an owner is removed.
 contract OwnerSimulator is OwnerManager {
     constructor(address[] memory _owners, uint256 _threshold) {
         setupOwners(_owners, _threshold);
@@ -25,7 +28,7 @@ contract OwnerSimulator is OwnerManager {
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    /// @notice The address of the first owner in the linked list of owners
+    /// @dev The address of the first owner in the linked list of owners
     address internal constant SENTINEL_OWNERS = address(0x1);
 
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
@@ -50,7 +53,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         }
     }
 
-    /// @notice Given an arrary of owners to remove, this function will return an array of the previous owners
+    /// @dev Given an array of owners to remove, this function will return an array of the previous owners
     ///         in the order that they must be provided to the LivenessMoules's removeOwners() function.
     ///         Because owners are removed one at a time, and not necessarily in order, we need to simulate
     ///         the owners list after each removal, in order to identify the correct previous owner.
@@ -67,6 +70,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         }
     }
 
+    /// @dev Sets up the test environment
     function setUp() public {
         // Create a Safe with 10 owners
         (, uint256[] memory keys) = makeAddrsAndKeys(10);
@@ -88,6 +92,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
 }
 
 contract LivenessModule_Getters_Test is LivenessModule_TestInit {
+    /// @dev Tests if the getters work correctly
     function test_getters_works() external {
         assertEq(address(livenessModule.safe()), address(safeInstance.safe));
         assertEq(address(livenessModule.livenessGuard()), address(livenessGuard));
@@ -125,6 +130,7 @@ contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
 }
 
 contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
+    /// @dev Tests if removing one owner works correctly
     function test_removeOwner_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;
         address[] memory prevOwners = new address[](1);
@@ -138,6 +144,7 @@ contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
         assertEq(safeInstance.safe.getOwners().length, ownersBefore - 1);
     }
 
+    /// @dev Tests if removing all owners works correctly
     function test_removeOwner_allOwners_succeeds() external {
         uint256 numOwners = safeInstance.owners.length;
 

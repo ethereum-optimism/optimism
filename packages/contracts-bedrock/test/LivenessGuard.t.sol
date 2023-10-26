@@ -10,14 +10,6 @@ import "test/safe-tools/SafeTestTools.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 
-// Todo(Maurelian):
-// Other tests needed:
-//   - EIP1271 signatures
-//   - Signatures from contracts
-//   - Signatures from non-owners
-//   - Signers may call directly to prove liveness (must be an owner).
-//   - Unexpected length of signature data
-
 contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
@@ -26,6 +18,7 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
 
+    /// @dev Sets up the test environment
     function setUp() public {
         safeInstance = _setupSafe();
         livenessGuard = new LivenessGuard(safeInstance.safe);
@@ -34,6 +27,7 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
 }
 
 contract LivenessGuard_Getters_Test is LivenessGuard_TestInit {
+    /// @dev Tests that the getters return the correct values
     function test_getters_works() external {
         assertEq(address(livenessGuard.safe()), address(safeInstance.safe));
         assertEq(livenessGuard.lastLive(address(0)), 0);
@@ -41,6 +35,7 @@ contract LivenessGuard_Getters_Test is LivenessGuard_TestInit {
 }
 
 contract LivenessGuard_CheckTx_TestFails is LivenessGuard_TestInit {
+    /// @dev Tests that the checkTransaction function reverts if the caller is not the Safe
     function test_checkTransaction_callerIsNotSafe_revert() external {
         vm.expectRevert("LivenessGuard: only Safe can call this function");
         livenessGuard.checkTransaction({
@@ -62,6 +57,7 @@ contract LivenessGuard_CheckTx_TestFails is LivenessGuard_TestInit {
 contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
     using SafeTestLib for SafeInstance;
 
+    /// @dev Tests that the checkTransaction function succeeds
     function test_checkTransaction_succeeds() external {
         // Create an array of the addresses who will sign the transaction. SafeTestTools
         // will generate these signatures up to the threshold by iterating over the owners array.
@@ -85,6 +81,7 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
 }
 
 contract LivenessGuard_CheckAfterExecution_TestFails is LivenessGuard_TestInit {
+    /// @dev Tests that the checkAfterExecution function reverts if the caller is not the Safe
     function test_checkAfterExecution_callerIsNotSafe_revert() external {
         vm.expectRevert("LivenessGuard: only Safe can call this function");
         livenessGuard.checkAfterExecution(bytes32(0), false);
@@ -93,7 +90,16 @@ contract LivenessGuard_CheckAfterExecution_TestFails is LivenessGuard_TestInit {
 
 contract LivenessGuard_CheckAfterExecution_Test is LivenessGuard_TestInit { }
 
+contract LivenessGuard_ShowLiveness_TestFail is LivenessGuard_TestInit {
+    /// @dev Tests that the showLiveness function reverts if the caller is not an owner
+    function test_showLiveness_callIsNotSafeOwner_reverts() external {
+        vm.expectRevert("LivenessGuard: only Safe owners can call this function");
+        livenessGuard.showLiveness();
+    }
+}
+
 contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
+    /// @dev Tests that the showLiveness function succeeds
     function test_showLiveness_succeeds() external {
         // Cache the caller
         address caller = safeInstance.owners[0];
