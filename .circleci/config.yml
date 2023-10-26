@@ -1243,7 +1243,7 @@ jobs:
       - run:
           name: Filter comments and match only 1 script
           command: |
-            AWK_SCRIPT='
+            AWK_SCRIPT="
             BEGIN { in_comment = 0; matches = 0; }
             /^ *\/\*/ { in_comment = 1; }
             in_comment && /\*\// { in_comment = 0; next; }
@@ -1258,7 +1258,7 @@ jobs:
                     print "No matches found. Exiting.";
                     exit 1;
                 }
-            }'
+            }"
             echo "export SCRIPT=$AWK_SCRIPT" >> $BASH_ENV
       - run:
           name: Extract value from file1
