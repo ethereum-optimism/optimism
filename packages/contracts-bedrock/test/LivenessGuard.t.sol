@@ -101,8 +101,6 @@ contract LivenessGuard_CheckAfterExecution_TestFails is LivenessGuard_TestInit {
     }
 }
 
-contract LivenessGuard_CheckAfterExecution_Test is LivenessGuard_TestInit { }
-
 contract LivenessGuard_ShowLiveness_TestFail is LivenessGuard_TestInit {
     /// @dev Tests that the showLiveness function reverts if the caller is not an owner
     function test_showLiveness_callIsNotSafeOwner_reverts() external {
@@ -124,5 +122,41 @@ contract LivenessGuard_ShowLiveness_Test is LivenessGuard_TestInit {
         livenessGuard.showLiveness();
 
         assertEq(livenessGuard.lastLive(caller), block.timestamp);
+    }
+}
+
+contract LivenessGuard_OwnerManagement_Test is LivenessGuard_TestInit {
+    using SafeTestLib for SafeInstance;
+
+    /// @dev Tests that the guard correctly deletes the owner from the lastLive mapping when it is removed
+    function test_removeOwner_succeeds() external {
+        address ownerToRemove = safeInstance.owners[0];
+        assertGe(livenessGuard.lastLive(ownerToRemove), 0);
+        assertTrue(safeInstance.safe.isOwner(ownerToRemove));
+
+        safeInstance.execTransaction({
+            to: address(safeInstance.safe),
+            value: 0,
+            data: abi.encodeWithSelector(OwnerManager.removeOwner.selector, SENTINEL_OWNERS, ownerToRemove, 1)
+        });
+
+        assertFalse(safeInstance.safe.isOwner(ownerToRemove));
+        assertEq(livenessGuard.lastLive(ownerToRemove), 0);
+    }
+
+    /// @dev Tests that the guard correctly adds an owner to the lastLive mapping when it is added
+    function test_addOwner_succeeds() external {
+        address ownerToAdd = makeAddr("new owner");
+        assertEq(livenessGuard.lastLive(ownerToAdd), 0);
+        assertFalse(safeInstance.safe.isOwner(ownerToAdd));
+
+        safeInstance.execTransaction({
+            to: address(safeInstance.safe),
+            value: 0,
+            data: abi.encodeWithSelector(OwnerManager.addOwnerWithThreshold.selector, ownerToAdd, 1)
+        });
+
+        assertTrue(safeInstance.safe.isOwner(ownerToAdd));
+        assertEq(livenessGuard.lastLive(ownerToAdd), block.timestamp);
     }
 }
