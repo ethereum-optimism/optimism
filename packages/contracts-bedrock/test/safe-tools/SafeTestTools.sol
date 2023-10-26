@@ -3,7 +3,7 @@ pragma solidity >=0.7.0 <0.9.0;
 
 import "forge-std/Test.sol";
 import "scripts/libraries/LibSort.sol";
-import { ModuleManager, GuardManager, Safe as GnosisSafe } from "safe-contracts/Safe.sol";
+import { Safe as GnosisSafe, OwnerManager, ModuleManager, GuardManager } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory as GnosisSafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import { SignMessageLib } from "safe-contracts/libraries/SignMessageLib.sol";
@@ -110,7 +110,21 @@ function sortPKsByComputedAddress(uint256[] memory _pks) pure returns (uint256[]
     return sortedPKs;
 }
 
-// collapsed interface that includes comapatibilityfallback handler calls
+/// @dev A minimal wrapper around the OwnerManager contract. This contract is meant to be initialized with
+///      the same owners as a Safe instance, and then used to simulate the resulting owners list
+///      after an owner is removed.
+contract OwnerSimulator is OwnerManager {
+    constructor(address[] memory _owners, uint256 _threshold) {
+        setupOwners(_owners, _threshold);
+    }
+
+    /// @dev Exposes the OwnerManager's removeOwner function so that anyone may call without needing auth
+    function removeOwnerWrapped(address prevOwner, address owner, uint256 _threshold) public {
+        OwnerManager(address(this)).removeOwner(prevOwner, owner, _threshold);
+    }
+}
+
+/// @dev collapsed interface that includes comapatibilityfallback handler calls
 abstract contract DeployedSafe is GnosisSafe, CompatibilityFallbackHandler { }
 
 struct AdvancedSafeInitParams {
@@ -372,6 +386,32 @@ library SafeTestLib {
                 break;
             }
             prevOwner_ = _owners[i - 1];
+        }
+    }
+
+    /// @dev Given an array of owners to remove, this function will return an array of the previous owners
+    ///         in the order that they must be provided to the LivenessMoules's removeOwners() function.
+    ///         Because owners are removed one at a time, and not necessarily in order, we need to simulate
+    ///         the owners list after each removal, in order to identify the correct previous owner.
+    /// @param _ownersToRemove The owners to remove
+    /// @return prevOwners_ The previous owners in the linked list
+    function getPrevOwners(
+        SafeInstance memory instance,
+        address[] memory _ownersToRemove
+    )
+        internal
+        returns (address[] memory prevOwners_)
+    {
+        OwnerSimulator ownerSimulator = new OwnerSimulator(instance.owners, 1);
+        prevOwners_ = new address[](_ownersToRemove.length);
+        address[] memory currentOwners;
+        for (uint256 i = 0; i < _ownersToRemove.length; i++) {
+            currentOwners = ownerSimulator.getOwners();
+            prevOwners_[i] = SafeTestLib.getPrevOwner(instance.owners[i], currentOwners);
+
+            // Don't try to remove the last owner
+            if (currentOwners.length == 1) break;
+            ownerSimulator.removeOwnerWrapped(prevOwners_[i], _ownersToRemove[i], 1);
         }
     }
 }

@@ -12,20 +12,6 @@ import "test/safe-tools/SafeTestTools.sol";
 import { LivenessModule } from "src/Safe/LivenessModule.sol";
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
 
-/// @dev A minimal wrapper around the OwnerManager contract. This contract is meant to be initialized with
-///      the same owners as a Safe instance, and then used to simulate the resulting owners list
-///      after an owner is removed.
-contract OwnerSimulator is OwnerManager {
-    constructor(address[] memory _owners, uint256 _threshold) {
-        setupOwners(_owners, _threshold);
-    }
-
-    /// @dev Exposes the OwnerManager's removeOwner function so that anyone may call without needing auth
-    function removeOwnerWrapped(address prevOwner, address owner, uint256 _threshold) public {
-        OwnerManager(address(this)).removeOwner(prevOwner, owner, _threshold);
-    }
-}
-
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
@@ -37,27 +23,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     LivenessModule livenessModule;
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
-    OwnerSimulator ownerSimulator;
     address fallbackOwner;
-
-    /// @dev Given an array of owners to remove, this function will return an array of the previous owners
-    ///         in the order that they must be provided to the LivenessMoules's removeOwners() function.
-    ///         Because owners are removed one at a time, and not necessarily in order, we need to simulate
-    ///         the owners list after each removal, in order to identify the correct previous owner.
-    /// @param _ownersToRemove The owners to remove
-    /// @return prevOwners_ The previous owners in the linked list
-    function _getPrevOwners(address[] memory _ownersToRemove) internal returns (address[] memory prevOwners_) {
-        prevOwners_ = new address[](_ownersToRemove.length);
-        address[] memory currentOwners;
-        for (uint256 i = 0; i < _ownersToRemove.length; i++) {
-            currentOwners = ownerSimulator.getOwners();
-            prevOwners_[i] = SafeTestLib.getPrevOwner(safeInstance.owners[i], currentOwners);
-
-            // Don't try to remove the last owner
-            if (currentOwners.length == 1) break;
-            ownerSimulator.removeOwnerWrapped(prevOwners_[i], _ownersToRemove[i], 1);
-        }
-    }
 
     /// @dev Removes an owner from the safe
     function _removeAnOwner(address _ownerToRemove) internal {
@@ -78,7 +44,6 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         // Create a Safe with 10 owners
         (, uint256[] memory keys) = makeAddrsAndKeys(10);
         safeInstance = _setupSafe(keys, 8);
-        ownerSimulator = new OwnerSimulator(safeInstance.owners, 1);
 
         livenessGuard = new LivenessGuard(safeInstance.safe);
         fallbackOwner = makeAddr("fallbackOwner");
@@ -212,7 +177,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         for (uint256 i = 0; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
-        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+        address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
         // Incorrectly set the final owner to address(0)
         ownersToRemove[ownersToRemove.length - 1] = address(0);
@@ -231,7 +196,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         for (uint256 i = 0; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
-        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+        address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
         vm.warp(block.timestamp + livenessInterval + 1);
         vm.expectRevert("LivenessModule: must transfer ownership to fallback owner");
@@ -243,7 +208,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
     function test_removeOwners_guardChanged_reverts() external {
         address[] memory ownersToRemove = new address[](1);
         ownersToRemove[0] = safeInstance.owners[0];
-        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+        address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
         // Change the guard
         livenessGuard = new LivenessGuard(safeInstance.safe);
@@ -270,7 +235,9 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
 }
 
 contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
+    using SafeTestLib for SafeInstance;
     /// @dev Tests if removing one owner works correctly
+
     function test_removeOwners_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;
         address ownerToRemove = safeInstance.owners[0];
@@ -290,7 +257,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         for (uint256 i = 0; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
-        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+        address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
         vm.warp(block.timestamp + livenessInterval + 1);
         livenessModule.removeOwners(prevOwners, ownersToRemove);
