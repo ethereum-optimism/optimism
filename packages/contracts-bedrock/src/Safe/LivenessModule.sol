@@ -63,15 +63,18 @@ contract LivenessModule is ISemver {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
 
         // We will remove at least one owner, so we'll initialize the newOwners count to the current number of owners
-        // minus one.
-        uint256 newOwnersCount = SAFE.getOwners().length;
+        uint256 ownersCount = SAFE.getOwners().length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
-            newOwnersCount--;
+            ownersCount--;
+            require(
+                ownersCount < MIN_OWNERS || _canRemove(_ownersToRemove[i]),
+                "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
+            );
             _removeOwner({
                 _prevOwner: _previousOwners[i],
                 _ownerToRemove: _ownersToRemove[i],
-                _newOwnersCount: newOwnersCount,
-                _newThreshold: get75PercentThreshold(newOwnersCount)
+                _newOwnersCount: ownersCount,
+                _newThreshold: get75PercentThreshold(ownersCount)
             });
         }
         _verifyFinalState();
@@ -88,10 +91,6 @@ contract LivenessModule is ISemver {
     )
         internal
     {
-        require(
-            _newOwnersCount < MIN_OWNERS || _canRemove(_ownerToRemove),
-            "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
-        );
         if (_newOwnersCount > 0) {
             // Remove the owner and update the threshold
             _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: _newThreshold });
