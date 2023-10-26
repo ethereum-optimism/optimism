@@ -323,6 +323,40 @@ library SafeTestLib {
         return instance.safe.nonce();
     }
 
+    /// @dev Adds a new owner to the safe
+    function addOwnerWithThreshold(SafeInstance memory instance, address owner, uint256 threshold) internal {
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(OwnerManager.addOwnerWithThreshold.selector, owner, threshold)
+        );
+    }
+
+    /// @dev Removes an owner from the safe. If not provided explictly, the identification of the prevOwner is handled
+    ///     automatically.
+    function removeOwner(SafeInstance memory instance, address prevOwner, address owner, uint256 threshold) internal {
+        prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(owner, instance.owners);
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(OwnerManager.removeOwner.selector, prevOwner, owner, threshold)
+        );
+    }
+
+    /// @dev Replaces an old owner with a new owner. If not provided explictly, the identification of the prevOwner is
+    /// handled automatically.
+    function swapOwner(SafeInstance memory instance, address prevOwner, address oldOwner, address newOwner) internal {
+        prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(oldOwner, instance.owners);
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(OwnerManager.swapOwner.selector, prevOwner, oldOwner, newOwner)
+        );
+    }
+
     /// @dev A wrapper for the full execTransaction method, if no signatures are provided it will
     ///         generate them for all owners.
     function execTransaction(
