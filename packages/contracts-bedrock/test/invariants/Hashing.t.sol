@@ -3,8 +3,8 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
-import { Encoding } from "../../src/libraries/Encoding.sol";
-import { Hashing } from "../../src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 contract Hash_CrossDomainHasher {
     bool public failedCrossDomainHashHighVersion;

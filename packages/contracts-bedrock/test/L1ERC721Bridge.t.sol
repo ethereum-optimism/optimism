@@ -2,15 +2,15 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
+import { ERC721Bridge_Initializer } from "test/CommonTest.t.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 // Target contract dependencies
-import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
-import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
-import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 
 /// @dev Test ERC721 contract.
 contract TestERC721 is ERC721 {

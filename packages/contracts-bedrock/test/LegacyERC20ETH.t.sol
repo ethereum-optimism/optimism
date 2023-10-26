@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Target contract dependencies
-import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
-import { LegacyERC20ETH } from "../src/legacy/LegacyERC20ETH.sol";
+import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
 
 contract LegacyERC20ETH_Test is CommonTest {
     LegacyERC20ETH eth;

@@ -2,9 +2,9 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { Faucet } from "../src/periphery/faucet/Faucet.sol";
-import { AdminFaucetAuthModule } from "../src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
-import { FaucetHelper } from "./Helpers.sol";
+import { Faucet } from "src/periphery/faucet/Faucet.sol";
+import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
+import { FaucetHelper } from "test/Helpers.sol";
 
 contract Faucet_Initializer is Test {
     event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);

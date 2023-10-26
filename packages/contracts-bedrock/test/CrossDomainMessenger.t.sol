@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer, Reverter, CallerCaller, CommonTest } from "./CommonTest.t.sol";
-import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
+import { Messenger_Initializer, Reverter, CallerCaller, CommonTest } from "test/CommonTest.t.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 
 // Libraries
 import { Predeploys } from "../src/libraries/Predeploys.sol";

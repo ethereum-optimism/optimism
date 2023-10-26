@@ -3,20 +3,20 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 // Target contract is imported by the `Bridge_Initializer`
-import { Bridge_Initializer } from "./CommonTest.t.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
-import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
-import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Libraries
-import { Hashing } from "../src/libraries/Hashing.sol";
-import { Types } from "../src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
-import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
-import { OptimismMintableERC20 } from "../src/universal/OptimismMintableERC20.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;

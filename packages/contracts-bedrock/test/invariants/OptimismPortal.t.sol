@@ -4,15 +4,15 @@ pragma solidity 0.8.15;
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { OptimismPortal } from "../../src/L1/OptimismPortal.sol";
-import { L2OutputOracle } from "../../src/L1/L2OutputOracle.sol";
-import { AddressAliasHelper } from "../../src/vendor/AddressAliasHelper.sol";
-import { SystemConfig } from "../../src/L1/SystemConfig.sol";
-import { ResourceMetering } from "../../src/L1/ResourceMetering.sol";
-import { Constants } from "../../src/libraries/Constants.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
-import { Portal_Initializer } from "../CommonTest.t.sol";
-import { Types } from "../../src/libraries/Types.sol";
+import { Portal_Initializer } from "test/CommonTest.t.sol";
+import { Types } from "src/libraries/Types.sol";
 
 contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
