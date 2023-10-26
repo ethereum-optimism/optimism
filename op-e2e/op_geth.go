@@ -102,7 +102,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	)
 	require.Nil(t, err)
 
-	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
+	l2Client, err := ethclient.Dial(selectEndpoint(node))
 	require.Nil(t, err)
 
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))

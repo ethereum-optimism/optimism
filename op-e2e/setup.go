@@ -758,9 +758,12 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
+func UseHTTP() bool {
+	return os.Getenv("OP_E2E_USE_HTTP") == "true"
+}
+
 func selectEndpoint(node EthInstance) string {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
-	if useHTTP {
+	if UseHTTP() {
 		log.Info("using HTTP client")
 		return node.HTTPEndpoint()
 	}
@@ -785,9 +788,8 @@ type WSOrHTTPEndpoint interface {
 }
 
 func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
-	if useHTTP {
+	if UseHTTP() {
 		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
 	}
 
