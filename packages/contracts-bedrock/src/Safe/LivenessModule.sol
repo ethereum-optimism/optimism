@@ -61,8 +61,18 @@ contract LivenessModule is ISemver {
 
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
+
+        // We will remove at least one owner, so we'll initialize the newOwners count to the current number of owners
+        // minus one.
+        uint256 newOwnersCount = SAFE.getOwners().length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
-            _removeOwner(_previousOwners[i], _ownersToRemove[i]);
+            newOwnersCount--;
+            _removeOwner({
+                _prevOwner: _previousOwners[i],
+                _ownerToRemove: _ownersToRemove[i],
+                _newOwnersCount: newOwnersCount,
+                _newThreshold: get75PercentThreshold(newOwnersCount)
+            });
         }
         _verifyFinalState();
     }
@@ -70,30 +80,27 @@ contract LivenessModule is ISemver {
     /// @notice This function can be called by anyone to remove an owner that has not signed a transaction
     ///         during the liveness interval. If the number of owners drops below the minimum, then the
     ///         ownership of the Safe is transferred to the fallback owner.
-    function _removeOwner(address _prevOwner, address _ownerToRemove) internal {
-        // Calculate the new threshold
-        address[] memory owners = SAFE.getOwners();
-        uint256 numOwnersAfter = owners.length - 1;
-        if (_isAboveMinOwners(numOwnersAfter)) {
-            // Check that the owner to remove has not signed a transaction in the last 30 days
-            require(
-                LIVENESS_GUARD.lastLive(_ownerToRemove) < block.timestamp - LIVENESS_INTERVAL,
-                "LivenessModule: owner has signed recently"
-            );
-            // Call the Safe to remove the owner and update the threshold
-            uint256 thresholdAfter = get75PercentThreshold(numOwnersAfter);
-            _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: thresholdAfter });
-        } else {
-            // The number of owners is dangerously low, so we wish to transfer the ownership of this Safe
-            // to the fallback owner. Therefore we no longer need to validate the liveness of the owners
-            // before removing them.
-            if (numOwnersAfter == 0) {
-                // Add the fallback owner as the sole owner of the Safe
-                _swapToFallbackOwnerSafeCall({ _prevOwner: _prevOwner, _oldOwner: _ownerToRemove });
-            } else {
-                // Remove the owner and set the threshold to 1
-                _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: 1 });
+    function _removeOwner(
+        address _prevOwner,
+        address _ownerToRemove,
+        uint256 _newOwnersCount,
+        uint256 _newThreshold
+    )
+        internal
+    {
+        if (_newOwnersCount > 0) {
+            if (_isAboveMinOwners(_newOwnersCount)) {
+                // Check that the owner to remove has not signed a transaction in the last 30 days
+                require(
+                    LIVENESS_GUARD.lastLive(_ownerToRemove) < block.timestamp - LIVENESS_INTERVAL,
+                    "LivenessModule: owner has signed recently"
+                );
             }
+            // Remove the owner and update the threshold
+            _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: _newThreshold });
+        } else {
+            // Add the fallback owner as the sole owner of the Safe
+            _swapToFallbackOwnerSafeCall({ _prevOwner: _prevOwner, _oldOwner: _ownerToRemove });
         }
     }
 

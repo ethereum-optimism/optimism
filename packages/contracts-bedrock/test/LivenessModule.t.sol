@@ -115,7 +115,6 @@ contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
         ownersToRemove[0] = safeInstance.owners[0];
         prevOwners[0] = _getPrevOwner(safeInstance.owners[0], safeInstance.owners);
 
-        address ownerToRemove = safeInstance.owners[0];
         vm.warp(block.timestamp + 30 days);
 
         livenessModule.removeOwners(prevOwners, ownersToRemove);
