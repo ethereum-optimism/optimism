@@ -19,7 +19,7 @@ contract Initializer_Test is ERC721Bridge_Initializer {
         l1CrossDomainMessenger.initialize(OptimismPortal(payable(address(0))));
 
         vm.expectRevert("Initializable: contract is already initialized");
-        L1Bridge.initialize(CrossDomainMessenger(address(0)));
+        l1StandardBridge.initialize(CrossDomainMessenger(address(0)));
 
         vm.expectRevert("Initializable: contract is already initialized");
         l2OutputOracle.initialize(0, 0, address(0), address(0));
@@ -56,6 +56,6 @@ contract Initializer_Test is ERC721Bridge_Initializer {
         });
 
         vm.expectRevert("Initializable: contract is already initialized");
-        L1NFTBridge.initialize(CrossDomainMessenger(address(0)));
+        l1ERC721Bridge.initialize(CrossDomainMessenger(address(0)));
     }
 }
