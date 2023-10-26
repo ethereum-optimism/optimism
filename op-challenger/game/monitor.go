@@ -141,6 +141,7 @@ func (m *gameMonitor) MonitorGames(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			m.l1HeadsSub.Unsubscribe()
 			return nil
 		case err, ok := <-m.l1HeadsSub.Err():
 			if !ok {
