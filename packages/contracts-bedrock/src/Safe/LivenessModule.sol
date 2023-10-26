@@ -74,10 +74,10 @@ contract LivenessModule is ISemver {
         uint256 ownersCount = SAFE.getOwners().length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
             ownersCount--;
-            require(
-                ownersCount < MIN_OWNERS || _canRemove(_ownersToRemove[i]),
-                "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
-            );
+            if (ownersCount >= MIN_OWNERS) {
+                require(_canRemove(_ownersToRemove[i]), "LivenessModule: the owner to remove has signed recently");
+            }
+
             _removeOwner({
                 _prevOwner: _previousOwners[i],
                 _ownerToRemove: _ownersToRemove[i],
@@ -154,10 +154,14 @@ contract LivenessModule is ISemver {
         address[] memory owners = SAFE.getOwners();
         uint256 numOwners = owners.length;
         // Ensure that the safe is not being left in an unsafe state with too few owners.
-        require(
-            numOwners >= MIN_OWNERS || (numOwners == 1 && owners[0] == FALLBACK_OWNER),
-            "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
-        );
+        if (numOwners == 1) {
+            require(owners[0] == FALLBACK_OWNER, "LivenessModule: must transfer ownership to fallback owner");
+        } else {
+            require(
+                numOwners >= MIN_OWNERS,
+                "LivenessModule: must remove all owners and transfer to fallback owner if numOwners < minOwners"
+            );
+        }
 
         // Check that the threshold is correct. This check is also correct when there is a single
         // owner, because get75PercentThreshold(1) returns 1.
