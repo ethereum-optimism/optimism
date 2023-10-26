@@ -231,6 +231,7 @@ jobs:
 
             DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
+              gcloud auth configure-docker <<parameters.registry>>
               echo "Building for platforms $PLATFORMS and then publishing to registry"
               DOCKER_OUTPUT_DESTINATION="--push"
               if [ "<<parameters.save_image_tag>>" != "" ]; then
