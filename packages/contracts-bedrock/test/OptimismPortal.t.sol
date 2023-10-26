@@ -936,8 +936,8 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         NextImpl nextImpl = new NextImpl();
 
-        // TODO: here
-        vm.startPrank(multisig);
+        address admin = address(uint160(uint256(vm.load(address(optimismPortal), Constants.PROXY_OWNER_ADDRESS))));
+        vm.startPrank(admin);
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
         Proxy(payable(address(optimismPortal))).upgradeToAndCall(

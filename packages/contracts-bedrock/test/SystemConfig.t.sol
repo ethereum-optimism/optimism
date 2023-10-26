@@ -24,7 +24,6 @@ contract SystemConfig_Init is CommonTest {
     address constant batchInbox = address(0x18);
     address constant l1CrossDomainMessenger = address(0x20);
     address constant l1ERC721Bridge = address(0x21);
-    address constant l1StandardBridge = address(0x22);
     address constant optimismMintableERC20Factory = address(0x25);
     uint256 constant overhead = 2100;
     uint256 constant scalar = 1000000;
@@ -56,7 +55,7 @@ contract SystemConfig_Init is CommonTest {
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
+                        l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory
@@ -74,7 +73,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
     function test_initialize_values_succeeds() external {
         assertEq(sysConf.l1CrossDomainMessenger(), l1CrossDomainMessenger);
         assertEq(sysConf.l1ERC721Bridge(), l1ERC721Bridge);
-        assertEq(sysConf.l1StandardBridge(), l1StandardBridge);
+        assertEq(sysConf.l1StandardBridge(), address(l1StandardBridge));
         assertEq(sysConf.l2OutputOracle(), address(l2OutputOracle));
         assertEq(sysConf.optimismPortal(), address(optimismPortal));
         assertEq(sysConf.optimismMintableERC20Factory(), optimismMintableERC20Factory);
@@ -128,7 +127,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
+                        l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory
@@ -167,7 +166,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
+                        l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory
@@ -217,7 +216,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
                     SystemConfig.Addresses({ // _addresses
                         l1CrossDomainMessenger: l1CrossDomainMessenger,
                         l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
+                        l1StandardBridge: address(l1StandardBridge),
                         l2OutputOracle: address(l2OutputOracle),
                         optimismPortal: address(optimismPortal),
                         optimismMintableERC20Factory: optimismMintableERC20Factory

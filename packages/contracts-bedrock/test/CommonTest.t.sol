@@ -59,8 +59,8 @@ contract CommonTest is Deploy, Test {
     OptimismPortal optimismPortal;
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
-    /*
     L1StandardBridge l1StandardBridge;
+    /*
     L1CrossDomainMessenger l1CrossDomainMessenger;
     L1ERC721Bridge l1ERC721Bridge;
     */
@@ -94,12 +94,14 @@ contract CommonTest is Deploy, Test {
         optimismPortal = OptimismPortal(mustGetAddress("OptimismPortalProxy"));
         l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
+        l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(address(optimismPortal), "OptimismPortal");
+        vm.label(address(systemConfig), "SystemConfig");
+        vm.label(address(l1StandardBridge), "L1StandardBridge");
 
         /*
-        l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
         */
