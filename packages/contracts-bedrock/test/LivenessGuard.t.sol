@@ -15,14 +15,26 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
 
     event OwnerRecorded(bytes32 indexed txHash, address signer);
 
+    uint256 initTime = 10;
     LivenessGuard livenessGuard;
     SafeInstance safeInstance;
 
     /// @dev Sets up the test environment
     function setUp() public {
+        vm.warp(initTime);
         safeInstance = _setupSafe();
         livenessGuard = new LivenessGuard(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
+    }
+}
+
+contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
+    function test_constructor_works() external {
+        address[] memory owners = safeInstance.owners;
+        livenessGuard = new LivenessGuard(safeInstance.safe);
+        for (uint256 i = 0; i < owners.length; i++) {
+            assertEq(livenessGuard.lastLive(owners[i]), initTime);
+        }
     }
 }
 

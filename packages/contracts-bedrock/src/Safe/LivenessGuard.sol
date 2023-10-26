@@ -45,6 +45,12 @@ contract LivenessGuard is ISemver, BaseGuard {
     /// @param _safe The safe account for which this contract will be the guard.
     constructor(Safe _safe) {
         SAFE = _safe;
+        address[] memory owners = _safe.getOwners();
+        for (uint256 i = 0; i < owners.length; i++) {
+            address owner = owners[i];
+            lastLive[owner] = block.timestamp;
+            emit OwnerRecorded(0x0, owner);
+        }
     }
 
     /// @notice Internal function to ensure that only the Safe can call certain functions.
