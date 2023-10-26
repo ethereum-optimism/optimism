@@ -29,9 +29,6 @@ contract OwnerSimulator is OwnerManager {
 contract LivenessModule_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
 
-    /// @dev The address of the first owner in the linked list of owners
-    address internal constant SENTINEL_OWNERS = address(0x1);
-
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
 
     uint256 initTime = 10;
@@ -42,20 +39,6 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     SafeInstance safeInstance;
     OwnerSimulator ownerSimulator;
     address fallbackOwner;
-
-    /// @notice Get the previous owner in the linked list of owners
-    /// @param _owner The owner whose previous owner we want to find
-    /// @param _owners The list of owners
-    function _getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
-        for (uint256 i = 0; i < _owners.length; i++) {
-            if (_owners[i] != _owner) continue;
-            if (i == 0) {
-                prevOwner_ = SENTINEL_OWNERS;
-                break;
-            }
-            prevOwner_ = _owners[i - 1];
-        }
-    }
 
     /// @dev Given an array of owners to remove, this function will return an array of the previous owners
     ///         in the order that they must be provided to the LivenessMoules's removeOwners() function.
@@ -68,7 +51,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         address[] memory currentOwners;
         for (uint256 i = 0; i < _ownersToRemove.length; i++) {
             currentOwners = ownerSimulator.getOwners();
-            prevOwners_[i] = _getPrevOwner(safeInstance.owners[i], currentOwners);
+            prevOwners_[i] = SafeTestLib.getPrevOwner(safeInstance.owners[i], currentOwners);
 
             // Don't try to remove the last owner
             if (currentOwners.length == 1) break;
@@ -81,7 +64,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         address[] memory prevOwners = new address[](1);
         address[] memory ownersToRemove = new address[](1);
         ownersToRemove[0] = _ownerToRemove;
-        prevOwners[0] = _getPrevOwner(_ownerToRemove, safeInstance.owners);
+        prevOwners[0] = SafeTestLib.getPrevOwner(_ownerToRemove, safeInstance.owners);
 
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }

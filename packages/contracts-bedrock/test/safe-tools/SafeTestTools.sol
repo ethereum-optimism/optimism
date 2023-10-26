@@ -15,6 +15,9 @@ import "./CompatibilityFallbackHandler_1_3_0.sol";
 address constant VM_ADDR = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D;
 bytes12 constant ADDR_MASK = 0xffffffffffffffffffffffff;
 
+/// @dev The address of the first owner in the linked list of owners
+address constant SENTINEL_OWNERS = address(0x1);
+
 /// @dev Get the address from a private key
 function getAddr(uint256 pk) pure returns (address) {
     return Vm(VM_ADDR).addr(pk);
@@ -145,7 +148,7 @@ library SafeTestLib {
         address refundReceiver,
         bytes memory signatures
     )
-        public
+        internal
         returns (bool)
     {
         if (instance.owners.length == 0) {
@@ -207,7 +210,7 @@ library SafeTestLib {
         bytes memory data,
         Enum.Operation operation
     )
-        public
+        internal
         returns (bool)
     {
         return execTransaction(instance, to, value, data, operation, 0, 0, 0, address(0), address(0), "");
@@ -220,14 +223,14 @@ library SafeTestLib {
         uint256 value,
         bytes memory data
     )
-        public
+        internal
         returns (bool)
     {
         return execTransaction(instance, to, value, data, Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
     }
 
     /// @dev Enables a module on the Safe.
-    function enableModule(SafeInstance memory instance, address module) public {
+    function enableModule(SafeInstance memory instance, address module) internal {
         execTransaction(
             instance,
             address(instance.safe),
@@ -244,7 +247,7 @@ library SafeTestLib {
     }
 
     /// @dev Disables a module on the Safe.
-    function disableModule(SafeInstance memory instance, address module) public {
+    function disableModule(SafeInstance memory instance, address module) internal {
         (address[] memory modules,) = instance.safe.getModulesPaginated(SENTINEL_MODULES, 1000);
         address prevModule = SENTINEL_MODULES;
         bool moduleFound;
@@ -275,7 +278,7 @@ library SafeTestLib {
     /// @dev Sets the guard address on the Safe. Unlike modules there can only be one guard, so
     ///      this method will remove the previous guard. If the guard is set to the 0 address, the
     ///      guard will be disabled.
-    function setGuard(SafeInstance memory instance, address guard) public {
+    function setGuard(SafeInstance memory instance, address guard) internal {
         execTransaction(
             instance,
             address(instance.safe),
@@ -292,7 +295,7 @@ library SafeTestLib {
     }
 
     /// @dev Signs message data using EIP1271: Standard Signature Validation Method for Contracts
-    function EIP1271Sign(SafeInstance memory instance, bytes memory data) public {
+    function EIP1271Sign(SafeInstance memory instance, bytes memory data) internal {
         address signMessageLib = address(new SignMessageLib());
         execTransaction({
             instance: instance,
@@ -310,7 +313,7 @@ library SafeTestLib {
     }
 
     /// @dev Signs a data hash using EIP1271: Standard Signature Validation Method for Contracts
-    function EIP1271Sign(SafeInstance memory instance, bytes32 digest) public {
+    function EIP1271Sign(SafeInstance memory instance, bytes32 digest) internal {
         EIP1271Sign(instance, abi.encodePacked(digest));
     }
 
@@ -328,7 +331,7 @@ library SafeTestLib {
         address gasToken,
         address refundReceiver
     )
-        public
+        internal
         view
         returns (uint8 v, bytes32 r, bytes32 s)
     {
@@ -353,9 +356,23 @@ library SafeTestLib {
     }
 
     /// @dev Increments the nonce of the Safe by sending an empty transaction.
-    function incrementNonce(SafeInstance memory instance) public returns (uint256 newNonce) {
+    function incrementNonce(SafeInstance memory instance) internal returns (uint256 newNonce) {
         execTransaction(instance, address(0), 0, "", Enum.Operation.Call, 0, 0, 0, address(0), address(0), "");
         return instance.safe.nonce();
+    }
+
+    /// @notice Get the previous owner in the linked list of owners
+    /// @param _owner The owner whose previous owner we want to find
+    /// @param _owners The list of owners
+    function getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
+        for (uint256 i = 0; i < _owners.length; i++) {
+            if (_owners[i] != _owner) continue;
+            if (i == 0) {
+                prevOwner_ = SENTINEL_OWNERS;
+                break;
+            }
+            prevOwner_ = _owners[i - 1];
+        }
     }
 }
 
