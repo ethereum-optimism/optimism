@@ -778,6 +778,7 @@ jobs:
       target:
         description: The make target to execute
         type: string
+    parallelism: 2
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
