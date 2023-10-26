@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Types } from "../src/libraries/Types.sol";
-import { Hashing } from "../src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 // Target contract
-import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 
 contract L2ToL1MessagePasserTest is CommonTest {
     L2ToL1MessagePasser messagePasser;

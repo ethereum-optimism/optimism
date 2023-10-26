@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Bridge_Initializer } from "./CommonTest.t.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";

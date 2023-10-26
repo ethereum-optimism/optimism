@@ -2,17 +2,17 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Constants } from "../src/libraries/Constants.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 // Target contract
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;

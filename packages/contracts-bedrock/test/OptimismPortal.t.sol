@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
-import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
+import { Portal_Initializer, CommonTest, NextImpl } from "test/CommonTest.t.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
