@@ -1243,23 +1243,7 @@ jobs:
       - run:
           name: Filter comments and match only 1 script
           command: |
-            AWK_SCRIPT="
-            BEGIN { in_comment = 0; matches = 0; }
-            /^ *\/\*/ { in_comment = 1; }
-            in_comment && /\*\// { in_comment = 0; next; }
-            !in_comment && !/^ *\/\// && /PATTERN/ { matches++; matched_line = $0; }
-            END {
-                if (matches == 1) {
-                    print matched_line;
-                } else if (matches > 1) {
-                    print "Multiple matches found. Exiting.";
-                    exit 1;
-                } else {
-                    print "No matches found. Exiting.";
-                    exit 1;
-                }
-            }"
-            echo "export SCRIPT=$AWK_SCRIPT" >> $BASH_ENV
+            SCRIPT='BEGIN { in_comment = 0; matches = 0; } /^ *\/\*/ { in_comment = 1; } in_comment && /\*\// { in_comment = 0; next; } !in_comment && !/^ *\/\// && $0 ~ PATTERN { matches++; matched_line = $0; } END { if (matches == 1) { print matched_line; } else if (matches > 1) { print "Multiple matches found. Exiting."; exit 1; } else { print "No matches found. Exiting."; exit 1; } }'
       - run:
           name: Extract value from file1
           command: |
