@@ -69,6 +69,7 @@ contract CommonTest is Deploy, Test {
     L2StandardBridge l2StandardBridge;
     L2ToL1MessagePasser l2ToL1MessagePasser;
     OptimismMintableERC20Factory l2OptimismMintableERC20Factory;
+    L2ERC721Bridge l2ERC721Bridge;
 
     FFIInterface ffi;
 
@@ -133,11 +134,16 @@ contract CommonTest is Deploy, Test {
 
         vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
+        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
+        l2ERC721Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+        l2ERC721Bridge.initialize();
+
         vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
         vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
+        vm.label(address(l2ERC721Bridge), "L2ERC721Bridge");
 
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
@@ -292,12 +298,6 @@ contract Bridge_Initializer is Messenger_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        // Deploy the L2StandardBridge, move it to the correct predeploy
-        // address and then initialize it. It is safe to call initialize directly
-        // on the proxy because the bytecode was set in state with `etch`.
-
-        // Set up the L2 mintable token factory
-
         L1Token = new ERC20("Native L1 Token", "L1T");
 
         LegacyL2Token = new LegacyMintableERC20({
@@ -346,30 +346,9 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract ERC721Bridge_Initializer is Bridge_Initializer {
-    L2ERC721Bridge L2NFTBridge;
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
-        L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(l1ERC721Bridge));
-        Proxy l2BridgeProxy = new Proxy(multisig);
-        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2BridgeProxy).code);
-
-        // set the storage slot for admin
-        bytes32 OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
-        vm.store(Predeploys.L2_ERC721_BRIDGE, OWNER_KEY, bytes32(uint256(uint160(multisig))));
-
-        vm.prank(multisig);
-        Proxy(payable(Predeploys.L2_ERC721_BRIDGE)).upgradeToAndCall(
-            address(l2BridgeImpl), abi.encodeCall(L2ERC721Bridge.initialize, ())
-        );
-
-        // Set up a reference to the L2ERC721Bridge.
-        L2NFTBridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
-
-        // Label the L1 and L2 bridges.
-        vm.label(address(L2NFTBridge), "L2ERC721Bridge");
     }
 }
 

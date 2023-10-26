@@ -160,7 +160,7 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
         // Set the target contract to the portal proxy
         targetContract(address(optimismPortal));
         // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
-        excludeSender(EIP1967Helper.getAdmin(address(op)));
+        excludeSender(EIP1967Helper.getAdmin(address(optimismPortal)));
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
