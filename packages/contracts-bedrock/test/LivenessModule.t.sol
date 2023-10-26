@@ -33,6 +33,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
 
     event SignersRecorded(bytes32 indexed txHash, address[] signers);
 
+    uint256 initTime = 10;
     uint256 livenessInterval = 30 days;
     uint256 minOwners = 6;
     LivenessModule livenessModule;
@@ -86,6 +87,10 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
 
     /// @dev Sets up the test environment
     function setUp() public {
+        // Set the block timestamp to the initTime, so that signatures recorded in the first block
+        // are non-zero.
+        vm.warp(initTime);
+
         // Create a Safe with 10 owners
         (, uint256[] memory keys) = makeAddrsAndKeys(10);
         safeInstance = _setupSafe(keys, 8);
@@ -107,13 +112,29 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
 
 contract LivenessModule_Constructor_Test is LivenessModule_TestInit {
     /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
-    function test_constructor_minOwnersGreaterThanOwners_revert() external {
+    function test_constructor_minOwnersGreaterThanOwners_reverts() external {
         vm.expectRevert("LivenessModule: minOwners must be less than the number of owners");
         new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
             _livenessInterval: livenessInterval,
             _minOwners: 11,
+            _fallbackOwner: address(0)
+        });
+    }
+
+    /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
+    function test_constructor_wrongThreshold_reverts() external {
+        uint256 wrongThreshold = livenessModule.get75PercentThreshold(safeInstance.owners.length) + 1;
+        vm.mockCall(
+            address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
+        );
+        vm.expectRevert("LivenessModule: Safe must have a threshold of 75% of the number of owners");
+        new LivenessModule({
+            _safe: safeInstance.safe,
+            _livenessGuard: livenessGuard,
+            _livenessInterval: livenessInterval,
+            _minOwners: minOwners,
             _fallbackOwner: address(0)
         });
     }
@@ -157,11 +178,91 @@ contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
     }
 }
 
-contract LivenessModule_RemoveOwner_TestFail is LivenessModule_TestInit {
+contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
     using SafeTestLib for SafeInstance;
-    // "LivenessModule: guard has been changed"
 
-    function test_removeOwner_guardChanged_revert() external {
+    /// @dev Tests with different length owner arrays
+    function test_removeOwners_differentArrayLengths_reverts() external {
+        address[] memory ownersToRemove = new address[](1);
+        address[] memory prevOwners = new address[](2);
+        vm.expectRevert("LivenessModule: arrays must be the same length");
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
+
+    /// @dev Test removing an owner which has recently signed a transaction
+    function test_removeOwners_ownerHasSignedRecently_reverts() external {
+        /// Will sign a transaction with the first M owners in the owners list
+        vm.warp(block.timestamp + livenessInterval);
+        safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
+        vm.expectRevert(
+            "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
+        );
+        _removeAnOwner(safeInstance.owners[0]);
+    }
+
+    /// @dev Test removing an owner which has recently called showLiveness
+    function test_removeOwners_ownerHasShownLivenessRecently_reverts() external {
+        /// Will sign a transaction with the first M owners in the owners list
+        vm.warp(block.timestamp + livenessInterval);
+        vm.prank(safeInstance.owners[0]);
+        livenessGuard.showLiveness();
+        vm.expectRevert(
+            "LivenessModule: the safe still has sufficient owners, or the owner to remove has signed recently"
+        );
+        _removeAnOwner(safeInstance.owners[0]);
+    }
+
+    /// @dev Test removing an owner with an incorrect previous owner
+    function test_removeOwners_wrongPreviousOwner_reverts() external {
+        address[] memory prevOwners = new address[](1);
+        address[] memory ownersToRemove = new address[](1);
+        ownersToRemove[0] = safeInstance.owners[0];
+        prevOwners[0] = ownersToRemove[0]; // incorrect.
+
+        vm.warp(block.timestamp + livenessInterval);
+        vm.expectRevert("LivenessModule: failed to remove owner");
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
+
+    /// @dev Tests if removing all owners works correctly
+    function test_removeOwners_swapToFallBackOwner_reverts() external {
+        uint256 numOwners = safeInstance.owners.length;
+
+        address[] memory ownersToRemove = new address[](numOwners);
+        for (uint256 i = 0; i < numOwners; i++) {
+            ownersToRemove[i] = safeInstance.owners[i];
+        }
+        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+
+        // Incorrectly set the final owner to address(0)
+        ownersToRemove[ownersToRemove.length - 1] = address(0);
+
+        vm.warp(block.timestamp + livenessInterval);
+        vm.expectRevert("LivenessModule: failed to swap to fallback owner");
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
+
+    /// @dev Tests if remove owners reverts if it removes too many owners without swapping to the fallback owner
+    function test_removeOwners_belowMinButNotToFallbackOwner_reverts() external {
+        // Remove all but one owner
+        uint256 numOwners = safeInstance.owners.length - 1;
+
+        address[] memory ownersToRemove = new address[](numOwners);
+        for (uint256 i = 0; i < numOwners; i++) {
+            ownersToRemove[i] = safeInstance.owners[i];
+        }
+        address[] memory prevOwners = _getPrevOwners(ownersToRemove);
+
+        vm.warp(block.timestamp + livenessInterval);
+        vm.expectRevert(
+            "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
+        );
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
+
+    /// @dev Tests if remove owners reverts if the current Safe.guard does note match the expected
+    ///      livenessGuard address.
+    function test_removeOwners_guardChanged_reverts() external {
         address[] memory ownersToRemove = new address[](1);
         ownersToRemove[0] = safeInstance.owners[0];
         address[] memory prevOwners = _getPrevOwners(ownersToRemove);
@@ -174,15 +275,29 @@ contract LivenessModule_RemoveOwner_TestFail is LivenessModule_TestInit {
         vm.expectRevert("LivenessModule: guard has been changed");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
+
+    function test_removeOwners_invalidThreshold_reverts() external {
+        address[] memory ownersToRemove = new address[](0);
+        address[] memory prevOwners = new address[](0);
+        uint256 wrongThreshold = safeInstance.safe.getThreshold() + 1;
+
+        vm.mockCall(
+            address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
+        );
+
+        vm.warp(block.timestamp + livenessInterval + 1);
+        vm.expectRevert("LivenessModule: Safe must have a threshold of 75% of the number of owners");
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
 }
 
-contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
+contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
     /// @dev Tests if removing one owner works correctly
-    function test_removeOwner_oneOwner_succeeds() external {
+    function test_removeOwners_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;
         address ownerToRemove = safeInstance.owners[0];
 
-        // vm.warp(block.timestamp + 30 days);
+        vm.warp(block.timestamp + livenessInterval + 1);
         _removeAnOwner(ownerToRemove);
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));
@@ -190,7 +305,7 @@ contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
     }
 
     /// @dev Tests if removing all owners works correctly
-    function test_removeOwner_allOwners_succeeds() external {
+    function test_removeOwners_allOwners_succeeds() external {
         uint256 numOwners = safeInstance.owners.length;
 
         address[] memory ownersToRemove = new address[](numOwners);
@@ -199,7 +314,7 @@ contract LivenessModule_RemoveOwner_Test is LivenessModule_TestInit {
         }
         address[] memory prevOwners = _getPrevOwners(ownersToRemove);
 
-        vm.warp(block.timestamp + 30 days);
+        vm.warp(block.timestamp + livenessInterval + 1);
         livenessModule.removeOwners(prevOwners, ownersToRemove);
         assertEq(safeInstance.safe.getOwners().length, 1);
         assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
