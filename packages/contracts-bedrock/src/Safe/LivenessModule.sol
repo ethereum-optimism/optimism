@@ -54,8 +54,11 @@ contract LivenessModule is ISemver {
         LIVENESS_INTERVAL = _livenessInterval;
         FALLBACK_OWNER = _fallbackOwner;
         MIN_OWNERS = _minOwners;
+        address[] memory owners = _safe.getOwners();
+        require(_minOwners < owners.length, "LivenessModule: minOwners must be less than the number of owners");
         require(
-            _minOwners < _safe.getOwners().length, "LivenessModule: minOwners must be less than the number of owners"
+            _safe.getThreshold() == get75PercentThreshold(owners.length),
+            "LivenessModule: Safe must have a threshold of 75% of the number of owners"
         );
     }
 
@@ -161,7 +164,7 @@ contract LivenessModule is ISemver {
         uint256 threshold = SAFE.getThreshold();
         require(
             threshold == get75PercentThreshold(numOwners),
-            "LivenessModule: threshold must be 75% of the number of owners"
+            "LivenessModule: Safe must have a threshold of 75% of the number of owners"
         );
 
         // Check that the guard has not been changed

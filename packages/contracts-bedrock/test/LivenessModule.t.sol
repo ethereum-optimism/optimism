@@ -219,7 +219,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         ownersToRemove[0] = safeInstance.owners[0];
         prevOwners[0] = ownersToRemove[0]; // incorrect.
 
-        vm.warp(block.timestamp + livenessInterval);
+        vm.warp(block.timestamp + livenessInterval + 1);
         vm.expectRevert("LivenessModule: failed to remove owner");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -237,7 +237,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         // Incorrectly set the final owner to address(0)
         ownersToRemove[ownersToRemove.length - 1] = address(0);
 
-        vm.warp(block.timestamp + livenessInterval);
+        vm.warp(block.timestamp + livenessInterval + 1);
         vm.expectRevert("LivenessModule: failed to swap to fallback owner");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -253,7 +253,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         }
         address[] memory prevOwners = _getPrevOwners(ownersToRemove);
 
-        vm.warp(block.timestamp + livenessInterval);
+        vm.warp(block.timestamp + livenessInterval + 1);
         vm.expectRevert(
             "LivenessModule: Safe must have the minimum number of owners or be owned solely by the fallback owner"
         );
