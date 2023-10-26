@@ -2,10 +2,10 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Target contract
-import { SafeCall } from "../src/libraries/SafeCall.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
 
 contract SafeCall_Test is CommonTest {
     /// @dev Tests that the `send` function succeeds.

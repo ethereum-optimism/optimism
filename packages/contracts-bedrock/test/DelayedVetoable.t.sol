@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 
 contract DelayedVetoable_Init is CommonTest {

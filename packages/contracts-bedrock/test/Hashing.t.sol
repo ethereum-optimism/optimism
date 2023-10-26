@@ -2,15 +2,15 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Types } from "../src/libraries/Types.sol";
-import { Encoding } from "../src/libraries/Encoding.sol";
-import { LegacyCrossDomainUtils } from "../src/libraries/LegacyCrossDomainUtils.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { LegacyCrossDomainUtils } from "src/libraries/LegacyCrossDomainUtils.sol";
 
 // Target contract
-import { Hashing } from "../src/libraries/Hashing.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 contract Hashing_hashDepositSource_Test is CommonTest {
     /// @notice Tests that hashDepositSource returns the correct hash in a simple case.

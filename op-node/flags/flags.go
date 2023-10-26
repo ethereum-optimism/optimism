@@ -256,7 +256,7 @@ var (
 	CanyonOverrideFlag = &cli.Uint64Flag{
 		Name:   "override.canyon",
 		Usage:  "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-		Hidden: true,
+		Hidden: false,
 	}
 )
 
