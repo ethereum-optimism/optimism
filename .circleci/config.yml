@@ -218,7 +218,7 @@ jobs:
 
             export REGISTRY="<<parameters.registry>>"
             export REPOSITORY="<<parameters.repo>>"
-            export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,./]/-/g")"
+            export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
             export GIT_VERSION="<<pipeline.git.tag>>"
@@ -1493,7 +1493,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1508,7 +1508,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-node
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1523,7 +1523,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1538,7 +1538,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1553,7 +1553,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
           publish: true
@@ -1568,7 +1568,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
           context:
@@ -1583,7 +1583,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: proxyd
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
           context:
@@ -1598,7 +1598,7 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.tag>>
+          docker_tags: <<pipeline.git.revision>>
           publish: true
           release: true
           context:
