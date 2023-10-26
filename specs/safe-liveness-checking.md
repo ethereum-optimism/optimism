@@ -8,8 +8,11 @@
 - [Liveness checking methodology](#liveness-checking-methodology)
   - [The Liveness Guard](#the-liveness-guard)
   - [The Liveness Module](#the-liveness-module)
+  - [Owner removal call flow](#owner-removal-call-flow)
   - [Shutdown](#shutdown)
   - [Security Properties](#security-properties)
+  - [Interdependency between the Guard and Module](#interdependency-between-the-guard-and-module)
+  - [Deployment](#deployment)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -18,6 +21,11 @@
 The Security Security Council uses a specially extended Safe multisig contract to ensure that
 any loss of access to a signer's keys is identified and addressed within a predictable period of
 time.
+
+This mechanism is intended only to be used to remove signers who have lost access to their keys, or
+are otherwise inactive. It is not intended to be used to remove signers who are acting in bad faith,
+or any other subjective criteria, such cases should be addressed by governance, and the removal
+handled via the standard Safe ownership management functionality.
 
 ## Liveness checking methodology
 
@@ -51,7 +59,8 @@ A `LivenessModule` is also created which does the following:
 
 ### Owner removal call flow
 
-The following diagram illustrates the flow for removing a single owner.
+The following diagram illustrates the flow for removing a single owner. The `verifyFinalState`
+box indicates calls to the Safe which ensure the final state is valid.
 
 ```mermaid
 sequenceDiagram
@@ -59,18 +68,21 @@ sequenceDiagram
     participant LivenessModule
     participant LivenessGuard
     participant Safe
-    User->>LivenessModule: removeOwner(owner)
+    User->>LivenessModule: removeOwners([previousOwner], [owner])
     LivenessModule->>LivenessGuard: lastLive(owner)
     LivenessModule->>Safe: getOwners()
-    LivenessModule->>LivenessModule: get75PercentThreshold(numOwnersAfter)
-    LivenessModule->>LivenessModule: _getPrevOwner(owner, owners)
-    LivenessModule->>LivenessModule: _removeOwner(prevOwner, owner, thresholdAfter)
-    LivenessModule->>LivenessModule: _verifyFinalState()
+    LivenessModule->>Safe: removeOwner(previousOwner, owner)
+
+    alt verifyFinalState
+    LivenessModule->>Safe: getOwners()
+    LivenessModule->>Safe: getThreshold()
+    LivenessModule->>Safe: getGuard()
+    end
 ```
 
 ### Shutdown
 
-In the unlikely event that the signer set (`N`) is reduced below 8, then (and only then) is a
+In the unlikely event that the signer set (`N`) is reduced below the allowed threshold, then (and only then) is a
    shutdown mechanism activated which removes the existing signers, and hands control of the
    multisig over to a predetermined entity.
 
@@ -79,13 +91,21 @@ In the unlikely event that the signer set (`N`) is reduced below 8, then (and on
 The following security properties must be upheld:
 
 1. Signatures are assigned to the correct signer.
-2. Non-signers are unable to create a record of having signed.
-3. A signer cannot be censored or griefed such that their signing is not recorded.
-4. Signers may demonstrate liveness either by signing a transaction or by calling directly to the
+1. Non-signers are unable to create a record of having signed.
+1. A signer cannot be censored or grieffed such that their signing is not recorded.
+1. Signers may demonstrate liveness either by signing a transaction or by calling directly to the
    guard.
-5. The module implements the correct checks prior to removing a signer.
-6. The module sets the correct threshold upon removing a signer.
-7. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
+1. The module only removes a signer if they have demonstrated liveness during the interval, or
+     if necessary to convert the safe to a 1 of 1.
+1. The module sets the correct 75% threshold upon removing a signer.
+1. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
+
+### Interdependency between the Guard and Module
+
+The Guard has no dependency on the Module, and can be used independently to track liveness of
+Safe owners. The Module however does have a dependency on the Guard, only one guard contract can
+be set on the Safe, and the Module will be unable to function if the Guard is removed.
+
 ### Deployment
 
 The module are guard are intended to be deployed and installed on the safe in the following sequence:
