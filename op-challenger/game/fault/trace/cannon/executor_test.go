@@ -25,7 +25,7 @@ func TestGenerateProof(t *testing.T) {
 	tempDir := t.TempDir()
 	dir := filepath.Join(tempDir, "gameDir")
 	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", true, tempDir, config.TraceTypeCannon)
-	cfg.CannonAbsolutePreState = "pre.json"
+	cfg.CannonAbsolutePreState = "pre.bin"
 	cfg.CannonBin = "./bin/cannon"
 	cfg.CannonServer = "./bin/op-program"
 	cfg.CannonL2 = "http://localhost:9999"
