@@ -70,7 +70,7 @@ func ChainByName(name string) *superchain.ChainConfig {
 func GetRollupConfig(name string) (*rollup.Config, error) {
 	chainCfg := ChainByName(name)
 	if chainCfg == nil {
-		return nil, fmt.Errorf("invalid network %s", name)
+		return nil, fmt.Errorf("invalid network: %q", name)
 	}
 	rollupCfg, err := rollup.LoadOPStackRollupConfig(chainCfg.ChainID)
 	if err != nil {
