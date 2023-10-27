@@ -199,14 +199,7 @@ library SafeTestLib {
     /// @param _owner The owner whose previous owner we want to find
     function getPrevOwner(SafeInstance memory instance, address _owner) internal view returns (address prevOwner_) {
         address[] memory owners = instance.safe.getOwners();
-        for (uint256 i = 0; i < owners.length; i++) {
-            if (owners[i] != _owner) continue;
-            if (i == 0) {
-                prevOwner_ = SENTINEL_OWNERS;
-                break;
-            }
-            prevOwner_ = owners[i - 1];
-        }
+        prevOwner_ = getPrevOwnerFromList(_owner, owners);
     }
 
     /// @dev Get the previous owner in the provided list of owners.
@@ -250,7 +243,7 @@ library SafeTestLib {
         address[] memory currentOwners;
         for (uint256 i = 0; i < _ownersToRemove.length; i++) {
             currentOwners = ownerSimulator.getOwners();
-            prevOwners_[i] = SafeTestLib.getPrevOwnerFromList(instance.owners[i], currentOwners);
+            prevOwners_[i] = SafeTestLib.getPrevOwnerFromList(_ownersToRemove[i], currentOwners);
 
             // Don't try to remove the last owner
             if (currentOwners.length == 1) break;
