@@ -5361,6 +5361,8 @@ name = "rethdb-reader"
 version = "0.1.0"
 dependencies = [
  "reth",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

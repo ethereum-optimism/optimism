@@ -1,52 +1,36 @@
 use reth::{
     blockchain_tree::noop::NoopBlockchainTree,
     primitives::{
-        alloy_primitives::private::alloy_rlp::Encodable, BlockHashOrNumber, ChainSpecBuilder,
+        BlockHashOrNumber, ChainSpecBuilder, Receipt, TransactionMeta, TransactionSigned, U128,
+        U256, U64,
     },
-    providers::{providers::BlockchainProvider, ProviderFactory, ReceiptProvider},
+    providers::{providers::BlockchainProvider, BlockReader, ProviderFactory, ReceiptProvider},
+    revm::primitives::calc_blob_gasprice,
+    rpc::types::{Log, TransactionReceipt},
     utils::db::open_db_read_only,
 };
 use std::{os::raw::c_char, path::Path, sync::Arc};
 
 #[repr(C)]
-pub struct ByteArray {
-    data: *mut u8,
-    len: usize,
-}
-
-#[repr(C)]
-pub struct ByteArrays {
-    data: *mut ByteArray,
-    len: usize,
-}
-
-#[repr(C)]
 pub struct ReceiptsResult {
-    receipts: ByteArrays,
+    data: *mut char,
+    data_len: usize,
     error: bool,
 }
 
-// Implement a default for ByteArrays to be used in error cases
-impl Default for ByteArrays {
-    fn default() -> Self {
-        ByteArrays {
-            data: std::ptr::null_mut(),
-            len: 0,
-        }
-    }
-}
-
 impl ReceiptsResult {
-    pub fn success(receipts: ByteArrays) -> Self {
+    pub fn success(data: *mut char, data_len: usize) -> Self {
         Self {
-            receipts,
+            data,
+            data_len,
             error: false,
         }
     }
 
     pub fn fail() -> Self {
         Self {
-            receipts: ByteArrays::default(),
+            data: std::ptr::null_mut(),
+            data_len: 0,
             error: true,
         }
     }
@@ -89,56 +73,147 @@ pub extern "C" fn read_receipts(
         return ReceiptsResult::fail();
     };
 
+    let Ok(block) = provider.block_by_hash(block_hash.into()) else {
+        return ReceiptsResult::fail();
+    };
+
     let Ok(receipts) = provider.receipts_by_block(BlockHashOrNumber::Hash(block_hash.into()))
     else {
         return ReceiptsResult::fail();
     };
 
-    if let Some(receipts) = receipts {
-        let receipts_rlp = receipts
+    if let (Some(block), Some(receipts)) = (block, receipts) {
+        let block_number = block.number;
+        let base_fee = block.base_fee_per_gas;
+        let block_hash = block.hash_slow();
+        let excess_blob_gas = block.excess_blob_gas;
+        let Some(receipts) = block
+            .body
             .into_iter()
-            .map(|r| {
-                // todo - reduce alloc?
-                // RLP encode the receipt with a bloom filter.
-                let mut buf = Vec::default();
-                r.with_bloom().encode(&mut buf);
-
-                // Return a pointer to the `buf` and its length
-                let res = ByteArray {
-                    data: buf.as_mut_ptr(),
-                    len: buf.len(),
+            .zip(receipts.clone())
+            .enumerate()
+            .map(|(idx, (tx, receipt))| {
+                let meta = TransactionMeta {
+                    tx_hash: tx.hash,
+                    index: idx as u64,
+                    block_hash,
+                    block_number,
+                    base_fee,
+                    excess_blob_gas,
                 };
-
-                // Forget the `buf` so that its memory isn't freed by the
-                // borrow checker at the end of this scope
-                std::mem::forget(buf);
-
-                res
+                build_transaction_receipt_with_block_receipts(tx, meta, receipt, &receipts)
             })
-            .collect::<Vec<_>>();
-
-        let result = ByteArrays {
-            data: receipts_rlp.as_ptr() as *mut ByteArray,
-            len: receipts_rlp.len(),
+            .collect::<Option<Vec<_>>>()
+        else {
+            return ReceiptsResult::fail();
         };
 
-        // Forget the `receipts_rlp` arr so that its memory isn't freed by the
-        // borrow checker at the end of this scope
-        std::mem::forget(receipts_rlp); // Prevent Rust from freeing the memory
+        // Convert the receipts to JSON for transport
+        let Ok(mut receipts_json) = serde_json::to_string(&receipts) else {
+            return ReceiptsResult::fail();
+        };
 
-        ReceiptsResult::success(result)
+        let res =
+            ReceiptsResult::success(receipts_json.as_mut_ptr() as *mut char, receipts_json.len());
+
+        // Forget the `receipts_json` string so that its memory isn't freed by the
+        // borrow checker at the end of this scope
+        std::mem::forget(receipts_json); // Prevent Rust from freeing the memory
+
+        res
     } else {
-        return ReceiptsResult::fail();
+        ReceiptsResult::fail()
     }
 }
 
-/// Free the [ByteArrays] data structure and its sub-components when they are no longer needed.
+/// Free a string that was allocated in Rust and passed to C.
 #[no_mangle]
-pub extern "C" fn free_byte_arrays(arrays: ByteArrays) {
+pub extern "C" fn free_string(string: *mut c_char) {
     unsafe {
-        let arrays = Vec::from_raw_parts(arrays.data, arrays.len, arrays.len);
-        for inner_array in arrays {
-            let _ = Vec::from_raw_parts(inner_array.data, inner_array.len, inner_array.len);
+        // Convert the raw pointer back to a CString and let it go out of scope,
+        // which will deallocate the memory.
+        if !string.is_null() {
+            let _ = std::ffi::CString::from_raw(string);
         }
     }
+}
+
+pub(crate) fn build_transaction_receipt_with_block_receipts(
+    tx: TransactionSigned,
+    meta: TransactionMeta,
+    receipt: Receipt,
+    all_receipts: &[Receipt],
+) -> Option<TransactionReceipt> {
+    let transaction = tx.clone().into_ecrecovered()?;
+
+    // get the previous transaction cumulative gas used
+    let gas_used = if meta.index == 0 {
+        receipt.cumulative_gas_used
+    } else {
+        let prev_tx_idx = (meta.index - 1) as usize;
+        all_receipts
+            .get(prev_tx_idx)
+            .map(|prev_receipt| receipt.cumulative_gas_used - prev_receipt.cumulative_gas_used)
+            .unwrap_or_default()
+    };
+
+    let mut res_receipt = TransactionReceipt {
+        transaction_hash: Some(meta.tx_hash),
+        transaction_index: U64::from(meta.index),
+        block_hash: Some(meta.block_hash),
+        block_number: Some(U256::from(meta.block_number)),
+        from: transaction.signer(),
+        to: None,
+        cumulative_gas_used: U256::from(receipt.cumulative_gas_used),
+        gas_used: Some(U256::from(gas_used)),
+        contract_address: None,
+        logs: Vec::with_capacity(receipt.logs.len()),
+        effective_gas_price: U128::from(transaction.effective_gas_price(meta.base_fee)),
+        transaction_type: tx.transaction.tx_type().into(),
+        // TODO pre-byzantium receipts have a post-transaction state root
+        state_root: None,
+        logs_bloom: receipt.bloom_slow(),
+        status_code: if receipt.success {
+            Some(U64::from(1))
+        } else {
+            Some(U64::from(0))
+        },
+
+        // EIP-4844 fields
+        blob_gas_price: meta.excess_blob_gas.map(calc_blob_gasprice).map(U128::from),
+        blob_gas_used: transaction.transaction.blob_gas_used().map(U128::from),
+    };
+
+    match tx.transaction.kind() {
+        reth::primitives::TransactionKind::Create => {
+            res_receipt.contract_address =
+                Some(transaction.signer().create(tx.transaction.nonce()));
+        }
+        reth::primitives::TransactionKind::Call(addr) => {
+            res_receipt.to = Some(*addr);
+        }
+    }
+
+    // get number of logs in the block
+    let mut num_logs = 0;
+    for prev_receipt in all_receipts.iter().take(meta.index as usize) {
+        num_logs += prev_receipt.logs.len();
+    }
+
+    for (tx_log_idx, log) in receipt.logs.into_iter().enumerate() {
+        let rpclog = Log {
+            address: log.address,
+            topics: log.topics,
+            data: log.data,
+            block_hash: Some(meta.block_hash),
+            block_number: Some(U256::from(meta.block_number)),
+            transaction_hash: Some(meta.tx_hash),
+            transaction_index: Some(U256::from(meta.index)),
+            log_index: Some(U256::from(num_logs + tx_log_idx)),
+            removed: false,
+        };
+        res_receipt.logs.push(rpclog);
+    }
+
+    Some(res_receipt)
 }

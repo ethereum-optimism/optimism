@@ -10,3 +10,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 reth = { git = "https://github.com/paradigmxyz/reth.git" }
+serde = "1.0.190"
+serde_json = "1.0.107"
