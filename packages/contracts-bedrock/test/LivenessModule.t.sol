@@ -261,8 +261,8 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
 
 contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
     using SafeTestLib for SafeInstance;
-    /// @dev Tests if removing one owner works correctly
 
+    /// @dev Tests if removing one owner works correctly
     function test_removeOwners_oneOwner_succeeds() external {
         uint256 ownersBefore = safeInstance.owners.length;
         address ownerToRemove = safeInstance.owners[0];

@@ -39,7 +39,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     /// @notice An enumerable set of addresses used to store the list of owners before execution,
     ///         and then to update the lastLive mapping according to changes in the set observed
     ///         after execution.
-    EnumerableSet.AddressSet private ownersBefore;
+    EnumerableSet.AddressSet internal ownersBefore;
 
     /// @notice Constructor.
     /// @param _safe The safe account for which this contract will be the guard.
@@ -128,8 +128,7 @@ contract LivenessGuard is ISemver, BaseGuard {
         address[] memory ownersAfter = SAFE.getOwners();
 
         // Iterate over the current owners, and remove one at a time from the ownersBefore set.
-        uint256 ownersAfterLength = ownersAfter.length;
-        for (uint256 i = 0; i < ownersAfterLength; i++) {
+        for (uint256 i = 0; i < ownersAfter.length; i++) {
             // If the value was present, remove() returns true.
             address ownerAfter = ownersAfter[i];
             if (ownersBefore.remove(ownerAfter) == false) {
@@ -140,9 +139,10 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
         // delete them from the lastLive mapping.
-        // uint256 ownersBeforeLength = ownersBefore.length();
-        for (uint256 i = 0; i < ownersBefore.length(); i++) {
-            address ownerBefore = ownersBefore.at(i);
+        // We cache the ownersBefore set before iterating over it, because the remove() method mutates the set.
+        address[] memory ownersBeforeCache = ownersBefore.values();
+        for (uint256 i = 0; i < ownersBeforeCache.length; i++) {
+            address ownerBefore = ownersBeforeCache[i];
             delete lastLive[ownerBefore];
             ownersBefore.remove(ownerBefore);
         }

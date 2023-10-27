@@ -2,13 +2,27 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
+import { StdUtils } from "forge-std/StdUtils.sol";
+import { StdCheats } from "forge-std/StdCheats.sol";
 import { Safe, OwnerManager } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { ModuleManager } from "safe-contracts/base/ModuleManager.sol";
 import { Enum } from "safe-contracts/common/Enum.sol";
 import "test/safe-tools/SafeTestTools.sol";
+import { EnumerableSet } from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 import { LivenessGuard } from "src/Safe/LivenessGuard.sol";
+
+/// @dev A wrapper contract exposing the length of the ownersBefore set in the LivenessGuard.
+contract WrappedGuard is LivenessGuard {
+    using EnumerableSet for EnumerableSet.AddressSet;
+
+    constructor(Safe safe) LivenessGuard(safe) { }
+
+    function ownersBeforeLength() public view returns (uint256) {
+        return ownersBefore.length();
+    }
+}
 
 contract LivenessGuard_TestInit is Test, SafeTestTools {
     using SafeTestLib for SafeInstance;
@@ -16,14 +30,14 @@ contract LivenessGuard_TestInit is Test, SafeTestTools {
     event OwnerRecorded(address owner);
 
     uint256 initTime = 10;
-    LivenessGuard livenessGuard;
+    WrappedGuard livenessGuard;
     SafeInstance safeInstance;
 
     /// @dev Sets up the test environment
     function setUp() public {
         vm.warp(initTime);
         safeInstance = _setupSafe();
-        livenessGuard = new LivenessGuard(safeInstance.safe);
+        livenessGuard = new WrappedGuard(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
     }
 }
@@ -32,7 +46,7 @@ contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
     /// @dev Tests that the constructor correctly sets the current time as the lastLive time for each owner
     function test_constructor_works() external {
         address[] memory owners = safeInstance.owners;
-        livenessGuard = new LivenessGuard(safeInstance.safe);
+        livenessGuard = new WrappedGuard(safeInstance.safe);
         for (uint256 i = 0; i < owners.length; i++) {
             assertEq(livenessGuard.lastLive(owners[i]), initTime);
         }
@@ -134,7 +148,9 @@ contract LivenessGuard_OwnerManagement_Test is LivenessGuard_TestInit {
         assertGe(livenessGuard.lastLive(ownerToRemove), 0);
         assertTrue(safeInstance.safe.isOwner(ownerToRemove));
 
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
         safeInstance.removeOwner({ prevOwner: address(0), owner: ownerToRemove, threshold: 1 });
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));
         assertEq(livenessGuard.lastLive(ownerToRemove), 0);
@@ -146,7 +162,9 @@ contract LivenessGuard_OwnerManagement_Test is LivenessGuard_TestInit {
         assertEq(livenessGuard.lastLive(ownerToAdd), 0);
         assertFalse(safeInstance.safe.isOwner(ownerToAdd));
 
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
         safeInstance.addOwnerWithThreshold({ owner: ownerToAdd, threshold: 1 });
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
 
         assertTrue(safeInstance.safe.isOwner(ownerToAdd));
         assertEq(livenessGuard.lastLive(ownerToAdd), block.timestamp);
@@ -162,12 +180,138 @@ contract LivenessGuard_OwnerManagement_Test is LivenessGuard_TestInit {
         assertEq(livenessGuard.lastLive(ownerToAdd), 0);
         assertFalse(safeInstance.safe.isOwner(ownerToAdd));
 
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
         safeInstance.swapOwner({ prevOwner: address(0), oldOwner: ownerToRemove, newOwner: ownerToAdd });
+        assertEq(livenessGuard.ownersBeforeLength(), 0);
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));
         assertEq(livenessGuard.lastLive(ownerToRemove), 0);
 
         assertTrue(safeInstance.safe.isOwner(ownerToAdd));
         assertEq(livenessGuard.lastLive(ownerToAdd), block.timestamp);
+    }
+}
+
+contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, LivenessGuard_TestInit {
+    using SafeTestLib for SafeInstance;
+
+    /// @dev Enumerates the possible owner management operations
+    enum OwnerOp {
+        Add,
+        Remove,
+        Swap
+    }
+
+    /// @dev Describes a change to be made to the safe
+    struct OwnerChange {
+        uint8 operation; // used to choose an OwnerOp
+        uint256 newThreshold;
+        uint256 ownerIndex;
+    }
+
+    /// @dev Maps addresses to private keys
+    mapping(address => uint256) privateKeys;
+
+    /// @dev Tests that the guard correctly manages the lastLive mapping when owners are added, removed, or swapped
+    function testFuzz_OwnerManagement_works(
+        uint256 initialOwners,
+        uint256 threshold,
+        OwnerChange[] memory changes
+    )
+        external
+    {
+        vm.assume(changes.length < 20);
+        // Initialize the safe with more owners than changes, to ensure we don't try to remove them all
+        initialOwners = bound(initialOwners, changes.length, 2 * changes.length);
+
+        // We need at least one owner
+        initialOwners = initialOwners < 1 ? 1 : initialOwners;
+
+        // Limit the threshold to the number of owners
+        threshold = bound(threshold, 1, initialOwners);
+
+        // Generate the initial owners and keys and setup the safe
+        (address[] memory ownerAddrs, uint256[] memory ownerkeys) = SafeTestLib.makeAddrsAndKeys(initialOwners);
+        // record the private keys for later use
+        for (uint256 i = 0; i < ownerAddrs.length; i++) {
+            privateKeys[ownerAddrs[i]] = ownerkeys[i];
+        }
+
+        // Create the new safe and register the guard.
+        SafeInstance memory safeInstance = _setupSafe(ownerkeys, threshold);
+        livenessGuard = new WrappedGuard(safeInstance.safe);
+        safeInstance.setGuard(address(livenessGuard));
+
+        for (uint256 i = 0; i < changes.length; i++) {
+            OwnerChange memory change = changes[i];
+            address[] memory currentOwners = safeInstance.safe.getOwners();
+
+            // Create a new owner address to add and store the key
+            (address newOwner, uint256 newKey) = makeAddrAndKey(string.concat("new owner", vm.toString(i)));
+            privateKeys[newOwner] = newKey;
+
+            OwnerOp op = OwnerOp(bound(change.operation, 0, uint256(type(OwnerOp).max)));
+
+            assertEq(livenessGuard.ownersBeforeLength(), 0);
+            if (op == OwnerOp.Add) {
+                assertEq(livenessGuard.lastLive(newOwner), 0);
+                assertFalse(safeInstance.safe.isOwner(newOwner));
+                change.newThreshold = bound(change.newThreshold, 1, currentOwners.length + 1);
+
+                safeInstance.addOwnerWithThreshold(newOwner, change.newThreshold);
+
+                assertTrue(safeInstance.safe.isOwner(newOwner));
+                assertEq(livenessGuard.lastLive(newOwner), block.timestamp);
+            } else {
+                // Ensure we're removing an owner at an index within bounds
+                uint256 ownerIndexToRemove = bound(change.ownerIndex, 0, currentOwners.length - 1);
+                address ownerToRemove = currentOwners[ownerIndexToRemove];
+                address prevOwner = safeInstance.getPrevOwner(ownerToRemove);
+
+                if (op == OwnerOp.Remove) {
+                    if (currentOwners.length == 1) continue;
+                    assertGe(livenessGuard.lastLive(ownerToRemove), 0);
+                    assertTrue(safeInstance.safe.isOwner(ownerToRemove));
+                    change.newThreshold = bound(change.newThreshold, 1, currentOwners.length - 1);
+
+                    safeInstance.removeOwner(prevOwner, ownerToRemove, change.newThreshold);
+
+                    assertFalse(safeInstance.safe.isOwner(ownerToRemove));
+                    assertEq(livenessGuard.lastLive(ownerToRemove), 0);
+                } else if (op == OwnerOp.Swap) {
+                    assertGe(livenessGuard.lastLive(ownerToRemove), 0);
+                    assertTrue(safeInstance.safe.isOwner(ownerToRemove));
+
+                    safeInstance.swapOwner(prevOwner, ownerToRemove, newOwner);
+
+                    assertTrue(safeInstance.safe.isOwner(newOwner));
+                    assertFalse(safeInstance.safe.isOwner(ownerToRemove));
+                    assertEq(livenessGuard.lastLive(ownerToRemove), 0);
+                    assertEq(livenessGuard.lastLive(newOwner), block.timestamp);
+                }
+            }
+            assertEq(livenessGuard.ownersBeforeLength(), 0);
+            _refreshOwners(safeInstance);
+        }
+    }
+
+    /// @dev Refreshes the owners and ownerPKs arrays in the SafeInstance
+    function _refreshOwners(SafeInstance memory instance) internal view {
+        // Get the current owners
+        instance.owners = instance.safe.getOwners();
+
+        // Looks up the private key for each owner
+        uint256[] memory unsortedOwnerPKs = new uint256[](instance.owners.length);
+        for (uint256 j = 0; j < instance.owners.length; j++) {
+            unsortedOwnerPKs[j] = privateKeys[instance.owners[j]];
+        }
+
+        // Sort the keys by address and store them in the SafeInstance
+        instance.ownerPKs = SafeTestLib.sortPKsByComputedAddress(unsortedOwnerPKs);
+
+        // Overwrite the SafeInstances owners array with the computed addresses from the ownerPKs array
+        for (uint256 k; k < instance.owners.length; k++) {
+            instance.owners[k] = SafeTestLib.getAddr(instance.ownerPKs[k]);
+        }
     }
 }
