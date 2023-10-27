@@ -14,6 +14,7 @@ var (
 
 type Metricer interface {
 	RecordInterval() (done func(err error))
+	RecordLatestHeight(height *big.Int)
 
 	// Indexed Batches
 	RecordIndexedLatestHeight(height *big.Int)
@@ -25,6 +26,7 @@ type etlMetrics struct {
 	intervalTick     prometheus.Counter
 	intervalDuration prometheus.Histogram
 	intervalFailures prometheus.Counter
+	latestHeight     prometheus.Gauge
 
 	indexedLatestHeight prometheus.Gauge
 	indexedHeaders      prometheus.Counter
@@ -51,6 +53,12 @@ func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 			Subsystem: subsystem,
 			Name:      "failures_total",
 			Help:      "number of times the etl encountered a failure during the processing loop",
+		}),
+		latestHeight: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Subsystem: subsystem,
+			Name:      "latest_height",
+			Help:      "the latest height reported by the connected client",
 		}),
 		indexedLatestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
@@ -84,6 +92,10 @@ func (m *etlMetrics) RecordInterval() func(error) {
 		}
 		timer.ObserveDuration()
 	}
+}
+
+func (m *etlMetrics) RecordLatestHeight(height *big.Int) {
+	m.latestHeight.Set(float64(height.Uint64()))
 }
 
 func (m *etlMetrics) RecordIndexedLatestHeight(height *big.Int) {

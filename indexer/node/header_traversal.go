@@ -17,7 +17,9 @@ var (
 type HeaderTraversal struct {
 	ethClient EthClient
 
-	lastHeader             *types.Header
+	lastHeader   *types.Header
+	latestHeader *types.Header
+
 	blockConfirmationDepth *big.Int
 }
 
@@ -27,8 +29,15 @@ func NewHeaderTraversal(ethClient EthClient, fromHeader *types.Header, confDepth
 	return &HeaderTraversal{ethClient: ethClient, lastHeader: fromHeader, blockConfirmationDepth: confDepth}
 }
 
-// LastHeader returns the last header that was fetched by the HeaderTraversal
-// This is useful for testing the state of the HeaderTraversal
+// LatestHeader returns the latest header reported by underlying eth client
+func (f *HeaderTraversal) LatestHeader() *types.Header {
+	return f.latestHeader
+}
+
+// LastHeader returns the last header traversed.
+//   - This is useful for testing the state of the HeaderTraversal
+//   - NOTE: LastHeader may be << LatestHeader depending on the number
+//     headers traversed via `NextFinalizedHeaders`.
 func (f *HeaderTraversal) LastHeader() *types.Header {
 	return f.lastHeader
 }
@@ -36,12 +45,14 @@ func (f *HeaderTraversal) LastHeader() *types.Header {
 // NextFinalizedHeaders retrieves the next set of headers that have been
 // marked as finalized by the connected client, bounded by the supplied size
 func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, error) {
-	latestBlockHeader, err := f.ethClient.BlockHeaderByNumber(nil)
+	latestHeader, err := f.ethClient.BlockHeaderByNumber(nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to query latest block: %w", err)
+	} else if latestHeader == nil {
+		return nil, fmt.Errorf("latest header unreported")
 	}
 
-	endHeight := new(big.Int).Sub(latestBlockHeader.Number, f.blockConfirmationDepth)
+	endHeight := new(big.Int).Sub(latestHeader.Number, f.blockConfirmationDepth)
 	if endHeight.Sign() < 0 {
 		// No blocks with the provided confirmation depth available
 		return nil, nil
@@ -78,5 +89,6 @@ func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, 
 	}
 
 	f.lastHeader = &headers[numHeaders-1]
+	f.latestHeader = latestHeader
 	return headers, nil
 }

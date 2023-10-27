@@ -73,6 +73,7 @@ func (etl *ETL) Start(ctx context.Context) error {
 				} else if len(newHeaders) == 0 {
 					etl.log.Warn("no new headers. processor unexpectedly at head...")
 				} else {
+					etl.metrics.RecordLatestHeight(etl.headerTraversal.LatestHeader().Number)
 					headers = newHeaders
 				}
 			}
