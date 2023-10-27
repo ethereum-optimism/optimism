@@ -87,8 +87,7 @@ contract LivenessGuard is ISemver, BaseGuard {
         // Cache the set of owners prior to execution.
         // This will be used in the checkAfterExecution method.
         address[] memory owners = SAFE.getOwners();
-        uint256 ownersLength = owners.length;
-        for (uint256 i = 0; i < ownersLength; i++) {
+        for (uint256 i = 0; i < owners.length; i++) {
             ownersBefore.add(owners[i]);
         }
 
@@ -141,8 +140,8 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
         // delete them from the lastLive mapping.
-        uint256 ownersBeforeLength = ownersBefore.length();
-        for (uint256 i = 0; i < ownersBeforeLength; i++) {
+        // uint256 ownersBeforeLength = ownersBefore.length();
+        for (uint256 i = 0; i < ownersBefore.length(); i++) {
             address ownerBefore = ownersBefore.at(i);
             delete lastLive[ownerBefore];
         }
