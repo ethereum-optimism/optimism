@@ -187,6 +187,9 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(flags.Network.Name)
 	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+	if ctx.Bool(flags.BetaExtraNetworks.Name) {
+		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
+	}
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
