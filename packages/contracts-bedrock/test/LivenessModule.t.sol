@@ -35,6 +35,11 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
 
+    /// @dev Set the current time to after the liveness interval
+    function _warpPastLivenessInterval() internal {
+        vm.warp(initTime + livenessInterval + 1);
+    }
+
     /// @dev Sets up the test environment
     function setUp() public {
         // Set the block timestamp to the initTime, so that signatures recorded in the first block
@@ -166,7 +171,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         ownersToRemove[0] = safeInstance.owners[0];
         prevOwners[0] = ownersToRemove[0]; // incorrect.
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         vm.expectRevert("LivenessModule: failed to remove owner");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -184,7 +189,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         // Incorrectly set the final owner to address(0)
         ownersToRemove[ownersToRemove.length - 1] = address(0);
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         vm.expectRevert("LivenessModule: failed to swap to fallback owner");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -200,7 +205,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         vm.expectRevert("LivenessModule: must transfer ownership to fallback owner");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -216,7 +221,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         livenessGuard = new LivenessGuard(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         vm.expectRevert("LivenessModule: guard has been changed");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -230,7 +235,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
             address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
         );
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         vm.expectRevert("LivenessModule: Safe must have a threshold of 75% of the number of owners");
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -244,7 +249,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         uint256 ownersBefore = safeInstance.owners.length;
         address ownerToRemove = safeInstance.owners[0];
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         _removeAnOwner(ownerToRemove, safeInstance.owners);
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));
@@ -261,7 +266,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
 
-        vm.warp(block.timestamp + livenessInterval + 1);
+        _warpPastLivenessInterval();
         livenessModule.removeOwners(prevOwners, ownersToRemove);
         assertEq(safeInstance.safe.getOwners().length, 1);
         assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
