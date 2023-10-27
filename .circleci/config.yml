@@ -58,6 +58,19 @@ commands:
             cd ops/check-changed
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
+  notify-failures-on-develop:
+    description: "Notify Slack"
+    parameters:
+      channel:
+        type: string
+        default: C03N11M0BBN
+    steps:
+      - slack/notify:
+          channel: << parameters.channel >>
+          event: fail
+          template: basic_fail_1
+          branch_pattern: develop
+
 jobs:
   cannon-go-lint-and-test:
     docker:
@@ -260,6 +273,10 @@ jobs:
               <<parameters.docker_name>>
 
           no_output_timeout: 45m
+      - when:
+          condition: "<<parameters.publish>>"
+          steps:
+            - notify-failures-on-develop
       - when:
           condition: "<<parameters.save_image_tag>>"
           steps:
@@ -585,10 +602,7 @@ jobs:
       - run:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose
-      - slack/notify:
-          channel: C03N11M0BBN
-          event: fail
-          template: basic_fail_1
+      - notify-failures-on-develop
 
   bedrock-markdown:
     machine:
@@ -632,10 +646,8 @@ jobs:
           name: link lint
           command: |
             make bedrock-markdown-links
-      - slack/notify:
+      - notify-failures-on-develop:
           channel: C055R639XT9 #notify-link-check
-          event: fail
-          template: basic_fail_1
 
   fuzz-golang:
     parameters:
@@ -1119,6 +1131,7 @@ jobs:
       - run:
           name: "Semgrep scan"
           command: semgrep ci
+      - notify-failures-on-develop
 
   go-mod-download:
     docker:
@@ -1178,10 +1191,7 @@ jobs:
           command: |
             make verify-goerli
           working_directory: op-program
-      - slack/notify:
-          channel: C03N11M0BBN
-          event: fail
-          template: basic_fail_1
+      - notify-failures-on-develop
 
   op-program-compat:
     docker:
@@ -1679,6 +1689,7 @@ workflows:
           platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: op-node-docker-publish
           docker_name: op-node
@@ -1688,6 +1699,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: op-batcher-docker-publish
           docker_name: op-batcher
@@ -1697,6 +1709,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: op-program-docker-publish
           docker_name: op-program
@@ -1706,6 +1719,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: op-proposer-docker-publish
           docker_name: op-proposer
@@ -1715,6 +1729,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: op-challenger-docker-publish
           docker_name: op-challenger
@@ -1724,6 +1739,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
@@ -1733,6 +1749,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: indexer-docker-publish
           docker_name: indexer
@@ -1740,6 +1757,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
           platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: chain-mon-docker-publish
@@ -1748,6 +1766,7 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
       - docker-build:
           name: ufm-metamask-docker-publish
           docker_name: ufm-metamask
@@ -1755,3 +1774,4 @@ workflows:
           publish: true
           context:
             - oplabs-gcr
+            - slack
