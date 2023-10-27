@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-// FetchRethReceipts fetches the receipts for the given block hash...
+// FetchRethReceipts stub; Not available without `rethdb` build tag.
 func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, error) {
-	panic("unimplemented!")
+	panic("unimplemented! Did you forget to enable the `rethdb` build tag?")
 }
