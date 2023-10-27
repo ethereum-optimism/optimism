@@ -1,3 +1,5 @@
+//go:build rethdb
+
 package sources
 
 import (
