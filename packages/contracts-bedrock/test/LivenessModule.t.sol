@@ -64,7 +64,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     }
 }
 
-contract LivenessModule_Constructor_Test is LivenessModule_TestInit {
+contract LivenessModule_Constructor_TestFail is LivenessModule_TestInit {
     /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
     function test_constructor_minOwnersGreaterThanOwners_reverts() external {
         vm.expectRevert("LivenessModule: minOwners must be less than the number of owners");
@@ -79,11 +79,11 @@ contract LivenessModule_Constructor_Test is LivenessModule_TestInit {
 
     /// @dev Tests that the constructor fails if the minOwners is greater than the number of owners
     function test_constructor_wrongThreshold_reverts() external {
-        uint256 wrongThreshold = livenessModule.get75PercentThreshold(safeInstance.owners.length) + 1;
+        uint256 wrongThreshold = livenessModule.get75PercentThreshold(safeInstance.owners.length) - 1;
         vm.mockCall(
             address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()), abi.encode(wrongThreshold)
         );
-        vm.expectRevert("LivenessModule: Safe must have a threshold of 75% of the number of owners");
+        vm.expectRevert("LivenessModule: Safe must have a threshold of at least 75% of the number of owners");
         new LivenessModule({
             _safe: safeInstance.safe,
             _livenessGuard: livenessGuard,
