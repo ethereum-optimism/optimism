@@ -353,6 +353,16 @@ library SafeTestLib {
     }
 
     /// @dev Adds a new owner to the safe
+    function changeThreshold(SafeInstance memory instance, uint256 threshold) internal {
+        execTransaction(
+            instance,
+            address(instance.safe),
+            0,
+            abi.encodeWithSelector(OwnerManager.changeThreshold.selector, threshold)
+        );
+    }
+
+    /// @dev Adds a new owner to the safe
     function addOwnerWithThreshold(SafeInstance memory instance, address owner, uint256 threshold) internal {
         execTransaction(
             instance,
