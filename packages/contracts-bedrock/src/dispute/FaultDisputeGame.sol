@@ -186,6 +186,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         parent.countered = true;
     }
 
+    /// @notice Internal move for bond challenges
+    /// @param _challengeIndex The index of the claim being moved against.
+    function bondMove(uint256 _challengeIndex) public payable {
+        revert GameNotInProgress();
+    }
+
     /// @notice Internal move function, used by both `attack` and `defend`.
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
