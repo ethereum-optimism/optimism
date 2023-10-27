@@ -98,6 +98,14 @@ contract LivenessModule is ISemver {
         fallbackOwner_ = FALLBACK_OWNER;
     }
 
+    /// @notice Checks if the owner can be removed
+    /// @param _owner The owner to be removed
+    /// @return canRemove_ bool indicating if the owner can be removed
+    function canRemove(address _owner) public view returns (bool canRemove_) {
+        require(SAFE.isOwner(_owner), "LivenessModule: the owner to remove must be an owner of the Safe");
+        canRemove_ = LIVENESS_GUARD.lastLive(_owner) + LIVENESS_INTERVAL < block.timestamp;
+    }
+
     /// @notice This function can be called by anyone to remove a set of owners that have not signed a transaction
     ///         during the liveness interval. If the number of owners drops below the minimum, then all owners
     ///         must be removed.
@@ -111,7 +119,7 @@ contract LivenessModule is ISemver {
         for (uint256 i = 0; i < _previousOwners.length; i++) {
             ownersCount--;
             if (ownersCount >= MIN_OWNERS) {
-                require(_canRemove(_ownersToRemove[i]), "LivenessModule: the owner to remove has signed recently");
+                require(canRemove(_ownersToRemove[i]), "LivenessModule: the owner to remove has signed recently");
             }
 
             _removeOwner({
@@ -168,13 +176,6 @@ contract LivenessModule is ISemver {
             }),
             "LivenessModule: failed to remove owner"
         );
-    }
-
-    /// @notice Checks if the owner can be removed
-    /// @param _owner The owner to be removed
-    /// @return canRemove_ bool indicating if the owner can be removed
-    function _canRemove(address _owner) internal view returns (bool canRemove_) {
-        canRemove_ = LIVENESS_GUARD.lastLive(_owner) + LIVENESS_INTERVAL < block.timestamp;
     }
 
     /// @notice A FREI-PI invariant check enforcing requirements on number of owners and threshold.

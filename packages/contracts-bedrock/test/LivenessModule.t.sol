@@ -105,6 +105,24 @@ contract LivenessModule_Getters_Test is LivenessModule_TestInit {
     }
 }
 
+contract LivenessModule_CanRemove_TestFail is LivenessModule_TestInit {
+    /// @dev Tests if canRemove work correctly
+    function test_canRemove_notSafeOwner_reverts() external {
+        address nonOwner = makeAddr("nonOwner");
+        vm.expectRevert("LivenessModule: the owner to remove must be an owner of the Safe");
+        livenessModule.canRemove(nonOwner);
+    }
+}
+
+contract LivenessModule_CanRemove_Test is LivenessModule_TestInit {
+    /// @dev Tests if canRemove work correctly
+    function test_canRemove_works() external {
+        _warpPastLivenessInterval();
+        bool canRemove = livenessModule.canRemove(safeInstance.owners[0]);
+        assertTrue(canRemove);
+    }
+}
+
 contract LivenessModule_Get75PercentThreshold_Test is LivenessModule_TestInit {
     /// @dev check the return values of the get75PercentThreshold function against manually
     ///      calculated values.
