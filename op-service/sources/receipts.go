@@ -281,7 +281,7 @@ const (
 	//   - Reth: array of RLP-encoded receipts
 	// See:
 	//   - reth's DB crate documentation: https://github.com/paradigmxyz/reth/blob/main/docs/crates/db.md
-	RethGetBlockReceiptsMDBX
+	RethGetBlockReceipts
 
 	// Other:
 	//  - 250 credits, not supported, strictly worse than other options. In quicknode price-table.
@@ -318,7 +318,7 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 	case RPCKindStandard:
 		return EthGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindRethDB:
-		return RethGetBlockReceiptsMDBX
+		return RethGetBlockReceipts
 	default:
 		return EthGetTransactionReceiptBatch
 	}
@@ -330,7 +330,7 @@ func PickBestReceiptsFetchingMethod(kind RPCProviderKind, available ReceiptsFetc
 	// If we have optimized methods available, it makes sense to use them, but only if the cost is
 	// lower than fetching transactions one by one with the standard receipts RPC method.
 	if kind == RPCKindRethDB {
-		return RethGetBlockReceiptsMDBX
+		return RethGetBlockReceipts
 	} else if kind == RPCKindAlchemy {
 		if available&AlchemyGetTransactionReceipts != 0 && txCount > 250/15 {
 			return AlchemyGetTransactionReceipts
@@ -389,11 +389,14 @@ type receiptsFetchingJob struct {
 
 	fetcher *IterativeBatchCall[common.Hash, *types.Receipt]
 
+	// [OPTIONAL] RethDB path to fetch receipts from
+	rethDbPath *string
+
 	result types.Receipts
 }
 
 func NewReceiptsFetchingJob(requester ReceiptsRequester, client rpcClient, maxBatchSize int, block eth.BlockID,
-	receiptHash common.Hash, txHashes []common.Hash) *receiptsFetchingJob {
+	receiptHash common.Hash, txHashes []common.Hash, rethDb *string) *receiptsFetchingJob {
 	return &receiptsFetchingJob{
 		requester:    requester,
 		client:       client,
@@ -401,6 +404,7 @@ func NewReceiptsFetchingJob(requester ReceiptsRequester, client rpcClient, maxBa
 		block:        block,
 		receiptHash:  receiptHash,
 		txHashes:     txHashes,
+		rethDbPath:   rethDb,
 	}
 }
 
@@ -478,8 +482,11 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 		err = job.client.CallContext(ctx, &result, "eth_getBlockReceipts", job.block.Hash)
 	case ErigonGetBlockReceiptsByBlockHash:
 		err = job.client.CallContext(ctx, &result, "erigon_getBlockReceiptsByBlockHash", job.block.Hash)
-	case RethGetBlockReceiptsMDBX:
-		res, err := FetchRethReceipts("placeholder", &job.block.Hash)
+	case RethGetBlockReceipts:
+		if job.rethDbPath == nil {
+			return fmt.Errorf("reth_db path not set")
+		}
+		res, err := FetchRethReceipts(*job.rethDbPath, &job.block.Hash)
 		if err != nil {
 			return err
 		}

@@ -71,6 +71,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
+	var rethDBPath *string
+	if rdb := ctx.String(flags.L1RethDBPath.Name); rdb != "" {
+		rethDBPath = &rdb
+	}
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -104,6 +109,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConfigPersistence: configPersistence,
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
+		RethDBPath:        rethDBPath,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
