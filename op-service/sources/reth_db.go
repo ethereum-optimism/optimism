@@ -11,6 +11,7 @@ import (
 #cgo LDFLAGS: -L../rethdb-reader/target/release -lrethdbreader
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct {
     uint8_t* data;
@@ -22,7 +23,13 @@ typedef struct {
     size_t len;
 } ByteArrays;
 
-extern ByteArrays read_receipts(const uint8_t* block_hash, size_t block_hash_len, const char* db_path);
+// Define ReceiptsResult with a bool for error
+typedef struct {
+    ByteArrays receipts;
+    bool error;
+} ReceiptsResult;
+
+extern ReceiptsResult read_receipts(const uint8_t* block_hash, size_t block_hash_len, const char* db_path);
 extern void free_byte_arrays(ByteArrays arrays);
 */
 import "C"
@@ -46,9 +53,13 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	// Call the C function to fetch the receipts from the Reth Database
 	byteArrayStruct := C.read_receipts((*C.uint8_t)(cBlockHash), C.size_t(len(blockHash)), cDbPath)
 
+	if byteArrayStruct.error {
+		return nil, fmt.Errorf("Error fetching receipts from Reth Database.")
+	}
+
 	// Convert the returned receipt RLP byte arrays to decoded Receipts.
-	data := make(types.Receipts, byteArrayStruct.len)
-	byteArraySlice := (*[1 << 30]C.ByteArray)(unsafe.Pointer(byteArrayStruct.data))[:byteArrayStruct.len:byteArrayStruct.len]
+	data := make(types.Receipts, byteArrayStruct.receipts.len)
+	byteArraySlice := (*[1 << 30]C.ByteArray)(unsafe.Pointer(byteArrayStruct.receipts.data))[:byteArrayStruct.receipts.len:byteArrayStruct.receipts.len]
 	for i, byteArray := range byteArraySlice {
 		receipt := types.Receipt{}
 		receipt.UnmarshalBinary(C.GoBytes(unsafe.Pointer(byteArray.data), C.int(byteArray.len)))
@@ -56,7 +67,7 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	}
 
 	// Free the memory allocated by the C code
-	C.free_byte_arrays(byteArrayStruct)
+	C.free_byte_arrays(byteArrayStruct.receipts)
 
 	return data, nil
 }

@@ -124,7 +124,7 @@ const (
 	RPCKindBasic      RPCProviderKind = "basic"    // try only the standard most basic receipt fetching
 	RPCKindAny        RPCProviderKind = "any"      // try any method available
 	RPCKindStandard   RPCProviderKind = "standard" // try standard methods, including newer optimized standard RPC methods
-	RPCKindRethDB     RPCProviderKind = "reth_db"  // read data directly from reth's MDBX database
+	RPCKindRethDB     RPCProviderKind = "reth_db"  // read data directly from reth's database
 )
 
 var RPCProviderKinds = []RPCProviderKind{
@@ -311,7 +311,7 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 	case RPCKindBasic:
 		return EthGetTransactionReceiptBatch
 	case RPCKindAny:
-		// if it's any kind of RPC provider, then try all methods (except for RethGetBlockReceiptsMDBX)
+		// if it's any kind of RPC provider, then try all methods (except for RethGetBlockReceipts)
 		return AlchemyGetTransactionReceipts | EthGetBlockReceipts |
 			DebugGetRawReceipts | ErigonGetBlockReceiptsByBlockHash |
 			ParityGetBlockReceipts | EthGetTransactionReceiptBatch
