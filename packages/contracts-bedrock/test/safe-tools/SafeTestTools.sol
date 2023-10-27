@@ -79,9 +79,7 @@ library SafeTestLib {
 
         for (uint256 i; i < num; i++) {
             addrs[i] = Vm(VM_ADDR).addr(keys[i]);
-            Vm(VM_ADDR).label(
-                getAddr(keys[i]), string.concat("SAFETEST: Signer ", string(abi.encodePacked(bytes32(i))))
-            );
+            Vm(VM_ADDR).label(getAddr(keys[i]), string.concat("SAFETEST: Signer ", Vm(VM_ADDR).toString(i)));
         }
     }
 
