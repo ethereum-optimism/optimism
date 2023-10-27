@@ -66,25 +66,26 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 		"eth_newFilter":
 		return rewriteRange(rctx, req, res, 0)
 	case "debug_getRawReceipts", "consensus_getReceipts":
-		return rewriteParam(rctx, req, res, 0, true)
+		return rewriteParam(rctx, req, res, 0, true, false)
 	case "eth_getBalance",
 		"eth_getCode",
 		"eth_getTransactionCount",
 		"eth_call":
-		return rewriteParam(rctx, req, res, 1, false)
-	case "eth_getStorageAt":
-		return rewriteParam(rctx, req, res, 2, false)
+		return rewriteParam(rctx, req, res, 1, false, true)
+	case "eth_getStorageAt",
+		"eth_getProof":
+		return rewriteParam(rctx, req, res, 2, false, true)
 	case "eth_getBlockTransactionCountByNumber",
 		"eth_getUncleCountByBlockNumber",
 		"eth_getBlockByNumber",
 		"eth_getTransactionByBlockNumberAndIndex",
 		"eth_getUncleByBlockNumberAndIndex":
-		return rewriteParam(rctx, req, res, 0, false)
+		return rewriteParam(rctx, req, res, 0, false, false)
 	}
 	return RewriteNone, nil
 }
 
-func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, required bool) (RewriteResult, error) {
+func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, required bool, blockNrOrHash bool) (RewriteResult, error) {
 	var p []interface{}
 	err := json.Unmarshal(req.Params, &p)
 	if err != nil {
@@ -99,13 +100,38 @@ func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, requir
 		return RewriteNone, nil
 	}
 
-	s, ok := p[pos].(string)
-	if !ok {
-		return RewriteOverrideError, errors.New("expected string")
-	}
-	val, rw, err := rewriteTag(rctx, s)
-	if err != nil {
-		return RewriteOverrideError, err
+	// support for https://eips.ethereum.org/EIPS/eip-1898
+	var val interface{}
+	var rw bool
+	if blockNrOrHash {
+		bnh, err := remarshalBlockNumberOrHash(p[pos])
+		if err != nil {
+			// fallback to string
+			s, ok := p[pos].(string)
+			if ok {
+				val, rw, err = rewriteTag(rctx, s)
+				if err != nil {
+					return RewriteOverrideError, err
+				}
+			} else {
+				return RewriteOverrideError, errors.New("expected BlockNumberOrHash or string")
+			}
+		} else {
+			val, rw, err = rewriteTagBlockNumberOrHash(rctx, bnh)
+			if err != nil {
+				return RewriteOverrideError, err
+			}
+		}
+	} else {
+		s, ok := p[pos].(string)
+		if !ok {
+			return RewriteOverrideError, errors.New("expected string")
+		}
+
+		val, rw, err = rewriteTag(rctx, s)
+		if err != nil {
+			return RewriteOverrideError, err
+		}
 	}
 
 	if rw {
@@ -210,14 +236,23 @@ func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (b
 	return false, nil
 }
 
-func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
+func remarshalBlockNumberOrHash(current interface{}) (*rpc.BlockNumberOrHash, error) {
 	jv, err := json.Marshal(current)
 	if err != nil {
-		return "", false, err
+		return nil, err
 	}
 
 	var bnh rpc.BlockNumberOrHash
 	err = bnh.UnmarshalJSON(jv)
+	if err != nil {
+		return nil, err
+	}
+
+	return &bnh, nil
+}
+
+func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
+	bnh, err := remarshalBlockNumberOrHash(current)
 	if err != nil {
 		return "", false, err
 	}
@@ -240,6 +275,34 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	default:
 		if bnh.BlockNumber.Int64() > int64(rctx.latest) {
 			return "", false, ErrRewriteBlockOutOfRange
+		}
+	}
+
+	return current, false, nil
+}
+
+func rewriteTagBlockNumberOrHash(rctx RewriteContext, current *rpc.BlockNumberOrHash) (*rpc.BlockNumberOrHash, bool, error) {
+	// this is a hash, not a block number
+	if current.BlockNumber == nil {
+		return current, false, nil
+	}
+
+	switch *current.BlockNumber {
+	case rpc.PendingBlockNumber,
+		rpc.EarliestBlockNumber:
+		return current, false, nil
+	case rpc.FinalizedBlockNumber:
+		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.finalized))
+		return &bn, true, nil
+	case rpc.SafeBlockNumber:
+		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.safe))
+		return &bn, true, nil
+	case rpc.LatestBlockNumber:
+		bn := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(rctx.latest))
+		return &bn, true, nil
+	default:
+		if current.BlockNumber.Int64() > int64(rctx.latest) {
+			return nil, false, ErrRewriteBlockOutOfRange
 		}
 	}
 
