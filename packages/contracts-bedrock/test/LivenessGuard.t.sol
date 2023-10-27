@@ -231,7 +231,8 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
         threshold = bound(threshold, 1, initialOwners);
 
         // Generate the initial owners and keys and setup the safe
-        (address[] memory ownerAddrs, uint256[] memory ownerkeys) = SafeTestLib.makeAddrsAndKeys(initialOwners);
+        (address[] memory ownerAddrs, uint256[] memory ownerkeys) =
+            SafeTestLib.makeAddrsAndKeys("safeTest", initialOwners);
         // record the private keys for later use
         for (uint256 i = 0; i < ownerAddrs.length; i++) {
             privateKeys[ownerAddrs[i]] = ownerkeys[i];

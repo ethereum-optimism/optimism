@@ -39,7 +39,7 @@ contract SafeSigners_Test is Test, SafeTestTools {
         // Limit the number of signatures to 25
         uint256 numSigs = bound(_numSigs, 1, 25);
 
-        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys(numSigs);
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("getSigsTest", numSigs);
         for (uint256 i = 0; i < keys.length; i++) {
             if (sigType(keys[i]) == SigTypes.Contract) {
                 keys[i] =

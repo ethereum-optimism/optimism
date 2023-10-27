@@ -69,7 +69,13 @@ library SafeTestLib {
     }
 
     /// @dev Get arrays of addresses and private keys. The arrays are sorted by address, and the addresses are labelled
-    function makeAddrsAndKeys(uint256 num) internal returns (address[] memory addrs, uint256[] memory keys) {
+    function makeAddrsAndKeys(
+        string memory prefix,
+        uint256 num
+    )
+        internal
+        returns (address[] memory addrs, uint256[] memory keys)
+    {
         keys = new uint256[](num);
         addrs = new address[](num);
         for (uint256 i; i < num; i++) {
@@ -79,7 +85,7 @@ library SafeTestLib {
 
         for (uint256 i; i < num; i++) {
             addrs[i] = Vm(VM_ADDR).addr(keys[i]);
-            Vm(VM_ADDR).label(getAddr(keys[i]), string.concat("SAFETEST: Signer ", Vm(VM_ADDR).toString(i)));
+            Vm(VM_ADDR).label(getAddr(keys[i]), string.concat(prefix, Vm(VM_ADDR).toString(i)));
         }
     }
 
@@ -592,7 +598,7 @@ contract SafeTestTools {
     }
 
     function _setupSafe() public returns (SafeInstance memory) {
-        (, uint256[] memory defaultPKs) = SafeTestLib.makeAddrsAndKeys(3);
+        (, uint256[] memory defaultPKs) = SafeTestLib.makeAddrsAndKeys("default", 3);
 
         return _setupSafe(
             defaultPKs,
