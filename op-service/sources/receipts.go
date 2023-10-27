@@ -278,7 +278,7 @@ const (
 	// Params:
 	//   - Reth: string, hex-encoded block hash
 	// Returns:
-	//   - Reth: array of RLP-encoded receipts
+	//   - Reth: string, json-ified receipts
 	// See:
 	//   - reth's DB crate documentation: https://github.com/paradigmxyz/reth/blob/main/docs/crates/db.md
 	RethGetBlockReceipts
