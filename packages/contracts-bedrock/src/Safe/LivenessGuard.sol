@@ -144,6 +144,7 @@ contract LivenessGuard is ISemver, BaseGuard {
         for (uint256 i = 0; i < ownersBefore.length(); i++) {
             address ownerBefore = ownersBefore.at(i);
             delete lastLive[ownerBefore];
+            ownersBefore.remove(ownerBefore);
         }
     }
 
