@@ -114,19 +114,37 @@ contract LivenessModule is ISemver {
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
 
-        // We will remove at least one owner, so we'll initialize the ownersCount count to the current number of owners
+        // Initialize the ownersCount count to the current number of owners, so that we can track the number of
+        // owners in the Safe after each removal. The Safe will revert if an owner cannot be removed, so it is safe
+        // keep a local count of the number of owners this way.
         uint256 ownersCount = SAFE.getOwners().length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
-            ownersCount--;
+            // Validate that the owner can be removed, which means that either:
+            //   1. the ownersCount is now less than MIN_OWNERS, in which case all owners should be removed regardless
+            //      of liveness,
+            //   2. the owner has not signed a transaction during the liveness interval.
             if (ownersCount >= MIN_OWNERS) {
                 require(canRemove(_ownersToRemove[i]), "LivenessModule: the owner to remove has signed recently");
             }
 
+            // Pre-emptively update our local count of the number of owners.
+            // This is safe because _removeOwner will bubble up any revert from the Safe if the owner cannot be removed.
+            ownersCount--;
+
+            // We now attempt remove the owner from the safe.
             _removeOwner({
                 _prevOwner: _previousOwners[i],
                 _ownerToRemove: _ownersToRemove[i],
                 _newOwnersCount: ownersCount
             });
+
+            // when all owners are removed and the sole owner is the fallback owner, the
+            // ownersCount variable will be incorrectly set to zero.
+            // This reflects the fact that all prior owners have been removed. The loop should naturally exit at this
+            // point, but for safety we detect this condition and force the loop to terminate.
+            if (ownersCount == 0) {
+                break;
+            }
         }
         _verifyFinalState();
     }
@@ -182,7 +200,10 @@ contract LivenessModule is ISemver {
     function _verifyFinalState() internal view {
         address[] memory owners = SAFE.getOwners();
         uint256 numOwners = owners.length;
-        // Ensure that the safe is not being left in an unsafe state with too few owners.
+
+        // Ensure that the safe is not being left in a safe state such that either:
+        //  1. there are at least the minimum number of owners, or
+        //  2. there is a single owner and that owner is the fallback owner.
         if (numOwners == 1) {
             require(owners[0] == FALLBACK_OWNER, "LivenessModule: must transfer ownership to fallback owner");
         } else {
