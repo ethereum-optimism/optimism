@@ -62,6 +62,42 @@ contract LivenessModule is ISemver {
         );
     }
 
+    /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
+    ///         Note: this function returns 1 for numOwners == 1.
+    function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
+        threshold_ = (_numOwners * 75 + 99) / 100;
+    }
+
+    /// @notice Getter function for the Safe contract instance
+    /// @return safe_ The Safe contract instance
+    function safe() public view returns (Safe safe_) {
+        safe_ = SAFE;
+    }
+
+    /// @notice Getter function for the LivenessGuard contract instance
+    /// @return livenessGuard_ The LivenessGuard contract instance
+    function livenessGuard() public view returns (LivenessGuard livenessGuard_) {
+        livenessGuard_ = LIVENESS_GUARD;
+    }
+
+    /// @notice Getter function for the liveness interval
+    /// @return livenessInterval_ The liveness interval, in seconds
+    function livenessInterval() public view returns (uint256 livenessInterval_) {
+        livenessInterval_ = LIVENESS_INTERVAL;
+    }
+
+    /// @notice Getter function for the minimum number of owners
+    /// @return minOwners_ The minimum number of owners
+    function minOwners() public view returns (uint256 minOwners_) {
+        minOwners_ = MIN_OWNERS;
+    }
+
+    /// @notice Getter function for the fallback owner
+    /// @return fallbackOwner_ The fallback owner of the Safe
+    function fallbackOwner() public view returns (address fallbackOwner_) {
+        fallbackOwner_ = FALLBACK_OWNER;
+    }
+
     /// @notice This function can be called by anyone to remove a set of owners that have not signed a transaction
     ///         during the liveness interval. If the number of owners drops below the minimum, then all owners
     ///         must be removed.
@@ -168,41 +204,5 @@ contract LivenessModule is ISemver {
             address(LIVENESS_GUARD) == address(uint160(uint256(bytes32(SAFE.getStorageAt(GUARD_STORAGE_SLOT, 1))))),
             "LivenessModule: guard has been changed"
         );
-    }
-
-    /// @notice For a given number of owners, return the lowest threshold which is greater than 75.
-    ///         Note: this function returns 1 for numOwners == 1.
-    function get75PercentThreshold(uint256 _numOwners) public pure returns (uint256 threshold_) {
-        threshold_ = (_numOwners * 75 + 99) / 100;
-    }
-
-    /// @notice Getter function for the Safe contract instance
-    /// @return safe_ The Safe contract instance
-    function safe() public view returns (Safe safe_) {
-        safe_ = SAFE;
-    }
-
-    /// @notice Getter function for the LivenessGuard contract instance
-    /// @return livenessGuard_ The LivenessGuard contract instance
-    function livenessGuard() public view returns (LivenessGuard livenessGuard_) {
-        livenessGuard_ = LIVENESS_GUARD;
-    }
-
-    /// @notice Getter function for the liveness interval
-    /// @return livenessInterval_ The liveness interval, in seconds
-    function livenessInterval() public view returns (uint256 livenessInterval_) {
-        livenessInterval_ = LIVENESS_INTERVAL;
-    }
-
-    /// @notice Getter function for the minimum number of owners
-    /// @return minOwners_ The minimum number of owners
-    function minOwners() public view returns (uint256 minOwners_) {
-        minOwners_ = MIN_OWNERS;
-    }
-
-    /// @notice Getter function for the fallback owner
-    /// @return fallbackOwner_ The fallback owner of the Safe
-    function fallbackOwner() public view returns (address fallbackOwner_) {
-        fallbackOwner_ = FALLBACK_OWNER;
     }
 }
