@@ -5360,6 +5360,7 @@ dependencies = [
 name = "rethdb-reader"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "reth",
  "serde",
  "serde_json",
