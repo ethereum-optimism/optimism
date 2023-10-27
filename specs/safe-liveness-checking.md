@@ -11,7 +11,7 @@
   - [Owner removal call flow](#owner-removal-call-flow)
   - [Shutdown](#shutdown)
   - [Security Properties](#security-properties)
-  - [Interdependency between the Guard and Module](#interdependency-between-the-guard-and-module)
+  - [Interdependency between the guard and module](#interdependency-between-the-guard-and-module)
   - [Deployment](#deployment)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -48,7 +48,7 @@ Signers may also call the contract's `showLiveness()()` method directly in order
 
 A `LivenessModule` is also created which does the following:
 
-1. Has a function `removeOwner()` that anyone may call to specify an owner to be removed from the
+1. Has a function `removeOwners()` that anyone may call to specify one or more owners to be removed from the
    Safe.
 1. The Module would then check the `LivenessGuard.lastLive()` to determine if the signer is
    eligible for removal.
@@ -99,22 +99,50 @@ The following security properties must be upheld:
      if necessary to convert the safe to a 1 of 1.
 1. The module sets the correct 75% threshold upon removing a signer.
 1. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
-1. It must be impossible for the guard's checkTransaction or checkAfterExecution to permanently revert given any calldata and the current state.
+1. It must be impossible for the guard's checkTransaction or checkAfterExecution to permanently
+   revert given any calldata and the current state.
 
-### Interdependency between the Guard and Module
+### Interdependency between the guard and module
 
-The Guard has no dependency on the Module, and can be used independently to track liveness of
-Safe owners. The Module however does have a dependency on the Guard, only one guard contract can
-be set on the Safe, and the Module will be unable to function if the Guard is removed.
+The guard has no dependency on the module, and can be used independently to track liveness of
+Safe owners.
 
-### Deployment
+This means that the module can be removed or replaced without any affect on the guard.
 
-The module and guard are intended to be deployed and installed on the safe in the following sequence:
+The module however does have a dependency on the guard; if the guard is removed from the Safe, then
+the module will no longer be functional and calls to its `removeOwners` function will revert.
 
-1. Deploy the guard contract, this will set a timestamp for each existing owner on the Safe.
+### Deploying the liveness checking system
+
+[deploying]: #deploying-the-liveness-checking-system
+
+The module and guard are intended to be deployed and installed on the safe in the following
+sequence:
+
+1. Deploy the guard contract
+   2. The guard's constructor will read the Safe's owners and set a timestamp
 1. Deploy the module.
-1. Enable the module on the safe.
 1. Set the guard on the safe.
+1. Enable the module on the safe.
 
 This order of operations is necessary to satisfy the constructor checks in the module, and is
 intended to prevent owners from being immediately removable.
+
+### Modify the liveness checking system
+
+Changes to the liveness checking system should be done in the following manner:
+
+#### Replacing the module
+
+The module can safely be removed without affecting the operation of the guard. A new module can then
+be added.
+
+#### Replacing the guard
+
+The safe can only have one guard contract at a time, and if the guard is removed the module will
+cease to function. This does not affect the ability of the Safe to operate normally, however the
+module should be removed as a best practice.
+
+If a new guard is added, eg. as a means of upgrading it, then a new module will also need to be
+deployed and enabled. Once both the guard and module have been removed, they can be replaced
+according to the steps in the [Deployment][deploying] section above.
