@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use reth::{
     blockchain_tree::noop::NoopBlockchainTree,
     primitives::{
@@ -10,6 +12,12 @@ use reth::{
 };
 use std::{os::raw::c_char, path::Path};
 
+/// A [ReceiptsResult] is a wrapper around a JSON string containing serialized [TransactionReceipt]s
+/// as well as an error status that is compatible with FFI.
+///
+/// # Safety
+/// - When the `error` field is false, the `data` pointer is guaranteed to be valid.
+/// - When the `error` field is true, the `data` pointer is guaranteed to be null.
 #[repr(C)]
 pub struct ReceiptsResult {
     data: *mut char,
@@ -18,6 +26,7 @@ pub struct ReceiptsResult {
 }
 
 impl ReceiptsResult {
+    /// Constructs a successful [ReceiptsResult] from a JSON string.
     pub fn success(data: *mut char, data_len: usize) -> Self {
         Self {
             data,
@@ -26,6 +35,7 @@ impl ReceiptsResult {
         }
     }
 
+    /// Constructs a failing [ReceiptsResult] with a null pointer to the data.
     pub fn fail() -> Self {
         Self {
             data: std::ptr::null_mut(),
@@ -143,6 +153,10 @@ pub unsafe extern "C" fn free_string(string: *mut c_char) {
     }
 }
 
+/// Builds a hydrated [TransactionReceipt] from information in the passed transaction,
+/// receipt, and block receipts.
+///
+/// Returns [None] if the transaction's sender could not be recovered from the signature.
 #[inline(always)]
 fn build_transaction_receipt_with_block_receipts(
     tx: TransactionSigned,
