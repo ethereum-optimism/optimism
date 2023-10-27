@@ -52,7 +52,9 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	// Convert the returned JSON string to Go string and parse it
 	receiptsJSON := C.GoStringN(receiptsResult.data, C.int(receiptsResult.data_len))
 	var receipts types.Receipts
-	json.Unmarshal([]byte(receiptsJSON), &receipts)
+	if err := json.Unmarshal([]byte(receiptsJSON), &receipts); err != nil {
+		return nil, err
+	}
 
 	// Free the memory allocated by the C code
 	C.free_string(receiptsResult.data)

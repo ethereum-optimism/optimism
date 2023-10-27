@@ -138,7 +138,8 @@ pub extern "C" fn free_string(string: *mut c_char) {
     }
 }
 
-pub(crate) fn build_transaction_receipt_with_block_receipts(
+#[inline(always)]
+fn build_transaction_receipt_with_block_receipts(
     tx: TransactionSigned,
     meta: TransactionMeta,
     receipt: Receipt,
