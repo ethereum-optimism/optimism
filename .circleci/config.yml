@@ -772,6 +772,10 @@ jobs:
       target:
         description: The make target to execute
         type: string
+      cannon_enabled:
+        description: Whether to include cannon tests
+        default: true
+        type: boolean
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
@@ -797,7 +801,8 @@ jobs:
           command: go tool dist list | grep mips
       - run:
           name: run tests
-          command:
+          command: |
+            export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>>
@@ -1361,6 +1366,7 @@ workflows:
           name: op-e2e-HTTP-tests
           module: op-e2e
           target: test-http
+          cannon_enabled: false
           requires:
             - op-stack-go-lint
             - devnet-allocs
@@ -1368,6 +1374,7 @@ workflows:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
+          cannon_enabled: false
           requires:
             - op-stack-go-lint
             - devnet-allocs

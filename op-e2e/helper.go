@@ -17,8 +17,8 @@ func InitParallel(t *testing.T, opts ...func(t *testing.T)) {
 	}
 }
 
-func SkipIfHTTP(t *testing.T) {
-	if UseHTTP() {
-		t.Skip("Skipping test because HTTP connection is in use")
+func UsesCannon(t *testing.T) {
+	if os.Getenv("OP_E2E_CANNON_ENABLED") == "false" {
+		t.Skip("Skipping cannon test")
 	}
 }
