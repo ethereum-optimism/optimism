@@ -74,7 +74,6 @@ func (etl *ETL) Start(ctx context.Context) error {
 					etl.log.Warn("no new headers. processor unexpectedly at head...")
 				} else {
 					headers = newHeaders
-					etl.metrics.RecordBatchHeaders(len(newHeaders))
 				}
 			}
 
@@ -98,7 +97,6 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	batchLog := etl.log.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
 	batchLog.Info("extracting batch", "size", len(headers))
 
-	etl.metrics.RecordBatchLatestHeight(lastHeader.Number)
 	headerMap := make(map[common.Hash]*types.Header, len(headers))
 	for i := range headers {
 		header := headers[i]
@@ -128,6 +126,7 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 
 	for i := range logs.Logs {
 		log := logs.Logs[i]
+		headersWithLog[log.BlockHash] = true
 		if _, ok := headerMap[log.BlockHash]; !ok {
 			// NOTE. Definitely an error state if the none of the headers were re-orged out in between
 			// the blocks and logs retrieval operations. Unlikely as long as the confirmation depth has
@@ -135,9 +134,6 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 			batchLog.Error("log found with block hash not in the batch", "block_hash", logs.Logs[i].BlockHash, "log_index", logs.Logs[i].Index)
 			return errors.New("parsed log with a block hash not in the batch")
 		}
-
-		etl.metrics.RecordBatchLog(log.Address)
-		headersWithLog[log.BlockHash] = true
 	}
 
 	// ensure we use unique downstream references for the etl batch
