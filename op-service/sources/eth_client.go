@@ -64,7 +64,7 @@ type EthClientConfig struct {
 	MethodResetDuration time.Duration
 
 	// [OPTIONAL] The reth DB path to fetch receipts from
-	RethDBPath *string
+	RethDBPath string
 }
 
 func (c *EthClientConfig) Check() error {
@@ -137,7 +137,7 @@ type EthClient struct {
 	methodResetDuration time.Duration
 
 	// [OPTIONAL] The reth DB path to fetch receipts from
-	rethDbPath *string
+	rethDbPath string
 }
 
 func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {

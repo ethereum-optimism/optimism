@@ -67,9 +67,9 @@ typedef struct ReceiptsResult {
  * - All possible nil pointer dereferences are checked, and the function will return a
  *   failing [ReceiptsResult] if any are found.
  */
-struct ReceiptsResult read_receipts(const uint8_t *block_hash,
-                                    uintptr_t block_hash_len,
-                                    const char *db_path);
+struct ReceiptsResult rdb_read_receipts(const uint8_t *block_hash,
+                                        uintptr_t block_hash_len,
+                                        const char *db_path);
 
 /**
  * Free a string that was allocated in Rust and passed to C.
@@ -77,7 +77,7 @@ struct ReceiptsResult read_receipts(const uint8_t *block_hash,
  * # Safety
  * - All possible nil pointer dereferences are checked.
  */
-void free_string(char *string);
+void rdb_free_string(char *string);
 ```
 
 [rust-toolchain]: https://rustup.rs/

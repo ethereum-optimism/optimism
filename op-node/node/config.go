@@ -62,7 +62,7 @@ type Config struct {
 	Cancel context.CancelCauseFunc
 
 	// [OPTIONAL] The reth DB path to read receipts from
-	RethDBPath *string
+	RethDBPath string
 }
 
 type RPCConfig struct {

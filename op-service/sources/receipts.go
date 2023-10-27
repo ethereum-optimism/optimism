@@ -390,13 +390,13 @@ type receiptsFetchingJob struct {
 	fetcher *IterativeBatchCall[common.Hash, *types.Receipt]
 
 	// [OPTIONAL] RethDB path to fetch receipts from
-	rethDbPath *string
+	rethDbPath string
 
 	result types.Receipts
 }
 
 func NewReceiptsFetchingJob(requester ReceiptsRequester, client rpcClient, maxBatchSize int, block eth.BlockID,
-	receiptHash common.Hash, txHashes []common.Hash, rethDb *string) *receiptsFetchingJob {
+	receiptHash common.Hash, txHashes []common.Hash, rethDb string) *receiptsFetchingJob {
 	return &receiptsFetchingJob{
 		requester:    requester,
 		client:       client,
@@ -483,10 +483,10 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 	case ErigonGetBlockReceiptsByBlockHash:
 		err = job.client.CallContext(ctx, &result, "erigon_getBlockReceiptsByBlockHash", job.block.Hash)
 	case RethGetBlockReceipts:
-		if job.rethDbPath == nil {
+		if job.rethDbPath == "" {
 			return fmt.Errorf("reth_db path not set")
 		}
-		res, err := FetchRethReceipts(*job.rethDbPath, &job.block.Hash)
+		res, err := FetchRethReceipts(job.rethDbPath, &job.block.Hash)
 		if err != nil {
 			return err
 		}

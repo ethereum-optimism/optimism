@@ -24,8 +24,8 @@ typedef struct {
     bool error;
 } ReceiptsResult;
 
-extern ReceiptsResult read_receipts(const uint8_t* block_hash, size_t block_hash_len, const char* db_path);
-extern void free_string(char* string);
+extern ReceiptsResult rdb_read_receipts(const uint8_t* block_hash, size_t block_hash_len, const char* db_path);
+extern void rdb_free_string(char* string);
 */
 import "C"
 
@@ -45,11 +45,14 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	defer C.free(unsafe.Pointer(cDbPath))
 
 	// Call the C function to fetch the receipts from the Reth Database
-	receiptsResult := C.read_receipts((*C.uint8_t)(cBlockHash), C.size_t(len(blockHash)), cDbPath)
+	receiptsResult := C.rdb_read_receipts((*C.uint8_t)(cBlockHash), C.size_t(len(blockHash)), cDbPath)
 
 	if receiptsResult.error {
 		return nil, fmt.Errorf("Error fetching receipts from Reth Database.")
 	}
+
+	// Free the memory allocated by the C code
+	defer C.rdb_free_string(receiptsResult.data)
 
 	// Convert the returned JSON string to Go string and parse it
 	receiptsJSON := C.GoStringN(receiptsResult.data, C.int(receiptsResult.data_len))
@@ -57,9 +60,6 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	if err := json.Unmarshal([]byte(receiptsJSON), &receipts); err != nil {
 		return nil, err
 	}
-
-	// Free the memory allocated by the C code
-	C.free_string(receiptsResult.data)
 
 	return receipts, nil
 }
