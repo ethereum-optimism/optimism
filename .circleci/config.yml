@@ -779,6 +779,12 @@ jobs:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
+    # Note: Tests are split between runs manually.
+    # Tests default to run on the first executor but can be moved to the second with:
+    # InitParallel(t, UseExecutor(1))
+    # Any tests assigned to an executor greater than the number available automatically use the last executor.
+    # Executor indexes start from 0
+    parallelism: 2
     steps:
       - checkout
       - check-changed:
