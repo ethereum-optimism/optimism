@@ -18,6 +18,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
+import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { LegacyERC20ETH } from "src/legacy/LegacyERC20ETH.sol";
@@ -41,7 +42,6 @@ import { Deploy } from "scripts/Deploy.s.sol";
 contract CommonTest is Deploy, Test {
     address alice = address(128);
     address bob = address(256);
-    address multisig = address(512);
 
     address immutable ZERO_ADDRESS = address(0);
     address immutable NON_ZERO_ADDRESS = address(1);
@@ -64,6 +64,7 @@ contract CommonTest is Deploy, Test {
     AddressManager addressManager;
     L1ERC721Bridge l1ERC721Bridge;
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
+    ProtocolVersions protocolVersions;
 
     L2CrossDomainMessenger l2CrossDomainMessenger;
     L2StandardBridge l2StandardBridge;
@@ -77,11 +78,9 @@ contract CommonTest is Deploy, Test {
         // Give alice and bob some ETH
         vm.deal(alice, 1 << 16);
         vm.deal(bob, 1 << 16);
-        vm.deal(multisig, 1 << 16);
 
         vm.label(alice, "alice");
         vm.label(bob, "bob");
-        vm.label(multisig, "multisig");
 
         // Make sure we have a non-zero base fee
         vm.fee(1000000000);
@@ -106,6 +105,7 @@ contract CommonTest is Deploy, Test {
         addressManager = AddressManager(mustGetAddress("AddressManager"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory = OptimismMintableERC20Factory(mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        protocolVersions = ProtocolVersions(mustGetAddress("ProtocolVersionsProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(address(optimismPortal), "OptimismPortal");
@@ -115,6 +115,7 @@ contract CommonTest is Deploy, Test {
         vm.label(address(addressManager), "AddressManager");
         vm.label(address(l1ERC721Bridge), "L1ERC721Bridge");
         vm.label(address(l1OptimismMintableERC20Factory), "OptimismMintableERC20Factory");
+        vm.label(address(protocolVersions), "ProtocolVersions");
 
         // Set up L2. There are currently no proxies set in the L2 initialization.
         vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code);
@@ -164,15 +165,13 @@ contract CommonTest is Deploy, Test {
 }
 
 contract L2OutputOracle_Initializer is CommonTest {
-
-    // Constructor arguments
     event OutputProposed(
         bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
     );
 
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
-    // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
+    // @dev Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(l2OutputOracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
