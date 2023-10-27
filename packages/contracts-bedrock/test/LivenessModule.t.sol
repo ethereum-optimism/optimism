@@ -26,11 +26,11 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     address fallbackOwner;
 
     /// @dev Removes an owner from the safe
-    function _removeAnOwner(address _ownerToRemove) internal {
+    function _removeAnOwner(address _ownerToRemove, address[] memory _owners) internal {
         address[] memory prevOwners = new address[](1);
         address[] memory ownersToRemove = new address[](1);
         ownersToRemove[0] = _ownerToRemove;
-        prevOwners[0] = SafeTestLib.getPrevOwner(_ownerToRemove, safeInstance.owners);
+        prevOwners[0] = SafeTestLib.getPrevOwnerFromList(_ownerToRemove, _owners);
 
         livenessModule.removeOwners(prevOwners, ownersToRemove);
     }
@@ -141,20 +141,22 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
     /// @dev Test removing an owner which has recently signed a transaction
     function test_removeOwners_ownerHasSignedRecently_reverts() external {
         /// Will sign a transaction with the first M owners in the owners list
-        vm.warp(block.timestamp + livenessInterval);
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
+
+        address[] memory owners = safeInstance.safe.getOwners();
+
         vm.expectRevert("LivenessModule: the owner to remove has signed recently");
-        _removeAnOwner(safeInstance.owners[0]);
+        _removeAnOwner(safeInstance.owners[0], owners);
     }
 
     /// @dev Test removing an owner which has recently called showLiveness
     function test_removeOwners_ownerHasShownLivenessRecently_reverts() external {
         /// Will sign a transaction with the first M owners in the owners list
-        vm.warp(block.timestamp + livenessInterval);
         vm.prank(safeInstance.owners[0]);
         livenessGuard.showLiveness();
+        address[] memory owners = safeInstance.safe.getOwners();
         vm.expectRevert("LivenessModule: the owner to remove has signed recently");
-        _removeAnOwner(safeInstance.owners[0]);
+        _removeAnOwner(safeInstance.owners[0], owners);
     }
 
     /// @dev Test removing an owner with an incorrect previous owner
@@ -243,7 +245,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         address ownerToRemove = safeInstance.owners[0];
 
         vm.warp(block.timestamp + livenessInterval + 1);
-        _removeAnOwner(ownerToRemove);
+        _removeAnOwner(ownerToRemove, safeInstance.owners);
 
         assertFalse(safeInstance.safe.isOwner(ownerToRemove));
         assertEq(safeInstance.safe.getOwners().length, ownersBefore - 1);

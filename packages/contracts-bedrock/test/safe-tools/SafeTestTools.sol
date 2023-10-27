@@ -187,17 +187,42 @@ library SafeTestLib {
         (v, r, s) = Vm(VM_ADDR).sign(pk, txDataHash);
     }
 
-    /// @notice Get the previous owner in the linked list of owners
+    /// @dev Get the previous owner in the linked list of owners.
+    ///      This version of getPrevOwner will call to the Safe contract to get the current list of owners.
+    ///      Note that this will break vm.expectRevert() tests by making a call which does not revert..
     /// @param _owner The owner whose previous owner we want to find
-    /// @param _owners The list of owners
-    function getPrevOwner(address _owner, address[] memory _owners) internal pure returns (address prevOwner_) {
-        for (uint256 i = 0; i < _owners.length; i++) {
-            if (_owners[i] != _owner) continue;
+    function getPrevOwner(SafeInstance memory instance, address _owner) internal view returns (address prevOwner_) {
+        address[] memory owners = instance.safe.getOwners();
+        for (uint256 i = 0; i < owners.length; i++) {
+            if (owners[i] != _owner) continue;
             if (i == 0) {
                 prevOwner_ = SENTINEL_OWNERS;
                 break;
             }
-            prevOwner_ = _owners[i - 1];
+            prevOwner_ = owners[i - 1];
+        }
+    }
+
+    /// @dev Get the previous owner in the provided list of owners.
+    ///      This version of getPrevOwner accepts a list of owners, and will return the previous owner.
+    ///      It is useful when testing for a revert, as it avoids the need to call to the Safe contract.
+    /// @param _owner The owner whose previous owner we want to find
+    /// @param _ownersList The list of owners to search in
+    function getPrevOwnerFromList(
+        address _owner,
+        address[] memory _ownersList
+    )
+        internal
+        pure
+        returns (address prevOwner_)
+    {
+        for (uint256 i = 0; i < _ownersList.length; i++) {
+            if (_ownersList[i] != _owner) continue;
+            if (i == 0) {
+                prevOwner_ = SENTINEL_OWNERS;
+                break;
+            }
+            prevOwner_ = _ownersList[i - 1];
         }
     }
 
@@ -219,7 +244,7 @@ library SafeTestLib {
         address[] memory currentOwners;
         for (uint256 i = 0; i < _ownersToRemove.length; i++) {
             currentOwners = ownerSimulator.getOwners();
-            prevOwners_[i] = SafeTestLib.getPrevOwner(instance.owners[i], currentOwners);
+            prevOwners_[i] = SafeTestLib.getPrevOwnerFromList(instance.owners[i], currentOwners);
 
             // Don't try to remove the last owner
             if (currentOwners.length == 1) break;
@@ -334,7 +359,7 @@ library SafeTestLib {
     /// @dev Removes an owner from the safe. If not provided explictly, the identification of the prevOwner is handled
     ///     automatically.
     function removeOwner(SafeInstance memory instance, address prevOwner, address owner, uint256 threshold) internal {
-        prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(owner, instance.owners);
+        prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, owner);
         execTransaction(
             instance,
             address(instance.safe),
@@ -346,7 +371,7 @@ library SafeTestLib {
     /// @dev Replaces an old owner with a new owner. If not provided explictly, the identification of the prevOwner is
     /// handled automatically.
     function swapOwner(SafeInstance memory instance, address prevOwner, address oldOwner, address newOwner) internal {
-        prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(oldOwner, instance.owners);
+        prevOwner = prevOwner > address(0) ? prevOwner : SafeTestLib.getPrevOwner(instance, oldOwner);
         execTransaction(
             instance,
             address(instance.safe),
