@@ -1,15 +1,14 @@
 use reth::{
     blockchain_tree::noop::NoopBlockchainTree,
     primitives::{
-        BlockHashOrNumber, ChainSpecBuilder, Receipt, TransactionMeta, TransactionSigned, U128,
-        U256, U64,
+        BlockHashOrNumber, Receipt, TransactionKind, TransactionMeta, TransactionSigned, MAINNET,
+        U128, U256, U64,
     },
     providers::{providers::BlockchainProvider, BlockReader, ProviderFactory, ReceiptProvider},
-    revm::primitives::calc_blob_gasprice,
     rpc::types::{Log, TransactionReceipt},
     utils::db::open_db_read_only,
 };
-use std::{os::raw::c_char, path::Path, sync::Arc};
+use std::{os::raw::c_char, path::Path};
 
 #[repr(C)]
 pub struct ReceiptsResult {
@@ -38,45 +37,51 @@ impl ReceiptsResult {
 
 /// Read the receipts for a blockhash from the RETH database directly.
 ///
-/// WARNING: Will panic on error.
-/// TODO: Gracefully return OK status.
+/// # Safety
+/// - All possible nil pointer dereferences are checked, and the function will return a
+///   failing [ReceiptsResult] if any are found.
 #[no_mangle]
-pub extern "C" fn read_receipts(
+pub unsafe extern "C" fn read_receipts(
     block_hash: *const u8,
     block_hash_len: usize,
     db_path: *const c_char,
 ) -> ReceiptsResult {
     // Convert the raw pointer and length back to a Rust slice
-    let Ok(block_hash): Result<[u8; 32], _> =
-        unsafe { std::slice::from_raw_parts(block_hash, block_hash_len) }.try_into()
-    else {
+    let Ok(block_hash): Result<[u8; 32], _> = {
+        if block_hash.is_null() {
+            return ReceiptsResult::fail();
+        }
+        std::slice::from_raw_parts(block_hash, block_hash_len)
+    }
+    .try_into() else {
         return ReceiptsResult::fail();
     };
 
     // Convert the *const c_char to a Rust &str
-    let Ok(db_path_str) = unsafe {
-        assert!(!db_path.is_null(), "Null pointer for database path");
+    let Ok(db_path_str) = {
+        if db_path.is_null() {
+            return ReceiptsResult::fail();
+        }
         std::ffi::CStr::from_ptr(db_path)
     }
     .to_str() else {
         return ReceiptsResult::fail();
     };
 
-    let Ok(db) = open_db_read_only(&Path::new(db_path_str), None) else {
+    let Ok(db) = open_db_read_only(Path::new(db_path_str), None) else {
         return ReceiptsResult::fail();
     };
-    let spec = Arc::new(ChainSpecBuilder::mainnet().build());
-    let factory = ProviderFactory::new(db, spec.clone());
+    let factory = ProviderFactory::new(db, MAINNET.clone());
 
     // Create a read-only BlockChainProvider
     let Ok(provider) = BlockchainProvider::new(factory, NoopBlockchainTree::default()) else {
         return ReceiptsResult::fail();
     };
 
+    // Fetch the block and the receipts within it
     let Ok(block) = provider.block_by_hash(block_hash.into()) else {
         return ReceiptsResult::fail();
     };
-
     let Ok(receipts) = provider.receipts_by_block(BlockHashOrNumber::Hash(block_hash.into()))
     else {
         return ReceiptsResult::fail();
@@ -86,7 +91,6 @@ pub extern "C" fn read_receipts(
         let block_number = block.number;
         let base_fee = block.base_fee_per_gas;
         let block_hash = block.hash_slow();
-        let excess_blob_gas = block.excess_blob_gas;
         let Some(receipts) = block
             .body
             .into_iter()
@@ -99,7 +103,7 @@ pub extern "C" fn read_receipts(
                     block_hash,
                     block_number,
                     base_fee,
-                    excess_blob_gas,
+                    excess_blob_gas: None,
                 };
                 build_transaction_receipt_with_block_receipts(tx, meta, receipt, &receipts)
             })
@@ -127,14 +131,15 @@ pub extern "C" fn read_receipts(
 }
 
 /// Free a string that was allocated in Rust and passed to C.
+///
+/// # Safety
+/// - All possible nil pointer dereferences are checked.
 #[no_mangle]
-pub extern "C" fn free_string(string: *mut c_char) {
-    unsafe {
-        // Convert the raw pointer back to a CString and let it go out of scope,
-        // which will deallocate the memory.
-        if !string.is_null() {
-            let _ = std::ffi::CString::from_raw(string);
-        }
+pub unsafe extern "C" fn free_string(string: *mut c_char) {
+    // Convert the raw pointer back to a CString and let it go out of scope,
+    // which will deallocate the memory.
+    if !string.is_null() {
+        let _ = std::ffi::CString::from_raw(string);
     }
 }
 
@@ -181,16 +186,16 @@ fn build_transaction_receipt_with_block_receipts(
         },
 
         // EIP-4844 fields
-        blob_gas_price: meta.excess_blob_gas.map(calc_blob_gasprice).map(U128::from),
-        blob_gas_used: transaction.transaction.blob_gas_used().map(U128::from),
+        blob_gas_price: None,
+        blob_gas_used: None,
     };
 
     match tx.transaction.kind() {
-        reth::primitives::TransactionKind::Create => {
+        TransactionKind::Create => {
             res_receipt.contract_address =
                 Some(transaction.signer().create(tx.transaction.nonce()));
         }
-        reth::primitives::TransactionKind::Call(addr) => {
+        TransactionKind::Call(addr) => {
             res_receipt.to = Some(*addr);
         }
     }
