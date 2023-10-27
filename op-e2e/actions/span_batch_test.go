@@ -1,7 +1,9 @@
 package actions
 
 import (
+	"crypto/ecdsa"
 	crand "crypto/rand"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -10,9 +12,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -279,21 +284,37 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 		BatcherKey:  dp.Secrets.Batcher,
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 	cl := seqEngine.EthClient()
-	aliceNonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
-	require.NoError(t, err)
+
+	const numTestUsers = 5
+	var privKeys [numTestUsers]*ecdsa.PrivateKey
+	var addrs [numTestUsers]common.Address
+	for i := 0; i < numTestUsers; i++ {
+		// Create a new test account
+		privateKey, err := dp.Secrets.Wallet.PrivateKey(accounts.Account{
+			URL: accounts.URL{
+				Path: fmt.Sprintf("m/44'/60'/0'/0/%d", 10+i),
+			},
+		})
+		privKeys[i] = privateKey
+		addr := crypto.PubkeyToAddress(privateKey.PublicKey)
+		require.NoError(t, err)
+		addrs[i] = addr
+	}
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
 	miner.ActEmptyBlock(t)
+	totalTxCount := 0
 	// Make 600 L2 blocks (L1BlockTime / L2BlockTime * 50) including 1~3 txs
 	for i := 0; i < 50; i++ {
 		sequencer.ActL1HeadSignal(t)
 		for sequencer.derivation.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
 			sequencer.ActL2PipelineFull(t)
 			sequencer.ActL2StartBlock(t)
-			// fill the block with random number of L2 txs from alice
+			// fill the block with random number of L2 txs
 			for j := 0; j < rand.Intn(3); j++ {
+				userIdx := totalTxCount % numTestUsers
 				signer := types.LatestSigner(sd.L2Cfg.Config)
 				data := make([]byte, rand.Intn(100))
 				_, err := crand.Read(data[:]) // fill with random bytes
@@ -301,9 +322,11 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 				gas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 				require.NoError(t, err)
 				baseFee := seqEngine.l2Chain.CurrentBlock().BaseFee
-				tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+				nonce, err := cl.PendingNonceAt(t.Ctx(), addrs[userIdx])
+				require.NoError(t, err)
+				tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
 					ChainID:   sd.L2Cfg.Config.ChainID,
-					Nonce:     aliceNonce,
+					Nonce:     nonce,
 					GasTipCap: big.NewInt(2 * params.GWei),
 					GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
 					Gas:       gas,
@@ -312,8 +335,8 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 					Data:      data,
 				})
 				require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
-				seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
-				aliceNonce++
+				seqEngine.ActL2IncludeTx(addrs[userIdx])(t)
+				totalTxCount += 1
 			}
 			sequencer.ActL2EndBlock(t)
 		}
