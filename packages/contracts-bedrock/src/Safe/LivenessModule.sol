@@ -55,7 +55,7 @@ contract LivenessModule is ISemver {
         FALLBACK_OWNER = _fallbackOwner;
         MIN_OWNERS = _minOwners;
         address[] memory owners = _safe.getOwners();
-        require(_minOwners < owners.length, "LivenessModule: minOwners must be less than the number of owners");
+        require(_minOwners <= owners.length, "LivenessModule: minOwners must be less than the number of owners");
         require(
             _safe.getThreshold() == get75PercentThreshold(owners.length),
             "LivenessModule: Safe must have a threshold of 75% of the number of owners"
@@ -70,7 +70,7 @@ contract LivenessModule is ISemver {
     function removeOwners(address[] memory _previousOwners, address[] memory _ownersToRemove) external {
         require(_previousOwners.length == _ownersToRemove.length, "LivenessModule: arrays must be the same length");
 
-        // We will remove at least one owner, so we'll initialize the newOwners count to the current number of owners
+        // We will remove at least one owner, so we'll initialize the ownersCount count to the current number of owners
         uint256 ownersCount = SAFE.getOwners().length;
         for (uint256 i = 0; i < _previousOwners.length; i++) {
             ownersCount--;
@@ -81,8 +81,7 @@ contract LivenessModule is ISemver {
             _removeOwner({
                 _prevOwner: _previousOwners[i],
                 _ownerToRemove: _ownersToRemove[i],
-                _newOwnersCount: ownersCount,
-                _newThreshold: get75PercentThreshold(ownersCount)
+                _newOwnersCount: ownersCount
             });
         }
         _verifyFinalState();
@@ -92,18 +91,11 @@ contract LivenessModule is ISemver {
     /// @param _prevOwner Owner that pointed to the owner to be removed in the linked list
     /// @param _ownerToRemove Owner address to be removed.
     /// @param _newOwnersCount New number of owners after removal.
-    /// @param _newThreshold New threshold.
-    function _removeOwner(
-        address _prevOwner,
-        address _ownerToRemove,
-        uint256 _newOwnersCount,
-        uint256 _newThreshold
-    )
-        internal
-    {
+    function _removeOwner(address _prevOwner, address _ownerToRemove, uint256 _newOwnersCount) internal {
         if (_newOwnersCount > 0) {
+            uint256 newThreshold = get75PercentThreshold(_newOwnersCount);
             // Remove the owner and update the threshold
-            _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: _newThreshold });
+            _removeOwnerSafeCall({ _prevOwner: _prevOwner, _owner: _ownerToRemove, _threshold: newThreshold });
         } else {
             // There is only one owner left. The Safe will not allow a safe with no owners, so we will
             // need to swap owners instead.

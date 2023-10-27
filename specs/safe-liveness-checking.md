@@ -92,13 +92,14 @@ The following security properties must be upheld:
 
 1. Signatures are assigned to the correct signer.
 1. Non-signers are unable to create a record of having signed.
-1. A signer cannot be censored or grieffed such that their signing is not recorded.
+1. A signer cannot be censored or griefed such that their signing is not recorded.
 1. Signers may demonstrate liveness either by signing a transaction or by calling directly to the
    guard.
 1. The module only removes a signer if they have demonstrated liveness during the interval, or
      if necessary to convert the safe to a 1 of 1.
 1. The module sets the correct 75% threshold upon removing a signer.
 1. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
+1. It must be impossible for the guard's checkTransaction or checkAfterExecution to permanently revert given any calldata and the current state.
 
 ### Interdependency between the Guard and Module
 
@@ -108,7 +109,7 @@ be set on the Safe, and the Module will be unable to function if the Guard is re
 
 ### Deployment
 
-The module are guard are intended to be deployed and installed on the safe in the following sequence:
+The module and guard are intended to be deployed and installed on the safe in the following sequence:
 
 1. Deploy the guard contract, this will set a timestamp for each existing owner on the Safe.
 1. Deploy the module.

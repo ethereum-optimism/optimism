@@ -23,7 +23,7 @@ contract LivenessGuard is ISemver, BaseGuard {
 
     /// @notice Emitted when an owner is recorded.
     /// @param owner The owner's address.
-    event OwnerRecorded(bytes32 indexed txHash, address owner);
+    event OwnerRecorded(address owner);
 
     /// @notice Semantic version.
     /// @custom:semver 1.0.0
@@ -49,12 +49,18 @@ contract LivenessGuard is ISemver, BaseGuard {
         for (uint256 i = 0; i < owners.length; i++) {
             address owner = owners[i];
             lastLive[owner] = block.timestamp;
-            emit OwnerRecorded(0x0, owner);
+            emit OwnerRecorded(owner);
         }
     }
 
+    /// @notice Getter function for the Safe contract instance
+    /// @return safe_ The Safe contract instance
+    function safe() public view returns (Safe safe_) {
+        safe_ = SAFE;
+    }
+
     /// @notice Internal function to ensure that only the Safe can call certain functions.
-    function _onlySafe() internal view {
+    function _requireOnlySafe() internal view {
         require(msg.sender == address(SAFE), "LivenessGuard: only Safe can call this function");
     }
 
@@ -76,7 +82,7 @@ contract LivenessGuard is ISemver, BaseGuard {
         external
     {
         msgSender; // silence unused variable warning
-        _onlySafe();
+        _requireOnlySafe();
 
         // Cache the set of owners prior to execution.
         // This will be used in the checkAfterExecution method.
@@ -88,7 +94,7 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         // This call will reenter to the Safe which is calling it. This is OK because it is only reading the
         // nonce, and using the getTransactionHash() method.
-        bytes32 txHash = Safe(payable(msg.sender)).getTransactionHash({
+        bytes32 txHash = SAFE.getTransactionHash({
             to: to,
             value: value,
             data: data,
@@ -98,7 +104,7 @@ contract LivenessGuard is ISemver, BaseGuard {
             gasPrice: gasPrice,
             gasToken: gasToken,
             refundReceiver: refundReceiver,
-            _nonce: Safe(payable(msg.sender)).nonce() - 1
+            _nonce: SAFE.nonce() - 1
         });
 
         uint256 threshold = SAFE.getThreshold();
@@ -107,7 +113,7 @@ contract LivenessGuard is ISemver, BaseGuard {
 
         for (uint256 i = 0; i < signers.length; i++) {
             lastLive[signers[i]] = block.timestamp;
-            emit OwnerRecorded(txHash, signers[i]);
+            emit OwnerRecorded(signers[i]);
         }
     }
 
@@ -118,7 +124,7 @@ contract LivenessGuard is ISemver, BaseGuard {
     ///      1. Add new owners to the lastLive mapping
     ///      2. Delete removed owners from the lastLive mapping
     function checkAfterExecution(bytes32, bool) external {
-        _onlySafe();
+        _requireOnlySafe();
         // Get the current set of owners
         address[] memory ownersAfter = SAFE.getOwners();
 
@@ -132,6 +138,7 @@ contract LivenessGuard is ISemver, BaseGuard {
                 lastLive[ownerAfter] = block.timestamp;
             }
         }
+
         // Now iterate over the remaining ownersBefore entries. Any remaining addresses are no longer an owner, so we
         // delete them from the lastLive mapping.
         uint256 ownersBeforeLength = ownersBefore.length();
@@ -147,12 +154,6 @@ contract LivenessGuard is ISemver, BaseGuard {
         require(SAFE.isOwner(msg.sender), "LivenessGuard: only Safe owners may demonstrate liveness");
         lastLive[msg.sender] = block.timestamp;
 
-        emit OwnerRecorded(0x0, msg.sender);
-    }
-
-    /// @notice Getter function for the Safe contract instance
-    /// @return safe_ The Safe contract instance
-    function safe() public view returns (Safe safe_) {
-        safe_ = SAFE;
+        emit OwnerRecorded(msg.sender);
     }
 }
