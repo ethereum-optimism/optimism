@@ -51,10 +51,10 @@ func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 		intervalFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
-			Name:      "failures_total",
+			Name:      "interval_failures_total",
 			Help:      "number of times the etl encountered a failure during the processing loop",
 		}),
-		latestHeight: factory.NewCounter(prometheus.CounterOpts{
+		latestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
 			Name:      "latest_height",

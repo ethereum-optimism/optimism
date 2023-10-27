@@ -83,7 +83,7 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		}),
 		intervalFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
-			Name:      "failures_total",
+			Name:      "interval_failures_total",
 			Help:      "number of failures encountered",
 		}),
 		latestL1Height: factory.NewGauge(prometheus.GaugeOpts{
