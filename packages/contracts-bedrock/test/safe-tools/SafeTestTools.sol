@@ -212,10 +212,17 @@ library SafeTestLib {
         address[] memory _ownersList
     )
         internal
-        pure
-        returns (address prevOwner_)
+        view
+        returns (
+            // pure
+            address prevOwner_
+        )
     {
+        // console.log("getPrevOwnerFromList");
         for (uint256 i = 0; i < _ownersList.length; i++) {
+            // console.log(i);
+            // console.log(_owner);
+            // console.log("_ownersList[i]:", _ownersList[i]);
             if (_ownersList[i] != _owner) continue;
             if (i == 0) {
                 prevOwner_ = SENTINEL_OWNERS;
@@ -223,6 +230,8 @@ library SafeTestLib {
             }
             prevOwner_ = _ownersList[i - 1];
         }
+
+        console.log("prevOwner_:", prevOwner_);
     }
 
     /// @dev Given an array of owners to remove, this function will return an array of the previous owners

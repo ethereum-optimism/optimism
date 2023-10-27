@@ -41,7 +41,7 @@ contract LivenessModule_TestInit is Test, SafeTestTools {
     }
 
     /// @dev Sets up the test environment
-    function setUp() public {
+    function setUp() public virtual {
         // Set the block timestamp to the initTime, so that signatures recorded in the first block
         // are non-zero.
         vm.warp(initTime);
@@ -289,5 +289,100 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         assertEq(safeInstance.safe.getOwners().length, 1);
         assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
         assertEq(safeInstance.safe.getThreshold(), 1);
+    }
+}
+
+/// @dev A copy of LivenessModule.get75PercentThreshold as a free function to use below.
+function get75PercentThreshold(uint256 _numOwners) pure returns (uint256 threshold_) {
+    threshold_ = (_numOwners * 75 + 99) / 100;
+}
+
+contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
+    using SafeTestLib for SafeInstance;
+
+    /// @dev Override the base setUp function, to avoid instantiating an unnecessary Safe
+    function setUp() public override {
+        vm.warp(initTime);
+        fallbackOwner = makeAddr("fallbackOwner");
+    }
+
+    /// @dev Tests if removing owners works correctly for various safe configurations and numbeers of live owners
+    function testFuzz_removeOwners(uint256 _numOwners, uint256 _minOwners, uint256 _numLiveOwners) external {
+        // _numOwners must be at least 3, so that _minOwners can be set to at least 2 by the following bound() call.
+        _numOwners = bound(_numOwners, 3, 20);
+        // _minOwners must be at least 2, otherwise we don't have any range below _minOwners to test the transfer to
+        // the fallback owner.
+        _minOwners = bound(_minOwners, _numOwners - 1, _numOwners - 1);
+
+        // Ensure that _numLiveOwners is less than _numOwners so that we can remove at least one owner.
+        _numLiveOwners = bound(_numLiveOwners, 0, _numOwners - 1);
+
+        // The above bounds are a bit tricky, so we assert that the result is correct
+        assertTrue(_numOwners > _minOwners && _numOwners > _numLiveOwners && _minOwners >= 2);
+
+        // Create a Safe with _numOwners owners
+        (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("rmOwnersTest", _numOwners);
+        uint256 threshold = get75PercentThreshold(_numOwners);
+        safeInstance = _setupSafe(keys, threshold);
+        livenessGuard = new LivenessGuard(safeInstance.safe);
+        livenessModule = new LivenessModule({
+                    _safe: safeInstance.safe,
+                    _livenessGuard: livenessGuard,
+                    _livenessInterval: livenessInterval,
+                    _minOwners: _minOwners,
+                    _fallbackOwner: fallbackOwner
+                });
+        safeInstance.setGuard(address(livenessGuard));
+        safeInstance.enableModule(address(livenessModule));
+
+        // Warp ahead so that all owners non-live
+        _warpPastLivenessInterval();
+
+        // Create an array of live owners, and call showLiveness for each of them
+        address[] memory liveOwners = new address[](_numLiveOwners);
+        for (uint256 i = 0; i < _numLiveOwners; i++) {
+            liveOwners[i] = safeInstance.owners[i];
+            vm.prank(safeInstance.owners[i]);
+            livenessGuard.showLiveness();
+        }
+
+        // Create an array of non-live owners
+        address[] memory nonLiveOwners = new address[](_numOwners - _numLiveOwners);
+        for (uint256 i = 0; i < _numOwners - _numLiveOwners; i++) {
+            nonLiveOwners[i] = safeInstance.owners[i + _numLiveOwners];
+        }
+
+        address[] memory prevOwners;
+        if (_numLiveOwners >= _minOwners) {
+            // The safe will remain above the minimum number of owners, so we can remove only those owners which are not
+            // live.
+            prevOwners = safeInstance.getPrevOwners(nonLiveOwners);
+            livenessModule.removeOwners(prevOwners, nonLiveOwners);
+
+            // Validate the resulting state of the Safe
+            assertEq(safeInstance.safe.getOwners().length, _numLiveOwners);
+            assertEq(safeInstance.safe.getThreshold(), get75PercentThreshold(_numLiveOwners));
+            for (uint256 i = 0; i < _numLiveOwners; i++) {
+                assertTrue(safeInstance.safe.isOwner(liveOwners[i]));
+            }
+            for (uint256 i = 0; i < nonLiveOwners.length; i++) {
+                assertFalse(safeInstance.safe.isOwner(nonLiveOwners[i]));
+            }
+        } else {
+            // The safe is below the minimum number of owners, so we can remove all owners,
+            // but we need to do remove the non-live owners first, so we reverse the owners array, since
+            // the first owners have signed recently.
+            address[] memory ownersToRemove = new address[](_numOwners);
+            for (uint256 i = 0; i < _numOwners; i++) {
+                ownersToRemove[_numOwners - i - 1] = safeInstance.owners[i];
+            }
+            prevOwners = safeInstance.getPrevOwners(ownersToRemove);
+            livenessModule.removeOwners(prevOwners, ownersToRemove);
+
+            // Validate the resulting state of the Safe
+            assertEq(safeInstance.safe.getOwners().length, 1);
+            assertEq(safeInstance.safe.getOwners()[0], fallbackOwner);
+            assertEq(safeInstance.safe.getThreshold(), 1);
+        }
     }
 }
