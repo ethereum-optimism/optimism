@@ -9,7 +9,7 @@ import (
 var enableParallelTesting bool = os.Getenv("OP_E2E_DISABLE_PARALLEL") != "true"
 
 type testopts struct {
-	executor int
+	executor uint64
 }
 
 func InitParallel(t *testing.T, args ...func(t *testing.T, opts *testopts)) {
@@ -37,13 +37,13 @@ func UsesCannon(t *testing.T, opts *testopts) {
 // InitParallel(t, UseExecutor(1))
 // Any tests assigned to an executor greater than the number available automatically use the last executor.
 // Executor indexes start from 0
-func UseExecutor(assignedIdx int) func(t *testing.T, opts *testopts) {
+func UseExecutor(assignedIdx uint64) func(t *testing.T, opts *testopts) {
 	return func(t *testing.T, opts *testopts) {
 		opts.executor = assignedIdx
 	}
 }
 
-func checkExecutor(t *testing.T, assignedIdx int) {
+func checkExecutor(t *testing.T, assignedIdx uint64) {
 	envTotal := os.Getenv("CIRCLE_NODE_TOTAL")
 	envIdx := os.Getenv("CIRCLE_NODE_INDEX")
 	if envTotal == "" || envIdx == "" {
@@ -51,11 +51,11 @@ func checkExecutor(t *testing.T, assignedIdx int) {
 		t.Logf("Running test. Test splitting not in use.")
 		return
 	}
-	total, err := strconv.Atoi(envTotal)
+	total, err := strconv.ParseUint(envTotal, 10, 0)
 	if err != nil {
 		t.Fatalf("Could not parse CIRCLE_NODE_TOTAL env var %v: %v", envTotal, err)
 	}
-	idx, err := strconv.Atoi(envIdx)
+	idx, err := strconv.ParseUint(envIdx, 10, 0)
 	if err != nil {
 		t.Fatalf("Could not parse CIRCLE_NODE_INDEX env var %v: %v", envIdx, err)
 	}
