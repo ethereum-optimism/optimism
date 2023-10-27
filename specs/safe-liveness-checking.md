@@ -4,19 +4,22 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [Liveness Checking Mechanism](#liveness-checking-mechanism)
+- [Liveness checking Mechanism](#liveness-checking-mechanism)
 - [Liveness checking methodology](#liveness-checking-methodology)
-  - [The Liveness Guard](#the-liveness-guard)
-  - [The Liveness Module](#the-liveness-module)
+  - [The liveness guard](#the-liveness-guard)
+  - [The liveness module](#the-liveness-module)
   - [Owner removal call flow](#owner-removal-call-flow)
   - [Shutdown](#shutdown)
   - [Security Properties](#security-properties)
   - [Interdependency between the guard and module](#interdependency-between-the-guard-and-module)
-  - [Deployment](#deployment)
+  - [Deploying the liveness checking system](#deploying-the-liveness-checking-system)
+  - [Modify the liveness checking system](#modify-the-liveness-checking-system)
+    - [Replacing the module](#replacing-the-module)
+    - [Replacing the guard](#replacing-the-guard)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-## Liveness Checking Mechanism
+## Liveness checking Mechanism
 
 The Security Security Council uses a specially extended Safe multisig contract to ensure that
 any loss of access to a signer's keys is identified and addressed within a predictable period of
@@ -36,7 +39,7 @@ This is achieved using two types of contracts which the Safe contract has built-
    authorized to execute transactions via the Safe. This means the module must properly implement
    auth conditions internally.
 
-### The Liveness Guard
+### The liveness guard
 
 For implementing liveness checks a `LivenessGuard` is created which receives the signatures from
 each executed transaction, and tracks the latest time at which a transaction was signed by each
@@ -44,7 +47,7 @@ signer. This time is made publicly available by calling a `lastLive(address)(Tim
 
 Signers may also call the contract's `showLiveness()()` method directly in order to prove liveness.
 
-### The Liveness Module
+### The liveness module
 
 A `LivenessModule` is also created which does the following:
 
@@ -102,6 +105,10 @@ The following security properties must be upheld:
 1. It must be impossible for the guard's checkTransaction or checkAfterExecution to permanently
    revert given any calldata and the current state.
 
+Note: neither the module nor guard attempt to prevent a quorum of owners from removing either the liveness
+module or guard. There are legitimate reasons they might wish to do so. Moreover, if such a quorum
+of owners exists, there is no benefit to removing them, as they are defacto 'sufficiently live'.
+
 ### Interdependency between the guard and module
 
 The guard has no dependency on the module, and can be used independently to track liveness of
@@ -128,6 +135,10 @@ sequence:
 This order of operations is necessary to satisfy the constructor checks in the module, and is
 intended to prevent owners from being immediately removable.
 
+Note that changes to the owners set should not be made between the time the module is deployed, and
+when it is enabled on the Safe, otherwise the checks made in the module's constructor may be
+invalidated. If such changes are made, a new module should be deployed.
+
 ### Modify the liveness checking system
 
 Changes to the liveness checking system should be done in the following manner:
@@ -136,6 +147,9 @@ Changes to the liveness checking system should be done in the following manner:
 
 The module can safely be removed without affecting the operation of the guard. A new module can then
 be added.
+
+Note: none of the module's parameters are modifiable. In order to update the security properties
+enforced by the module, it must be replaced.
 
 #### Replacing the guard
 
