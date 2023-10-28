@@ -213,81 +213,31 @@ mod test {
     use super::*;
     use reth_db::database::Database;
     use reth_primitives::{
-        address, b256, bloom, hex, AccessList, Block, Bytes, Header, Log as RethLog, Receipts,
-        SealedBlockWithSenders, Signature, Transaction, TxEip1559, TxType, TxValue,
-        EMPTY_OMMER_ROOT_HASH,
+        address, b256, bloom, Block, Bytes, Log, Receipts, SealedBlockWithSenders, TxType, U8,
     };
     use reth_provider::{BlockWriter, BundleStateWithReceipts, DatabaseProvider};
     use reth_revm::revm::db::BundleState;
-    use std::{path::Path, str::FromStr};
+    use std::{ffi::CString, fs::File, path::Path};
 
-    #[test]
-    fn generate_testdata_db() {
-        let db = reth_db::init_db(Path::new("testdata"), None).unwrap();
+    #[inline]
+    fn open_receipts_testdata_db() {
+        if File::open("testdata/db").is_ok() {
+            return;
+        }
+
+        let db = reth_db::init_db(Path::new("testdata/db"), None).unwrap();
         let pr = DatabaseProvider::new_rw(db.tx_mut().unwrap(), MAINNET.clone());
-
-        let block = Block {
-            header: Header {
-                parent_hash: b256!(
-                    "a2feb804b2ec06df67df4851a2ef75524820febc1a140ad5db424b80f9c3114d"
-                ),
-                ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                beneficiary: address!("0000000000000000000000000000000000000000"),
-                state_root: b256!(
-                    "56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421"
-                ),
-                transactions_root: b256!(
-                    "78aecefe9a8944f627b6ffef3aad9ab5f5a5031e360bd014a10a50bcf37979c6"
-                ),
-                receipts_root: b256!(
-                    "99bdc617e7e3781b02ce06c06a77acd45988be16be63d58578a4399f3cc10fed"
-                ),
-                withdrawals_root: Some(b256!(
-                    "558291986c64e0ef409d79093c5f4306257fa56179f07efe4483eeaa14299a0c"
-                )),
-                logs_bloom: bloom!("00b8830810238200002802008031000400a80400054013c04083000a11000082820028c40500100209140a4202018028000a0a344921910c001286001024000010834000ec4004010000002b82108423461b8460020600001404031680200020004010008e4a08500528418800010804100000c809600200008a0098800810c2008220100112250062c044050001404080651013422442da000101400500041002281000031100000300008010104a0800110208800051804ac41a2420000110e0104103102242c0020a2000041042c8040201024004871471018012404065280c30021c202082030800040000020808020104421010c241c80a400408020054"),
-                difficulty: U256::ZERO,
-                number: 9942861,
-                gas_limit: 0x1c9c380,
-                gas_used: 0xc91a7e,
-                timestamp: 0x653c5c8c,
-                mix_hash: b256!("c7bd100be413127b4e4695b29835cb15592c81e98b704b49838d358d13642c56"),
-                nonce: 0,
-                base_fee_per_gas: Some(9),
-                blob_gas_used: None,
-                excess_blob_gas: None,
-                parent_beacon_block_root: None,
-                extra_data: hex!("d883010b04846765746888676f312e32302e32856c696e7578").into(),
-            },
-            body: vec![
-                TransactionSigned {
-                    hash: b256!("12c0074a4a7916fe6f39de8417fe93f1fa77bcadfd5fc31a317fb6c344f66602"),
-                    signature: Signature {
-                        r: U256::from_str("0x200a045cf9b74dc7eaa71cbbc257c0d8365a11c3dc3f547267f4d93e3863e358").unwrap(),
-                        s:  U256::from_str("0x1f9f7a37b2fa471c9212009c1f19daf3f03dbfd1787be7e227b56765daf084a").unwrap(),
-                        odd_y_parity: true
-                    },
-                    transaction: Transaction::Eip1559(TxEip1559 {
-                        chain_id: 5,
-                        nonce: 0x4b4b,
-                        gas_limit: 0x3c03f,
-                        max_fee_per_gas: 0x59682f12,
-                        max_priority_fee_per_gas: 0x59682f00,
-                        to: TransactionKind::Call(address!("4ce63f351597214ef0b9a319124eea9e0f9668bb")),
-                        value: TxValue::from(U256::ZERO),
-                        access_list: AccessList::default(),
-                        input: hex!("70ab1eb60000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000c200000000000000000000000000000000000000000000000000000000000000003ed1c85eb0477c9ac0308a4c7022c37e606627b328daa4ab363f44981e287d69bb075d81fcbff15450b978f9b84ca9fd9ca96b1e8faf3ea1f2951e496980b466186ae4a9f759f4d75d4fe28fde9d6ebad99f49cb30f791a2bfc85a8a2a36569f00000000000000000000000000000000000000000000000000000000653c5bf50c07ca9327b541241b9a7d856294622c1b03d4991fdf44537d97173709a7c7f4084a7f906d3e5594377cd9d7c36fc66c53716e69c8114b8fa425ad06e53807302eb1efd7eaf8c72107458873cda1b771bb5bf0154caa2ed63d3073e970cf63da0c1d1e58f31dff4dba615c61b3996a01d41e1f45999ea132e254c8e6129e535817235adea1ec0def8111508cc9b658347db64bdf3904c592f5ad4d9258f57b0c167f59373778385fc2f01ee9539befaaf97a8d540ae926242061d2da5fea4a91152ea7d88c390b356fb780a6f93c57efa6aab34d9409dec4dd23bc0ffa8f3f7825dd47e27434b2e4d9d9730db0ae0c2faa556f0e7440724d2c44c527c4d1ad8e29da7229592b10d727c8a7d633c8a0e6240db2452282ecee26ef3d8d9980b463").into()
-                    }
-              ) }
-            ],
-            ommers: vec![],
-            withdrawals: None,
-        };
+        let block: Block = serde_json::from_str(include_str!("../testdata/dummy_block.json"))
+            .expect("failed to parse dummy block");
+        let block_number = block.header.number;
+        let tx_sender = block.body[0]
+            .recover_signer()
+            .expect("failed to recover signer");
 
         pr.append_blocks_with_bundle_state(
             vec![SealedBlockWithSenders {
                 block: block.seal_slow(),
-                senders: vec![address!("a24efab96523efa6abb2de9b2c16205cfa3c1dc8")],
+                senders: vec![tx_sender],
             }],
             BundleStateWithReceipts::new(
                 BundleState::default(),
@@ -295,7 +245,7 @@ mod test {
                     tx_type: TxType::EIP1559,
                     success: true,
                     cumulative_gas_used: 0x3aefc,
-                    logs: vec![RethLog {
+                    logs: vec![Log {
                         address: address!("4ce63f351597214ef0b9a319124eea9e0f9668bb"),
                         topics: vec![
                             b256!(
@@ -308,11 +258,75 @@ mod test {
                         data: Bytes::default(),
                     }],
                 }]),
-                9942861,
+                block_number,
             ),
             None,
         )
-        .unwrap();
-        pr.commit().unwrap();
+        .expect("failed to append block and receipt to database");
+
+        pr.commit()
+            .expect("failed to commit block and receipt to database");
+    }
+
+    #[test]
+    fn fetch_receipts() {
+        open_receipts_testdata_db();
+
+        unsafe {
+            let mut block_hash =
+                b256!("bcc3fb97b87bb4b14bacde74255cbfcf52675c0ad5e06fa264c0e5d6c0afd96e");
+            let receipts_res = super::read_receipts_inner(
+                block_hash.as_mut_ptr(),
+                32,
+                CString::new("testdata/db").unwrap().into_raw() as *const c_char,
+            )
+            .unwrap();
+
+            let receipts_data =
+                std::slice::from_raw_parts(receipts_res.data as *const u8, receipts_res.data_len);
+            let receipt = {
+                let mut receipts: Vec<TransactionReceipt> =
+                    serde_json::from_slice(receipts_data).unwrap();
+                receipts.remove(0)
+            };
+
+            assert_eq!(receipt.transaction_type, U8::from(2));
+            assert_eq!(receipt.status_code, Some(U64::from(1)));
+            assert_eq!(receipt.cumulative_gas_used, U256::from(241_404));
+            assert_eq!(receipt.logs_bloom, bloom!("00000000000000000000000000000000000000000100008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000004000000000000000010020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000800000000000000000000000000000000000000000000000000000000"));
+            assert_eq!(
+                receipt.logs[0].address,
+                address!("4ce63f351597214ef0b9a319124eea9e0f9668bb")
+            );
+            assert_eq!(
+                receipt.logs[0].topics[0],
+                b256!("0cdbd8bd7813095001c5fe7917bd69d834dc01db7c1dfcf52ca135bd20384413")
+            );
+            assert_eq!(
+                receipt.logs[0].topics[1],
+                b256!("00000000000000000000000000000000000000000000000000000000000000c2")
+            );
+            assert_eq!(receipt.logs[0].data, Bytes::default());
+            assert_eq!(
+                receipt.from,
+                address!("a24efab96523efa6abb2de9b2c16205cfa3c1dc8")
+            );
+            assert_eq!(
+                receipt.to,
+                Some(address!("4ce63f351597214ef0b9a319124eea9e0f9668bb"))
+            );
+            assert_eq!(
+                receipt.transaction_hash,
+                Some(b256!(
+                    "12c0074a4a7916fe6f39de8417fe93f1fa77bcadfd5fc31a317fb6c344f66602"
+                ))
+            );
+
+            assert_eq!(receipt.block_number, Some(U256::from(9_942_861)));
+            assert_eq!(receipt.block_hash, Some(block_hash));
+            assert_eq!(receipt.transaction_index, U64::from(0));
+
+            crate::rdb_free_string(receipts_res.data as *mut c_char);
+        }
     }
 }

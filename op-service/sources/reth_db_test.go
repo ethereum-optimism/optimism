@@ -18,7 +18,7 @@ func TestRethDBReceiptsLoad(t *testing.T) {
 	//
 	// https://goerli.etherscan.io/tx/0x12c0074a4a7916fe6f39de8417fe93f1fa77bcadfd5fc31a317fb6c344f66602
 	blockHash := common.HexToHash("0xbcc3fb97b87bb4b14bacde74255cbfcf52675c0ad5e06fa264c0e5d6c0afd96e")
-	res, err := FetchRethReceipts("../rethdb-reader/testdata", &blockHash)
+	res, err := FetchRethReceipts("../rethdb-reader/testdata/db", &blockHash)
 	require.NoError(t, err)
 
 	receipt := (*types.Receipt)(res[0])

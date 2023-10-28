@@ -5,4 +5,4 @@ target/
 rdb.h
 
 # Testdata DB
-testdata/
+testdata/db
