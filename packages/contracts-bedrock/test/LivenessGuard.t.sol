@@ -93,8 +93,7 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
         signers[1] = safeInstance.owners[1];
 
         for (uint256 i; i < signers.length; i++) {
-            // Don't check topic1 so that we can avoid the ugly txHash calculation.
-            vm.expectEmit(false, true, true, true, address(livenessGuard));
+            vm.expectEmit(address(livenessGuard));
             emit OwnerRecorded(signers[i]);
         }
         vm.expectCall(address(safeInstance.safe), abi.encodeWithSignature("nonce()"));
