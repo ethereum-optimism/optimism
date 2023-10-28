@@ -211,9 +211,10 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
 
     /// @dev Describes a change to be made to the safe
     struct OwnerChange {
+        uint8 timeDelta; // used to warp the vm
         uint8 operation; // used to choose an OwnerOp
+        uint256 ownerIndex; // used to choose the owner to remove or swap out
         uint256 newThreshold;
-        uint256 ownerIndex;
     }
 
     /// @dev Maps addresses to private keys
@@ -251,6 +252,7 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
         safeInstance.setGuard(address(livenessGuard));
 
         for (uint256 i = 0; i < changes.length; i++) {
+            vm.warp(block.timestamp + changes[i].timeDelta);
             OwnerChange memory change = changes[i];
             address[] memory currentOwners = safeInstance.safe.getOwners();
 
