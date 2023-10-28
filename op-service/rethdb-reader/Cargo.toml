@@ -9,7 +9,17 @@ name = "rethdbreader"
 crate-type = ["cdylib"]
 
 [dependencies]
-reth = { git = "https://github.com/paradigmxyz/reth.git" }
+# reth
+reth-primitives = { git = "https://github.com/paradigmxyz/reth.git" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth.git" }
+reth-db = { git = "https://github.com/paradigmxyz/reth.git" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth.git" }
+reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth.git" }
+
+# misc
 serde = "1.0.190"
 serde_json = "1.0.107"
 anyhow = "1.0.75"
+
+[dev-dependencies]
+reth-revm = { git = "https://github.com/paradigmxyz/reth.git" }

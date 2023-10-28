@@ -1213,6 +1213,63 @@ jobs:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
 
+  op-service-rethdb-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-service,op-node
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - run:
+          name: Install Rust toolchain
+          command: |
+            curl https://sh.rustup.rs -sSf | bash -s -- -y
+            echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $BASH_ENV
+            echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
+            source $HOME/.bashrc
+            rustup update nightly
+      - run:
+          name: Install deps
+          command: |
+            apt-get update
+            apt-get install -y pkg-config libssl-dev clang libclang-dev
+      - restore_cache:
+          name: Restore rust build cache
+          key: rethdb-reader-cache
+      - run:
+          name: Cargo fmt + clippy
+          command: |
+            cargo +nightly fmt -- --check
+            cargo +nightly clippy --all --all-features -- -D warnings
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Generate testdata db
+          command: cargo test
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Build dylib
+          command: cargo build --release
+          working_directory: op-service/rethdb-reader
+      - save_cache:
+          name: Persist rust build cache
+          # CircleCI will fall back to the latest key when restoring. We always want to persist the
+          # most recent cache.
+          key: rethdb-reader-cache-{{ epoch }}
+          paths:
+            - "/root/project/op-service/rethdb-reader/target"
+      - run:
+          name: Update LD_LIBRARY_PATH
+          command: echo 'export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/project/op-service/rethdb-reader/target/release"' >> $BASH_ENV
+      - run:
+          name: Run op-service RethDB tests
+          command: |
+            gotestsum --format=standard-verbose -- -run TestRethDB -tags rethdb -v
+          working_directory: op-service/sources
+
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1428,6 +1485,9 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["op-stack-go-lint"]
+      - op-service-rethdb-tests:
+          requires:
+            - op-stack-go-lint
       - go-e2e-test:
           name: op-e2e-WS-tests
           module: op-e2e

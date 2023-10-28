@@ -27,6 +27,14 @@ cargo doc --open
 cargo +nightly fmt -- && cargo +nightly clippy --all --all-features -- -D warnings
 ```
 
+**Generating `testdata`**
+
+The testdata DB is automatically generated upon running the tests.
+
+```sh
+cargo test
+```
+
 **Generating the C header**
 
 To generate the C header, first install `cbindgen` via `cargo install cbindgen --force`. Then, run the generation script:
