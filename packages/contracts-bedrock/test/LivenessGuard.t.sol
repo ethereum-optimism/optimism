@@ -92,6 +92,13 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
         signers[0] = safeInstance.owners[0];
         signers[1] = safeInstance.owners[1];
 
+        // Record the timestamps before the transaction
+        uint256[] memory beforeTimestamps = new uint256[](safeInstance.owners.length);
+
+        // Jump ahead
+        uint256 newTimestamp = block.timestamp + 100;
+        vm.warp(newTimestamp);
+
         for (uint256 i; i < signers.length; i++) {
             vm.expectEmit(address(livenessGuard));
             emit OwnerRecorded(signers[i]);
@@ -99,9 +106,10 @@ contract LivenessGuard_CheckTx_Test is LivenessGuard_TestInit {
         vm.expectCall(address(safeInstance.safe), abi.encodeWithSignature("nonce()"));
         vm.expectCall(address(safeInstance.safe), abi.encodeCall(OwnerManager.getThreshold, ()));
         safeInstance.execTransaction({ to: address(1111), value: 0, data: hex"abba" });
-
         for (uint256 i; i < safeInstance.threshold; i++) {
-            assertEq(livenessGuard.lastLive(safeInstance.owners[i]), block.timestamp);
+            uint256 lastLive = livenessGuard.lastLive(safeInstance.owners[i]);
+            assertGe(lastLive, beforeTimestamps[i]);
+            assertEq(lastLive, newTimestamp);
         }
     }
 }
