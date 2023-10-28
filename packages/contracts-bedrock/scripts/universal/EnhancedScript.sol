@@ -3,16 +3,16 @@ pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
-import { Semver } from "../../src/universal/Semver.sol";
+import { ISemver } from "../../src/universal/ISemver.sol";
 
 /// @title EnhancedScript
 /// @notice Enhances forge-std' Script.sol with some additional application-specific functionality.
 ///         Logs simulation links using Tenderly.
 abstract contract EnhancedScript is Script {
-    /// @notice Helper function used to compute the hash of Semver's version string to be used in a
+    /// @notice Helper function used to compute the hash of ISemver's version string to be used in a
     ///         comparison.
     function _versionHash(address _addr) internal view returns (bytes32) {
-        return keccak256(bytes(Semver(_addr).version()));
+        return keccak256(bytes(ISemver(_addr).version()));
     }
 
     /// @notice Log a tenderly simulation link. The TENDERLY_USERNAME and TENDERLY_PROJECT
