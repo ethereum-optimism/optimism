@@ -213,7 +213,8 @@ contract LivenessModule is ISemver {
             );
         }
 
-        // Check that the threshold is correct. This check is also correct when there is a single
+        // Check that"LivenessModule: must remove all owners and transfer to fallback owner if numOwners < minOwners"
+        // the threshold is correct. This check is also correct when there is a single
         // owner, because get75PercentThreshold(1) returns 1.
         uint256 threshold = SAFE.getThreshold();
         require(
