@@ -215,6 +215,24 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
     /// @dev Tests if remove owners reverts if it removes too many owners without removing all of them
     function test_removeOwners_belowMinButNotEmptied_reverts() external {
         // Remove all but one owner
+        uint256 numOwners = safeInstance.owners.length - 2;
+
+        address[] memory ownersToRemove = new address[](numOwners);
+        for (uint256 i = 0; i < numOwners; i++) {
+            ownersToRemove[i] = safeInstance.owners[i];
+        }
+        address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
+
+        _warpPastLivenessInterval();
+        vm.expectRevert(
+            "LivenessModule: must remove all owners and transfer to fallback owner if numOwners < minOwners"
+        );
+        livenessModule.removeOwners(prevOwners, ownersToRemove);
+    }
+
+    /// @dev Tests if remove owners reverts if it removes too many owners transferring to the fallback owner
+    function test_removeOwners_belowEmptiedButNotFallback_reverts() external {
+        // Remove all but one owner
         uint256 numOwners = safeInstance.owners.length - 1;
 
         address[] memory ownersToRemove = new address[](numOwners);
