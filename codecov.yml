@@ -9,8 +9,9 @@ comment:
 
 ignore:
   - "op-e2e"
-  - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "**/*.t.sol"
+  - "packages/contracts-bedrock/test/**/*.sol"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
   - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
 coverage:

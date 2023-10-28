@@ -17,6 +17,3 @@
 	path = packages/contracts-bedrock/lib/safe-contracts
 	url = https://github.com/safe-global/safe-contracts
 	branch = v1.4.0
-
-
-
