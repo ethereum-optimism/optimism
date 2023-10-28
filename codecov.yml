@@ -1,4 +1,12 @@
-comment: false
+codecov:
+  require_ci_to_pass: false
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
+  flags:
+    - contracts-bedrock-tests
+
 ignore:
   - "op-e2e"
   - "**/*.t.sol"
@@ -13,6 +21,7 @@ coverage:
         threshold: 0% # coverage is not allowed to reduce vs. the PR base
         base: auto
         informational: true
+        enabled: true
     project:
       default:
         informational: true

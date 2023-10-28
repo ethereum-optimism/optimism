@@ -104,6 +104,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConfigPersistence: configPersistence,
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
+		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {

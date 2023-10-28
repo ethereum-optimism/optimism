@@ -3,6 +3,9 @@ ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
 OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
 
+# Requires at least Python v3.9; specify a minor version below if needed
+PYTHON?=python3
+
 build: build-go build-ts
 .PHONY: build
 
@@ -114,14 +117,14 @@ pre-devnet:
 devnet-up: pre-devnet
 	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
 		|| make devnet-allocs
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 # alias for devnet-up
 devnet-up-deploy: devnet-up
 
 devnet-test: pre-devnet
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test
 .PHONY: devnet-test
 
 devnet-down:
@@ -137,7 +140,7 @@ devnet-clean:
 .PHONY: devnet-clean
 
 devnet-allocs: pre-devnet
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker compose logs -f)
