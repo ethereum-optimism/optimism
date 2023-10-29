@@ -14,8 +14,8 @@ RUN if [ "$METAMASK_PLAYWRIGHT_RUN_HEADLESS" != "false" ]; then \
     fi
 
 # Copy necessary files and directories
-COPY package.json /app/
-RUN npm install
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
+RUN npm install --frozen-lockfile
 COPY tests /app/tests/
 COPY playwright.config.ts /app/
 COPY start.sh /app/
