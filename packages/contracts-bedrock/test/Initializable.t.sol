@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721Bridge_Initializer } from "test/CommonTest.t.sol";
-import { console } from "forge-std/console.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
@@ -13,7 +12,7 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
 ///      once. This contract inherits from `ERC721Bridge_Initializer` because it is the
 ///      deepest contract in the inheritance chain for setting up the system contracts.
-contract Initializer_Test is ERC721Bridge_Initializer {
+contract Initializer_Test is Bridge_Initializer {
     function test_cannotReinitializeL1_succeeds() public {
         vm.expectRevert("Initializable: contract is already initialized");
         l1CrossDomainMessenger.initialize(OptimismPortal(payable(address(0))));

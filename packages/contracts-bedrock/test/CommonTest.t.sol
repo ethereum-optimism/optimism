@@ -344,13 +344,6 @@ contract Bridge_Initializer is Messenger_Initializer {
     }
 }
 
-contract ERC721Bridge_Initializer is Bridge_Initializer {
-
-    function setUp() public virtual override {
-        super.setUp();
-    }
-}
-
 contract FeeVault_Initializer is Bridge_Initializer {
     SequencerFeeVault vault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
     address constant recipient = address(1024);

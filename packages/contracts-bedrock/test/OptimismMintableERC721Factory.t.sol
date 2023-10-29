@@ -2,11 +2,11 @@
 pragma solidity 0.8.15;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { ERC721Bridge_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
 import { OptimismMintableERC721 } from "src/universal/OptimismMintableERC721.sol";
 import { OptimismMintableERC721Factory } from "src/universal/OptimismMintableERC721Factory.sol";
 
-contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
+contract OptimismMintableERC721Factory_Test is Bridge_Initializer {
     OptimismMintableERC721Factory internal factory;
 
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);

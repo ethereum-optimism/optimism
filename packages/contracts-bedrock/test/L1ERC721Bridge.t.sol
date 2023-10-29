@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { ERC721Bridge_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 // Target contract dependencies
@@ -21,7 +21,7 @@ contract TestERC721 is ERC721 {
     }
 }
 
-contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
+contract L1ERC721Bridge_Test is Bridge_Initializer {
     TestERC721 internal localToken;
     TestERC721 internal remoteToken;
     uint256 internal constant tokenId = 1;
