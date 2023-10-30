@@ -187,8 +187,16 @@ contract CommonTest is Deploy, Test {
 
         vm.etch(Predeploys.GOVERNANCE_TOKEN, address(new GovernanceToken()).code);
         governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
-        vm.store(Predeploys.GOVERNANCE_TOKEN, bytes32(uint256(3)), bytes32(0x4f7074696d69736d000000000000000000000000000000000000000000000010));
-        vm.store(Predeploys.GOVERNANCE_TOKEN, bytes32(uint256(4)), bytes32(0x4f50000000000000000000000000000000000000000000000000000000000004));
+        vm.store(
+            Predeploys.GOVERNANCE_TOKEN,
+            bytes32(uint256(3)),
+            bytes32(0x4f7074696d69736d000000000000000000000000000000000000000000000010)
+        );
+        vm.store(
+            Predeploys.GOVERNANCE_TOKEN,
+            bytes32(uint256(4)),
+            bytes32(0x4f50000000000000000000000000000000000000000000000000000000000004)
+        );
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = cfg.finalSystemOwner();
