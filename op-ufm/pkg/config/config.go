@@ -2,6 +2,7 @@ package config
 
 import (
 	"math/big"
+	"os"
 
 	"github.com/BurntSushi/toml"
 	"github.com/pkg/errors"
@@ -78,6 +79,27 @@ func New(file string) (*Config, error) {
 	cfg := &Config{}
 	if _, err := toml.DecodeFile(file, cfg); err != nil {
 		return nil, err
+	}
+
+	KMSKeyID := os.Getenv("KMS_KEY_ID")
+	KMSEndPoint := os.Getenv("KMS_ENDPOINT")
+	KMSRegion := os.Getenv("KMS_REGION")
+	for _, wallet := range cfg.Wallets {
+		if wallet.KMSKeyID == "" {
+			wallet.KMSKeyID = KMSKeyID
+		}
+		if wallet.KMSEndpoint == "" {
+			wallet.KMSEndpoint = KMSEndPoint
+		}
+		if wallet.KMSRegion == "" {
+			wallet.KMSRegion = KMSRegion
+		}
+	}
+	URL := os.Getenv("PROVIDER_URL")
+	for _, provider := range cfg.Providers {
+		if provider.URL == "" {
+			provider.URL = URL
+		}
 	}
 	return cfg, nil
 }
