@@ -1,5 +1,7 @@
 package models
 
+import "github.com/ethereum-optimism/optimism/indexer/database"
+
 // DepositItem ... Deposit item model for API responses
 type DepositItem struct {
 	Guid           string `json:"guid"`
@@ -42,4 +44,33 @@ type WithdrawalResponse struct {
 	Cursor      string           `json:"cursor"`
 	HasNextPage bool             `json:"hasNextPage"`
 	Items       []WithdrawalItem `json:"items"`
+}
+
+// FIXME make a pure function that returns a struct instead of newWithdrawalResponse
+// newWithdrawalResponse ... Converts a database.L2BridgeWithdrawalsResponse to an api.WithdrawalResponse
+func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) WithdrawalResponse {
+	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
+	for i, withdrawal := range withdrawals.Withdrawals {
+		item := WithdrawalItem{
+			Guid:                 withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
+			L2BlockHash:          withdrawal.L2BlockHash.String(),
+			Timestamp:            withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
+			From:                 withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
+			To:                   withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
+			TransactionHash:      withdrawal.L2TransactionHash.String(),
+			Amount:               withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
+			MessageHash:          withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash.String(),
+			ProofTransactionHash: withdrawal.ProvenL1TransactionHash.String(),
+			ClaimTransactionHash: withdrawal.FinalizedL1TransactionHash.String(),
+			L1TokenAddress:       withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
+			L2TokenAddress:       withdrawal.L2BridgeWithdrawal.TokenPair.LocalTokenAddress.String(),
+		}
+		items[i] = item
+	}
+
+	return WithdrawalResponse{
+		Cursor:      withdrawals.Cursor,
+		HasNextPage: withdrawals.HasNextPage,
+		Items:       items,
+	}
 }
