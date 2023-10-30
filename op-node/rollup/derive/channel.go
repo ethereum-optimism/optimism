@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -146,7 +144,9 @@ func (ch *Channel) Reader() io.Reader {
 
 // BatchReader provides a function that iteratively consumes batches from the reader.
 // The L1Inclusion block is also provided at creation time.
-func BatchReader(cfg *rollup.Config, r io.Reader, l1InclusionBlock eth.L1BlockRef) (func() (BatchWithL1InclusionBlock, error), error) {
+// Warning: the batch reader can read every batch-type.
+// The caller of the batch-reader should filter the results.
+func BatchReader(r io.Reader) (func() (*BatchData, error), error) {
 	// Setup decompressor stage + RLP reader
 	zr, err := zlib.NewReader(r)
 	if err != nil {
@@ -154,17 +154,11 @@ func BatchReader(cfg *rollup.Config, r io.Reader, l1InclusionBlock eth.L1BlockRe
 	}
 	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
 	// Read each batch iteratively
-	return func() (BatchWithL1InclusionBlock, error) {
-		ret := BatchWithL1InclusionBlock{
-			L1InclusionBlock: l1InclusionBlock,
+	return func() (*BatchData, error) {
+		var batchData BatchData
+		if err = rlpReader.Decode(&batchData); err != nil {
+			return nil, err
 		}
-		err := rlpReader.Decode(&ret.Batch)
-		if err != nil {
-			return ret, err
-		}
-		if ret.Batch.BatchType == SpanBatchType && !cfg.IsSpanBatch(ret.L1InclusionBlock.Time) {
-			return ret, fmt.Errorf("cannot accept span-batch in L1 block with time %d", ret.L1InclusionBlock.Time)
-		}
-		return ret, nil
+		return &batchData, nil
 	}, nil
 }
