@@ -294,11 +294,12 @@ func TestSpanBatchRoundTrip(t *testing.T) {
 
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
-	result, err := rawSpanBatch.encodeBytes()
+	var result bytes.Buffer
+	err := rawSpanBatch.encode(&result)
 	require.NoError(t, err)
 
 	var sb RawSpanBatch
-	err = sb.decodeBytes(result)
+	err = sb.decode(bytes.NewReader(result.Bytes()))
 	require.NoError(t, err)
 
 	sb.txs.recoverV(chainID)

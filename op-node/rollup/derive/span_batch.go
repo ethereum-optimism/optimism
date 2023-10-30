@@ -224,12 +224,6 @@ func (bp *spanBatchPayload) decodePayload(r *bytes.Reader) error {
 	return nil
 }
 
-// decodeBytes parses data into b from data
-func (b *RawSpanBatch) decodeBytes(data []byte) error {
-	r := bytes.NewReader(data)
-	return b.decode(r)
-}
-
 // decode reads the byte encoding of SpanBatch from Reader stream
 func (b *RawSpanBatch) decode(r *bytes.Reader) error {
 	if r.Len() > MaxSpanBatchSize {
@@ -381,17 +375,6 @@ func (b *RawSpanBatch) encode(w io.Writer) error {
 		return err
 	}
 	return nil
-}
-
-// encodeBytes returns the byte encoding of SpanBatch
-func (b *RawSpanBatch) encodeBytes() ([]byte, error) {
-	buf := encodeBufferPool.Get().(*bytes.Buffer)
-	defer encodeBufferPool.Put(buf)
-	buf.Reset()
-	if err := b.encode(buf); err != nil {
-		return []byte{}, err
-	}
-	return buf.Bytes(), nil
 }
 
 // derive converts RawSpanBatch into SpanBatch, which has a list of spanBatchElement.

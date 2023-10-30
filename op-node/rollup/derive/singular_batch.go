@@ -65,13 +65,3 @@ func (b *SingularBatch) encode(w io.Writer) error {
 func (b *SingularBatch) decode(r *bytes.Reader) error {
 	return rlp.Decode(r, b)
 }
-
-// encodeBytes returns the byte encoding of SingularBatch
-func (b *SingularBatch) encodeBytes() ([]byte, error) {
-	return rlp.EncodeToBytes(b)
-}
-
-// decodeBytes parses data into b from data
-func (b *SingularBatch) decodeBytes(data []byte) error {
-	return rlp.DecodeBytes(data, b)
-}

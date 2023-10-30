@@ -53,8 +53,6 @@ type InnerBatchData interface {
 	GetBatchType() int
 	encode(w io.Writer) error
 	decode(r *bytes.Reader) error
-	encodeBytes() ([]byte, error)
-	decodeBytes(data []byte) error
 }
 
 // EncodeRLP implements rlp.Encoder
@@ -121,7 +119,7 @@ func (b *BatchData) decodeTyped(data []byte) error {
 	default:
 		return fmt.Errorf("unrecognized batch type: %d", data[0])
 	}
-	if err := inner.decodeBytes(data[1:]); err != nil {
+	if err := inner.decode(bytes.NewReader(data[1:])); err != nil {
 		return err
 	}
 	b.inner = inner
