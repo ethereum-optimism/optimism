@@ -39,7 +39,7 @@ ENV GO_VERSION=1.21.1
 
 # Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
 RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz
+  tar -C /usr/local/ -xzvf go$GO_VERSION.linux-amd64.tar.gz
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
