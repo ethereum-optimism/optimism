@@ -6,21 +6,18 @@
 # invalid JSON file when not filled in, which is annoying.
 
 reqenv() {
-  local var_name="$1"
-  local var_value="${!var_name}"
-  if [ -z "$var_value" ]; then
-    echo "Error: environment variable $var_name is undefined"
+  if [ -z "${!1}" ]; then
+    echo "Error: environment variable '$1' is undefined"
     exit 1
   fi
-  echo "$var_value"
 }
 
-# Load required environment variables
-GS_ADMIN_ADDRESS=$(reqenv GS_ADMIN_ADDRESS)
-GS_BATCHER_ADDRESS=$(reqenv GS_BATCHER_ADDRESS)
-GS_PROPOSER_ADDRESS=$(reqenv GS_PROPOSER_ADDRESS)
-GS_SEQUENCER_ADDRESS=$(reqenv GS_SEQUENCER_ADDRESS)
-L1_RPC_URL=$(reqenv L1_RPC_URL)
+# Check required environment variables
+reqenv "GS_ADMIN_ADDRESS"
+reqenv "GS_BATCHER_ADDRESS"
+reqenv "GS_PROPOSER_ADDRESS"
+reqenv "GS_SEQUENCER_ADDRESS"
+reqenv "L1_RPC_URL"
 
 # Get the finalized block timestamp and hash
 block=$(cast block finalized --rpc-url $L1_RPC_URL)
@@ -35,7 +32,7 @@ config=$(cat << EOL
 
   "l1StartingBlockTag": "$blockhash",
 
-  "l1ChainID": 5,
+  "l1ChainID": 11155111,
   "l2ChainID": 42069,
   "l2BlockTime": 2,
   "l1BlockTime": 12,
