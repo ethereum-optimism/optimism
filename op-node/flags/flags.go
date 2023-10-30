@@ -82,6 +82,12 @@ var (
 			return &out
 		}(),
 	}
+	L1RethDBPath = &cli.StringFlag{
+		Name:     "l1.rethdb",
+		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
+		EnvVars:  prefixEnvVars("L1_RETHDB"),
+		Required: false,
+	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
 		Usage:   "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
@@ -254,9 +260,10 @@ var (
 		EnvVars: prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
 	}
 	CanyonOverrideFlag = &cli.Uint64Flag{
-		Name:   "override.canyon",
-		Usage:  "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-		Hidden: false,
+		Name:    "override.canyon",
+		Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
+		EnvVars: prefixEnvVars("OVERRIDE_CANYON"),
+		Hidden:  false,
 	}
 )
 
@@ -303,6 +310,7 @@ var optionalFlags = []cli.Flag{
 	RollupHalt,
 	RollupLoadProtocolVersions,
 	CanyonOverrideFlag,
+	L1RethDBPath,
 }
 
 // Flags contains the list of configuration options available to the binary.

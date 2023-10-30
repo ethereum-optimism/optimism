@@ -158,7 +158,7 @@ target "ufm-metamask" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ufm-metamask:${tag}"]
 }
 
-type "chain-mon" {
+target "chain-mon" {
   dockerfile = "./ops/docker/Dockerfile.packages"
   context = "."
   args = {
@@ -173,9 +173,9 @@ type "chain-mon" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/chain-mon:${tag}"]
 }
 
-type "ci-builder" {
-  dockerfile = "Dockerfile"
-  context = "ops/docker/ci-builder"
+target "ci-builder" {
+  dockerfile = "./ops/docker/ci-builder/Dockerfile"
+  context = "."
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder:${tag}"]
 }

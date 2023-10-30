@@ -16,6 +16,7 @@ func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) mo
 		item := models.WithdrawalItem{
 			Guid:                 withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
 			L2BlockHash:          withdrawal.L2BlockHash.String(),
+			Timestamp:            withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
 			From:                 withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
 			To:                   withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
 			TransactionHash:      withdrawal.L2TransactionHash.String(),

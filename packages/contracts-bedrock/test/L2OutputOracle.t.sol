@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
-import { L2OutputOracle_Initializer, NextImpl } from "test/CommonTest.t.sol";
+import { L2OutputOracle_Initializer, NextImpl, EIP1967Helper } from "test/CommonTest.t.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
@@ -463,7 +463,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(bytes32(0), slot21Before);
 
         NextImpl nextImpl = new NextImpl();
-        vm.startPrank(multisig);
+        vm.startPrank(EIP1967Helper.getAdmin(address(proxy)));
         proxy.upgradeToAndCall(
             address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, Constants.INITIALIZER + 1)
         );

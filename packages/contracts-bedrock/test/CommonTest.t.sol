@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test, StdUtils } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
@@ -728,6 +729,18 @@ contract FFIInterface is Test {
         bytes memory result = vm.ffi(cmds);
         (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
         return (memRoot, proof);
+    }
+}
+
+library EIP1967Helper {
+    Vm internal constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+    function getAdmin(address _proxy) internal view returns (address) {
+        return address(uint160(uint256(vm.load(address(_proxy), Constants.PROXY_OWNER_ADDRESS))));
+    }
+
+    function getImplementation(address _proxy) internal view returns (address) {
+        return address(uint160(uint256(vm.load(address(_proxy), Constants.PROXY_IMPLEMENTATION_ADDRESS))));
     }
 }
 
