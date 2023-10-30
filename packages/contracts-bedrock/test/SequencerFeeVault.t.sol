@@ -17,6 +17,7 @@ import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 contract SequencerFeeVault_Test is FeeVault_Initializer {
     address recipient;
     /// @dev Sets up the test suite.
+
     function setUp() public override {
         super.setUp();
         recipient = cfg.sequencerFeeVaultRecipient();
@@ -57,7 +58,9 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
         // Set the code with the withdrawal network set to L1
         vm.etch(
             Predeploys.SEQUENCER_FEE_WALLET,
-            address(new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)).code
+            address(
+                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
+            ).code
         );
 
         uint256 amount = sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT() + 1;
@@ -69,13 +72,20 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this), FeeVault.WithdrawalNetwork.L1);
+        emit Withdrawal(
+            address(sequencerFeeVault).balance,
+            sequencerFeeVault.RECIPIENT(),
+            address(this),
+            FeeVault.WithdrawalNetwork.L1
+        );
 
         // The entire vault's balance is withdrawn
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,
             address(sequencerFeeVault).balance,
-            abi.encodeWithSelector(StandardBridge.bridgeETHTo.selector, sequencerFeeVault.l1FeeWallet(), 35_000, bytes(""))
+            abi.encodeWithSelector(
+                StandardBridge.bridgeETHTo.selector, sequencerFeeVault.l1FeeWallet(), 35_000, bytes("")
+            )
         );
 
         sequencerFeeVault.withdraw();
@@ -90,6 +100,7 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
 contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
     address recipient;
     /// @dev Sets up the test suite.
+
     function setUp() public override {
         super.setUp();
         recipient = cfg.sequencerFeeVaultRecipient();
@@ -106,7 +117,12 @@ contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this), FeeVault.WithdrawalNetwork.L2);
+        emit Withdrawal(
+            address(sequencerFeeVault).balance,
+            sequencerFeeVault.RECIPIENT(),
+            address(this),
+            FeeVault.WithdrawalNetwork.L2
+        );
 
         // The entire vault's balance is withdrawn
         vm.expectCall(recipient, address(sequencerFeeVault).balance, bytes(""));

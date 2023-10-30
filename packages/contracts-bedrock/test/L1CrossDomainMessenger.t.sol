@@ -44,7 +44,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
                 0,
                 l1CrossDomainMessenger.baseGas(hex"ff", 100),
                 false,
-                Encoding.encodeCrossDomainMessage(l1CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff")
+                Encoding.encodeCrossDomainMessage(
+                    l1CrossDomainMessenger.messageNonce(), alice, recipient, 0, 100, hex"ff"
+                )
             )
         );
 

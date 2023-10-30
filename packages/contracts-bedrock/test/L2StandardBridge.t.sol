@@ -65,7 +65,13 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // L2ToL1MessagePasser will emit a MessagePassed event
         vm.expectEmit(true, true, true, true, address(l2ToL1MessagePasser));
         emit MessagePassed(
-            nonce, address(l2CrossDomainMessenger), address(l1CrossDomainMessenger), 100, baseGas, withdrawalData, withdrawalHash
+            nonce,
+            address(l2CrossDomainMessenger),
+            address(l1CrossDomainMessenger),
+            100,
+            baseGas,
+            withdrawalData,
+            withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -89,7 +95,10 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector, address(l1CrossDomainMessenger), baseGas, withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                address(l1CrossDomainMessenger),
+                baseGas,
+                withdrawalData
             )
         );
 
@@ -151,7 +160,13 @@ contract PreBridgeERC20 is Bridge_Initializer {
         );
         uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l2StandardBridge), address(l1StandardBridge), 0, 1000, message
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(l2StandardBridge),
+            address(l1StandardBridge),
+            0,
+            1000,
+            message
         );
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -166,12 +181,15 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         if (_isLegacy) {
             vm.expectCall(
-                address(l2StandardBridge), abi.encodeWithSelector(l2StandardBridge.withdraw.selector, _l2Token, 100, 1000, hex"")
+                address(l2StandardBridge),
+                abi.encodeWithSelector(l2StandardBridge.withdraw.selector, _l2Token, 100, 1000, hex"")
             );
         } else {
             vm.expectCall(
                 address(l2StandardBridge),
-                abi.encodeWithSelector(l2StandardBridge.bridgeERC20.selector, _l2Token, address(L1Token), 100, 1000, hex"")
+                abi.encodeWithSelector(
+                    l2StandardBridge.bridgeERC20.selector, _l2Token, address(L1Token), 100, 1000, hex""
+                )
             );
         }
 
@@ -183,7 +201,10 @@ contract PreBridgeERC20 is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector, address(l1CrossDomainMessenger), baseGas, withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                address(l1CrossDomainMessenger),
+                baseGas,
+                withdrawalData
             )
         );
 
@@ -198,7 +219,13 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            nonce, address(l2CrossDomainMessenger), address(l1CrossDomainMessenger), 0, baseGas, withdrawalData, withdrawalHash
+            nonce,
+            address(l2CrossDomainMessenger),
+            address(l1CrossDomainMessenger),
+            0,
+            baseGas,
+            withdrawalData,
+            withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -271,7 +298,13 @@ contract PreBridgeERC20To is Bridge_Initializer {
         );
         uint64 baseGas = l2CrossDomainMessenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l2StandardBridge), address(l1StandardBridge), 0, 1000, message
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(l2StandardBridge),
+            address(l1StandardBridge),
+            0,
+            1000,
+            message
         );
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -292,7 +325,13 @@ contract PreBridgeERC20To is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true, address(l2ToL1MessagePasser));
         emit MessagePassed(
-            nonce, address(l2CrossDomainMessenger), address(l1CrossDomainMessenger), 0, baseGas, withdrawalData, withdrawalHash
+            nonce,
+            address(l2CrossDomainMessenger),
+            address(l1CrossDomainMessenger),
+            0,
+            baseGas,
+            withdrawalData,
+            withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -305,7 +344,8 @@ contract PreBridgeERC20To is Bridge_Initializer {
 
         if (_isLegacy) {
             vm.expectCall(
-                address(l2StandardBridge), abi.encodeWithSelector(l2StandardBridge.withdrawTo.selector, _l2Token, bob, 100, 1000, hex"")
+                address(l2StandardBridge),
+                abi.encodeWithSelector(l2StandardBridge.withdrawTo.selector, _l2Token, bob, 100, 1000, hex"")
             );
         } else {
             vm.expectCall(
@@ -324,7 +364,10 @@ contract PreBridgeERC20To is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector, address(l1CrossDomainMessenger), baseGas, withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                address(l1CrossDomainMessenger),
+                baseGas,
+                withdrawalData
             )
         );
 

@@ -280,7 +280,9 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
     function test_finalizeBridgeERC721_notFromRemoteMessenger_reverts() external {
         // Finalize a withdrawal.
         vm.mockCall(
-            address(l2CrossDomainMessenger), abi.encodeWithSelector(l2CrossDomainMessenger.xDomainMessageSender.selector), abi.encode(alice)
+            address(l2CrossDomainMessenger),
+            abi.encodeWithSelector(l2CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(alice)
         );
         vm.prank(address(l2CrossDomainMessenger));
         vm.expectRevert("ERC721Bridge: function can only be called from the other bridge");
@@ -298,7 +300,9 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
         );
         vm.prank(address(l2CrossDomainMessenger));
         vm.expectRevert("L2ERC721Bridge: local token cannot be self");
-        l2ERC721Bridge.finalizeBridgeERC721(address(l2ERC721Bridge), address(remoteToken), alice, alice, tokenId, hex"5678");
+        l2ERC721Bridge.finalizeBridgeERC721(
+            address(l2ERC721Bridge), address(remoteToken), alice, alice, tokenId, hex"5678"
+        );
     }
 
     /// @dev Tests that `finalizeBridgeERC721` reverts when already finalized.

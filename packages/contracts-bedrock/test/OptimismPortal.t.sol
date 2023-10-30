@@ -150,7 +150,13 @@ contract OptimismPortal_Test is Portal_Initializer {
             vm.expectRevert("OptimismPortal: gas limit too small");
         }
 
-        optimismPortal.depositTransaction({ _to: address(0x40), _value: 0, _gasLimit: gasLimit, _isCreation: false, _data: _data });
+        optimismPortal.depositTransaction({
+            _to: address(0x40),
+            _value: 0,
+            _gasLimit: gasLimit,
+            _isCreation: false,
+            _data: _data
+        });
     }
 
     /// @dev Tests that `minimumGasLimit` succeeds for small calldata sizes.
@@ -265,7 +271,9 @@ contract OptimismPortal_Test is Portal_Initializer {
             address(this), ZERO_ADDRESS, NON_ZERO_VALUE, ZERO_VALUE, NON_ZERO_GASLIMIT, true, hex""
         );
 
-        optimismPortal.depositTransaction{ value: NON_ZERO_VALUE }(ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, hex"");
+        optimismPortal.depositTransaction{ value: NON_ZERO_VALUE }(
+            ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, hex""
+        );
         assertEq(address(optimismPortal).balance, NON_ZERO_VALUE);
     }
 
@@ -282,7 +290,9 @@ contract OptimismPortal_Test is Portal_Initializer {
             NON_ZERO_DATA
         );
 
-        optimismPortal.depositTransaction{ value: NON_ZERO_VALUE }(ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, NON_ZERO_DATA);
+        optimismPortal.depositTransaction{ value: NON_ZERO_VALUE }(
+            ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, NON_ZERO_DATA
+        );
         assertEq(address(optimismPortal).balance, NON_ZERO_VALUE);
     }
 
@@ -380,7 +390,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         l2OutputOracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(
+            l2OutputOracle.getL2Output(_proposedOutputIndex).timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS()
+                + 1
+        );
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(optimismPortal), 0xFFFFFFFF);
     }
@@ -515,7 +528,9 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // our proof with a changed outputRoot + a different output index
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
-        optimismPortal.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex + 1, _outputRootProof, _withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(
+            _defaultTx, _proposedOutputIndex + 1, _outputRootProof, _withdrawalProof
+        );
 
         // Ensure that the withdrawal was updated within the mapping
         (, uint128 timestamp,) = optimismPortal.provenWithdrawals(_withdrawalHash);
@@ -602,7 +617,9 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()), abi.encodeWithSignature("startingTimestamp()"), abi.encode(block.timestamp + 1)
+            address(optimismPortal.L2_ORACLE()),
+            abi.encodeWithSignature("startingTimestamp()"),
+            abi.encode(block.timestamp + 1)
         );
 
         // Attempt to finalize the withdrawal
@@ -759,7 +776,9 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             )
         );
 
-        optimismPortal.proveWithdrawalTransaction(insufficientGasTx, _proposedOutputIndex, outputRootProof, withdrawalProof);
+        optimismPortal.proveWithdrawalTransaction(
+            insufficientGasTx, _proposedOutputIndex, outputRootProof, withdrawalProof
+        );
 
         vm.warp(block.timestamp + l2OutputOracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectRevert("SafeCall: Not enough gas");

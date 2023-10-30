@@ -15,7 +15,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 contract SystemConfig_Init is CommonTest {
-
     event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
 }
 
@@ -41,7 +40,6 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         unsafeBlockSigner = cfg.p2pSequencerAddress();
         systemConfigImpl = mustGetAddress("SystemConfig");
         optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20FactoryProxy");
-
     }
 
     /// @dev Tests that initailization sets the correct values.

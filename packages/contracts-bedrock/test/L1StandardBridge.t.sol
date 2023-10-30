@@ -87,10 +87,16 @@ contract PreBridgeETH is Bridge_Initializer {
 
         if (isLegacy) {
             vm.expectCall(
-                address(l1StandardBridge), 500, abi.encodeWithSelector(l1StandardBridge.depositETH.selector, 50000, hex"dead")
+                address(l1StandardBridge),
+                500,
+                abi.encodeWithSelector(l1StandardBridge.depositETH.selector, 50000, hex"dead")
             );
         } else {
-            vm.expectCall(address(l1StandardBridge), 500, abi.encodeWithSelector(l1StandardBridge.bridgeETH.selector, 50000, hex"dead"));
+            vm.expectCall(
+                address(l1StandardBridge),
+                500,
+                abi.encodeWithSelector(l1StandardBridge.bridgeETH.selector, 50000, hex"dead")
+            );
         }
         vm.expectCall(
             address(l1CrossDomainMessenger),
@@ -99,7 +105,13 @@ contract PreBridgeETH is Bridge_Initializer {
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 500, 50000, message
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(l1StandardBridge),
+            address(l2StandardBridge),
+            500,
+            50000,
+            message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 50000);
@@ -107,7 +119,12 @@ contract PreBridgeETH is Bridge_Initializer {
             address(optimismPortal),
             500,
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 500, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector,
+                address(l2CrossDomainMessenger),
+                500,
+                baseGas,
+                false,
+                innerMessage
             )
         );
 
@@ -182,11 +199,15 @@ contract PreBridgeETHTo is Bridge_Initializer {
 
         if (isLegacy) {
             vm.expectCall(
-                address(l1StandardBridge), 600, abi.encodeWithSelector(l1StandardBridge.depositETHTo.selector, bob, 60000, hex"dead")
+                address(l1StandardBridge),
+                600,
+                abi.encodeWithSelector(l1StandardBridge.depositETHTo.selector, bob, 60000, hex"dead")
             );
         } else {
             vm.expectCall(
-                address(l1StandardBridge), 600, abi.encodeWithSelector(l1StandardBridge.bridgeETHTo.selector, bob, 60000, hex"dead")
+                address(l1StandardBridge),
+                600,
+                abi.encodeWithSelector(l1StandardBridge.bridgeETHTo.selector, bob, 60000, hex"dead")
             );
         }
 
@@ -201,14 +222,25 @@ contract PreBridgeETHTo is Bridge_Initializer {
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 600, 60000, message
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(l1StandardBridge),
+            address(l2StandardBridge),
+            600,
+            60000,
+            message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 60000);
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 600, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector,
+                address(l2CrossDomainMessenger),
+                600,
+                baseGas,
+                false,
+                innerMessage
             )
         );
 
@@ -305,14 +337,25 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 0, 10000, message
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(l1StandardBridge),
+            address(l2StandardBridge),
+            0,
+            10000,
+            message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 10000);
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 0, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector,
+                address(l2CrossDomainMessenger),
+                0,
+                baseGas,
+                false,
+                innerMessage
             )
         );
 
@@ -373,7 +416,13 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         );
 
         bytes memory innerMessage = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector, nonce, address(l1StandardBridge), address(l2StandardBridge), 0, 10000, message
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(l1StandardBridge),
+            address(l2StandardBridge),
+            0,
+            10000,
+            message
         );
 
         uint64 baseGas = l1CrossDomainMessenger.baseGas(message, 10000);
@@ -412,11 +461,17 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         vm.expectCall(
             address(optimismPortal),
             abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector, address(l2CrossDomainMessenger), 0, baseGas, false, innerMessage
+                OptimismPortal.depositTransaction.selector,
+                address(l2CrossDomainMessenger),
+                0,
+                baseGas,
+                false,
+                innerMessage
             )
         );
         vm.expectCall(
-            address(L1Token), abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(l1StandardBridge), 1000)
+            address(L1Token),
+            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(l1StandardBridge), 1000)
         );
 
         vm.prank(alice);
@@ -470,8 +525,9 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is Bridge_Initializer {
     function test_finalizeERC20Withdrawal_succeeds() external {
         deal(address(L1Token), address(l1StandardBridge), 100, true);
 
-        uint256 slot = stdstore.target(address(l1StandardBridge)).sig("deposits(address,address)").with_key(address(L1Token))
-            .with_key(address(L2Token)).find();
+        uint256 slot = stdstore.target(address(l1StandardBridge)).sig("deposits(address,address)").with_key(
+            address(L1Token)
+        ).with_key(address(L2Token)).find();
 
         // Give the L1 bridge some ERC20 tokens
         vm.store(address(l1StandardBridge), bytes32(slot), bytes32(uint256(100)));

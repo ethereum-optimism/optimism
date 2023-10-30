@@ -208,7 +208,9 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
         assertEq(l2OutputOracle.computeL2Timestamp(startingBlockNumber + 1), startingTimestamp + l2BlockTime);
 
         // check timestamp for some other block number
-        assertEq(l2OutputOracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024);
+        assertEq(
+            l2OutputOracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024
+        );
     }
 }
 

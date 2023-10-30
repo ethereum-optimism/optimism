@@ -110,7 +110,8 @@ contract CommonTest is Deploy, Test {
         l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
         addressManager = AddressManager(mustGetAddress("AddressManager"));
         l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
-        l1OptimismMintableERC20Factory = OptimismMintableERC20Factory(mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        l1OptimismMintableERC20Factory =
+            OptimismMintableERC20Factory(mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(mustGetAddress("ProtocolVersionsProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
@@ -124,14 +125,19 @@ contract CommonTest is Deploy, Test {
         vm.label(address(protocolVersions), "ProtocolVersions");
 
         // Set up L2. There are currently no proxies set in the L2 initialization.
-        vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code);
+        vm.etch(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
+        );
         l2CrossDomainMessenger = L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
         l2CrossDomainMessenger.initialize();
 
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
         l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
-        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code);
+        vm.etch(
+            Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code
+        );
         l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
         l2StandardBridge.initialize();
 
@@ -147,15 +153,21 @@ contract CommonTest is Deploy, Test {
 
         vm.etch(
             Predeploys.SEQUENCER_FEE_WALLET,
-            address(new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)).code
+            address(
+                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
+            ).code
         );
         vm.etch(
             Predeploys.BASE_FEE_VAULT,
-            address(new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)).code
+            address(
+                new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
+            ).code
         );
         vm.etch(
             Predeploys.L1_FEE_VAULT,
-            address(new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)).code
+            address(
+                new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
+            ).code
         );
 
         sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
@@ -370,7 +382,6 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FeeVault_Initializer is Bridge_Initializer {
-
     event Withdrawal(uint256 value, address to, address from);
     event Withdrawal(uint256 value, address to, address from, FeeVault.WithdrawalNetwork withdrawalNetwork);
 }
