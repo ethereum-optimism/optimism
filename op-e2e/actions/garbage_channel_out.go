@@ -61,8 +61,11 @@ type ChannelOutIface interface {
 	OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error)
 }
 
-// Compile-time check for ChannelOutIface interface implementation for the ChannelOut type.
-var _ ChannelOutIface = (*derive.ChannelOut)(nil)
+// Compile-time check for ChannelOutIface interface implementation for the SingularChannelOut type.
+var _ ChannelOutIface = (*derive.SingularChannelOut)(nil)
+
+// Compile-time check for ChannelOutIface interface implementation for the SpanChannelOut type.
+var _ ChannelOutIface = (*derive.SpanChannelOut)(nil)
 
 // Compile-time check for ChannelOutIface interface implementation for the GarbageChannelOut type.
 var _ ChannelOutIface = (*GarbageChannelOut)(nil)

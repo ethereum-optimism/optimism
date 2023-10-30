@@ -109,9 +109,9 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
 
-	var withdrawals *eth.Withdrawals
+	var withdrawals *types.Withdrawals
 	if ba.cfg.IsCanyon(nextL2Time) {
-		withdrawals = &eth.Withdrawals{}
+		withdrawals = &types.Withdrawals{}
 	}
 
 	return &eth.PayloadAttributes{

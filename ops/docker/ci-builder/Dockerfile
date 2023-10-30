@@ -39,7 +39,7 @@ ENV GO_VERSION=1.21.1
 
 # Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
 RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz
+  tar -C /usr/local/ -xzvf go$GO_VERSION.linux-amd64.tar.gz
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
@@ -80,7 +80,7 @@ COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 COPY .nvmrc .nvmrc
 
-ENV NODE_MAJOR=18
+ENV NODE_MAJOR=20
 ENV SLITHER_VERSION=0.10.0
 
 # note: python3 package in apt is python 3.9, while base image already has python 3.11
@@ -105,7 +105,8 @@ RUN /bin/sh -c set -eux; \
 RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN svm install 0.5.17 && \
-  svm install 0.8.15
+  svm install 0.8.15 && \
+  svm install 0.8.19
 
 RUN echo "downloading and verifying Codecov uploader" && \
   curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import && \
