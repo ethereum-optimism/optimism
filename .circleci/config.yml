@@ -446,6 +446,7 @@ jobs:
   contracts-bedrock-validate-spaces:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
