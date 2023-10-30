@@ -76,9 +76,7 @@ func (m *MultiCaller) CallLatest(ctx context.Context, calls ...*ContractCall) ([
 		if err != nil {
 			return nil, fmt.Errorf("failed to unpack result: %w", err)
 		}
-		callResults[i] = &CallResult{
-			out: out,
-		}
+		callResults[i] = out
 	}
 	return callResults, nil
 }

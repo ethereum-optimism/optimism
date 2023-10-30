@@ -42,8 +42,12 @@ func NewContractCall(abi *abi.ABI, addr common.Address, method string, args ...i
 	}
 }
 
+func (c *ContractCall) Pack() ([]byte, error) {
+	return c.Abi.Pack(c.Method, c.Args...)
+}
+
 func (c *ContractCall) ToCallArgs() (interface{}, error) {
-	data, err := c.Abi.Pack(c.Method, c.Args...)
+	data, err := c.Pack()
 	if err != nil {
 		return nil, fmt.Errorf("failed to pack arguments: %w", err)
 	}
@@ -54,12 +58,12 @@ func (c *ContractCall) ToCallArgs() (interface{}, error) {
 	return toCallArg(msg), nil
 }
 
-func (c *ContractCall) Unpack(hex hexutil.Bytes) ([]interface{}, error) {
+func (c *ContractCall) Unpack(hex hexutil.Bytes) (*CallResult, error) {
 	out, err := c.Abi.Unpack(c.Method, hex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unpack data: %w", err)
 	}
-	return out, nil
+	return &CallResult{out: out}, nil
 }
 
 type CallResult struct {
