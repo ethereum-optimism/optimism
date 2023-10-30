@@ -47,7 +47,7 @@ contract LivenessGuard_Constructor_Test is LivenessGuard_TestInit {
     function test_constructor_works() external {
         address[] memory owners = safeInstance.owners;
         livenessGuard = new WrappedGuard(safeInstance.safe);
-        for (uint256 i = 0; i < owners.length; i++) {
+        for (uint256 i; i < owners.length; i++) {
             assertEq(livenessGuard.lastLive(owners[i]), initTime);
         }
     }
@@ -242,7 +242,7 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
         (address[] memory ownerAddrs, uint256[] memory ownerkeys) =
             SafeTestLib.makeAddrsAndKeys("safeTest", initialOwners);
         // record the private keys for later use
-        for (uint256 i = 0; i < ownerAddrs.length; i++) {
+        for (uint256 i; i < ownerAddrs.length; i++) {
             privateKeys[ownerAddrs[i]] = ownerkeys[i];
         }
 
@@ -251,7 +251,7 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
         livenessGuard = new WrappedGuard(safeInstance.safe);
         safeInstance.setGuard(address(livenessGuard));
 
-        for (uint256 i = 0; i < changes.length; i++) {
+        for (uint256 i; i < changes.length; i++) {
             vm.warp(block.timestamp + changes[i].timeDelta);
             OwnerChange memory change = changes[i];
             address[] memory currentOwners = safeInstance.safe.getOwners();
@@ -312,16 +312,16 @@ contract LivenessGuard_FuzzOwnerManagement_Test is StdCheats, StdUtils, Liveness
 
         // Looks up the private key for each owner
         uint256[] memory unsortedOwnerPKs = new uint256[](instance.owners.length);
-        for (uint256 j = 0; j < instance.owners.length; j++) {
-            unsortedOwnerPKs[j] = privateKeys[instance.owners[j]];
+        for (uint256 i; i < instance.owners.length; i++) {
+            unsortedOwnerPKs[i] = privateKeys[instance.owners[i]];
         }
 
         // Sort the keys by address and store them in the SafeInstance
         instance.ownerPKs = SafeTestLib.sortPKsByComputedAddress(unsortedOwnerPKs);
 
         // Overwrite the SafeInstances owners array with the computed addresses from the ownerPKs array
-        for (uint256 k; k < instance.owners.length; k++) {
-            instance.owners[k] = SafeTestLib.getAddr(instance.ownerPKs[k]);
+        for (uint256 i; i < instance.owners.length; i++) {
+            instance.owners[i] = SafeTestLib.getAddr(instance.ownerPKs[i]);
         }
     }
 }
