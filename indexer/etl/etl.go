@@ -67,14 +67,18 @@ func (etl *ETL) Start(ctx context.Context) error {
 			if len(headers) > 0 {
 				etl.log.Info("retrying previous batch")
 			} else {
-				newHeaders, err := etl.headerTraversal.NextFinalizedHeaders(etl.headerBufferSize)
+				newHeaders, err := etl.headerTraversal.NextHeaders(etl.headerBufferSize)
 				if err != nil {
 					etl.log.Error("error querying for headers", "err", err)
 				} else if len(newHeaders) == 0 {
-					etl.log.Warn("no new headers. processor unexpectedly at head...")
+					etl.log.Warn("no new headers. etl at head?")
 				} else {
-					etl.metrics.RecordLatestHeight(etl.headerTraversal.LatestHeader().Number)
 					headers = newHeaders
+				}
+
+				latestHeader := etl.headerTraversal.LatestHeader()
+				if latestHeader != nil {
+					etl.metrics.RecordLatestHeight(latestHeader.Number)
 				}
 			}
 
