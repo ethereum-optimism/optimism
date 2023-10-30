@@ -49,10 +49,10 @@ func (aq *AttributesQueue) Origin() eth.L1BlockRef {
 	return aq.prev.Origin()
 }
 
-func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2BlockRef) (*AttributesWithParent, error) {
+func (aq *AttributesQueue) NextAttributes(ctx context.Context, parent eth.L2BlockRef) (*AttributesWithParent, error) {
 	// Get a batch if we need it
 	if aq.batch == nil {
-		batch, isLastInSpan, err := aq.prev.NextBatch(ctx, l2SafeHead)
+		batch, isLastInSpan, err := aq.prev.NextBatch(ctx, parent)
 		if err != nil {
 			return nil, err
 		}
@@ -61,11 +61,11 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2
 	}
 
 	// Actually generate the next attributes
-	if attrs, err := aq.createNextAttributes(ctx, aq.batch, l2SafeHead); err != nil {
+	if attrs, err := aq.createNextAttributes(ctx, aq.batch, parent); err != nil {
 		return nil, err
 	} else {
 		// Clear out the local state once we will succeed
-		attr := AttributesWithParent{attrs, l2SafeHead, aq.isLastInSpan}
+		attr := AttributesWithParent{attrs, parent, aq.isLastInSpan}
 		aq.batch = nil
 		aq.isLastInSpan = false
 		return &attr, nil
