@@ -50,12 +50,6 @@ export TENDERLY_USERNAME=
 # Optional Etherscan API key for contract verification
 export ETHERSCAN_API_KEY=
 
-# Private key for the contract deployer account (hardhat default account)
-# WARNING: Overridden if GS_ADMIN_PRIVATE_KEY is set!
-export PRIVATE_KEY=0x862285c87f8715b04957e78e38f5b6102945d2af1c5962d3339d2c37a8f24302
-
-# Use the Getting Started admin private key as deployer if set
-if [ -z "$GS_ADMIN_PRIVATE_KEY" ]
-then
-  export PRIVATE_KEY=$GS_ADMIN_PRIVATE_KEY
-fi
+# Private key to use for contract deployments, you don't need to worry about
+# this for the Getting Started guide.
+export PRIVATE_KEY=
