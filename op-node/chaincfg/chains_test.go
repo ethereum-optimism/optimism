@@ -27,8 +27,6 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 
 	for name, expectedCfg := range configsByName {
-		require.True(t, IsAvailableNetwork(name, false))
-
 		gotCfg, err := GetRollupConfig(name)
 		require.NoError(t, err)
 
