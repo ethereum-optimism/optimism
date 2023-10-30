@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -89,22 +90,30 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		cr.NextChannel()
 		return nil, NotEnoughData
 	}
-	switch batchData.BatchType {
+	switch batchData.GetBatchType() {
 	case SingularBatchType:
-		return &batchData.SingularBatch, nil
+		singularBatch, ok := batchData.inner.(*SingularBatch)
+		if !ok {
+			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
+		}
+		return singularBatch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsSpanBatch(origin.Time) {
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
+		rawSpanBatch, ok := batchData.inner.(*RawSpanBatch)
+		if !ok {
+			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
+		}
 		// If the batch type is Span batch, derive block inputs from RawSpanBatch.
-		spanBatch, err := batchData.RawSpanBatch.derive(cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
+		spanBatch, err := rawSpanBatch.derive(cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 		if err != nil {
 			return nil, err
 		}
 		return spanBatch, nil
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
-		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %w", err))
+		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))
 	}
 }
 

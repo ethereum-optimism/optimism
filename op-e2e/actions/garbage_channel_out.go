@@ -255,13 +255,13 @@ func blockToBatch(block *types.Block) (*derive.BatchData, error) {
 		return nil, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
 	}
 
-	return &derive.BatchData{
-		SingularBatch: derive.SingularBatch{
-			ParentHash:   block.ParentHash(),
-			EpochNum:     rollup.Epoch(l1Info.Number),
-			EpochHash:    l1Info.BlockHash,
-			Timestamp:    block.Time(),
-			Transactions: opaqueTxs,
-		},
-	}, nil
+	singularBatch := &derive.SingularBatch{
+		ParentHash:   block.ParentHash(),
+		EpochNum:     rollup.Epoch(l1Info.Number),
+		EpochHash:    l1Info.BlockHash,
+		Timestamp:    block.Time(),
+		Transactions: opaqueTxs,
+	}
+
+	return derive.NewBatchData(singularBatch), nil
 }
