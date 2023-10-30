@@ -58,7 +58,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    depends_on:
       migrations:
         condition: service_started
 
@@ -155,7 +154,7 @@ services:
       - MAINNET_BEDROCK=true
       - TRM_API_KEY=$TRM_API_KEY
       - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=oplabs-dev-web-content
-      # Recommened to uncomment for local dev unless you need it
+      # Recommend to uncomment for local dev unless you need it
       #- BYPASS_EVENT_LOG_POLLER_BOOTSTRAP=true
     ports:
       - 7422:7300

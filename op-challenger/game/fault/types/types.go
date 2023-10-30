@@ -22,14 +22,9 @@ type PreimageOracleData struct {
 	OracleOffset uint32
 }
 
-// GetType returns the type for the preimage oracle data.
-func (p *PreimageOracleData) GetType() *big.Int {
-	return big.NewInt(int64(p.OracleKey[0]))
-}
-
 // GetIdent returns the ident for the preimage oracle data.
 func (p *PreimageOracleData) GetIdent() *big.Int {
-	return big.NewInt(0).SetBytes(p.OracleKey[1:])
+	return new(big.Int).SetBytes(p.OracleKey[1:])
 }
 
 // GetPreimageWithoutSize returns the preimage for the preimage oracle data.
@@ -38,9 +33,10 @@ func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
-func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
+func NewPreimageOracleData(lctx uint64, key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
 		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		LocalContext: lctx,
 		OracleKey:    key,
 		OracleData:   data,
 		OracleOffset: offset,

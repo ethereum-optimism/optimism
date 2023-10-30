@@ -2,16 +2,20 @@ package derive
 
 import (
 	"bytes"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/stretchr/testify/assert"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestSpanBatchForBatchInterface(t *testing.T) {
@@ -31,6 +35,39 @@ func TestSpanBatchForBatchInterface(t *testing.T) {
 	assert.Equal(t, singularBatches[0].EpochNum, spanBatch.GetStartEpochNum())
 	assert.True(t, spanBatch.CheckOriginHash(singularBatches[blockCount-1].EpochHash))
 	assert.True(t, spanBatch.CheckParentHash(singularBatches[0].ParentHash))
+}
+
+func TestEmptySpanBatch(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556691))
+	chainID := big.NewInt(rng.Int63n(1000))
+	spanTxs, err := newSpanBatchTxs(nil, chainID)
+	require.NoError(t, err)
+
+	rawSpanBatch := RawSpanBatch{
+		spanBatchPrefix: spanBatchPrefix{
+			relTimestamp:  uint64(rng.Uint32()),
+			l1OriginNum:   rng.Uint64(),
+			parentCheck:   testutils.RandomData(rng, 20),
+			l1OriginCheck: testutils.RandomData(rng, 20),
+		},
+		spanBatchPayload: spanBatchPayload{
+			blockCount:    0,
+			originBits:    big.NewInt(0),
+			blockTxCounts: []uint64{},
+			txs:           spanTxs,
+		},
+	}
+
+	var buf bytes.Buffer
+	err = rawSpanBatch.encodeBlockCount(&buf)
+	assert.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+
+	err = sb.decodeBlockCount(r)
+	require.ErrorIs(t, err, ErrEmptySpanBatch)
 }
 
 func TestSpanBatchOriginBits(t *testing.T) {
@@ -457,16 +494,16 @@ func TestSpanBatchBuilder(t *testing.T) {
 		}
 		genesisTimeStamp := 1 + singularBatches[0].Timestamp - 128
 
-		parentEpoch := uint64(singularBatches[0].EpochNum)
+		var seqNum uint64 = 1
 		if originChangedBit == 1 {
-			parentEpoch -= 1
+			seqNum = 0
 		}
-		spanBatchBuilder := NewSpanBatchBuilder(parentEpoch, genesisTimeStamp, chainID)
+		spanBatchBuilder := NewSpanBatchBuilder(genesisTimeStamp, chainID)
 
 		assert.Equal(t, 0, spanBatchBuilder.GetBlockCount())
 
 		for i := 0; i < len(singularBatches); i++ {
-			spanBatchBuilder.AppendSingularBatch(singularBatches[i])
+			spanBatchBuilder.AppendSingularBatch(singularBatches[i], seqNum)
 			assert.Equal(t, i+1, spanBatchBuilder.GetBlockCount())
 			assert.Equal(t, singularBatches[0].ParentHash.Bytes()[:20], spanBatchBuilder.spanBatch.parentCheck)
 			assert.Equal(t, singularBatches[i].EpochHash.Bytes()[:20], spanBatchBuilder.spanBatch.l1OriginCheck)
@@ -492,7 +529,7 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x177288))
 
 	invalidTx := types.NewTx(&types.DynamicFeeTx{
-		Data: testutils.RandomData(rng, MaxSpanBatchFieldSize+1),
+		Data: testutils.RandomData(rng, MaxSpanBatchSize+1),
 	})
 
 	txEncoded, err := invalidTx.MarshalBinary()
@@ -501,14 +538,73 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	r := bytes.NewReader(txEncoded)
 	_, _, err = ReadTxData(r)
 
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchMaxOriginBitsLength(t *testing.T) {
 	var sb RawSpanBatch
-	sb.blockCount = 0xFFFFFFFFFFFFFFFF
+	sb.blockCount = math.MaxUint64
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchMaxBlockCount(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556691))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	rawSpanBatch.blockCount = math.MaxUint64
+
+	var buf bytes.Buffer
+	err := rawSpanBatch.encodeBlockCount(&buf)
+	require.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+	err = sb.decodeBlockCount(r)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchMaxBlockTxCount(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556692))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	rawSpanBatch.blockTxCounts[0] = math.MaxUint64
+
+	var buf bytes.Buffer
+	err := rawSpanBatch.encodeBlockTxCounts(&buf)
+	require.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+	sb.blockCount = rawSpanBatch.blockCount
+	err = sb.decodeBlockTxCounts(r)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556693))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchSize - 1
+	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchSize - 1
+	// we are sure that totalBlockTxCount will overflow on uint64
+
+	var buf bytes.Buffer
+	err := rawSpanBatch.encodeBlockTxCounts(&buf)
+	require.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+	sb.blockTxCounts = rawSpanBatch.blockTxCounts
+	err = sb.decodeTxs(r)
+
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }

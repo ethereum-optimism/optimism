@@ -100,7 +100,8 @@ func TestMonitorGames(t *testing.T) {
 		defer cancel()
 
 		go func() {
-			waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
+			// Wait for the subscription to be created
+			waitErr := wait.For(context.Background(), 5*time.Second, func() (bool, error) {
 				return mockHeadSource.sub != nil, nil
 			})
 			require.NoError(t, waitErr)

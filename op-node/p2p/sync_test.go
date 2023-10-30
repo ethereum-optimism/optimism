@@ -288,3 +288,57 @@ func TestMultiPeerSync(t *testing.T) {
 		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
 }
+
+func TestNetworkNotifyAddPeerAndRemovePeer(t *testing.T) {
+	t.Parallel()
+	log := testlog.Logger(t, log.LvlDebug)
+
+	cfg, _ := setupSyncTestData(25)
+
+	confA := TestingConfig(t)
+	confB := TestingConfig(t)
+	hostA, err := confA.Host(log.New("host", "A"), nil, metrics.NoopMetrics)
+	require.NoError(t, err, "failed to launch host A")
+	defer hostA.Close()
+	hostB, err := confB.Host(log.New("host", "B"), nil, metrics.NoopMetrics)
+	require.NoError(t, err, "failed to launch host B")
+	defer hostB.Close()
+
+	syncCl := NewSyncClient(log, cfg, hostA.NewStream, func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
+		return nil
+	}, metrics.NoopMetrics, &NoopApplicationScorer{})
+
+	waitChan := make(chan struct{}, 1)
+	hostA.Network().Notify(&network.NotifyBundle{
+		ConnectedF: func(nw network.Network, conn network.Conn) {
+			syncCl.AddPeer(conn.RemotePeer())
+			waitChan <- struct{}{}
+		},
+		DisconnectedF: func(nw network.Network, conn network.Conn) {
+			// only when no connection is available, we can remove the peer
+			if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
+				syncCl.RemovePeer(conn.RemotePeer())
+			}
+			waitChan <- struct{}{}
+		},
+	})
+	syncCl.Start()
+
+	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
+	require.NoError(t, err, "failed to connect to peer B from peer A")
+	require.Equal(t, hostA.Network().Connectedness(hostB.ID()), network.Connected)
+
+	//wait for async add process done
+	<-waitChan
+	_, ok := syncCl.peers[hostB.ID()]
+	require.True(t, ok, "peerB should exist in syncClient")
+
+	err = hostA.Network().ClosePeer(hostB.ID())
+	require.NoError(t, err, "close peer fail")
+
+	//wait for async removing process done
+	<-waitChan
+	_, peerBExist3 := syncCl.peers[hostB.ID()]
+	require.True(t, !peerBExist3, "peerB should not exist in syncClient")
+
+}

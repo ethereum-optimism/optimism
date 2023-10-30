@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var writeFile bool
@@ -58,7 +59,7 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 			(!config.EnableGovernance && addr == predeploys.GovernanceTokenAddr)
 		if isProxy {
 			require.Equal(t, true, ok, name)
-			require.Equal(t, predeploys.ProxyAdminAddr.Hash(), adminSlot)
+			require.Equal(t, eth.AddressAsLeftPaddedHash(predeploys.ProxyAdminAddr), adminSlot)
 			require.Equal(t, proxyBytecode, account.Code)
 		} else {
 			require.Equal(t, false, ok, name)

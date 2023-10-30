@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title FeeVault
 /// @notice The FeeVault contract contains the basic logic for the various different vault contracts

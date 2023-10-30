@@ -2,9 +2,12 @@ package op_e2e
 
 import (
 	"context"
+	"math/big"
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	l2oo2 "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -15,7 +18,7 @@ import (
 )
 
 func TestMultipleCannonGames(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -72,6 +75,41 @@ func TestMultipleCannonGames(t *testing.T) {
 
 	// Check that the game directories are removed
 	challenger.WaitForGameDataDeletion(ctx, game1, game2)
+}
+
+func TestMultipleGameTypes(t *testing.T) {
+	InitParallel(t, UsesCannon)
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	// Start a challenger with both cannon and alphabet support
+	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
+		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
+		challenger.WithAlphabet(disputegame.CorrectAlphabet),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+		challenger.WithAgreeProposedOutput(true),
+	)
+
+	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
+	game2 := gameFactory.StartAlphabetGame(ctx, "xyzabc")
+
+	// Wait for the challenger to respond to both games
+	game1.WaitForClaimCount(ctx, 2)
+	game2.WaitForClaimCount(ctx, 2)
+	game1Response := game1.GetClaimValue(ctx, 1)
+	game2Response := game2.GetClaimValue(ctx, 1)
+	// The alphabet game always posts the same traces, so if they're different they can't both be from the alphabet.
+	require.NotEqual(t, game1Response, game2Response, "should have posted different claims")
+	// Now check they aren't both just from different cannon games by confirming the alphabet value.
+	correctAlphabet := alphabet.NewTraceProvider(disputegame.CorrectAlphabet, uint64(game2.MaxDepth(ctx)))
+	expectedClaim, err := correctAlphabet.Get(ctx, types.NewPositionFromGIndex(big.NewInt(1)).Attack())
+	require.NoError(t, err)
+	require.Equal(t, expectedClaim, game2Response)
+	// We don't confirm the cannon value because generating the correct claim is expensive
+	// Just being different is enough to confirm the challenger isn't just playing two alphabet games incorrectly
 }
 
 func TestChallengerCompleteDisputeGame(t *testing.T) {
@@ -239,7 +277,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 }
 
 func TestCannonDisputeGame(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	tests := []struct {
 		name             string
@@ -290,7 +328,7 @@ func TestCannonDisputeGame(t *testing.T) {
 }
 
 func TestCannonDefendStep(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -332,7 +370,7 @@ func TestCannonDefendStep(t *testing.T) {
 }
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -410,7 +448,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 }
 
 func TestCannonPoisonedPostState(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -520,7 +558,7 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 }
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)

@@ -50,14 +50,17 @@ task('deposit-eth', 'Deposits ether to L2.')
     '',
     types.string
   )
+  .addOptionalParam('signerIndex', 'Index of signer to use', 0, types.int)
   .addOptionalParam('withdrawAmount', 'Amount to withdraw', '', types.string)
   .setAction(async (args, hre) => {
     const signers = await hre.ethers.getSigners()
     if (signers.length === 0) {
       throw new Error('No configured signers')
     }
-    // Use the first configured signer for simplicity
-    const signer = signers[0]
+    if (args.signerIndex < 0 || signers.length <= args.signerIndex) {
+      throw new Error('Invalid signer index')
+    }
+    const signer = signers[args.signerIndex]
     const address = await signer.getAddress()
     console.log(`Using signer ${address}`)
 
@@ -81,7 +84,7 @@ task('deposit-eth', 'Deposits ether to L2.')
       : amount.div(2)
 
     const l2Signer = new hre.ethers.Wallet(
-      hre.network.config.accounts[0],
+      hre.network.config.accounts[args.signerIndex],
       l2Provider
     )
 

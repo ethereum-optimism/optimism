@@ -80,7 +80,7 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	require.Equal(t, dp.Addresses.SysCfgOwner, owner, "system config owner mismatch")
 
 	// Change the batch sender key to Bob!
-	tx, err := sysCfgContract.SetSequencer(sysCfgOwner, dp.Addresses.Bob.Hash(), common.Address{})
+	tx, err := sysCfgContract.SetSequencer(sysCfgOwner, eth.AddressAsLeftPaddedHash(dp.Addresses.Bob), common.Address{})
 	require.NoError(t, err)
 	t.Logf("batcher changes in L1 tx %s", tx.Hash())
 	miner.ActL1StartBlock(12)(t)

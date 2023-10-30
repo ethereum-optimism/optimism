@@ -3,6 +3,7 @@ package flags
 import (
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -44,14 +45,10 @@ var (
 			"If empty, the challenger will play all games.",
 		EnvVars: prefixEnvVars("GAME_ALLOWLIST"),
 	}
-	TraceTypeFlag = &cli.GenericFlag{
+	TraceTypeFlag = &cli.StringSliceFlag{
 		Name:    "trace-type",
-		Usage:   "The trace type. Valid options: " + openum.EnumString(config.TraceTypes),
+		Usage:   "The trace types to support. Valid options: " + openum.EnumString(config.TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
-		Value: func() *config.TraceType {
-			out := config.TraceType("") // No default value
-			return &out
-		}(),
 	}
 	AgreeWithProposedOutputFlag = &cli.BoolFlag{
 		Name:    "agree-with-proposed-output",
@@ -210,38 +207,57 @@ func CheckCannonFlags(ctx *cli.Context) error {
 	return nil
 }
 
-func CheckRequired(ctx *cli.Context) error {
+func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	gameType := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
-	switch gameType {
-	case config.TraceTypeCannon:
-		if err := CheckCannonFlags(ctx); err != nil {
-			return err
+	for _, traceType := range traceTypes {
+		switch traceType {
+		case config.TraceTypeCannon:
+			if err := CheckCannonFlags(ctx); err != nil {
+				return err
+			}
+		case config.TraceTypeAlphabet:
+			if !ctx.IsSet(AlphabetFlag.Name) {
+				return fmt.Errorf("flag %s is required", "alphabet")
+			}
+		case config.TraceTypeOutputCannon:
+			if err := CheckCannonFlags(ctx); err != nil {
+				return err
+			}
+			if !ctx.IsSet(RollupRpcFlag.Name) {
+				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
+			}
+		default:
+			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}
-	case config.TraceTypeAlphabet:
-		if !ctx.IsSet(AlphabetFlag.Name) {
-			return fmt.Errorf("flag %s is required", "alphabet")
-		}
-	case config.TraceTypeOutputCannon:
-		if err := CheckCannonFlags(ctx); err != nil {
-			return err
-		}
-		if !ctx.IsSet(RollupRpcFlag.Name) {
-			return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
-		}
-	default:
-		return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 	}
 	return nil
 }
 
+func parseTraceTypes(ctx *cli.Context) ([]config.TraceType, error) {
+	var traceTypes []config.TraceType
+	for _, typeName := range ctx.StringSlice(TraceTypeFlag.Name) {
+		traceType := new(config.TraceType)
+		if err := traceType.Set(typeName); err != nil {
+			return nil, err
+		}
+		if !slices.Contains(traceTypes, *traceType) {
+			traceTypes = append(traceTypes, *traceType)
+		}
+	}
+	return traceTypes, nil
+}
+
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
 func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
-	if err := CheckRequired(ctx); err != nil {
+	traceTypes, err := parseTraceTypes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := CheckRequired(ctx, traceTypes); err != nil {
 		return nil, err
 	}
 	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
@@ -263,8 +279,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	metricsConfig := opmetrics.ReadCLIConfig(ctx)
 	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
-	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
-
 	maxConcurrency := ctx.Uint(MaxConcurrencyFlag.Name)
 	if maxConcurrency == 0 {
 		return nil, fmt.Errorf("%v must not be 0", MaxConcurrencyFlag.Name)
@@ -272,7 +286,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
-		TraceType:               traceTypeFlag,
+		TraceTypes:              traceTypes,
 		GameFactoryAddress:      gameFactoryAddress,
 		GameAllowlist:           allowedGames,
 		GameWindow:              ctx.Duration(GameWindowFlag.Name),

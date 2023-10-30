@@ -372,11 +372,34 @@ export default defineConfig([
   {
     out: 'src/actions.ts',
     contracts: contractsWithFilteredDuplicates,
-    plugins: [eslintIgnorePlugin, actions()],
+    plugins: [
+      eslintIgnorePlugin,
+      actions({
+        getContract: true,
+        // don't include actions because they can be more simply done via getContract
+        prepareWriteContract: false,
+        readContract: false,
+        watchContractEvent: false,
+        writeContract: false,
+      }),
+    ],
   },
   {
     out: 'src/react.ts',
     contracts: contractsWithFilteredDuplicates,
-    plugins: [eslintIgnorePlugin, react()],
+    plugins: [
+      eslintIgnorePlugin,
+      react({
+        useContractRead: true,
+        useContractWrite: true,
+        useContractEvent: true,
+        // don't include more niche actions to keep api more simple
+        useContractFunctionRead: false,
+        useContractFunctionWrite: false,
+        useContractItemEvent: false,
+        usePrepareContractFunctionWrite: false,
+        usePrepareContractWrite: false,
+      }),
+    ],
   },
 ])

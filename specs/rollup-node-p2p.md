@@ -51,7 +51,8 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
     - [Topic configuration](#topic-configuration)
     - [Topic validation](#topic-validation)
 - [Gossip Topics](#gossip-topics)
-  - [`blocks`](#blocks)
+  - [`blocksv1`](#blocksv1)
+  - [`blocksv2`](#blocksv2)
     - [Block encoding](#block-encoding)
     - [Block signatures](#block-signatures)
     - [Block validation](#block-validation)
@@ -247,9 +248,15 @@ The extended validator emits one of the following validation signals:
 
 ## Gossip Topics
 
-### `blocks`
+There are two topics for distributing blocks to other nodes faster than proxying through L1 would. These are:
 
-The primary topic of the L2, to distribute blocks to other nodes faster than proxying through L1 would.
+### `blocksv1`
+
+Pre-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/0/blocks`.
+
+### `blocksv2`
+
+Post-Canyon/Shanghai blocks are broadcast on `/optimism/<chainId>/1/blocks`.
 
 #### Block encoding
 
@@ -282,6 +289,8 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
   (graceful boundary for worst-case propagation and clock skew)
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
+- `[REJECT]` if the block is on the V1 topic and has withdrawals
+- `[REJECT]` if the block is on the V2 topic and does not have withdrawals
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid

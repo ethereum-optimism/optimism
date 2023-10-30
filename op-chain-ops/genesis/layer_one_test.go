@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -118,7 +119,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.Equal(t, scalar.Uint64(), config.GasPriceOracleScalar)
 	batcherHash, err := sysCfg.BatcherHash(&bind.CallOpts{})
 	require.NoError(t, err)
-	require.Equal(t, common.Hash(batcherHash), config.BatchSenderAddress.Hash())
+	require.Equal(t, common.Hash(batcherHash), eth.AddressAsLeftPaddedHash(config.BatchSenderAddress))
 	gasLimit, err := sysCfg.GasLimit(&bind.CallOpts{})
 	require.NoError(t, err)
 	require.Equal(t, gasLimit, uint64(config.L2GenesisBlockGasLimit))

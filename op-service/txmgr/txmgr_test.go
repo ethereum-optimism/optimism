@@ -80,6 +80,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
+		FeeLimitMultiplier:        5,
 		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
@@ -449,6 +450,40 @@ func TestTxMgr_EstimateGasFails(t *testing.T) {
 	require.Equal(t, lastNonce+1, tx.Nonce())
 }
 
+func TestTxMgr_SigningFails(t *testing.T) {
+	t.Parallel()
+	errorSigning := false
+	cfg := configWithNumConfs(1)
+	cfg.Signer = func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		if errorSigning {
+			return nil, fmt.Errorf("signer error")
+		} else {
+			return tx, nil
+		}
+	}
+	h := newTestHarnessWithConfig(t, cfg)
+	candidate := h.createTxCandidate()
+
+	// Set the gas limit to zero to trigger gas estimation.
+	candidate.GasLimit = 0
+
+	// Craft a successful transaction.
+	tx, err := h.mgr.craftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	lastNonce := tx.Nonce()
+
+	// Mock signer failure.
+	errorSigning = true
+	_, err = h.mgr.craftTx(context.Background(), candidate)
+	require.ErrorContains(t, err, "signer error")
+
+	// Ensure successful craft uses the correct nonce
+	errorSigning = false
+	tx, err = h.mgr.craftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.Equal(t, lastNonce+1, tx.Nonce())
+}
+
 // TestTxMgrOnlyOnePublicationSucceeds asserts that the tx manager will return a
 // receipt so long as at least one of the publications is able to succeed with a
 // simulated rpc failure.
@@ -766,6 +801,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
+			FeeLimitMultiplier:        5,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
@@ -867,6 +903,7 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
+			FeeLimitMultiplier:        5,
 			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 				return tx, nil
 			},
@@ -883,23 +920,20 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	})
 
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
-	var err error
-	for i := 0; i < 30; i++ {
-		ctx := context.Background()
-		tx, err = mgr.increaseGasPrice(ctx, tx)
-		require.NoError(t, err)
+	ctx := context.Background()
+	for {
+		newTx, err := mgr.increaseGasPrice(ctx, tx)
+		if err != nil {
+			break
+		}
+		tx = newTx
 	}
 	lastTip, lastFee := tx.GasTipCap(), tx.GasFeeCap()
-	require.Equal(t, lastTip.Int64(), feeLimitMultiplier*borkedTip)
-	require.Equal(t, lastFee.Int64(), feeLimitMultiplier*(borkedTip+2*borkedFee))
+	require.Equal(t, lastTip.Int64(), int64(36))
+	require.Equal(t, lastFee.Int64(), int64(493))
 	// Confirm that fees stop rising
-	for i := 0; i < 5; i++ {
-		ctx := context.Background()
-		tx, err := mgr.increaseGasPrice(ctx, tx)
-		require.NoError(t, err)
-		require.True(t, tx.GasTipCap().Cmp(lastTip) == 0, "suggested tx tip must stop increasing")
-		require.True(t, tx.GasFeeCap().Cmp(lastFee) == 0, "suggested tx fee must stop increasing")
-	}
+	_, err := mgr.increaseGasPrice(ctx, tx)
+	require.Error(t, err)
 }
 
 func TestErrStringMatch(t *testing.T) {

@@ -128,6 +128,7 @@ Patch version changes indicate backward compatible bug fixes and improvements.
 Pre-releases of the protocol are proposals: these are not stable targets for production usage.
 A pre-release might not satisfy the intended compatibility requirements as denoted by its associated normal version.
 The `<pre-release>` must be non-zero to apply to the protocol version.
+The `<pre-release>` `0`-value is reserved for non-prereleases, i.e. `v3.1.0` is higher than `v3.1.0-1`.
 
 Node-software may support a pre-release, but must not activate any protocol changes without the user explicitly
 opting in through the means of a feature-flag or configuration change.
