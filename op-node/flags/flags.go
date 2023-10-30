@@ -87,6 +87,7 @@ var (
 		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
 		EnvVars:  prefixEnvVars("L1_RETHDB"),
 		Required: false,
+		Hidden:   true,
 	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
