@@ -1231,6 +1231,28 @@ jobs:
           name: check-generated-mocks
           command: make generate-mocks-op-service && git diff --exit-code
 
+  check-values-match:
+    parameters:
+      pattern_file1:
+        type: string
+        default: ""
+      pattern_file2:
+        type: string
+        default: ""
+      file1_path:
+        type: string
+        default: ""
+      file2_path:
+        type: string
+        default: ""
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Verify Values Match
+          command: |
+            ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
 workflows:
   main:
     when:
@@ -1477,7 +1499,11 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
-
+      - check-values-match:
+          pattern_file1: "uint8 internal constant INITIALIZER ="
+          pattern_file2: "const initializedValue ="
+          file1_path: "packages/contracts-bedrock/src/libraries/Constants.sol"
+          file2_path: "op-chain-ops/genesis/config.go"
   release:
     when:
       not:
