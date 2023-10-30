@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "test/CommonTest.t.sol";
+import { SystemConfig_Initializer } from "test/CommonTest.t.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
@@ -14,223 +14,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 // Target contract
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-contract SystemConfig_Init is CommonTest {
-    SystemConfig sysConf;
-    SystemConfig systemConfigImpl;
-
-    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
-
-    // Dummy addresses used to test getters
-    address constant batchInbox = address(0x18);
-    address constant l1CrossDomainMessenger = address(0x20);
-    address constant l1ERC721Bridge = address(0x21);
-    address constant l1StandardBridge = address(0x22);
-    address constant l2OutputOracle = address(0x23);
-    address constant optimismPortal = address(0x24);
-    address constant optimismMintableERC20Factory = address(0x25);
-    uint256 constant overhead = 2100;
-    uint256 constant scalar = 1000000;
-    bytes32 constant batcherHash = bytes32(hex"abcd");
-    uint64 constant gasLimit = 30_000_000;
-    address constant unsafeBlockSigner = address(1);
-
-    function setUp() public virtual override {
-        super.setUp();
-
-        Proxy proxy = new Proxy(multisig);
-        systemConfigImpl = new SystemConfig();
-
-        vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    0, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
-                    })
-                )
-            )
-        );
-
-        sysConf = SystemConfig(address(proxy));
-    }
-}
-
-contract SystemConfig_Initialize_Test is SystemConfig_Init {
-    /// @dev Tests that initailization sets the correct values.
-    function test_initialize_values_succeeds() external {
-        assertEq(sysConf.l1CrossDomainMessenger(), l1CrossDomainMessenger);
-        assertEq(sysConf.l1ERC721Bridge(), l1ERC721Bridge);
-        assertEq(sysConf.l1StandardBridge(), l1StandardBridge);
-        assertEq(sysConf.l2OutputOracle(), l2OutputOracle);
-        assertEq(sysConf.optimismPortal(), optimismPortal);
-        assertEq(sysConf.optimismMintableERC20Factory(), optimismMintableERC20Factory);
-        assertEq(sysConf.batchInbox(), batchInbox);
-        assertEq(sysConf.owner(), alice);
-        assertEq(sysConf.overhead(), overhead);
-        assertEq(sysConf.scalar(), scalar);
-        assertEq(sysConf.batcherHash(), batcherHash);
-        assertEq(sysConf.gasLimit(), gasLimit);
-        assertEq(sysConf.unsafeBlockSigner(), unsafeBlockSigner);
-        // Depends on start block being set to 0 in `initialize`
-        assertEq(sysConf.startBlock(), block.number);
-        // Depends on `initialize` being called with defaults
-        ResourceMetering.ResourceConfig memory cfg = Constants.DEFAULT_RESOURCE_CONFIG();
-        ResourceMetering.ResourceConfig memory actual = sysConf.resourceConfig();
-        assertEq(actual.maxResourceLimit, cfg.maxResourceLimit);
-        assertEq(actual.elasticityMultiplier, cfg.elasticityMultiplier);
-        assertEq(actual.baseFeeMaxChangeDenominator, cfg.baseFeeMaxChangeDenominator);
-        assertEq(actual.minimumBaseFee, cfg.minimumBaseFee);
-        assertEq(actual.systemTxMaxGas, cfg.systemTxMaxGas);
-        assertEq(actual.maximumBaseFee, cfg.maximumBaseFee);
-    }
-
-    /// @dev Ensures that the start block override can be used to set the start block.
-    function test_initialize_startBlockOverride_succeeds() external {
-        uint256 startBlock = 100;
-
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(sysConf), bytes32(0), bytes32(0));
-
-        assertEq(sysConf.startBlock(), block.number);
-        // the startBlock slot is 106, wipe it out
-        vm.store(address(sysConf), bytes32(uint256(106)), bytes32(0));
-        assertEq(sysConf.startBlock(), 0);
-
-        vm.prank(multisig);
-        Proxy(payable(address(sysConf))).upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    startBlock, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
-                    })
-                )
-            )
-        );
-        assertEq(sysConf.startBlock(), startBlock);
-    }
-
-    /// @dev Tests that initialization with start block already set is a noop.
-    function test_initialize_startBlockNoop_reverts() external {
-        // wipe out initialized slot so we can initialize again
-        vm.store(address(sysConf), bytes32(0), bytes32(0));
-        // the startBlock slot is 106, set it to something non zero
-        vm.store(address(sysConf), bytes32(uint256(106)), bytes32(uint256(0xff)));
-
-        // Initialize with a non zero start block, should see a revert
-        vm.prank(multisig);
-        // The call to initialize reverts due to: "SystemConfig: cannot override an already set start block"
-        // but the proxy revert message bubbles up.
-        Proxy(payable(address(sysConf))).upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    1, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
-                    })
-                )
-            )
-        );
-
-        // It was initialized with 1 but it was already set so the override
-        // should be ignored.
-        uint256 startBlock = sysConf.startBlock();
-        assertEq(startBlock, 0xff);
-    }
-
-    /// @dev Ensures that the events are emitted during initialization.
-    function test_initialize_events_succeeds() external {
-        // Wipe out the initialized slot so the proxy can be initialized again
-        vm.store(address(sysConf), bytes32(0), bytes32(0));
-        vm.store(address(sysConf), bytes32(uint256(106)), bytes32(0));
-        assertEq(sysConf.startBlock(), 0);
-
-        // The order depends here
-        vm.expectEmit(true, true, true, true, address(sysConf));
-        emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(batcherHash));
-        vm.expectEmit(true, true, true, true, address(sysConf));
-        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(overhead, scalar));
-        vm.expectEmit(true, true, true, true, address(sysConf));
-        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_LIMIT, abi.encode(gasLimit));
-        vm.expectEmit(true, true, true, true, address(sysConf));
-        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(unsafeBlockSigner));
-
-        vm.prank(multisig);
-        Proxy(payable(address(sysConf))).upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    overhead, // _overhead,
-                    scalar, // _scalar,
-                    batcherHash, // _batcherHash
-                    gasLimit, // _gasLimit,
-                    unsafeBlockSigner, // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
-                    0, // _startBlock
-                    batchInbox, // _batchInbox
-                    SystemConfig.Addresses({ // _addresses
-                        l1CrossDomainMessenger: l1CrossDomainMessenger,
-                        l1ERC721Bridge: l1ERC721Bridge,
-                        l1StandardBridge: l1StandardBridge,
-                        l2OutputOracle: l2OutputOracle,
-                        optimismPortal: optimismPortal,
-                        optimismMintableERC20Factory: optimismMintableERC20Factory
-                    })
-                )
-            )
-        );
-    }
-}
-
-contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
+contract SystemConfig_Initialize_TestFail is SystemConfig_Initializer {
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
@@ -269,7 +53,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Setters_TestFail is SystemConfig_Init {
+contract SystemConfig_Setters_TestFail is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setBatcherHash_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
@@ -367,7 +151,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 }
 
-contract SystemConfig_Setters_Test is SystemConfig_Init {
+contract SystemConfig_Setters_Test is SystemConfig_Initializer {
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(true, true, true, true);

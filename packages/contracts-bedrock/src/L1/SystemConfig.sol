@@ -72,6 +72,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
+    /// @notice Storage slot that the SuperchainConfig address is stored at.
+    bytes32 public constant SUPERCHAIN_CONFIG_SLOT = bytes32(uint256(keccak256("systemconfig.superchainconfig")) - 1);
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -183,6 +186,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
         Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
         Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
+        // Storage.setAddress(SUPERCHAIN_CONFIG_SLOT, _superchainConfig);
 
         _setStartBlock(_startBlock);
 

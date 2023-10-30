@@ -34,6 +34,7 @@ import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
@@ -88,7 +89,93 @@ contract CommonTest is Test {
     }
 }
 
-contract L2OutputOracle_Initializer is CommonTest {
+contract SuperchainConfig_Initializer is CommonTest {
+    SuperchainConfig supConf;
+    SuperchainConfig SuperchainConfigImpl;
+
+    event Paused(string identifier);
+    event Unpaused();
+    event ConfigUpdate(SuperchainConfig.UpdateType indexed updateType, bytes data);
+
+    address guardian = makeAddr("guardian");
+
+    /// @dev A helper function to pause the contract for further testing.
+    function _pause() internal {
+        vm.prank(guardian);
+        supConf.pause("identifier");
+        assertEq(supConf.paused(), true);
+    }
+
+    function setUp() public virtual override {
+        super.setUp();
+        Proxy proxy = new Proxy(multisig);
+        SuperchainConfigImpl = new SuperchainConfig();
+
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(address(SuperchainConfigImpl), abi.encodeCall(SuperchainConfig.initialize, (guardian)));
+
+        supConf = SuperchainConfig(address(proxy));
+    }
+}
+
+contract SystemConfig_Initializer is SuperchainConfig_Initializer {
+    SystemConfig sysConf;
+    SystemConfig systemConfigImpl;
+
+    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
+
+    // Dummy addresses used to test getters
+    address constant batchInbox = address(0x18);
+    address constant l1CrossDomainMessenger = address(0x20);
+    address constant l1ERC721Bridge = address(0x21);
+    address constant l1StandardBridge = address(0x22);
+    address constant l2OutputOracle = address(0x23);
+    address constant optimismPortal = address(0x24);
+    address constant optimismMintableERC20Factory = address(0x25);
+    uint256 constant overhead = 2100;
+    uint256 constant scalar = 1000000;
+    bytes32 constant batcherHash = bytes32(hex"abcd");
+    uint64 constant gasLimit = 30_000_000;
+    address constant unsafeBlockSigner = address(1);
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        Proxy proxy = new Proxy(multisig);
+        systemConfigImpl = new SystemConfig();
+
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice, // _owner,
+                    overhead, // _overhead,
+                    scalar, // _scalar,
+                    batcherHash, // _batcherHash
+                    gasLimit, // _gasLimit,
+                    unsafeBlockSigner, // _unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+                    0, // _startBlock
+                    batchInbox, // _batchInbox
+                    SystemConfig.Addresses({ // _addresses
+                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1ERC721Bridge: l1ERC721Bridge,
+                        l1StandardBridge: l1StandardBridge,
+                        l2OutputOracle: l2OutputOracle,
+                        optimismPortal: optimismPortal,
+                        optimismMintableERC20Factory: optimismMintableERC20Factory
+                    })
+                )
+            )
+        );
+
+        sysConf = SystemConfig(address(proxy));
+    }
+}
+
+contract L2OutputOracle_Initializer is SystemConfig_Initializer {
     // Test target
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
@@ -103,7 +190,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
     uint256 internal finalizationPeriodSeconds = 7 days;
-    address guardian;
 
     // Test data
     uint256 initL1Time;
