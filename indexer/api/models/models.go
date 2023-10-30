@@ -1,6 +1,9 @@
 package models
 
-import "github.com/ethereum-optimism/optimism/indexer/database"
+import (
+	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum/go-ethereum/common"
+)
 
 // DepositItem ... Deposit item model for API responses
 type DepositItem struct {
@@ -51,6 +54,12 @@ type WithdrawalResponse struct {
 func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) WithdrawalResponse {
 	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
 	for i, withdrawal := range withdrawals.Withdrawals {
+
+		msg := withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash
+		if msg == nil {
+			msg = &common.Hash{}
+		}
+
 		item := WithdrawalItem{
 			Guid:                 withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
 			L2BlockHash:          withdrawal.L2BlockHash.String(),
@@ -59,7 +68,7 @@ func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse)
 			To:                   withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
 			TransactionHash:      withdrawal.L2TransactionHash.String(),
 			Amount:               withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
-			MessageHash:          withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash.String(),
+			MessageHash:          msg.String(),
 			ProofTransactionHash: withdrawal.ProvenL1TransactionHash.String(),
 			ClaimTransactionHash: withdrawal.FinalizedL1TransactionHash.String(),
 			L1TokenAddress:       withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
