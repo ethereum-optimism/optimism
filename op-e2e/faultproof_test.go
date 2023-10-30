@@ -559,9 +559,6 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	InitParallel(t, UsesCannon, UseExecutor(0))
-	if true {
-		return
-	}
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
