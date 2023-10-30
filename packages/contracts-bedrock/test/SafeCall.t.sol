@@ -8,8 +8,30 @@ import { CommonTest } from "test/CommonTest.t.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 contract SafeCall_Test is CommonTest {
+    /// @dev Ensures that no optimism system contracts are called
+    function _assumeNoContracts(address _to) internal {
+        vm.assume(_to != address(optimismPortal));
+        vm.assume(_to != address(l2OutputOracle));
+        vm.assume(_to != address(systemConfig));
+        vm.assume(_to != address(l1StandardBridge));
+        vm.assume(_to != address(l1CrossDomainMessenger));
+        vm.assume(_to != address(addressManager));
+        vm.assume(_to != address(l1ERC721Bridge));
+        vm.assume(_to != address(l1OptimismMintableERC20Factory));
+        vm.assume(_to != address(protocolVersions));
+        vm.assume(_to != address(l2CrossDomainMessenger));
+        vm.assume(_to != address(l2StandardBridge));
+        vm.assume(_to != address(l2ToL1MessagePasser));
+        vm.assume(_to != address(l2OptimismMintableERC20Factory));
+        vm.assume(_to != address(l2ERC721Bridge));
+        vm.assume(_to != address(baseFeeVault));
+        vm.assume(_to != address(sequencerFeeVault));
+        vm.assume(_to != address(l1FeeVault));
+    }
+
     /// @dev Tests that the `send` function succeeds.
     function testFuzz_send_succeeds(address from, address to, uint256 gas, uint64 value) external {
+        _assumeNoContracts(to);
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -46,6 +68,7 @@ contract SafeCall_Test is CommonTest {
 
     /// @dev Tests that `call` succeeds.
     function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
+        _assumeNoContracts(to);
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -90,6 +113,7 @@ contract SafeCall_Test is CommonTest {
     )
         external
     {
+        _assumeNoContracts(to);
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
