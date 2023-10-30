@@ -181,7 +181,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         address _to,
         uint64 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         vm.assume(_gasLimit < systemConfig.gasLimit());
         vm.assume(_data.length < type(uint64).max);
         vm.assume(_gasLimit > optimismPortal.minimumGasLimit(uint64(_data.length)));
@@ -200,13 +202,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         });
 
         vm.prank(address(this), address(this));
-        optimismPortal.depositTransaction({
-            _to: _to,
-            _value: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
-        });
+        optimismPortal.depositTransaction({ _to: _to, _value: 0, _gasLimit: _gasLimit, _isCreation: false, _data: _data });
     }
 
     /// @dev Tests that `depositTransaction` succeeds for a contract depositing a tx with 0 value.
@@ -214,7 +210,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         address _to,
         uint64 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         vm.assume(_gasLimit < systemConfig.gasLimit());
         vm.assume(_data.length < type(uint64).max);
         vm.assume(_gasLimit > optimismPortal.minimumGasLimit(uint64(_data.length)));
@@ -231,18 +229,17 @@ contract OptimismPortal_Test is Portal_Initializer {
             _data: _data
         });
 
-        optimismPortal.depositTransaction({
-            _to: _to,
-            _value: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
-        });
+        optimismPortal.depositTransaction({ _to: _to, _value: 0, _gasLimit: _gasLimit, _isCreation: false, _data: _data });
     }
 
     /// @dev Tests that `depositTransaction` succeeds for an EOA
     ///      depositing a contract creation with 0 value.
-    function testFuzz_depositTransaction_createWithZeroValueForEOA_succeeds(uint64 _gasLimit, bytes memory _data) external {
+    function testFuzz_depositTransaction_createWithZeroValueForEOA_succeeds(
+        uint64 _gasLimit,
+        bytes memory _data
+    )
+        external
+    {
         vm.assume(_gasLimit < systemConfig.gasLimit());
         vm.assume(_data.length < type(uint64).max);
         vm.assume(_gasLimit > optimismPortal.minimumGasLimit(uint64(_data.length)));
@@ -272,7 +269,12 @@ contract OptimismPortal_Test is Portal_Initializer {
 
     /// @dev Tests that `depositTransaction` succeeds for a contract
     ///      depositing a contract creation with 0 value.
-    function testFuzz_depositTransaction_createWithZeroValueForContract_succeeds(uint64 _gasLimit, bytes memory _data) external {
+    function testFuzz_depositTransaction_createWithZeroValueForContract_succeeds(
+        uint64 _gasLimit,
+        bytes memory _data
+    )
+        external
+    {
         vm.assume(_gasLimit < systemConfig.gasLimit());
         vm.assume(_data.length < type(uint64).max);
         vm.assume(_gasLimit > optimismPortal.minimumGasLimit(uint64(_data.length)));
@@ -305,7 +307,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         // EOA emulation
         vm.deal(address(this), _value);
 
@@ -343,7 +347,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 _value,
         uint64 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         vm.deal(address(this), _value);
 
         vm.assume(_gasLimit < systemConfig.gasLimit());
@@ -376,7 +382,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 _mint,
         uint64 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         vm.deal(address(this), _mint);
 
         vm.assume(_gasLimit < systemConfig.gasLimit());
@@ -412,7 +420,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 _mint,
         uint64 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         vm.deal(address(this), _mint);
 
         vm.assume(_gasLimit < systemConfig.gasLimit());

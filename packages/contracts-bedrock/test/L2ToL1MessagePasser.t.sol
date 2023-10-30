@@ -66,20 +66,24 @@ contract L2ToL1MessagePasserTest is CommonTest {
         uint256 _gasLimit,
         uint256 _value,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
-              nonce: l2ToL1MessagePasser.messageNonce(),
-              sender: address(this),
-              target: _target,
-              value: _value,
-              gasLimit: _gasLimit,
-              data: _data
+                nonce: l2ToL1MessagePasser.messageNonce(),
+                sender: address(this),
+                target: _target,
+                value: _value,
+                gasLimit: _gasLimit,
+                data: _data
             })
         );
 
         vm.expectEmit(address(l2ToL1MessagePasser));
-        emit MessagePassed(l2ToL1MessagePasser.messageNonce(), address(this), _target, _value, _gasLimit, _data, withdrawalHash);
+        emit MessagePassed(
+            l2ToL1MessagePasser.messageNonce(), address(this), _target, _value, _gasLimit, _data, withdrawalHash
+        );
 
         vm.deal(address(this), _value);
         l2ToL1MessagePasser.initiateWithdrawal{ value: _value }(_target, _gasLimit, _data);
@@ -92,7 +96,9 @@ contract L2ToL1MessagePasserTest is CommonTest {
         address _target,
         uint256 _value,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         uint256 nonce = l2ToL1MessagePasser.messageNonce();
 
         // EOA emulation
@@ -104,11 +110,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         vm.expectEmit(address(l2ToL1MessagePasser));
         emit MessagePassed(nonce, alice, _target, _value, _gasLimit, _data, withdrawalHash);
 
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({
-            _target: _target,
-            _gasLimit: _gasLimit,
-            _data: _data
-        });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
 
         // the sent messages mapping is filled
         assertEq(l2ToL1MessagePasser.sentMessages(withdrawalHash), true);
@@ -117,19 +119,10 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     /// @dev Tests that `burn` succeeds and destroys the ETH held in the contract.
-    function testFuzz_burn_succeeds(
-        uint256 _value,
-        address _target,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) external {
+    function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
         vm.deal(address(this), _value);
 
-        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({
-            _target: _target,
-            _gasLimit: _gasLimit,
-            _data: _data
-        });
+        l2ToL1MessagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
 
         assertEq(address(l2ToL1MessagePasser).balance, _value);
         vm.expectEmit(true, false, false, false);
