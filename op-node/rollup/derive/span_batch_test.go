@@ -493,16 +493,16 @@ func TestSpanBatchBuilder(t *testing.T) {
 		}
 		genesisTimeStamp := 1 + singularBatches[0].Timestamp - 128
 
-		parentEpoch := uint64(singularBatches[0].EpochNum)
+		var seqNum uint64 = 1
 		if originChangedBit == 1 {
-			parentEpoch -= 1
+			seqNum = 0
 		}
-		spanBatchBuilder := NewSpanBatchBuilder(parentEpoch, genesisTimeStamp, chainID)
+		spanBatchBuilder := NewSpanBatchBuilder(genesisTimeStamp, chainID)
 
 		assert.Equal(t, 0, spanBatchBuilder.GetBlockCount())
 
 		for i := 0; i < len(singularBatches); i++ {
-			spanBatchBuilder.AppendSingularBatch(singularBatches[i])
+			spanBatchBuilder.AppendSingularBatch(singularBatches[i], seqNum)
 			assert.Equal(t, i+1, spanBatchBuilder.GetBlockCount())
 			assert.Equal(t, singularBatches[0].ParentHash.Bytes()[:20], spanBatchBuilder.spanBatch.parentCheck)
 			assert.Equal(t, singularBatches[i].EpochHash.Bytes()[:20], spanBatchBuilder.spanBatch.l1OriginCheck)

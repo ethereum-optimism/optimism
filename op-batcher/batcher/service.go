@@ -173,6 +173,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		SubSafetyMargin:    cfg.SubSafetyMargin,
 		MaxFrameSize:       cfg.MaxL1TxSize - 1, // subtract 1 byte for version
 		CompressorConfig:   cfg.CompressorConfig.Config(),
+		BatchType:          cfg.BatchType,
 	}
 	if err := bs.Channel.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)

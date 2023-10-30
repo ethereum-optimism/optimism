@@ -49,6 +49,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
@@ -679,6 +680,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
+	batchType := derive.SingularBatchType
+	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
+		batchType = derive.SpanBatchType
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
@@ -698,7 +703,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped: sys.cfg.DisableBatcher, // Batch submitter may be enabled later
+		Stopped:   sys.cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType: uint(batchType),
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.cfg.Loggers["batcher"])

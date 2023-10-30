@@ -597,31 +597,32 @@ func NewSpanBatch(singularBatches []*SingularBatch) *SpanBatch {
 // SpanBatchBuilder is a utility type to build a SpanBatch by adding a SingularBatch one by one.
 // makes easier to stack SingularBatches and convert to RawSpanBatch for encoding.
 type SpanBatchBuilder struct {
-	parentEpoch      uint64
 	genesisTimestamp uint64
 	chainID          *big.Int
 	spanBatch        *SpanBatch
+	originChangedBit uint
 }
 
-func NewSpanBatchBuilder(parentEpoch uint64, genesisTimestamp uint64, chainID *big.Int) *SpanBatchBuilder {
+func NewSpanBatchBuilder(genesisTimestamp uint64, chainID *big.Int) *SpanBatchBuilder {
 	return &SpanBatchBuilder{
-		parentEpoch:      parentEpoch,
 		genesisTimestamp: genesisTimestamp,
 		chainID:          chainID,
 		spanBatch:        &SpanBatch{},
 	}
 }
 
-func (b *SpanBatchBuilder) AppendSingularBatch(singularBatch *SingularBatch) {
+func (b *SpanBatchBuilder) AppendSingularBatch(singularBatch *SingularBatch, seqNum uint64) {
+	if b.GetBlockCount() == 0 {
+		b.originChangedBit = 0
+		if seqNum == 0 {
+			b.originChangedBit = 1
+		}
+	}
 	b.spanBatch.AppendSingularBatch(singularBatch)
 }
 
 func (b *SpanBatchBuilder) GetRawSpanBatch() (*RawSpanBatch, error) {
-	originChangedBit := 0
-	if uint64(b.spanBatch.GetStartEpochNum()) != b.parentEpoch {
-		originChangedBit = 1
-	}
-	raw, err := b.spanBatch.ToRawSpanBatch(uint(originChangedBit), b.genesisTimestamp, b.chainID)
+	raw, err := b.spanBatch.ToRawSpanBatch(b.originChangedBit, b.genesisTimestamp, b.chainID)
 	if err != nil {
 		return nil, err
 	}
