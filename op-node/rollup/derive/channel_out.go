@@ -91,7 +91,7 @@ func (co *SingularChannelOut) ID() ChannelID {
 
 func NewSingularChannelOut(compress Compressor) (*SingularChannelOut, error) {
 	c := &SingularChannelOut{
-		id:        ChannelID{}, // TODO: use GUID here instead of fully random data
+		id:        ChannelID{},
 		frame:     0,
 		rlpLength: 0,
 		compress:  compress,
@@ -104,7 +104,6 @@ func NewSingularChannelOut(compress Compressor) (*SingularChannelOut, error) {
 	return c, nil
 }
 
-// TODO: reuse SingularChannelOut for performance
 func (co *SingularChannelOut) Reset() error {
 	co.frame = 0
 	co.rlpLength = 0

@@ -34,7 +34,7 @@ func (co *SpanChannelOut) ID() ChannelID {
 
 func NewSpanChannelOut(compress Compressor, spanBatchBuilder *SpanBatchBuilder) (*SpanChannelOut, error) {
 	c := &SpanChannelOut{
-		id:               ChannelID{}, // TODO: use GUID here instead of fully random data
+		id:               ChannelID{},
 		frame:            0,
 		rlpLength:        0,
 		compress:         compress,
@@ -49,7 +49,6 @@ func NewSpanChannelOut(compress Compressor, spanBatchBuilder *SpanBatchBuilder) 
 	return c, nil
 }
 
-// TODO: reuse ChannelOut for performance
 func (co *SpanChannelOut) Reset() error {
 	co.frame = 0
 	co.rlpLength = 0
