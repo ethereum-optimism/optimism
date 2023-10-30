@@ -3,7 +3,7 @@ codecov:
 comment:
   layout: "diff, flags, files"
   behavior: default
-  require_changes: false
+  require_changes: true
   flags:
     - contracts-bedrock-tests
 

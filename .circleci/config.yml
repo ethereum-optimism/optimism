@@ -770,9 +770,10 @@ jobs:
           key: golang-build-cache-<<parameters.module>>
           paths:
             - "/root/.cache/go-build"
-      - run:
-          name: upload coverage
-          command: codecov --verbose --clean --flags bedrock-go-tests
+      # TODO(CLI-148): Fix codecov
+      #- run:
+          #name: upload coverage
+          #command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /tmp/test-results
 
