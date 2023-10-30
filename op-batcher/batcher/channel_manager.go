@@ -365,7 +365,7 @@ func (s *channelManager) Close() error {
 			s.log.Info("Channel is in-flight and will need to be submitted after close", "channel", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))
 		}
 	}
-	s.log.Info("reviewed all pending channels on close", "remaining", len(s.channelQueue))
+	s.log.Info("Reviewed all pending channels on close", "remaining", len(s.channelQueue))
 
 	if s.currentChannel == nil {
 		return nil
