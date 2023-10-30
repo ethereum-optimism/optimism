@@ -93,11 +93,16 @@ func (bq *BatchQueue) popNextBatch(safeL2Head eth.L2BlockRef) *SingularBatch {
 // It also returns the boolean that indicates if the batch is the last block in the batch.
 func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) (*SingularBatch, bool, error) {
 	if len(bq.nextSpan) > 0 {
+		// There are cached singular batches derived from the span batch.
+		// Check if the next cached batch matches the given parent block.
 		if bq.nextSpan[0].Timestamp == safeL2Head.Time+bq.config.BlockTime {
-			// If there are cached singular batches, pop first one and return.
+			// Pop first one and return.
 			nextBatch := bq.popNextBatch(safeL2Head)
+			// len(bq.nextSpan) == 0 means it's the last batch of the span.
 			return nextBatch, len(bq.nextSpan) == 0, nil
 		} else {
+			// Given parent block does not match the next batch. It means the previously returned batch is invalid.
+			// Drop cached batches and find another batch.
 			bq.nextSpan = bq.nextSpan[:0]
 		}
 	}
@@ -110,6 +115,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 				break
 			}
 		}
+		// If we can't find the origin of parent block, we have to advance bq.origin.
 	}
 
 	// Note: We use the origin that we will have to determine if it's behind. This is important
@@ -189,6 +195,8 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 		return nil, false, NewCriticalError(fmt.Errorf("unrecognized batch type: %d", batch.GetBatchType()))
 	}
 
+	// If the nextBatch is derived from the span batch, len(bq.nextSpan) == 0 means it's the last batch of the span.
+	// For singular batches, len(bq.nextSpan) == 0 is always true.
 	return nextBatch, len(bq.nextSpan) == 0, nil
 }
 
