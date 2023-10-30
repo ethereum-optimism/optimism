@@ -18,6 +18,9 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
+import { L1FeeVault } from "src/L2/L1FeeVault.sol";
+import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
+import { FeeVault } from "src/universal/FeeVault.sol"; // TODO
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -71,6 +74,9 @@ contract CommonTest is Deploy, Test {
     L2ToL1MessagePasser l2ToL1MessagePasser;
     OptimismMintableERC20Factory l2OptimismMintableERC20Factory;
     L2ERC721Bridge l2ERC721Bridge;
+    BaseFeeVault baseFeeVault;
+    SequencerFeeVault sequencerFeeVault;
+    L1FeeVault l1FeeVault;
 
     FFIInterface ffi;
 
@@ -139,13 +145,32 @@ contract CommonTest is Deploy, Test {
         l2ERC721Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
         l2ERC721Bridge.initialize();
 
+        vm.etch(
+            Predeploys.SEQUENCER_FEE_WALLET,
+            address(new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)).code
+        );
+        vm.etch(
+            Predeploys.BASE_FEE_VAULT,
+            address(new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)).code
+        );
+        vm.etch(
+            Predeploys.L1_FEE_VAULT,
+            address(new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)).code
+        );
+
+        sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+        baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
+        l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
+
         vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
         vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
-        vm.label(address(l2ERC721Bridge), "L2ERC721Bridge");
-
+        vm.label(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
+        vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
+        vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
+        vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
 
@@ -345,11 +370,8 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FeeVault_Initializer is Bridge_Initializer {
-    SequencerFeeVault vault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
-    address constant recipient = address(1024);
 
     event Withdrawal(uint256 value, address to, address from);
-
     event Withdrawal(uint256 value, address to, address from, FeeVault.WithdrawalNetwork withdrawalNetwork);
 }
 
