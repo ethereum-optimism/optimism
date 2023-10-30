@@ -2,18 +2,18 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest, Messenger_Initializer } from "./CommonTest.t.sol";
+import { CommonTest, Messenger_Initializer } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Hashing } from "../src/libraries/Hashing.sol";
-import { Encoding } from "../src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 // Target contract dependencies
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Target contract
-import { CrossDomainOwnable3 } from "../src/L2/CrossDomainOwnable3.sol";
+import { CrossDomainOwnable3 } from "src/L2/CrossDomainOwnable3.sol";
 
 contract XDomainSetter3 is CrossDomainOwnable3 {
     uint256 public value;

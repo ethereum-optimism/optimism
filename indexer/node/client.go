@@ -39,7 +39,7 @@ type EthClient interface {
 	TxByHash(common.Hash) (*types.Transaction, error)
 
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
-	FilterLogs(ethereum.FilterQuery) ([]types.Log, error)
+	FilterLogs(ethereum.FilterQuery) (Logs, error)
 }
 
 type clnt struct {
@@ -122,15 +122,12 @@ func (c *clnt) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Hea
 	}
 
 	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
+	headers := make([]types.Header, count)
 	batchElems := make([]rpc.BatchElem, count)
+
 	for i := uint64(0); i < count; i++ {
 		height := new(big.Int).Add(startHeight, new(big.Int).SetUint64(i))
-		batchElems[i] = rpc.BatchElem{
-			Method: "eth_getBlockByNumber",
-			Args:   []interface{}{toBlockNumArg(height), false},
-			Result: new(types.Header),
-			Error:  nil,
-		}
+		batchElems[i] = rpc.BatchElem{Method: "eth_getBlockByNumber", Args: []interface{}{toBlockNumArg(height), false}, Result: &headers[i]}
 	}
 
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
@@ -144,23 +141,21 @@ func (c *clnt) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Hea
 	//  - Ensure integrity that they build on top of each other
 	//  - Truncate out headers that do not exist (endHeight > "latest")
 	size := 0
-	headers := make([]types.Header, count)
 	for i, batchElem := range batchElems {
 		if batchElem.Error != nil {
-			return nil, batchElem.Error
+			if size == 0 {
+				return nil, batchElem.Error
+			} else {
+				break // try return whatever headers are available
+			}
 		} else if batchElem.Result == nil {
 			break
 		}
 
-		header, ok := batchElem.Result.(*types.Header)
-		if !ok {
-			return nil, fmt.Errorf("unable to transform rpc response %v into types.Header", batchElem.Result)
-		}
-		if i > 0 && header.ParentHash != headers[i-1].Hash() {
-			return nil, fmt.Errorf("queried header %s does not follow parent %s", header.Hash(), headers[i-1].Hash())
+		if i > 0 && headers[i].ParentHash != headers[i-1].Hash() {
+			return nil, fmt.Errorf("queried header %s does not follow parent %s", headers[i].Hash(), headers[i-1].Hash())
 		}
 
-		headers[i] = *header
 		size = size + 1
 	}
 
@@ -197,19 +192,43 @@ func (c *clnt) StorageHash(address common.Address, blockNumber *big.Int) (common
 	return proof.StorageHash, nil
 }
 
-// FilterLogs returns logs that fit the query parameters
-func (c *clnt) FilterLogs(query ethereum.FilterQuery) ([]types.Log, error) {
-	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
-	defer cancel()
+type Logs struct {
+	Logs          []types.Log
+	ToBlockHeader *types.Header
+}
 
-	var result []types.Log
+// FilterLogs returns logs that fit the query parameters. The underlying request is a batch
+// request including `eth_getBlockByNumber` to allow the caller to check that connected
+// node has the state necessary to fulfill this request
+func (c *clnt) FilterLogs(query ethereum.FilterQuery) (Logs, error) {
 	arg, err := toFilterArg(query)
 	if err != nil {
-		return nil, err
+		return Logs{}, err
 	}
 
-	err = c.rpc.CallContext(ctxwt, &result, "eth_getLogs", arg)
-	return result, err
+	var logs []types.Log
+	var header types.Header
+
+	batchElems := make([]rpc.BatchElem, 2)
+	batchElems[0] = rpc.BatchElem{Method: "eth_getBlockByNumber", Args: []interface{}{toBlockNumArg(query.ToBlock), false}, Result: &header}
+	batchElems[1] = rpc.BatchElem{Method: "eth_getLogs", Args: []interface{}{arg}, Result: &logs}
+
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+	err = c.rpc.BatchCallContext(ctxwt, batchElems)
+	if err != nil {
+		return Logs{}, err
+	}
+
+	if batchElems[0].Error != nil {
+		return Logs{}, fmt.Errorf("unable to query for the `FilterQuery#ToBlock` header: %w", batchElems[0].Error)
+	}
+
+	if batchElems[1].Error != nil {
+		return Logs{}, fmt.Errorf("unable to query logs: %w", batchElems[1].Error)
+	}
+
+	return Logs{Logs: logs, ToBlockHeader: &header}, nil
 }
 
 // Modeled off op-service/client.go. We can refactor this once the client/metrics portion
@@ -262,10 +281,7 @@ func toBlockNumArg(number *big.Int) string {
 }
 
 func toFilterArg(q ethereum.FilterQuery) (interface{}, error) {
-	arg := map[string]interface{}{
-		"address": q.Addresses,
-		"topics":  q.Topics,
-	}
+	arg := map[string]interface{}{"address": q.Addresses, "topics": q.Topics}
 	if q.BlockHash != nil {
 		arg["blockHash"] = *q.BlockHash
 		if q.FromBlock != nil || q.ToBlock != nil {

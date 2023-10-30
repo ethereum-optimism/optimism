@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 // Target contract
-import { Bytes } from "../src/libraries/Bytes.sol";
+import { Bytes } from "src/libraries/Bytes.sol";
 
 contract Bytes_slice_Test is Test {
     /// @notice Tests that the `slice` function works as expected when starting from index 0.

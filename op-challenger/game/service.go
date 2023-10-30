@@ -55,7 +55,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
-	l1Client, err := dial.DialEthClientWithTimeout(dial.DefaultDialTimeout, logger, cfg.L1EthRpc)
+	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.L1EthRpc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}

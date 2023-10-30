@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Target contract dependencies
-import { L1Block } from "../src/L2/L1Block.sol";
-import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { L1Block } from "src/L2/L1Block.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
-import { GasPriceOracle } from "../src/L2/GasPriceOracle.sol";
+import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
 
 contract GasPriceOracle_Test is CommonTest {
     event OverheadUpdated(uint256);

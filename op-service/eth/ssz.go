@@ -7,6 +7,8 @@ import (
 	"io"
 	"math"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type BlockVersion int
@@ -180,16 +182,16 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 	offset += transactionSize
 	// dyanmic value 3: Withdrawals
 	if payload.Withdrawals != nil {
-		marshalWithdrawals(buf[offset:], payload.Withdrawals)
+		marshalWithdrawals(buf[offset:], *payload.Withdrawals)
 	}
 
 	return w.Write(buf)
 }
 
-func marshalWithdrawals(out []byte, withdrawals *Withdrawals) {
+func marshalWithdrawals(out []byte, withdrawals types.Withdrawals) {
 	offset := uint32(0)
 
-	for _, withdrawal := range *withdrawals {
+	for _, withdrawal := range withdrawals {
 		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Index)
 		offset += 8
 		binary.LittleEndian.PutUint64(out[offset:offset+8], withdrawal.Validator)
@@ -305,14 +307,14 @@ func (payload *ExecutionPayload) UnmarshalSSZ(version BlockVersion, scope uint32
 		if err != nil {
 			return fmt.Errorf("failed to unmarshal withdrawals list: %w", err)
 		}
-		payload.Withdrawals = withdrawals
+		payload.Withdrawals = &withdrawals
 	}
 
 	return nil
 }
 
-func unmarshalWithdrawals(in []byte) (*Withdrawals, error) {
-	result := &Withdrawals{}
+func unmarshalWithdrawals(in []byte) (types.Withdrawals, error) {
+	result := types.Withdrawals{} // empty list by default, intentionally non-nil
 
 	if len(in)%withdrawalSize != 0 {
 		return nil, errors.New("invalid withdrawals data")
@@ -327,7 +329,7 @@ func unmarshalWithdrawals(in []byte) (*Withdrawals, error) {
 	offset := 0
 
 	for i := 0; i < withdrawalCount; i++ {
-		withdrawal := Withdrawal{}
+		withdrawal := &types.Withdrawal{}
 
 		withdrawal.Index = binary.LittleEndian.Uint64(in[offset : offset+8])
 		offset += 8
@@ -341,7 +343,7 @@ func unmarshalWithdrawals(in []byte) (*Withdrawals, error) {
 		withdrawal.Amount = binary.LittleEndian.Uint64(in[offset : offset+8])
 		offset += 8
 
-		*result = append(*result, withdrawal)
+		result = append(result, withdrawal)
 	}
 
 	return result, nil

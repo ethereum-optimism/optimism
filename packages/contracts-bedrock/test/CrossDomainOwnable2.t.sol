@@ -2,11 +2,11 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest, Messenger_Initializer } from "./CommonTest.t.sol";
+import { CommonTest, Messenger_Initializer } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Hashing } from "../src/libraries/Hashing.sol";
-import { Encoding } from "../src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 // Target contract dependencies

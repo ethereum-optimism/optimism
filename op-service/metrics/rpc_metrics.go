@@ -125,3 +125,17 @@ func (m *RPCMetrics) RecordRPCClientResponse(method string, err error) {
 	}
 	m.RPCClientResponsesTotal.WithLabelValues(method, errStr).Inc()
 }
+
+type NoopRPCMetrics struct{}
+
+func (n *NoopRPCMetrics) RecordRPCServerRequest(method string) func() {
+	return func() {}
+}
+
+func (n *NoopRPCMetrics) RecordRPCClientRequest(method string) func(err error) {
+	return func(err error) {}
+}
+func (n *NoopRPCMetrics) RecordRPCClientResponse(method string, err error) {
+}
+
+var _ RPCMetricer = (*NoopRPCMetrics)(nil)

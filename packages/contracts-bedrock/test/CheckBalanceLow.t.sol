@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { CheckBalanceLow } from "../src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
+import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
 
 /// @title  CheckBalanceLowTest
 /// @notice Tests the CheckBalanceLow contract via fuzzing both the success case

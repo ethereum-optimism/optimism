@@ -109,6 +109,14 @@ func (o *OracleEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash)
 	return derive.L2BlockToBlockRef(block, &o.rollupCfg.Genesis)
 }
 
+func (o *OracleEngine) L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error) {
+	hash := o.backend.GetCanonicalHash(n)
+	if hash == (common.Hash{}) {
+		return eth.L2BlockRef{}, ErrNotFound
+	}
+	return o.L2BlockRefByHash(ctx, hash)
+}
+
 func (o *OracleEngine) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error) {
 	payload, err := o.PayloadByHash(ctx, hash)
 	if err != nil {

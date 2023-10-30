@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -26,8 +27,8 @@ type channel struct {
 	confirmedTransactions map[txID]eth.BlockID
 }
 
-func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) (*channel, error) {
-	cb, err := newChannelBuilder(cfg)
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rcfg *rollup.Config) (*channel, error) {
+	cb, err := newChannelBuilder(cfg, rcfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)
 	}

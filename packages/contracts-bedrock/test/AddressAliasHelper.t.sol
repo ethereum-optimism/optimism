@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 contract AddressAliasHelper_applyAndUndo_Test is Test {
     /// @notice Tests that applying and then undoing an alias results in the original address.

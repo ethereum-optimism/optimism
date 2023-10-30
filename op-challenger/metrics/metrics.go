@@ -133,7 +133,12 @@ func (m *Metrics) StartBalanceMetrics(
 	client *ethclient.Client,
 	account common.Address,
 ) {
-	opmetrics.LaunchBalanceMetrics(ctx, l, m.registry, m.ns, client, account)
+	// TODO(7684): util was refactored to close, but ctx is still being used by caller for shutdown
+	balanceMetric := opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
+	go func() {
+		<-ctx.Done()
+		_ = balanceMetric.Close()
+	}()
 }
 
 // RecordInfo sets a pseudo-metric that contains versioning and
