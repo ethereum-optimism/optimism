@@ -62,6 +62,9 @@ type EthClientConfig struct {
 	// till we re-attempt the user-preferred methods.
 	// If this is 0 then the client does not fall back to less optimal but available methods.
 	MethodResetDuration time.Duration
+
+	// [OPTIONAL] The reth DB path to fetch receipts from
+	RethDBPath string
 }
 
 func (c *EthClientConfig) Check() error {
@@ -132,6 +135,9 @@ type EthClient struct {
 
 	// methodResetDuration defines how long we take till we reset lastMethodsReset
 	methodResetDuration time.Duration
+
+	// [OPTIONAL] The reth DB path to fetch receipts from
+	rethDbPath string
 }
 
 func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
@@ -179,6 +185,7 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		availableReceiptMethods: AvailableReceiptsFetchingMethods(config.RPCProviderKind),
 		lastMethodsReset:        time.Now(),
 		methodResetDuration:     config.MethodResetDuration,
+		rethDbPath:              config.RethDBPath,
 	}, nil
 }
 
@@ -357,7 +364,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		job = v
 	} else {
 		txHashes := eth.TransactionsToHashes(txs)
-		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
+		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes, s.rethDbPath)
 		s.receiptsCache.Add(blockHash, job)
 	}
 	receipts, err := job.Fetch(ctx)

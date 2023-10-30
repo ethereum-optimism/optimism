@@ -62,6 +62,7 @@
   "governanceTokenOwner": "0x0000000000000000000000000000000000000333",
   "deploymentWaitConfirmations": 1,
   "eip1559Denominator": 8,
+  "eip1559DenominatorCanyon": 12,
   "eip1559Elasticity": 2,
   "fundDevAccounts": true,
   "faultGameAbsolutePrestate": "0x0000000000000000000000000000000000000000000000000000000000000000",

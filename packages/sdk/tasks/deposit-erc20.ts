@@ -2,6 +2,7 @@ import { promises as fs } from 'fs'
 
 import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { Event, Contract, Wallet, providers, utils, ethers } from 'ethers'
@@ -27,11 +28,9 @@ import {
 
 const deployWETH9 = async (
   hre: HardhatRuntimeEnvironment,
+  signer: SignerWithAddress,
   wrap: boolean
 ): Promise<Contract> => {
-  const signers = await hre.ethers.getSigners()
-  const signer = signers[0]
-
   const Factory__WETH9 = new hre.ethers.ContractFactory(
     Artifact__WETH9.abi,
     Artifact__WETH9.bytecode.object,
@@ -117,13 +116,16 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     '',
     types.string
   )
+  .addOptionalParam('signerIndex', 'Index of signer to use', 0, types.int)
   .setAction(async (args, hre) => {
     const signers = await hre.ethers.getSigners()
     if (signers.length === 0) {
       throw new Error('No configured signers')
     }
-    // Use the first configured signer for simplicity
-    const signer = signers[0]
+    if (args.signerIndex < 0 || signers.length <= args.signerIndex) {
+      throw new Error('Invalid signer index')
+    }
+    const signer = signers[args.signerIndex]
     const address = await signer.getAddress()
     console.log(`Using signer ${address}`)
 
@@ -137,7 +139,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     const l2Provider = new providers.StaticJsonRpcProvider(args.l2ProviderUrl)
 
     const l2Signer = new hre.ethers.Wallet(
-      hre.network.config.accounts[0],
+      hre.network.config.accounts[args.signerIndex],
       l2Provider
     )
 
@@ -219,7 +221,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     console.log(params)
 
     console.log('Deploying WETH9 to L1')
-    const WETH9 = await deployWETH9(hre, true)
+    const WETH9 = await deployWETH9(hre, signer, true)
     console.log(`Deployed to ${WETH9.address}`)
 
     console.log('Creating L2 WETH9')

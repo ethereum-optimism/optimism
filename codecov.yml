@@ -1,8 +1,17 @@
-comment: false
+codecov:
+  require_ci_to_pass: false
+comment:
+  layout: "diff, flags, files"
+  behavior: default
+  require_changes: false
+  flags:
+    - contracts-bedrock-tests
+
 ignore:
   - "op-e2e"
-  - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "**/*.t.sol"
+  - "packages/contracts-bedrock/test/**/*.sol"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
   - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
 coverage:
@@ -13,6 +22,7 @@ coverage:
         threshold: 0% # coverage is not allowed to reduce vs. the PR base
         base: auto
         informational: true
+        enabled: true
     project:
       default:
         informational: true
@@ -22,7 +32,7 @@ flag_management:
   individual_flags:
     - name: contracts-bedrock-tests
       paths:
-        - packages/contracts-bedrock/contracts
+        - packages/contracts-bedrock
       statuses:
         - type: patch
           target: 100%

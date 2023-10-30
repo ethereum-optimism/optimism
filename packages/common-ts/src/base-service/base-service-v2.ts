@@ -336,7 +336,8 @@ export abstract class BaseServiceV2<
       app.use(
         bodyParser.json({
           verify: (req, res, buf, encoding) => {
-            ;(req as any).rawBody = buf?.toString(encoding || 'utf8') || ''
+            ;(req as any).rawBody =
+              buf?.toString((encoding as BufferEncoding) || 'utf8') || ''
           },
           ...(this.params.bodyParserParams ?? {}),
         })

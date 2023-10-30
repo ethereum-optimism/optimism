@@ -18,7 +18,7 @@ services:
       args:
         GIT_COMMIT: "dev"
         GIT_DATE: "0"
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     entrypoint: ["echo", "build complete"]
 
   l1:
@@ -33,6 +33,8 @@ services:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
 
   l2:
     build:
@@ -49,6 +51,8 @@ services:
       - "/bin/sh"
       - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+    environment:
+      GETH_MINER_RECOMMIT: 100ms
 
   op-node:
     depends_on:
@@ -59,7 +63,7 @@ services:
       context: ../
       dockerfile: ./op-node/Dockerfile
       args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     command: >
       op-node
@@ -107,7 +111,7 @@ services:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
       args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
     ports:
       - "6062:6060"
@@ -136,7 +140,7 @@ services:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
       args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:devnet
+        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
     ports:
       - "6061:6060"

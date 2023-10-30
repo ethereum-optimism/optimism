@@ -7,10 +7,12 @@ import (
 	"math"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/go-cmp/cmp"
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // FuzzExecutionPayloadUnmarshal checks that our SSZ decoding never panics
@@ -138,9 +140,9 @@ func FuzzExecutionPayloadMarshalUnmarshalV2(f *testing.F) {
 		}
 
 		wCount = wCount % maxWithdrawalsPerPayload
-		withdrawals := make(Withdrawals, wCount)
+		withdrawals := make(types.Withdrawals, wCount)
 		for i := 0; i < int(wCount); i++ {
-			withdrawals[i] = Withdrawal{
+			withdrawals[i] = &types.Withdrawal{
 				Index:     a,
 				Validator: b,
 				Address:   common.BytesToAddress(data[:20]),
@@ -228,10 +230,10 @@ func TestOPB04(t *testing.T) {
 
 	tests := []struct {
 		version     BlockVersion
-		withdrawals *Withdrawals
+		withdrawals *types.Withdrawals
 	}{
 		{BlockV1, nil},
-		{BlockV2, &Withdrawals{}},
+		{BlockV2, &types.Withdrawals{}},
 	}
 
 	for _, test := range tests {
@@ -246,7 +248,7 @@ func TestOPB04(t *testing.T) {
 
 }
 
-func createPayloadWithWithdrawals(w *Withdrawals) *ExecutionPayload {
+func createPayloadWithWithdrawals(w *types.Withdrawals) *ExecutionPayload {
 	return &ExecutionPayload{
 		ParentHash:    common.HexToHash("0x123"),
 		FeeRecipient:  common.HexToAddress("0x456"),
@@ -267,8 +269,8 @@ func createPayloadWithWithdrawals(w *Withdrawals) *ExecutionPayload {
 }
 
 func TestMarshalUnmarshalWithdrawals(t *testing.T) {
-	emptyWithdrawal := &Withdrawals{}
-	withdrawals := &Withdrawals{
+	emptyWithdrawal := &types.Withdrawals{}
+	withdrawals := &types.Withdrawals{
 		{
 			Index:     987,
 			Validator: 654,
@@ -276,18 +278,18 @@ func TestMarshalUnmarshalWithdrawals(t *testing.T) {
 			Amount:    321,
 		},
 	}
-	maxWithdrawals := make(Withdrawals, maxWithdrawalsPerPayload)
+	maxWithdrawals := make(types.Withdrawals, maxWithdrawalsPerPayload)
 	for i := 0; i < maxWithdrawalsPerPayload; i++ {
-		maxWithdrawals[i] = Withdrawal{
+		maxWithdrawals[i] = &types.Withdrawal{
 			Index:     987,
 			Validator: 654,
 			Address:   common.HexToAddress("0x898"),
 			Amount:    321,
 		}
 	}
-	tooManyWithdrawals := make(Withdrawals, maxWithdrawalsPerPayload+1)
+	tooManyWithdrawals := make(types.Withdrawals, maxWithdrawalsPerPayload+1)
 	for i := 0; i < maxWithdrawalsPerPayload+1; i++ {
-		tooManyWithdrawals[i] = Withdrawal{
+		tooManyWithdrawals[i] = &types.Withdrawal{
 			Index:     987,
 			Validator: 654,
 			Address:   common.HexToAddress("0x898"),
@@ -299,7 +301,7 @@ func TestMarshalUnmarshalWithdrawals(t *testing.T) {
 		name        string
 		version     BlockVersion
 		hasError    bool
-		withdrawals *Withdrawals
+		withdrawals *types.Withdrawals
 	}{
 		{"ZeroWithdrawalsSucceeds", BlockV2, false, emptyWithdrawal},
 		{"ZeroWithdrawalsFailsToDeserialize", BlockV1, true, emptyWithdrawal},

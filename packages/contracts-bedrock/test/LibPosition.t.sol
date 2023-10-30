@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { LibPosition } from "../src/dispute/lib/LibPosition.sol";
-import "../src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeTypes.sol";
 
 /// @notice Tests for `LibPosition`
 contract LibPosition_Test is Test {

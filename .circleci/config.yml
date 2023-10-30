@@ -58,6 +58,19 @@ commands:
             cd ops/check-changed
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
+  notify-failures-on-develop:
+    description: "Notify Slack"
+    parameters:
+      channel:
+        type: string
+        default: C03N11M0BBN
+    steps:
+      - slack/notify:
+          channel: << parameters.channel >>
+          event: fail
+          template: basic_fail_1
+          branch_pattern: develop
+
 jobs:
   cannon-go-lint-and-test:
     docker:
@@ -148,18 +161,13 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     parameters:
-      docker_name:
-        description: Docker image name
-        type: string
       docker_tags:
-        description: Docker image tags as csv
+        description: Docker image tags, comma-separated
         type: string
-      docker_file:
-        description: Path to Dockerfile
+      docker_name:
+        description: "Docker buildx bake target"
         type: string
-      docker_context:
-        description: Docker build context
-        type: string
+        default: ""
       registry:
         description: Docker registry
         type: string
@@ -168,42 +176,50 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
-      build_args:
-        description: Docker build args
-        type: string
-        default: ""
-      load_base_image:
-        description: Load docker image as base
-        type: string
-        default: ""
       save_image_tag:
-        description: Save docker image as
+        description: Save docker image with given tag
         type: string
         default: ""
+      platforms:
+        description: Platforms to build for, comma-separated
+        type: string
+        default: "linux/amd64"
+      publish:
+        description: Publish the docker image (multi-platform, all tags)
+        type: boolean
+        default: false
+      release:
+        description: Run the release script
+        type: boolean
+        default: false
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
-      docker_layer_caching: true
+      docker_layer_caching: true  # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - checkout
-      - restore_cache:
-          name: Restore docker build cache
-          key: docker-build-cache
       - attach_workspace:
           at: /tmp/docker_images
       - run:
           command: mkdir -p /tmp/docker_images
       - when:
-          condition: "<<parameters.load_base_image>>"
+          condition: "<<parameters.release>>"
           steps:
-            - run:
-                name: Load OP-Stack Go base image
-                command: |
-                  docker load < "/tmp/docker_images/<<parameters.load_base_image>>.tar"
-      - run:
-          name: build args
-          command: |
-            echo "build args: <<parameters.build_args>>"
+            - gcp-cli/install
+      - when:
+          condition:
+            or:
+              - "<<parameters.publish>>"
+              - "<<parameters.release>>"
+          steps:
+            - gcp-oidc-authenticate
+      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
+      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
+      - run: cat /etc/netplan/50-cloud-init.yaml
+      - run: sudo netplan apply
       - run:
           name: Build
           command: |
@@ -212,15 +228,55 @@ jobs:
             if [[ -v DOCKER_HUB_READ_ONLY_TOKEN ]]; then
               echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
             fi
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            IMAGE_BASE_PREFIX="<<parameters.registry>>/<<parameters.repo>>"
-            IMAGE_BASE="$IMAGE_BASE_PREFIX/<<parameters.docker_name>>"
-            docker build --progress plain \
-            <<parameters.build_args>> \
-            $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-            -f <<parameters.docker_file>> \
-            <<parameters.docker_context>>
+
+            export REGISTRY="<<parameters.registry>>"
+            export REPOSITORY="<<parameters.repo>>"
+            export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
+            export GIT_COMMIT="$(git rev-parse HEAD)"
+            export GIT_DATE="$(git show -s --format='%ct')"
+            export GIT_VERSION="<<pipeline.git.tag>>"
+            export PLATFORMS="<<parameters.platforms>>"
+
+            # Create, start (bootstrap) and use a *named* docker builder
+            # This allows us to cross-build multi-platform,
+            # and naming allows us to use the DLC (docker-layer-cache)
+            docker buildx create --driver=docker-container --name=buildx-build --bootstrap --use
+
+            DOCKER_OUTPUT_DESTINATION=""
+            if [ "<<parameters.publish>>" == "true" ]; then
+              gcloud auth configure-docker <<parameters.registry>>
+              echo "Building for platforms $PLATFORMS and then publishing to registry"
+              DOCKER_OUTPUT_DESTINATION="--push"
+              if [ "<<parameters.save_image_tag>>" != "" ]; then
+                echo "ERROR: cannot save image to docker when publishing to registry"
+                exit 1
+              fi
+            else
+              if [ "<<parameters.save_image_tag>>" == "" ]; then
+                echo "Running $PLATFORMS build without destination (cache warm-up)"
+                DOCKER_OUTPUT_DESTINATION=""
+              elif [[ $PLATFORMS == *,* ]]; then
+                echo "ERROR: cannot perform multi-arch (platforms: $PLATFORMS) build while also loading the result into regular docker"
+                exit 1
+              else
+                echo "Running single-platform $PLATFORMS build and loading into docker"
+                DOCKER_OUTPUT_DESTINATION="--load"
+              fi
+            fi
+
+            # Let them cook!
+            docker buildx bake \
+              --progress plain \
+              --builder=buildx-build \
+              -f docker-bake.hcl \
+              $DOCKER_OUTPUT_DESTINATION \
+              <<parameters.docker_name>>
+
+          no_output_timeout: 45m
+      - when:
+          condition: "<<parameters.publish>>"
+          steps:
+            - notify-failures-on-develop
       - when:
           condition: "<<parameters.save_image_tag>>"
           steps:
@@ -233,135 +289,19 @@ jobs:
                 root: /tmp/docker_images
                 paths:  # only write the one file, to avoid concurrent workspace-file additions
                   - "<<parameters.docker_name>>.tar"
-      - save_cache:
-          name: Save docker build cache
-          key: docker-build-cache
-          paths:
-            - "/tmp/docker-build-cache"
+      - when:
+          condition: "<<parameters.release>>"
+          steps:
+            - run:
+                name: Tag
+                command: |
+                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
-  docker-publish:
-    environment:
-      DOCKER_BUILDKIT: 1
-    parameters:
-      docker_name:
-        description: Docker image name
-        type: string
-      docker_tags:
-        description: Docker image tags as csv
-        type: string
-      docker_file:
-        description: Path to Dockerfile
-        type: string
-      docker_context:
-        description: Docker build context
-        type: string
-        default: "."
-      docker_target:
-        description: "target build stage"
-        type: string
-        default: ""
-      registry:
-        description: Docker registry
-        type: string
-        default: "us-docker.pkg.dev"
-      repo:
-        description: Docker repo
-        type: string
-        default: "oplabs-tools-artifacts/images"
-      platforms:
-        description: Platforms to build for
-        type: string
-        default: "linux/amd64"
-    machine:
-      image: ubuntu-2204:2022.07.1
-      resource_class: medium
-    steps:
-      - gcp-oidc-authenticate
-      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
-      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
-      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
-      - run: cat /etc/netplan/50-cloud-init.yaml
-      - run: sudo netplan apply
-      - checkout
-      - run:
-          name: Build & Publish
-          command: |
-            gcloud auth configure-docker <<parameters.registry>>
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker context create buildx-build
-            docker buildx create --use buildx-build
-            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
-              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-              -f <<parameters.docker_file>> \
-              <<parameters.docker_context>>
-
-  docker-release:
-    environment:
-      DOCKER_BUILDKIT: 1
-    parameters:
-      docker_name:
-        description: Docker image name
-        type: string
-      docker_tags:
-        description: Docker image tags as csv
-        type: string
-      docker_file:
-        description: Path to Dockerfile
-        type: string
-      docker_context:
-        description: Docker build context
-        type: string
-      docker_target:
-        description: "target build stage"
-        type: string
-        default: ""
-      registry:
-        description: Docker registry
-        type: string
-        default: "us-docker.pkg.dev"
-      repo:
-        description: Docker repo
-        type: string
-        default: "oplabs-tools-artifacts/images"
-      platforms:
-        description: Platforms to build for
-        type: string
-        default: "linux/amd64"
-    machine:
-      image: ubuntu-2204:2022.07.1
-      resource_class: medium
-    steps:
-      - gcp-cli/install
-      - gcp-oidc-authenticate
-      - checkout
-      - run:
-          name: Configure Docker
-          command: |
-            gcloud auth configure-docker <<parameters.registry>>
-      - run:
-          name: Build & Publish
-          command: |
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker context create buildx-build
-            docker buildx create --use buildx-build
-            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
-              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-              -f <<parameters.docker_file>> \
-              <<parameters.docker_context>>
-          no_output_timeout: 45m
-      - run:
-          name: Tag
-          command: |
-            ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-coverage:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
@@ -372,7 +312,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: test and generate coverage
-          command: pnpm coverage:lcov || true
+          command: pnpm coverage:lcov
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
@@ -662,10 +602,7 @@ jobs:
       - run:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose
-      - slack/notify:
-          channel: C03N11M0BBN
-          event: fail
-          template: basic_fail_1
+      - notify-failures-on-develop
 
   bedrock-markdown:
     machine:
@@ -709,10 +646,8 @@ jobs:
           name: link lint
           command: |
             make bedrock-markdown-links
-      - slack/notify:
+      - notify-failures-on-develop:
           channel: C055R639XT9 #notify-link-check
-          event: fail
-          template: basic_fail_1
 
   fuzz-golang:
     parameters:
@@ -849,6 +784,10 @@ jobs:
       target:
         description: The make target to execute
         type: string
+      cannon_enabled:
+        description: Whether to include cannon tests
+        default: true
+        type: boolean
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
@@ -874,7 +813,8 @@ jobs:
           command: go tool dist list | grep mips
       - run:
           name: run tests
-          command:
+          command: |
+            export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>>
@@ -1031,6 +971,7 @@ jobs:
       image: ubuntu-2204:2022.10.2
     environment:
       DOCKER_BUILDKIT: 1
+      DEVNET_NO_BUILD: 'true'
     steps:
       - checkout
       - check-changed:
@@ -1099,12 +1040,12 @@ jobs:
           command: |
             IMAGE_BASE_PREFIX="us-docker.pkg.dev/oplabs-tools-artifacts/images"
             # Load from previous docker-build job
-            docker load < "/tmp/workspace/op_stack_go.tar"
+            docker load < "/tmp/workspace/op-stack-go.tar"
             docker load < "/tmp/workspace/op-node.tar"
             docker load < "/tmp/workspace/op-proposer.tar"
             docker load < "/tmp/workspace/op-batcher.tar"
             # rename to the tags that the docker-compose of the devnet expects
-            docker tag "$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op_stack_go:devnet"
+            docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
@@ -1190,6 +1131,7 @@ jobs:
       - run:
           name: "Semgrep scan"
           command: semgrep ci
+      - notify-failures-on-develop
 
   go-mod-download:
     docker:
@@ -1249,10 +1191,23 @@ jobs:
           command: |
             make verify-goerli
           working_directory: op-program
-      - slack/notify:
-          channel: C03N11M0BBN
-          event: fail
-          template: basic_fail_1
+      - notify-failures-on-develop
+
+  op-program-compat:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - restore_cache:
+          key: golang-build-cache
+      - run:
+          name: compat-goerli
+          command: |
+            make run-goerli-verify
+          working_directory: op-program
 
   check-generated-mocks-op-node:
     docker:
@@ -1421,6 +1376,7 @@ workflows:
           name: op-e2e-HTTP-tests
           module: op-e2e
           target: test-http
+          cannon_enabled: false
           requires:
             - op-stack-go-lint
             - devnet-allocs
@@ -1428,10 +1384,14 @@ workflows:
           name: op-e2e-ext-geth-tests
           module: op-e2e
           target: test-external-geth
+          cannon_enabled: false
           requires:
             - op-stack-go-lint
             - devnet-allocs
             - l1-geth-version-check
+      - op-program-compat:
+          requires:
+            - op-program-tests
       - bedrock-go-tests:
           requires:
             - go-mod-download
@@ -1449,75 +1409,52 @@ workflows:
             - op-proposer-tests
             - op-challenger-tests
             - op-program-tests
+            - op-program-compat
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
             - op-e2e-ext-geth-tests
-      - docker-build:
+      - docker-build: # just to warm up the cache (other jobs run in parallel)
           name: op-stack-go-docker-build
-          docker_file: ops/docker/op-stack-go/Dockerfile
-          docker_name: op_stack_go
+          docker_name: op-stack-go
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
-          build_args: "--build-arg GIT_COMMIT=$(git rev-parse HEAD) --build-arg GIT_DATE=$(git show -s --format='%ct')"
-          save_image_tag: <<pipeline.git.revision>> # other images builds below depend on this image, so we save it to the workspace
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-node-docker-build
-          docker_file: op-node/Dockerfile
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          load_base_image: "op_stack_go"
-          docker_context: .
           requires: ['op-stack-go-docker-build']
-          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-batcher-docker-build
-          docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          load_base_image: "op_stack_go"
-          docker_context: .
           requires: ['op-stack-go-docker-build']
-          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-program-docker-build
-          docker_file: op-program/Dockerfile
           docker_name: op-program
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          load_base_image: "op_stack_go"
-          docker_context: .
           requires: ['op-stack-go-docker-build']
-          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-proposer-docker-build
-          docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          load_base_image: "op_stack_go"
-          docker_context: .
           requires: ['op-stack-go-docker-build']
-          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-challenger-docker-build
-          docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          load_base_image: "op_stack_go"
-          docker_context: .
           requires: ['op-stack-go-docker-build']
-          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-heartbeat-docker-build
-          docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          load_base_image: "op_stack_go"
-          docker_context: .
           requires: ['op-stack-go-docker-build']
-          build_args: --build-arg OP_STACK_GO_BUILDER="$IMAGE_BASE_PREFIX/op_stack_go:<<pipeline.git.revision>>"
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
           requires: ["op-stack-go-lint"]
       - devnet:
@@ -1530,16 +1467,12 @@ workflows:
             - cannon-prestate
       - docker-build:
           name: indexer-docker-build
-          docker_file: indexer/Dockerfile
           docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
       - docker-build:
           name: ufm-metamask-docker-build
-          docker_file: ufm-test-services/metamask/Dockerfile
           docker_name: ufm-metamask
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: ufm-test-services/metamask
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
@@ -1557,172 +1490,164 @@ workflows:
               only: /^(proxyd|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
-      - docker-release:
+      - docker-build: # just to warm up the cache (other jobs run in parallel)
+          name: op-stack-go-docker-build-release
+          filters:
+            tags:
+              only: /^(proxyd|indexer|ci-builder|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-stack-go
+          docker_tags: <<pipeline.git.revision>>
+          platforms: "linux/amd64,linux/arm64"
+          requires:
+            - hold
+      - docker-build:
           name: op-heartbeat-release
           filters:
             tags:
               only: /^op-heartbeat\/v.*/
             branches:
               ignore: /.*/
-          docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
+      - docker-build:
           name: op-node-docker-release
           filters:
             tags:
               only: /^op-node\/v.*/
             branches:
               ignore: /.*/
-          docker_file: op-node/Dockerfile
           docker_name: op-node
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
+      - docker-build:
           name: op-batcher-docker-release
           filters:
             tags:
               only: /^op-batcher\/v.*/
             branches:
               ignore: /.*/
-          docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
+      - docker-build:
           name: op-proposer-docker-release
           filters:
             tags:
               only: /^op-proposer\/v.*/
             branches:
               ignore: /.*/
-          docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
+      - docker-build:
           name: op-challenger-docker-release
           filters:
             tags:
               only: /^op-challenger\/v.*/
             branches:
               ignore: /.*/
-          docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
-          requires:
-            - hold
       - docker-build:
-          name: op-migrate-docker-release
-          filters:
-            tags:
-              only: /^op-migrate\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: op-chain-ops/Dockerfile
-          docker_name: op-migrate
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
           name: op-ufm-docker-release
           filters:
             tags:
               only: /^op-ufm\/v.*/
             branches:
               ignore: /.*/
-          docker_file: op-ufm/Dockerfile
           docker_name: op-ufm
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
+      - docker-build:
           name: proxyd-docker-release
           filters:
             tags:
               only: /^proxyd\/v.*/
             branches:
               ignore: /.*/
-          docker_file: proxyd/Dockerfile
           docker_name: proxyd
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
+      - docker-build:
           name: indexer-docker-release
           filters:
             tags:
               only: /^indexer\/v.*/
             branches:
               ignore: /.*/
-          docker_file: indexer/Dockerfile
           docker_name: indexer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
+          docker_tags: <<pipeline.git.revision>>
+          publish: true
+          release: true
           context:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
+      - docker-build:
           name: ci-builder-docker-release
           filters:
             tags:
               only: /^ci-builder\/v.*/
             branches:
               ignore: /.*/
-          docker_file: ./ops/docker/ci-builder/Dockerfile
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
-          docker_context: .
+          publish: true
+          release: true
           context:
             - oplabs-gcr
           requires:
             - hold
-      - docker-release:
+      - docker-build:
           name: ufm-metamask-docker-release
           filters:
             tags:
               only: /^ufm-metamask\/v.*/
             branches:
               ignore: /.*/
-          docker_file: ./ufm-test-services/metamask/Dockerfile
           docker_name: ufm-metamask
           docker_tags: <<pipeline.git.revision>>,latest
-          docker_context: ./ufm-test-services/metamask
+          publish: true
+          release: true
           context:
             - oplabs-gcr
           requires:
@@ -1757,75 +1682,96 @@ workflows:
     when:
       equal: [ build_hourly, <<pipeline.schedule.name>> ]
     jobs:
-      - docker-publish:
+      - docker-build: # just to warm up the cache (other jobs run in parallel)
+          name: op-stack-go-docker-build-publish
+          docker_name: op-stack-go
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
           name: op-node-docker-publish
           docker_name: op-node
-          docker_file: op-node/Dockerfile
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+            - slack
+      - docker-build:
           name: op-batcher-docker-publish
-          docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+            - slack
+      - docker-build:
           name: op-program-docker-publish
-          docker_file: op-program/Dockerfile
           docker_name: op-program
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+            - slack
+      - docker-build:
           name: op-proposer-docker-publish
-          docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+            - slack
+      - docker-build:
           name: op-challenger-docker-publish
-          docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+            - slack
+      - docker-build:
           name: op-heartbeat-docker-publish
-          docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+            - slack
+      - docker-build:
           name: indexer-docker-publish
-          docker_file: indexer/Dockerfile
           docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          publish: true
           context:
             - oplabs-gcr
+            - slack
           platforms: "linux/amd64,linux/arm64"
-      - docker-publish:
+      - docker-build:
           name: chain-mon-docker-publish
-          docker_file: ./ops/docker/Dockerfile.packages
           docker_name: chain-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: wd-mon
+          publish: true
           context:
             - oplabs-gcr
-      - docker-publish:
+            - slack
+      - docker-build:
           name: ufm-metamask-docker-publish
-          docker_file: ufm-test-services/metamask/Dockerfile
           docker_name: ufm-metamask
-          docker_context: ufm-test-services/metamask
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          publish: true
           context:
             - oplabs-gcr
+            - slack

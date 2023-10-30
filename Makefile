@@ -1,7 +1,10 @@
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
-OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op_stack_go:latest
+OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+
+# Requires at least Python v3.9; specify a minor version below if needed
+PYTHON?=python3
 
 build: build-go build-ts
 .PHONY: build
@@ -25,10 +28,15 @@ ci-builder:
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
 
 golang-docker:
-	DOCKER_BUILDKIT=1 docker build -t op-stack-go \
-		--build-arg GIT_COMMIT=$$(git rev-parse HEAD) \
-		--build-arg GIT_DATE=$$(git show -s --format='%ct') \
- 		-f ops/docker/op-stack-go/Dockerfile .
+	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
+	GIT_COMMIT=$$(git rev-parse HEAD) \
+	GIT_DATE=$$(git show -s --format='%ct') \
+	IMAGE_TAGS=$$GIT_COMMIT,latest \
+	docker buildx bake \
+			--progress plain \
+			--load \
+			-f docker-bake.hcl \
+			op-node op-batcher op-proposer op-challenger
 .PHONY: golang-docker
 
 submodules:
@@ -109,14 +117,14 @@ pre-devnet:
 devnet-up: pre-devnet
 	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
 		|| make devnet-allocs
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 # alias for devnet-up
 devnet-up-deploy: devnet-up
 
 devnet-test: pre-devnet
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test
 .PHONY: devnet-test
 
 devnet-down:
@@ -132,7 +140,7 @@ devnet-clean:
 .PHONY: devnet-clean
 
 devnet-allocs: pre-devnet
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker compose logs -f)

@@ -3,6 +3,7 @@ package etl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -105,22 +106,33 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	}
 
 	headersWithLog := make(map[common.Hash]bool, len(headers))
-	logs, err := etl.EthClient.FilterLogs(ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts})
+	filterQuery := ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts}
+	logs, err := etl.EthClient.FilterLogs(filterQuery)
 	if err != nil {
 		batchLog.Info("failed to extract logs", "err", err)
 		return err
 	}
-	if len(logs) > 0 {
-		batchLog.Info("detected logs", "size", len(logs))
+
+	if logs.ToBlockHeader.Number.Cmp(lastHeader.Number) != 0 {
+		// Warn and simply wait for the provider to synchronize state
+		batchLog.Warn("mismatch in FilterLog#ToBlock number", "queried_to_block_number", lastHeader.Number, "reported_to_block_number", logs.ToBlockHeader.Number)
+		return fmt.Errorf("mismatch in FilterLog#ToBlock number")
+	} else if logs.ToBlockHeader.Hash() != lastHeader.Hash() {
+		batchLog.Error("mismatch in FitlerLog#ToBlock block hash!!!", "queried_to_block_hash", lastHeader.Hash().String(), "reported_to_block_hash", logs.ToBlockHeader.Hash().String())
+		return fmt.Errorf("mismatch in FitlerLog#ToBlock block hash!!!")
 	}
 
-	for i := range logs {
-		log := logs[i]
+	if len(logs.Logs) > 0 {
+		batchLog.Info("detected logs", "size", len(logs.Logs))
+	}
+
+	for i := range logs.Logs {
+		log := logs.Logs[i]
 		if _, ok := headerMap[log.BlockHash]; !ok {
 			// NOTE. Definitely an error state if the none of the headers were re-orged out in between
 			// the blocks and logs retrieval operations. Unlikely as long as the confirmation depth has
 			// been appropriately set or when we get to natively handling reorgs.
-			batchLog.Error("log found with block hash not in the batch", "block_hash", logs[i].BlockHash, "log_index", logs[i].Index)
+			batchLog.Error("log found with block hash not in the batch", "block_hash", logs.Logs[i].BlockHash, "log_index", logs.Logs[i].Index)
 			return errors.New("parsed log with a block hash not in the batch")
 		}
 
@@ -130,6 +142,6 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 
 	// ensure we use unique downstream references for the etl batch
 	headersRef := headers
-	etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs, HeadersWithLog: headersWithLog}
+	etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs.Logs, HeadersWithLog: headersWithLog}
 	return nil
 }

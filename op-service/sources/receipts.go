@@ -125,6 +125,7 @@ const (
 	RPCKindBasic      RPCProviderKind = "basic"    // try only the standard most basic receipt fetching
 	RPCKindAny        RPCProviderKind = "any"      // try any method available
 	RPCKindStandard   RPCProviderKind = "standard" // try standard methods, including newer optimized standard RPC methods
+	RPCKindRethDB     RPCProviderKind = "reth_db"  // read data directly from reth's database
 )
 
 var RPCProviderKinds = []RPCProviderKind{
@@ -138,6 +139,7 @@ var RPCProviderKinds = []RPCProviderKind{
 	RPCKindBasic,
 	RPCKindAny,
 	RPCKindStandard,
+	RPCKindRethDB,
 }
 
 func (kind RPCProviderKind) String() string {
@@ -269,6 +271,18 @@ const (
 	// See:
 	// https://github.com/ledgerwatch/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/erigon_receipts.go#LL391C24-L391C51
 	ErigonGetBlockReceiptsByBlockHash
+	// RethGetBlockReceiptsMDBX is a Reth-specific receipt fetching method. It reads the data directly from reth's database, using their
+	// generic DB abstractions, rather than requesting it from the RPC provider.
+	// Available in:
+	//   - Reth
+	// Method: n/a - does not use RPC.
+	// Params:
+	//   - Reth: string, hex-encoded block hash
+	// Returns:
+	//   - Reth: string, json-ified receipts
+	// See:
+	//   - reth's DB crate documentation: https://github.com/paradigmxyz/reth/blob/main/docs/crates/db.md
+	RethGetBlockReceipts
 
 	// Other:
 	//  - 250 credits, not supported, strictly worse than other options. In quicknode price-table.
@@ -298,12 +312,14 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 	case RPCKindBasic:
 		return EthGetTransactionReceiptBatch
 	case RPCKindAny:
-		// if it's any kind of RPC provider, then try all methods
+		// if it's any kind of RPC provider, then try all methods (except for RethGetBlockReceipts)
 		return AlchemyGetTransactionReceipts | EthGetBlockReceipts |
 			DebugGetRawReceipts | ErigonGetBlockReceiptsByBlockHash |
 			ParityGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindStandard:
 		return EthGetBlockReceipts | EthGetTransactionReceiptBatch
+	case RPCKindRethDB:
+		return RethGetBlockReceipts
 	default:
 		return EthGetTransactionReceiptBatch
 	}
@@ -314,7 +330,9 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 func PickBestReceiptsFetchingMethod(kind RPCProviderKind, available ReceiptsFetchingMethod, txCount uint64) ReceiptsFetchingMethod {
 	// If we have optimized methods available, it makes sense to use them, but only if the cost is
 	// lower than fetching transactions one by one with the standard receipts RPC method.
-	if kind == RPCKindAlchemy {
+	if kind == RPCKindRethDB {
+		return RethGetBlockReceipts
+	} else if kind == RPCKindAlchemy {
 		if available&AlchemyGetTransactionReceipts != 0 && txCount > 250/15 {
 			return AlchemyGetTransactionReceipts
 		}
@@ -372,11 +390,14 @@ type receiptsFetchingJob struct {
 
 	fetcher *batching.IterativeBatchCall[common.Hash, *types.Receipt]
 
+	// [OPTIONAL] RethDB path to fetch receipts from
+	rethDbPath string
+
 	result types.Receipts
 }
 
 func NewReceiptsFetchingJob(requester ReceiptsRequester, client rpcClient, maxBatchSize int, block eth.BlockID,
-	receiptHash common.Hash, txHashes []common.Hash) *receiptsFetchingJob {
+	receiptHash common.Hash, txHashes []common.Hash, rethDb string) *receiptsFetchingJob {
 	return &receiptsFetchingJob{
 		requester:    requester,
 		client:       client,
@@ -384,6 +405,7 @@ func NewReceiptsFetchingJob(requester ReceiptsRequester, client rpcClient, maxBa
 		block:        block,
 		receiptHash:  receiptHash,
 		txHashes:     txHashes,
+		rethDbPath:   rethDb,
 	}
 }
 
@@ -461,6 +483,15 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 		err = job.client.CallContext(ctx, &result, "eth_getBlockReceipts", job.block.Hash)
 	case ErigonGetBlockReceiptsByBlockHash:
 		err = job.client.CallContext(ctx, &result, "erigon_getBlockReceiptsByBlockHash", job.block.Hash)
+	case RethGetBlockReceipts:
+		if job.rethDbPath == "" {
+			return fmt.Errorf("reth_db path not set")
+		}
+		res, err := FetchRethReceipts(job.rethDbPath, &job.block.Hash)
+		if err != nil {
+			return err
+		}
+		result = res
 	default:
 		err = fmt.Errorf("unknown receipt fetching method: %d", uint64(m))
 	}

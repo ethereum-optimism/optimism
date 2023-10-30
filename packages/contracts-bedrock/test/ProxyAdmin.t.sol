@@ -2,12 +2,12 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
-import { ProxyAdmin } from "../src/universal/ProxyAdmin.sol";
-import { SimpleStorage } from "./Proxy.t.sol";
-import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "../src/legacy/AddressManager.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { SimpleStorage } from "test/Proxy.t.sol";
+import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
 
 contract ProxyAdmin_Test is Test {
     address alice = address(64);

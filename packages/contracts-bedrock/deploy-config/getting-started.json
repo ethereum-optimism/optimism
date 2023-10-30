@@ -51,6 +51,7 @@
   "l2GenesisRegolithTimeOffset": "0x0",
 
   "eip1559Denominator": 50,
+  "eip1559DenominatorCanyon": 250,
   "eip1559Elasticity": 10,
 
   "systemConfigStartBlock": 0,
