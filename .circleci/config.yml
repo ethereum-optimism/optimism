@@ -467,7 +467,7 @@ jobs:
   op-bindings-build:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - run:
