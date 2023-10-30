@@ -2,36 +2,14 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "test/CommonTest.t.sol";
+import { Test } from "forge-std/Test.sol";
 
 // Target contract
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
-contract SafeCall_Test is CommonTest {
-    /// @dev Ensures that no optimism system contracts are called
-    function _assumeNoContracts(address _to) internal {
-        vm.assume(_to != address(optimismPortal));
-        vm.assume(_to != address(l2OutputOracle));
-        vm.assume(_to != address(systemConfig));
-        vm.assume(_to != address(l1StandardBridge));
-        vm.assume(_to != address(l1CrossDomainMessenger));
-        vm.assume(_to != address(addressManager));
-        vm.assume(_to != address(l1ERC721Bridge));
-        vm.assume(_to != address(l1OptimismMintableERC20Factory));
-        vm.assume(_to != address(protocolVersions));
-        vm.assume(_to != address(l2CrossDomainMessenger));
-        vm.assume(_to != address(l2StandardBridge));
-        vm.assume(_to != address(l2ToL1MessagePasser));
-        vm.assume(_to != address(l2OptimismMintableERC20Factory));
-        vm.assume(_to != address(l2ERC721Bridge));
-        vm.assume(_to != address(baseFeeVault));
-        vm.assume(_to != address(sequencerFeeVault));
-        vm.assume(_to != address(l1FeeVault));
-    }
-
+contract SafeCall_Test is Test {
     /// @dev Tests that the `send` function succeeds.
     function testFuzz_send_succeeds(address from, address to, uint256 gas, uint64 value) external {
-        _assumeNoContracts(to);
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -43,8 +21,6 @@ contract SafeCall_Test is CommonTest {
         vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
         // don't call the create2 deployer
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        // don't call the ffi interface
-        vm.assume(to != address(0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f));
         vm.assume(to != address(this));
 
         assertEq(from.balance, 0, "from balance is 0");
@@ -68,7 +44,6 @@ contract SafeCall_Test is CommonTest {
 
     /// @dev Tests that `call` succeeds.
     function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
-        _assumeNoContracts(to);
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -80,8 +55,6 @@ contract SafeCall_Test is CommonTest {
         vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
         // don't call the create2 deployer
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        // don't call the ffi interface
-        vm.assume(to != address(ffi));
         vm.assume(to != address(this));
 
         assertEq(from.balance, 0, "from balance is 0");
@@ -113,7 +86,6 @@ contract SafeCall_Test is CommonTest {
     )
         external
     {
-        _assumeNoContracts(to);
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -125,8 +97,6 @@ contract SafeCall_Test is CommonTest {
         vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
         // don't call the create2 deployer
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        // don't call the FFIInterface
-        vm.assume(to != address(ffi));
         vm.assume(to != address(this));
 
         assertEq(from.balance, 0, "from balance is 0");

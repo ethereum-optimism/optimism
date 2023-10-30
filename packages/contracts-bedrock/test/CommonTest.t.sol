@@ -20,7 +20,9 @@ import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 import { L1FeeVault } from "src/L2/L1FeeVault.sol";
 import { BaseFeeVault } from "src/L2/BaseFeeVault.sol";
-import { FeeVault } from "src/universal/FeeVault.sol"; // TODO
+import { FeeVault } from "src/universal/FeeVault.sol";
+import { GasPriceOracle } from "src/L2/GasPriceOracle.sol";
+import { L1Block } from "src/L2/L1Block.sol";
 import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { FeeVault } from "src/universal/FeeVault.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -71,6 +73,8 @@ contract CommonTest is Deploy, Test {
     BaseFeeVault baseFeeVault;
     SequencerFeeVault sequencerFeeVault;
     L1FeeVault l1FeeVault;
+    GasPriceOracle gasPriceOracle;
+    L1Block l1Block;
 
     FFIInterface ffi;
 
@@ -168,6 +172,12 @@ contract CommonTest is Deploy, Test {
         baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
         l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
 
+        vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new L1Block()).code);
+        l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
+
+        vm.etch(Predeploys.GAS_PRICE_ORACLE, address(new GasPriceOracle()).code);
+        gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
+
         vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
@@ -177,6 +187,8 @@ contract CommonTest is Deploy, Test {
         vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
         vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
         vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
+        vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
+        vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
 
