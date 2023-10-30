@@ -945,6 +945,7 @@ jobs:
   devnet-allocs:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - restore_cache:
