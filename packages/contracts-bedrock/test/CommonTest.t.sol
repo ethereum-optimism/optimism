@@ -37,8 +37,10 @@ import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "src/legacy/L1ChugSplashProxy.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { LegacyMintableERC20 } from "src/legacy/LegacyMintableERC20.sol";
+import { LegacyMessagePasser } from "src/legacy/LegacyMessagePasser.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -75,6 +77,8 @@ contract CommonTest is Deploy, Test {
     L1FeeVault l1FeeVault;
     GasPriceOracle gasPriceOracle;
     L1Block l1Block;
+    LegacyMessagePasser legacyMessagePasser;
+    GovernanceToken governanceToken;
 
     FFIInterface ffi;
 
@@ -178,6 +182,17 @@ contract CommonTest is Deploy, Test {
         vm.etch(Predeploys.GAS_PRICE_ORACLE, address(new GasPriceOracle()).code);
         gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
 
+        vm.etch(Predeploys.LEGACY_MESSAGE_PASSER, address(new LegacyMessagePasser()).code);
+        legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
+
+        vm.etch(Predeploys.GOVERNANCE_TOKEN, address(new GovernanceToken()).code);
+        governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
+
+        // Set the governance token's owner to be the final system owner
+        address finalSystemOwner = cfg.finalSystemOwner();
+        vm.prank(governanceToken.owner());
+        governanceToken.transferOwnership(finalSystemOwner);
+
         vm.label(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, "OptimismMintableERC20Factory");
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_STANDARD_BRIDGE, "L2StandardBridge");
@@ -189,6 +204,8 @@ contract CommonTest is Deploy, Test {
         vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
         vm.label(Predeploys.L1_BLOCK_ATTRIBUTES, "L1Block");
         vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
+        vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
+        vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
 
