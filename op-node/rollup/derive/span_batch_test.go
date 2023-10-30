@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"math"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -528,7 +529,7 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x177288))
 
 	invalidTx := types.NewTx(&types.DynamicFeeTx{
-		Data: testutils.RandomData(rng, MaxSpanBatchFieldSize+1),
+		Data: testutils.RandomData(rng, MaxSpanBatchSize+1),
 	})
 
 	txEncoded, err := invalidTx.MarshalBinary()
@@ -537,14 +538,73 @@ func TestSpanBatchMaxTxData(t *testing.T) {
 	r := bytes.NewReader(txEncoded)
 	_, _, err = ReadTxData(r)
 
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
 
 func TestSpanBatchMaxOriginBitsLength(t *testing.T) {
 	var sb RawSpanBatch
-	sb.blockCount = 0xFFFFFFFFFFFFFFFF
+	sb.blockCount = math.MaxUint64
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
-	assert.ErrorIs(t, err, ErrTooBigSpanBatchFieldSize)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchMaxBlockCount(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556691))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	rawSpanBatch.blockCount = math.MaxUint64
+
+	var buf bytes.Buffer
+	err := rawSpanBatch.encodeBlockCount(&buf)
+	require.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+	err = sb.decodeBlockCount(r)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchMaxBlockTxCount(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556692))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	rawSpanBatch.blockTxCounts[0] = math.MaxUint64
+
+	var buf bytes.Buffer
+	err := rawSpanBatch.encodeBlockTxCounts(&buf)
+	require.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+	sb.blockCount = rawSpanBatch.blockCount
+	err = sb.decodeBlockTxCounts(r)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchTotalBlockTxCountNotOverflow(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x77556693))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	rawSpanBatch.blockTxCounts[0] = MaxSpanBatchSize - 1
+	rawSpanBatch.blockTxCounts[1] = MaxSpanBatchSize - 1
+	// we are sure that totalBlockTxCount will overflow on uint64
+
+	var buf bytes.Buffer
+	err := rawSpanBatch.encodeBlockTxCounts(&buf)
+	require.NoError(t, err)
+
+	result := buf.Bytes()
+	r := bytes.NewReader(result)
+	var sb RawSpanBatch
+	sb.blockTxCounts = rawSpanBatch.blockTxCounts
+	err = sb.decodeTxs(r)
+
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }

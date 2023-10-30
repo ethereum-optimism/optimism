@@ -9,12 +9,14 @@ import (
 	"math/big"
 	"sort"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // Batch format
@@ -25,7 +27,7 @@ import (
 // payload := block_count ++ origin_bits ++ block_tx_counts ++ txs
 // txs := contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases
 
-var ErrTooBigSpanBatchFieldSize = errors.New("batch would cause field bytes to go over limit")
+var ErrTooBigSpanBatchSize = errors.New("span batch size limit reached")
 
 var ErrEmptySpanBatch = errors.New("span-batch must not be empty")
 
@@ -57,8 +59,8 @@ func (bp *spanBatchPayload) decodeOriginBits(r *bytes.Reader) error {
 		originBitBufferLen++
 	}
 	// avoid out of memory before allocation
-	if originBitBufferLen > MaxSpanBatchFieldSize {
-		return ErrTooBigSpanBatchFieldSize
+	if originBitBufferLen > MaxSpanBatchSize {
+		return ErrTooBigSpanBatchSize
 	}
 	originBitBuffer := make([]byte, originBitBufferLen)
 	_, err := io.ReadFull(r, originBitBuffer)
@@ -144,10 +146,14 @@ func (bp *spanBatchPayload) decodeBlockCount(r *bytes.Reader) error {
 	if err != nil {
 		return fmt.Errorf("failed to read block count: %w", err)
 	}
-	bp.blockCount = blockCount
+	// number of L2 block in span batch cannot be greater than MaxSpanBatchSize
+	if blockCount > MaxSpanBatchSize {
+		return ErrTooBigSpanBatchSize
+	}
 	if blockCount == 0 {
 		return ErrEmptySpanBatch
 	}
+	bp.blockCount = blockCount
 	return nil
 }
 
@@ -159,6 +165,11 @@ func (bp *spanBatchPayload) decodeBlockTxCounts(r *bytes.Reader) error {
 		blockTxCount, err := binary.ReadUvarint(r)
 		if err != nil {
 			return fmt.Errorf("failed to read block tx count: %w", err)
+		}
+		// number of txs in single L2 block cannot be greater than MaxSpanBatchSize
+		// every tx will take at least single byte
+		if blockTxCount > MaxSpanBatchSize {
+			return ErrTooBigSpanBatchSize
 		}
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 	}
@@ -176,7 +187,15 @@ func (bp *spanBatchPayload) decodeTxs(r *bytes.Reader) error {
 	}
 	totalBlockTxCount := uint64(0)
 	for i := 0; i < len(bp.blockTxCounts); i++ {
-		totalBlockTxCount += bp.blockTxCounts[i]
+		total, overflow := math.SafeAdd(totalBlockTxCount, bp.blockTxCounts[i])
+		if overflow {
+			return ErrTooBigSpanBatchSize
+		}
+		totalBlockTxCount = total
+	}
+	// total number of txs in span batch cannot be greater than MaxSpanBatchSize
+	if totalBlockTxCount > MaxSpanBatchSize {
+		return ErrTooBigSpanBatchSize
 	}
 	bp.txs.totalBlockTxCount = totalBlockTxCount
 	if err := bp.txs.decode(r); err != nil {
@@ -205,6 +224,14 @@ func (bp *spanBatchPayload) decodePayload(r *bytes.Reader) error {
 // decodeBytes parses data into b from data
 func (b *RawSpanBatch) decodeBytes(data []byte) error {
 	r := bytes.NewReader(data)
+	return b.decode(r)
+}
+
+// decode reads the byte encoding of SpanBatch from Reader stream
+func (b *RawSpanBatch) decode(r *bytes.Reader) error {
+	if r.Len() > MaxSpanBatchSize {
+		return ErrTooBigSpanBatchSize
+	}
 	if err := b.decodePrefix(r); err != nil {
 		return err
 	}
@@ -661,13 +688,13 @@ func ReadTxData(r *bytes.Reader) ([]byte, int, error) {
 		}
 	}
 	// avoid out of memory before allocation
-	s := rlp.NewStream(r, MaxSpanBatchFieldSize)
+	s := rlp.NewStream(r, MaxSpanBatchSize)
 	var txPayload []byte
 	kind, _, err := s.Kind()
 	switch {
 	case err != nil:
 		if errors.Is(err, rlp.ErrValueTooLarge) {
-			return nil, 0, ErrTooBigSpanBatchFieldSize
+			return nil, 0, ErrTooBigSpanBatchSize
 		}
 		return nil, 0, fmt.Errorf("failed to read tx RLP prefix: %w", err)
 	case kind == rlp.List:
