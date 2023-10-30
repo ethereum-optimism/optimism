@@ -83,15 +83,15 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     }
 
     function test_depositTransaction_benchmark() external {
-        optimismPortal.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
+        optimismPortal.depositTransaction{ value: 100 }(
+            address(1), 0, 50000, false, hex"0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000"
         );
     }
 
     function test_depositTransaction_benchmark_1() external {
         setPrevBaseFee(vm, address(optimismPortal), 1 gwei);
-        optimismPortal.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
+        optimismPortal.depositTransaction{ value: 100 }(
+            address(1), 0, 50000, false, hex"0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000"
         );
     }
 

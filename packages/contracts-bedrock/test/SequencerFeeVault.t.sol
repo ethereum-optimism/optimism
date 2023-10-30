@@ -92,7 +92,7 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
 
         // The withdrawal was successful
         assertEq(sequencerFeeVault.totalProcessed(), amount);
-        assertEq(address(sequencerFeeVault).balance, ZERO_VALUE);
+        assertEq(address(sequencerFeeVault).balance, 0);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, amount);
     }
 }
@@ -131,7 +131,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
 
         // The withdrawal was successful
         assertEq(sequencerFeeVault.totalProcessed(), amount);
-        assertEq(address(sequencerFeeVault).balance, ZERO_VALUE);
+        assertEq(address(sequencerFeeVault).balance, 0);
         assertEq(recipient.balance, amount);
     }
 

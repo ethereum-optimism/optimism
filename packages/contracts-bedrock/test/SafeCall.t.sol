@@ -23,6 +23,7 @@ contract SafeCall_Test is CommonTest {
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         // don't call the ffi interface
         vm.assume(to != address(0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f));
+        vm.assume(to != address(this));
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
@@ -57,7 +58,8 @@ contract SafeCall_Test is CommonTest {
         // don't call the create2 deployer
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         // don't call the ffi interface
-        vm.assume(to != address(0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f));
+        vm.assume(to != address(ffi));
+        vm.assume(to != address(this));
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
@@ -101,6 +103,7 @@ contract SafeCall_Test is CommonTest {
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         // don't call the FFIInterface
         vm.assume(to != address(ffi));
+        vm.assume(to != address(this));
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
