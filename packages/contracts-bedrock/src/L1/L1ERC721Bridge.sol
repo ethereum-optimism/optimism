@@ -33,6 +33,12 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         __ERC721Bridge_init({ _messenger: _messenger });
     }
 
+    /// @notice This function should return true if the contract is paused.
+    /// @return Whether or not the contract is paused.
+    function paused() public view returns (bool) {
+        return messenger.paused();
+    }
+
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
     /// @param _localToken  Address of the ERC721 token on this domain.
@@ -54,6 +60,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         external
         onlyOtherBridge
     {
+        require(paused() == false, "L1ERC721Bridge: paused");
         require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.

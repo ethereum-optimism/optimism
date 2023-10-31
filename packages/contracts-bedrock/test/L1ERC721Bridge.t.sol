@@ -65,6 +65,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
         assertEq(address(L1NFTBridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(L1NFTBridge.messenger()), address(L1Messenger));
         assertEq(address(L1NFTBridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
+        assertFalse(L1Bridge.paused());
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
@@ -274,6 +275,24 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
         );
         vm.prank(address(L1Messenger));
         vm.expectRevert("L1ERC721Bridge: local token cannot be self");
+        L1NFTBridge.finalizeBridgeERC721(address(L1NFTBridge), address(remoteToken), alice, alice, tokenId, hex"5678");
+    }
+
+    /// @dev Tests that the ERC721 bridge finalize reverts when the local token
+    ///      is set as the bridge itself.
+    function test_finalizeBridgeERC721_paused_reverts() external {
+        // Finalize a withdrawal.
+        vm.mockCall(
+            address(L1Messenger),
+            abi.encodeWithSelector(L1Messenger.xDomainMessageSender.selector),
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
+        );
+
+        vm.prank(supConf.guardian());
+        supConf.pause("identifier");
+
+        vm.prank(address(L1Messenger));
+        vm.expectRevert("L1ERC721Bridge: paused");
         L1NFTBridge.finalizeBridgeERC721(address(L1NFTBridge), address(remoteToken), alice, alice, tokenId, hex"5678");
     }
 

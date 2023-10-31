@@ -135,7 +135,7 @@ abstract contract StandardBridge is Initializable {
     receive() external payable virtual;
 
     /// @notice This function should return true if the contract is paused.
-    ///         On L1 this function will check the Portal for its paused status.
+    ///         On L1 this function will check the Messenger for its paused status.
     ///         On L2 this function should be a no-op.
     /// @return Whether or not the contract is paused.
     function paused() public view virtual returns (bool) {
@@ -248,6 +248,8 @@ abstract contract StandardBridge is Initializable {
         payable
         onlyOtherBridge
     {
+        // On L1 this function will check the Messenger for its paused status.
+        // On L2 this function should be a no-op, because paused will always return false.
         require(paused() == false, "StandardBridge: paused");
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
@@ -282,7 +284,7 @@ abstract contract StandardBridge is Initializable {
         public
         onlyOtherBridge
     {
-        // On L1 this function will check the Portal for its paused status.
+        // On L1 this function will check the Messenger for its paused status.
         // On L2 this function should be a no-op, because paused will always return false.
         require(paused() == false, "StandardBridge: paused");
 
