@@ -99,8 +99,8 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	}
 
 	contextWithTimeout, cancel := context.WithTimeout(ctx, n.rpcTimeout)
-	defer cancel()
 	output, err := n.client.OutputV0AtBlock(contextWithTimeout, ref.Hash)
+	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get L2 output at block %s: %w", ref, err)
 	}
