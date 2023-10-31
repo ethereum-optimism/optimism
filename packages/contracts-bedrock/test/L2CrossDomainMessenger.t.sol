@@ -18,6 +18,11 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev Receiver address for testing
     address recipient = address(0xabbaacdc);
 
+    /// @dev L1CrossDomainMessenger contract has a paused getter that always returns true
+    function test_paused_succeeds() external {
+        assertFalse(L2Messenger.paused());
+    }
+
     /// @dev Tests that `messageNonce` can be decoded correctly.
     function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L2Messenger.messageNonce());
