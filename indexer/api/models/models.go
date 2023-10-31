@@ -55,9 +55,9 @@ func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse)
 	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
 	for i, withdrawal := range withdrawals.Withdrawals {
 
-		cdh := withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash
-		if cdh == nil { // Zero value indicates that the withdrawal didn't have a cross domain message
-			cdh = &common.Hash{0}
+		crossDomainHash := withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash
+		if crossDomainHash == nil { // Zero value indicates that the withdrawal didn't have a cross domain message
+			crossDomainHash = &common.Hash{0}
 		}
 
 		item := WithdrawalItem{
@@ -68,7 +68,7 @@ func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse)
 			To:                     withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
 			TransactionHash:        withdrawal.L2TransactionHash.String(),
 			Amount:                 withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
-			CrossDomainMessageHash: cdh.String(),
+			CrossDomainMessageHash: crossDomainHash.String(),
 			L1ProvenTxHash:         withdrawal.ProvenL1TransactionHash.String(),
 			L1FinalizedTxHash:      withdrawal.FinalizedL1TransactionHash.String(),
 			L1TokenAddress:         withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
