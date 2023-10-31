@@ -433,7 +433,7 @@ jobs:
   contracts-bedrock-slither:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
@@ -446,6 +446,7 @@ jobs:
   contracts-bedrock-validate-spaces:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -467,7 +468,7 @@ jobs:
   op-bindings-build:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - run:
@@ -876,7 +877,7 @@ jobs:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
@@ -952,6 +953,7 @@ jobs:
   devnet-allocs:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - restore_cache:
