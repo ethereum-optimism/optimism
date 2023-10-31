@@ -419,12 +419,7 @@ contract Multichain is SafeBuilder {
                     OptimismPortalImplementation, // implementation
                     abi.encodeCall( // data
                             OptimismPortal.initialize,
-                            (
-                                L2OutputOracle(prox.L2OutputOracle),
-                                cfg.portalGuardian(),
-                                SystemConfig(prox.SystemConfig),
-                                false
-                            )
+                            (L2OutputOracle(prox.L2OutputOracle), cfg.portalGuardian(), SystemConfig(prox.SystemConfig))
                         )
                 )
                 )

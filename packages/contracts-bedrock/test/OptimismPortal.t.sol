@@ -926,8 +926,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         OptimismPortal(payable(proxy)).initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
+            _guardian: address(0)
         });
     }
 
@@ -937,8 +936,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         OptimismPortal(opImpl).initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
+            _guardian: address(0)
         });
     }
 

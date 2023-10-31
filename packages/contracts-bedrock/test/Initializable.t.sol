@@ -25,7 +25,7 @@ contract Initializer_Test is ERC721Bridge_Initializer {
         oracle.initialize(0, 0, address(0), address(0));
 
         vm.expectRevert("Initializable: contract is already initialized");
-        op.initialize(L2OutputOracle(address(0)), address(0), SystemConfig(address(0)), false);
+        op.initialize(L2OutputOracle(address(0)), address(0), SystemConfig(address(0)));
 
         vm.expectRevert("Initializable: contract is already initialized");
         systemConfig.initialize({
