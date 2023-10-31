@@ -40,23 +40,27 @@ type EthClient interface {
 
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
 	FilterLogs(ethereum.FilterQuery) (Logs, error)
+
+	// Close closes the underlying RPC connection.
+	// RPC close does not return any errors, but does shut down e.g. a websocket connection.
+	Close()
 }
 
 type clnt struct {
 	rpc RPC
 }
 
-func DialEthClient(rpcUrl string, metrics Metricer) (EthClient, error) {
-	ctxwt, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
+func DialEthClient(ctx context.Context, rpcUrl string, metrics Metricer) (EthClient, error) {
+	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
 	bOff := retry.Exponential()
-	rpcClient, err := retry.Do(ctxwt, defaultDialAttempts, bOff, func() (*rpc.Client, error) {
+	rpcClient, err := retry.Do(ctx, defaultDialAttempts, bOff, func() (*rpc.Client, error) {
 		if !client.IsURLAvailable(rpcUrl) {
 			return nil, fmt.Errorf("address unavailable (%s)", rpcUrl)
 		}
 
-		client, err := rpc.DialContext(ctxwt, rpcUrl)
+		client, err := rpc.DialContext(ctx, rpcUrl)
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial address (%s): %w", rpcUrl, err)
 		}
@@ -190,6 +194,10 @@ func (c *clnt) StorageHash(address common.Address, blockNumber *big.Int) (common
 	}
 
 	return proof.StorageHash, nil
+}
+
+func (c *clnt) Close() {
+	c.rpc.Close()
 }
 
 type Logs struct {
