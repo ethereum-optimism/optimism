@@ -65,7 +65,7 @@
     "@eth-optimism/contracts-bedrock": "workspace:*",
     "@eth-optimism/core-utils": "workspace:*",
     "lodash": "^4.17.21",
-    "merkletreejs": "^0.3.10",
+    "merkletreejs": "^0.3.11",
     "rlp": "^2.2.7"
   },
   "peerDependencies": {
