@@ -1333,6 +1333,7 @@ workflows:
       - devnet-allocs:  # devnet-allocs uses op-node genesis sub-command
           requires:
             - "go-mod-tidy"
+            - "op-stack-go-lint"
             - l1-geth-version-check
       - bedrock-markdown
       - go-lint: # we combine most of the go-lint work for two reasons: (1) warm up the Go build cache, (2) reduce sum of lint time
