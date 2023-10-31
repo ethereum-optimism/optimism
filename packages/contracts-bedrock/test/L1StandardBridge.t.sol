@@ -26,6 +26,7 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
         assert(L1Bridge.OTHER_BRIDGE() == L2Bridge);
         assert(L1Bridge.messenger() == L1Messenger);
         assert(L1Bridge.MESSENGER() == L1Messenger);
+        assert(L1Bridge.paused() == false);
     }
 }
 
@@ -37,6 +38,24 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
         assertEq(address(L2Bridge), Predeploys.L2_STANDARD_BRIDGE);
         bytes32 slot0 = vm.load(address(L1Bridge), bytes32(uint256(0)));
         assertEq(slot0, bytes32(uint256(Constants.INITIALIZER)));
+    }
+}
+
+contract L1StandardBridge_Pause_Test is Bridge_Initializer {
+    /// @dev Tests that `pause` successfully pauses
+    ///      when called by the GUARDIAN.
+    function test_pause_succeeds() external {
+        address guardian = op.GUARDIAN();
+
+        assertEq(op.paused(), false);
+
+        vm.expectEmit(true, true, true, true, address(supConf));
+        emit Paused("identifier");
+
+        vm.prank(guardian);
+        supConf.pause("identifier");
+
+        assertEq(L1Bridge.paused(), true);
     }
 }
 
@@ -458,7 +477,24 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
     }
 }
 
-contract L1StandardBridge_FinalizeETHWithdrawal_TestFail is Bridge_Initializer { }
+contract L1StandardBridge_FinalizeETHWithdrawal_TestFail is Bridge_Initializer {
+    /// @dev Tests that finalizing an ETH withdrawal fails when paused.
+    function test_finalizeETHWithdrawal_paused_reverts() external {
+        address messenger = address(L1Bridge.messenger());
+        vm.mockCall(
+            messenger,
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
+        );
+
+        vm.prank(supConf.guardian());
+        supConf.pause("identifier");
+        vm.deal(messenger, 100);
+        vm.prank(messenger);
+        vm.expectRevert("StandardBridge: paused");
+        L1Bridge.finalizeETHWithdrawal{ value: 100 }(alice, alice, 100, hex"");
+    }
+}
 
 contract L1StandardBridge_FinalizeERC20Withdrawal_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
@@ -584,5 +620,21 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: cannot send to messenger");
         L1Bridge.finalizeBridgeETH{ value: 100 }(alice, messenger, 100, hex"");
+    }
+
+    /// @dev Tests that finalizing an ETH withdrawal fails when paused.
+    function test_finalizeBridgeETH_paused_reverts() external {
+        address messenger = address(L1Bridge.messenger());
+        vm.mockCall(
+            messenger,
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
+        );
+        vm.prank(supConf.guardian());
+        supConf.pause("identifier");
+        vm.deal(address(messenger), 100);
+        vm.prank(address(messenger));
+        vm.expectRevert("StandardBridge: paused");
+        L1Bridge.finalizeBridgeETH{ value: 100 }(alice, alice, 100, hex"");
     }
 }

@@ -134,6 +134,14 @@ abstract contract StandardBridge is Initializable {
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
 
+    /// @notice This function should return true if the contract is paused.
+    ///         On L1 this function will check the Portal for its paused status.
+    ///         On L2 this function should be a no-op.
+    /// @return Whether or not the contract is paused.
+    function paused() public view virtual returns (bool) {
+        return false;
+    }
+
     /// @notice Getter for messenger contract.
     /// @custom:legacy
     /// @return Messenger contract on this domain.
@@ -240,6 +248,7 @@ abstract contract StandardBridge is Initializable {
         payable
         onlyOtherBridge
     {
+        require(paused() == false, "StandardBridge: paused");
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(messenger), "StandardBridge: cannot send to messenger");
@@ -273,6 +282,10 @@ abstract contract StandardBridge is Initializable {
         public
         onlyOtherBridge
     {
+        // On L1 this function will check the Portal for its paused status.
+        // On L2 this function should be a no-op, because paused will always return false.
+        require(paused() == false, "StandardBridge: paused");
+
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),

@@ -87,6 +87,12 @@ contract L1StandardBridge is StandardBridge, ISemver {
         _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
+    /// @notice This function should return true if the contract is paused.
+    /// @return Whether or not the contract is paused.
+    function paused() public view override returns (bool) {
+        return messenger.paused();
+    }
+
     /// @custom:legacy
     /// @notice Deposits some amount of ETH into the sender's account on L2.
     /// @param _minGasLimit Minimum gas limit for the deposit message on L2.

@@ -26,6 +26,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(address(L2Bridge.messenger()), address(L2Messenger));
         assertEq(L1Bridge.l2TokenBridge(), address(L2Bridge));
         assertEq(address(L2Bridge.OTHER_BRIDGE()), address(L1Bridge));
+        assertFalse(L1Bridge.paused());
     }
 
     /// @dev Tests that the bridge receives ETH and successfully initiates a withdrawal.
