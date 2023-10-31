@@ -40,7 +40,7 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		return nil, err
 	}
 
-	dbHeader, err := db.Blocks.L1LatestBlockHeader()
+	dbHeader, err := db.Blocks.L2LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
