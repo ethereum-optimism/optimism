@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -78,10 +79,11 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cf
 	// setup RPC server for rollup node, hooked to the actor as backend
 	m := &testutils.TestRPCMetrics{}
 	backend := &l2VerifierBackend{verifier: rollupNode}
+	rpcTimeout := 2 * time.Second
 	apis := []rpc.API{
 		{
 			Namespace:     "optimism",
-			Service:       node.NewNodeAPI(cfg, eng, backend, log, m),
+			Service:       node.NewNodeAPI(cfg, eng, backend, rpcTimeout, log, m),
 			Public:        true,
 			Authenticated: false,
 		},
