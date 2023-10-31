@@ -5,6 +5,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -36,6 +37,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
+    /// @notice The address of the Superchain Config contract.
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
+
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to finalizeWithdrawalTransaction.
@@ -47,10 +51,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
     mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
 
-    /// @notice Determines if cross domain messaging is paused.
-    ///         When set to true, withdrawals are paused.
-    ///         This may be removed in the future.
-    bool public paused;
+    /// @custom:legacy
+    /// @custom:spacer paused
+    /// @notice Spacer for backwards compatibility.
+    bool private spacer_53_0_1;
 
     /// @notice Address of the L2OutputOracle contract.
     /// @custom:network-specific
@@ -94,7 +98,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
     /// @notice Reverts when paused.
     modifier whenNotPaused() {
-        require(paused == false, "OptimismPortal: paused");
+        require(paused() == false, "OptimismPortal: paused");
         _;
     }
 
@@ -103,7 +107,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     string public constant version = "1.10.0";
 
     /// @notice Constructs the OptimismPortal contract.
-    constructor() {
+    constructor(SuperchainConfig _superchainConfig) {
+        SUPERCHAIN_CONFIG = _superchainConfig;
         initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _guardian: address(0),
@@ -121,7 +126,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         L2OutputOracle _l2Oracle,
         address _guardian,
         SystemConfig _systemConfig,
-        bool _paused
+        bool _paused // TODO: Remove
     )
         public
         reinitializer(Constants.INITIALIZER)
@@ -130,7 +135,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Oracle = _l2Oracle;
         systemConfig = _systemConfig;
         guardian = _guardian;
-        paused = _paused;
         __ResourceMetering_init();
     }
 
@@ -152,18 +156,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         return guardian;
     }
 
-    /// @notice Pauses withdrawals.
-    function pause() external {
-        require(msg.sender == guardian, "OptimismPortal: only guardian can pause");
-        paused = true;
-        emit Paused(msg.sender);
-    }
-
-    /// @notice Unpauses withdrawals.
-    function unpause() external {
-        require(msg.sender == guardian, "OptimismPortal: only guardian can unpause");
-        paused = false;
-        emit Unpaused(msg.sender);
+    /// @notice Getter for the current paused status.
+    function paused() public view returns (bool paused_) {
+        paused_ = SUPERCHAIN_CONFIG.paused();
     }
 
     /// @notice Computes the minimum gas limit for a deposit.

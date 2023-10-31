@@ -301,7 +301,9 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
 
         systemConfig = SystemConfig(address(systemConfigProxy));
 
-        opImpl = new OptimismPortal();
+        opImpl = new OptimismPortal({
+            _superchainConfig: supConf
+        });
 
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);

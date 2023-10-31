@@ -21,7 +21,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 // Target contract
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
-contract OptimismPortal_Test is Portal_Initializer {
+contract OptimismPortal_Constructor_Test is Portal_Initializer {
     event Paused(address);
     event Unpaused(address);
 
@@ -34,7 +34,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(op.paused(), false);
     }
+}
 
+contract OptimismPortal_Pause_Test is Portal_Initializer {
     /// @dev Tests that `pause` successfully pauses
     ///      when called by the GUARDIAN.
     function test_pause_succeeds() external {
@@ -42,11 +44,11 @@ contract OptimismPortal_Test is Portal_Initializer {
 
         assertEq(op.paused(), false);
 
-        vm.expectEmit(true, true, true, true, address(op));
-        emit Paused(guardian);
+        vm.expectEmit(true, true, true, true, address(supConf));
+        emit Paused("identifier");
 
         vm.prank(guardian);
-        op.pause();
+        supConf.pause("identifier");
 
         assertEq(op.paused(), true);
     }
@@ -56,9 +58,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.paused(), false);
 
         assertTrue(op.GUARDIAN() != alice);
-        vm.expectRevert("OptimismPortal: only guardian can pause");
+        vm.expectRevert("SuperchainConfig: only guardian can pause");
         vm.prank(alice);
-        op.pause();
+        supConf.pause("identifier");
 
         assertEq(op.paused(), false);
     }
@@ -69,13 +71,13 @@ contract OptimismPortal_Test is Portal_Initializer {
         address guardian = op.GUARDIAN();
 
         vm.prank(guardian);
-        op.pause();
+        supConf.pause("identifier");
         assertEq(op.paused(), true);
 
-        vm.expectEmit(true, true, true, true, address(op));
-        emit Unpaused(guardian);
+        vm.expectEmit(true, true, true, true, address(supConf));
+        emit Unpaused();
         vm.prank(guardian);
-        op.unpause();
+        supConf.unpause();
 
         assertEq(op.paused(), false);
     }
@@ -85,17 +87,19 @@ contract OptimismPortal_Test is Portal_Initializer {
         address guardian = op.GUARDIAN();
 
         vm.prank(guardian);
-        op.pause();
+        supConf.pause("identifier");
         assertEq(op.paused(), true);
 
         assertTrue(op.GUARDIAN() != alice);
-        vm.expectRevert("OptimismPortal: only guardian can unpause");
+        vm.expectRevert("SuperchainConfig: only guardian can unpause");
         vm.prank(alice);
-        op.unpause();
+        supConf.unpause();
 
         assertEq(op.paused(), true);
     }
+}
 
+contract OptimismPortal_Test is Portal_Initializer {
     /// @dev Tests that `receive` successdully deposits ETH.
     function test_receive_succeeds() external {
         vm.expectEmit(true, true, false, true);
@@ -397,7 +401,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     /// @dev Tests that `proveWithdrawalTransaction` reverts when paused.
     function test_proveWithdrawalTransaction_paused_reverts() external {
         vm.prank(op.GUARDIAN());
-        op.pause();
+        supConf.pause("identifier");
 
         vm.expectRevert("OptimismPortal: paused");
         op.proveWithdrawalTransaction({
@@ -547,7 +551,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     /// @dev Tests that `finalizeWithdrawalTransaction` reverts if the contract is paused.
     function test_finalizeWithdrawalTransaction_paused_reverts() external {
         vm.prank(op.GUARDIAN());
-        op.pause();
+        supConf.pause("identifier");
 
         vm.expectRevert("OptimismPortal: paused");
         op.finalizeWithdrawalTransaction(_defaultTx);
