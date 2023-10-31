@@ -34,7 +34,7 @@ export interface WithdrawalItem {
   from: string;
   to: string;
   transactionHash: string;
-  messageHash: string;
+  crossDomainMessageHash: string;
   timestamp: number /* uint64 */;
   l2BlockHash: string;
   amount: string;
