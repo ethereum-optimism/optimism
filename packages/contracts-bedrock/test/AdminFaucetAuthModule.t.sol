@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 import { Faucet } from "src/periphery/faucet/Faucet.sol";
-import { FaucetHelper } from "test/Helpers.sol";
+import { FaucetHelper } from "test/mocks/FaucetHelper.sol";
 
 /// @title  AdminFaucetAuthModuleTest
 /// @notice Tests the AdminFaucetAuthModule contract.
