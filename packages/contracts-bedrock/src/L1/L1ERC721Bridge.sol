@@ -19,9 +19,9 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
+    /// @notice Semantic version.2
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Address of the Superchain Config contracts.
     SuperchainConfig internal immutable SUPERCHAIN_CONFIG;

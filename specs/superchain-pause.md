@@ -8,10 +8,12 @@ WIP
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [Pausability flow](#pausability-flow)
+- [SuperchainConfig is `immutable`](#superchainconfig-is-immutable)
+
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Pausability flow
-
 
 ```mermaid
 flowchart TD

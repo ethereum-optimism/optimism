@@ -70,8 +70,8 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Address of the Superchain Config contracts.
     SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
