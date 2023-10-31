@@ -28,18 +28,18 @@ type DepositResponse struct {
 
 // WithdrawalItem ... Data model for API JSON response
 type WithdrawalItem struct {
-	Guid                 string `json:"guid"`
-	From                 string `json:"from"`
-	To                   string `json:"to"`
-	TransactionHash      string `json:"transactionHash"`
-	MessageHash          string `json:"messageHash"`
-	Timestamp            uint64 `json:"timestamp"`
-	L2BlockHash          string `json:"l2BlockHash"`
-	Amount               string `json:"amount"`
-	ProofTransactionHash string `json:"proofTransactionHash"`
-	ClaimTransactionHash string `json:"claimTransactionHash"`
-	L1TokenAddress       string `json:"l1TokenAddress"`
-	L2TokenAddress       string `json:"l2TokenAddress"`
+	Guid                   string `json:"guid"`
+	From                   string `json:"from"`
+	To                     string `json:"to"`
+	TransactionHash        string `json:"transactionHash"`
+	CrossDomainMessageHash string `json:"crossDomainMessageHash"`
+	Timestamp              uint64 `json:"timestamp"`
+	L2BlockHash            string `json:"l2BlockHash"`
+	Amount                 string `json:"amount"`
+	L1ProvenTxHash         string `json:"L1ProvenTxHash"`
+	L1FinalizedTxHash      string `json:"L1FinalizedTxHash"`
+	L1TokenAddress         string `json:"l1TokenAddress"`
+	L2TokenAddress         string `json:"l2TokenAddress"`
 }
 
 // WithdrawalResponse ... Data model for API JSON response
@@ -55,24 +55,24 @@ func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse)
 	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
 	for i, withdrawal := range withdrawals.Withdrawals {
 
-		msg := withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash
-		if msg == nil {
-			msg = &common.Hash{}
+		cdh := withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash
+		if cdh == nil { // Zero value indicates that the withdrawal didn't have a cross domain message
+			cdh = &common.Hash{0}
 		}
 
 		item := WithdrawalItem{
-			Guid:                 withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
-			L2BlockHash:          withdrawal.L2BlockHash.String(),
-			Timestamp:            withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
-			From:                 withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
-			To:                   withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
-			TransactionHash:      withdrawal.L2TransactionHash.String(),
-			Amount:               withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
-			MessageHash:          msg.String(),
-			ProofTransactionHash: withdrawal.ProvenL1TransactionHash.String(),
-			ClaimTransactionHash: withdrawal.FinalizedL1TransactionHash.String(),
-			L1TokenAddress:       withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
-			L2TokenAddress:       withdrawal.L2BridgeWithdrawal.TokenPair.LocalTokenAddress.String(),
+			Guid:                   withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
+			L2BlockHash:            withdrawal.L2BlockHash.String(),
+			Timestamp:              withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
+			From:                   withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
+			To:                     withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
+			TransactionHash:        withdrawal.L2TransactionHash.String(),
+			Amount:                 withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
+			CrossDomainMessageHash: cdh.String(),
+			L1ProvenTxHash:         withdrawal.ProvenL1TransactionHash.String(),
+			L1FinalizedTxHash:      withdrawal.FinalizedL1TransactionHash.String(),
+			L1TokenAddress:         withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
+			L2TokenAddress:         withdrawal.L2BridgeWithdrawal.TokenPair.LocalTokenAddress.String(),
 		}
 		items[i] = item
 	}

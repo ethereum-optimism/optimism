@@ -38,8 +38,8 @@ export interface WithdrawalItem {
   timestamp: number /* uint64 */;
   l2BlockHash: string;
   amount: string;
-  proofTransactionHash: string;
-  claimTransactionHash: string;
+  L1ProvenTxHash: string;
+  L1FinalizedTxHash: string;
   l1TokenAddress: string;
   l2TokenAddress: string;
 }
