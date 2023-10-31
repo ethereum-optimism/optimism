@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -145,4 +146,22 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	headersRef := headers
 	etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs.Logs, HeadersWithLog: headersWithLog}
 	return nil
+}
+
+// Determine the starting height for header traversal
+func getStartingBlock(header *database.BlockHeader, headerAtStart *types.Header) *types.Header {
+	var fromHeader *types.Header
+	startHeight := headerAtStart.Number
+
+	if header != nil {
+		log.Info("detected last indexed block", "number", header.Number, "hash", header.Hash)
+		fromHeader = header.RLPHeader.Header()
+	} else if startHeight.BitLen() > 0 {
+		log.Info("no indexed state, starting from supplied L1 height", "height", startHeight)
+		fromHeader = headerAtStart
+	} else {
+		return nil
+	}
+
+	return fromHeader
 }

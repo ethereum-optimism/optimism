@@ -99,6 +99,7 @@ type ChainConfig struct {
 	// Configure known chains with the l2 chain id
 	Preset           int
 	L1StartingHeight uint `toml:"l1-starting-height"`
+	L2StartingHeight uint `toml:"l2-starting-height"`
 
 	L1Contracts L1Contracts `toml:"l1-contracts"`
 	L2Contracts L2Contracts `toml:"-"`

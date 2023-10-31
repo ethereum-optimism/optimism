@@ -77,6 +77,7 @@ func NewIndexer(
 		LoopIntervalMsec:  chainConfig.L2PollingInterval,
 		HeaderBufferSize:  chainConfig.L2HeaderBufferSize,
 		ConfirmationDepth: big.NewInt(int64(chainConfig.L2ConfirmationDepth)),
+		StartHeight:       big.NewInt(int64(chainConfig.L2StartingHeight)),
 	}
 	l2Etl, err := etl.NewL2ETL(l2Cfg, log, db, etl.NewMetrics(metricsRegistry, "l2"), l2EthClient, chainConfig.L2Contracts)
 	if err != nil {

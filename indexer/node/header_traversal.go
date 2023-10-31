@@ -91,7 +91,9 @@ func (f *HeaderTraversal) NextHeaders(maxSize uint64) ([]types.Header, error) {
 		return nil, nil
 	} else if f.lastTraversedHeader != nil && headers[0].ParentHash != f.lastTraversedHeader.Hash() {
 		// The indexer's state is in an irrecoverable state relative to the provider. This
-		// should never happen since the indexer is dealing with only finalized blocks.
+		// should never happen since the indexer should only be dealing with only finalized blocks.
+		// If this error is encountered, please investigate your confirmation depth values and/or the
+		// state of the provider.
 		return nil, ErrHeaderTraversalAndProviderMismatchedState
 	}
 

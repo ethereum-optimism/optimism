@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -41,18 +40,17 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		return nil, err
 	}
 
-	latestHeader, err := db.Blocks.L2LatestBlockHeader()
+	dbHeader, err := db.Blocks.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
 
-	var fromHeader *types.Header
-	if latestHeader != nil {
-		log.Info("detected last indexed block", "number", latestHeader.Number, "hash", latestHeader.Hash)
-		fromHeader = latestHeader.RLPHeader.Header()
-	} else {
-		log.Info("no indexed state, starting from genesis")
+	header, err := client.BlockHeaderByNumber(cfg.StartHeight)
+	if err != nil {
+		return nil, err
 	}
+
+	fromHeader := getStartingBlock(&dbHeader.BlockHeader, header)
 
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{

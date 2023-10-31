@@ -3,7 +3,6 @@ package etl
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -48,27 +46,17 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		return nil, err
 	}
 
-	latestHeader, err := db.Blocks.L1LatestBlockHeader()
+	dbHeader, err := db.Blocks.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
 
-	// Determine the starting height for traversal
-	var fromHeader *types.Header
-	if latestHeader != nil {
-		log.Info("detected last indexed block", "number", latestHeader.Number, "hash", latestHeader.Hash)
-		fromHeader = latestHeader.RLPHeader.Header()
-	} else if cfg.StartHeight.BitLen() > 0 {
-		log.Info("no indexed state starting from supplied L1 height", "height", cfg.StartHeight.String())
-		header, err := client.BlockHeaderByNumber(cfg.StartHeight)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
-		}
-
-		fromHeader = header
-	} else {
-		log.Info("no indexed state, starting from genesis")
+	header, err := client.BlockHeaderByNumber(cfg.StartHeight)
+	if err != nil {
+		return nil, err
 	}
+
+	fromHeader := getStartingBlock(&dbHeader.BlockHeader, header)
 
 	// NOTE - The use of un-buffered channel here assumes that downstream consumers
 	// will be able to keep up with the rate of incoming batches
