@@ -8,6 +8,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
@@ -19,11 +20,16 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.1
-    string public constant version = "1.4.1";
+    /// @custom:semver 1.5.1
+    string public constant version = "1.5.1";
+
+    /// @notice Address of the Superchain Config contracts.
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice Constructs the contract.
-    constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
+    /// @param _superchainConfig Address of the Superchain Config contract on this network.
+    constructor(SuperchainConfig _superchainConfig) ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
+        SUPERCHAIN_CONFIG = _superchainConfig;
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
@@ -36,7 +42,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     /// @notice This function should return true if the contract is paused.
     /// @return Whether or not the contract is paused.
     function paused() public view returns (bool) {
-        return messenger.paused();
+        return SUPERCHAIN_CONFIG.paused();
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the

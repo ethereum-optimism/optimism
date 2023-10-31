@@ -546,7 +546,7 @@ contract ERC721Bridge_Initializer is Bridge_Initializer {
         super.setUp();
 
         // Deploy the L1ERC721Bridge.
-        L1ERC721Bridge l1BridgeImpl = new L1ERC721Bridge();
+        L1ERC721Bridge l1BridgeImpl = new L1ERC721Bridge(supConf);
         Proxy l1BridgeProxy = new Proxy(multisig);
 
         vm.prank(multisig);
