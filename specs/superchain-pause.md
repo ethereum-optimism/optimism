@@ -12,12 +12,16 @@ WIP
 
 ## Pausability flow
 
-The simplest way to modify the current system to meet the pause spec is:
 
 ```mermaid
 flowchart TD
-StandardBridge --> L1CrossDomainMessenger
-L1ERC721Bridge --> L1CrossDomainMessenger
-L1CrossDomainMessenger --> OptimismPortal
-OptimismPortal --> SystemConfig
-SystemConfig --> SuperchainConfig
+StandardBridge -->|paused| SuperchainConfig
+L1ERC721Bridge -->|paused| SuperchainConfig
+L1CrossDomainMessenger -->|paused| SuperchainConfig
+OptimismPortal -->|paused| SuperchainConfig
+```
+
+## SuperchainConfig is `immutable`
+
+The `SuperchainConfig` value is stored in the bytecode of the implementation contracts. This ensures
+that it will be consistent across all contracts in all OP Chains.
