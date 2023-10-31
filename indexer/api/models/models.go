@@ -36,8 +36,8 @@ type WithdrawalItem struct {
 	Timestamp              uint64 `json:"timestamp"`
 	L2BlockHash            string `json:"l2BlockHash"`
 	Amount                 string `json:"amount"`
-	L1ProvenTxHash         string `json:"L1ProvenTxHash"`
-	L1FinalizedTxHash      string `json:"L1FinalizedTxHash"`
+	L1ProvenTxHash         string `json:"l1ProvenTxHash"`
+	L1FinalizedTxHash      string `json:"l1FinalizedTxHash"`
 	L1TokenAddress         string `json:"l1TokenAddress"`
 	L2TokenAddress         string `json:"l2TokenAddress"`
 }
