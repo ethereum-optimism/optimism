@@ -5,6 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
@@ -69,11 +70,17 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.1
-    string public constant version = "1.4.1";
+    /// @custom:semver 1.5.1
+    string public constant version = "1.5.1";
+
+    /// @notice Address of the Superchain Config contracts.
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {
+    constructor(SuperchainConfig _superchainConfig)
+        StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)))
+    {
+        SUPERCHAIN_CONFIG = _superchainConfig;
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
@@ -90,7 +97,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice This function should return true if the contract is paused.
     /// @return Whether or not the contract is paused.
     function paused() public view override returns (bool) {
-        return messenger.paused();
+        return SUPERCHAIN_CONFIG.paused();
     }
 
     /// @custom:legacy

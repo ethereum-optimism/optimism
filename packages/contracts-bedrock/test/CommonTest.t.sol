@@ -456,7 +456,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(multisig);
         vm.mockCall(multisig, abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector), abi.encode(true));
         vm.startPrank(multisig);
-        proxy.setCode(address(new L1StandardBridge()).code);
+        proxy.setCode(address(new L1StandardBridge(supConf)).code);
         vm.clearMockedCalls();
         address L1Bridge_Impl = proxy.getImplementation();
         vm.stopPrank();
