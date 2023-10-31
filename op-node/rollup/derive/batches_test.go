@@ -157,7 +157,7 @@ func TestValidBatch(t *testing.T) {
 		ParentHash:     l2B1.Hash,
 		Time:           l2B1.Time + defaultConf.BlockTime,
 		L1Origin:       l1B.ID(),
-		SequenceNumber: 1,
+		SequenceNumber: 2,
 	}
 
 	l1X := eth.L1BlockRef{

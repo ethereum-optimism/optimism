@@ -210,7 +210,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 		var err error
 		parentBlock, err = l2Fetcher.L2BlockRefByNumber(ctx, parentNum)
 		if err != nil {
-			log.Error("failed to fetch L2 block", "number", parentNum, "err", err)
+			log.Warn("failed to fetch L2 block", "number", parentNum, "err", err)
 			// unable to validate the batch for now. retry later.
 			return BatchUndecided
 		}
@@ -332,7 +332,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			safeBlockNum := parentNum + i + 1
 			safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
 			if err != nil {
-				log.Error("failed to fetch L2 block payload", "number", parentNum, "err", err)
+				log.Warn("failed to fetch L2 block payload", "number", parentNum, "err", err)
 				// unable to validate the batch for now. retry later.
 				return BatchUndecided
 			}
