@@ -98,7 +98,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		return nil, fmt.Errorf("failed to get L2 block ref with sync status: %w", err)
 	}
 
-	contextWithTimeout, cancel := context.WithTimeout(ctx, n.rpcTimeout)
+	contextWithTimeout, cancel := context.WithTimeout(context.Background(), n.rpcTimeout)
 	output, err := n.client.OutputV0AtBlock(contextWithTimeout, ref.Hash)
 	cancel()
 	if err != nil {
