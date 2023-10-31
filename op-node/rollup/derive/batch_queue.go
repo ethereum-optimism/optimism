@@ -108,6 +108,9 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 	}
 
 	// If the epoch is advanced, update bq.l1Blocks
+	// Advancing epoch must be done after the pipeline successfully apply the entire span batch to the chain.
+	// Because the span batch can be reverted during processing the batch, then we must preserve existing l1Blocks
+	// to verify the epochs of the next candidate batch.
 	if len(bq.l1Blocks) > 0 && parent.L1Origin.Number > bq.l1Blocks[0].Number {
 		for i, l1Block := range bq.l1Blocks {
 			if parent.L1Origin.Number == l1Block.Number {
