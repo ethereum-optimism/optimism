@@ -17,4 +17,3 @@ contract TestERC1271Wallet is Ownable, IERC1271 {
         return ECDSA.recover(hash, signature) == owner() ? this.isValidSignature.selector : bytes4(0);
     }
 }
-

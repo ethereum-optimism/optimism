@@ -92,5 +92,3 @@ contract OptimistInviterHelper {
         return ECDSA.toTypedDataHash(domainSeparator, getClaimableInviteStructHash(_claimableInvite));
     }
 }
-
-
