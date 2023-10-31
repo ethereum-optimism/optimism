@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -19,12 +20,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:legacy
     OptimismPortal public PORTAL;
 
+    /// @notice Address of the Superchain Config contracts.
+    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
+
     /// @notice Semantic version.
     /// @custom:semver 1.8.0
     string public constant version = "1.8.0";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+    constructor(SuperchainConfig _superchainConfig) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+        SUPERCHAIN_CONFIG = _superchainConfig;
         initialize({ _portal: OptimismPortal(payable(0)) });
     }
 
@@ -38,6 +43,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Getter for the OptimismPortal address.
     function portal() external view returns (address) {
         return address(PORTAL);
+    }
+
+    /// @notice Getter for the SuperchainConfig address.
+    function superchainConfig() external view returns (address) {
+        return address(SUPERCHAIN_CONFIG);
     }
 
     /// @inheritdoc CrossDomainMessenger
@@ -57,6 +67,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function paused() public view override returns (bool) {
-        return PORTAL.paused();
+        return SUPERCHAIN_CONFIG.paused();
     }
 }

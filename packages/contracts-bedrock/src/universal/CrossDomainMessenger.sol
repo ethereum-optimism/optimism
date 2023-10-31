@@ -382,8 +382,8 @@ abstract contract CrossDomainMessenger is
     function _isUnsafeTarget(address _target) internal view virtual returns (bool);
 
     /// @notice This function should return true if the contract is paused.
-    ///         On L1 this function will check the Portal for its paused status.
-    ///         On L2 this function should be a no-op.
+    ///         On L1 this function will check the SuperchainConfig for its paused status.
+    ///         On L2 this function should always return false.
     /// @return Whether or not the contract is paused.
     function paused() public view virtual returns (bool) {
         return false;

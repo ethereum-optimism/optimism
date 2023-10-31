@@ -14,6 +14,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 
 // Target contract dependencies
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev The receiver address
@@ -567,6 +568,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(supConf.guardian());
         supConf.pause("identifier");
 
+        vm.expectCall(address(supConf), abi.encodeCall(SuperchainConfig.paused, ()));
         vm.expectRevert("CrossDomainMessenger: paused");
         L1Messenger.relayMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce

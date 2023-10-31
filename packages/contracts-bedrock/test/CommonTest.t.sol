@@ -357,7 +357,9 @@ contract Messenger_Initializer is Portal_Initializer {
         addressManager = new AddressManager();
 
         // Setup implementation
-        L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger();
+        L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger({
+            _superchainConfig: supConf
+        });
 
         // Setup the address manager and proxy
         vm.prank(multisig);
