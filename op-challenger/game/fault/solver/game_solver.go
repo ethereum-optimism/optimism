@@ -6,53 +6,25 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum/go-ethereum/common"
 )
-
-type ActionType string
-
-const (
-	ActionTypeMove ActionType = "move"
-	ActionTypeStep ActionType = "step"
-)
-
-func (a ActionType) String() string {
-	return string(a)
-}
-
-type Action struct {
-	Type      ActionType
-	ParentIdx int
-	IsAttack  bool
-
-	// Moves
-	Value common.Hash
-
-	// Steps
-	PreState   []byte
-	ProofData  []byte
-	OracleData *types.PreimageOracleData
-}
 
 type GameSolver struct {
 	claimSolver *claimSolver
-	gameDepth   int
 }
 
 func NewGameSolver(gameDepth int, trace types.TraceProvider) *GameSolver {
 	return &GameSolver{
 		claimSolver: newClaimSolver(gameDepth, trace),
-		gameDepth:   gameDepth,
 	}
 }
 
-func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) ([]Action, error) {
+func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) ([]types.Action, error) {
 	var errs []error
-	var actions []Action
+	var actions []types.Action
 	for _, claim := range game.Claims() {
-		var action *Action
+		var action *types.Action
 		var err error
-		if claim.Depth() == s.gameDepth {
+		if uint64(claim.Depth()) == game.MaxDepth() {
 			action, err = s.calculateStep(ctx, game, claim)
 		} else {
 			action, err = s.calculateMove(ctx, game, claim)
@@ -69,19 +41,22 @@ func (s *GameSolver) CalculateNextActions(ctx context.Context, game types.Game) 
 	return actions, errors.Join(errs...)
 }
 
-func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim types.Claim) (*Action, error) {
+func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim types.Claim) (*types.Action, error) {
 	if claim.Countered {
 		return nil, nil
 	}
 	if game.AgreeWithClaimLevel(claim) {
 		return nil, nil
 	}
-	step, err := s.claimSolver.AttemptStep(ctx, claim, game.AgreeWithClaimLevel(claim))
+	step, err := s.claimSolver.AttemptStep(ctx, game, claim)
+	if errors.Is(err, ErrStepIgnoreInvalidPath) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, err
 	}
-	return &Action{
-		Type:       ActionTypeStep,
+	return &types.Action{
+		Type:       types.ActionTypeStep,
 		ParentIdx:  step.LeafClaim.ContractIndex,
 		IsAttack:   step.IsAttack,
 		PreState:   step.PreState,
@@ -90,17 +65,20 @@ func (s *GameSolver) calculateStep(ctx context.Context, game types.Game, claim t
 	}, nil
 }
 
-func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim types.Claim) (*Action, error) {
-	move, err := s.claimSolver.NextMove(ctx, claim, game.AgreeWithClaimLevel(claim))
+func (s *GameSolver) calculateMove(ctx context.Context, game types.Game, claim types.Claim) (*types.Action, error) {
+	if game.AgreeWithClaimLevel(claim) {
+		return nil, nil
+	}
+	move, err := s.claimSolver.NextMove(ctx, claim, game)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate next move for claim index %v: %w", claim.ContractIndex, err)
 	}
 	if move == nil || game.IsDuplicate(*move) {
 		return nil, nil
 	}
-	return &Action{
-		Type:      ActionTypeMove,
-		IsAttack:  !move.DefendsParent(),
+	return &types.Action{
+		Type:      types.ActionTypeMove,
+		IsAttack:  !game.DefendsParent(*move),
 		ParentIdx: move.ParentContractIndex,
 		Value:     move.Value,
 	}, nil

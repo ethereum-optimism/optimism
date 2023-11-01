@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -38,6 +40,7 @@ type L1BridgeDeposit struct {
 type L1BridgeDepositWithTransactionHashes struct {
 	L1BridgeDeposit L1BridgeDeposit `gorm:"embedded"`
 
+	L1BlockHash       common.Hash `gorm:"serializer:bytes"`
 	L1TransactionHash common.Hash `gorm:"serializer:bytes"`
 	L2TransactionHash common.Hash `gorm:"serializer:bytes"`
 }
@@ -50,6 +53,7 @@ type L2BridgeWithdrawal struct {
 type L2BridgeWithdrawalWithTransactionHashes struct {
 	L2BridgeWithdrawal L2BridgeWithdrawal `gorm:"embedded"`
 	L2TransactionHash  common.Hash        `gorm:"serializer:bytes"`
+	L2BlockHash        common.Hash        `gorm:"serializer:bytes"`
 
 	ProvenL1TransactionHash    common.Hash `gorm:"serializer:bytes"`
 	FinalizedL1TransactionHash common.Hash `gorm:"serializer:bytes"`
@@ -77,11 +81,12 @@ type BridgeTransfersDB interface {
  */
 
 type bridgeTransfersDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newBridgeTransfersDB(db *gorm.DB) BridgeTransfersDB {
-	return &bridgeTransfersDB{gorm: db}
+func newBridgeTransfersDB(log log.Logger, db *gorm.DB) BridgeTransfersDB {
+	return &bridgeTransfersDB{log: log.New("table", "bridge_transfers"), gorm: db}
 }
 
 /**
@@ -89,7 +94,12 @@ func newBridgeTransfersDB(db *gorm.DB) BridgeTransfersDB {
  */
 
 func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []L1BridgeDeposit) error {
-	result := db.gorm.CreateInBatches(&deposits, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "transaction_source_hash"}}, DoNothing: true})
+	result := deduped.Create(&deposits)
+	if result.Error == nil && int(result.RowsAffected) < len(deposits) {
+		db.log.Warn("ignored L1 bridge transfer duplicates", "duplicates", len(deposits)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -126,12 +136,11 @@ type L1BridgeDepositsResponse struct {
 	HasNextPage bool
 }
 
-// L1BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address,
+// L1BridgeDepositsByAddress retrieves a list of deposits initiated by the specified address,
 // coupled with the L1/L2 transaction hashes that complete the bridge transaction.
 func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, cursor string, limit int) (*L1BridgeDepositsResponse, error) {
-	defaultLimit := 100
 	if limit <= 0 {
-		limit = defaultLimit
+		return nil, fmt.Errorf("limit must be greater than 0")
 	}
 
 	cursorClause := ""
@@ -145,16 +154,15 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, c
 		cursorClause = fmt.Sprintf("l1_transaction_deposits.timestamp <= %d", txDeposit.Tx.Timestamp)
 	}
 
-	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
 	// Coalesce l1 transaction deposits that are simply ETH sends
 	ethTransactionDeposits := db.gorm.Model(&L1TransactionDeposit{})
-	ethTransactionDeposits = ethTransactionDeposits.Where(Transaction{FromAddress: address}).Where("data = '0x' AND amount > 0")
+	ethTransactionDeposits = ethTransactionDeposits.Where(&Transaction{FromAddress: address}).Where("amount > 0")
 	ethTransactionDeposits = ethTransactionDeposits.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = initiated_l1_event_guid")
 	ethTransactionDeposits = ethTransactionDeposits.Select(`
 from_address, to_address, amount, data, source_hash AS transaction_source_hash,
-l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
+l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash, l1_contract_events.block_hash as l1_block_hash,
 l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 	ethTransactionDeposits = ethTransactionDeposits.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -162,11 +170,12 @@ l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local
 	}
 
 	depositsQuery := db.gorm.Model(&L1BridgeDeposit{})
+	depositsQuery = depositsQuery.Where(&Transaction{FromAddress: address})
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_transaction_deposits.source_hash = transaction_source_hash")
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
 	depositsQuery = depositsQuery.Select(`
 l1_bridge_deposits.from_address, l1_bridge_deposits.to_address, l1_bridge_deposits.amount, l1_bridge_deposits.data, transaction_source_hash,
-l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
+l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash, l1_contract_events.block_hash as l1_block_hash,
 l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 	depositsQuery = depositsQuery.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -202,7 +211,12 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
  */
 
 func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []L2BridgeWithdrawal) error {
-	result := db.gorm.CreateInBatches(&withdrawals, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "transaction_withdrawal_hash"}}, DoNothing: true})
+	result := deduped.Create(&withdrawals)
+	if result.Error == nil && int(result.RowsAffected) < len(withdrawals) {
+		db.log.Warn("ignored L2 bridge transfer duplicates", "duplicates", len(withdrawals)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -239,14 +253,14 @@ type L2BridgeWithdrawalsResponse struct {
 	HasNextPage bool
 }
 
-// L2BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address, coupled with the L1/L2 transaction hashes
-// that complete the bridge transaction. The hashes that correspond to with the Bedrock multistep withdrawal process are also surfaced
+// L2BridgeDepositsByAddress retrieves a list of deposits initiated by the specified address, coupled with the L1/L2 transaction hashes
+// that complete the bridge transaction. The hashes that correspond with the Bedrock multi-step withdrawal process are also surfaced
 func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address, cursor string, limit int) (*L2BridgeWithdrawalsResponse, error) {
-	defaultLimit := 100
 	if limit <= 0 {
-		limit = defaultLimit
+		return nil, fmt.Errorf("limit must be greater than 0")
 	}
 
+	// (1) Generate cursor clause provided a cursor tx hash
 	cursorClause := ""
 	if cursor != "" {
 		withdrawalHash := common.HexToHash(cursor)
@@ -258,18 +272,23 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 		cursorClause = fmt.Sprintf("l2_transaction_withdrawals.timestamp <= %d", txWithdrawal.Tx.Timestamp)
 	}
 
+	// (2) Generate query for fetching ETH withdrawal data
+	// This query is a UNION (A | B) of two sub-queries:
+	//   - (A) ETH sends from L2 to L1
+	//   - (B) Bridge withdrawals from L2 to L1
+
 	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
 	// Coalesce l2 transaction withdrawals that are simply ETH sends
 	ethTransactionWithdrawals := db.gorm.Model(&L2TransactionWithdrawal{})
-	ethTransactionWithdrawals = ethTransactionWithdrawals.Where(Transaction{FromAddress: address}).Where(`data = '0x' AND amount > 0`)
+	ethTransactionWithdrawals = ethTransactionWithdrawals.Where(&Transaction{FromAddress: address}).Where("amount > 0")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("LEFT JOIN l1_contract_events AS proven_l1_events ON proven_l1_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("LEFT JOIN l1_contract_events AS finalized_l1_events ON finalized_l1_events.guid = l2_transaction_withdrawals.finalized_l1_event_guid")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Select(`
 from_address, to_address, amount, data, withdrawal_hash AS transaction_withdrawal_hash,
-l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
+l2_contract_events.transaction_hash AS l2_transaction_hash, l2_contract_events.block_hash as l2_block_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -277,13 +296,14 @@ l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS lo
 	}
 
 	withdrawalsQuery := db.gorm.Model(&L2BridgeWithdrawal{})
+	withdrawalsQuery = withdrawalsQuery.Where(&Transaction{FromAddress: address})
 	withdrawalsQuery = withdrawalsQuery.Joins("INNER JOIN l2_transaction_withdrawals ON withdrawal_hash = l2_bridge_withdrawals.transaction_withdrawal_hash")
 	withdrawalsQuery = withdrawalsQuery.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
 	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS proven_l1_events ON proven_l1_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
 	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS finalized_l1_events ON finalized_l1_events.guid = l2_transaction_withdrawals.finalized_l1_event_guid")
 	withdrawalsQuery = withdrawalsQuery.Select(`
 l2_bridge_withdrawals.from_address, l2_bridge_withdrawals.to_address, l2_bridge_withdrawals.amount, l2_bridge_withdrawals.data, transaction_withdrawal_hash,
-l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
+l2_contract_events.transaction_hash AS l2_transaction_hash, l2_contract_events.block_hash as l2_block_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 	withdrawalsQuery = withdrawalsQuery.Order("timestamp DESC").Limit(limit + 1)
 	if cursorClause != "" {
@@ -294,7 +314,10 @@ l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address,
 	query = query.Joins("UNION (?)", ethTransactionWithdrawals)
 	query = query.Select("*").Order("timestamp DESC").Limit(limit + 1)
 	withdrawals := []L2BridgeWithdrawalWithTransactionHashes{}
+
+	// (3) Execute query and process results
 	result := query.Find(&withdrawals)
+
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil

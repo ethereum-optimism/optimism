@@ -2,27 +2,42 @@ package rpc
 
 import (
 	"context"
+
+	"github.com/ethereum/go-ethereum/log"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-type batcherClient interface {
-	Start() error
-	Stop(ctx context.Context) error
+type BatcherDriver interface {
+	StartBatchSubmitting() error
+	StopBatchSubmitting(ctx context.Context) error
 }
 
 type adminAPI struct {
-	b batcherClient
+	*rpc.CommonAdminAPI
+	b BatcherDriver
 }
 
-func NewAdminAPI(dr batcherClient) *adminAPI {
+func NewAdminAPI(dr BatcherDriver, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
-		b: dr,
+		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
+		b:              dr,
+	}
+}
+
+func GetAdminAPI(api *adminAPI) gethrpc.API {
+	return gethrpc.API{
+		Namespace: "admin",
+		Service:   api,
 	}
 }
 
 func (a *adminAPI) StartBatcher(_ context.Context) error {
-	return a.b.Start()
+	return a.b.StartBatchSubmitting()
 }
 
 func (a *adminAPI) StopBatcher(ctx context.Context) error {
-	return a.b.Stop(ctx)
+	return a.b.StopBatchSubmitting(ctx)
 }

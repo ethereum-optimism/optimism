@@ -5,7 +5,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -15,13 +15,18 @@ type SchedulerMetricer interface {
 	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
 	RecordGameUpdateScheduled()
 	RecordGameUpdateCompleted()
+	IncActiveExecutors()
+	DecActiveExecutors()
+	IncIdleExecutors()
+	DecIdleExecutors()
 }
 
 type Scheduler struct {
 	logger         log.Logger
 	coordinator    *coordinator
+	m              SchedulerMetricer
 	maxConcurrency uint
-	scheduleQueue  chan []common.Address
+	scheduleQueue  chan []types.GameMetadata
 	jobQueue       chan job
 	resultQueue    chan job
 	wg             sync.WaitGroup
@@ -36,10 +41,11 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 
 	// scheduleQueue has a size of 1 so backpressure quickly propagates to the caller
 	// allowing them to potentially skip update cycles.
-	scheduleQueue := make(chan []common.Address, 1)
+	scheduleQueue := make(chan []types.GameMetadata, 1)
 
 	return &Scheduler{
 		logger:         logger,
+		m:              m,
 		coordinator:    newCoordinator(logger, m, jobQueue, resultQueue, createPlayer, disk),
 		maxConcurrency: maxConcurrency,
 		scheduleQueue:  scheduleQueue,
@@ -48,13 +54,24 @@ func NewScheduler(logger log.Logger, m SchedulerMetricer, disk DiskManager, maxC
 	}
 }
 
+func (s *Scheduler) ThreadActive() {
+	s.m.IncActiveExecutors()
+	s.m.DecIdleExecutors()
+}
+
+func (s *Scheduler) ThreadIdle() {
+	s.m.IncIdleExecutors()
+	s.m.DecActiveExecutors()
+}
+
 func (s *Scheduler) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.cancel = cancel
 
 	for i := uint(0); i < s.maxConcurrency; i++ {
+		s.m.IncIdleExecutors()
 		s.wg.Add(1)
-		go progressGames(ctx, s.jobQueue, s.resultQueue, &s.wg)
+		go progressGames(ctx, s.jobQueue, s.resultQueue, &s.wg, s.ThreadActive, s.ThreadIdle)
 	}
 
 	s.wg.Add(1)
@@ -67,7 +84,7 @@ func (s *Scheduler) Close() error {
 	return nil
 }
 
-func (s *Scheduler) Schedule(games []common.Address) error {
+func (s *Scheduler) Schedule(games []types.GameMetadata) error {
 	select {
 	case s.scheduleQueue <- games:
 		return nil
@@ -84,7 +101,7 @@ func (s *Scheduler) loop(ctx context.Context) {
 			return
 		case games := <-s.scheduleQueue:
 			if err := s.coordinator.schedule(ctx, games); err != nil {
-				s.logger.Error("Failed to schedule game updates", "games", games, "err", err)
+				s.logger.Error("Failed to schedule game updates", "err", err)
 			}
 		case j := <-s.resultQueue:
 			if err := s.coordinator.processResult(j); err != nil {

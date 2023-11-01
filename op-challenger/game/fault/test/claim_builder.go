@@ -31,73 +31,65 @@ func (c *ClaimBuilder) CorrectTraceProvider() types.TraceProvider {
 	return c.correct
 }
 
-// CorrectClaim returns the canonical claim at a specified trace index
-func (c *ClaimBuilder) CorrectClaim(idx uint64) common.Hash {
-	value, err := c.correct.Get(context.Background(), idx)
-	c.require.NoError(err)
-	return value
-}
-
 // CorrectClaimAtPosition returns the canonical claim at a specified position
 func (c *ClaimBuilder) CorrectClaimAtPosition(pos types.Position) common.Hash {
-	value, err := c.correct.Get(context.Background(), pos.TraceIndex(c.maxDepth))
+	value, err := c.correct.Get(context.Background(), pos)
 	c.require.NoError(err)
 	return value
 }
 
 // CorrectPreState returns the pre-state (not hashed) required to execute the valid step at the specified trace index
-func (c *ClaimBuilder) CorrectPreState(idx uint64) []byte {
-	preimage, _, _, err := c.correct.GetStepData(context.Background(), idx)
+func (c *ClaimBuilder) CorrectPreState(idx *big.Int) []byte {
+	pos := types.NewPosition(c.maxDepth, idx)
+	preimage, _, _, err := c.correct.GetStepData(context.Background(), pos)
 	c.require.NoError(err)
 	return preimage
 }
 
 // CorrectProofData returns the proof-data required to execute the valid step at the specified trace index
-func (c *ClaimBuilder) CorrectProofData(idx uint64) []byte {
-	_, proof, _, err := c.correct.GetStepData(context.Background(), idx)
+func (c *ClaimBuilder) CorrectProofData(idx *big.Int) []byte {
+	pos := types.NewPosition(c.maxDepth, idx)
+	_, proof, _, err := c.correct.GetStepData(context.Background(), pos)
 	c.require.NoError(err)
 	return proof
 }
 
-func (c *ClaimBuilder) CorrectOracleData(idx uint64) *types.PreimageOracleData {
-	_, _, data, err := c.correct.GetStepData(context.Background(), idx)
+func (c *ClaimBuilder) CorrectOracleData(idx *big.Int) *types.PreimageOracleData {
+	pos := types.NewPosition(c.maxDepth, idx)
+	_, _, data, err := c.correct.GetStepData(context.Background(), pos)
 	c.require.NoError(err)
 	return data
 }
 
-func (c *ClaimBuilder) incorrectClaim(idx uint64) common.Hash {
-	return common.BigToHash(new(big.Int).SetUint64(idx))
+func (c *ClaimBuilder) incorrectClaim(pos types.Position) common.Hash {
+	return common.BigToHash(pos.TraceIndex(c.maxDepth))
 }
 
-func (c *ClaimBuilder) claim(idx uint64, correct bool) common.Hash {
+func (c *ClaimBuilder) claim(pos types.Position, correct bool) common.Hash {
 	if correct {
-		return c.CorrectClaim(idx)
+		return c.CorrectClaimAtPosition(pos)
 	} else {
-		return c.incorrectClaim(idx)
+		return c.incorrectClaim(pos)
 	}
 }
 
 func (c *ClaimBuilder) CreateRootClaim(correct bool) types.Claim {
-	value := c.claim((1<<c.maxDepth)-1, correct)
-	return types.Claim{
+	value := c.claim(types.NewPositionFromGIndex(big.NewInt(1)), correct)
+	claim := types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    value,
-			Position: types.NewPosition(0, 0),
+			Position: types.NewPosition(0, common.Big0),
 		},
 	}
+	return claim
 }
 
-func (c *ClaimBuilder) CreateLeafClaim(traceIndex uint64, correct bool) types.Claim {
-	parentPos := types.NewPosition(c.maxDepth-1, 0)
-	pos := types.NewPosition(c.maxDepth, int(traceIndex))
+func (c *ClaimBuilder) CreateLeafClaim(traceIndex *big.Int, correct bool) types.Claim {
+	pos := types.NewPosition(c.maxDepth, traceIndex)
 	return types.Claim{
 		ClaimData: types.ClaimData{
-			Value:    c.claim(pos.TraceIndex(c.maxDepth), correct),
+			Value:    c.claim(pos, correct),
 			Position: pos,
-		},
-		Parent: types.ClaimData{
-			Value:    c.claim(parentPos.TraceIndex(c.maxDepth), !correct),
-			Position: parentPos,
 		},
 	}
 }
@@ -106,10 +98,9 @@ func (c *ClaimBuilder) AttackClaim(claim types.Claim, correct bool) types.Claim 
 	pos := claim.Position.Attack()
 	return types.Claim{
 		ClaimData: types.ClaimData{
-			Value:    c.claim(pos.TraceIndex(c.maxDepth), correct),
+			Value:    c.claim(pos, correct),
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }
@@ -121,7 +112,6 @@ func (c *ClaimBuilder) AttackClaimWithValue(claim types.Claim, value common.Hash
 			Value:    value,
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }
@@ -130,10 +120,9 @@ func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim 
 	pos := claim.Position.Defend()
 	return types.Claim{
 		ClaimData: types.ClaimData{
-			Value:    c.claim(pos.TraceIndex(c.maxDepth), correct),
+			Value:    c.claim(pos, correct),
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }
@@ -145,7 +134,6 @@ func (c *ClaimBuilder) DefendClaimWithValue(claim types.Claim, value common.Hash
 			Value:    value,
 			Position: pos,
 		},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -34,6 +34,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	rollupConfig, err := NewRollupConfig(log, ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	if !ctx.Bool(flags.RollupLoadProtocolVersions.Name) {
+		log.Info("Not opted in to ProtocolVersions signal loading, disabling ProtocolVersions contract now.")
+		rollupConfig.ProtocolVersionsAddress = common.Address{}
 	}
 
 	configPersistence := NewConfigPersistence(ctx)
@@ -60,6 +65,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
 
 	syncConfig := NewSyncConfig(ctx)
+
+	haltOption := ctx.String(flags.RollupHalt.Name)
+	if haltOption == "none" {
+		haltOption = ""
+	}
 
 	cfg := &node.Config{
 		L1:     l1Endpoint,
@@ -93,6 +103,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		},
 		ConfigPersistence: configPersistence,
 		Sync:              *syncConfig,
+		RollupHalt:        haltOption,
+		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -176,6 +188,9 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(flags.Network.Name)
 	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+	if ctx.Bool(flags.BetaExtraNetworks.Name) {
+		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
+	}
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
@@ -183,13 +198,13 @@ Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
 `, "network", network, "rollup_config", rollupConfigPath)
 		}
-		// check that the network is available
-		if !chaincfg.IsAvailableNetwork(network, ctx.Bool(flags.BetaExtraNetworks.Name)) {
-			return nil, fmt.Errorf("unavailable network: %q", network)
-		}
 		config, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
+		}
+		if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
+			canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+			config.CanyonTime = &canyon
 		}
 
 		return config, nil
@@ -204,6 +219,10 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	var rollupConfig rollup.Config
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
+	}
+	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
+		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+		rollupConfig.CanyonTime = &canyon
 	}
 	return &rollupConfig, nil
 }

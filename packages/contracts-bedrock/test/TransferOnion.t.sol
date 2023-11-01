@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 // Target contract
-import { TransferOnion } from "../src/periphery/TransferOnion.sol";
+import { TransferOnion } from "src/periphery/TransferOnion.sol";
 
 /// @title  TransferOnionTest
 /// @notice Test coverage of TransferOnion

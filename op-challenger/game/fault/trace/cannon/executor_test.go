@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ func TestGenerateProof(t *testing.T) {
 	input := "starting.json"
 	tempDir := t.TempDir()
 	dir := filepath.Join(tempDir, "gameDir")
-	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", config.TraceTypeCannon, true, tempDir)
+	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", true, tempDir, config.TraceTypeCannon)
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
 	cfg.CannonServer = "./bin/op-program"
@@ -40,7 +40,8 @@ func TestGenerateProof(t *testing.T) {
 		L2BlockNumber: big.NewInt(3333),
 	}
 	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
-		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), metrics.NoopMetrics, &cfg, inputs)
+		m := &cannonDurationMetrics{}
+		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), m, &cfg, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
 		}
@@ -63,6 +64,7 @@ func TestGenerateProof(t *testing.T) {
 		}
 		err := executor.GenerateProof(context.Background(), dir, proofAt)
 		require.NoError(t, err)
+		require.Equal(t, 1, m.executionTimeRecordCount, "Should record cannon execution time")
 		return binary, subcommand, args
 	}
 
@@ -210,4 +212,13 @@ func TestFindStartingSnapshot(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, filepath.Join(dir, "100.json.gz"), snapshot)
 	})
+}
+
+type cannonDurationMetrics struct {
+	metrics.NoopMetricsImpl
+	executionTimeRecordCount int
+}
+
+func (c *cannonDurationMetrics) RecordCannonExecutionTime(_ float64) {
+	c.executionTimeRecordCount++
 }

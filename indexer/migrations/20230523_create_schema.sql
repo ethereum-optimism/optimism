@@ -3,7 +3,12 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
         CREATE DOMAIN UINT256 AS NUMERIC
-            CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
+    ELSE
+        -- To remain backwards compatible, drop the old constraint and re-add.
+        ALTER DOMAIN UINT256 DROP CONSTRAINT uint256_check;
+        ALTER DOMAIN UINT256 ADD
+            CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
     END IF;
 END $$;
 
@@ -29,7 +34,7 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
     hash        VARCHAR PRIMARY KEY,
     parent_hash VARCHAR NOT NULL UNIQUE,
     number      UINT256 NOT NULL UNIQUE,
-    timestamp   INTEGER NOT NULL UNIQUE CHECK (timestamp > 0),
+    timestamp   INTEGER NOT NULL,
 
     -- Raw Data
     rlp_bytes VARCHAR NOT NULL
@@ -57,6 +62,8 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
 CREATE INDEX IF NOT EXISTS l1_contract_events_timestamp ON l1_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l1_contract_events_block_hash ON l1_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l1_contract_events_event_signature ON l1_contract_events(event_signature);
+CREATE INDEX IF NOT EXISTS l1_contract_events_contract_address ON l1_contract_events(contract_address);
+ALTER TABLE l1_contract_events ADD UNIQUE (block_hash, log_index);
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Searchable fields
@@ -74,51 +81,12 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
 CREATE INDEX IF NOT EXISTS l2_contract_events_timestamp ON l2_contract_events(timestamp);
 CREATE INDEX IF NOT EXISTS l2_contract_events_block_hash ON l2_contract_events(block_hash);
 CREATE INDEX IF NOT EXISTS l2_contract_events_event_signature ON l2_contract_events(event_signature);
-
--- Tables that index finalization markers for L2 blocks.
-
-CREATE TABLE IF NOT EXISTS legacy_state_batches (
-    index      INTEGER PRIMARY KEY,
-    root       VARCHAR NOT NULL UNIQUE,
-    size       INTEGER NOT NULL,
-    prev_total INTEGER NOT NULL,
-
-    state_batch_appended_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
-);
-
-CREATE TABLE IF NOT EXISTS output_proposals (
-    output_root     VARCHAR PRIMARY KEY,
-    l2_output_index UINT256 NOT NULL UNIQUE,
-    l2_block_number UINT256 NOT NULL UNIQUE,
-
-    output_proposed_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE
-);
-
+CREATE INDEX IF NOT EXISTS l2_contract_events_contract_address ON l2_contract_events(contract_address);
+ALTER TABLE l2_contract_events ADD UNIQUE (block_hash, log_index);
 
 /**
  * BRIDGING DATA
  */
-
--- Bridged L1/L2 Tokens
-CREATE TABLE IF NOT EXISTS l1_bridged_tokens (
-    address        VARCHAR PRIMARY KEY,
-    bridge_address VARCHAR NOT NULL,
-
-    name     VARCHAR NOT NULL,
-    symbol   VARCHAR NOT NULL,
-    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
-);
-CREATE TABLE IF NOT EXISTS l2_bridged_tokens (
-    address        VARCHAR PRIMARY KEY,
-    bridge_address VARCHAR NOT NULL,
-
-    -- L1-L2 relationship is 1 to many so this is not necessarily unique
-    l1_token_address VARCHAR REFERENCES l1_bridged_tokens(address) ON DELETE CASCADE,
-
-    name     VARCHAR NOT NULL,
-    symbol   VARCHAR NOT NULL,
-    decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
-);
 
 -- OptimismPortal/L2ToL1MessagePasser
 CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
@@ -126,10 +94,17 @@ CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
     l2_transaction_hash     VARCHAR NOT NULL UNIQUE,
     initiated_l1_event_guid VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid) ON DELETE CASCADE,
 
-    -- transaction data
+    -- transaction data. NOTE: `to_address` is the recipient of funds transferred in value field of the
+    -- L2 deposit transaction and not the amount minted on L1 from the source address. Hence the `amount`
+    -- column in this table does NOT indiciate the amount transferred to the recipient but instead funds
+    -- bridged from L1 into `from_address`.
     from_address VARCHAR NOT NULL,
     to_address   VARCHAR NOT NULL,
+
+    -- This refers to the amount MINTED on L2 (msg.value of the L1 transaction). Important distinction from
+    -- the `value` field of the deposit transaction which simply is the value transferred to specified recipient.
     amount       UINT256 NOT NULL,
+
     gas_limit    UINT256 NOT NULL,
     data         VARCHAR NOT NULL,
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
@@ -209,8 +184,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     -- Deposit information
     from_address         VARCHAR NOT NULL,
     to_address           VARCHAR NOT NULL,
-    local_token_address  VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
-    remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
+    local_token_address  VARCHAR NOT NULL,
+    remote_token_address VARCHAR NOT NULL,
     amount               UINT256 NOT NULL,
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
@@ -226,8 +201,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     -- Withdrawal information
     from_address         VARCHAR NOT NULL,
     to_address           VARCHAR NOT NULL,
-    local_token_address  VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
-    remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
+    local_token_address  VARCHAR NOT NULL,
+    remote_token_address VARCHAR NOT NULL,
     amount               UINT256 NOT NULL,
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,7 +16,7 @@ import (
 )
 
 var (
-	ErrMissingTraceType              = errors.New("missing trace type")
+	ErrMissingTraceType              = errors.New("no supported trace types specified")
 	ErrMissingDatadir                = errors.New("missing datadir")
 	ErrMaxConcurrencyZero            = errors.New("max concurrency must not be 0")
 	ErrMissingCannonL2               = errors.New("missing cannon L2")
@@ -32,13 +33,15 @@ var (
 	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
 	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
 	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
+	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
 )
 
 type TraceType string
 
 const (
-	TraceTypeAlphabet TraceType = "alphabet"
-	TraceTypeCannon   TraceType = "cannon"
+	TraceTypeAlphabet     TraceType = "alphabet"
+	TraceTypeCannon       TraceType = "cannon"
+	TraceTypeOutputCannon TraceType = "output_cannon"
 
 	// Mainnet games
 	CannonFaultGameID = 0
@@ -47,7 +50,7 @@ const (
 	AlphabetFaultGameID = 255
 )
 
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon, TraceTypeOutputCannon}
 
 // GameIdToString maps game IDs to their string representation.
 var GameIdToString = map[uint8]string{
@@ -68,6 +71,11 @@ func (t *TraceType) Set(value string) error {
 	return nil
 }
 
+func (t *TraceType) Clone() any {
+	cpy := *t
+	return &cpy
+}
+
 func ValidTraceType(value TraceType) bool {
 	for _, t := range TraceTypes {
 		if t == value {
@@ -78,6 +86,7 @@ func ValidTraceType(value TraceType) bool {
 }
 
 const (
+	DefaultPollInterval       = time.Second * 12
 	DefaultCannonSnapshotFreq = uint(1_000_000_000)
 	DefaultCannonInfoFreq     = uint(10_000_000)
 	// DefaultGameWindow is the default maximum time duration in the past
@@ -98,11 +107,15 @@ type Config struct {
 	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
 	Datadir                 string           // Data Directory
 	MaxConcurrency          uint             // Maximum number of threads to use when progressing games
+	PollInterval            time.Duration    // Polling interval for latest-block subscription when using an HTTP RPC provider
 
-	TraceType TraceType // Type of trace
+	TraceTypes []TraceType // Type of traces supported
 
 	// Specific to the alphabet trace provider
 	AlphabetTrace string // String for the AlphabetTraceProvider
+
+	// Specific to the output cannon trace type
+	RollupRpc string
 
 	// Specific to the cannon trace provider
 	CannonBin              string // Path to the cannon executable to run when generating trace data
@@ -123,20 +136,21 @@ type Config struct {
 func NewConfig(
 	gameFactoryAddress common.Address,
 	l1EthRpc string,
-	traceType TraceType,
 	agreeWithProposedOutput bool,
 	datadir string,
+	supportedTraceTypes ...TraceType,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
 		GameFactoryAddress: gameFactoryAddress,
 		MaxConcurrency:     uint(runtime.NumCPU()),
+		PollInterval:       DefaultPollInterval,
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 
-		TraceType: traceType,
+		TraceTypes: supportedTraceTypes,
 
-		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc),
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc, txmgr.DefaultChallengerFlagValues),
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
 
@@ -148,6 +162,10 @@ func NewConfig(
 	}
 }
 
+func (c Config) TraceTypeEnabled(t TraceType) bool {
+	return slices.Contains(c.TraceTypes, t)
+}
+
 func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
@@ -155,7 +173,7 @@ func (c Config) Check() error {
 	if c.GameFactoryAddress == (common.Address{}) {
 		return ErrMissingGameFactoryAddress
 	}
-	if c.TraceType == "" {
+	if len(c.TraceTypes) == 0 {
 		return ErrMissingTraceType
 	}
 	if c.Datadir == "" {
@@ -164,7 +182,12 @@ func (c Config) Check() error {
 	if c.MaxConcurrency == 0 {
 		return ErrMaxConcurrencyZero
 	}
-	if c.TraceType == TraceTypeCannon {
+	if c.TraceTypeEnabled(TraceTypeOutputCannon) {
+		if c.RollupRpc == "" {
+			return ErrMissingRollupRpc
+		}
+	}
+	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypeOutputCannon) {
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
 		}
@@ -202,7 +225,7 @@ func (c Config) Check() error {
 			return ErrMissingCannonInfoFreq
 		}
 	}
-	if c.TraceType == TraceTypeAlphabet && c.AlphabetTrace == "" {
+	if c.TraceTypeEnabled(TraceTypeAlphabet) && c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {

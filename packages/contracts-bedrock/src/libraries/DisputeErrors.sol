@@ -66,6 +66,12 @@ error L1HeadTooOld();
 /// @notice Thrown when an invalid local identifier is passed to the `addLocalData` function.
 error InvalidLocalIdent();
 
+/// @notice Thrown when resolving claims out of order.
+error OutOfOrderResolution();
+
+/// @notice Thrown when resolving a claim that has already been resolved.
+error ClaimAlreadyResolved();
+
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
 ////////////////////////////////////////////////////////////////

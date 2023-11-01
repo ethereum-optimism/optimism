@@ -2,8 +2,12 @@ package op_e2e
 
 import (
 	"context"
+	"math/big"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	l2oo2 "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -14,7 +18,7 @@ import (
 )
 
 func TestMultipleCannonGames(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon, UseExecutor(0))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -62,15 +66,54 @@ func TestMultipleCannonGames(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(gameDuration)
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game1.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
-	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game1.WaitForInactivity(ctx, 10, true)
+	game2.WaitForInactivity(ctx, 10, true)
+	game1.LogGameData(ctx)
+	game2.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game1.Status(ctx))
+	require.EqualValues(t, disputegame.StatusChallengerWins, game2.Status(ctx))
 
 	// Check that the game directories are removed
 	challenger.WaitForGameDataDeletion(ctx, game1, game2)
 }
 
+func TestMultipleGameTypes(t *testing.T) {
+	InitParallel(t, UsesCannon, UseExecutor(0))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	// Start a challenger with both cannon and alphabet support
+	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
+		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
+		challenger.WithAlphabet(disputegame.CorrectAlphabet),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+		challenger.WithAgreeProposedOutput(true),
+	)
+
+	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
+	game2 := gameFactory.StartAlphabetGame(ctx, "xyzabc")
+
+	// Wait for the challenger to respond to both games
+	game1.WaitForClaimCount(ctx, 2)
+	game2.WaitForClaimCount(ctx, 2)
+	game1Response := game1.GetClaimValue(ctx, 1)
+	game2Response := game2.GetClaimValue(ctx, 1)
+	// The alphabet game always posts the same traces, so if they're different they can't both be from the alphabet.
+	require.NotEqual(t, game1Response, game2Response, "should have posted different claims")
+	// Now check they aren't both just from different cannon games by confirming the alphabet value.
+	correctAlphabet := alphabet.NewTraceProvider(disputegame.CorrectAlphabet, uint64(game2.MaxDepth(ctx)))
+	expectedClaim, err := correctAlphabet.Get(ctx, types.NewPositionFromGIndex(big.NewInt(1)).Attack())
+	require.NoError(t, err)
+	require.Equal(t, expectedClaim, game2Response)
+	// We don't confirm the cannon value because generating the correct claim is expensive
+	// Just being different is enough to confirm the challenger isn't just playing two alphabet games incorrectly
+}
+
 func TestChallengerCompleteDisputeGame(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UseExecutor(1))
 
 	tests := []struct {
 		name              string
@@ -139,7 +182,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			InitParallel(t)
+			InitParallel(t, UseExecutor(1))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -168,13 +211,73 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(gameDuration)
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, test.expectedResult)
+			game.WaitForInactivity(ctx, 10, true)
+			game.LogGameData(ctx)
+			require.EqualValues(t, test.expectedResult, game.Status(ctx))
 		})
 	}
 }
 
+func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
+	InitParallel(t, UseExecutor(1))
+
+	testCase := func(t *testing.T, isRootCorrect bool) {
+		ctx := context.Background()
+		sys, l1Client := startFaultDisputeSystem(t)
+		t.Cleanup(sys.Close)
+
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+		rootClaimedAlphabet := disputegame.CorrectAlphabet
+		if !isRootCorrect {
+			rootClaimedAlphabet = "abcdexyz"
+		}
+		game := disputeGameFactory.StartAlphabetGame(ctx, rootClaimedAlphabet)
+		require.NotNil(t, game)
+		gameDuration := game.GameDuration(ctx)
+
+		// Start honest challenger
+		game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
+			challenger.WithAgreeProposedOutput(!isRootCorrect),
+			challenger.WithAlphabet(disputegame.CorrectAlphabet),
+			challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+			// Ensures the challenger responds to all claims before test timeout
+			challenger.WithPollInterval(time.Millisecond*400),
+		)
+
+		// Start dishonest challenger
+		dishonestHelper := game.CreateDishonestHelper(disputegame.CorrectAlphabet, 4, !isRootCorrect)
+		dishonestHelper.ExhaustDishonestClaims(ctx)
+
+		// Wait until we've reached max depth before checking for inactivity
+		game.WaitForClaimAtDepth(ctx, int(game.MaxDepth(ctx)))
+
+		// Wait for 4 blocks of no challenger responses. The challenger may still be stepping on invalid claims at max depth
+		game.WaitForInactivity(ctx, 4, false)
+
+		sys.TimeTravelClock.AdvanceTime(gameDuration)
+		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+		expectedStatus := disputegame.StatusChallengerWins
+		if isRootCorrect {
+			expectedStatus = disputegame.StatusDefenderWins
+		}
+		game.WaitForInactivity(ctx, 10, true)
+		game.LogGameData(ctx)
+		require.EqualValues(t, expectedStatus, game.Status(ctx))
+	}
+
+	t.Run("RootCorrect", func(t *testing.T) {
+		InitParallel(t, UseExecutor(1))
+		testCase(t, true)
+	})
+	t.Run("RootIncorrect", func(t *testing.T) {
+		InitParallel(t, UseExecutor(1))
+		testCase(t, false)
+	})
+}
+
 func TestCannonDisputeGame(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon, UseExecutor(1))
 
 	tests := []struct {
 		name             string
@@ -187,7 +290,7 @@ func TestCannonDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			InitParallel(t)
+			InitParallel(t, UseExecutor(1))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -217,14 +320,15 @@ func TestCannonDisputeGame(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.WaitForInactivity(ctx, 10, true)
 			game.LogGameData(ctx)
+			require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 		})
 	}
 }
 
 func TestCannonDefendStep(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon, UseExecutor(1))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -260,12 +364,13 @@ func TestCannonDefendStep(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon, UseExecutor(0))
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -316,7 +421,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			InitParallel(t)
+			InitParallel(t, UseExecutor(0))
 
 			ctx := context.Background()
 			sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, test.outputRoot)
@@ -335,10 +440,83 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-			game.WaitForGameStatus(ctx, disputegame.StatusDefenderWins)
+			game.WaitForInactivity(ctx, 10, true)
 			game.LogGameData(ctx)
+			require.EqualValues(t, disputegame.StatusDefenderWins, game.Status(ctx))
 		})
 	}
+}
+
+func TestCannonPoisonedPostState(t *testing.T) {
+	InitParallel(t, UsesCannon, UseExecutor(0))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
+	require.NotNil(t, game)
+	game.LogGameData(ctx)
+
+	// Honest first attack at "honest" level
+	correctTrace.Attack(ctx, 0)
+
+	// Honest defense at "dishonest" level
+	correctTrace.Defend(ctx, 1)
+
+	// Dishonest attack at "honest" level - honest move would be to ignore
+	game.Attack(ctx, 2, common.Hash{0x03, 0xaa})
+
+	// Honest attack at "dishonest" level - honest move would be to ignore
+	correctTrace.Attack(ctx, 3)
+
+	// Start the honest challenger
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Honest",
+		// Agree with the proposed output, so disagree with the root claim
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithPrivKey(sys.cfg.Secrets.Bob),
+	)
+
+	// Start dishonest challenger that posts correct claims
+	// It participates in the subgame root the honest claim index 4
+	func() {
+		claimCount := int64(5)
+		depth := game.MaxDepth(ctx)
+		for {
+			game.LogGameData(ctx)
+			claimCount++
+			// Wait for the challenger to counter
+			game.WaitForClaimCount(ctx, claimCount)
+
+			// Respond with our own move
+			correctTrace.Defend(ctx, claimCount-1)
+			claimCount++
+			game.WaitForClaimCount(ctx, claimCount)
+
+			// Defender moves last. If we're at max depth, then we're done
+			pos := game.GetClaimPosition(ctx, claimCount-1)
+			if int64(pos.Depth()) == depth {
+				break
+			}
+		}
+	}()
+
+	// Wait for the challenger to drive the subgame at 4 to the leaf node, which should be countered
+	game.WaitForClaimAtMaxDepth(ctx, true)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
 // setupDisputeGameForInvalidOutputRoot sets up an L2 chain with at least one valid output root followed by an invalid output root.
@@ -380,8 +558,7 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 }
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
-	InitParallel(t)
-
+	InitParallel(t, UsesCannon, UseExecutor(0))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -410,8 +587,9 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
-	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.WaitForInactivity(ctx, 10, true)
 	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }
 
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {

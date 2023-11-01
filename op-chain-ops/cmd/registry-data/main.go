@@ -55,7 +55,7 @@ func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
 
 	app := &cli.App{
-		Name:  "registry-genesis",
+		Name:  "registry-data",
 		Usage: "Prepare superchain-registry genesis data files based on full genesis dump",
 		Flags: []cli.Flag{
 			L2GenesisFlag,
@@ -64,6 +64,16 @@ func main() {
 			OutputFlag,
 		},
 		Action: entrypoint,
+	}
+	app.Commands = []*cli.Command{
+		{
+			Name:  "bytecode",
+			Usage: "Generate a single gzipped data file from a bytecode hex string",
+			Flags: []cli.Flag{
+				BytecodesDirFlag,
+			},
+			Action: bytecode,
+		},
 	}
 
 	if err := app.Run(os.Args); err != nil {
@@ -188,30 +198,10 @@ func entrypoint(ctx *cli.Context) error {
 	}
 	for addr, account := range genesis.Alloc {
 		if len(account.Code) > 0 {
-			codeHash := crypto.Keccak256Hash(account.Code)
-			name := filepath.Join(bytecodesDir, fmt.Sprintf("%s.bin.gz", codeHash))
-			_, err := os.Stat(name)
+			err = writeBytecode(bytecodesDir, account.Code, addr)
 			if err != nil {
-				if os.IsNotExist(err) {
-					var buf bytes.Buffer
-					w, err := gzip.NewWriterLevel(&buf, 9)
-					if err != nil {
-						return fmt.Errorf("failed to construct gzip writer for bytecode %s: %w", codeHash, err)
-					}
-					if _, err := w.Write(account.Code); err != nil {
-						return fmt.Errorf("failed to write bytecode %s to gzip writer: %w", codeHash, err)
-					}
-					if err := w.Close(); err != nil {
-						return fmt.Errorf("failed to close gzip writer: %w", err)
-					}
-					// new bytecode
-					if err := os.WriteFile(name, buf.Bytes(), 0755); err != nil {
-						return fmt.Errorf("failed to write bytecode %s of account %s: %w", codeHash, addr, err)
-					}
-				} else {
-					return fmt.Errorf("failed to check for pre-existing bytecode %s for address %s: %w", codeHash, addr, err)
-				}
-			} // else: already exists
+				return err
+			}
 		}
 	}
 
@@ -256,6 +246,50 @@ func entrypoint(ctx *cli.Context) error {
 	// write genesis alloc
 	if err := writeGzipJSON(ctx.Path(OutputFlag.Name), out); err != nil {
 		return fmt.Errorf("failed to write output: %w", err)
+	}
+	return nil
+}
+
+func bytecode(ctx *cli.Context) error {
+	if ctx.NArg() != 1 {
+		return fmt.Errorf("expected hex-encoded bytecode as single argument; received %d arguments", ctx.NArg())
+	}
+	bc, err := hexutil.Decode(ctx.Args().First())
+	if err != nil {
+		return fmt.Errorf("failed to decode hex: %w", err)
+	}
+	bytecodesDir := ctx.Path(BytecodesDirFlag.Name)
+	if err := os.MkdirAll(bytecodesDir, 0755); err != nil {
+		return fmt.Errorf("failed to make bytecodes dir: %w", err)
+	}
+	return writeBytecode(bytecodesDir, bc, common.Address{})
+}
+
+func writeBytecode(bytecodesDir string, code []byte, addr common.Address) error {
+	codeHash := crypto.Keccak256Hash(code)
+	name := filepath.Join(bytecodesDir, fmt.Sprintf("%s.bin.gz", codeHash))
+	_, err := os.Stat(name)
+	if err == nil {
+		// file already exists
+		return nil
+	}
+	if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check for pre-existing bytecode %s for address %s: %w", codeHash, addr, err)
+	}
+	var buf bytes.Buffer
+	w, err := gzip.NewWriterLevel(&buf, 9)
+	if err != nil {
+		return fmt.Errorf("failed to construct gzip writer for bytecode %s: %w", codeHash, err)
+	}
+	if _, err := w.Write(code); err != nil {
+		return fmt.Errorf("failed to write bytecode %s to gzip writer: %w", codeHash, err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close gzip writer: %w", err)
+	}
+	// new bytecode
+	if err := os.WriteFile(name, buf.Bytes(), 0755); err != nil {
+		return fmt.Errorf("failed to write bytecode %s of account %s: %w", codeHash, addr, err)
 	}
 	return nil
 }

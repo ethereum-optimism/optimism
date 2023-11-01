@@ -8,8 +8,14 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	ethTypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,11 +23,11 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]FaultDisputeGame, error)
+	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]types.GameMetadata, error)
 }
 
 type gameScheduler interface {
-	Schedule([]common.Address) error
+	Schedule([]types.GameMetadata) error
 }
 
 type gameMonitor struct {
@@ -32,6 +38,20 @@ type gameMonitor struct {
 	gameWindow       time.Duration
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
+	l1HeadsSub       ethereum.Subscription
+	l1Source         *headSource
+}
+
+type MinimalSubscriber interface {
+	EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error)
+}
+
+type headSource struct {
+	inner MinimalSubscriber
+}
+
+func (s *headSource) SubscribeNewHead(ctx context.Context, ch chan<- *ethTypes.Header) (ethereum.Subscription, error) {
+	return s.inner.EthSubscribe(ctx, ch, "newHeads")
 }
 
 func newGameMonitor(
@@ -42,6 +62,7 @@ func newGameMonitor(
 	gameWindow time.Duration,
 	fetchBlockNumber blockNumberFetcher,
 	allowedGames []common.Address,
+	l1Source MinimalSubscriber,
 ) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
@@ -51,6 +72,7 @@ func newGameMonitor(
 		gameWindow:       gameWindow,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
+		l1Source:         &headSource{inner: l1Source},
 	}
 }
 
@@ -83,13 +105,13 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error 
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
-	var gamesToPlay []common.Address
+	var gamesToPlay []types.GameMetadata
 	for _, game := range games {
 		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
-		gamesToPlay = append(gamesToPlay, game.Proxy)
+		gamesToPlay = append(gamesToPlay, game)
 	}
 	if err := m.scheduler.Schedule(gamesToPlay); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
@@ -99,29 +121,33 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error 
 	return nil
 }
 
-func (m *gameMonitor) MonitorGames(ctx context.Context) error {
-	m.logger.Info("Monitoring fault dispute games")
+func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
+	if err := m.progressGames(ctx, sig.Number); err != nil {
+		m.logger.Error("Failed to progress games", "err", err)
+	}
+}
 
-	blockNum := uint64(0)
+func (m *gameMonitor) resubscribeFunction(ctx context.Context) event.ResubscribeErrFunc {
+	return func(innerCtx context.Context, err error) (event.Subscription, error) {
+		if err != nil {
+			m.logger.Warn("resubscribing after failed L1 subscription", "err", err)
+		}
+		return eth.WatchHeadChanges(ctx, m.l1Source, m.onNewL1Head)
+	}
+}
+
+func (m *gameMonitor) MonitorGames(ctx context.Context) error {
+	m.l1HeadsSub = event.ResubscribeErr(time.Second*10, m.resubscribeFunction(ctx))
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			nextBlockNum, err := m.fetchBlockNumber(ctx)
-			if err != nil {
-				m.logger.Error("Failed to load current block number", "err", err)
-				continue
-			}
-			if nextBlockNum > blockNum {
-				blockNum = nextBlockNum
-				if err := m.progressGames(ctx, nextBlockNum); err != nil {
-					m.logger.Error("Failed to progress games", "err", err)
-				}
-			}
-			if err := m.clock.SleepCtx(ctx, time.Second); err != nil {
+			m.l1HeadsSub.Unsubscribe()
+			return nil
+		case err, ok := <-m.l1HeadsSub.Err():
+			if !ok {
 				return err
 			}
+			m.logger.Error("L1 subscription error", "err", err)
 		}
 	}
 }

@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
+
+var OPStackSupport = params.ProtocolVersionV0{Build: [8]byte{}, Major: 4, Minor: 0, Patch: 0, PreRelease: 1}.Encode()
 
 const (
 	opMainnet   = 10
@@ -20,6 +24,8 @@ const (
 	pgnSepolia  = 58008
 	zoraGoerli  = 999
 	zoraMainnet = 7777777
+	labsDevnet  = 997
+	chaosnet    = 888
 )
 
 // LoadOPStackRollupConfig loads the rollup configuration of the requested chain ID from the superchain-registry.
@@ -55,13 +61,17 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 	}
 
 	regolithTime := uint64(0)
-	// two goerli testnets test-ran Bedrock and later upgraded to Regolith.
+	// three goerli testnets test-ran Bedrock and later upgraded to Regolith.
 	// All other OP-Stack chains have Regolith enabled from the start.
 	switch chainID {
 	case baseGoerli:
 		regolithTime = 1683219600
 	case opGoerli:
 		regolithTime = 1679079600
+	case labsDevnet:
+		regolithTime = 1677984480
+	case chaosnet:
+		regolithTime = 1692156862
 	}
 
 	cfg := &Config{
@@ -88,9 +98,17 @@ func LoadOPStackRollupConfig(chainID uint64) (*Config, error) {
 		L1ChainID:              new(big.Int).SetUint64(superChain.Config.L1.ChainID),
 		L2ChainID:              new(big.Int).SetUint64(chConfig.ChainID),
 		RegolithTime:           &regolithTime,
+		CanyonTime:             superChain.Config.CanyonTime,
 		BatchInboxAddress:      common.Address(chConfig.BatchInboxAddr),
 		DepositContractAddress: depositContractAddress,
 		L1SystemConfigAddress:  common.Address(chConfig.SystemConfigAddr),
+	}
+	if superChain.Config.ProtocolVersionsAddr != nil { // Set optional protocol versions address
+		cfg.ProtocolVersionsAddress = common.Address(*superChain.Config.ProtocolVersionsAddr)
+	}
+	if chainID == labsDevnet || chainID == chaosnet {
+		cfg.ChannelTimeout = 120
+		cfg.MaxSequencerDrift = 1200
 	}
 	return cfg, nil
 }

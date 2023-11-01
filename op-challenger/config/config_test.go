@@ -20,20 +20,24 @@ var (
 	validCannonAbsolutPreState = "pre.json"
 	validDatadir               = "/tmp/data"
 	validCannonL2              = "http://localhost:9545"
+	validRollupRpc             = "http://localhost:8555"
 	agreeWithProposedOutput    = true
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, traceType, agreeWithProposedOutput, validDatadir)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, agreeWithProposedOutput, validDatadir, traceType)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
-	case TraceTypeCannon:
+	case TraceTypeCannon, TraceTypeOutputCannon:
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 		cfg.CannonL2 = validCannonL2
 		cfg.CannonNetwork = validCannonNetwork
+	}
+	if traceType == TraceTypeOutputCannon {
+		cfg.RollupRpc = validRollupRpc
 	}
 	return cfg
 }
@@ -118,6 +122,19 @@ func TestMaxConcurrency(t *testing.T) {
 	})
 }
 
+func TestHttpPollInterval(t *testing.T) {
+	t.Run("Default", func(t *testing.T) {
+		config := validConfig(TraceTypeAlphabet)
+		require.EqualValues(t, DefaultPollInterval, config.PollInterval)
+	})
+}
+
+func TestRollupRpcRequired(t *testing.T) {
+	config := validConfig(TraceTypeOutputCannon)
+	config.RollupRpc = ""
+	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
+}
+
 func TestCannonL2Required(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.CannonL2 = ""
@@ -176,4 +193,27 @@ func TestNetworkMustBeValid(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
 	cfg.CannonNetwork = "unknown"
 	require.ErrorIs(t, cfg.Check(), ErrCannonNetworkUnknown)
+}
+
+func TestRequireConfigForAllSupportedTraceTypes(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeOutputCannon, TraceTypeAlphabet}
+	// Set all required options and check its valid
+	cfg.RollupRpc = validRollupRpc
+	cfg.AlphabetTrace = validAlphabetTrace
+	require.NoError(t, cfg.Check())
+
+	// Require output cannon specific args
+	cfg.RollupRpc = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
+	cfg.RollupRpc = validRollupRpc
+
+	// Require cannon specific args
+	cfg.CannonL2 = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2)
+	cfg.CannonL2 = validCannonL2
+
+	// Require alphabet specific args
+	cfg.AlphabetTrace = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingAlphabetTrace)
 }

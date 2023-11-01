@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { Semver } from "./Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @custom:predeployed 0x4200000000000000000000000000000000000012
@@ -12,7 +13,7 @@ import { Semver } from "./Semver.sol";
 ///         contracts on the network it's deployed to. Simplifies the deployment process for users
 ///         who may be less familiar with deploying smart contracts. Designed to be backwards
 ///         compatible with the older StandardL2ERC20Factory contract.
-contract OptimismMintableERC20Factory is Semver, Initializable {
+contract OptimismMintableERC20Factory is ISemver, Initializable {
     /// @notice Address of the StandardBridge on this chain.
     /// @custom:network-specific
     address public bridge;
@@ -30,17 +31,20 @@ contract OptimismMintableERC20Factory is Semver, Initializable {
     /// @param deployer    Address of the account that deployed the token.
     event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    /// @custom:semver 1.3.0
+    /// @notice Semantic version.
+    /// @custom:semver 1.6.1
+    string public constant version = "1.6.1";
+
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC20 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC20 contracts.
-    constructor() Semver(1, 3, 0) {
+    constructor() {
         initialize({ _bridge: address(0) });
     }
 
     /// @notice Initializer.
     /// @param _bridge Address of the StandardBridge on this chain.
-    function initialize(address _bridge) public reinitializer(2) {
+    function initialize(address _bridge) public reinitializer(Constants.INITIALIZER) {
         bridge = _bridge;
     }
 
@@ -82,10 +86,29 @@ contract OptimismMintableERC20Factory is Semver, Initializable {
         public
         returns (address)
     {
+        return createOptimismMintableERC20WithDecimals(_remoteToken, _name, _symbol, 18);
+    }
+
+    /// @notice Creates an instance of the OptimismMintableERC20 contract, with specified decimals.
+    /// @param _remoteToken Address of the token on the remote chain.
+    /// @param _name        ERC20 name.
+    /// @param _symbol      ERC20 symbol.
+    /// @param _decimals    ERC20 decimals
+    /// @return Address of the newly created token.
+    function createOptimismMintableERC20WithDecimals(
+        address _remoteToken,
+        string memory _name,
+        string memory _symbol,
+        uint8 _decimals
+    )
+        public
+        returns (address)
+    {
         require(_remoteToken != address(0), "OptimismMintableERC20Factory: must provide remote token address");
 
-        bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
-        address localToken = address(new OptimismMintableERC20{salt: salt}(bridge, _remoteToken, _name, _symbol));
+        bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
+        address localToken =
+            address(new OptimismMintableERC20{salt: salt}(bridge, _remoteToken, _name, _symbol, _decimals));
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, localToken);

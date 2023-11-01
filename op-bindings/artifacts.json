@@ -35,5 +35,11 @@
   "PreimageOracle",
   "BlockOracle",
   "EAS",
-  "SchemaRegistry"
+  "SchemaRegistry",
+  "ProtocolVersions",
+  "Safe",
+  "SafeProxyFactory",
+  "DelayedVetoable",
+  "ISemver",
+  "StorageSetter"
 ]

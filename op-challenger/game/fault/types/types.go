@@ -16,19 +16,15 @@ var (
 // to load into the onchain oracle.
 type PreimageOracleData struct {
 	IsLocal      bool
+	LocalContext uint64
 	OracleKey    []byte
 	OracleData   []byte
 	OracleOffset uint32
 }
 
-// GetType returns the type for the preimage oracle data.
-func (p *PreimageOracleData) GetType() *big.Int {
-	return big.NewInt(int64(p.OracleKey[0]))
-}
-
 // GetIdent returns the ident for the preimage oracle data.
 func (p *PreimageOracleData) GetIdent() *big.Int {
-	return big.NewInt(0).SetBytes(p.OracleKey[1:])
+	return new(big.Int).SetBytes(p.OracleKey[1:])
 }
 
 // GetPreimageWithoutSize returns the preimage for the preimage oracle data.
@@ -37,9 +33,10 @@ func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
-func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
+func NewPreimageOracleData(lctx uint64, key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
 		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		LocalContext: lctx,
 		OracleKey:    key,
 		OracleData:   data,
 		OracleOffset: offset,
@@ -64,13 +61,13 @@ type OracleUpdater interface {
 type TraceProvider interface {
 	// Get returns the claim value at the requested index.
 	// Get(i) = Keccak256(GetPreimage(i))
-	Get(ctx context.Context, i uint64) (common.Hash, error)
+	Get(ctx context.Context, i Position) (common.Hash, error)
 
 	// GetStepData returns the data required to execute the step at the specified trace index.
 	// This includes the pre-state of the step (not hashed), the proof data required during step execution
 	// and any pre-image data that needs to be loaded into the oracle prior to execution (may be nil)
 	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
-	GetStepData(ctx context.Context, i uint64) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+	GetStepData(ctx context.Context, i Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreState(ctx context.Context) (preimage []byte, err error)
@@ -104,7 +101,6 @@ type Claim struct {
 	//       to be changed/removed to avoid invalid/stale contract state.
 	Countered bool
 	Clock     uint64
-	Parent    ClaimData
 	// Location of the claim & it's parent inside the contract. Does not exist
 	// for claims that have not made it to the contract.
 	ContractIndex       int
@@ -114,10 +110,4 @@ type Claim struct {
 // IsRoot returns true if this claim is the root claim.
 func (c *Claim) IsRoot() bool {
 	return c.Position.IsRootPosition()
-}
-
-// DefendsParent returns true if the the claim is a defense (i.e. goes right) of the
-// parent. It returns false if the claim is an attack (i.e. goes left) of the parent.
-func (c *Claim) DefendsParent() bool {
-	return (c.IndexAtDepth() >> 1) != c.Parent.IndexAtDepth()
 }

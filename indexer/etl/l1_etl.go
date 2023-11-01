@@ -2,7 +2,9 @@ package etl
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -27,12 +30,25 @@ type L1ETL struct {
 func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
-	latestHeader, err := db.Blocks.L1LatestBlockHeader()
-	if err != nil {
+	zeroAddr := common.Address{}
+	l1Contracts := []common.Address{}
+	if err := contracts.ForEach(func(name string, addr common.Address) error {
+		// Since we dont have backfill support yet, we want to make sure all expected
+		// contracts are specified to ensure consistent behavior. Once backfill support
+		// is ready, we can relax this requirement.
+		if addr == zeroAddr && !strings.HasPrefix(name, "Legacy") {
+			log.Error("address not configured", "name", name)
+			return errors.New("all L1Contracts must be configured")
+		}
+
+		log.Info("configured contract", "name", name, "addr", addr)
+		l1Contracts = append(l1Contracts, addr)
+		return nil
+	}); err != nil {
 		return nil, err
 	}
 
-	cSlice, err := contracts.AsSlice()
+	latestHeader, err := db.Blocks.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +58,6 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 	if latestHeader != nil {
 		log.Info("detected last indexed block", "number", latestHeader.Number, "hash", latestHeader.Hash)
 		fromHeader = latestHeader.RLPHeader.Header()
-
 	} else if cfg.StartHeight.BitLen() > 0 {
 		log.Info("no indexed state starting from supplied L1 height", "height", cfg.StartHeight.String())
 		header, err := client.BlockHeaderByNumber(cfg.StartHeight)
@@ -51,7 +66,6 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		}
 
 		fromHeader = header
-
 	} else {
 		log.Info("no indexed state, starting from genesis")
 	}
@@ -66,9 +80,10 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		log:             log,
 		metrics:         metrics,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader, cfg.ConfirmationDepth),
-		ethClient:       client,
-		contracts:       cSlice,
+		contracts:       l1Contracts,
 		etlBatches:      etlBatches,
+
+		EthClient: client,
 	}
 
 	return &L1ETL{ETL: etl, db: db, mu: new(sync.Mutex)}, nil
@@ -93,6 +108,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 					l1BlockHeaders = append(l1BlockHeaders, database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])})
 				}
 			}
+
 			if len(l1BlockHeaders) == 0 {
 				batch.Logger.Info("no l1 blocks with logs in batch")
 				continue
@@ -102,6 +118,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 			for i := range batch.Logs {
 				timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
 				l1ContractEvents[i] = database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
+				l1Etl.ETL.metrics.RecordIndexedLog(batch.Logs[i].Address)
 			}
 
 			// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
@@ -123,7 +140,6 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 
 				l1Etl.ETL.metrics.RecordIndexedHeaders(len(l1BlockHeaders))
 				l1Etl.ETL.metrics.RecordIndexedLatestHeight(l1BlockHeaders[len(l1BlockHeaders)-1].Number)
-				l1Etl.ETL.metrics.RecordIndexedLogs(len(l1ContractEvents))
 
 				// a-ok!
 				return nil, nil

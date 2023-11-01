@@ -181,9 +181,9 @@ You must have Python 3.x installed to run `slither`.
 To run `slither` locally, do:
 
 ```bash
-cd packages/contracts
+cd packages/contracts-bedrock
 pip3 install slither-analyzer
-pnpm test:slither
+pnpm slither
 ```
 
 ## Labels

@@ -1,31 +1,35 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
+import { ERC721Bridge } from "src/universal/ERC721Bridge.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
-import { Semver } from "../universal/Semver.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
-contract L1ERC721Bridge is ERC721Bridge, Semver {
+contract L1ERC721Bridge is ERC721Bridge, ISemver {
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /// @custom:semver 1.2.1
+    /// @notice Semantic version.
+    /// @custom:semver 1.4.1
+    string public constant version = "1.4.1";
+
     /// @notice Constructs the contract.
-    constructor() Semver(1, 2, 1) ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
+    constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
         __ERC721Bridge_init({ _messenger: _messenger });
     }
 

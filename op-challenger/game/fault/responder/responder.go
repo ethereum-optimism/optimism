@@ -5,7 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/solver"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
@@ -94,17 +94,45 @@ func (r *FaultResponder) Resolve(ctx context.Context) error {
 	return r.sendTxAndWait(ctx, txData)
 }
 
-func (r *FaultResponder) PerformAction(ctx context.Context, action solver.Action) error {
+// buildResolveClaimData creates the transaction data for the ResolveClaim function.
+func (r *FaultResponder) buildResolveClaimData(claimIdx uint64) ([]byte, error) {
+	return r.fdgAbi.Pack("resolveClaim", big.NewInt(int64(claimIdx)))
+}
+
+// CallResolveClaim determines if the resolveClaim function on the fault dispute game contract
+// would succeed.
+func (r *FaultResponder) CallResolveClaim(ctx context.Context, claimIdx uint64) error {
+	txData, err := r.buildResolveClaimData(claimIdx)
+	if err != nil {
+		return err
+	}
+	_, err = r.txMgr.Call(ctx, ethereum.CallMsg{
+		To:   &r.fdgAddr,
+		Data: txData,
+	}, nil)
+	return err
+}
+
+// ResolveClaim executes a resolveClaim transaction to resolve a fault dispute game.
+func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) error {
+	txData, err := r.buildResolveClaimData(claimIdx)
+	if err != nil {
+		return err
+	}
+	return r.sendTxAndWait(ctx, txData)
+}
+
+func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	var txData []byte
 	var err error
 	switch action.Type {
-	case solver.ActionTypeMove:
+	case types.ActionTypeMove:
 		if action.IsAttack {
 			txData, err = r.buildFaultAttackData(action.ParentIdx, action.Value)
 		} else {
 			txData, err = r.buildFaultDefendData(action.ParentIdx, action.Value)
 		}
-	case solver.ActionTypeStep:
+	case types.ActionTypeStep:
 		txData, err = r.buildStepTxData(uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData)
 	}
 	if err != nil {

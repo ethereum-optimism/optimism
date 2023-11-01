@@ -3,21 +3,22 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
-import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
+import { Portal_Initializer, CommonTest, NextImpl } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Types } from "../src/libraries/Types.sol";
-import { Hashing } from "../src/libraries/Hashing.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
-import { Proxy } from "../src/universal/Proxy.sol";
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
-import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 // Target contract
-import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
     event Paused(address);
@@ -946,7 +947,9 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         vm.startPrank(multisig);
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
-        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 3));
+        proxy.upgradeToAndCall(
+            address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, Constants.INITIALIZER + 1)
+        );
         assertEq(proxy.implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected
@@ -994,6 +997,8 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         vm.assume(((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier) == _maxResourceLimit);
         _prevBoughtGas = uint64(bound(_prevBoughtGas, 0, _maxResourceLimit - _gasLimit));
         _blockDiff = uint8(bound(_blockDiff, 0, 3));
+        // Pick a pseudorandom block number
+        vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
         // Create a resource config to mock the call to the system config with
         ResourceMetering.ResourceConfig memory rcfg = ResourceMetering.ResourceConfig({

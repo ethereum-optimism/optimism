@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -43,6 +43,21 @@ func TestLogLevel(t *testing.T) {
 	}
 }
 
+func TestLogFormat(t *testing.T) {
+	t.Run("RejectInvalid", func(t *testing.T) {
+		verifyArgsInvalid(t, `unrecognized log-format: "foo"`, addRequiredArgs("--log.format=foo"))
+	})
+
+	for _, lvl := range []string{"json", "json-pretty", "terminal", "text", "logfmt"} {
+		lvl := lvl
+		t.Run("AcceptValid_"+lvl, func(t *testing.T) {
+			logger, _, err := runWithArgs(addRequiredArgs("--log.format", lvl))
+			require.NoError(t, err)
+			require.NotNil(t, logger)
+		})
+	}
+}
+
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
 	rollupCfg, err := chaincfg.GetRollupConfig("op-goerli")
@@ -60,7 +75,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 
 func TestNetwork(t *testing.T) {
 	t.Run("Unknown", func(t *testing.T) {
-		verifyArgsInvalid(t, "unavailable network: \"bar\"", replaceRequiredArg("--network", "bar"))
+		verifyArgsInvalid(t, "invalid network: \"bar\"", replaceRequiredArg("--network", "bar"))
 	})
 
 	t.Run("Required", func(t *testing.T) {
@@ -195,7 +210,7 @@ func TestL1TrustRPC(t *testing.T) {
 func TestL1RPCKind(t *testing.T) {
 	t.Run("DefaultBasic", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs())
-		require.Equal(t, sources.RPCKindBasic, cfg.L1RPCKind)
+		require.Equal(t, sources.RPCKindStandard, cfg.L1RPCKind)
 	})
 	for _, kind := range sources.RPCProviderKinds {
 		t.Run(kind.String(), func(t *testing.T) {

@@ -27,12 +27,10 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 
 	for name, expectedCfg := range configsByName {
-		require.True(t, IsAvailableNetwork(name, false))
-
 		gotCfg, err := GetRollupConfig(name)
 		require.NoError(t, err)
 
-		require.Equal(t, expectedCfg, *gotCfg, "rollup-configs from superchain-registry must match")
+		require.Equalf(t, expectedCfg, *gotCfg, "rollup-configs from superchain-registry must match for %v", name)
 	}
 }
 
@@ -54,16 +52,17 @@ var mainnetCfg = rollup.Config{
 			GasLimit:    30_000_000,
 		},
 	},
-	BlockTime:              2,
-	MaxSequencerDrift:      600,
-	SeqWindowSize:          3600,
-	ChannelTimeout:         300,
-	L1ChainID:              big.NewInt(1),
-	L2ChainID:              big.NewInt(10),
-	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
-	DepositContractAddress: common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
-	L1SystemConfigAddress:  common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
-	RegolithTime:           u64Ptr(0),
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(1),
+	L2ChainID:               big.NewInt(10),
+	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000000000010"),
+	DepositContractAddress:  common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
+	L1SystemConfigAddress:   common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
+	RegolithTime:            u64Ptr(0),
+	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
 var goerliCfg = rollup.Config{
@@ -84,16 +83,18 @@ var goerliCfg = rollup.Config{
 			GasLimit:    25_000_000,
 		},
 	},
-	BlockTime:              2,
-	MaxSequencerDrift:      600,
-	SeqWindowSize:          3600,
-	ChannelTimeout:         300,
-	L1ChainID:              big.NewInt(5),
-	L2ChainID:              big.NewInt(420),
-	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000420"),
-	DepositContractAddress: common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
-	L1SystemConfigAddress:  common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
-	RegolithTime:           u64Ptr(1679079600),
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(5),
+	L2ChainID:               big.NewInt(420),
+	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000000000420"),
+	DepositContractAddress:  common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
+	L1SystemConfigAddress:   common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
+	RegolithTime:            u64Ptr(1679079600),
+	CanyonTime:              u64Ptr(1699981200),
+	ProtocolVersionsAddress: common.HexToAddress("0x0C24F5098774aA366827D667494e9F889f7cFc08"),
 }
 
 var sepoliaCfg = rollup.Config{
@@ -114,16 +115,18 @@ var sepoliaCfg = rollup.Config{
 			GasLimit:    30000000,
 		},
 	},
-	BlockTime:              2,
-	MaxSequencerDrift:      600,
-	SeqWindowSize:          3600,
-	ChannelTimeout:         300,
-	L1ChainID:              big.NewInt(11155111),
-	L2ChainID:              big.NewInt(11155420),
-	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000011155420"),
-	DepositContractAddress: common.HexToAddress("0x16fc5058f25648194471939df75cf27a2fdc48bc"),
-	L1SystemConfigAddress:  common.HexToAddress("0x034edd2a225f7f429a63e0f1d2084b9e0a93b538"),
-	RegolithTime:           u64Ptr(0),
+	BlockTime:               2,
+	MaxSequencerDrift:       600,
+	SeqWindowSize:           3600,
+	ChannelTimeout:          300,
+	L1ChainID:               big.NewInt(11155111),
+	L2ChainID:               big.NewInt(11155420),
+	BatchInboxAddress:       common.HexToAddress("0xff00000000000000000000000000000011155420"),
+	DepositContractAddress:  common.HexToAddress("0x16fc5058f25648194471939df75cf27a2fdc48bc"),
+	L1SystemConfigAddress:   common.HexToAddress("0x034edd2a225f7f429a63e0f1d2084b9e0a93b538"),
+	RegolithTime:            u64Ptr(0),
+	CanyonTime:              u64Ptr(1699981200),
+	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 
 func u64Ptr(v uint64) *uint64 {

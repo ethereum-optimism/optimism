@@ -9,6 +9,9 @@ import (
 	"path"
 	"sort"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -21,7 +24,7 @@ type ChannelWithMetadata struct {
 	InvalidFrames  bool                `json:"invalid_frames"`
 	InvalidBatches bool                `json:"invalid_batches"`
 	Frames         []FrameWithMetadata `json:"frames"`
-	Batches        []derive.BatchV1    `json:"batches"`
+	Batches        []derive.BatchData  `json:"batches"`
 }
 
 type FrameWithMetadata struct {
@@ -65,8 +68,9 @@ func Channels(config Config) {
 	for _, frame := range frames {
 		framesByChannel[frame.Frame.ID] = append(framesByChannel[frame.Frame.ID], frame)
 	}
+	cfg := chaincfg.Mainnet
 	for id, frames := range framesByChannel {
-		ch := processFrames(id, frames)
+		ch := processFrames(cfg, id, frames)
 		filename := path.Join(config.OutDirectory, fmt.Sprintf("%s.json", id.String()))
 		if err := writeChannel(ch, filename); err != nil {
 			log.Fatal(err)
@@ -84,7 +88,7 @@ func writeChannel(ch ChannelWithMetadata, filename string) error {
 	return enc.Encode(ch)
 }
 
-func processFrames(id derive.ChannelID, frames []FrameWithMetadata) ChannelWithMetadata {
+func processFrames(cfg *rollup.Config, id derive.ChannelID, frames []FrameWithMetadata) ChannelWithMetadata {
 	ch := derive.NewChannel(id, eth.L1BlockRef{Number: frames[0].InclusionBlock})
 	invalidFrame := false
 
@@ -100,17 +104,17 @@ func processFrames(id derive.ChannelID, frames []FrameWithMetadata) ChannelWithM
 		}
 	}
 
-	var batches []derive.BatchV1
+	var batches []derive.BatchData
 	invalidBatches := false
 	if ch.IsReady() {
-		br, err := derive.BatchReader(ch.Reader(), eth.L1BlockRef{})
+		br, err := derive.BatchReader(ch.Reader())
 		if err == nil {
 			for batch, err := br(); err != io.EOF; batch, err = br() {
 				if err != nil {
 					fmt.Printf("Error reading batch for channel %v. Err: %v\n", id.String(), err)
 					invalidBatches = true
 				} else {
-					batches = append(batches, batch.Batch.BatchV1)
+					batches = append(batches, *batch)
 				}
 			}
 		} else {

@@ -1,32 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { OptimismPortal } from "./OptimismPortal.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { Semver } from "../universal/Semver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
+contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Address of the OptimismPortal. The public getter for this
     ///         is legacy and will be removed in the future. Use `portal()` instead.
     /// @custom:network-specific
     /// @custom:legacy
     OptimismPortal public PORTAL;
 
-    /// @custom:semver 1.5.1
+    /// @notice Semantic version.
+    /// @custom:semver 1.7.1
+    string public constant version = "1.7.1";
+
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor() Semver(1, 5, 1) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+    constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
         initialize({ _portal: OptimismPortal(payable(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
-    function initialize(OptimismPortal _portal) public reinitializer(2) {
+    function initialize(OptimismPortal _portal) public reinitializer(Constants.INITIALIZER) {
         PORTAL = _portal;
         __CrossDomainMessenger_init();
     }

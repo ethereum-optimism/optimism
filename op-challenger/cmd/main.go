@@ -2,16 +2,17 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -21,19 +22,7 @@ var (
 )
 
 // VersionWithMeta holds the textual version string including the metadata.
-var VersionWithMeta = func() string {
-	v := version.Version
-	if GitCommit != "" {
-		v += "-" + GitCommit[:8]
-	}
-	if GitDate != "" {
-		v += "-" + GitDate
-	}
-	if version.Meta != "" {
-		v += "-" + version.Meta
-	}
-	return v
-}()
+var VersionWithMeta = opservice.FormatVersion(version.Version, GitCommit, GitDate, version.Meta)
 
 func main() {
 	args := os.Args
@@ -49,7 +38,7 @@ func run(args []string, action ConfigAction) error {
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
-	app.Flags = flags.Flags
+	app.Flags = cliapp.ProtectFlags(flags.Flags)
 	app.Name = "op-challenger"
 	app.Usage = "Challenge outputs"
 	app.Description = "Ensures that on chain outputs are correct."
@@ -71,9 +60,7 @@ func run(args []string, action ConfigAction) error {
 
 func setupLogging(ctx *cli.Context) (log.Logger, error) {
 	logCfg := oplog.ReadCLIConfig(ctx)
-	if err := logCfg.Check(); err != nil {
-		return nil, fmt.Errorf("log config error: %w", err)
-	}
-	logger := oplog.NewLogger(logCfg)
+	logger := oplog.NewLogger(oplog.AppOut(ctx), logCfg)
+	oplog.SetGlobalLogHandler(logger.GetHandler())
 	return logger, nil
 }

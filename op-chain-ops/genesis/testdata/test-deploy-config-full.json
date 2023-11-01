@@ -62,10 +62,13 @@
   "governanceTokenOwner": "0x0000000000000000000000000000000000000333",
   "deploymentWaitConfirmations": 1,
   "eip1559Denominator": 8,
+  "eip1559DenominatorCanyon": 12,
   "eip1559Elasticity": 2,
   "fundDevAccounts": true,
   "faultGameAbsolutePrestate": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "faultGameMaxDepth": 63,
   "faultGameMaxDuration": 604800,
-  "systemConfigStartBlock": 0
+  "systemConfigStartBlock": 0,
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000"
 }

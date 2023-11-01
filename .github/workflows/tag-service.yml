@@ -19,15 +19,16 @@ on:
         type: choice
         options:
           - ci-builder
-          - fault-detector
           - indexer
+          - op-heartbeat
+          - chain-mon
           - op-node
           - op-batcher
           - op-proposer
+          - op-challenger
           - op-ufm
           - proxyd
-          - indexer
-          - ci-builder
+          - ufm-metamask
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

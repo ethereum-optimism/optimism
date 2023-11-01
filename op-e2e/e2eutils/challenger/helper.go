@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
@@ -42,9 +42,6 @@ func WithFactoryAddress(addr common.Address) Option {
 
 func WithGameAddress(addr common.Address) Option {
 	return func(c *config.Config) {
-		if c.GameAllowlist == nil {
-			c.GameAllowlist = make([]common.Address, 0)
-		}
 		c.GameAllowlist = append(c.GameAllowlist, addr)
 	}
 }
@@ -63,8 +60,14 @@ func WithAgreeProposedOutput(agree bool) Option {
 
 func WithAlphabet(alphabet string) Option {
 	return func(c *config.Config) {
-		c.TraceType = config.TraceTypeAlphabet
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
 		c.AlphabetTrace = alphabet
+	}
+}
+
+func WithPollInterval(pollInterval time.Duration) Option {
+	return func(c *config.Config) {
+		c.PollInterval = pollInterval
 	}
 }
 
@@ -76,7 +79,7 @@ func WithCannon(
 ) Option {
 	return func(c *config.Config) {
 		require := require.New(t)
-		c.TraceType = config.TraceTypeCannon
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
 		c.CannonL2 = l2Endpoint
 		c.CannonBin = "../cannon/bin/cannon"
 		c.CannonServer = "../op-program/bin/op-program"
@@ -98,7 +101,7 @@ func WithCannon(
 }
 
 func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
-	log := testlog.Logger(t, log.LvlInfo).New("role", name)
+	log := testlog.Logger(t, log.LvlDebug).New("role", name)
 	log.Info("Creating challenger", "l1", l1Endpoint)
 	cfg := NewChallengerConfig(t, l1Endpoint, options...)
 
@@ -120,7 +123,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 
 func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, config.TraceTypeAlphabet, true, t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, true, t.TempDir())
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {
@@ -145,6 +148,10 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
 		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
 	}
+	if cfg.PollInterval == 0 {
+		cfg.PollInterval = time.Second
+	}
+
 	return &cfg
 }
 
@@ -187,7 +194,7 @@ func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr)
 			if err != nil {
 				return false, fmt.Errorf("failed to check dir %v is deleted: %w", dir, err)
 			}
-			h.t.Errorf("Game data directory %v not yet deleted", dir)
+			h.t.Logf("Game data directory %v not yet deleted", dir)
 			return false, nil
 		}
 		return true, nil

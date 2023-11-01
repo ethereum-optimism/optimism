@@ -571,7 +571,7 @@ func (r requestResultErr) ResultCode() byte {
 	return byte(r)
 }
 
-func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, n uint64) error {
+func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, expectedBlockNum uint64) error {
 	// open stream to peer
 	reqCtx, reqCancel := context.WithTimeout(ctx, streamTimeout)
 	str, err := s.newStreamFn(reqCtx, id, s.payloadByNumber)
@@ -582,8 +582,8 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, n uint64) error 
 	defer str.Close()
 	// set write timeout (if available)
 	_ = str.SetWriteDeadline(time.Now().Add(clientWriteRequestTimeout))
-	if err := binary.Write(str, binary.LittleEndian, n); err != nil {
-		return fmt.Errorf("failed to write request (%d): %w", n, err)
+	if err := binary.Write(str, binary.LittleEndian, expectedBlockNum); err != nil {
+		return fmt.Errorf("failed to write request (%d): %w", expectedBlockNum, err)
 	}
 	if err := str.CloseWrite(); err != nil {
 		return fmt.Errorf("failed to close writer side while making request: %w", err)
@@ -620,14 +620,22 @@ func (s *SyncClient) doRequest(ctx context.Context, id peer.ID, n uint64) error 
 	if err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
 	}
+
+	expectedBlockTime := s.cfg.TimestampForBlock(expectedBlockNum)
+
+	blockVersion := eth.BlockV1
+	if s.cfg.IsCanyon(expectedBlockTime) {
+		blockVersion = eth.BlockV2
+	}
 	var res eth.ExecutionPayload
-	if err := res.UnmarshalSSZ(uint32(len(data)), bytes.NewReader(data)); err != nil {
+	if err := res.UnmarshalSSZ(blockVersion, uint32(len(data)), bytes.NewReader(data)); err != nil {
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
+
 	if err := str.CloseRead(); err != nil {
 		return fmt.Errorf("failed to close reading side")
 	}
-	if err := verifyBlock(&res, n); err != nil {
+	if err := verifyBlock(&res, expectedBlockNum); err != nil {
 		return fmt.Errorf("received execution payload is invalid: %w", err)
 	}
 	select {

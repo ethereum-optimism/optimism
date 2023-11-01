@@ -112,7 +112,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 					n.syncCl.AddPeer(conn.RemotePeer())
 				},
 				DisconnectedF: func(nw network.Network, conn network.Conn) {
-					n.syncCl.RemovePeer(conn.RemotePeer())
+					// only when no connection is available, we can remove the peer
+					if nw.Connectedness(conn.RemotePeer()) == network.NotConnected {
+						n.syncCl.RemovePeer(conn.RemotePeer())
+					}
 				},
 			})
 			n.syncCl.Start()
@@ -135,7 +138,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
-		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
+		n.gsOut, err = JoinGossip(n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
 		if err != nil {
 			return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 		}

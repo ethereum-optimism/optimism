@@ -3,10 +3,11 @@ pragma solidity 0.8.15;
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title BlockOracle
 /// @notice Stores a map of block numbers => block hashes for use in dispute resolution
-contract BlockOracle {
+contract BlockOracle is ISemver {
     /// @notice The BlockInfo struct contains a block's hash and child timestamp.
     struct BlockInfo {
         Hash hash;
@@ -18,6 +19,10 @@ contract BlockOracle {
 
     /// @notice Maps block numbers to block hashes and timestamps
     mapping(uint256 => BlockInfo) internal blocks;
+
+    /// @notice Semantic version.
+    /// @custom:semver 0.0.1
+    string public constant version = "0.0.1";
 
     /// @notice Loads a block hash for a given block number, assuming that the block number
     ///         has been stored in the oracle.

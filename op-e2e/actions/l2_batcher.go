@@ -140,7 +140,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 				ApproxComprRatio: 1,
 			})
 			require.NoError(t, e, "failed to create compressor")
-			ch, err = derive.NewChannelOut(c)
+			ch, err = derive.NewChannelOut(derive.SingularBatchType, c, nil)
 		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch

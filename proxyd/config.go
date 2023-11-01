@@ -24,6 +24,8 @@ type ServerConfig struct {
 
 	EnableRequestLog     bool `toml:"enable_request_log"`
 	MaxRequestBodyLogLen int  `toml:"max_request_body_log_len"`
+	EnablePprof          bool `toml:"enable_pprof"`
+	EnableXServedByHeader bool `toml:"enable_served_by_header"`
 }
 
 type CacheConfig struct {
@@ -110,6 +112,10 @@ type BackendGroupConfig struct {
 	ConsensusMaxBlockLag        uint64       `toml:"consensus_max_block_lag"`
 	ConsensusMaxBlockRange      uint64       `toml:"consensus_max_block_range"`
 	ConsensusMinPeerCount       int          `toml:"consensus_min_peer_count"`
+
+	ConsensusHA                  bool         `toml:"consensus_ha"`
+	ConsensusHAHeartbeatInterval TOMLDuration `toml:"consensus_ha_heartbeat_interval"`
+	ConsensusHALockPeriod        TOMLDuration `toml:"consensus_ha_lock_period"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig

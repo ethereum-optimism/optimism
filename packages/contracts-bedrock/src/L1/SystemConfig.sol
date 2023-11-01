@@ -2,14 +2,16 @@
 pragma solidity 0.8.15;
 
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Semver } from "../universal/Semver.sol";
-import { ResourceMetering } from "./ResourceMetering.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Storage } from "src/libraries/Storage.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
 /// @title SystemConfig
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, Semver {
+contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
@@ -98,11 +100,14 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
-    /// @custom:semver 1.6.0
+    /// @notice Semantic version.
+    /// @custom:semver 1.10.0
+    string public constant version = "1.10.0";
+
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
-    constructor() Semver(1, 6, 0) {
+    constructor() {
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,
@@ -160,7 +165,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         SystemConfig.Addresses memory _addresses
     )
         public
-        reinitializer(2)
+        reinitializer(Constants.INITIALIZER)
     {
         __Ownable_init();
         transferOwnership(_owner);
@@ -171,13 +176,13 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
 
-        _setAddress(_batchInbox, BATCH_INBOX_SLOT);
-        _setAddress(_addresses.l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
-        _setAddress(_addresses.l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
-        _setAddress(_addresses.l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
-        _setAddress(_addresses.l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
-        _setAddress(_addresses.optimismPortal, OPTIMISM_PORTAL_SLOT);
-        _setAddress(_addresses.optimismMintableERC20Factory, OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
+        Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
+        Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
+        Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
+        Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
+        Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
+        Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
 
         _setStartBlock(_startBlock);
 
@@ -200,65 +205,43 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         key corresponding to this address.
     /// @return addr_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address addr_) {
-        addr_ = _getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
-    }
-
-    /// @notice Stores an address in an arbitrary storage slot, `_slot`.
-    /// @param _addr The address to store
-    /// @param _slot The storage slot to store the address in.
-    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
-    ///      in arbitrary storage slots. Solc will add checks that the data passed as `_addr`
-    ///      is 20 bytes or less.
-    function _setAddress(address _addr, bytes32 _slot) internal {
-        assembly {
-            sstore(_slot, _addr)
-        }
-    }
-
-    /// @notice Returns an address stored in an arbitrary storage slot.
-    ///         These storage slots decouple the storage layout from
-    ///         solc's automation.
-    /// @param _slot The storage slot to retrieve the address from.
-    function _getAddress(bytes32 _slot) internal view returns (address addr_) {
-        assembly {
-            addr_ := sload(_slot)
-        }
+    function unsafeBlockSigner() public view returns (address addr_) {
+        addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
     function l1CrossDomainMessenger() external view returns (address addr_) {
-        addr_ = _getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
+        addr_ = Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
     }
 
     /// @notice Getter for the L1ERC721Bridge address.
     function l1ERC721Bridge() external view returns (address addr_) {
-        addr_ = _getAddress(L1_ERC_721_BRIDGE_SLOT);
+        addr_ = Storage.getAddress(L1_ERC_721_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L1StandardBridge address.
     function l1StandardBridge() external view returns (address addr_) {
-        addr_ = _getAddress(L1_STANDARD_BRIDGE_SLOT);
+        addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L2OutputOracle address.
     function l2OutputOracle() external view returns (address addr_) {
-        addr_ = _getAddress(L2_OUTPUT_ORACLE_SLOT);
+        addr_ = Storage.getAddress(L2_OUTPUT_ORACLE_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
     function optimismPortal() external view returns (address addr_) {
-        addr_ = _getAddress(OPTIMISM_PORTAL_SLOT);
+        addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
     /// @notice Getter for the OptimismMintableERC20Factory address.
     function optimismMintableERC20Factory() external view returns (address addr_) {
-        addr_ = _getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+        addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.
     function batchInbox() external view returns (address addr_) {
-        addr_ = _getAddress(BATCH_INBOX_SLOT);
+        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
@@ -266,18 +249,18 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         can have their start block set by a user provided override.
     ///         A start block of 0 indicates that there is no override and the
     ///         start block will be set by `block.number`.
-    /// @dev    This logic is used to patch legacy with new storage values. In the
-    ///         next version, it should remove the override and set the start block
-    ///         to `block.number` if the value in storage is 0. This will allow it
-    ///         to be reinitialized again and also work for fresh deployments.
+    /// @dev    This logic is used to patch legacy deployments with new storage values.
+    ///         Use the override if it is provided as a non zero value and the value
+    ///         has not already been set in storage. Use `block.number` if the value
+    ///         has already been set in storage
     /// @param  _startBlock The start block override to set in storage.
     function _setStartBlock(uint256 _startBlock) internal {
-        require(startBlock == 0, "SystemConfig: cannot override an already set start block");
-        if (_startBlock != 0) {
-            // There is an override, it cannot already be set.
+        if (_startBlock != 0 && startBlock == 0) {
+            // There is an override and it is not already set, this is for legacy chains.
             startBlock = _startBlock;
-        } else {
+        } else if (startBlock == 0) {
             // There is no override and it is not set in storage. Set it to the block number.
+            // This is for newly deployed chains.
             startBlock = block.number;
         }
     }
@@ -291,7 +274,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
+        Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);

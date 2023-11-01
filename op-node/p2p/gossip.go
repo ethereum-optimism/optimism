@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -69,10 +70,14 @@ func blocksTopicV1(cfg *rollup.Config) string {
 	return fmt.Sprintf("/optimism/%s/0/blocks", cfg.L2ChainID.String())
 }
 
+func blocksTopicV2(cfg *rollup.Config) string {
+	return fmt.Sprintf("/optimism/%s/1/blocks", cfg.L2ChainID.String())
+}
+
 // BuildSubscriptionFilter builds a simple subscription filter,
 // to help protect against peers spamming useless subscriptions.
 func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
-	return pubsub.NewAllowlistSubscriptionFilter(blocksTopicV1(cfg)) // add more topics here in the future, if any.
+	return pubsub.NewAllowlistSubscriptionFilter(blocksTopicV1(cfg), blocksTopicV2(cfg)) // add more topics here in the future, if any.
 }
 
 var msgBufPool = sync.Pool{New: func() any {
@@ -238,7 +243,7 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig) pubsub.ValidatorEx {
+func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion) pubsub.ValidatorEx {
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
@@ -283,7 +288,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 		// [REJECT] if the block encoding is not valid
 		var payload eth.ExecutionPayload
-		if err := payload.UnmarshalSSZ(uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
+		if err := payload.UnmarshalSSZ(blockVersion, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
 			log.Warn("invalid payload", "err", err, "peer", id)
 			return pubsub.ValidationReject
 		}
@@ -306,6 +311,18 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		// [REJECT] if the `block_hash` in the `payload` is not valid
 		if actual, ok := payload.CheckBlockHash(); !ok {
 			log.Warn("payload has bad block hash", "bad_hash", payload.BlockHash.String(), "actual", actual.String())
+			return pubsub.ValidationReject
+		}
+
+		// [REJECT] if a V1 Block has withdrawals
+		if blockVersion == eth.BlockV1 && payload.Withdrawals != nil {
+			log.Warn("payload is on v1 topic, but has withdrawals", "bad_hash", payload.BlockHash.String())
+			return pubsub.ValidationReject
+		}
+
+		// [REJECT] if a V2 Block does not have withdrawals
+		if blockVersion == eth.BlockV2 && payload.Withdrawals == nil {
+			log.Warn("payload is on v2 topic, but does not have withdrawals", "bad_hash", payload.BlockHash.String())
 			return pubsub.ValidationReject
 		}
 
@@ -369,7 +386,9 @@ type GossipIn interface {
 }
 
 type GossipTopicInfo interface {
-	BlocksTopicPeers() []peer.ID
+	AllBlockTopicsPeers() []peer.ID
+	BlocksTopicV1Peers() []peer.ID
+	BlocksTopicV2Peers() []peer.ID
 }
 
 type GossipOut interface {
@@ -378,17 +397,63 @@ type GossipOut interface {
 	Close() error
 }
 
+type blockTopic struct {
+	// blocks topic, main handle on block gossip
+	topic *pubsub.Topic
+	// block events handler, to be cancelled before closing the blocks topic.
+	events *pubsub.TopicEventHandler
+	// block subscriptions, to be cancelled before closing blocks topic.
+	sub *pubsub.Subscription
+}
+
+func (bt *blockTopic) Close() error {
+	bt.events.Cancel()
+	bt.sub.Cancel()
+	return bt.topic.Close()
+}
+
 type publisher struct {
-	log         log.Logger
-	cfg         *rollup.Config
-	blocksTopic *pubsub.Topic
-	runCfg      GossipRuntimeConfig
+	log log.Logger
+	cfg *rollup.Config
+
+	// p2pCancel cancels the downstream gossip event-handling functions, independent of the sources.
+	// A closed gossip event source (event handler or subscription) does not stop any open event iteration,
+	// thus we have to stop it ourselves this way.
+	p2pCancel context.CancelFunc
+
+	blocksV1 *blockTopic
+	blocksV2 *blockTopic
+
+	runCfg GossipRuntimeConfig
 }
 
 var _ GossipOut = (*publisher)(nil)
 
-func (p *publisher) BlocksTopicPeers() []peer.ID {
-	return p.blocksTopic.ListPeers()
+func combinePeers(allPeers ...[]peer.ID) []peer.ID {
+	var seen = make(map[peer.ID]bool)
+	var res []peer.ID
+	for _, peers := range allPeers {
+		for _, p := range peers {
+			if _, ok := seen[p]; ok {
+				continue
+			}
+			res = append(res, p)
+			seen[p] = true
+		}
+	}
+	return res
+}
+
+func (p *publisher) AllBlockTopicsPeers() []peer.ID {
+	return combinePeers(p.BlocksTopicV1Peers(), p.BlocksTopicV2Peers())
+}
+
+func (p *publisher) BlocksTopicV1Peers() []peer.ID {
+	return p.blocksV1.topic.ListPeers()
+}
+
+func (p *publisher) BlocksTopicV2Peers() []peer.ID {
+	return p.blocksV2.topic.ListPeers()
 }
 
 func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload, signer Signer) error {
@@ -415,42 +480,85 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.Execution
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
-	return p.blocksTopic.Publish(ctx, out)
+	if p.cfg.IsCanyon(uint64(payload.Timestamp)) {
+		return p.blocksV2.topic.Publish(ctx, out)
+	} else {
+		return p.blocksV1.topic.Publish(ctx, out)
+	}
 }
 
 func (p *publisher) Close() error {
-	return p.blocksTopic.Close()
+	p.p2pCancel()
+	e1 := p.blocksV1.Close()
+	e2 := p.blocksV2.Close()
+	return errors.Join(e1, e2)
 }
 
-func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
-	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg, runCfg)))
-	blocksTopicName := blocksTopicV1(cfg)
-	err := ps.RegisterTopicValidator(blocksTopicName,
-		val,
+func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+	p2pCtx, p2pCancel := context.WithCancel(context.Background())
+
+	v1Logger := log.New("topic", "blocksV1")
+	blocksV1Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv1", v1Logger, BuildBlocksValidator(v1Logger, cfg, runCfg, eth.BlockV1)))
+	blocksV1, err := newBlockTopic(p2pCtx, blocksTopicV1(cfg), ps, v1Logger, gossipIn, blocksV1Validator)
+	if err != nil {
+		p2pCancel()
+		return nil, fmt.Errorf("failed to setup blocks v1 p2p: %w", err)
+	}
+
+	v2Logger := log.New("topic", "blocksV2")
+	blocksV2Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv2", v2Logger, BuildBlocksValidator(v2Logger, cfg, runCfg, eth.BlockV2)))
+	blocksV2, err := newBlockTopic(p2pCtx, blocksTopicV2(cfg), ps, v2Logger, gossipIn, blocksV2Validator)
+	if err != nil {
+		p2pCancel()
+		return nil, fmt.Errorf("failed to setup blocks v2 p2p: %w", err)
+	}
+
+	return &publisher{
+		log:       log,
+		cfg:       cfg,
+		p2pCancel: p2pCancel,
+		blocksV1:  blocksV1,
+		blocksV2:  blocksV2,
+		runCfg:    runCfg,
+	}, nil
+}
+
+func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
+	err := ps.RegisterTopicValidator(topicId,
+		validator,
 		pubsub.WithValidatorTimeout(3*time.Second),
 		pubsub.WithValidatorConcurrency(4))
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to register blocks gossip topic: %w", err)
+		return nil, fmt.Errorf("failed to register gossip topic: %w", err)
 	}
-	blocksTopic, err := ps.Join(blocksTopicName)
+
+	blocksTopic, err := ps.Join(topicId)
 	if err != nil {
-		return nil, fmt.Errorf("failed to join blocks gossip topic: %w", err)
+		return nil, fmt.Errorf("failed to join gossip topic: %w", err)
 	}
+
 	blocksTopicEvents, err := blocksTopic.EventHandler()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %w", err)
 	}
-	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
+
+	go LogTopicEvents(ctx, log, blocksTopicEvents)
 
 	subscription, err := blocksTopic.Subscribe()
 	if err != nil {
+		err = errors.Join(err, blocksTopic.Close())
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
 	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
-	go subscriber(p2pCtx, subscription)
+	go subscriber(ctx, subscription)
 
-	return &publisher{log: log, cfg: cfg, blocksTopic: blocksTopic, runCfg: runCfg}, nil
+	return &blockTopic{
+		topic:  blocksTopic,
+		events: blocksTopicEvents,
+		sub:    subscription,
+	}, nil
 }
 
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)

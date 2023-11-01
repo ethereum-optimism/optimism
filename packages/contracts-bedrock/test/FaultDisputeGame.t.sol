@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
+import { DisputeGameFactory_Init } from "test/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
@@ -32,8 +32,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     function init(Claim rootClaim, Claim absolutePrestate) public {
-        super.setUp();
-
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
@@ -82,6 +80,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
 
     function setUp() public override {
+        super.setUp();
         super.init(ROOT_CLAIM, ABSOLUTE_PRESTATE);
     }
 
@@ -303,6 +302,19 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, claim);
     }
 
+    /// @dev Static unit test asserting that identical claims at the same position can be made in different subgames.
+    function test_move_duplicateClaimsDifferentSubgames_succeeds() public {
+        Claim claimA = Claim.wrap(bytes32(uint256(5)));
+        Claim claimB = Claim.wrap(bytes32(uint256(6)));
+
+        // Make the first move. This should succeed.
+        gameProxy.attack(0, claimA);
+        gameProxy.attack(0, claimB);
+
+        gameProxy.attack(1, claimB);
+        gameProxy.attack(2, claimA);
+    }
+
     /// @dev Static unit test for the correctness of an opening attack.
     function test_move_simpleAttack_succeeds() public {
         // Warp ahead 5 seconds.
@@ -344,15 +356,22 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested_succeeds() public {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
-        GameStatus status = gameProxy.resolve();
-        assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
-        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
     }
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontestedClockNotExpired_succeeds() public {
         vm.warp(block.timestamp + 3 days + 12 hours);
         vm.expectRevert(ClockNotExpired.selector);
+        gameProxy.resolveClaim(0);
+    }
+
+    /// @dev Static unit test asserting that resolve reverts when the absolute root
+    ///      subgame has not been resolved.
+    function test_resolve_rootUncontestedButUnresolved_reverts() public {
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+        vm.expectRevert(OutOfOrderResolution.selector);
         gameProxy.resolve();
     }
 
@@ -370,7 +389,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.store(address(gameProxy), bytes32(uint256(0)), bytes32(slot));
         vm.expectRevert(GameNotInProgress.selector);
-        gameProxy.resolve();
+        gameProxy.resolveClaim(0);
     }
 
     /// @dev Static unit test for the correctness of resolving a single attack game state.
@@ -379,9 +398,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
-        GameStatus status = gameProxy.resolve();
-        assertEq(uint8(status), uint8(GameStatus.CHALLENGER_WINS));
-        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
     }
 
     /// @dev Static unit test for the correctness of resolving a game with a contested challenge claim.
@@ -391,9 +409,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
-        GameStatus status = gameProxy.resolve();
-        assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
-        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
+        gameProxy.resolveClaim(1);
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
     }
 
     /// @dev Static unit test for the correctness of resolving a game with multiplayer moves.
@@ -405,18 +423,71 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
-        GameStatus status = gameProxy.resolve();
-        assertEq(uint8(status), uint8(GameStatus.CHALLENGER_WINS));
-        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
+        gameProxy.resolveClaim(1);
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
+    }
+
+    /// @dev Static unit test for the correctness of resolving a game that reaches max game depth.
+    function test_resolve_stepReached_succeeds() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(2, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(3, Claim.wrap(bytes32(uint256(5))));
+
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // resolving claim at 4 isn't necessary
+        gameProxy.resolveClaim(3);
+        gameProxy.resolveClaim(2);
+        gameProxy.resolveClaim(1);
+        gameProxy.resolveClaim(0);
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+    }
+
+    /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame multiple times
+    function test_resolve_claimAlreadyResolved_reverts() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
+
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        gameProxy.resolveClaim(1);
+        vm.expectRevert(ClaimAlreadyResolved.selector);
+        gameProxy.resolveClaim(1);
+    }
+
+    /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame at max depth
+    function test_resolve_claimAtMaxDepthAlreadyResolved_reverts() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(2, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(3, Claim.wrap(bytes32(uint256(5))));
+
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        vm.expectRevert(ClaimAlreadyResolved.selector);
+        gameProxy.resolveClaim(4);
+    }
+
+    /// @dev Static unit test asserting that resolve reverts when attempting to resolve subgames out of order
+    function test_resolve_outOfOrderResolution_reverts() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
+
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        vm.expectRevert(OutOfOrderResolution.selector);
+        gameProxy.resolveClaim(0);
     }
 
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
-    function testFuzz_addLocalData_oob_reverts(uint256 _ident) public {
+    function testFuzz_addLocalData_oob_reverts(uint256 _ident, uint256 _localContext) public {
         // [1, 5] are valid local data identifiers.
         if (_ident <= 5) _ident = 0;
 
         vm.expectRevert(InvalidLocalIdent.selector);
-        gameProxy.addLocalData(_ident, 0);
+        gameProxy.addLocalData(_ident, _localContext, 0);
     }
 
     /// @dev Tests that local data is loaded into the preimage oracle correctly.
@@ -436,8 +507,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         for (uint256 i = 1; i <= 5; i++) {
             uint256 expectedLen = i > 3 ? 8 : 32;
 
-            gameProxy.addLocalData(i, 0);
-            bytes32 key = _getKey(i);
+            gameProxy.addLocalData(i, 0, 0);
+            bytes32 key = _getKey(i, 0);
             (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
             assertEq(dat >> 0xC0, bytes32(expectedLen));
             // Account for the length prefix if i > 3 (the data stored
@@ -447,8 +518,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             // total.)
             assertEq(datLen, expectedLen + (i > 3 ? 8 : 0));
 
-            gameProxy.addLocalData(i, 8);
-            key = _getKey(i);
+            gameProxy.addLocalData(i, 0, 8);
+            key = _getKey(i, 0);
             (dat, datLen) = oracle.readPreimage(key, 8);
             assertEq(dat, data[i - 1]);
             assertEq(datLen, expectedLen);
@@ -456,8 +527,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
-    function _getKey(uint256 _ident) internal view returns (bytes32) {
-        bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy)));
+    function _getKey(uint256 _ident, uint256 _localContext) internal view returns (bytes32) {
+        bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }
 
@@ -623,6 +694,33 @@ contract GamePlayer {
     }
 }
 
+contract Resolver {
+    FaultDisputeGame public gameProxy;
+
+    mapping(uint256 => bool) subgames;
+
+    constructor(FaultDisputeGame gameProxy_) {
+        gameProxy = gameProxy_;
+    }
+
+    /// @notice Auto-resolves all subgames in the game
+    function run() public {
+        for (uint256 i = gameProxy.claimDataLen() - 1; i > 0; i--) {
+            (uint32 parentIndex,,,,) = gameProxy.claimData(i);
+            subgames[parentIndex] = true;
+
+            // Subgames containing only one node are implicitly resolved
+            // i.e. uncountered claims and claims at MAX_DEPTH
+            if (!subgames[i]) {
+                continue;
+            }
+
+            gameProxy.resolveClaim(i);
+        }
+        gameProxy.resolveClaim(0);
+    }
+}
+
 contract OneVsOne_Arena is FaultDisputeGame_Init {
     /// @dev The absolute prestate of the trace.
     bytes ABSOLUTE_PRESTATE = abi.encode(15);
@@ -633,12 +731,15 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
     GamePlayer internal defender;
     /// @dev The challenger.
     GamePlayer internal challenger;
+    /// @dev The resolver.
+    Resolver internal resolver;
 
     function init(GamePlayer _defender, GamePlayer _challenger, uint256 _finalTraceIndex) public {
         Claim rootClaim = _defender.claimAt(_finalTraceIndex);
         super.init(rootClaim, ABSOLUTE_PRESTATE_CLAIM);
         defender = _defender;
         challenger = _challenger;
+        resolver = new Resolver(gameProxy);
 
         // Set the counterparties.
         defender.init(gameProxy, challenger, vm);
@@ -647,11 +748,13 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
         // Label actors for trace.
         vm.label(address(challenger), "Challenger");
         vm.label(address(defender), "Defender");
+        vm.label(address(resolver), "Resolver");
     }
 }
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 0);
         super.init(dishonest, honest, 15);
@@ -666,6 +769,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
         assertFalse(defender.failedToStep());
     }
@@ -673,6 +777,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 0);
         super.init(honest, dishonest, 15);
@@ -687,6 +792,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
     }
@@ -694,6 +800,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 7);
         super.init(dishonest, honest, 15);
@@ -708,6 +815,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
         assertFalse(defender.failedToStep());
     }
@@ -715,6 +823,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 7);
         super.init(honest, dishonest, 15);
@@ -729,6 +838,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
     }
@@ -736,6 +846,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 2);
         super.init(dishonest, honest, 15);
@@ -750,6 +861,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
         assertFalse(defender.failedToStep());
     }
@@ -757,6 +869,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 2);
         super.init(honest, dishonest, 15);
@@ -771,6 +884,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
     }
@@ -778,6 +892,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 8, 5);
         super.init(dishonest, honest, 7);
@@ -792,6 +907,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
         assertFalse(challenger.failedToStep());
     }
@@ -799,6 +915,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 8, 5);
         super.init(honest, dishonest, 7);
@@ -813,6 +930,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
     }
@@ -820,6 +938,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 4, 3);
         super.init(dishonest, honest, 3);
@@ -834,6 +953,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
         assertFalse(challenger.failedToStep());
     }
@@ -841,6 +961,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot5 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 4, 3);
         super.init(honest, dishonest, 3);
@@ -855,6 +976,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot5 is OneVsOne_Arena {
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
+        resolver.run();
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
     }
@@ -883,6 +1005,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRootFuzz is OneVsOne_Arena 
 
             // Resolve the game and assert that the honest player challenged the root
             // claim successfully.
+            resolver.run();
             assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
             assertFalse(defender.failedToStep());
 
@@ -913,6 +1036,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRootFuzz is OneVsOne_Arena {
 
             // Resolve the game and assert that the honest player challenged the root
             // claim successfully.
+            resolver.run();
             assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
             assertTrue(challenger.failedToStep());
 
@@ -984,7 +1108,7 @@ contract AlphabetVM is IBigStepper {
     }
 
     /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata) external view returns (bytes32 postState_) {
+    function step(bytes calldata _stateData, bytes calldata, uint256) external view returns (bytes32 postState_) {
         uint256 traceIndex;
         uint256 claim;
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {

@@ -53,17 +53,7 @@ func (m *MockBlocksView) L2LatestBlockHeader() (*L2BlockHeader, error) {
 	return args.Get(0).(*L2BlockHeader), args.Error(1)
 }
 
-func (m *MockBlocksView) LatestCheckpointedOutput() (*OutputProposal, error) {
-	args := m.Called()
-	return args.Get(0).(*OutputProposal), args.Error(1)
-}
-
-func (m *MockBlocksView) OutputProposal(index *big.Int) (*OutputProposal, error) {
-	args := m.Called()
-	return args.Get(0).(*OutputProposal), args.Error(1)
-}
-
-func (m *MockBlocksView) LatestEpoch() (*Epoch, error) {
+func (m *MockBlocksView) LatestObservedEpoch(*big.Int, uint64) (*Epoch, error) {
 	args := m.Called()
 	return args.Get(0).(*Epoch), args.Error(1)
 }
@@ -78,15 +68,6 @@ func (m *MockBlocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
 }
 
 func (m *MockBlocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
-	args := m.Called(headers)
-	return args.Error(1)
-}
-
-func (m *MockBlocksDB) StoreLegacyStateBatches(headers []LegacyStateBatch) error {
-	args := m.Called(headers)
-	return args.Error(1)
-}
-func (m *MockBlocksDB) StoreOutputProposals(headers []OutputProposal) error {
 	args := m.Called(headers)
 	return args.Error(1)
 }

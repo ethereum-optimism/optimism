@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
-import { CommonTest } from "./CommonTest.t.sol";
-import { OptimismMintableERC20, ILegacyMintableERC20 } from "../src/universal/OptimismMintableERC20.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
+import { OptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /// @title StandardBridgeTester
@@ -74,7 +74,8 @@ contract StandardBridge_Stateless_Test is CommonTest {
             _bridge: address(0),
             _remoteToken: address(0),
             _name: "Stonks",
-            _symbol: "STONK"
+            _symbol: "STONK",
+            _decimals: 18
         });
 
         erc20 = new ERC20("Altcoin", "ALT");

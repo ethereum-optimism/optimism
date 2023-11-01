@@ -2,10 +2,10 @@
 pragma solidity 0.8.19;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { Semver } from "../universal/Semver.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { EIP1271Verifier } from "./eip1271/EIP1271Verifier.sol";
-import { ISchemaResolver } from "./resolver/ISchemaResolver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { EIP1271Verifier } from "src/EAS/eip1271/EIP1271Verifier.sol";
+import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
 
 import {
     AccessDenied,
@@ -44,7 +44,7 @@ struct AttestationsResult {
 /// @custom:predeploy 0x4200000000000000000000000000000000000021
 /// @title EAS
 /// @notice The Ethereum Attestation Service protocol.
-contract EAS is IEAS, Semver, EIP1271Verifier {
+contract EAS is IEAS, ISemver, EIP1271Verifier {
     using Address for address payable;
 
     error AlreadyRevoked();
@@ -79,9 +79,12 @@ contract EAS is IEAS, Semver, EIP1271Verifier {
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 3] private __gap;
 
+    /// @notice Semantic version.
+    /// @custom:semver 1.3.0
+    string public constant version = "1.3.0";
+
     /// @dev Creates a new EAS instance.
-    /// @custom:semver 1.2.0
-    constructor() Semver(1, 2, 0) EIP1271Verifier("EAS", "1.2.0") { }
+    constructor() EIP1271Verifier("EAS", "1.2.0") { }
 
     /// @inheritdoc IEAS
     function getSchemaRegistry() external pure returns (ISchemaRegistry) {

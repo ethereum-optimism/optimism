@@ -70,8 +70,18 @@ interface IFaultDisputeGame is IDisputeGame {
 
     /// @notice Posts the requested local data to the VM's `PreimageOralce`.
     /// @param _ident The local identifier of the data to post.
+    /// @param _l2BlockNumber The L2 block number being disputed. This serves as the local context for the
+    ///                       `PreimageOracle` key.
     /// @param _partOffset The offset of the data to post.
-    function addLocalData(uint256 _ident, uint256 _partOffset) external;
+    function addLocalData(uint256 _ident, uint256 _l2BlockNumber, uint256 _partOffset) external;
+
+    /// @notice Resolves the subgame rooted at the given claim index.
+    /// @dev This function must be called bottom-up in the DAG
+    ///      A subgame is a tree of claims that has a maximum depth of 1.
+    ///      A subgame root claims is valid if, and only if, all of its child claims are invalid.
+    ///      At the deepest level in the DAG, a claim is invalid if there's a successful step against it.
+    /// @param _claimIndex The index of the subgame root claim to resolve.
+    function resolveClaim(uint256 _claimIndex) external payable;
 
     /// @notice An L1 block hash that contains the disputed output root, fetched from the
     ///         `BlockOracle` and verified by referencing the timestamp associated with the

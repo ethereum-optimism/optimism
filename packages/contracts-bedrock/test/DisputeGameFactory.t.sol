@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "../src/libraries/DisputeTypes.sol";
-import "../src/libraries/DisputeErrors.sol";
+import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 import { Test } from "forge-std/Test.sol";
-import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
-import { IDisputeGame } from "../src/dispute/interfaces/IDisputeGame.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
-import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
 
 contract DisputeGameFactory_Init is L2OutputOracle_Initializer {
     DisputeGameFactory factory;

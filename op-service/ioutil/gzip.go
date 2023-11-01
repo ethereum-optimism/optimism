@@ -2,6 +2,7 @@ package ioutil
 
 import (
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -36,6 +37,20 @@ func OpenCompressed(file string, flag int, perm os.FileMode) (io.WriteCloser, er
 		out = gzip.NewWriter(out)
 	}
 	return out, nil
+}
+
+// WriteCompressedJson writes the object to the specified file as a compressed json object
+// if the filename ends with .gz.
+func WriteCompressedJson(file string, obj any) error {
+	if !IsGzip(file) {
+		return fmt.Errorf("file %v does not have .gz extension", file)
+	}
+	out, err := OpenCompressed(file, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	return json.NewEncoder(out).Encode(obj)
 }
 
 // IsGzip determines if a path points to a gzip compressed file.

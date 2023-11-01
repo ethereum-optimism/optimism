@@ -5,10 +5,10 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { SafeCall } from "../libraries/SafeCall.sol";
-import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./IOptimismMintableERC20.sol";
-import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
-import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+import { IOptimismMintableERC20, ILegacyMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @custom:upgradeable
@@ -24,6 +24,10 @@ abstract contract StandardBridge is Initializable {
 
     /// @notice Corresponding bridge on the other domain. This public getter is deprecated
     ///         and will be removed in the future. Please use `otherBridge` instead.
+    ///         This can safely be an immutable because for the L1StandardBridge, it will
+    ///         be set to the L2StandardBridge address, which is the same for all OP Stack
+    ///         chains. For the L2StandardBridge, there are not multiple proxies using the
+    ///         same implementation.
     /// @custom:legacy
     /// @custom:network-specific
     StandardBridge public immutable OTHER_BRIDGE;

@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -296,7 +296,7 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 	if err != nil {
 		return err
 	}
-	payloadEnv := engine.BlockToExecutableData(copyHead, nil)
+	payloadEnv := engine.BlockToExecutableData(copyHead, nil, nil)
 	if err := updateForkchoice(ctx, copyTo, copyHead.ParentHash(), copySafe.Hash(), copyFinalized.Hash()); err != nil {
 		return err
 	}

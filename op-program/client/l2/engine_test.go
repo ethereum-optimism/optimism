@@ -29,7 +29,7 @@ func TestPayloadByHash(t *testing.T) {
 		block := stub.head
 		payload, err := engine.PayloadByHash(ctx, block.Hash())
 		require.NoError(t, err)
-		expected, err := eth.BlockAsPayload(block)
+		expected, err := eth.BlockAsPayload(block, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
 		require.Equal(t, expected, payload)
 	})
@@ -51,7 +51,7 @@ func TestPayloadByNumber(t *testing.T) {
 		block := stub.head
 		payload, err := engine.PayloadByNumber(ctx, block.NumberU64())
 		require.NoError(t, err)
-		expected, err := eth.BlockAsPayload(block)
+		expected, err := eth.BlockAsPayload(block, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
 		require.Equal(t, expected, payload)
 	})
@@ -124,7 +124,7 @@ func TestSystemConfigByL2Hash(t *testing.T) {
 	engine, stub := createOracleEngine(t)
 
 	t.Run("KnownBlock", func(t *testing.T) {
-		payload, err := eth.BlockAsPayload(stub.safe)
+		payload, err := eth.BlockAsPayload(stub.safe, engine.rollupCfg.CanyonTime)
 		require.NoError(t, err)
 		expected, err := derive.PayloadToSystemConfig(payload, engine.rollupCfg)
 		require.NoError(t, err)

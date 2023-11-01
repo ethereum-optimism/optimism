@@ -2,6 +2,8 @@ package types
 
 import (
 	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type GameStatus uint8
@@ -32,4 +34,10 @@ func GameStatusFromUint8(i uint8) (GameStatus, error) {
 		return GameStatus(i), fmt.Errorf("invalid game status: %d", i)
 	}
 	return GameStatus(i), nil
+}
+
+type GameMetadata struct {
+	GameType  uint8
+	Timestamp uint64
+	Proxy     common.Address
 }

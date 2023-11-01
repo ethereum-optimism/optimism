@@ -1,5 +1,17 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.16.2
+
+### Patch Changes
+
+- [#7450](https://github.com/ethereum-optimism/optimism/pull/7450) [`ac90e16a7`](https://github.com/ethereum-optimism/optimism/commit/ac90e16a7f85c4f73661ae6023135c3d00421c1e) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated dev dependencies related to testing that is causing audit tooling to report failures
+
+## 0.16.1
+
+### Patch Changes
+
+- [#7244](https://github.com/ethereum-optimism/optimism/pull/7244) [`2440f5e7a`](https://github.com/ethereum-optimism/optimism/commit/2440f5e7ab6577f2d2e9c8b0c78c014290dde8e7) Thanks [@nitaliano](https://github.com/nitaliano)! - bumps sdk version to have access to sepolia deployments
+
 ## 0.16.0
 
 ### Minor Changes

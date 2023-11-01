@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -14,18 +15,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
+	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
-
-	ic "github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	ma "github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -36,28 +35,30 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
-	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -71,6 +72,7 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 		PrivateKey:                hexPriv(privKey),
 		NumConfirmations:          1,
 		SafeAbortNonceTooLowCount: 3,
+		FeeLimitMultiplier:        5,
 		ResubmissionTimeout:       3 * time.Second,
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NetworkTimeout:            2 * time.Second,
@@ -85,6 +87,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	require.NoError(t, err)
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
+	deployConfig.L2GenesisCanyonTimeOffset = e2eutils.CanyonTimeOffset()
+	deployConfig.L2GenesisSpanBatchTimeOffset = e2eutils.SpanBatchTimeOffset()
 	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check())
@@ -199,6 +203,9 @@ type SystemConfig struct {
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
 
+	// Max L1 tx size for the batcher transactions
+	BatcherMaxL1TxSizeBytes uint64
+
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
 }
@@ -224,8 +231,8 @@ func (gi *GethInstance) HTTPAuthEndpoint() string {
 	return gi.Node.HTTPAuthEndpoint()
 }
 
-func (gi *GethInstance) Close() {
-	gi.Node.Close()
+func (gi *GethInstance) Close() error {
+	return gi.Node.Close()
 }
 
 // EthInstance is either an in process Geth or external process exposing its
@@ -235,7 +242,7 @@ type EthInstance interface {
 	WSEndpoint() string
 	HTTPAuthEndpoint() string
 	WSAuthEndpoint() string
-	Close()
+	Close() error
 }
 
 type System struct {
@@ -251,7 +258,7 @@ type System struct {
 	RawClients        map[string]*rpc.Client
 	RollupNodes       map[string]*rollupNode.OpNode
 	L2OutputSubmitter *l2os.L2OutputSubmitter
-	BatchSubmitter    *bss.BatchSubmitter
+	BatchSubmitter    *bss.BatcherService
 	Mocknet           mocknet.Mocknet
 
 	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
@@ -267,17 +274,18 @@ func (sys *System) NodeEndpoint(name string) string {
 }
 
 func (sys *System) Close() {
+	postCtx, postCancel := context.WithCancel(context.Background())
+	postCancel() // immediate shutdown, no allowance for idling
+
 	if sys.L2OutputSubmitter != nil {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		sys.BatchSubmitter.StopIfRunning(ctx)
+		_ = sys.BatchSubmitter.Kill()
 	}
 
 	for _, node := range sys.RollupNodes {
-		node.Close()
+		_ = node.Stop(postCtx)
 	}
 	for _, ei := range sys.EthInstances {
 		ei.Close()
@@ -332,8 +340,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	didErrAfterStart := false
 	defer func() {
 		if didErrAfterStart {
+			postCtx, postCancel := context.WithCancel(context.Background())
+			postCancel() // immediate shutdown, no allowance for idling
 			for _, node := range sys.RollupNodes {
-				node.Close()
+				_ = node.Stop(postCtx)
 			}
 			for _, ei := range sys.EthInstances {
 				ei.Close()
@@ -408,16 +418,19 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 				L2Time:       uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
 				SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 			},
-			BlockTime:              cfg.DeployConfig.L2BlockTime,
-			MaxSequencerDrift:      cfg.DeployConfig.MaxSequencerDrift,
-			SeqWindowSize:          cfg.DeployConfig.SequencerWindowSize,
-			ChannelTimeout:         cfg.DeployConfig.ChannelTimeout,
-			L1ChainID:              cfg.L1ChainIDBig(),
-			L2ChainID:              cfg.L2ChainIDBig(),
-			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
-			DepositContractAddress: cfg.DeployConfig.OptimismPortalProxy,
-			L1SystemConfigAddress:  cfg.DeployConfig.SystemConfigProxy,
-			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			BlockTime:               cfg.DeployConfig.L2BlockTime,
+			MaxSequencerDrift:       cfg.DeployConfig.MaxSequencerDrift,
+			SeqWindowSize:           cfg.DeployConfig.SequencerWindowSize,
+			ChannelTimeout:          cfg.DeployConfig.ChannelTimeout,
+			L1ChainID:               cfg.L1ChainIDBig(),
+			L2ChainID:               cfg.L2ChainIDBig(),
+			BatchInboxAddress:       cfg.DeployConfig.BatchInboxAddress,
+			DepositContractAddress:  cfg.DeployConfig.OptimismPortalProxy,
+			L1SystemConfigAddress:   cfg.DeployConfig.SystemConfigProxy,
+			RegolithTime:            cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			CanyonTime:              cfg.DeployConfig.CanyonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			SpanBatchTime:           cfg.DeployConfig.SpanBatchTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -592,12 +605,25 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 
 		c.Rollup.LogDescription(cfg.Loggers[name], chaincfg.L2ChainIDToNetworkDisplayName)
-
-		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], snapLog, "", metrics.NewMetrics(""))
+		l := cfg.Loggers[name]
+		var cycle cliapp.Lifecycle
+		c.Cancel = func(errCause error) {
+			l.Warn("node requested early shutdown!", "err", errCause)
+			go func() {
+				postCtx, postCancel := context.WithCancel(context.Background())
+				postCancel() // don't allow the stopping to continue for longer than needed
+				if err := cycle.Stop(postCtx); err != nil {
+					t.Error(err)
+				}
+				l.Warn("closed op-node!")
+			}()
+		}
+		node, err := rollupNode.New(context.Background(), &c, l, snapLog, "", metrics.NewMetrics(""))
 		if err != nil {
 			didErrAfterStart = true
 			return nil, err
 		}
+		cycle = node
 		err = node.Start(context.Background())
 		if err != nil {
 			didErrAfterStart = true
@@ -645,8 +671,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
-			Level:  "info",
-			Format: "text",
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
 		},
 	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
 	if err != nil {
@@ -657,14 +683,21 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
-	// Batch Submitter
-	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
+	batchType := derive.SingularBatchType
+	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
+		batchType = derive.SpanBatchType
+	}
+	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
+	if batcherMaxL1TxSizeBytes == 0 {
+		batcherMaxL1TxSizeBytes = 240_000
+	}
+	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            240_000,
+		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
@@ -674,20 +707,21 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		PollInterval:    50 * time.Millisecond,
 		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
-			Level:  "info",
-			Format: "text",
+			Level:  log.LvlInfo,
+			Format: oplog.FormatText,
 		},
-	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
+		Stopped:   sys.cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType: uint(batchType),
+	}
+	// Batch Submitter
+	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
-
-	// Batcher may be enabled later
-	if !sys.cfg.DisableBatcher {
-		if err := sys.BatchSubmitter.Start(); err != nil {
-			return nil, fmt.Errorf("unable to start batch submitter: %w", err)
-		}
+	if err := batcher.Start(context.Background()); err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to start batch submitter: %w", err), batcher.Stop(context.Background()))
 	}
+	sys.BatchSubmitter = batcher
 
 	return sys, nil
 }
@@ -737,9 +771,12 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
+func UseHTTP() bool {
+	return os.Getenv("OP_E2E_USE_HTTP") == "true"
+}
+
 func selectEndpoint(node EthInstance) string {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
-	if useHTTP {
+	if UseHTTP() {
 		log.Info("using HTTP client")
 		return node.HTTPEndpoint()
 	}
@@ -751,7 +788,7 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,
-		L1RPCKind:        sources.RPCKindBasic,
+		L1RPCKind:        sources.RPCKindStandard,
 		RateLimit:        0,
 		BatchSize:        20,
 		HttpPollInterval: time.Millisecond * 100,
@@ -764,9 +801,8 @@ type WSOrHTTPEndpoint interface {
 }
 
 func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
-	if useHTTP {
+	if UseHTTP() {
 		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
 	}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
@@ -42,7 +43,8 @@ func (l *l2Chain) PayloadByNumber(_ context.Context, _ uint64) (*eth.ExecutionPa
 func Main(cliCtx *cli.Context) error {
 	log.Info("Initializing bootnode")
 	logCfg := oplog.ReadCLIConfig(cliCtx)
-	logger := oplog.NewLogger(logCfg)
+	logger := oplog.NewLogger(oplog.AppOut(cliCtx), logCfg)
+	oplog.SetGlobalLogHandler(logger.GetHandler())
 	m := metrics.NewMetrics("default")
 	ctx := context.Background()
 
@@ -68,6 +70,22 @@ func Main(cliCtx *cli.Context) error {
 	}
 
 	go p2pNode.DiscoveryProcess(ctx, logger, config, p2pConfig.TargetPeers())
+
+	metricsCfg := opmetrics.ReadCLIConfig(cliCtx)
+	if metricsCfg.Enabled {
+		log.Debug("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		metricsSrv, err := m.StartServer(metricsCfg.ListenAddr, metricsCfg.ListenPort)
+		if err != nil {
+			return fmt.Errorf("failed to start metrics server: %w", err)
+		}
+		defer func() {
+			if err := metricsSrv.Stop(context.Background()); err != nil {
+				log.Error("failed to stop metrics server", "err", err)
+			}
+		}()
+		log.Info("started metrics server", "addr", metricsSrv.Addr())
+		m.RecordUp()
+	}
 
 	opio.BlockOnInterrupts()
 

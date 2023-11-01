@@ -1,27 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
-import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
-import { IInitializable } from "./interfaces/IInitializable.sol";
-import { IBondManager } from "./interfaces/IBondManager.sol";
-import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
+import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
+import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
+import { IBondManager } from "src/dispute/interfaces/IBondManager.sol";
+import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { BlockOracle } from "./BlockOracle.sol";
+import { BlockOracle } from "src/dispute/BlockOracle.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
-import { Semver } from "src/universal/Semver.sol";
-import { LibHashing } from "./lib/LibHashing.sol";
-import { LibPosition } from "./lib/LibPosition.sol";
-import { LibClock } from "./lib/LibClock.sol";
+import { ISemver } from "src/universal/ISemver.sol";
+import { LibHashing } from "src/dispute/lib/LibHashing.sol";
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { LibClock } from "src/dispute/lib/LibClock.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
-contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
+contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////
@@ -75,6 +75,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
+    /// @notice An internal mapping of subgames rooted at a claim index to other claim indices in the subgame.
+    mapping(uint256 => uint256[]) internal subgames;
+
+    /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
+    bool internal subgameAtRootResolved;
+
+    /// @notice Semantic version.
+    /// @custom:semver 0.0.11
+    string public constant version = "0.0.11";
+
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
@@ -85,7 +95,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.9
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -94,9 +103,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         IBigStepper _vm,
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
-    )
-        Semver(0, 0, 9)
-    {
+    ) {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
@@ -167,7 +174,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
+        // TODO(client-pod#94): Once output bisection is implemented, the local context will no longer
+        //                      be constant. We will need to pass it in here based off of the ancestor
+        //                      disputed output root's L2 block number.
+        bool validStep = VM.step(_stateData, _proof, 0) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 
@@ -232,9 +242,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
-        // INVARIANT: A claim may only exist at a given position once. Multiple claims may exist
-        //            at the same position, however they must have different values.
-        ClaimHash claimHash = _claim.hashClaimPos(nextPosition);
+        // INVARIANT: There cannot be multiple identical claims with identical moves on the same challengeIndex. Multiple
+        // claims
+        //            at the same position may dispute the same challengeIndex. However, the must have different values.
+        ClaimHash claimHash = _claim.hashClaimPos(nextPosition, _challengeIndex);
         if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
 
@@ -252,6 +263,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Set the parent claim as countered.
         claimData[_challengeIndex].countered = true;
 
+        // Update the subgame rooted at the parent claim.
+        subgames[_challengeIndex].push(claimData.length - 1);
+
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
     }
@@ -267,7 +281,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function addLocalData(uint256 _ident, uint256 _partOffset) external {
+    function addLocalData(uint256 _ident, uint256 _l2BlockNumber, uint256 _partOffset) external {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -278,6 +292,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             mstore(0x1C, loadLocalDataSelector)
             // Store the `_ident` argument
             mstore(0x20, _ident)
+            // Store the `_localContext` argument
+            mstore(0x40, _l2BlockNumber)
             // Store the data to load
             let data
             switch _ident
@@ -308,16 +324,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 // Revert with  `InvalidLocalIdent()`
                 revert(0x1C, 0x04)
             }
-            mstore(0x40, data)
+            mstore(0x60, data)
             // Store the size of the data to load
             // _ident > 3 ? 8 : 32
-            mstore(0x60, shl(sub(0x05, shl(0x01, gt(_ident, 0x03))), 0x01))
+            mstore(0x80, shl(sub(0x05, shl(0x01, gt(_ident, 0x03))), 0x01))
             // Store the part offset of the data
-            mstore(0x80, _partOffset)
+            mstore(0xA0, _partOffset)
 
             // Attempt to add the local data to the preimage oracle and bubble up the revert
             // if it fails.
-            if iszero(call(gas(), oracle, 0x00, 0x1C, 0x84, 0x00, 0x00)) {
+            if iszero(call(gas(), oracle, 0x00, 0x1C, 0xA4, 0x00, 0x00)) {
                 returndatacopy(0x00, 0x00, returndatasize())
                 revert(0x00, returndatasize())
             }
@@ -348,67 +364,64 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        // Search for the left-most dangling non-bottom node
-        // The most recent claim is always a dangling, non-bottom node so we start with that
-        uint256 leftMostIndex = claimData.length - 1;
-        uint256 leftMostTraceIndex = type(uint128).max;
-        for (uint256 i = leftMostIndex; i < type(uint64).max;) {
-            // Fetch the claim at the current index.
-            ClaimData storage claim = claimData[i];
+        // INVARIANT: Resolution cannot occur unless the absolute root subgame has been resolved.
+        if (!subgameAtRootResolved) revert OutOfOrderResolution();
 
-            // Decrement the loop counter; If it underflows, we've reached the root
-            // claim and can stop searching.
-            unchecked {
-                --i;
-            }
+        status_ = claimData[0].countered ? GameStatus.CHALLENGER_WINS : GameStatus.DEFENDER_WINS;
+        emit Resolved(status = status_);
+    }
 
-            // INVARIANT: A claim can never be considered as the leftMostIndex or leftMostTraceIndex
-            //            if it has been countered.
-            if (claim.countered) continue;
+    /// @inheritdoc IFaultDisputeGame
+    function resolveClaim(uint256 _claimIndex) external payable {
+        // INVARIANT: Resolution cannot occur unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-            // If the claim is a dangling node, we can check if it is the left-most
-            // dangling node we've come across so far. If it is, we can update the
-            // left-most trace index.
-            uint256 traceIndex = claim.position.traceIndex(MAX_GAME_DEPTH);
-            if (traceIndex < leftMostTraceIndex) {
-                leftMostTraceIndex = traceIndex;
-                unchecked {
-                    leftMostIndex = i + 1;
-                }
-            }
-        }
+        ClaimData storage parent = claimData[_claimIndex];
 
-        // Create a reference to the left most uncontested claim and its parent.
-        ClaimData storage leftMostUncontested = claimData[leftMostIndex];
-
-        // INVARIANT: The game may never be resolved unless the clock of the left-most uncontested
-        //            claim's parent has expired. If the left-most uncontested claim is the root
-        //            claim, it is uncountered, and we check if 3.5 days has passed since its
-        //            creation.
-        uint256 parentIndex = leftMostUncontested.parentIndex;
-        Clock opposingClock = parentIndex == type(uint32).max ? leftMostUncontested.clock : claimData[parentIndex].clock;
+        // INVARIANT: Cannot resolve a subgame unless the clock of its root has expired
         if (
-            Duration.unwrap(opposingClock.duration()) + (block.timestamp - Timestamp.unwrap(opposingClock.timestamp()))
+            Duration.unwrap(parent.clock.duration()) + (block.timestamp - Timestamp.unwrap(parent.clock.timestamp()))
                 <= Duration.unwrap(GAME_DURATION) >> 1
         ) {
             revert ClockNotExpired();
         }
 
-        // If the left-most dangling node is at an even depth, the defender wins.
-        // Otherwise, the challenger wins and the root claim is deemed invalid.
-        if (
-            leftMostUncontested
-                .position
-                // slither-disable-next-line weak-prng
-                .depth() % 2 == 0 && leftMostTraceIndex != type(uint128).max
-        ) {
-            status_ = GameStatus.DEFENDER_WINS;
-        } else {
-            status_ = GameStatus.CHALLENGER_WINS;
+        uint256[] storage challengeIndices = subgames[_claimIndex];
+
+        // INVARIANT: Cannot resolve subgames twice
+        // Uncontested claims are resolved implicitly unless they are the root claim
+        if (_claimIndex == 0 && subgameAtRootResolved) revert ClaimAlreadyResolved();
+        if (challengeIndices.length == 0 && _claimIndex != 0) revert ClaimAlreadyResolved();
+
+        // Assume parent is honest until proven otherwise
+        bool countered = false;
+
+        for (uint256 i = 0; i < challengeIndices.length; ++i) {
+            uint256 challengeIndex = challengeIndices[i];
+
+            // INVARIANT: Cannot resolve a subgame containing an unresolved claim
+            if (subgames[challengeIndex].length != 0) revert OutOfOrderResolution();
+
+            ClaimData storage claim = claimData[challengeIndex];
+
+            // Ignore false claims
+            if (!claim.countered) {
+                countered = true;
+                break;
+            }
         }
 
-        // Update the game status
-        emit Resolved(status = status_);
+        // Once a subgame is resolved, we percolate the result up the DAG so subsequent calls to
+        // resolveClaim will not need to traverse this subgame.
+        parent.countered = countered;
+
+        // Resolved subgames have no entries
+        delete subgames[_claimIndex];
+
+        // Indicate the game is ready to be resolved
+        if (_claimIndex == 0) {
+            subgameAtRootResolved = true;
+        }
     }
 
     /// @inheritdoc IDisputeGame

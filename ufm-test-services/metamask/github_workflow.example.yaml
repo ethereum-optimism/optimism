@@ -1,0 +1,32 @@
+name: 'UFM Test Service: 1 hour'
+
+on:
+  schedule:
+    # Run every hour
+    - cron: '0 * * * *'
+
+jobs:
+  ufm_test_service_metamask:
+    name: 'UFM Test Service: Metamask'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Docker Compose
+        run: docker-compose run metamask
+        env:
+          CI: ${{ secrets.CI }}
+          METRICS_READ_URL: ${{ secrets.METRICS_READ_URL }}
+          METRICS_READ_USERNAME: ${{ secrets.METRICS_READ_USERNAME }}
+          METRICS_READ_PASSWORD: ${{ secrets.METRICS_READ_PASSWORD }}
+          METRICS_WRITE_URL: ${{ secrets.METRICS_WRITE_URL }}
+          METRICS_WRITE_TOOL: ${{ secrets.METRICS_WRITE_TOOL }}
+          METRICS_WRITE_SOURCE: ${{ secrets.METRICS_WRITE_SOURCE }}
+          METRICS_WRITE_USERNAME: ${{ secrets.METRICS_WRITE_USERNAME }}
+          METRICS_WRITE_PASSWORD: ${{ secrets.METRICS_WRITE_PASSWORD }}
+          METAMASK_SECRET_WORDS_OR_PRIVATEKEY: ${{ secrets.METAMASK_SECRET_WORDS_OR_PRIVATEKEY }}
+          METAMASK_NETWORK: ${{ secrets.METAMASK_NETWORK || 'sepolia' }}
+          METAMASK_PASSWORD: ${{ secrets.METAMASK_PASSWORD || 'T3st_P@ssw0rd!' }}
+          METAMASK_DAPP_URL: ${{ secrets.METAMASK_DAPP_URL || 'http://localhost:9011' }}
+          METAMASK_OP_SEPOLIA_RPC_URL: ${{ secrets.METAMASK_OP_SEPOLIA_RPC_URL }}

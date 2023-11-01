@@ -11,8 +11,9 @@ import (
 )
 
 var (
-	ErrStepNonLeafNode = errors.New("cannot step on non-leaf claims")
-	ErrStepAgreedClaim = errors.New("cannot step on claims we agree with")
+	ErrStepNonLeafNode       = errors.New("cannot step on non-leaf claims")
+	ErrStepAgreedClaim       = errors.New("cannot step on claims we agree with")
+	ErrStepIgnoreInvalidPath = errors.New("cannot step on claims that dispute invalid paths")
 )
 
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
@@ -30,13 +31,28 @@ func newClaimSolver(gameDepth int, traceProvider types.TraceProvider) *claimSolv
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (*types.Claim, error) {
-	if agreeWithClaimLevel {
-		return nil, nil
-	}
+func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game types.Game) (*types.Claim, error) {
 	if claim.Depth() == s.gameDepth {
 		return nil, types.ErrGameDepthReached
 	}
+
+	// Before challenging this claim, first check that the move wasn't warranted.
+	// If the parent claim is on a dishonest path, then we would have moved against it anyways. So we don't move.
+	// Avoiding dishonest paths ensures that there's always a valid claim available to support ours during step.
+	if !claim.IsRoot() {
+		parent, err := game.GetParent(claim)
+		if err != nil {
+			return nil, err
+		}
+		agreeWithParent, err := s.agreeWithClaimPath(ctx, game, parent)
+		if err != nil {
+			return nil, err
+		}
+		if !agreeWithParent {
+			return nil, nil
+		}
+	}
+
 	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
 	if err != nil {
 		return nil, err
@@ -58,33 +74,43 @@ type StepData struct {
 
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-func (s *claimSolver) AttemptStep(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (StepData, error) {
+// Returns ErrStepIgnoreInvalidPath if the claim disputes an invalid path
+func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim types.Claim) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
 		return StepData{}, ErrStepNonLeafNode
 	}
-	if agreeWithClaimLevel {
-		return StepData{}, ErrStepAgreedClaim
+
+	// Step only on claims that dispute a valid path
+	parent, err := game.GetParent(claim)
+	if err != nil {
+		return StepData{}, err
 	}
+	parentValid, err := s.agreeWithClaimPath(ctx, game, parent)
+	if err != nil {
+		return StepData{}, err
+	}
+	if !parentValid {
+		return StepData{}, ErrStepIgnoreInvalidPath
+	}
+
 	claimCorrect, err := s.agreeWithClaim(ctx, claim.ClaimData)
 	if err != nil {
 		return StepData{}, err
 	}
-	index := claim.TraceIndex(s.gameDepth)
 	var preState []byte
 	var proofData []byte
 	var oracleData *types.PreimageOracleData
 
 	if !claimCorrect {
 		// Attack the claim by executing step index, so we need to get the pre-state of that index
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, index)
+		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.Position)
 		if err != nil {
 			return StepData{}, err
 		}
 	} else {
-		// We agree with the claim so Defend and use this claim as the starting point to execute the step after
-		// Thus we need the pre-state of the next step
-		// Note: This makes our maximum depth 63 because we need to add 1 without overflowing.
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, index+1)
+		// We agree with the claim so Defend and use this claim as the starting point to
+		// execute the step after. Thus we need the pre-state of the next step.
+		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.MoveRight())
 		if err != nil {
 			return StepData{}, err
 		}
@@ -108,7 +134,6 @@ func (s *claimSolver) attack(ctx context.Context, claim types.Claim) (*types.Cla
 	}
 	return &types.Claim{
 		ClaimData:           types.ClaimData{Value: value, Position: position},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
@@ -125,7 +150,6 @@ func (s *claimSolver) defend(ctx context.Context, claim types.Claim) (*types.Cla
 	}
 	return &types.Claim{
 		ClaimData:           types.ClaimData{Value: value, Position: position},
-		Parent:              claim.ClaimData,
 		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
@@ -138,7 +162,31 @@ func (s *claimSolver) agreeWithClaim(ctx context.Context, claim types.ClaimData)
 
 // traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
 func (s *claimSolver) traceAtPosition(ctx context.Context, p types.Position) (common.Hash, error) {
-	index := p.TraceIndex(s.gameDepth)
-	hash, err := s.trace.Get(ctx, index)
-	return hash, err
+	return s.trace.Get(ctx, p)
+}
+
+// agreeWithClaimPath returns true if the every other claim in the path to root is correct according to the internal [TraceProvider].
+func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
+	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
+	if err != nil {
+		return false, err
+	}
+	if !agree {
+		return false, nil
+	}
+	if claim.IsRoot() {
+		return true, nil
+	}
+	parent, err := game.GetParent(claim)
+	if err != nil {
+		return false, fmt.Errorf("failed to get parent of claim %v: %w", claim.ContractIndex, err)
+	}
+	if parent.IsRoot() {
+		return true, nil
+	}
+	grandParent, err := game.GetParent(parent)
+	if err != nil {
+		return false, err
+	}
+	return s.agreeWithClaimPath(ctx, game, grandParent)
 }
