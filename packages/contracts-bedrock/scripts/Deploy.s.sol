@@ -58,7 +58,7 @@ contract Deploy is Deployer {
         name_ = "Deploy";
     }
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
