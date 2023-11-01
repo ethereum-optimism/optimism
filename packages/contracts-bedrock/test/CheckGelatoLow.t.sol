@@ -20,7 +20,7 @@ contract MockGelatoTreasury is IGelatoTreasury {
 }
 
 /// @title  CheckGelatoLowTest
-/// @notice Tests the CheckBalanceHigh contract via fuzzing both the success case
+/// @notice Tests the CheckGelatoLow contract via fuzzing both the success case
 ///         and the failure case.
 contract CheckGelatoLowTest is Test {
     /// @notice An instance of the CheckGelatoLow contract.
