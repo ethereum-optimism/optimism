@@ -42,13 +42,14 @@ contract PeripheryDeployConfig is Script {
     uint256 public opChainAdminWalletDripValue;
     uint256 public opChainAdminWalletDripInterval;
     address public opL1BridgeAddress;
+    address public baseL1BridgeAddress;
     address public zoraL1BridgeAddress;
     address public pgnL1BridgeAddress;
     address public orderlyL1BridgeAddress;
     address public modeL1BridgeAddress;
     address public lyraL1BridgeAddress;
     address[5] public smallFaucetsL1BridgeAddresses;
-    address[1] public largeFaucetsL1BridgeAddresses;
+    address[2] public largeFaucetsL1BridgeAddresses;
     uint256 public dripVersion;
 
     constructor(string memory _path) {
@@ -84,6 +85,7 @@ contract PeripheryDeployConfig is Script {
         faucetOffchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAmount");
         installOpChainFaucetsDrips = stdJson.readBool(_json, "$.installOpChainFaucetsDrips");
         opL1BridgeAddress = stdJson.readAddress(_json, "$.opL1BridgeAddress");
+        baseL1BridgeAddress = stdJson.readAddress(_json, "$.baseL1BridgeAddress");
         zoraL1BridgeAddress = stdJson.readAddress(_json, "$.zoraL1BridgeAddress");
         pgnL1BridgeAddress = stdJson.readAddress(_json, "$.pgnL1BridgeAddress");
         orderlyL1BridgeAddress = stdJson.readAddress(_json, "$.orderlyL1BridgeAddress");
@@ -97,6 +99,7 @@ contract PeripheryDeployConfig is Script {
         opChainAdminWalletDripValue = stdJson.readUint(_json, "$.opChainAdminWalletDripValue");
         opChainAdminWalletDripInterval = stdJson.readUint(_json, "$.opChainAdminWalletDripInterval");
         largeFaucetsL1BridgeAddresses[0] = opL1BridgeAddress;
+        largeFaucetsL1BridgeAddresses[1] = baseL1BridgeAddress;
         smallFaucetsL1BridgeAddresses[0] = zoraL1BridgeAddress;
         smallFaucetsL1BridgeAddresses[1] = pgnL1BridgeAddress;
         smallFaucetsL1BridgeAddresses[2] = orderlyL1BridgeAddress;
