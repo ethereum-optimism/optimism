@@ -161,8 +161,8 @@ func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2Blo
 	return dp.eng.StartPayload(ctx, parent, attrs, updateSafe)
 }
 
-func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
-	return dp.eng.ConfirmPayload(ctx)
+func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context, canonical bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+	return dp.eng.ConfirmPayload(ctx, canonical)
 }
 
 func (dp *DerivationPipeline) CancelPayload(ctx context.Context, force bool) error {

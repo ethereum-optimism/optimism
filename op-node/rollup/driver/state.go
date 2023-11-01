@@ -168,6 +168,10 @@ func (s *Driver) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
 
+	if s.driverConfig.SequencerDryRun {
+		s.log.Warn("Node is sequencing in dry-run mode")
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

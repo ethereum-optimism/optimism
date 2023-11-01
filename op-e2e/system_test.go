@@ -1564,3 +1564,29 @@ func TestIncorrectBatcherConfiguration(t *testing.T) {
 	_, err := cfg.Start(t)
 	require.Error(t, err, "Expected error on invalid batcher configuration")
 }
+
+func TestSequencerDryRun(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	cfg.Nodes["sequencer"].Driver.SequencerConfDepth = 0
+	// make the verifier dry-run as a sequencer
+	cfg.Nodes["verifier"].Driver = driver.Config{
+		SequencerConfDepth: 3, // force the verifier to build a block that's likely different than the sequencer.
+		SequencerEnabled:   true,
+		SequencerStopped:   false,
+		SequencerDryRun:    true,
+	}
+	sys, err := cfg.Start(t)
+	require.NoError(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
+	seqBlock, err := geth.WaitForBlock(big.NewInt(4), l2Seq, time.Minute)
+	require.Nil(t, err)
+	verifBlock, err := geth.WaitForBlock(big.NewInt(4), l2Verif, time.Minute)
+	require.Nil(t, err)
+
+	require.Equal(t, seqBlock.Hash(), verifBlock.Hash(), "sequencer and dry-run sequencer must stay in sync")
+}

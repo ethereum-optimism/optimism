@@ -34,6 +34,11 @@ type Sequencer struct {
 	log    log.Logger
 	config *rollup.Config
 
+	dryRun bool
+	// We remember the last dry-run timestamp, so we can schedule the next time we dry-run a block,
+	// and don't cause the scheduler to worry we're not building blocks fast enough.
+	lastDryRun uint64
+
 	engine derive.ResettableEngineControl
 
 	attrBuilder      derive.AttributesBuilder
@@ -47,7 +52,7 @@ type Sequencer struct {
 	nextAction time.Time
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics, dryRun bool) *Sequencer {
 	return &Sequencer{
 		log:              log,
 		config:           cfg,
@@ -56,6 +61,8 @@ func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEn
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
 		metrics:          metrics,
+		dryRun:           dryRun,
+		lastDryRun:       0,
 	}
 }
 
@@ -104,12 +111,17 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 }
 
 // CompleteBuildingBlock takes the current block that is being built, and asks the engine to complete the building, seal the block, and persist it as canonical.
+// It does not persist the block as canonical if the sequencer is configured to dry-run, and will return (nil, nil) if successfully completed a dry-run block.
 // Warning: the safe and finalized L2 blocks as viewed during the initiation of the block building are reused for completion of the block building.
 // The Execution engine should not change the safe and finalized blocks between start and completion of block building.
 func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error) {
-	payload, errTyp, err := d.engine.ConfirmPayload(ctx)
+	payload, errTyp, err := d.engine.ConfirmPayload(ctx, !d.dryRun) // make non-canonical block when dry-running
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building block: error (%d): %w", errTyp, err)
+	}
+	if errTyp == derive.BlockInsertNonCanonical { // don't return non-canonical blocks
+		d.lastDryRun = uint64(payload.Timestamp)
+		return nil, nil
 	}
 	return payload, nil
 }
@@ -144,6 +156,12 @@ func (d *Sequencer) PlanNextSequencerAction() time.Duration {
 
 	blockTime := time.Duration(d.config.BlockTime) * time.Second
 	payloadTime := time.Unix(int64(head.Time+d.config.BlockTime), 0)
+	// When dry-running, the head may be behind our last dry-run result, because we didn't persist the block.
+	// Don't dry-run again, until we meet the same dry-run time.
+	if d.dryRun && head.Time < d.lastDryRun {
+		// pretend we had persisted our previous dry-run payload result as canonical head
+		payloadTime = time.Unix(int64(d.lastDryRun+d.config.BlockTime), 0)
+	}
 	remainingTime := payloadTime.Sub(now)
 
 	// If we started building a block already, and if that work is still consistent,
@@ -226,6 +244,9 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 			}
 			return nil, nil
 		} else {
+			if payload == nil { // dry-run
+				return nil, nil
+			}
 			d.log.Info("sequencer successfully built a new block", "block", payload.ID(), "time", uint64(payload.Timestamp), "txs", len(payload.Transactions))
 			return payload, nil
 		}

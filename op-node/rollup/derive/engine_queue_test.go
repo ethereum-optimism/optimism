@@ -999,7 +999,7 @@ func TestBlockBuildingRace(t *testing.T) {
 	eng.ExpectForkchoiceUpdate(postFc, nil, postFcRes, nil)
 
 	// Now complete the job, as external user of the engine
-	_, _, err = eq.ConfirmPayload(context.Background())
+	_, _, err = eq.ConfirmPayload(context.Background(), true)
 	require.NoError(t, err)
 	require.Equal(t, refA1, eq.SafeL2Head(), "safe head should have changed")
 

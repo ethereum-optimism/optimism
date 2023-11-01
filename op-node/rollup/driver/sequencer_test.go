@@ -73,7 +73,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	return derive.BlockInsertOK, nil
 }
 
-func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) ConfirmPayload(ctx context.Context, canonical bool) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return nil, m.errTyp, m.err
 	}
@@ -85,12 +85,14 @@ func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.Execut
 	if err != nil {
 		panic(err)
 	}
+	m.resetBuildingState()
+	if !canonical {
+		return payload, derive.BlockInsertNonCanonical, nil
+	}
 	m.unsafe = ref
 	if m.buildingSafe {
 		m.safe = ref
 	}
-
-	m.resetBuildingState()
 	m.totalTxs += len(payload.Transactions)
 	return payload, derive.BlockInsertOK, nil
 }
@@ -302,7 +304,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		}
 	})
 
-	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics)
+	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics, false)
 	seq.timeNow = clockFn
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems

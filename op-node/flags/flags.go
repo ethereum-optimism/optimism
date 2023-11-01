@@ -146,6 +146,11 @@ var (
 		Required: false,
 		Value:    4,
 	}
+	SequencerDryRunFlag = &cli.BoolFlag{
+		Name:    "sequencer.dry-run",
+		Usage:   "In dry-run mode the sequencer builds blocks, but does not make the blocks persist as canonical chain. Non-canonical blocks get pruned by the EL after a while.",
+		EnvVars: prefixEnvVars("SEQUENCER_DRY_RUN"),
+	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -288,6 +293,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerDryRunFlag,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,

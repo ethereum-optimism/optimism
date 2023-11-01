@@ -77,6 +77,8 @@ const (
 	BlockInsertPrestateErr
 	// BlockInsertPayloadErr indicates that the payload was invalid and cannot become canonical.
 	BlockInsertPayloadErr
+	// BlockInsertNonCanonical indicates that the payload was valid, but not added to the canonical chain.
+	BlockInsertNonCanonical
 )
 
 // StartPayload starts an execution payload building process in the provided Engine, with the given attributes.
@@ -116,8 +118,9 @@ func StartPayload(ctx context.Context, eng Engine, fc eth.ForkchoiceState, attrs
 
 // ConfirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
+// If canonical is false, the payload will be built and processed, but not persisted as canonical block: this is effectively dry-running the block-building.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
-func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool, canonical bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
 	payload, err := eng.GetPayload(ctx, id)
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
@@ -136,6 +139,13 @@ func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.Fork
 	}
 	if status.Status != eth.ExecutionValid {
 		return nil, BlockInsertTemporaryErr, eth.NewPayloadErr(payload, status)
+	}
+	log = log.New("hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
+		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
+		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient, "txs", len(payload.Transactions))
+	if !canonical {
+		log.Info("inserted non-canonical block")
+		return payload, BlockInsertNonCanonical, nil
 	}
 
 	fc.HeadBlockHash = payload.BlockHash
@@ -160,9 +170,6 @@ func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.Fork
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
-	log.Info("inserted block", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber),
-		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
-		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
-		"txs", len(payload.Transactions), "update_safe", updateSafe)
+	log.Info("inserted block", "update_safe", updateSafe)
 	return payload, BlockInsertOK, nil
 }

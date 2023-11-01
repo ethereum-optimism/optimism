@@ -56,7 +56,7 @@ type EngineControl interface {
 	// If updateSafe, the resulting block will be marked as a safe block.
 	StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType BlockInsertionErrType, err error)
 	// ConfirmPayload requests the engine to complete the current block. If no block is being built, or if it fails, an error is returned.
-	ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error)
+	ConfirmPayload(ctx context.Context, canonical bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error)
 	// CancelPayload requests the engine to stop building the current block without making it canonical.
 	// This is optional, as the engine expires building jobs that are left uncompleted, but can still save resources.
 	CancelPayload(ctx context.Context, force bool) error
@@ -624,7 +624,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	attrs := eq.safeAttributes.attributes
 	errType, err := eq.StartPayload(ctx, eq.safeHead, attrs, true)
 	if err == nil {
-		_, errType, err = eq.ConfirmPayload(ctx)
+		_, errType, err = eq.ConfirmPayload(ctx, true)
 	}
 	if err != nil {
 		switch errType {
@@ -657,7 +657,8 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			// If there is no valid batch the node will eventually force a deposit only block. If
 			// the deposit only block fails, this will return the critical error above.
 			return nil
-
+		case BlockInsertNonCanonical:
+			return NewCriticalError(fmt.Errorf("safe-block should never build non-canonical block, but did on top of block %s", eq.safeHead))
 		default:
 			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
@@ -691,7 +692,7 @@ func (eq *EngineQueue) StartPayload(ctx context.Context, parent eth.L2BlockRef, 
 	return BlockInsertOK, nil
 }
 
-func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+func (eq *EngineQueue) ConfirmPayload(ctx context.Context, canonical bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
 	if eq.buildingID == (eth.PayloadID{}) {
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
@@ -703,13 +704,17 @@ func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPa
 		SafeBlockHash:      eq.safeHead.Hash,
 		FinalizedBlockHash: eq.finalized.Hash,
 	}
-	payload, errTyp, err := ConfirmPayload(ctx, eq.log, eq.engine, fc, eq.buildingID, eq.buildingSafe)
+	payload, errTyp, err := ConfirmPayload(ctx, eq.log, eq.engine, fc, eq.buildingID, eq.buildingSafe, canonical)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", eq.buildingOnto, eq.buildingID, errTyp, err)
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
 		return nil, BlockInsertPayloadErr, NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
+	}
+	if errTyp == BlockInsertNonCanonical {
+		eq.resetBuildingState()
+		return payload, BlockInsertNonCanonical, nil
 	}
 
 	eq.unsafeHead = ref
