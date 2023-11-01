@@ -17,6 +17,7 @@ import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibClock.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
@@ -1091,39 +1092,5 @@ contract VariableDivergentPlayer is GamePlayer {
             _trace[i] = i >= _divergeAt ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = _trace;
-    }
-}
-
-////////////////////////////////////////////////////////////////
-//                          MOCK VMS                          //
-////////////////////////////////////////////////////////////////
-
-contract AlphabetVM is IBigStepper {
-    Claim internal immutable ABSOLUTE_PRESTATE;
-    IPreimageOracle public oracle;
-
-    constructor(Claim _absolutePrestate) {
-        ABSOLUTE_PRESTATE = _absolutePrestate;
-        oracle = new PreimageOracle();
-    }
-
-    /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata, uint256) external view returns (bytes32 postState_) {
-        uint256 traceIndex;
-        uint256 claim;
-        if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
-            // If the state data is empty, then the absolute prestate is the claim.
-            traceIndex = 0;
-            (claim) = abi.decode(_stateData, (uint256));
-        } else {
-            // Otherwise, decode the state data.
-            (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
-            traceIndex++;
-        }
-        // STF: n -> n + 1
-        postState_ = keccak256(abi.encode(traceIndex, claim + 1));
-        assembly {
-            postState_ := or(and(postState_, not(shl(248, 0xFF))), shl(248, 1))
-        }
     }
 }

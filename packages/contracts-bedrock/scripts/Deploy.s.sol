@@ -41,7 +41,7 @@ import { Chains } from "scripts/Chains.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
-import { AlphabetVM } from "../test/FaultDisputeGame.t.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
 
 /// @title Deploy
