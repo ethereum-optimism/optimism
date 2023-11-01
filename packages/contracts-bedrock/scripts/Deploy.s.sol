@@ -52,8 +52,7 @@ import "src/libraries/DisputeTypes.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
-    /// @notice The name of the script, used to ensure the right deploy artifacts
-    ///         are used.
+    /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
         name_ = "Deploy";
     }
