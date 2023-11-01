@@ -52,7 +52,7 @@ import "src/libraries/DisputeTypes.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
-    /// @inheritdoc
+    /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
         name_ = "Deploy";
     }
