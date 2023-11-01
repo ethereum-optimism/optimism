@@ -62,7 +62,7 @@ func TestL1ETLConstruction(t *testing.T) {
 			},
 			assertion: func(etl *L1ETL, err error) {
 				require.NoError(t, err)
-				require.Equal(t, etl.headerTraversal.LastHeader().ParentHash, common.HexToHash("0x69"))
+				require.Equal(t, etl.headerTraversal.LastTraversedHeader().ParentHash, common.HexToHash("0x69"))
 			},
 		},
 		{
@@ -94,7 +94,7 @@ func TestL1ETLConstruction(t *testing.T) {
 			},
 			assertion: func(etl *L1ETL, err error) {
 				require.NoError(t, err)
-				header := etl.headerTraversal.LastHeader()
+				header := etl.headerTraversal.LastTraversedHeader()
 
 				require.True(t, header.Number.Cmp(big.NewInt(69)) == 0)
 			},

@@ -1,5 +1,11 @@
 # @eth-optimism/drippie-mon
 
+## 0.5.2
+
+### Patch Changes
+
+- [#7824](https://github.com/ethereum-optimism/optimism/pull/7824) [`98eb885f5`](https://github.com/ethereum-optimism/optimism/commit/98eb885f5003ee5e6b9bbd532a42bba2ad39cb4b) Thanks [@roninjin10](https://github.com/roninjin10)! - Bump node version to LTS node 20.9.0
+
 ## 0.5.1
 
 ### Patch Changes

@@ -94,7 +94,7 @@ Where:
   - `l1_origin_check`: the block hash of the last L1 origin is referenced.
     The hash is truncated to 20 bytes for efficiency, i.e. `span_end.l1_origin.hash[:20]`.
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs`:
-  - `block_count`: `uvarint` number of L2 blocks.
+  - `block_count`: `uvarint` number of L2 blocks. This is at least 1, empty span batches are invalid.
   - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
@@ -130,6 +130,7 @@ Where:
 - `prefix = rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check`:
   - Identical to `batch_version` 1
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs ++ fee_recipients`:
+  - An empty span-batch, i.e. with `block_count == 0`, is invalid and must not be processed.
   - Every field definition identical to `batch_version` 1 except that `fee_recipients` is
     added to support more decentralized sequencing.
   - `fee_recipients = fee_recipients_idxs + fee_recipients_set`
@@ -142,6 +143,15 @@ Where:
 [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
 
 [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
+
+Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
+equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
+`MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
+to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
+limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
+decoding. For example, lets say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return using
+the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for decoding
+because we know the upper limit of memory usage.
 
 ## Optimization Strategies
 

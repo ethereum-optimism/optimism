@@ -4,15 +4,16 @@ pragma solidity 0.8.15;
 import { StdUtils } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
-import { OptimismPortal } from "../../src/L1/OptimismPortal.sol";
-import { L2OutputOracle } from "../../src/L1/L2OutputOracle.sol";
-import { AddressAliasHelper } from "../../src/vendor/AddressAliasHelper.sol";
-import { SystemConfig } from "../../src/L1/SystemConfig.sol";
-import { ResourceMetering } from "../../src/L1/ResourceMetering.sol";
-import { Constants } from "../../src/libraries/Constants.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
 
-import { Portal_Initializer } from "../CommonTest.t.sol";
-import { Types } from "../../src/libraries/Types.sol";
+import { Portal_Initializer } from "test/CommonTest.t.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
+import { Types } from "src/libraries/Types.sol";
 
 contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
     Vm internal vm;
@@ -158,8 +159,8 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
 
         // Set the target contract to the portal proxy
         targetContract(address(op));
-        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
-        excludeSender(address(multisig));
+        // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
+        excludeSender(EIP1967Helper.getAdmin(address(op)));
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the finalization
@@ -188,8 +189,8 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
 
         // Set the target contract to the portal proxy
         targetContract(address(op));
-        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
-        excludeSender(address(multisig));
+        // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
+        excludeSender(EIP1967Helper.getAdmin(address(op)));
     }
 
     /// @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal
@@ -215,8 +216,8 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
 
         // Set the target contract to the portal proxy
         targetContract(address(op));
-        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
-        excludeSender(address(multisig));
+        // Exclude the proxy admin from the senders so that the proxy cannot be upgraded
+        excludeSender(EIP1967Helper.getAdmin(address(op)));
     }
 
     /// @custom:invariant A withdrawal should **always** be able to be finalized

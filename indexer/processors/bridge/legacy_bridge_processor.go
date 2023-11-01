@@ -5,7 +5,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
@@ -40,8 +39,8 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		ctcTxDeposits[logKey{deposit.Event.BlockHash, deposit.Event.LogIndex}] = &deposit
 		mintedWEI = new(big.Int).Add(mintedWEI, deposit.Tx.Amount)
 
+		// We re-use the L2 Transaction hash as the source hash to remain consistent in the schema.
 		transactionDeposits[i] = database.L1TransactionDeposit{
-			// We re-use the L2 Transaction hash as the source hash to remain consistent in the schema.
 			SourceHash:           deposit.TxHash,
 			L2TransactionHash:    deposit.TxHash,
 			InitiatedL1EventGUID: deposit.Event.GUID,
@@ -175,11 +174,9 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		sentMessage := crossDomainSentMessages[i]
 		withdrawnWEI = new(big.Int).Add(withdrawnWEI, sentMessage.BridgeMessage.Tx.Amount)
 
-		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
-		// passer contract is sha3(calldata + sender). The sender always being the L2CrossDomainMessenger pre-bedrock.
-		withdrawalHash := crypto.Keccak256Hash(append(sentMessage.MessageCalldata, l2Contracts.L2CrossDomainMessenger[:]...))
+		// We re-use the L2CrossDomainMessenger message hash as the withdrawal hash to remain consistent in the schema.
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
-			WithdrawalHash:       withdrawalHash,
+			WithdrawalHash:       sentMessage.BridgeMessage.MessageHash,
 			InitiatedL2EventGUID: sentMessage.Event.GUID,
 			Nonce:                sentMessage.BridgeMessage.Nonce,
 			GasLimit:             sentMessage.BridgeMessage.GasLimit,
@@ -192,9 +189,9 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 			},
 		}
 
-		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
+		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, sentMessage.BridgeMessage.MessageHash}
 		bridgeMessages[i] = database.L2BridgeMessage{
-			TransactionWithdrawalHash: withdrawalHash,
+			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
 			BridgeMessage:             sentMessage.BridgeMessage,
 		}
 	}
@@ -285,7 +282,8 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			// for OP-Mainnet pre-regensis withdrawals that no longer exist on L2.
 			tx, err := l1Client.TxByHash(relayedMessage.Event.TransactionHash)
 			if err != nil {
-				return err
+				log.Error("unable to query legacy relayed tx", "tx_hash", relayedMessage.Event.TransactionHash.String(), "err", err)
+				return fmt.Errorf("unable to query legacy relayed tx_hash = %s: %w", relayedMessage.Event.TransactionHash.String(), err)
 			} else if tx == nil {
 				log.Error("missing tx for relayed message", "tx_hash", relayedMessage.Event.TransactionHash.String())
 				return fmt.Errorf("missing tx for relayed message. tx_hash = %s", relayedMessage.Event.TransactionHash.String())
@@ -311,7 +309,7 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			}
 		}
 
-		// Mark the associated tx withdrawal as proven/finalized with the same event
+		// Mark the associated tx withdrawal as proven/finalized with the same event. The message hash is also the transaction withdrawal hash
 		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
 			log.Error("failed to mark withdrawal as proven", "err", err)
 			return err

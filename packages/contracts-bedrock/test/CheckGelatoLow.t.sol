@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { CheckGelatoLow, IGelatoTreasury } from "../src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
+import { CheckGelatoLow, IGelatoTreasury } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
 
 /// @title  MockGelatoTreasury
 /// @notice Mocks the Gelato treasury for testing purposes. Allows arbitrary

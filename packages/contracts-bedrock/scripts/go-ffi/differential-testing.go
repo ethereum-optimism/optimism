@@ -74,15 +74,16 @@ var (
 	}
 )
 
-func main() {
-	args := os.Args[1:]
+func DiffTestUtils() {
+	args := os.Args[2:]
+	variant := args[0]
 
 	// This command requires arguments
 	if len(args) == 0 {
 		panic("Error: No arguments provided")
 	}
 
-	switch args[0] {
+	switch variant {
 	case "decodeVersionedNonce":
 		// Parse input arguments
 		input, ok := new(big.Int).SetString(args[1], 10)

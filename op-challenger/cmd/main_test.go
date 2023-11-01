@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,8 +16,8 @@ import (
 var (
 	l1EthRpc                = "http://example.com:8545"
 	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
-	cannonNetwork           = chaincfg.AvailableNetworks()[0]
-	otherCannonNetwork      = chaincfg.AvailableNetworks()[1]
+	cannonNetwork           = "op-mainnet"
+	otherCannonNetwork      = "op-goerli"
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"

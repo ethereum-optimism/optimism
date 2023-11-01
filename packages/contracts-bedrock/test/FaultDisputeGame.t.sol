@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
+import { DisputeGameFactory_Init } from "test/DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
@@ -17,6 +17,7 @@ import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibClock.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
@@ -32,8 +33,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     function init(Claim rootClaim, Claim absolutePrestate) public {
-        super.setUp();
-
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
@@ -82,6 +81,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
 
     function setUp() public override {
+        super.setUp();
         super.init(ROOT_CLAIM, ABSOLUTE_PRESTATE);
     }
 
@@ -755,6 +755,7 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 0);
         super.init(dishonest, honest, 15);
@@ -777,6 +778,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 0);
         super.init(honest, dishonest, 15);
@@ -799,6 +801,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 7);
         super.init(dishonest, honest, 15);
@@ -821,6 +824,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 7);
         super.init(honest, dishonest, 15);
@@ -843,6 +847,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 2);
         super.init(dishonest, honest, 15);
@@ -865,6 +870,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 2);
         super.init(honest, dishonest, 15);
@@ -887,6 +893,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 8, 5);
         super.init(dishonest, honest, 7);
@@ -909,6 +916,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 8, 5);
         super.init(honest, dishonest, 7);
@@ -931,6 +939,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 4, 3);
         super.init(dishonest, honest, 3);
@@ -953,6 +962,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot5 is OneVsOne_Arena {
     function setUp() public override {
+        super.setUp();
         GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 4, 3);
         super.init(honest, dishonest, 3);
@@ -1082,39 +1092,5 @@ contract VariableDivergentPlayer is GamePlayer {
             _trace[i] = i >= _divergeAt ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = _trace;
-    }
-}
-
-////////////////////////////////////////////////////////////////
-//                          MOCK VMS                          //
-////////////////////////////////////////////////////////////////
-
-contract AlphabetVM is IBigStepper {
-    Claim internal immutable ABSOLUTE_PRESTATE;
-    IPreimageOracle public oracle;
-
-    constructor(Claim _absolutePrestate) {
-        ABSOLUTE_PRESTATE = _absolutePrestate;
-        oracle = new PreimageOracle();
-    }
-
-    /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata, uint256) external view returns (bytes32 postState_) {
-        uint256 traceIndex;
-        uint256 claim;
-        if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
-            // If the state data is empty, then the absolute prestate is the claim.
-            traceIndex = 0;
-            (claim) = abi.decode(_stateData, (uint256));
-        } else {
-            // Otherwise, decode the state data.
-            (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
-            traceIndex++;
-        }
-        // STF: n -> n + 1
-        postState_ = keccak256(abi.encode(traceIndex, claim + 1));
-        assembly {
-            postState_ := or(and(postState_, not(shl(248, 0xFF))), shl(248, 1))
-        }
     }
 }

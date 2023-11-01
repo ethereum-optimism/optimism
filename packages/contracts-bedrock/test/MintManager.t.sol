@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Target contract dependencies
-import { GovernanceToken } from "../src/governance/GovernanceToken.sol";
+import { GovernanceToken } from "src/governance/GovernanceToken.sol";
 
 // Target contract
-import { MintManager } from "../src/governance/MintManager.sol";
+import { MintManager } from "src/governance/MintManager.sol";
 
 contract MintManager_Initializer is CommonTest {
     address constant owner = address(0x1234);

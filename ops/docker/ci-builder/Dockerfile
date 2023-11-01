@@ -12,6 +12,9 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
   ./rustup.sh -y
 
+# Install nightly toolchain
+RUN source $HOME/.profile && rustup update nightly
+
 RUN source $HOME/.profile && cargo install just
 RUN source $HOME/.profile && cargo install svm-rs
 
@@ -39,7 +42,7 @@ ENV GO_VERSION=1.21.1
 
 # Fetch go manually, rather than using a Go base image, so we can copy the installation into the final stage
 RUN curl -sL https://go.dev/dl/go$GO_VERSION.linux-amd64.tar.gz -o go$GO_VERSION.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.21.1.linux-amd64.tar.gz
+  tar -C /usr/local/ -xzvf go$GO_VERSION.linux-amd64.tar.gz
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
@@ -59,7 +62,11 @@ FROM --platform=linux/amd64 python:3.11.4-slim-bullseye
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
+ENV PATH=/root/.cargo/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Create rust directories for copying the installation into
+RUN mkdir /root/.cargo && mkdir /root/.cargo/bin && mkdir /root/.rustup
 
 # copy the go installation, but not the module cache (cache will get stale, and would add a lot of weight)
 COPY --from=go-build /usr/local/go /usr/local/go
@@ -69,11 +76,15 @@ COPY --from=go-build /go/bin/mockery /go/bin/mockery
 COPY --from=go-build /go/bin/golangci-lint /go/bin/golangci-lint
 COPY --from=go-build /go/bin/abigen /usr/local/bin/abigen
 COPY --from=go-build /go/bin/geth /usr/local/bin/geth
-COPY --from=rust-build /root/.cargo/bin/svm /usr/local/bin/svm
-COPY --from=rust-build /root/.cargo/bin/just /usr/local/bin/just
+
+# copy the rust installation, alongside the installed toolchains
+COPY --from=rust-build /root/.cargo/bin /root/.cargo/bin
+COPY --from=rust-build /root/.rustup /root/.rustup
+# copy tools
 COPY --from=rust-build /opt/foundry/target/release/forge /usr/local/bin/forge
 COPY --from=rust-build /opt/foundry/target/release/cast /usr/local/bin/cast
 COPY --from=rust-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
+
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 COPY .nvmrc .nvmrc
@@ -84,7 +95,7 @@ ENV SLITHER_VERSION=0.10.0
 # note: python3 package in apt is python 3.9, while base image already has python 3.11
 RUN /bin/sh -c set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential ca-certificates jq gnupg binutils-mips-linux-gnu; \
+  apt-get install -y --no-install-recommends bash curl openssh-client git build-essential pkg-config libssl-dev clang libclang-dev ca-certificates jq gnupg binutils-mips-linux-gnu; \
   mkdir -p /etc/apt/keyrings; \
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg; \
   echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list; \
@@ -103,7 +114,8 @@ RUN /bin/sh -c set -eux; \
 RUN npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN svm install 0.5.17 && \
-  svm install 0.8.15
+  svm install 0.8.15 && \
+  svm install 0.8.19
 
 RUN echo "downloading and verifying Codecov uploader" && \
   curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import && \

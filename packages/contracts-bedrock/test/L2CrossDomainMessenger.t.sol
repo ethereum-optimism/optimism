@@ -2,20 +2,17 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer, Reverter, ConfigurableCaller } from "./CommonTest.t.sol";
+import { Messenger_Initializer } from "test/CommonTest.t.sol";
+import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 
 // Libraries
-import { Hashing } from "../src/libraries/Hashing.sol";
-import { Encoding } from "../src/libraries/Encoding.sol";
-import { Types } from "../src/libraries/Types.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
-import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
-import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
-
-// Target contract
-import { L2CrossDomainMessenger } from "../src/L2/L2CrossDomainMessenger.sol";
+import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev Receiver address for testing

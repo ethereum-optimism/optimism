@@ -9,35 +9,28 @@ import (
 )
 
 var (
-	MetricsNamespace string = "etl"
+	MetricsNamespace string = "op_indexer_etl"
 )
 
 type Metricer interface {
 	RecordInterval() (done func(err error))
-
-	// Batch Extraction
-	RecordBatchLatestHeight(height *big.Int)
-	RecordBatchHeaders(size int)
-	RecordBatchLog(contractAddress common.Address)
+	RecordLatestHeight(height *big.Int)
 
 	// Indexed Batches
 	RecordIndexedLatestHeight(height *big.Int)
 	RecordIndexedHeaders(size int)
-	RecordIndexedLogs(size int)
+	RecordIndexedLog(contractAddress common.Address)
 }
 
 type etlMetrics struct {
 	intervalTick     prometheus.Counter
 	intervalDuration prometheus.Histogram
-
-	batchFailures     prometheus.Counter
-	batchLatestHeight prometheus.Gauge
-	batchHeaders      prometheus.Counter
-	batchLogs         *prometheus.CounterVec
+	intervalFailures prometheus.Counter
+	latestHeight     prometheus.Gauge
 
 	indexedLatestHeight prometheus.Gauge
 	indexedHeaders      prometheus.Counter
-	indexedLogs         prometheus.Counter
+	indexedLogs         *prometheus.CounterVec
 }
 
 func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
@@ -55,31 +48,17 @@ func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 			Name:      "interval_seconds",
 			Help:      "duration elapsed for during the processing loop",
 		}),
-		batchFailures: factory.NewCounter(prometheus.CounterOpts{
+		intervalFailures: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
-			Name:      "failures_total",
-			Help:      "number of times the etl encountered a failure to extract a batch",
+			Name:      "interval_failures_total",
+			Help:      "number of times the etl encountered a failure during the processing loop",
 		}),
-		batchLatestHeight: factory.NewGauge(prometheus.GaugeOpts{
+		latestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
-			Name:      "height",
-			Help:      "the latest block height observed by an etl interval",
-		}),
-		batchHeaders: factory.NewCounter(prometheus.CounterOpts{
-			Namespace: MetricsNamespace,
-			Subsystem: subsystem,
-			Name:      "headers_total",
-			Help:      "number of headers observed by the etl",
-		}),
-		batchLogs: factory.NewCounterVec(prometheus.CounterOpts{
-			Namespace: MetricsNamespace,
-			Subsystem: subsystem,
-			Name:      "logs_total",
-			Help:      "number of logs observed by the etl",
-		}, []string{
-			"contract",
+			Name:      "latest_height",
+			Help:      "the latest height reported by the connected client",
 		}),
 		indexedLatestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
@@ -93,11 +72,13 @@ func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 			Name:      "indexed_headers_total",
 			Help:      "number of headers indexed by the etl",
 		}),
-		indexedLogs: factory.NewCounter(prometheus.CounterOpts{
+		indexedLogs: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
 			Name:      "indexed_logs_total",
 			Help:      "number of logs indexed by the etl",
+		}, []string{
+			"contract",
 		}),
 	}
 }
@@ -107,23 +88,14 @@ func (m *etlMetrics) RecordInterval() func(error) {
 	timer := prometheus.NewTimer(m.intervalDuration)
 	return func(err error) {
 		if err != nil {
-			m.batchFailures.Inc()
+			m.intervalFailures.Inc()
 		}
-
 		timer.ObserveDuration()
 	}
 }
 
-func (m *etlMetrics) RecordBatchLatestHeight(height *big.Int) {
-	m.batchLatestHeight.Set(float64(height.Uint64()))
-}
-
-func (m *etlMetrics) RecordBatchHeaders(size int) {
-	m.batchHeaders.Add(float64(size))
-}
-
-func (m *etlMetrics) RecordBatchLog(contractAddress common.Address) {
-	m.batchLogs.WithLabelValues(contractAddress.String()).Inc()
+func (m *etlMetrics) RecordLatestHeight(height *big.Int) {
+	m.latestHeight.Set(float64(height.Uint64()))
 }
 
 func (m *etlMetrics) RecordIndexedLatestHeight(height *big.Int) {
@@ -134,6 +106,6 @@ func (m *etlMetrics) RecordIndexedHeaders(size int) {
 	m.indexedHeaders.Add(float64(size))
 }
 
-func (m *etlMetrics) RecordIndexedLogs(size int) {
-	m.indexedLogs.Add(float64(size))
+func (m *etlMetrics) RecordIndexedLog(addr common.Address) {
+	m.indexedLogs.WithLabelValues(addr.String()).Inc()
 }

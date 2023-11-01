@@ -61,8 +61,11 @@ type ChannelOutIface interface {
 	OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error)
 }
 
-// Compile-time check for ChannelOutIface interface implementation for the ChannelOut type.
-var _ ChannelOutIface = (*derive.ChannelOut)(nil)
+// Compile-time check for ChannelOutIface interface implementation for the SingularChannelOut type.
+var _ ChannelOutIface = (*derive.SingularChannelOut)(nil)
+
+// Compile-time check for ChannelOutIface interface implementation for the SpanChannelOut type.
+var _ ChannelOutIface = (*derive.SpanChannelOut)(nil)
 
 // Compile-time check for ChannelOutIface interface implementation for the GarbageChannelOut type.
 var _ ChannelOutIface = (*GarbageChannelOut)(nil)
@@ -252,13 +255,13 @@ func blockToBatch(block *types.Block) (*derive.BatchData, error) {
 		return nil, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
 	}
 
-	return &derive.BatchData{
-		SingularBatch: derive.SingularBatch{
-			ParentHash:   block.ParentHash(),
-			EpochNum:     rollup.Epoch(l1Info.Number),
-			EpochHash:    l1Info.BlockHash,
-			Timestamp:    block.Time(),
-			Transactions: opaqueTxs,
-		},
-	}, nil
+	singularBatch := &derive.SingularBatch{
+		ParentHash:   block.ParentHash(),
+		EpochNum:     rollup.Epoch(l1Info.Number),
+		EpochHash:    l1Info.BlockHash,
+		Timestamp:    block.Time(),
+		Transactions: opaqueTxs,
+	}
+
+	return derive.NewBatchData(singularBatch), nil
 }

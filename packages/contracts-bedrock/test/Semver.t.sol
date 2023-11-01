@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { Semver } from "../src/universal/Semver.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
+import { Semver } from "src/universal/Semver.sol";
+import { Proxy } from "src/universal/Proxy.sol";
 
 /// @notice Test the Semver contract that is used for semantic versioning
 ///         of various contracts.

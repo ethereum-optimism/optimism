@@ -93,6 +93,7 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 			for i := range batch.Logs {
 				timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
 				l2ContractEvents[i] = database.L2ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
+				l2Etl.ETL.metrics.RecordIndexedLog(batch.Logs[i].Address)
 			}
 
 			// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
@@ -115,9 +116,6 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 
 				l2Etl.ETL.metrics.RecordIndexedHeaders(len(l2BlockHeaders))
 				l2Etl.ETL.metrics.RecordIndexedLatestHeight(l2BlockHeaders[len(l2BlockHeaders)-1].Number)
-				if len(l2ContractEvents) > 0 {
-					l2Etl.ETL.metrics.RecordIndexedLogs(len(l2ContractEvents))
-				}
 
 				// a-ok!
 				return nil, nil

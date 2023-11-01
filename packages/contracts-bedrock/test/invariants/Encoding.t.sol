@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { StdInvariant } from "forge-std/StdInvariant.sol";
-import { Encoding } from "../../src/libraries/Encoding.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 contract Encoding_Converter {
     bool public failedRoundtripAToB;

@@ -3,9 +3,9 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { TestERC20 } from "./Helpers.sol";
-import { TestERC721 } from "./Helpers.sol";
-import { AssetReceiver } from "../src/periphery/AssetReceiver.sol";
+import { TestERC20 } from "test/mocks/TestERC20.sol";
+import { TestERC721 } from "test/mocks/TestERC721.sol";
+import { AssetReceiver } from "src/periphery/AssetReceiver.sol";
 
 contract AssetReceiver_Initializer is Test {
     address alice = address(128);

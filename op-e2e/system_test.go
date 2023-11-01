@@ -1553,3 +1553,14 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	require.NoError(t, err)
 	t.Log("verified that op-geth closed!")
 }
+
+func TestIncorrectBatcherConfiguration(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// make the batcher configuration invalid
+	cfg.BatcherMaxL1TxSizeBytes = 1
+
+	_, err := cfg.Start(t)
+	require.Error(t, err, "Expected error on invalid batcher configuration")
+}
