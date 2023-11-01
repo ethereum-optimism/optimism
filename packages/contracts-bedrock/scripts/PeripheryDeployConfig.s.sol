@@ -35,6 +35,7 @@ contract PeripheryDeployConfig is Script {
     uint256 public faucetOffchainAuthModuleTtl;
     uint256 public faucetOffchainAuthModuleAmount;
     bool public installOpChainFaucetsDrips;
+    bool public archivePreviousOpChainFaucetsDrips;
     uint256 public smallOpChainFaucetDripValue;
     uint256 public smallOpChainFaucetDripInterval;
     uint256 public largeOpChainFaucetDripValue;
@@ -51,6 +52,7 @@ contract PeripheryDeployConfig is Script {
     address[5] public smallFaucetsL1BridgeAddresses;
     address[2] public largeFaucetsL1BridgeAddresses;
     uint256 public dripVersion;
+    uint256 public previousDripVersion;
 
     constructor(string memory _path) {
         console.log("PeripheryDeployConfig: reading file %s", _path);
@@ -84,6 +86,7 @@ contract PeripheryDeployConfig is Script {
         faucetOffchainAuthModuleTtl = stdJson.readUint(_json, "$.faucetOffchainAuthModuleTtl");
         faucetOffchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAmount");
         installOpChainFaucetsDrips = stdJson.readBool(_json, "$.installOpChainFaucetsDrips");
+        archivePreviousOpChainFaucetsDrips = stdJson.readBool(_json, "$.archivePreviousOpChainFaucetsDrips");
         opL1BridgeAddress = stdJson.readAddress(_json, "$.opL1BridgeAddress");
         baseL1BridgeAddress = stdJson.readAddress(_json, "$.baseL1BridgeAddress");
         zoraL1BridgeAddress = stdJson.readAddress(_json, "$.zoraL1BridgeAddress");
@@ -92,6 +95,7 @@ contract PeripheryDeployConfig is Script {
         modeL1BridgeAddress = stdJson.readAddress(_json, "$.modeL1BridgeAddress");
         lyraL1BridgeAddress = stdJson.readAddress(_json, "$.lyraL1BridgeAddress");
         dripVersion = stdJson.readUint(_json, "$.dripVersion");
+        previousDripVersion = stdJson.readUint(_json, "$.previousDripVersion");
         smallOpChainFaucetDripValue = stdJson.readUint(_json, "$.smallOpChainFaucetDripValue");
         smallOpChainFaucetDripInterval = stdJson.readUint(_json, "$.smallOpChainFaucetDripInterval");
         largeOpChainFaucetDripValue = stdJson.readUint(_json, "$.largeOpChainFaucetDripValue");
