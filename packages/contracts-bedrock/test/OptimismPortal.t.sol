@@ -200,7 +200,13 @@ contract OptimismPortal_Test is Portal_Initializer {
         });
 
         vm.prank(depositor, depositor);
-        op.depositTransaction{ value: _mint }({ _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: _isCreation, _data: _data });
+        op.depositTransaction{ value: _mint }({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
         assertEq(address(op).balance, _mint);
     }
 
@@ -232,7 +238,13 @@ contract OptimismPortal_Test is Portal_Initializer {
         });
 
         vm.prank(address(this));
-        op.depositTransaction{ value: _mint }({ _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: _isCreation, _data: _data });
+        op.depositTransaction{ value: _mint }({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
         assertEq(address(op).balance, _mint);
     }
 
