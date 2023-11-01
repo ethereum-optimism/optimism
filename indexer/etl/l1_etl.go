@@ -56,7 +56,7 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		return nil, err
 	}
 
-	fromHeader := getStartingBlock(&dbHeader.BlockHeader, header)
+	fromHeader := getStartingBlock(dbHeader, header)
 
 	// NOTE - The use of un-buffered channel here assumes that downstream consumers
 	// will be able to keep up with the rate of incoming batches

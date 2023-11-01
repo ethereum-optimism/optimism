@@ -40,7 +40,7 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		return nil, err
 	}
 
-	dbHeader, err := db.Blocks.L2LatestBlockHeader()
+	dbHeader, err := db.Blocks.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		return nil, err
 	}
 
-	fromHeader := getStartingBlock(&dbHeader.BlockHeader, header)
+	fromHeader := getStartingBlock(dbHeader, header)
 
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{

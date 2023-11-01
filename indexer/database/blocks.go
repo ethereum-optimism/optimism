@@ -48,11 +48,11 @@ type L2BlockHeader struct {
 type BlocksView interface {
 	L1BlockHeader(common.Hash) (*L1BlockHeader, error)
 	L1BlockHeaderWithFilter(BlockHeader) (*L1BlockHeader, error)
-	L1LatestBlockHeader() (*L1BlockHeader, error)
+	L1LatestBlockHeader() (*BlockHeader, error)
 
 	L2BlockHeader(common.Hash) (*L2BlockHeader, error)
 	L2BlockHeaderWithFilter(BlockHeader) (*L2BlockHeader, error)
-	L2LatestBlockHeader() (*L2BlockHeader, error)
+	L2LatestBlockHeader() (*BlockHeader, error)
 
 	LatestObservedEpoch(*big.Int, uint64) (*Epoch, error)
 }
@@ -106,7 +106,7 @@ func (db *blocksDB) L1BlockHeaderWithFilter(filter BlockHeader) (*L1BlockHeader,
 	return &l1Header, nil
 }
 
-func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
+func (db *blocksDB) L1LatestBlockHeader() (*BlockHeader, error) {
 	var l1Header L1BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l1Header)
 	if result.Error != nil {
@@ -117,7 +117,7 @@ func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 		return nil, result.Error
 	}
 
-	return &l1Header, nil
+	return &l1Header.BlockHeader, nil
 }
 
 // L2
@@ -149,7 +149,7 @@ func (db *blocksDB) L2BlockHeaderWithFilter(filter BlockHeader) (*L2BlockHeader,
 	return &l2Header, nil
 }
 
-func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
+func (db *blocksDB) L2LatestBlockHeader() (*BlockHeader, error) {
 	var l2Header L2BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l2Header)
 	if result.Error != nil {
@@ -159,7 +159,7 @@ func (db *blocksDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
 		return nil, result.Error
 	}
 
-	return &l2Header, nil
+	return &l2Header.BlockHeader, nil
 }
 
 // Auxiliary Methods on both L1 & L2

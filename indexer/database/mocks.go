@@ -27,10 +27,10 @@ func (m *MockBlocksView) L1BlockHeaderWithFilter(BlockHeader) (*L1BlockHeader, e
 	return args.Get(0).(*L1BlockHeader), args.Error(1)
 }
 
-func (m *MockBlocksView) L1LatestBlockHeader() (*L1BlockHeader, error) {
+func (m *MockBlocksView) L1LatestBlockHeader() (*BlockHeader, error) {
 	args := m.Called()
 
-	header, ok := args.Get(0).(*L1BlockHeader)
+	header, ok := args.Get(0).(*BlockHeader)
 	if !ok {
 		header = nil
 	}
@@ -48,9 +48,9 @@ func (m *MockBlocksView) L2BlockHeaderWithFilter(BlockHeader) (*L2BlockHeader, e
 	return args.Get(0).(*L2BlockHeader), args.Error(1)
 }
 
-func (m *MockBlocksView) L2LatestBlockHeader() (*L2BlockHeader, error) {
+func (m *MockBlocksView) L2LatestBlockHeader() (*BlockHeader, error) {
 	args := m.Called()
-	return args.Get(0).(*L2BlockHeader), args.Error(1)
+	return args.Get(0).(*BlockHeader), args.Error(1)
 }
 
 func (m *MockBlocksView) LatestObservedEpoch(*big.Int, uint64) (*Epoch, error) {
