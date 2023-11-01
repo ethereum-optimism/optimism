@@ -159,6 +159,8 @@ type Backend struct {
 	latencySlidingWindow         *sw.AvgSlidingWindow
 	networkRequestsSlidingWindow *sw.AvgSlidingWindow
 	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
+
+	weight int
 }
 
 type BackendOpt func(b *Backend)
@@ -236,6 +238,12 @@ func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
 	return func(b *Backend) {
 		b.forcedCandidate = forcedCandidate
+	}
+}
+
+func WithWeight(weight int) BackendOpt {
+	return func(b *Backend) {
+		b.weight = weight
 	}
 }
 
@@ -683,9 +691,10 @@ func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
 }
 
 type BackendGroup struct {
-	Name      string
-	Backends  []*Backend
-	Consensus *ConsensusPoller
+	Name               string
+	Backends           []*Backend
+	UseWeightedRouting bool
+	Consensus          *ConsensusPoller
 }
 
 func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
@@ -741,6 +750,8 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			}
 		}
 		rpcReqs = rewrittenReqs
+	} else if bg.UseWeightedRouting {
+		backends = randomizeFirstBackendByWeight(backends)
 	}
 
 	rpcRequestsTotal.Inc()
@@ -808,6 +819,39 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 	return nil, "", ErrNoBackends
 }
 
+func randomizeFirstBackendByWeight(backends []*Backend) []*Backend {
+	if len(backends) == 0 {
+		return backends
+	}
+
+	totalWeight := 0
+	for _, backend := range backends {
+		totalWeight += backend.weight
+	}
+
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	random := r.Intn(totalWeight)
+	currentSum := 0
+
+	for idx, backend := range backends {
+		currentSum += backend.weight
+		if currentSum > random {
+			return moveIndexToStart(backends, idx)
+		}
+	}
+
+	log.Warn("unable to select weighted backend, using ordered input")
+	return backends
+}
+
+func moveIndexToStart(backends []*Backend, index int) []*Backend {
+	result := make([]*Backend, 0, len(backends))
+	result = append(result, backends[index])
+	result = append(result, backends[:index]...)
+	result = append(result, backends[index+1:]...)
+	return result
+}
+
 func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
 	for _, back := range bg.Backends {
 		proxier, err := back.ProxyWS(clientConn, methodWhitelist)
@@ -871,6 +915,11 @@ func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	r.Shuffle(len(backendsDegraded), func(i, j int) {
 		backendsDegraded[i], backendsDegraded[j] = backendsDegraded[j], backendsDegraded[i]
 	})
+
+	if bg.UseWeightedRouting {
+		backendsHealthy = randomizeFirstBackendByWeight(backendsHealthy)
+		backendsDegraded = randomizeFirstBackendByWeight(backendsDegraded)
+	}
 
 	// healthy are put into a priority position
 	// degraded backends are used as fallback

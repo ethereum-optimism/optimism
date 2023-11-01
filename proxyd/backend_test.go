@@ -19,3 +19,52 @@ func TestStripXFF(t *testing.T) {
 		assert.Equal(t, test.out, actual)
 	}
 }
+
+func TestMoveIndexToStart(t *testing.T) {
+	backends := []*Backend{
+		{
+			Name: "node1",
+		},
+		{
+			Name: "node1",
+		},
+		{
+			Name: "node1",
+		},
+	}
+
+	tests := []struct {
+		index int
+		out   []*Backend
+	}{
+		{
+			index: 0,
+			out: []*Backend{
+				backends[0],
+				backends[1],
+				backends[2],
+			},
+		},
+		{
+			index: 1,
+			out: []*Backend{
+				backends[1],
+				backends[0],
+				backends[2],
+			},
+		},
+		{
+			index: 2,
+			out: []*Backend{
+				backends[2],
+				backends[0],
+				backends[1],
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := moveIndexToStart(backends, test.index)
+		assert.Equal(t, test.out, result)
+	}
+}
