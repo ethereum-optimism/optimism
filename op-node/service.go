@@ -161,6 +161,8 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	return &node.L2EndpointConfig{
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
+		L2RpcTimeout:      ctx.Duration(flags.L2RpcTimeout.Name),
+		L2RpcBatchTimeout: ctx.Duration(flags.L2RpcBatchTimeout.Name),
 	}, nil
 }
 
