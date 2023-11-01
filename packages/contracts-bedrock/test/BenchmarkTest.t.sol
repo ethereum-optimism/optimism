@@ -4,16 +4,18 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
-import "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Types } from "src/libraries/Types.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
     _vm.store(address(_op), bytes32(uint256(1)), bytes32((block.number << 192) | _prevBaseFee));
 }
 
-contract SetPrevBaseFee_Test is Portal_Initializer {
+contract SetPrevBaseFee_Test is CommonTest {
     function test_setPrevBaseFee_succeeds() external {
         setPrevBaseFee(vm, address(optimismPortal), 100 gwei);
         (uint128 prevBaseFee,, uint64 prevBlockNum) = optimismPortal.params();
@@ -27,7 +29,7 @@ contract SetPrevBaseFee_Test is Portal_Initializer {
 // so that they are nothing more than the call we want measure the gas cost of.
 // In order to achieve this we make no assertions, and handle everything else in the setUp()
 // function.
-contract GasBenchMark_OptimismPortal is Portal_Initializer {
+contract GasBenchMark_OptimismPortal is CommonTest {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -100,7 +102,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     }
 }
 
-contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
+contract GasBenchMark_L1CrossDomainMessenger is Bridge_Initializer {
     function test_sendMessage_benchmark_0() external {
         vm.pauseGasMetering();
         setPrevBaseFee(vm, address(optimismPortal), 1 gwei);
@@ -192,7 +194,7 @@ contract GasBenchMark_L1StandardBridge_Finalize is Bridge_Initializer {
     }
 }
 
-contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
+contract GasBenchMark_L2OutputOracle is CommonTest {
     uint256 nextBlockNumber;
 
     function setUp() public override {

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Bridge_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Target contract
 import { FeeVault } from "src/universal/FeeVault.sol";

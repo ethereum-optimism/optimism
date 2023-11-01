@@ -59,4 +59,3 @@ runs = 512
 
 [profile.lite]
 optimizer = false
-

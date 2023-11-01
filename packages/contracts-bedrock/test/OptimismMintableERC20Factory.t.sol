@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
-import { Bridge_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);

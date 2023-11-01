@@ -3,7 +3,8 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
-import { Portal_Initializer } from "test/CommonTest.t.sol";
+
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
@@ -20,7 +21,7 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
-contract OptimismPortal_Test is Portal_Initializer {
+contract OptimismPortal_Test is CommonTest {
     event Paused(address);
     event Unpaused(address);
 
@@ -193,7 +194,11 @@ contract OptimismPortal_Test is Portal_Initializer {
         external
     {
         _gasLimit = uint64(
-            bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
+            bound(
+                _gasLimit,
+                optimismPortal.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
         );
         if (_isCreation) _to = address(0);
 
@@ -232,7 +237,13 @@ contract OptimismPortal_Test is Portal_Initializer {
     )
         external
     {
-        _gasLimit = uint64(bound(_gasLimit, optimismPortal.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit));
+        _gasLimit = uint64(
+            bound(
+                _gasLimit,
+                optimismPortal.minimumGasLimit(uint64(_data.length)),
+                systemConfig.resourceConfig().maxResourceLimit
+            )
+        );
         if (_isCreation) _to = address(0);
 
         vm.expectEmit(address(optimismPortal));
@@ -245,7 +256,6 @@ contract OptimismPortal_Test is Portal_Initializer {
             _isCreation: _isCreation,
             _data: _data
         });
-
 
         vm.deal(address(this), _mint);
         vm.prank(address(this));
@@ -306,7 +316,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 }
 
-contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
+contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -876,7 +886,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     }
 }
 
-contract OptimismPortalUpgradeable_Test is Portal_Initializer {
+contract OptimismPortalUpgradeable_Test is CommonTest {
     /// @dev Tests that the proxy is initialized correctly.
     function test_params_initValuesOnProxy_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = optimismPortal.params();
@@ -884,7 +894,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
-        assertEq(prevBlockNum, block.number - 1);
+        assertEq(prevBlockNum, block.number);
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
@@ -936,7 +946,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 /// @title OptimismPortalResourceFuzz_Test
 /// @dev Test various values of the resource metering config to ensure that deposits cannot be
 ///      broken by changing the config.
-contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
+contract OptimismPortalResourceFuzz_Test is CommonTest {
     /// @dev The max gas limit observed throughout this test. Setting this too high can cause
     ///      the test to take too long to run.
     uint256 constant MAX_GAS_LIMIT = 30_000_000;

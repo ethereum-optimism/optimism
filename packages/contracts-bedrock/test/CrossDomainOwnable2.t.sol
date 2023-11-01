@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest, Messenger_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
 import { Hashing } from "src/libraries/Hashing.sol";
@@ -10,10 +10,10 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 // Target contract dependencies
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Target contract
-import { CrossDomainOwnable2 } from "../src/L2/CrossDomainOwnable2.sol";
+import { CrossDomainOwnable2 } from "src/L2/CrossDomainOwnable2.sol";
 
 contract XDomainSetter2 is CrossDomainOwnable2 {
     uint256 public value;
@@ -23,7 +23,7 @@ contract XDomainSetter2 is CrossDomainOwnable2 {
     }
 }
 
-contract CrossDomainOwnable2_Test is Messenger_Initializer {
+contract CrossDomainOwnable2_Test is Bridge_Initializer {
     XDomainSetter2 setter;
 
     /// @dev Sets up the test suite.

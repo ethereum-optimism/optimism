@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 contract LegacyMessagePasser_Test is CommonTest {
     /// @dev Tests that `passMessageToL1` succeeds.

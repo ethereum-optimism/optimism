@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { VmSafe } from "forge-std/Vm.sol";
 import { Test } from "forge-std/Test.sol";
-import { Portal_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
@@ -46,7 +46,7 @@ contract CrossDomainOwnable_Test is Test {
     }
 }
 
-contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
+contract CrossDomainOwnableThroughPortal_Test is CommonTest {
     XDomainSetter setter;
 
     /// @dev Sets up the test suite.

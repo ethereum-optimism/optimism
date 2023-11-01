@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Target contract
 import { L1Block } from "src/L2/L1Block.sol";

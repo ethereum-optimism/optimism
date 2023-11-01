@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { Messenger_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { CallerCaller, Reverter } from "test/mocks/Callers.sol";
 
 // Libraries
@@ -16,7 +15,7 @@ import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 
 // CrossDomainMessenger_Test is for testing functionality which is common to both the L1 and L2
 // CrossDomainMessenger contracts. For simplicity, we use the L1 Messenger as the test contract.
-contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
+contract CrossDomainMessenger_BaseGas_Test is Bridge_Initializer {
     /// @dev Ensure that baseGas passes for the max value of _minGasLimit,
     ///      this is about 4 Billion.
     function test_baseGas_succeeds() external view {
@@ -112,7 +111,7 @@ contract ExternalRelay is Test {
 
 /// @title CrossDomainMessenger_RelayMessage_Test
 /// @notice Fuzz tests re-entrancy into the CrossDomainMessenger relayMessage function.
-contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
+contract CrossDomainMessenger_RelayMessage_Test is Bridge_Initializer {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 

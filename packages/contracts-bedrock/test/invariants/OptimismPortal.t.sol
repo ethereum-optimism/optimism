@@ -11,7 +11,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
-import { Portal_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Types } from "src/libraries/Types.sol";
 
@@ -74,7 +74,7 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
     }
 }
 
-contract OptimismPortal_Invariant_Harness is Portal_Initializer {
+contract OptimismPortal_Invariant_Harness is CommonTest {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -127,7 +127,7 @@ contract OptimismPortal_Invariant_Harness is Portal_Initializer {
     }
 }
 
-contract OptimismPortal_Deposit_Invariant is Portal_Initializer {
+contract OptimismPortal_Deposit_Invariant is CommonTest {
     OptimismPortal_Depositor internal actor;
 
     function setUp() public override {

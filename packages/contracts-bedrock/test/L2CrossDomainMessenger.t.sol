@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 
 // Libraries
@@ -14,7 +14,7 @@ import { Types } from "src/libraries/Types.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
-contract L2CrossDomainMessenger_Test is Messenger_Initializer {
+contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing
     address recipient = address(0xabbaacdc);
 

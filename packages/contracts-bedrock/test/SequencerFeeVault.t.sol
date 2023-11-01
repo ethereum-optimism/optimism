@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { FeeVault_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter } from "test/mocks/Callers.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 
@@ -15,7 +15,7 @@ import { FeeVault } from "src/universal/FeeVault.sol";
 // Target contract
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
-contract SequencerFeeVault_Test is FeeVault_Initializer {
+contract SequencerFeeVault_Test is CommonTest {
     address recipient;
     /// @dev Sets up the test suite.
 
@@ -98,7 +98,7 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
     }
 }
 
-contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
+contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
     address recipient;
     /// @dev Sets up the test suite.
 

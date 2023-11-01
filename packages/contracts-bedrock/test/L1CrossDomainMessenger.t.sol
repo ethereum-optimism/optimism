@@ -2,8 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer } from "test/CommonTest.t.sol";
-import { L2OutputOracle_Initializer } from "test/L2OutputOracle.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 
 // Libraries
@@ -15,7 +14,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 // Target contract dependencies
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
-contract L1CrossDomainMessenger_Test is Messenger_Initializer {
+contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev The receiver address
     address recipient = address(0xabbaacdc);
 

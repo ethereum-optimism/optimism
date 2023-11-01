@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
-import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { NextImpl } from "test/mocks/NextImpl.sol";
 import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
@@ -17,7 +17,7 @@ import { Proxy } from "src/universal/Proxy.sol";
 // Target contract
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 
-contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
+contract L2OutputOracle_constructor_Test is CommonTest {
     /// @dev Tests that constructor sets the initial values correctly.
     function test_constructor_succeeds() external {
         address proposer = cfg.l2OutputOracleProposer();
@@ -80,7 +80,7 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
     }
 }
 
-contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
+contract L2OutputOracle_getter_Test is CommonTest {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
     /// @dev Tests that `latestBlockNumber` returns the correct value.
@@ -216,7 +216,7 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
     }
 }
 
-contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
+contract L2OutputOracle_proposeL2Output_Test is CommonTest {
     /// @dev Test that `proposeL2Output` succeeds for a valid input
     ///      and when a block hash and number are not specified.
     function test_proposeL2Output_proposeAnotherOutput_succeeds() public {
@@ -308,7 +308,7 @@ contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
     }
 }
 
-contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
+contract L2OutputOracle_deleteOutputs_Test is CommonTest {
     /// @dev Tests that `deleteL2Outputs` succeeds for a single output.
     function test_deleteOutputs_singleOutput_succeeds() external {
         proposeAnotherOutput();
@@ -416,7 +416,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
     }
 }
 
-contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
+contract L2OutputOracleUpgradeable_Test is CommonTest {
     /// @dev Tests that the proxy is initialized with the correct values.
     function test_initValuesOnProxy_succeeds() external {
         address proposer = cfg.l2OutputOracleProposer();

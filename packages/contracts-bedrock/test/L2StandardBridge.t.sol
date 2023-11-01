@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 // Target contract is imported by the `Bridge_Initializer`
-import { Bridge_Initializer } from "test/CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";

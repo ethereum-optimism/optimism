@@ -2,25 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
 
 contract L2ToL1MessagePasserTest is CommonTest {
-    event MessagePassed(
-        uint256 indexed nonce,
-        address indexed sender,
-        address indexed target,
-        uint256 value,
-        uint256 gasLimit,
-        bytes data,
-        bytes32 withdrawalHash
-    );
-
-    event WithdrawerBalanceBurnt(uint256 indexed amount);
-
     /// @dev Tests that `initiateWithdrawal` succeeds and correctly sets the state
     ///      of the message passer for the withdrawal hash.
     function testFuzz_initiateWithdrawal_succeeds(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 
@@ -29,7 +29,7 @@ contract L2OutputOracle_Proposer {
     }
 }
 
-contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_Initializer {
+contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is CommonTest {
     L2OutputOracle_Proposer internal actor;
 
     function setUp() public override {
