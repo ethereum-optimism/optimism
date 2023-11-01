@@ -25,6 +25,15 @@ contract OptimismPortal_Test is Portal_Initializer {
     event Paused(address);
     event Unpaused(address);
 
+    address depositor;
+
+    function setUp() public override {
+        super.setUp();
+        depositor = makeAddr("depositor");
+        vm.deal(depositor, type(uint256).max);
+        vm.deal(address(this), type(uint256).max);
+    }
+
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
         assertEq(address(op.L2_ORACLE()), address(oracle));
@@ -162,119 +171,12 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertTrue(op.minimumGasLimit(3) > op.minimumGasLimit(2));
     }
 
-    /// @dev Tests that `depositTransaction` succeeds for an EOA depositing a tx with 0 value.
-    function testFuzz_depositTransaction_noValueEOA_succeeds(
+    /// @dev Tests that `depositTransaction` succeeds for an EOA.
+    function testFuzz_depositTransaction_eoa_succeeds(
         address _to,
         uint64 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        _gasLimit = uint64(
-            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
-        );
-
-        // EOA emulation
-        vm.expectEmit(address(op));
-        emitTransactionDeposited({
-            _from: address(this),
-            _to: _to,
-            _value: 0,
-            _mint: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
-        });
-
-        vm.prank(address(this), address(this));
-        op.depositTransaction({ _to: _to, _value: 0, _gasLimit: _gasLimit, _isCreation: false, _data: _data });
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for a contract depositing a tx with 0 value.
-    function testFuzz_depositTransaction_noValueContract_succeeds(
-        address _to,
-        uint64 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        _gasLimit = uint64(
-            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
-        );
-
-        vm.expectEmit(address(op));
-        emitTransactionDeposited({
-            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            _to: _to,
-            _value: 0,
-            _mint: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
-        });
-
-        op.depositTransaction({ _to: _to, _value: 0, _gasLimit: _gasLimit, _isCreation: false, _data: _data });
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for an EOA
-    ///      depositing a contract creation with 0 value.
-    function testFuzz_depositTransaction_createWithZeroValueForEOA_succeeds(
-        uint64 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        _gasLimit = uint64(
-            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
-        );
-
-        vm.expectEmit(address(op));
-        emitTransactionDeposited({
-            _from: address(this),
-            _to: address(0),
-            _value: 0,
-            _mint: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: true,
-            _data: _data
-        });
-
-        // EOA emulation
-        vm.prank(address(this), address(this));
-        op.depositTransaction({ _to: address(0), _value: 0, _gasLimit: _gasLimit, _isCreation: true, _data: _data });
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for a contract
-    ///      depositing a contract creation with 0 value.
-    function testFuzz_depositTransaction_createWithZeroValueForContract_succeeds(
-        uint64 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        _gasLimit = uint64(
-            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
-        );
-
-        vm.expectEmit(address(op));
-        emitTransactionDeposited({
-            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            _to: address(0),
-            _value: 0,
-            _mint: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: true,
-            _data: _data
-        });
-
-        op.depositTransaction({ _to: address(0), _value: 0, _gasLimit: _gasLimit, _isCreation: true, _data: _data });
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for an EOA depositing a tx with ETH.
-    function testFuzz_depositTransaction_withEthValueFromEOA_succeeds(
-        address _to,
         uint256 _value,
-        uint64 _gasLimit,
+        uint256 _mint,
         bool _isCreation,
         bytes memory _data
     )
@@ -286,106 +188,29 @@ contract OptimismPortal_Test is Portal_Initializer {
         if (_isCreation) _to = address(0);
 
         // EOA emulation
-        vm.deal(address(this), _value);
-
         vm.expectEmit(address(op));
         emitTransactionDeposited({
-            _from: address(this),
+            _from: depositor,
             _to: _to,
             _value: _value,
-            _mint: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: _isCreation,
-            _data: _data
-        });
-
-        vm.prank(address(this), address(this));
-        op.depositTransaction{ value: _value }({
-            _to: _to,
-            _value: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: _isCreation,
-            _data: _data
-        });
-        assertEq(address(op).balance, _value);
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for a contract depositing a tx with ETH.
-    function testFuzz_depositTransaction_withEthValueFromContract_succeeds(
-        address _to,
-        uint256 _value,
-        uint64 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        _gasLimit = uint64(
-            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
-        );
-
-        vm.deal(address(this), _value);
-
-        vm.expectEmit(address(op));
-        emitTransactionDeposited({
-            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            _to: _to,
-            _value: _value,
-            _mint: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
-        });
-
-        op.depositTransaction{ value: _value }({
-            _to: _to,
-            _value: _value,
-            _gasLimit: _gasLimit,
-            _isCreation: false,
-            _data: _data
-        });
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for an EOA depositing a contract creation with ETH.
-    function testFuzz_depositTransaction_withEthValueAndEOAContractCreation_succeeds(
-        uint256 _mint,
-        uint64 _gasLimit,
-        bytes memory _data
-    )
-        external
-    {
-        _gasLimit = uint64(
-            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
-        );
-
-        vm.deal(address(this), _mint);
-
-        vm.expectEmit(address(op));
-        emitTransactionDeposited({
-            _from: address(this),
-            _to: address(0),
-            _value: 0,
             _mint: _mint,
             _gasLimit: _gasLimit,
-            _isCreation: true,
+            _isCreation: _isCreation,
             _data: _data
         });
 
-        // EOA emulation
-        vm.prank(address(this), address(this));
-        op.depositTransaction{ value: _mint }({
-            _to: address(0),
-            _value: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: true,
-            _data: _data
-        });
+        vm.prank(depositor, depositor);
+        op.depositTransaction{ value: _mint }({ _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: _isCreation, _data: _data });
         assertEq(address(op).balance, _mint);
     }
 
-    /// @dev Tests that `depositTransaction` succeeds for a contract depositing a contract creation with ETH.
-    function testFuzz_depositTransaction_withEthValueAndContractContractCreation_succeeds(
-        uint256 _mint,
+    /// @dev Tests that `depositTransaction` succeeds for a contract.
+    function testFuzz_depositTransaction_contract_succeeds(
+        address _to,
         uint64 _gasLimit,
+        uint256 _value,
+        uint256 _mint,
+        bool _isCreation,
         bytes memory _data
     )
         external
@@ -393,27 +218,21 @@ contract OptimismPortal_Test is Portal_Initializer {
         _gasLimit = uint64(
             bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
         );
-
-        vm.deal(address(this), _mint);
+        if (_isCreation) _to = address(0);
 
         vm.expectEmit(address(op));
         emitTransactionDeposited({
             _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            _to: address(0),
-            _value: 0,
+            _to: _to,
+            _value: _value,
             _mint: _mint,
             _gasLimit: _gasLimit,
-            _isCreation: true,
+            _isCreation: _isCreation,
             _data: _data
         });
 
-        op.depositTransaction{ value: _mint }({
-            _to: address(0),
-            _value: 0,
-            _gasLimit: _gasLimit,
-            _isCreation: true,
-            _data: _data
-        });
+        vm.prank(address(this));
+        op.depositTransaction{ value: _mint }({ _to: _to, _value: _value, _gasLimit: _gasLimit, _isCreation: _isCreation, _data: _data });
         assertEq(address(op).balance, _mint);
     }
 
