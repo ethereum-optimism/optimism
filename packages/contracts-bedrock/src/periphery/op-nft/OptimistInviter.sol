@@ -91,7 +91,6 @@ contract OptimistInviter is ISemver, EIP712Upgradeable {
     /// @custom:semver 1.1.0
     string public constant version = "1.1.0";
 
-    /// @custom:semver 1.0.2
     /// @param _inviteGranter      Address of the invite granter.
     /// @param _attestationStation Address of the AttestationStation contract.
     constructor(address _inviteGranter, AttestationStation _attestationStation) {

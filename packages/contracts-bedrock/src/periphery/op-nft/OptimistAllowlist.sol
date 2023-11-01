@@ -34,7 +34,6 @@ contract OptimistAllowlist is ISemver {
     /// @custom:semver 1.1.0
     string public constant version = "1.1.0";
 
-    /// @custom:semver 1.0.2
     /// @param _attestationStation    Address of the AttestationStation contract.
     /// @param _allowlistAttestor     Address of the allowlist attestor.
     /// @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.

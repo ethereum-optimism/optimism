@@ -42,7 +42,6 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// @custom:semver 1.3.0
     string public constant version = "1.3.0";
 
-    /// @custom:semver 1.2.1
     /// @param _bridge      Address of the L2 standard bridge.
     /// @param _remoteToken Address of the corresponding L1 token.
     /// @param _name        ERC20 name.
