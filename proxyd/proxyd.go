@@ -176,9 +176,9 @@ func Start(config *Config) (*Server, func(), error) {
 			backends = append(backends, backendsByName[bName])
 		}
 		group := &BackendGroup{
-			Name:               bgName,
-			UseWeightedRouting: bg.UseWeightedRouting,
-			Backends:           backends,
+			Name:            bgName,
+			WeightedRouting: bg.WeightedRouting,
+			Backends:        backends,
 		}
 		backendGroups[bgName] = group
 	}

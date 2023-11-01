@@ -95,11 +95,11 @@ type BackendConfig struct {
 	ClientKeyFile    string `toml:"client_key_file"`
 	StripTrailingXFF bool   `toml:"strip_trailing_xff"`
 
+	Weight int `toml:"weight"`
+
 	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
 	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
 	ConsensusReceiptsTarget     string `toml:"consensus_receipts_target"`
-
-	Weight int `toml:"weight"`
 }
 
 type BackendsConfig map[string]*BackendConfig
@@ -107,7 +107,7 @@ type BackendsConfig map[string]*BackendConfig
 type BackendGroupConfig struct {
 	Backends []string `toml:"backends"`
 
-	UseWeightedRouting bool `toml:"weighted_routing"`
+	WeightedRouting bool `toml:"weighted_routing"`
 
 	ConsensusAware        bool   `toml:"consensus_aware"`
 	ConsensusAsyncHandler string `toml:"consensus_handler"`

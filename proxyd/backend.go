@@ -691,10 +691,10 @@ func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
 }
 
 type BackendGroup struct {
-	Name               string
-	Backends           []*Backend
-	UseWeightedRouting bool
-	Consensus          *ConsensusPoller
+	Name            string
+	Backends        []*Backend
+	WeightedRouting bool
+	Consensus       *ConsensusPoller
 }
 
 func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
@@ -750,7 +750,7 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			}
 		}
 		rpcReqs = rewrittenReqs
-	} else if bg.UseWeightedRouting {
+	} else if bg.WeightedRouting {
 		backends = randomizeFirstBackendByWeight(backends)
 	}
 
@@ -820,7 +820,7 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 }
 
 func randomizeFirstBackendByWeight(backends []*Backend) []*Backend {
-	if len(backends) == 0 {
+	if len(backends) <= 1 {
 		return backends
 	}
 
@@ -916,7 +916,7 @@ func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 		backendsDegraded[i], backendsDegraded[j] = backendsDegraded[j], backendsDegraded[i]
 	})
 
-	if bg.UseWeightedRouting {
+	if bg.WeightedRouting {
 		backendsHealthy = randomizeFirstBackendByWeight(backendsHealthy)
 		backendsDegraded = randomizeFirstBackendByWeight(backendsDegraded)
 	}
