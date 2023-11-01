@@ -122,7 +122,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					ListenAddr:  "127.0.0.1",
 					ListenPort:  0,
 					EnableAdmin: true,
-					RpcTimout:   time.Second * 10,
 				},
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,

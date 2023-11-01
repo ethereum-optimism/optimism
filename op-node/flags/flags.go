@@ -67,12 +67,6 @@ var (
 		Usage:   "File path used to persist state changes made via the admin API so they persist across restarts. Disabled if not set.",
 		EnvVars: prefixEnvVars("RPC_ADMIN_STATE"),
 	}
-	RPCTimeout = &cli.DurationFlag{
-		Name:    "rpc.timeout",
-		Usage:   "Timeout for RPC requests",
-		Value:   time.Second * 10,
-		EnvVars: prefixEnvVars("RPC_TIMEOUT"),
-	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",
 		Usage:   "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -290,7 +284,6 @@ var optionalFlags = []cli.Flag{
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
-	RPCTimeout,
 	RPCAdminPersistence,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
