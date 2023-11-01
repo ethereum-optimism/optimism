@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -69,20 +70,22 @@ func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
 }
 
 type nodeAPI struct {
-	config *rollup.Config
-	client l2EthClient
-	dr     driverClient
-	log    log.Logger
-	m      metrics.RPCMetricer
+	config     *rollup.Config
+	client     l2EthClient
+	rpcTimeout time.Duration
+	dr         driverClient
+	log        log.Logger
+	m          metrics.RPCMetricer
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, rpcTimeout time.Duration, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
-		config: config,
-		client: l2Client,
-		dr:     dr,
-		log:    log,
-		m:      m,
+		config:     config,
+		client:     l2Client,
+		rpcTimeout: rpcTimeout,
+		dr:         dr,
+		log:        log,
+		m:          m,
 	}
 }
 
@@ -95,7 +98,9 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		return nil, fmt.Errorf("failed to get L2 block ref with sync status: %w", err)
 	}
 
-	output, err := n.client.OutputV0AtBlock(ctx, ref.Hash)
+	contextWithTimeout, cancel := context.WithTimeout(ctx, n.rpcTimeout)
+	output, err := n.client.OutputV0AtBlock(contextWithTimeout, ref.Hash)
+	defer cancel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get L2 output at block %s: %w", ref, err)
 	}
