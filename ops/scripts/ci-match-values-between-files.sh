@@ -54,4 +54,7 @@ if [ "$VALUE1" != "$VALUE2" ]; then
 fi
 
 echo "Values match!"
+<<<<<<< HEAD
 
+=======
+>>>>>>> 6ca69e25f (missing ops script files)

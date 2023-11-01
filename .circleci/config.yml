@@ -4,6 +4,7 @@ parameters:
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+
 orbs:
   go: circleci/go@1.8.0
   gcp-cli: circleci/gcp-cli@3.0.1
@@ -176,18 +177,14 @@ jobs:
         description: Docker registry
         type: string
         default: "us-docker.pkg.dev"
+      project_id:
+        description: GCP project id
+        type: string
+        default: "${GCP_PROJECT_ID}"
       repo:
         description: Docker repo
         type: string
-        default: "${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
-      build_args:
-        description: Docker build args
-        type: string
-        default: ""
-      load_base_image:
-        description: Load docker image as base
-        type: string
-        default: ""
+        default: "${GCP_ARTIFACT_REPOSITORY}/images"
       save_image_tag:
         description: Save docker image with given tag
         type: string
@@ -242,6 +239,7 @@ jobs:
             fi
 
             export REGISTRY="<<parameters.registry>>"
+            export PROJECT_ID="<<parameters.project_id>>"
             export REPOSITORY="<<parameters.repo>>"
             export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
@@ -295,7 +293,7 @@ jobs:
             - run:
                 name: Save
                 command: |
-                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
+                  IMAGE_NAME="<<parameters.registry>>/<<parameters.project_id>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
                   docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
             - persist_to_workspace:
                 root: /tmp/docker_images
@@ -307,7 +305,7 @@ jobs:
             - run:
                 name: Tag
                 command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.project_id>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-coverage:
     docker:
@@ -771,7 +769,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
+      - image: <<pipeline.parameters.ci_builder_image>> # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -795,9 +793,10 @@ jobs:
           key: golang-build-cache-<<parameters.module>>
           paths:
             - "/root/.cache/go-build"
-      - run:
-          name: upload coverage
-          command: codecov --verbose --clean --flags bedrock-go-tests
+      # TODO(CLI-148): Fix codecov
+      #- run:
+          #name: upload coverage
+          #command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /tmp/test-results
 
@@ -816,6 +815,12 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
+    # Note: Tests are split between runs manually.
+    # Tests default to run on the first executor but can be moved to the second with:
+    # InitParallel(t, UseExecutor(1))
+    # Any tests assigned to an executor greater than the number available automatically use the last executor.
+    # Executor indexes start from 0
+    parallelism: 2
     steps:
       - checkout
       - check-changed:
@@ -1382,7 +1387,7 @@ jobs:
         type: string
         default: ""
     docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+      - image: <<pipeline.parameters.ci_builder_image>>
     steps:
       - checkout
       - run:
@@ -1487,6 +1492,7 @@ workflows:
           name: cannon-fuzz
           package_name: cannon
           on_changes: cannon,packages/contracts-bedrock/src/cannon
+          requires: ["op-stack-go-lint"]
       - go-test:
           name: boba-bindings-tests
           module: boba-bindings
@@ -1495,10 +1501,6 @@ workflows:
           name: op-heartbeat-tests
           module: op-heartbeat
           requires: [ "op-stack-go-lint" ]
-      - go-test:
-          name: boba-chain-ops-tests
-          module: boba-chain-ops
-          requires: ["op-stack-go-lint"]
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -1634,14 +1636,6 @@ workflows:
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
           requires: ["op-stack-go-lint"]
-      - devnet-hardhat:
-          requires:
-            - op-node-docker-build
-            - op-batcher-docker-build
-            - op-proposer-docker-build
-            - l1-geth-version-check
-            - devnet-allocs
-            - cannon-prestate
       - devnet:
           requires:
             - op-node-docker-build
