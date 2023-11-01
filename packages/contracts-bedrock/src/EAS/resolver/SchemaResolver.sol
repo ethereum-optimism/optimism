@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.19;
 
-import { IEAS, Attestation } from "src/EAS/IEAS.sol";
-import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc } from "src/EAS/Common.sol";
+import { Semver } from "../../universal/Semver.sol";
 
-import { ISchemaResolver } from "src/EAS/resolver/ISchemaResolver.sol";
+import { IEAS, Attestation } from "../IEAS.sol";
+import { AccessDenied, InvalidEAS, InvalidLength, uncheckedInc } from "../Common.sol";
+
+import { ISchemaResolver } from "./ISchemaResolver.sol";
 
 /// @title SchemaResolver
 /// @notice The base schema resolver contract.
-abstract contract SchemaResolver is ISchemaResolver {
+abstract contract SchemaResolver is ISchemaResolver, Semver {
     error InsufficientValue();
     error NotPayable();
 
@@ -17,7 +19,7 @@ abstract contract SchemaResolver is ISchemaResolver {
 
     /// @dev Creates a new resolver.
     /// @param eas The address of the global EAS contract.
-    constructor(IEAS eas) {
+    constructor(IEAS eas) Semver(1, 2, 0) {
         if (address(eas) == address(0)) {
             revert InvalidEAS();
         }

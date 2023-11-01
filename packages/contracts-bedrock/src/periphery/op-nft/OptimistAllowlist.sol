@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ISemver } from "src/universal/ISemver.sol";
-import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
-import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
+import { Semver } from "../../universal/Semver.sol";
+import { AttestationStation } from "./AttestationStation.sol";
+import { OptimistConstants } from "./libraries/OptimistConstants.sol";
 
 /// @title  OptimistAllowlist
 /// @notice Source of truth for whether an address is able to mint an Optimist NFT.
 ///         isAllowedToMint function checks various signals to return boolean value
 ///         for whether an address is eligible or not.
-contract OptimistAllowlist is ISemver {
+contract OptimistAllowlist is Semver {
     /// @notice Attestation key used by the AllowlistAttestor to manually add addresses to the
     ///         allowlist.
     bytes32 public constant OPTIMIST_CAN_MINT_ATTESTATION_KEY = bytes32("optimist.can-mint");
@@ -30,10 +30,7 @@ contract OptimistAllowlist is ISemver {
     ///         attestations.
     address public immutable OPTIMIST_INVITER;
 
-    /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
-
+    /// @custom:semver 1.0.2
     /// @param _attestationStation    Address of the AttestationStation contract.
     /// @param _allowlistAttestor     Address of the allowlist attestor.
     /// @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.
@@ -43,7 +40,9 @@ contract OptimistAllowlist is ISemver {
         address _allowlistAttestor,
         address _coinbaseQuestAttestor,
         address _optimistInviter
-    ) {
+    )
+        Semver(1, 0, 2)
+    {
         ATTESTATION_STATION = _attestationStation;
         ALLOWLIST_ATTESTOR = _allowlistAttestor;
         COINBASE_QUEST_ATTESTOR = _coinbaseQuestAttestor;
