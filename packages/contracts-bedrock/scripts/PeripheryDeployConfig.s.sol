@@ -34,6 +34,22 @@ contract PeripheryDeployConfig is Script {
     address public faucetOffchainAuthModuleAdmin;
     uint256 public faucetOffchainAuthModuleTtl;
     uint256 public faucetOffchainAuthModuleAmount;
+    bool public installOpChainFaucetsDrips;
+    uint256 public smallOpChainFaucetDripValue;
+    uint256 public smallOpChainFaucetDripInterval;
+    uint256 public largeOpChainFaucetDripValue;
+    uint256 public largeOpChainFaucetDripInterval;
+    uint256 public opChainAdminWalletDripValue;
+    uint256 public opChainAdminWalletDripInterval;
+    address public opL1BridgeAddress;
+    address public zoraL1BridgeAddress;
+    address public pgnL1BridgeAddress;
+    address public orderlyL1BridgeAddress;
+    address public modeL1BridgeAddress;
+    address public lyraL1BridgeAddress;
+    address[5] public smallFaucetsL1BridgeAddresses;
+    address[1] public largeFaucetsL1BridgeAddresses;
+    uint256 public dripVersion;
 
     constructor(string memory _path) {
         console.log("PeripheryDeployConfig: reading file %s", _path);
@@ -66,5 +82,33 @@ contract PeripheryDeployConfig is Script {
         faucetOffchainAuthModuleAdmin = stdJson.readAddress(_json, "$.faucetOffchainAuthModuleAdmin");
         faucetOffchainAuthModuleTtl = stdJson.readUint(_json, "$.faucetOffchainAuthModuleTtl");
         faucetOffchainAuthModuleAmount = stdJson.readUint(_json, "$.faucetOffchainAuthModuleAmount");
+        installOpChainFaucetsDrips = stdJson.readBool(_json, "$.installOpChainFaucetsDrips");
+        opL1BridgeAddress = stdJson.readAddress(_json, "$.opL1BridgeAddress");
+        zoraL1BridgeAddress = stdJson.readAddress(_json, "$.zoraL1BridgeAddress");
+        pgnL1BridgeAddress = stdJson.readAddress(_json, "$.pgnL1BridgeAddress");
+        orderlyL1BridgeAddress = stdJson.readAddress(_json, "$.orderlyL1BridgeAddress");
+        modeL1BridgeAddress = stdJson.readAddress(_json, "$.modeL1BridgeAddress");
+        lyraL1BridgeAddress = stdJson.readAddress(_json, "$.lyraL1BridgeAddress");
+        dripVersion = stdJson.readUint(_json, "$.dripVersion");
+        smallOpChainFaucetDripValue = stdJson.readUint(_json, "$.smallOpChainFaucetDripValue");
+        smallOpChainFaucetDripInterval = stdJson.readUint(_json, "$.smallOpChainFaucetDripInterval");
+        largeOpChainFaucetDripValue = stdJson.readUint(_json, "$.largeOpChainFaucetDripValue");
+        largeOpChainFaucetDripInterval = stdJson.readUint(_json, "$.largeOpChainFaucetDripInterval");
+        opChainAdminWalletDripValue = stdJson.readUint(_json, "$.opChainAdminWalletDripValue");
+        opChainAdminWalletDripInterval = stdJson.readUint(_json, "$.opChainAdminWalletDripInterval");
+        largeFaucetsL1BridgeAddresses[0] = opL1BridgeAddress;
+        smallFaucetsL1BridgeAddresses[0] = zoraL1BridgeAddress;
+        smallFaucetsL1BridgeAddresses[1] = pgnL1BridgeAddress;
+        smallFaucetsL1BridgeAddresses[2] = orderlyL1BridgeAddress;
+        smallFaucetsL1BridgeAddresses[3] = modeL1BridgeAddress;
+        smallFaucetsL1BridgeAddresses[4] = lyraL1BridgeAddress;
+    }
+
+    function getSmallFaucetsL1BridgeAddressesCount() public view returns (uint256 count) {
+        return smallFaucetsL1BridgeAddresses.length;
+    }
+
+    function getLargeFaucetsL1BridgeAddressesCount() public view returns (uint256 count) {
+        return largeFaucetsL1BridgeAddresses.length;
     }
 }
