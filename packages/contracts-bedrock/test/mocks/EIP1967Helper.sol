@@ -17,4 +17,3 @@ library EIP1967Helper {
         return address(uint160(uint256(vm.load(address(_proxy), Constants.PROXY_IMPLEMENTATION_ADDRESS))));
     }
 }
-
