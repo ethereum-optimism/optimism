@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/urfave/cli/v2"
@@ -78,8 +79,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
-			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
-			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
+			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
+			ListenPort: ctx.Int(flags.RPCListenPort.Name),
+			ListenTimeout: &httputil.HTTPTimeouts{
+				ReadTimeout:       ctx.Duration(flags.RPCListenReadTimeout.Name),
+				ReadHeaderTimeout: ctx.Duration(flags.RPCListenReadHeaderTimeout.Name),
+				WriteTimeout:      ctx.Duration(flags.RPCListenWriteTimeout.Name),
+				IdleTimeout:       ctx.Duration(flags.RPCListenIdleTimeout.Name),
+			},
 			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
 		},
 		Metrics: node.MetricsConfig{
