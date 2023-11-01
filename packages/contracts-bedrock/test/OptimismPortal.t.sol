@@ -30,8 +30,8 @@ contract OptimismPortal_Test is Portal_Initializer {
     function setUp() public override {
         super.setUp();
         depositor = makeAddr("depositor");
-        vm.deal(depositor, type(uint256).max);
-        vm.deal(address(this), type(uint256).max);
+        vm.deal(depositor, type(uint128).max);
+        vm.deal(address(this), type(uint128).max);
     }
 
     /// @dev Tests that the constructor sets the correct values.
