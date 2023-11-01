@@ -139,8 +139,12 @@ var RPCProviderKinds = []RPCProviderKind{
 	RPCKindBasic,
 	RPCKindAny,
 	RPCKindStandard,
-	RPCKindRethDB,
 }
+
+// Copy of RPCProviderKinds with RethDB added to all RethDB to be used but to hide it from the flags
+var validRPCProviderKinds = func() []RPCProviderKind {
+	return append(RPCProviderKinds, RPCKindRethDB)
+}()
 
 func (kind RPCProviderKind) String() string {
 	return string(kind)
@@ -160,7 +164,7 @@ func (kind *RPCProviderKind) Clone() any {
 }
 
 func ValidRPCProviderKind(value RPCProviderKind) bool {
-	for _, k := range RPCProviderKinds {
+	for _, k := range validRPCProviderKinds {
 		if k == value {
 			return true
 		}

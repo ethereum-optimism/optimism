@@ -3,8 +3,7 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { CallRecorder } from "test/Helpers.sol";
-import { Reverter } from "test/Helpers.sol";
+import { CallRecorder, Reverter } from "test/mocks/Callers.sol";
 import { Transactor } from "src/periphery/Transactor.sol";
 
 contract Transactor_Initializer is Test {

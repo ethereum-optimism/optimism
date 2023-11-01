@@ -108,6 +108,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 					l1BlockHeaders = append(l1BlockHeaders, database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])})
 				}
 			}
+
 			if len(l1BlockHeaders) == 0 {
 				batch.Logger.Info("no l1 blocks with logs in batch")
 				continue
@@ -117,6 +118,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 			for i := range batch.Logs {
 				timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
 				l1ContractEvents[i] = database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
+				l1Etl.ETL.metrics.RecordIndexedLog(batch.Logs[i].Address)
 			}
 
 			// Continually try to persist this batch. If it fails after 10 attempts, we simply error out
@@ -138,7 +140,6 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 
 				l1Etl.ETL.metrics.RecordIndexedHeaders(len(l1BlockHeaders))
 				l1Etl.ETL.metrics.RecordIndexedLatestHeight(l1BlockHeaders[len(l1BlockHeaders)-1].Number)
-				l1Etl.ETL.metrics.RecordIndexedLogs(len(l1ContractEvents))
 
 				// a-ok!
 				return nil, nil

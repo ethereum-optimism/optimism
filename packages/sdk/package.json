@@ -54,9 +54,9 @@
     "mocha": "^10.2.0",
     "nyc": "^15.1.0",
     "ts-node": "^10.9.1",
-    "typedoc": "^0.25.2",
+    "typedoc": "^0.25.3",
     "typescript": "^5.2.2",
-    "viem": "^1.18.0",
+    "viem": "^1.18.1",
     "vitest": "^0.34.2",
     "zod": "^3.22.4"
   },
@@ -65,7 +65,7 @@
     "@eth-optimism/contracts-bedrock": "workspace:*",
     "@eth-optimism/core-utils": "workspace:*",
     "lodash": "^4.17.21",
-    "merkletreejs": "^0.3.10",
+    "merkletreejs": "^0.3.11",
     "rlp": "^2.2.7"
   },
   "peerDependencies": {

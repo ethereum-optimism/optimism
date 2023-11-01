@@ -3,12 +3,13 @@ package derive
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -21,7 +22,7 @@ type ChannelInReader struct {
 
 	cfg *rollup.Config
 
-	nextBatchFn func() (BatchWithL1InclusionBlock, error)
+	nextBatchFn func() (*BatchData, error)
 
 	prev *ChannelBank
 
@@ -46,7 +47,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 
 // TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
-	if f, err := BatchReader(cr.cfg, bytes.NewBuffer(data), cr.Origin()); err == nil {
+	if f, err := BatchReader(bytes.NewBuffer(data)); err == nil {
 		cr.nextBatchFn = f
 		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil
@@ -65,7 +66,7 @@ func (cr *ChannelInReader) NextChannel() {
 // NextBatch pulls out the next batch from the channel if it has it.
 // It returns io.EOF when it cannot make any more progress.
 // It will return a temporary error if it needs to be called again to advance some internal state.
-func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
+func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	if cr.nextBatchFn == nil {
 		if data, err := cr.prev.NextData(ctx); err == io.EOF {
 			return nil, io.EOF
@@ -80,7 +81,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
 
 	// TODO: can batch be non nil while err == io.EOF
 	// This depends on the behavior of rlp.Stream
-	batch, err := cr.nextBatchFn()
+	batchData, err := cr.nextBatchFn()
 	if err == io.EOF {
 		cr.NextChannel()
 		return nil, NotEnoughData
@@ -89,7 +90,31 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
 		cr.NextChannel()
 		return nil, NotEnoughData
 	}
-	return batch.Batch, nil
+	switch batchData.GetBatchType() {
+	case SingularBatchType:
+		singularBatch, ok := batchData.inner.(*SingularBatch)
+		if !ok {
+			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
+		}
+		return singularBatch, nil
+	case SpanBatchType:
+		if origin := cr.Origin(); !cr.cfg.IsSpanBatch(origin.Time) {
+			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
+		}
+		rawSpanBatch, ok := batchData.inner.(*RawSpanBatch)
+		if !ok {
+			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
+		}
+		// If the batch type is Span batch, derive block inputs from RawSpanBatch.
+		spanBatch, err := rawSpanBatch.derive(cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
+		if err != nil {
+			return nil, err
+		}
+		return spanBatch, nil
+	default:
+		// error is bubbled up to user, but pipeline can skip the batch and continue after.
+		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))
+	}
 }
 
 func (cr *ChannelInReader) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {

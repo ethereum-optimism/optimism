@@ -3,7 +3,9 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { stdError } from "forge-std/Test.sol";
-import { L2OutputOracle_Initializer, NextImpl, EIP1967Helper } from "test/CommonTest.t.sol";
+import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
+import { NextImpl } from "test/mocks/NextImpl.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Types } from "src/libraries/Types.sol";

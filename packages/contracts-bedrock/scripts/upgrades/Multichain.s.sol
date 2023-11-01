@@ -10,7 +10,6 @@ import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Semver } from "src/universal/Semver.sol";
 
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";

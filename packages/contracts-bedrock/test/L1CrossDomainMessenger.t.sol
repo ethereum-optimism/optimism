@@ -2,8 +2,9 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer, Reverter, ConfigurableCaller } from "test/CommonTest.t.sol";
+import { Messenger_Initializer } from "test/CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "test/L2OutputOracle.t.sol";
+import { Reverter, ConfigurableCaller } from "test/mocks/Callers.sol";
 
 // Libraries
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
@@ -12,11 +13,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 
 // Target contract dependencies
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
-
-// Target contract
-import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 
 contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     /// @dev The receiver address

@@ -1,11 +1,15 @@
 package derive
 
 import (
+	"bytes"
+	"io"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Batch format
@@ -50,4 +54,14 @@ func (b *SingularBatch) LogContext(log log.Logger) log.Logger {
 // Epoch returns a BlockID of its L1 origin.
 func (b *SingularBatch) Epoch() eth.BlockID {
 	return eth.BlockID{Hash: b.EpochHash, Number: uint64(b.EpochNum)}
+}
+
+// encode writes the byte encoding of SingularBatch to Writer stream
+func (b *SingularBatch) encode(w io.Writer) error {
+	return rlp.Encode(w, b)
+}
+
+// decode reads the byte encoding of SingularBatch from Reader stream
+func (b *SingularBatch) decode(r *bytes.Reader) error {
+	return rlp.Decode(r, b)
 }

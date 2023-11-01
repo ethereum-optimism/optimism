@@ -231,6 +231,9 @@ func (b *BridgeProcessor) run() error {
 
 	batchLog.Info("indexed bridge events", "latest_l1_block_number", toL1Height, "latest_l2_block_number", toL2Height)
 	b.LatestL1Header = latestEpoch.L1BlockHeader.RLPHeader.Header()
+	b.metrics.RecordLatestIndexedL1Height(b.LatestL1Header.Number)
+
 	b.LatestL2Header = latestEpoch.L2BlockHeader.RLPHeader.Header()
+	b.metrics.RecordLatestIndexedL2Height(b.LatestL2Header.Number)
 	return nil
 }

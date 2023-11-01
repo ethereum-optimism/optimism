@@ -5,7 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
 import { IDripCheck } from "src/periphery/drippie/IDripCheck.sol";
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
-import { SimpleStorage } from "test/Helpers.sol";
+import { SimpleStorage } from "test/mocks/SimpleStorage.sol";
 
 /// @title  TestDrippie
 /// @notice This is a wrapper contract around Drippie used for testing.

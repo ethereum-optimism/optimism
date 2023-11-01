@@ -173,6 +173,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		SubSafetyMargin:    cfg.SubSafetyMargin,
 		MaxFrameSize:       cfg.MaxL1TxSize - 1, // subtract 1 byte for version
 		CompressorConfig:   cfg.CompressorConfig.Config(),
+		BatchType:          cfg.BatchType,
 	}
 	if err := bs.Channel.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
@@ -289,8 +290,10 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	bs.Log.Info("Stopping batcher")
 
 	var result error
-	if err := bs.driver.StopBatchSubmittingIfRunning(ctx); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop batch submitting: %w", err))
+	if bs.driver != nil {
+		if err := bs.driver.StopBatchSubmittingIfRunning(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop batch submitting: %w", err))
+		}
 	}
 
 	if bs.rpcServer != nil {
@@ -327,7 +330,7 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 
 	if result == nil {
 		bs.stopped.Store(true)
-		bs.driver.Log.Info("Batch Submitter stopped")
+		bs.Log.Info("Batch Submitter stopped")
 	}
 	return result
 }

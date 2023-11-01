@@ -151,10 +151,10 @@ github.com/elastic/gosigar v0.14.2 h1:Dg80n8cr90OZ7x+bAax/QjoW/XqTI11RmA79ZwIm9/
 github.com/elastic/gosigar v0.14.2/go.mod h1:iXRIGg2tLnu7LBdpqzyQfGDEidKCfWcCMS0WKyPWoMs=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
-github.com/ethereum-optimism/op-geth v1.101303.0-rc.2.0.20231026180835-94fbbd04522e h1:5ucLyIBCwo07ejZOKFY+6QbCqbLgITHWVqkmLoO6604=
-github.com/ethereum-optimism/op-geth v1.101303.0-rc.2.0.20231026180835-94fbbd04522e/go.mod h1:m6GrpSyAe1zdFLJlSctgYKSXUdHwj/yfq2WSOc5vs2A=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231026175037-2cff0d130e74 h1:02gXBD+Cas7xj9rpkke5wD1+vpfYxyF/+31M5tosP9A=
-github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231026175037-2cff0d130e74/go.mod h1:/70H/KqrtKcvWvNGVj6S3rAcLC+kUPr3t2aDmYIS+Xk=
+github.com/ethereum-optimism/op-geth v1.101304.0-rc.2.0.20231030225546-cd491fa3b588 h1:jrvFoV3aSGJcTT8Pyo8R2Sp7CZ0v3hqrdhfSmyZbJVw=
+github.com/ethereum-optimism/op-geth v1.101304.0-rc.2.0.20231030225546-cd491fa3b588/go.mod h1:12W+vBetjYbDj5D2+V8hizke5yWuLrUDf7UmVkXTnCQ=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231030223232-e16eae11e492 h1:FyzLzMLKMc9zcDYcSxbrLDglIRrGQJE9juFzIO35RmE=
+github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231030223232-e16eae11e492/go.mod h1:/70H/KqrtKcvWvNGVj6S3rAcLC+kUPr3t2aDmYIS+Xk=
 github.com/ethereum/c-kzg-4844 v0.3.1 h1:sR65+68+WdnMKxseNWxSJuAv2tsUrihTpVBTfM/U5Zg=
 github.com/ethereum/c-kzg-4844 v0.3.1/go.mod h1:VewdlzQmpT5QSrVhbBuGoCdFJkpaJlO1aQputP83wc0=
 github.com/fatih/color v1.13.0 h1:8LOYc1KYPPmyKMuN8QV2DNRWNbLo6LZ0iLs8+mlH53w=
