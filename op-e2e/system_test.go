@@ -708,7 +708,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,
 			EnableAdmin: true,
-			RpcTimout:   10 * time.Second,
 		},
 		P2P:                 &p2p.Prepared{HostP2P: h, EnableReqRespSync: true},
 		Metrics:             rollupNode.MetricsConfig{Enabled: false}, // no metrics server

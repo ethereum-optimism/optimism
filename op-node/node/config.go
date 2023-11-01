@@ -66,7 +66,6 @@ type RPCConfig struct {
 	ListenAddr  string
 	ListenPort  int
 	EnableAdmin bool
-	RpcTimout   time.Duration
 }
 
 func (cfg *RPCConfig) HttpEndpoint() string {
