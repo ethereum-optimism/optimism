@@ -23,7 +23,7 @@ func TestContractCall_ToCallArgs(t *testing.T) {
 	require.Equal(t, argMap["to"], &addr)
 	expectedData, err := call.Pack()
 	require.NoError(t, err)
-	require.Equal(t, argMap["data"], hexutil.Bytes(expectedData))
+	require.Equal(t, argMap["input"], hexutil.Bytes(expectedData))
 
 	require.NotContains(t, argMap, "value")
 	require.NotContains(t, argMap, "gas")

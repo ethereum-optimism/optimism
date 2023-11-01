@@ -76,7 +76,7 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 	callOpts, ok := args[0].(map[string]any)
 	require.True(l.t, ok)
 	require.Equal(l.t, &l.addr, callOpts["to"])
-	data, ok := callOpts["data"].(hexutil.Bytes)
+	data, ok := callOpts["input"].(hexutil.Bytes)
 	require.True(l.t, ok)
 	abiMethod, err := l.abi.MethodById(data[0:4])
 	require.NoError(l.t, err)
