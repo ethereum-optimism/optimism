@@ -12,7 +12,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 import { Portal_Initializer } from "test/CommonTest.t.sol";
-import { EIP1967Helper } from "test/CommonTest.t.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 import { Types } from "src/libraries/Types.sol";
 
 contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
