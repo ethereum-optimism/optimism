@@ -158,15 +158,11 @@ because we know the upper limit of memory usage.
 
 Span batch hard fork is activated based on timestamp.
 
-Activation Rule: `x != null && x >= upgradeTime && y != null && y >= upgradeTime`
+Activation Rule: `upgradeNumber != null && x >= upgradeTime`
 
-Let `inclusion_block` be the L1 block when the span batch was first fully derived.
-
-`x == span_start.timestamp`, which is the timestamp of first L2 block timestamp derived from span batch.
-
-`y == inclusion_block.timestamp`, which is the timestamp of L1 block when span batch was first fully derived.
-We need this additional check because span batch hard fork is a derivation update, and
-`x` becomes dependent of the hard fork(we must run span batch decoding to find `x`).
+`x == span_start.l1_origin.timestamp`, which is the L1 origin block timestamp of the first block in the span.
+This rule ensures that every chain activity regarding this span batch is done after the hard fork.
+i.e. Every block in the span is created, submitted to the L1, and derived from the L1 after the hard fork.
 
 ## Optimization Strategies
 
