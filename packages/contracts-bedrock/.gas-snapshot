@@ -486,7 +486,7 @@ OptimismPortal_FinalizeWithdrawal_Test:test_proveWithdrawalTransaction_replayPro
 OptimismPortal_FinalizeWithdrawal_Test:test_proveWithdrawalTransaction_replayProve_reverts() (gas: 166699)
 OptimismPortal_FinalizeWithdrawal_Test:test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() (gas: 154430)
 OptimismPortal_Test:test_constructor_succeeds() (gas: 28164)
-OptimismPortal_Test:test_depositTransaction_contractCreation_reverts() (gas: 14292)
+OptimismPortal_Test:test_depositTransaction_contractCreation_reverts() (gas: 14281)
 OptimismPortal_Test:test_depositTransaction_largeData_reverts() (gas: 512200)
 OptimismPortal_Test:test_depositTransaction_smallGasLimit_reverts() (gas: 14528)
 OptimismPortal_Test:test_isOutputFinalized_succeeds() (gas: 127594)
