@@ -21,7 +21,8 @@ func TestDencunL1Fork(gt *testing.T) {
 
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
-	require.False(t, sd.L1Cfg.Config.IsCancun(miner.l1Chain.CurrentBlock().Time), "dencun not active yet") // QUESTION: what other arg should be supplied?
+	l1Head := miner.l1Chain.CurrentBlock()
+	require.False(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "dencun not active yet") // QUESTION: what other arg should be supplied?
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -33,8 +34,8 @@ func TestDencunL1Fork(gt *testing.T) {
 	miner.ActEmptyBlock(t)
 
 	// verify Cancun is active
-	l1Head := miner.l1Chain.CurrentBlock()
-	require.True(t, sd.L1Cfg.Config.IsCancun(l1Head.Time), "dencun active")
+	l1Head = miner.l1Chain.CurrentBlock()
+	require.True(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "dencun active")
 
 	//BEFORE MERGE OF PR #7993: Also, add a few blob txs in as dummy data TODO
 
