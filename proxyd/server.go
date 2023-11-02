@@ -44,6 +44,7 @@ const (
 	defaultWSWriteTimeout        = 10 * time.Second
 	maxRequestBodyLogLen         = 2000
 	defaultMaxUpstreamBatchSize  = 10
+	defaultRateLimitHeader       = "X-Forwarded-For"
 )
 
 var emptyArrayResponse = json.RawMessage("[]")
@@ -73,6 +74,7 @@ type Server struct {
 	wsServer               *http.Server
 	cache                  RPCCache
 	srvMu                  sync.Mutex
+	rateLimitHeader        string
 }
 
 type limiterFunc func(method string) bool
@@ -168,6 +170,11 @@ func NewServer(
 		senderLim = limiterFactory(time.Duration(senderRateLimitConfig.Interval), senderRateLimitConfig.Limit, "senders")
 	}
 
+	rateLimitHeader := defaultRateLimitHeader
+	if rateLimitConfig.IPHeaderOverride != "" {
+		rateLimitHeader = rateLimitConfig.IPHeaderOverride
+	}
+
 	return &Server{
 		BackendGroups:        backendGroups,
 		wsBackendGroup:       wsBackendGroup,
@@ -192,6 +199,7 @@ func NewServer(
 		allowedChainIds:        senderRateLimitConfig.AllowedChainIds,
 		limExemptOrigins:       limExemptOrigins,
 		limExemptUserAgents:    limExemptUserAgents,
+		rateLimitHeader:        rateLimitHeader,
 	}, nil
 }
 
@@ -608,7 +616,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context.Context {
 	vars := mux.Vars(r)
 	authorization := vars["authorization"]
-	xff := r.Header.Get("X-Forwarded-For")
+	xff := r.Header.Get(s.rateLimitHeader)
 	if xff == "" {
 		ipPort := strings.Split(r.RemoteAddr, ":")
 		if len(ipPort) == 2 {
