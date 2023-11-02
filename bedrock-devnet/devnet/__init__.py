@@ -202,13 +202,12 @@ def devnet_deploy(paths):
         # If someone reads this comment and understands why this is being done, please
         # update this comment to explain.
         init_devnet_l1_deploy_config(paths, update_timestamp=True)
-        outfile_l1 = pjoin(paths.devnet_dir, 'genesis-l1.json')
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l1',
             '--deploy-config', paths.devnet_config_path,
             '--l1-allocs', paths.allocs_path,
             '--l1-deployments', paths.addresses_json_path,
-            '--outfile.l1', outfile_l1,
+            '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
 
     log.info('Starting L1.')
@@ -227,8 +226,8 @@ def devnet_deploy(paths):
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', paths.devnet_config_path,
             '--deployment-dir', paths.deployment_dir,
-            '--outfile.l2', pjoin(paths.devnet_dir, 'genesis-l2.json'),
-            '--outfile.rollup', pjoin(paths.devnet_dir, 'rollup.json')
+            '--outfile.l2', paths.genesis_l2_path,
+            '--outfile.rollup', paths.rollup_config_path
         ], cwd=paths.op_node_dir)
 
     rollup_config = read_json(paths.rollup_config_path)
