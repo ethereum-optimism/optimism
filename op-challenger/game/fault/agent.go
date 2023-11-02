@@ -39,7 +39,7 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceAccessor, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		metrics:                 m,
 		solver:                  solver.NewGameSolver(maxDepth, trace),

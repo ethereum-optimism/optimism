@@ -57,11 +57,9 @@ type OracleUpdater interface {
 	UpdateOracle(ctx context.Context, data *PreimageOracleData) error
 }
 
-type ProviderSelector interface {
-	// SelectProvider selects the appropriate TraceProvider to use at the specified position, when responding to
-	// the specified reference claim within a game.
-	// The returned TraceProvider
-	SelectProvider(ctx context.Context, game Game, ref Claim, pos Position) (TraceProvider, error)
+type TraceAccessor interface {
+	Get(ctx context.Context, game Game, ref Claim, pos Position) (common.Hash, error)
+	GetStepData(ctx context.Context, game Game, ref Claim, pos Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
 }
 
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.

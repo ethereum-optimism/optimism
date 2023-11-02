@@ -8,15 +8,22 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type providerSelector interface {
+	// SelectProvider selects the appropriate TraceProvider to use at the specified position, when responding to
+	// the specified reference claim within a game.
+	// The returned TraceProvider
+	selectProvider(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error)
+}
+
 type simpleProviderSelector struct {
 	provider types.TraceProvider
 }
 
-func NewSimpleProviderSelector(trace types.TraceProvider) types.ProviderSelector {
-	return &simpleProviderSelector{trace}
+func NewSimpleTraceAccessor(trace types.TraceProvider) *Accessor {
+	return &Accessor{&simpleProviderSelector{trace}}
 }
 
-func (s *simpleProviderSelector) SelectProvider(_ context.Context, _ types.Game, _ types.Claim, _ types.Position) (types.TraceProvider, error) {
+func (s *simpleProviderSelector) selectProvider(_ context.Context, _ types.Game, _ types.Claim, _ types.Position) (types.TraceProvider, error) {
 	return s.provider, nil
 }
 
@@ -26,15 +33,16 @@ type splitProviderSelector struct {
 	bottomFactory func(ctx context.Context, pre common.Hash, post common.Hash) (types.TraceProvider, error)
 }
 
-func NewSplitProviderSelector(top types.TraceProvider, topDepth uint64, bottomFactory func(ctx context.Context, pre common.Hash, post common.Hash) (types.TraceProvider, error)) types.ProviderSelector {
-	return &splitProviderSelector{
+func NewSplitTraceAccessor(top types.TraceProvider, topDepth uint64, bottomFactory func(ctx context.Context, pre common.Hash, post common.Hash) (types.TraceProvider, error)) *Accessor {
+	selector := &splitProviderSelector{
 		top:           top,
 		topDepth:      topDepth,
 		bottomFactory: bottomFactory,
 	}
+	return &Accessor{selector}
 }
 
-func (s *splitProviderSelector) SelectProvider(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error) {
+func (s *splitProviderSelector) selectProvider(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error) {
 	if uint64(pos.Depth()) <= s.topDepth {
 		return s.top, nil
 	}
@@ -48,3 +56,25 @@ func (s *splitProviderSelector) SelectProvider(ctx context.Context, game types.G
 	}
 	return Translate(bottom, s.topDepth), nil
 }
+
+type Accessor struct {
+	selector providerSelector
+}
+
+func (t *Accessor) Get(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (common.Hash, error) {
+	provider, err := t.selector.selectProvider(ctx, game, ref, pos)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	return provider.Get(ctx, pos)
+}
+
+func (t *Accessor) GetStepData(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+	provider, err := t.selector.selectProvider(ctx, game, ref, pos)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return provider.GetStepData(ctx, pos)
+}
+
+var _ types.TraceAccessor = (*Accessor)(nil)

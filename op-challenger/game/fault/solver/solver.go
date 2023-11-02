@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 )
 
@@ -18,14 +17,14 @@ var (
 
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type claimSolver struct {
-	traceSelector types.ProviderSelector
-	gameDepth     int
+	trace     types.TraceAccessor
+	gameDepth int
 }
 
 // newClaimSolver creates a new [claimSolver] using the provided [TraceProvider].
-func newClaimSolver(gameDepth int, traceProvider types.TraceProvider) *claimSolver {
+func newClaimSolver(gameDepth int, trace types.TraceAccessor) *claimSolver {
 	return &claimSolver{
-		trace.NewSimpleProviderSelector(traceProvider),
+		trace,
 		gameDepth,
 	}
 }
@@ -107,12 +106,8 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 		// Thus, we need the pre-state of the next step.
 		position = claim.Position.MoveRight()
 	}
-	provider, err := s.traceSelector.SelectProvider(ctx, game, claim, position)
-	if err != nil {
-		return StepData{}, err
-	}
 
-	preState, proofData, oracleData, err := provider.GetStepData(ctx, position)
+	preState, proofData, oracleData, err := s.trace.GetStepData(ctx, game, claim, position)
 	if err != nil {
 		return StepData{}, err
 	}
@@ -129,11 +124,7 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 // attack returns a response that attacks the claim.
 func (s *claimSolver) attack(ctx context.Context, game types.Game, claim types.Claim) (*types.Claim, error) {
 	position := claim.Attack()
-	provider, err := s.traceSelector.SelectProvider(ctx, game, claim, position)
-	if err != nil {
-		return nil, err
-	}
-	value, err := provider.Get(ctx, position)
+	value, err := s.trace.Get(ctx, game, claim, position)
 	if err != nil {
 		return nil, fmt.Errorf("attack claim: %w", err)
 	}
@@ -149,11 +140,7 @@ func (s *claimSolver) defend(ctx context.Context, game types.Game, claim types.C
 		return nil, nil
 	}
 	position := claim.Defend()
-	provider, err := s.traceSelector.SelectProvider(ctx, game, claim, position)
-	if err != nil {
-		return nil, err
-	}
-	value, err := provider.Get(ctx, position)
+	value, err := s.trace.Get(ctx, game, claim, position)
 	if err != nil {
 		return nil, fmt.Errorf("defend claim: %w", err)
 	}
@@ -165,11 +152,7 @@ func (s *claimSolver) defend(ctx context.Context, game types.Game, claim types.C
 
 // agreeWithClaim returns true if the claim is correct according to the internal [TraceProvider].
 func (s *claimSolver) agreeWithClaim(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
-	provider, err := s.traceSelector.SelectProvider(ctx, game, claim, claim.Position)
-	if err != nil {
-		return false, err
-	}
-	ourValue, err := provider.Get(ctx, claim.Position)
+	ourValue, err := s.trace.Get(ctx, game, claim, claim.Position)
 	return bytes.Equal(ourValue[:], claim.Value[:]), err
 }
 
