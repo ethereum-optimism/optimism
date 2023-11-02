@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync/atomic"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -76,7 +77,7 @@ func (a *APIService) initFromConfig(ctx context.Context, cfg *Config) error {
 	if err := a.startMetricsServer(cfg.MetricsServer); err != nil {
 		return fmt.Errorf("failed to start metrics server: %w", err)
 	}
-	a.initRouter()
+	a.initRouter(cfg.HTTPServer)
 	if err := a.startServer(cfg.HTTPServer); err != nil {
 		return fmt.Errorf("failed to start API server: %w", err)
 	}
@@ -133,7 +134,7 @@ func (a *APIService) initDB(ctx context.Context, connector DBConnector) error {
 	return nil
 }
 
-func (a *APIService) initRouter() {
+func (a *APIService) initRouter(apiConfig config.ServerConfig) {
 	apiRouter := chi.NewRouter()
 	h := routes.NewRoutes(a.log, a.bv, apiRouter)
 
@@ -141,6 +142,7 @@ func (a *APIService) initRouter() {
 
 	// (2) Inject routing middleware
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
+	apiRouter.Use(middleware.Timeout(time.Duration(apiConfig.WriteTimeout) * time.Second))
 	apiRouter.Use(middleware.Recoverer)
 	apiRouter.Use(middleware.Heartbeat(HealthPath))
 

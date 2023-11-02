@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { FeeVault_Initializer, Reverter } from "test/CommonTest.t.sol";
+import { FeeVault_Initializer } from "test/CommonTest.t.sol";
+import { Reverter } from "test/mocks/Callers.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 
 // Libraries

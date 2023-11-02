@@ -203,6 +203,9 @@ type SystemConfig struct {
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
 
+	// Max L1 tx size for the batcher transactions
+	BatcherMaxL1TxSizeBytes uint64
+
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
 }
@@ -684,13 +687,17 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
 		batchType = derive.SpanBatchType
 	}
+	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
+	if batcherMaxL1TxSizeBytes == 0 {
+		batcherMaxL1TxSizeBytes = 240_000
+	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            240_000,
+		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,

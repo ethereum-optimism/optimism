@@ -72,37 +72,56 @@ contract L2ToL1MessagePasserTest is CommonTest {
 
     /// @dev Tests that `initiateWithdrawal` succeeds and emits the correct MessagePassed
     ///      log when called by a contract.
-    function test_initiateWithdrawal_fromContract_succeeds() external {
+    function testFuzz_initiateWithdrawal_fromContract_succeeds(
+        address _target,
+        uint256 _gasLimit,
+        uint256 _value,
+        bytes memory _data
+    )
+        external
+    {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction(messagePasser.messageNonce(), address(this), address(4), 100, 64000, hex"")
+            Types.WithdrawalTransaction({
+                nonce: messagePasser.messageNonce(),
+                sender: address(this),
+                target: _target,
+                value: _value,
+                gasLimit: _gasLimit,
+                data: _data
+            })
         );
 
-        vm.expectEmit(true, true, true, true);
-        emit MessagePassed(messagePasser.messageNonce(), address(this), address(4), 100, 64000, hex"", withdrawalHash);
+        vm.expectEmit(address(messagePasser));
+        emit MessagePassed(
+            messagePasser.messageNonce(), address(this), _target, _value, _gasLimit, _data, withdrawalHash
+        );
 
-        vm.deal(address(this), 2 ** 64);
-        messagePasser.initiateWithdrawal{ value: 100 }(address(4), 64000, hex"");
+        vm.deal(address(this), _value);
+        messagePasser.initiateWithdrawal{ value: _value }(_target, _gasLimit, _data);
     }
 
     /// @dev Tests that `initiateWithdrawal` succeeds and emits the correct MessagePassed
     ///      log when called by an EOA.
-    function test_initiateWithdrawal_fromEOA_succeeds() external {
-        uint256 gasLimit = 64000;
-        address target = address(4);
-        uint256 value = 100;
-        bytes memory data = hex"ff";
+    function testFuzz_initiateWithdrawal_fromEOA_succeeds(
+        uint256 _gasLimit,
+        address _target,
+        uint256 _value,
+        bytes memory _data
+    )
+        external
+    {
         uint256 nonce = messagePasser.messageNonce();
 
         // EOA emulation
         vm.prank(alice, alice);
-        vm.deal(alice, 2 ** 64);
+        vm.deal(alice, _value);
         bytes32 withdrawalHash =
-            Hashing.hashWithdrawal(Types.WithdrawalTransaction(nonce, alice, target, value, gasLimit, data));
+            Hashing.hashWithdrawal(Types.WithdrawalTransaction(nonce, alice, _target, _value, _gasLimit, _data));
 
-        vm.expectEmit(true, true, true, true);
-        emit MessagePassed(nonce, alice, target, value, gasLimit, data, withdrawalHash);
+        vm.expectEmit(address(messagePasser));
+        emit MessagePassed(nonce, alice, _target, _value, _gasLimit, _data, withdrawalHash);
 
-        messagePasser.initiateWithdrawal{ value: value }(target, gasLimit, data);
+        messagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
 
         // the sent messages mapping is filled
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
@@ -111,12 +130,14 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     /// @dev Tests that `burn` succeeds and destroys the ETH held in the contract.
-    function test_burn_succeeds() external {
-        messagePasser.initiateWithdrawal{ value: NON_ZERO_VALUE }(NON_ZERO_ADDRESS, NON_ZERO_GASLIMIT, NON_ZERO_DATA);
+    function testFuzz_burn_succeeds(uint256 _value, address _target, uint256 _gasLimit, bytes memory _data) external {
+        vm.deal(address(this), _value);
 
-        assertEq(address(messagePasser).balance, NON_ZERO_VALUE);
+        messagePasser.initiateWithdrawal{ value: _value }({ _target: _target, _gasLimit: _gasLimit, _data: _data });
+
+        assertEq(address(messagePasser).balance, _value);
         vm.expectEmit(true, false, false, false);
-        emit WithdrawerBalanceBurnt(NON_ZERO_VALUE);
+        emit WithdrawerBalanceBurnt(_value);
         messagePasser.burn();
 
         // The Withdrawer should have no balance

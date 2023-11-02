@@ -290,8 +290,10 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	bs.Log.Info("Stopping batcher")
 
 	var result error
-	if err := bs.driver.StopBatchSubmittingIfRunning(ctx); err != nil {
-		result = errors.Join(result, fmt.Errorf("failed to stop batch submitting: %w", err))
+	if bs.driver != nil {
+		if err := bs.driver.StopBatchSubmittingIfRunning(ctx); err != nil {
+			result = errors.Join(result, fmt.Errorf("failed to stop batch submitting: %w", err))
+		}
 	}
 
 	if bs.rpcServer != nil {
@@ -328,7 +330,7 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 
 	if result == nil {
 		bs.stopped.Store(true)
-		bs.driver.Log.Info("Batch Submitter stopped")
+		bs.Log.Info("Batch Submitter stopped")
 	}
 	return result
 }

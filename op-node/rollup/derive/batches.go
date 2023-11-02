@@ -199,18 +199,18 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 	if batch.GetTimestamp() < nextTimestamp {
 		if batch.GetTimestamp() > l2SafeHead.Time {
 			// batch timestamp cannot be between safe head and next timestamp
-			log.Warn("batch has misaligned timestamp")
+			log.Warn("batch has misaligned timestamp, block time is too short")
 			return BatchDrop
 		}
 		if (l2SafeHead.Time-batch.GetTimestamp())%cfg.BlockTime != 0 {
-			log.Warn("batch has misaligned timestamp")
+			log.Warn("batch has misaligned timestamp, not overlapped exactly")
 			return BatchDrop
 		}
 		parentNum = l2SafeHead.Number - (l2SafeHead.Time-batch.GetTimestamp())/cfg.BlockTime - 1
 		var err error
 		parentBlock, err = l2Fetcher.L2BlockRefByNumber(ctx, parentNum)
 		if err != nil {
-			log.Error("failed to fetch L2 block", "number", parentNum, "err", err)
+			log.Warn("failed to fetch L2 block", "number", parentNum, "err", err)
 			// unable to validate the batch for now. retry later.
 			return BatchUndecided
 		}
@@ -332,7 +332,7 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 			safeBlockNum := parentNum + i + 1
 			safeBlockPayload, err := l2Fetcher.PayloadByNumber(ctx, safeBlockNum)
 			if err != nil {
-				log.Error("failed to fetch L2 block payload", "number", parentNum, "err", err)
+				log.Warn("failed to fetch L2 block payload", "number", parentNum, "err", err)
 				// unable to validate the batch for now. retry later.
 				return BatchUndecided
 			}

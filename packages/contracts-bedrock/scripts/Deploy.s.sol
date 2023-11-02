@@ -41,7 +41,7 @@ import { Chains } from "scripts/Chains.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
-import { AlphabetVM } from "../test/FaultDisputeGame.t.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
 
 /// @title Deploy
@@ -52,13 +52,12 @@ import "src/libraries/DisputeTypes.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
-    /// @notice The name of the script, used to ensure the right deploy artifacts
-    ///         are used.
+    /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
         name_ = "Deploy";
     }
 
-    function setUp() public override {
+    function setUp() public virtual override {
         super.setUp();
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
@@ -97,7 +96,7 @@ contract Deploy is Deployer {
     /// @notice The create2 salt used for deployment of the contract implementations.
     ///         Using this helps to reduce config across networks as the implementation
     ///         addresses will be the same across networks when deployed with create2.
-    function implSalt() public returns (bytes32) {
+    function implSalt() internal returns (bytes32) {
         return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
     }
 

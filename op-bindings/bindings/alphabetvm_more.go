@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const AlphabetVMStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"test/FaultDisputeGame.t.sol:AlphabetVM\",\"label\":\"oracle\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_contract(IPreimageOracle)1001\"}],\"types\":{\"t_contract(IPreimageOracle)1001\":{\"encoding\":\"inplace\",\"label\":\"contract IPreimageOracle\",\"numberOfBytes\":\"20\"}}}"
+const AlphabetVMStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"test/mocks/AlphabetVM.sol:AlphabetVM\",\"label\":\"oracle\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_contract(IPreimageOracle)1001\"}],\"types\":{\"t_contract(IPreimageOracle)1001\":{\"encoding\":\"inplace\",\"label\":\"contract IPreimageOracle\",\"numberOfBytes\":\"20\"}}}"
 
 var AlphabetVMStorageLayout = new(solc.StorageLayout)
 

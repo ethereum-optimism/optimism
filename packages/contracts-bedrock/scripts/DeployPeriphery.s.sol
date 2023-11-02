@@ -12,7 +12,6 @@ import { Proxy } from "src/universal/Proxy.sol";
 import { Faucet } from "src/periphery/faucet/Faucet.sol";
 import { Drippie } from "src/periphery/drippie/Drippie.sol";
 import { CheckGelatoLow } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
-import { CheckBalanceHigh } from "src/periphery/drippie/dripchecks/CheckBalanceHigh.sol";
 import { CheckBalanceLow } from "src/periphery/drippie/dripchecks/CheckBalanceLow.sol";
 import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
@@ -62,7 +61,6 @@ contract DeployPeriphery is Deployer {
         deployFaucetDrippie();
         deployCheckTrue();
         deployCheckBalanceLow();
-        deployCheckBalanceHigh();
         deployCheckGelatoLow();
         deployOnChainAuthModule();
         deployOffChainAuthModule();
@@ -196,25 +194,6 @@ contract DeployPeriphery is Deployer {
             console.log("CheckBalanceLow deployed at %s", address(checkBalanceLow));
 
             addr_ = address(checkBalanceLow);
-        }
-    }
-
-    /// @notice Deploy CheckBalanceHigh contract.
-    function deployCheckBalanceHigh() public broadcast returns (address addr_) {
-        bytes32 salt = keccak256(bytes("CheckBalanceHigh"));
-        bytes32 initCodeHash = keccak256(abi.encodePacked(type(CheckBalanceHigh).creationCode));
-        address preComputedAddress = computeCreate2Address(salt, initCodeHash);
-        if (preComputedAddress.code.length > 0) {
-            console.log("CheckBalanceHigh already deployed at %s", preComputedAddress);
-            save("CheckBalanceHigh", preComputedAddress);
-            addr_ = preComputedAddress;
-        } else {
-            CheckBalanceHigh checkBalanceHigh = new CheckBalanceHigh{ salt: salt }();
-
-            save("CheckBalanceHigh", address(checkBalanceHigh));
-            console.log("CheckBalanceHigh deployed at %s", address(checkBalanceHigh));
-
-            addr_ = address(checkBalanceHigh);
         }
     }
 
@@ -468,7 +447,7 @@ contract DeployPeriphery is Deployer {
     /// @notice installs the OnChain AuthModule on the Faucet contract.
     function installOnChainAuthModule() public broadcast {
         string memory moduleName = "OnChainAuthModule";
-        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         AdminFaucetAuthModule onChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
         if (faucet.isModuleEnabled(onChainAuthModule)) {
             console.log("%s already installed.", moduleName);
@@ -488,7 +467,7 @@ contract DeployPeriphery is Deployer {
     /// @notice installs the OffChain AuthModule on the Faucet contract.
     function installOffChainAuthModule() public broadcast {
         string memory moduleName = "OffChainAuthModule";
-        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         AdminFaucetAuthModule offChainAuthModule = AdminFaucetAuthModule(mustGetAddress(moduleName));
         if (faucet.isModuleEnabled(offChainAuthModule)) {
             console.log("%s already installed.", moduleName);
@@ -507,7 +486,7 @@ contract DeployPeriphery is Deployer {
 
     /// @notice installs all of the auth module in the faucet contract.
     function installFaucetAuthModulesConfigs() public {
-        Faucet faucet = Faucet(mustGetAddress("Faucet"));
+        Faucet faucet = Faucet(mustGetAddress("FaucetProxy"));
         console.log("Installing auth modules at %s", address(faucet));
         installOnChainAuthModule();
         installOffChainAuthModule();
