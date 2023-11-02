@@ -40,7 +40,7 @@ contract SafeSigners_Test is Test, SafeTestTools {
         uint256 numSigs = bound(_numSigs, 1, 25);
 
         (, uint256[] memory keys) = SafeTestLib.makeAddrsAndKeys("getSigsTest", numSigs);
-        for (uint256 i = 0; i < keys.length; i++) {
+        for (uint256 i; i < keys.length; i++) {
             if (sigType(keys[i]) == SigTypes.Contract) {
                 keys[i] =
                     SafeTestLib.encodeSmartContractWalletAsPK(SafeTestLib.decodeSmartContractWalletAsAddress(keys[i]));
@@ -91,7 +91,7 @@ contract SafeSigners_Test is Test, SafeTestTools {
         // the validation checks that the Safe contract performs on the value of s on contract
         // signatures. The Safe contract checks that s correctly points to additional data appended
         // after the signatures, and that the length of the data is within bounds.
-        for (uint256 i = 0; i < contractSigs; i++) {
+        for (uint256 i; i < contractSigs; i++) {
             signatures = bytes.concat(signatures, abi.encode(32, 1));
         }
 

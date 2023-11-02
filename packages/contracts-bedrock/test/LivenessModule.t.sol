@@ -199,7 +199,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         uint256 numOwners = safeInstance.owners.length;
 
         address[] memory ownersToRemove = new address[](numOwners);
-        for (uint256 i = 0; i < numOwners; i++) {
+        for (uint256 i; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
@@ -218,7 +218,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         uint256 numOwners = safeInstance.owners.length - 2;
 
         address[] memory ownersToRemove = new address[](numOwners);
-        for (uint256 i = 0; i < numOwners; i++) {
+        for (uint256 i; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
@@ -236,7 +236,7 @@ contract LivenessModule_RemoveOwners_TestFail is LivenessModule_TestInit {
         uint256 numOwners = safeInstance.owners.length - 1;
 
         address[] memory ownersToRemove = new address[](numOwners);
-        for (uint256 i = 0; i < numOwners; i++) {
+        for (uint256 i; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
@@ -297,7 +297,7 @@ contract LivenessModule_RemoveOwners_Test is LivenessModule_TestInit {
         uint256 numOwners = safeInstance.owners.length;
 
         address[] memory ownersToRemove = new address[](numOwners);
-        for (uint256 i = 0; i < numOwners; i++) {
+        for (uint256 i; i < numOwners; i++) {
             ownersToRemove[i] = safeInstance.owners[i];
         }
         address[] memory prevOwners = safeInstance.getPrevOwners(ownersToRemove);
@@ -348,15 +348,12 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
         //
         // _numOwners must be at least 4, so that _minOwners can be set to at least 3 by the following bound() call.
         // Limiting the owner set to 20 helps to keep the runtime of the test reasonable.
-        console.log("bounding numOwners");
         numOwners_ = bound(_numOwners, 4, 20);
         // _minOwners must be at least 3, otherwise we don't have any range below _minOwners in which to test all of the
         // ShutDownBehavior options.
-        console.log("bounding minOwners");
         minOwners_ = bound(_minOwners, 3, numOwners_ - 1);
 
         // Ensure that _numLiveOwners is less than _numOwners so that we can remove at least one owner.
-        console.log("bounding numLiveOwners");
         numLiveOwners_ = bound(_numLiveOwners, 0, numOwners_ - 1);
 
         // The above bounds are a bit tricky, so we assert that the resulting parameters enable us to test all possible
@@ -402,20 +399,19 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
 
         // Create an array of live owners, and call showLiveness for each of them
         address[] memory liveOwners = new address[](numLiveOwners);
-        for (uint256 i = 0; i < numLiveOwners; i++) {
+        for (uint256 i; i < numLiveOwners; i++) {
             liveOwners[i] = safeInstance.owners[i];
             vm.prank(safeInstance.owners[i]);
             livenessGuard.showLiveness();
         }
 
         address[] memory nonLiveOwners = new address[](numOwners - numLiveOwners);
-        for (uint256 i = 0; i < numOwners - numLiveOwners; i++) {
+        for (uint256 i; i < numOwners - numLiveOwners; i++) {
             nonLiveOwners[i] = safeInstance.owners[i + numLiveOwners];
         }
 
         address[] memory prevOwners;
         if (numLiveOwners >= minOwners) {
-            console.log("No shutdown");
             // The safe will remain above the minimum number of owners, so we can remove only those owners which are not
             // live.
             prevOwners = safeInstance.getPrevOwners(nonLiveOwners);
@@ -424,10 +420,10 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
             // Validate the resulting state of the Safe
             assertEq(safeInstance.safe.getOwners().length, numLiveOwners);
             assertEq(safeInstance.safe.getThreshold(), get75PercentThreshold(numLiveOwners));
-            for (uint256 i = 0; i < numLiveOwners; i++) {
+            for (uint256 i; i < numLiveOwners; i++) {
                 assertTrue(safeInstance.safe.isOwner(liveOwners[i]));
             }
-            for (uint256 i = 0; i < nonLiveOwners.length; i++) {
+            for (uint256 i; i < nonLiveOwners.length; i++) {
                 assertFalse(safeInstance.safe.isOwner(nonLiveOwners[i]));
             }
         } else {
@@ -439,14 +435,10 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
             // The safe is below the minimum number of owners.
             // The ShutDownBehavior enum determines how we handle this case.
             if (shutDownBehavior == ShutDownBehavior.Correct) {
-                console.log("Correct Shutdown");
                 // We remove all owners, and transfer ownership to the shutDown owner.
                 // but we need to do remove the non-live owners first, so we reverse the owners array, since
                 // the first owners in the array were the ones to call showLiveness.
-                // ownersToRemove = new address[](numOwners);
-                for (uint256 i = 0; i < numOwners; i++) {
-                    // ownersToRemove[numOwners - i - 1] = safeInstance.owners[i];
-                    // ownersToRemove[i] = safeInstance.owners[numOwners - i - 1];
+                for (uint256 i; i < numOwners; i++) {
                     ownersToRemove.push(safeInstance.owners[numOwners - i - 1]);
                 }
                 prevOwners = safeInstance.getPrevOwners(ownersToRemove);
@@ -461,14 +453,11 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                 // trigger that behavior. We initialize that value here then set it in the if statements below.
                 uint256 numOwnersToRemoveinShutDown;
                 if (shutDownBehavior == ShutDownBehavior.DoesNotRemoveAllOwners) {
-                    console.log("Shutdown DoesNotRemoveAllOwners");
                     // In the DoesNotRemoveAllOwners case, we should have more than 1 of the pre-existing owners
                     // remaining
-                    console.log("bounding numOwnersToRemoveinShutDown");
                     numOwnersToRemoveinShutDown =
                         bound(_numOwnersToRemoveinShutDown, numOwners - minOwners + 1, numOwners - 2);
-                    uint256 i = 0;
-                    for (i; i < numOwnersToRemoveinShutDown; i++) {
+                    for (uint256 i; i < numOwnersToRemoveinShutDown; i++) {
                         // Add non-live owners to remove first
                         if (i < nonLiveOwners.length) {
                             ownersToRemove.push(nonLiveOwners[i]);
@@ -483,11 +472,9 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                     );
                     livenessModule.removeOwners(prevOwners, ownersToRemove);
                 } else if (shutDownBehavior == ShutDownBehavior.DoesNotTransferToFallbackOwner) {
-                    console.log("Shutdown DoesNotTransferToFallbackOwner");
                     // In the DoesNotRemoveAllOwners case, we should have exactly 1 pre-existing owners remaining
                     numOwnersToRemoveinShutDown = numOwners - 1;
-                    uint256 i = 0;
-                    for (i; i < numOwnersToRemoveinShutDown; i++) {
+                    for (uint256 i; i < numOwnersToRemoveinShutDown; i++) {
                         // Add non-live owners to remove first
                         if (i < nonLiveOwners.length) {
                             ownersToRemove.push(nonLiveOwners[i]);
@@ -503,8 +490,8 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
                 // For both of the incorrect behaviors, verify no change to the Safe state
                 assertEq(safeInstance.safe.getOwners().length, numOwners);
                 assertEq(safeInstance.safe.getThreshold(), get75PercentThreshold(numOwners));
-                for (uint256 j = 0; j < numOwners; j++) {
-                    assertTrue(safeInstance.safe.isOwner(safeInstance.owners[j]));
+                for (uint256 i; i < numOwners; i++) {
+                    assertTrue(safeInstance.safe.isOwner(safeInstance.owners[i]));
                 }
             }
         }
