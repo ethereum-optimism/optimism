@@ -33,7 +33,7 @@ var interruptErr = errors.New("interrupt signal")
 
 // LifecycleCmd turns a LifecycleAction into an CLI action,
 // by instrumenting it with CLI context and signal based termination.
-// The signals are catched with the opio.BlockFn attached to the context, if any.
+// The signals are caught with the opio.BlockFn attached to the context, if any.
 // If no block function is provided, it adds default interrupt handling.
 // The app may continue to run post-processing until fully shutting down.
 // The user can force an early shut-down during post-processing by sending a second interruption signal.
