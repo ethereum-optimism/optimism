@@ -117,6 +117,7 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 		"--ws",
 		"--mine",
 		"--miner.gaslimit", strconv.FormatUint(config.GasCeil, 10),
+		"--http=true",
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
 		"--http.api", "eth,debug,net,engine,erigon,web3,txpool",
@@ -142,16 +143,19 @@ func execute(binPath string, config external.Config) (*erigonSession, error) {
 	gm.Expect(err).NotTo(gomega.HaveOccurred())
 
 	var enginePort, httpPort int
-	gm.Eventually(engineBuffer, time.Minute).Should(gbytes.Say("HTTP endpoint opened\\s*url=127.0.0.1:"))
+	gm.Eventually(engineBuffer, time.Minute).Should(gbytes.Say("JsonRpc endpoint opened\\s*.*http.url=127.0.0.1:"))
 	if err != nil {
 		return nil, fmt.Errorf("http endpoint never opened")
 	}
+	fmt.Printf("==================    op-erigon shim got http port %d  ==========================\n", httpPort)
+
 	fmt.Fscanf(engineBuffer, "%d", &httpPort)
 	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened for Engine API\\s*url=127.0.0.1:"))
 	if err != nil {
 		return nil, fmt.Errorf("http engine endpoint never opened")
 	}
 	fmt.Fscanf(sess.Err, "%d", &enginePort)
+	fmt.Printf("==================    op-erigon shim got engine port %d  ==========================\n", enginePort)
 	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("Regeneration ended"))
 	if err != nil {
 		return nil, fmt.Errorf("started did not finish in time")
