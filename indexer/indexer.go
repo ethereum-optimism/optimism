@@ -69,13 +69,13 @@ func NewIndexer(ctx context.Context, log log.Logger, cfg *config.Config, shutdow
 func (ix *Indexer) Start(ctx context.Context) error {
 	// If any of these services has a critical failure,
 	// the service can request a shutdown, while providing the error cause.
-	if err := ix.L1ETL.Start(ix.shutdown); err != nil {
+	if err := ix.L1ETL.Start(); err != nil {
 		return fmt.Errorf("failed to start L1 ETL: %w", err)
 	}
-	if err := ix.L2ETL.Start(ix.shutdown); err != nil {
+	if err := ix.L2ETL.Start(); err != nil {
 		return fmt.Errorf("failed to start L2 ETL: %w", err)
 	}
-	if err := ix.BridgeProcessor.Start(ix.shutdown); err != nil {
+	if err := ix.BridgeProcessor.Start(); err != nil {
 		return fmt.Errorf("failed to start bridge processor: %w", err)
 	}
 	return nil
@@ -181,8 +181,7 @@ func (ix *Indexer) initRPCClients(ctx context.Context, rpcsConfig config.RPCsCon
 }
 
 func (ix *Indexer) initDB(ctx context.Context, cfg config.DBConfig) error {
-	// TODO thread ctx for interrupt during dial
-	db, err := database.NewDB(ix.log, cfg)
+	db, err := database.NewDB(ctx, ix.log, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -197,7 +196,8 @@ func (ix *Indexer) initL1ETL(chainConfig config.ChainConfig) error {
 		ConfirmationDepth: big.NewInt(int64(chainConfig.L1ConfirmationDepth)),
 		StartHeight:       big.NewInt(int64(chainConfig.L1StartingHeight)),
 	}
-	l1Etl, err := etl.NewL1ETL(l1Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l1"), ix.l1Client, chainConfig.L1Contracts)
+	l1Etl, err := etl.NewL1ETL(l1Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l1"),
+		ix.l1Client, chainConfig.L1Contracts, ix.shutdown)
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,8 @@ func (ix *Indexer) initL2ETL(chainConfig config.ChainConfig) error {
 		HeaderBufferSize:  chainConfig.L2HeaderBufferSize,
 		ConfirmationDepth: big.NewInt(int64(chainConfig.L2ConfirmationDepth)),
 	}
-	l2Etl, err := etl.NewL2ETL(l2Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l2"), ix.l2Client, chainConfig.L2Contracts)
+	l2Etl, err := etl.NewL2ETL(l2Cfg, ix.log, ix.DB, etl.NewMetrics(ix.metricsRegistry, "l2"),
+		ix.l2Client, chainConfig.L2Contracts, ix.shutdown)
 	if err != nil {
 		return err
 	}
@@ -221,7 +222,8 @@ func (ix *Indexer) initL2ETL(chainConfig config.ChainConfig) error {
 }
 
 func (ix *Indexer) initBridgeProcessor(chainConfig config.ChainConfig) error {
-	bridgeProcessor, err := processors.NewBridgeProcessor(ix.log, ix.DB, bridge.NewMetrics(ix.metricsRegistry), ix.L1ETL, chainConfig)
+	bridgeProcessor, err := processors.NewBridgeProcessor(
+		ix.log, ix.DB, bridge.NewMetrics(ix.metricsRegistry), ix.L1ETL, chainConfig, ix.shutdown)
 	if err != nil {
 		return err
 	}

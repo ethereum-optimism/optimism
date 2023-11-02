@@ -191,7 +191,7 @@ func setupTestDatabase(t *testing.T) string {
 
 	silentLog := log.New()
 	silentLog.SetHandler(log.DiscardHandler())
-	db, err := database.NewDB(silentLog, dbConfig)
+	db, err := database.NewDB(context.Background(), silentLog, dbConfig)
 	require.NoError(t, err)
 	defer db.Close()
 

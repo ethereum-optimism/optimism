@@ -4,10 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"time"
-
-	"golang.org/x/sync/errgroup"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -17,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
 type L2ETL struct {
@@ -26,12 +24,13 @@ type L2ETL struct {
 	resourceCtx    context.Context
 	resourceCancel context.CancelFunc
 
-	tasks errgroup.Group
+	tasks tasks.Group
 
 	db *database.DB
 }
 
-func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient, contracts config.L2Contracts) (*L2ETL, error) {
+func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient,
+	contracts config.L2Contracts, shutdown context.CancelCauseFunc) (*L2ETL, error) {
 	log = log.New("etl", "l2")
 
 	zeroAddr := common.Address{}
@@ -85,6 +84,9 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		resourceCtx:    resCtx,
 		resourceCancel: resCancel,
 		db:             db,
+		tasks: tasks.Group{HandleCrit: func(err error) {
+			shutdown(fmt.Errorf("critical error in L2 ETL: %w", err))
+		}},
 	}, nil
 }
 
@@ -103,7 +105,7 @@ func (l2Etl *L2ETL) Close() error {
 	return result
 }
 
-func (l2Etl *L2ETL) Start(shutdown context.CancelCauseFunc) error {
+func (l2Etl *L2ETL) Start() error {
 	// start ETL batch producer
 	if err := l2Etl.ETL.Start(); err != nil {
 		return fmt.Errorf("failed to start internal ETL: %w", err)
@@ -111,14 +113,6 @@ func (l2Etl *L2ETL) Start(shutdown context.CancelCauseFunc) error {
 
 	// start ETL batch consumer
 	l2Etl.tasks.Go(func() error {
-		defer func() {
-			if err := recover(); err != nil {
-				l2Etl.log.Error("halting indexer on L2 ETL panic", "err", err)
-				debug.PrintStack()
-				shutdown(fmt.Errorf("panic: %v", err))
-			}
-		}()
-
 		for {
 			// Index incoming batches (all L2 blocks)
 			batch, ok := <-l2Etl.etlBatches

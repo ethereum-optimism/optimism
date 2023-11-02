@@ -22,8 +22,7 @@ type DBConfigConnector struct {
 }
 
 func (cfg *DBConfigConnector) OpenDB(ctx context.Context, log log.Logger) (*DB, error) {
-	// TODO: pass through the ctx argument, so we can interrupt while connecting
-	db, err := database.NewDB(log, cfg.DBConfig)
+	db, err := database.NewDB(ctx, log, cfg.DBConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to databse: %w", err)
 	}

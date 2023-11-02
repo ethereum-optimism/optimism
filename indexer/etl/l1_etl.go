@@ -4,20 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
 type L1ETL struct {
@@ -27,7 +26,7 @@ type L1ETL struct {
 	resourceCtx    context.Context
 	resourceCancel context.CancelFunc
 
-	tasks errgroup.Group
+	tasks tasks.Group
 
 	db *database.DB
 
@@ -38,7 +37,8 @@ type L1ETL struct {
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
 // depending on the state of the database and the supplied start height.
-func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
+func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient,
+	contracts config.L1Contracts, shutdown context.CancelCauseFunc) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
 	zeroAddr := common.Address{}
@@ -105,6 +105,9 @@ func NewL1ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 		db:             db,
 		resourceCtx:    resCtx,
 		resourceCancel: resCancel,
+		tasks: tasks.Group{HandleCrit: func(err error) {
+			shutdown(fmt.Errorf("critical error in L1 ETL: %w", err))
+		}},
 	}, nil
 }
 
@@ -123,21 +126,13 @@ func (l1Etl *L1ETL) Close() error {
 	return result
 }
 
-func (l1Etl *L1ETL) Start(shutdown context.CancelCauseFunc) error {
+func (l1Etl *L1ETL) Start() error {
 	// start ETL batch producer
 	if err := l1Etl.ETL.Start(); err != nil {
 		return fmt.Errorf("failed to start internal ETL: %w", err)
 	}
 	// start ETL batch consumer
 	l1Etl.tasks.Go(func() error {
-		defer func() {
-			if err := recover(); err != nil {
-				l1Etl.log.Error("halting indexer on L1 ETL panic", "err", err)
-				debug.PrintStack()
-				shutdown(fmt.Errorf("panic: %v", err))
-			}
-		}()
-
 		for {
 			// Index incoming batches (only L1 blocks that have an emitted log)
 			batch, ok := <-l1Etl.etlBatches

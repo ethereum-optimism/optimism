@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var (
@@ -66,6 +67,9 @@ func runApi(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, erro
 }
 
 func runMigrations(ctx *cli.Context) error {
+	// We don't maintain a complicated lifecycle here, just interrupt to shut down.
+	ctx.Context = opio.CancelOnInterrupt(ctx.Context)
+
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "migrations")
 	oplog.SetGlobalLogHandler(log.GetHandler())
 	log.Info("running migrations...")
@@ -76,7 +80,7 @@ func runMigrations(ctx *cli.Context) error {
 		return err
 	}
 
-	db, err := database.NewDB(log, cfg.DB)
+	db, err := database.NewDB(ctx.Context, log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
