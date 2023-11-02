@@ -6,6 +6,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -391,7 +392,7 @@ type receiptsFetchingJob struct {
 	receiptHash common.Hash
 	txHashes    []common.Hash
 
-	fetcher *IterativeBatchCall[common.Hash, *types.Receipt]
+	fetcher *batching.IterativeBatchCall[common.Hash, *types.Receipt]
 
 	// [OPTIONAL] RethDB path to fetch receipts from
 	rethDbPath string
@@ -424,7 +425,7 @@ type ReceiptsRequester interface {
 func (job *receiptsFetchingJob) runFetcher(ctx context.Context) error {
 	if job.fetcher == nil {
 		// start new work
-		job.fetcher = NewIterativeBatchCall[common.Hash, *types.Receipt](
+		job.fetcher = batching.NewIterativeBatchCall[common.Hash, *types.Receipt](
 			job.txHashes,
 			makeReceiptRequest,
 			job.client.BatchCallContext,
