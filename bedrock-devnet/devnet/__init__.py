@@ -288,21 +288,23 @@ def debug_dumpBlock(url):
 def wait_for_rpc_server(url):
     log.info(f'Waiting for RPC server at {url}')
 
-    conn = http.client.HTTPConnection(url)
     headers = {'Content-type': 'application/json'}
     body = '{"id":1, "jsonrpc":"2.0", "method": "eth_chainId", "params":[]}'
 
     while True:
         try:
+            conn = http.client.HTTPConnection(url)
             conn.request('POST', '/', body, headers)
             response = conn.getresponse()
-            conn.close()
             if response.status < 300:
                 log.info(f'RPC server at {url} ready')
                 return
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
+        finally:
+            if conn:
+                conn.close()
 
 
 CommandPreset = namedtuple('Command', ['name', 'args', 'cwd', 'timeout'])
