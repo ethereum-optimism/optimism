@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 type SyncStatusAPI interface {
@@ -47,6 +46,10 @@ type BatcherCfg struct {
 	GarbageCfg *GarbageChannelCfg
 }
 
+type L2BlockRefs interface {
+	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
+}
+
 // L2Batcher buffers and submits L2 batches to L1.
 //
 // TODO: note the batcher shares little logic/state with actual op-batcher,
@@ -60,7 +63,7 @@ type L2Batcher struct {
 	syncStatusAPI SyncStatusAPI
 	l2            BlocksAPI
 	l1            L1TxAPI
-	engCl         *sources.EngineClient
+	engCl         L2BlockRefs
 
 	l1Signer types.Signer
 
@@ -72,7 +75,7 @@ type L2Batcher struct {
 	batcherAddr      common.Address
 }
 
-func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI, engCl *sources.EngineClient) *L2Batcher {
+func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI, engCl L2BlockRefs) *L2Batcher {
 	return &L2Batcher{
 		log:           log,
 		rollupCfg:     rollupCfg,
