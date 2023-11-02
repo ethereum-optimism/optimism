@@ -72,7 +72,7 @@ func VerifyBlobProof(blob *Blob, commitment kzg4844.Commitment, proof kzg4844.Pr
 //
 // First, field elements are encoded as big-endian uint256 in BLS modulus range. To avoid modulus
 // overflow, we can't use the full 32 bytes, so we write data only to the topmost 31 bytes of each.
-// TODO: we can optimize this to get a bit more data from the blobs by using the top byte
+// TODO(client-pod#170): we can optimize this to get a bit more data from the blobs by using the top byte
 // partially.
 //
 // The first field element encodes the length of input data as a little endian uint32 in its
@@ -82,7 +82,7 @@ func VerifyBlobProof(blob *Blob, commitment kzg4844.Commitment, proof kzg4844.Pr
 // The remaining field elements each encode 31 bytes of the remaining input data, up until the end
 // of the input.
 //
-// TODO: version the encoding format to allow for future encoding changes
+// TODO(client-pod#169): version the encoding format to allow for future encoding changes
 func (b *Blob) FromData(data Data) error {
 	if len(data) > MaxBlobDataSize {
 		return fmt.Errorf("data is too large for blob. len=%v", len(data))
