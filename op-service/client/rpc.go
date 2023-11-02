@@ -180,7 +180,7 @@ type BaseRPCClient struct {
 }
 
 func NewBaseRPCClient(c *rpc.Client) *BaseRPCClient {
-	return &BaseRPCClient{c: c}
+	return &BaseRPCClient{c: c, rpcTimeout: defaultRpcTimeout, rpcBatchTimeout: defaultRpcBatchTimeout}
 }
 
 func (b *BaseRPCClient) Close() {
