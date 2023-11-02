@@ -541,8 +541,8 @@ importers:
   packages/web3js-plugin:
     dependencies:
       '@ethereumjs/rlp':
-        specifier: ^5.0.0
-        version: 5.0.0
+        specifier: ^5.0.1
+        version: 5.0.1
       web3:
         specifier: '>= 4.0.3 < 5.x'
         version: 4.0.3
@@ -2014,8 +2014,8 @@ packages:
     engines: {node: '>=14'}
     hasBin: true
 
-  /@ethereumjs/rlp@5.0.0:
-    resolution: {integrity: sha512-WuS1l7GJmB0n0HsXLozCoEFc9IwYgf3l0gCkKVYgR67puVF1O4OpEaN0hWmm1c+iHUHFCKt1hJrvy5toLg+6ag==}
+  /@ethereumjs/rlp@5.0.1:
+    resolution: {integrity: sha512-Ab/Hfzz+T9Zl+65Nkg+9xAmwKPLicsnQ4NW49pgvJp9ovefuic95cgOS9CbPc9izIEgsqm1UitV0uNveCvud9w==}
     engines: {node: '>=18'}
     hasBin: true
     dev: false
