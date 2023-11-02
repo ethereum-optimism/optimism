@@ -236,7 +236,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 			return nil, fmt.Errorf("bad peer address: %w", err)
 		}
 		if addr.ID == h.ID() {
-			log.Info("Static-peer list contains address of local peer, ignoring the address.", "address", addr)
+			log.Info("Static-peer list contains address of local peer, ignoring the address.", "peer_id", addr.ID, "addrs", addr.Addrs)
 			continue
 		}
 		staticPeers = append(staticPeers, addr)
