@@ -65,7 +65,7 @@ func TestSimpleGetters(t *testing.T) {
 		test := test
 		t.Run(test.method, func(t *testing.T) {
 			stubRpc, game := setup(t)
-			stubRpc.SetResponse(test.method, nil, []interface{}{test.result})
+			stubRpc.SetResponse(test.method, batching.BlockLatest, nil, []interface{}{test.result})
 			status, err := test.call(game)
 			require.NoError(t, err)
 			expected := test.expected
@@ -85,7 +85,7 @@ func TestGetClaim(t *testing.T) {
 	value := common.Hash{0xab}
 	position := big.NewInt(2)
 	clock := big.NewInt(1234)
-	stubRpc.SetResponse(methodClaim, []interface{}{idx}, []interface{}{parentIndex, countered, value, position, clock})
+	stubRpc.SetResponse(methodClaim, batching.BlockLatest, []interface{}{idx}, []interface{}{parentIndex, countered, value, position, clock})
 	status, err := game.GetClaim(context.Background(), idx.Uint64())
 	require.NoError(t, err)
 	require.Equal(t, faultTypes.Claim{
@@ -133,7 +133,7 @@ func TestGetAllClaims(t *testing.T) {
 		ParentContractIndex: 1,
 	}
 	expectedClaims := []faultTypes.Claim{claim0, claim1, claim2}
-	stubRpc.SetResponse(methodClaimCount, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
+	stubRpc.SetResponse(methodClaimCount, batching.BlockLatest, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
 	for _, claim := range expectedClaims {
 		expectGetClaim(stubRpc, claim)
 	}
@@ -145,6 +145,7 @@ func TestGetAllClaims(t *testing.T) {
 func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 	stubRpc.SetResponse(
 		methodClaim,
+		batching.BlockLatest,
 		[]interface{}{big.NewInt(int64(claim.ContractIndex))},
 		[]interface{}{
 			uint32(claim.ParentContractIndex),

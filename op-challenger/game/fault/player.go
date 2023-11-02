@@ -47,7 +47,7 @@ func NewGamePlayer(
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
-	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), 100))
+	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fault dispute game contract wrapper: %w", err)
 	}

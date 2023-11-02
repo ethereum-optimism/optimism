@@ -119,6 +119,13 @@ func TestCallResult_GetValues(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "GetAddress",
+			getter: func(result *CallResult, i int) interface{} {
+				return result.GetAddress(i)
+			},
+			expected: ([20]byte)(common.Address{0xaa, 0xbb, 0xcc}),
+		},
+		{
 			name: "GetHash",
 			getter: func(result *CallResult, i int) interface{} {
 				return result.GetHash(i)
