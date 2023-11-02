@@ -229,13 +229,17 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		return nil, err
 	}
 
-	staticPeers := make([]*peer.AddrInfo, len(conf.StaticPeers))
-	for i, peerAddr := range conf.StaticPeers {
+	staticPeers := make([]*peer.AddrInfo, 0, len(conf.StaticPeers))
+	for _, peerAddr := range conf.StaticPeers {
 		addr, err := peer.AddrInfoFromP2pAddr(peerAddr)
 		if err != nil {
 			return nil, fmt.Errorf("bad peer address: %w", err)
 		}
-		staticPeers[i] = addr
+		if addr.ID == h.ID() {
+			log.Info("Static-peer list contains address of local peer, ignoring the address.", "peer_id", addr.ID, "addrs", addr.Addrs)
+			continue
+		}
+		staticPeers = append(staticPeers, addr)
 	}
 
 	out := &extraHost{
