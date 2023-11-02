@@ -10,17 +10,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-type batcherClient interface {
-	Start() error
-	Stop(ctx context.Context) error
+type BatcherDriver interface {
+	StartBatchSubmitting() error
+	StopBatchSubmitting(ctx context.Context) error
 }
 
 type adminAPI struct {
 	*rpc.CommonAdminAPI
-	b batcherClient
+	b BatcherDriver
 }
 
-func NewAdminAPI(dr batcherClient, m metrics.RPCMetricer, log log.Logger) *adminAPI {
+func NewAdminAPI(dr BatcherDriver, m metrics.RPCMetricer, log log.Logger) *adminAPI {
 	return &adminAPI{
 		CommonAdminAPI: rpc.NewCommonAdminAPI(m, log),
 		b:              dr,
@@ -35,9 +35,9 @@ func GetAdminAPI(api *adminAPI) gethrpc.API {
 }
 
 func (a *adminAPI) StartBatcher(_ context.Context) error {
-	return a.b.Start()
+	return a.b.StartBatchSubmitting()
 }
 
 func (a *adminAPI) StopBatcher(ctx context.Context) error {
-	return a.b.Stop(ctx)
+	return a.b.StopBatchSubmitting(ctx)
 }

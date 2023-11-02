@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { LibClock } from "../src/dispute/lib/LibClock.sol";
-import "../src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeTypes.sol";
 
 /// @notice Tests for `LibClock`
 contract LibClock_Test is Test {

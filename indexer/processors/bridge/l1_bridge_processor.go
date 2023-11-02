@@ -29,7 +29,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected transaction deposits", "size", len(optimismPortalTxDeposits))
 	}
 
-	var mintedGWEI = bigint.Zero
+	mintedGWEI := bigint.Zero
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
@@ -44,7 +44,6 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 			GasLimit:             depositTx.GasLimit,
 			Tx:                   depositTx.Tx,
 		}
-
 	}
 
 	if len(transactionDeposits) > 0 {
@@ -125,6 +124,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		}
 
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 		bridgeDeposits[i] = database.L1BridgeDeposit{
 			TransactionSourceHash: portalDeposit.DepositTx.SourceHash,
@@ -214,10 +214,8 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected relayed messages", "size", len(crossDomainRelayedMessages))
 	}
 
-	relayedMessages := make(map[logKey]*contracts.CrossDomainMessengerRelayedMessageEvent, len(crossDomainRelayedMessages))
 	for i := range crossDomainRelayedMessages {
 		relayed := crossDomainRelayedMessages[i]
-		relayedMessages[logKey{BlockHash: relayed.Event.BlockHash, LogIndex: relayed.Event.LogIndex}] = &relayed
 		message, err := db.BridgeMessages.L2BridgeMessage(relayed.MessageHash)
 		if err != nil {
 			return err
@@ -236,40 +234,21 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 	}
 
 	// (4) L1StandardBridge
+	// - Nothing actionable on the database. Since the StandardBridge is layered ontop of the
+	// CrossDomainMessenger, there's no need for any sanity or invariant checks as the previous step
+	// ensures a relayed message (finalized bridge) can be linked with a sent message (initiated bridge).
 	finalizedBridges, err := contracts.StandardBridgeFinalizedEvents("l1", l1Contracts.L1StandardBridgeProxy, db, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
-	if len(finalizedBridges) > 0 {
-		log.Info("detected finalized bridge withdrawals", "size", len(finalizedBridges))
-	}
 
 	finalizedTokens := make(map[common.Address]int)
 	for i := range finalizedBridges {
-		// Nothing actionable on the database. However, we can treat the relayed message
-		// as an invariant by ensuring we can query for a deposit by the same hash
 		finalizedBridge := finalizedBridges[i]
-		relayedMessage, ok := relayedMessages[logKey{finalizedBridge.Event.BlockHash, finalizedBridge.Event.LogIndex + 1}]
-		if !ok {
-			log.Error("expected RelayedMessage following BridgeFinalized event", "tx_hash", finalizedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected RelayedMessage following BridgeFinalized event. tx_hash = %s", finalizedBridge.Event.TransactionHash.String())
-		} else if relayedMessage.Event.TransactionHash != finalizedBridge.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "message_tx_hash", relayedMessage.Event.TransactionHash.String(), "bridge_tx_hash", finalizedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
-		}
-
-		// Since the message hash is computed from the relayed message, this ensures the deposit fields must match
-		withdrawal, err := db.BridgeTransfers.L2BridgeWithdrawalWithFilter(database.BridgeTransfer{CrossDomainMessageHash: &relayedMessage.MessageHash})
-		if err != nil {
-			return err
-		} else if withdrawal == nil {
-			log.Error("missing L2StandardBridge withdrawal on L1 finalization", "tx_hash", finalizedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("missing L2StandardBridge withdrawal on L1 finalization. tx_hash: %s", finalizedBridge.Event.TransactionHash.String())
-		}
-
 		finalizedTokens[finalizedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
 	}
 	if len(finalizedBridges) > 0 {
+		log.Info("detected finalized bridge withdrawals", "size", len(finalizedBridges))
 		for tokenAddr, size := range finalizedTokens {
 			metrics.RecordL1FinalizedBridgeTransfers(tokenAddr, size)
 		}

@@ -27,6 +27,8 @@ import (
 
 var ErrTooBigSpanBatchFieldSize = errors.New("batch would cause field bytes to go over limit")
 
+var ErrEmptySpanBatch = errors.New("span-batch must not be empty")
+
 type spanBatchPrefix struct {
 	relTimestamp  uint64 // Relative timestamp of the first block
 	l1OriginNum   uint64 // L1 origin number
@@ -139,9 +141,12 @@ func (bp *spanBatchPrefix) decodePrefix(r *bytes.Reader) error {
 // decodeBlockCount parses data into bp.blockCount
 func (bp *spanBatchPayload) decodeBlockCount(r *bytes.Reader) error {
 	blockCount, err := binary.ReadUvarint(r)
-	bp.blockCount = blockCount
 	if err != nil {
 		return fmt.Errorf("failed to read block count: %w", err)
+	}
+	bp.blockCount = blockCount
+	if blockCount == 0 {
+		return ErrEmptySpanBatch
 	}
 	return nil
 }
@@ -362,6 +367,9 @@ func (b *RawSpanBatch) encodeBytes() ([]byte, error) {
 // derive converts RawSpanBatch into SpanBatch, which has a list of spanBatchElement.
 // We need chain config constants to derive values for making payload attributes.
 func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.Int) (*SpanBatch, error) {
+	if b.blockCount == 0 {
+		return nil, ErrEmptySpanBatch
+	}
 	blockOriginNums := make([]uint64, b.blockCount)
 	l1OriginBlockNumber := b.l1OriginNum
 	for i := int(b.blockCount) - 1; i >= 0; i-- {
@@ -589,31 +597,32 @@ func NewSpanBatch(singularBatches []*SingularBatch) *SpanBatch {
 // SpanBatchBuilder is a utility type to build a SpanBatch by adding a SingularBatch one by one.
 // makes easier to stack SingularBatches and convert to RawSpanBatch for encoding.
 type SpanBatchBuilder struct {
-	parentEpoch      uint64
 	genesisTimestamp uint64
 	chainID          *big.Int
 	spanBatch        *SpanBatch
+	originChangedBit uint
 }
 
-func NewSpanBatchBuilder(parentEpoch uint64, genesisTimestamp uint64, chainID *big.Int) *SpanBatchBuilder {
+func NewSpanBatchBuilder(genesisTimestamp uint64, chainID *big.Int) *SpanBatchBuilder {
 	return &SpanBatchBuilder{
-		parentEpoch:      parentEpoch,
 		genesisTimestamp: genesisTimestamp,
 		chainID:          chainID,
 		spanBatch:        &SpanBatch{},
 	}
 }
 
-func (b *SpanBatchBuilder) AppendSingularBatch(singularBatch *SingularBatch) {
+func (b *SpanBatchBuilder) AppendSingularBatch(singularBatch *SingularBatch, seqNum uint64) {
+	if b.GetBlockCount() == 0 {
+		b.originChangedBit = 0
+		if seqNum == 0 {
+			b.originChangedBit = 1
+		}
+	}
 	b.spanBatch.AppendSingularBatch(singularBatch)
 }
 
 func (b *SpanBatchBuilder) GetRawSpanBatch() (*RawSpanBatch, error) {
-	originChangedBit := 0
-	if uint64(b.spanBatch.GetStartEpochNum()) != b.parentEpoch {
-		originChangedBit = 1
-	}
-	raw, err := b.spanBatch.ToRawSpanBatch(uint(originChangedBit), b.genesisTimestamp, b.chainID)
+	raw, err := b.spanBatch.ToRawSpanBatch(b.originChangedBit, b.genesisTimestamp, b.chainID)
 	if err != nil {
 		return nil, err
 	}

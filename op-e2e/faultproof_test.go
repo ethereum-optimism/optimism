@@ -18,7 +18,7 @@ import (
 )
 
 func TestMultipleCannonGames(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -78,7 +78,7 @@ func TestMultipleCannonGames(t *testing.T) {
 }
 
 func TestMultipleGameTypes(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -277,7 +277,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 }
 
 func TestCannonDisputeGame(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	tests := []struct {
 		name             string
@@ -328,7 +328,7 @@ func TestCannonDisputeGame(t *testing.T) {
 }
 
 func TestCannonDefendStep(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -370,7 +370,7 @@ func TestCannonDefendStep(t *testing.T) {
 }
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -448,7 +448,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 }
 
 func TestCannonPoisonedPostState(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -558,7 +558,7 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 }
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UsesCannon)
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { MerkleTrie } from "../src/libraries/trie/MerkleTrie.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
+import { MerkleTrie } from "src/libraries/trie/MerkleTrie.sol";
 
 contract MerkleTrie_get_Test is CommonTest {
     function test_get_validProof1_succeeds() external {

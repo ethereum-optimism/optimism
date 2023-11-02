@@ -6,7 +6,7 @@ import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 import { StdInvariant } from "forge-std/StdInvariant.sol";
-import { Burn } from "../../src/libraries/Burn.sol";
+import { Burn } from "src/libraries/Burn.sol";
 
 contract Burn_GasBurner is StdUtils {
     Vm internal vm;

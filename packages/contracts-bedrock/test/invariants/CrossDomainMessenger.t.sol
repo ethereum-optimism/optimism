@@ -3,14 +3,14 @@ pragma solidity 0.8.15;
 
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
-import { OptimismPortal } from "../../src/L1/OptimismPortal.sol";
-import { L1CrossDomainMessenger } from "../../src/L1/L1CrossDomainMessenger.sol";
-import { Messenger_Initializer } from "../CommonTest.t.sol";
-import { Types } from "../../src/libraries/Types.sol";
-import { Predeploys } from "../../src/libraries/Predeploys.sol";
-import { Constants } from "../../src/libraries/Constants.sol";
-import { Encoding } from "../../src/libraries/Encoding.sol";
-import { Hashing } from "../../src/libraries/Hashing.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { Messenger_Initializer } from "test/CommonTest.t.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 
 contract RelayActor is StdUtils {
     // Storage slot of the l2Sender

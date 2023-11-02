@@ -3,11 +3,11 @@ pragma solidity >=0.6.2 <0.9.0;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { AttestationStation } from "../src/periphery/op-nft/AttestationStation.sol";
-import { Optimist } from "../src/periphery/op-nft/Optimist.sol";
-import { OptimistAllowlist } from "../src/periphery/op-nft/OptimistAllowlist.sol";
-import { OptimistInviter } from "../src/periphery/op-nft/OptimistInviter.sol";
-import { OptimistInviterHelper } from "./Helpers.sol";
+import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
+import { Optimist } from "src/periphery/op-nft/Optimist.sol";
+import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
+import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
+import { OptimistInviterHelper } from "test/Helpers.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 

@@ -2,14 +2,14 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Libraries
-import { Types } from "../src/libraries/Types.sol";
-import { LegacyCrossDomainUtils } from "../src/libraries/LegacyCrossDomainUtils.sol";
+import { Types } from "src/libraries/Types.sol";
+import { LegacyCrossDomainUtils } from "src/libraries/LegacyCrossDomainUtils.sol";
 
 // Target contract
-import { Encoding } from "../src/libraries/Encoding.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 contract Encoding_Test is CommonTest {
     /// @dev Tests encoding and decoding a nonce and version.

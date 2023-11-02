@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
 
-import { Clone } from "../src/libraries/Clone.sol";
+import { Clone } from "src/libraries/Clone.sol";
 
 contract ExampleClone is Clone {
     uint256 argOffset;

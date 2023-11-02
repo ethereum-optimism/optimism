@@ -2,6 +2,7 @@ package op_e2e
 
 import (
 	"encoding/json"
+	"errors"
 	"math/big"
 	"os"
 	"os/exec"
@@ -51,6 +52,11 @@ func (eec *ExternalEthClient) Close() error {
 	select {
 	case <-time.After(5 * time.Second):
 		eec.Session.Kill()
+		select {
+		case <-time.After(30 * time.Second):
+			return errors.New("external client failed to terminate")
+		case <-eec.Session.Exited:
+		}
 	case <-eec.Session.Exited:
 	}
 	return nil

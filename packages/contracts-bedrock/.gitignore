@@ -9,11 +9,8 @@ typechain
 coverage.out
 .resource-metering.csv
 
-# Tests
-test-case-generator/fuzz
-
 # Scripts
-scripts/differential-testing/differential-testing
+scripts/go-ffi/go-ffi
 
 # Environment Variables
 .envrc

@@ -604,7 +604,9 @@ func (m *Metrics) ReportProtocolVersions(local, engine, recommended, required pa
 	m.ProtocolVersions.WithLabelValues(local.String(), engine.String(), recommended.String(), required.String()).Set(1)
 }
 
-type noopMetricer struct{}
+type noopMetricer struct {
+	metrics.NoopRPCMetrics
+}
 
 var NoopMetrics Metricer = new(noopMetricer)
 
@@ -612,17 +614,6 @@ func (n *noopMetricer) RecordInfo(version string) {
 }
 
 func (n *noopMetricer) RecordUp() {
-}
-
-func (n *noopMetricer) RecordRPCServerRequest(method string) func() {
-	return func() {}
-}
-
-func (n *noopMetricer) RecordRPCClientRequest(method string) func(err error) {
-	return func(err error) {}
-}
-
-func (n *noopMetricer) RecordRPCClientResponse(method string, err error) {
 }
 
 func (n *noopMetricer) SetDerivationIdle(status bool) {

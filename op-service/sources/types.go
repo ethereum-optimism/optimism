@@ -181,15 +181,37 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 type rpcBlock struct {
 	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
-	Withdrawals  *eth.Withdrawals     `json:"withdrawals,omitempty"`
+	Withdrawals  *types.Withdrawals   `json:"withdrawals,omitempty"`
 }
 
 func (block *rpcBlock) verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
+	for i, tx := range block.Transactions {
+		if tx == nil {
+			return fmt.Errorf("block tx %d is null", i)
+		}
+	}
 	if computed := types.DeriveSha(types.Transactions(block.Transactions), trie.NewStackTrie(nil)); block.TxHash != computed {
 		return fmt.Errorf("failed to verify transactions list: computed %s but RPC said %s", computed, block.TxHash)
+	}
+	if block.WithdrawalsRoot != nil {
+		if block.Withdrawals == nil {
+			return fmt.Errorf("expected withdrawals")
+		}
+		for i, w := range *block.Withdrawals {
+			if w == nil {
+				return fmt.Errorf("block withdrawal %d is null", i)
+			}
+		}
+		if computed := types.DeriveSha(*block.Withdrawals, trie.NewStackTrie(nil)); *block.WithdrawalsRoot != computed {
+			return fmt.Errorf("failed to verify withdrawals list: computed %s but RPC said %s", computed, block.WithdrawalsRoot)
+		}
+	} else {
+		if block.Withdrawals != nil {
+			return fmt.Errorf("expected no withdrawals due to missing withdrawals-root, but got %d", len(*block.Withdrawals))
+		}
 	}
 	return nil
 }
