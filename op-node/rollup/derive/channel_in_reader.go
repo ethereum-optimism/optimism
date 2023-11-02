@@ -99,6 +99,9 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		return singularBatch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsSpanBatch(origin.Time) {
+			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
+			// Therefore, even if the batch passed this rule, it can be dropped in the batch queue.
+			// This is just for early dropping invalid batches as soon as possible.
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
 		rawSpanBatch, ok := batchData.inner.(*RawSpanBatch)
