@@ -108,7 +108,9 @@ func TestL1ETLConstruction(t *testing.T) {
 			logger := testlog.Logger(t, log.LvlInfo)
 			cfg := Config{StartHeight: ts.start}
 
-			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts)
+			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts, func(cause error) {
+				t.Fatalf("crit error: %v", cause)
+			})
 			test.assertion(etl, err)
 		})
 	}

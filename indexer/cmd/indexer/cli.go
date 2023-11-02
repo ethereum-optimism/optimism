@@ -1,14 +1,19 @@
 package main
 
 import (
+	"context"
+
+	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/params"
-
-	"github.com/urfave/cli/v2"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 var (
@@ -27,7 +32,7 @@ var (
 	}
 )
 
-func runIndexer(ctx *cli.Context) error {
+func runIndexer(ctx *cli.Context, shutdown context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "indexer")
 	oplog.SetGlobalLogHandler(log.GetHandler())
 	log.Info("running indexer...")
@@ -35,31 +40,13 @@ func runIndexer(ctx *cli.Context) error {
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
-		return err
+		return nil, err
 	}
 
-	db, err := database.NewDB(log, cfg.DB)
-	if err != nil {
-		log.Error("failed to connect to database", "err", err)
-		return err
-	}
-	defer func() {
-		err := db.Close()
-		if err != nil {
-			log.Error("failed to close database", "err", err)
-		}
-	}()
-
-	indexer, err := indexer.NewIndexer(log, db, cfg.Chain, cfg.RPCs, cfg.HTTPServer, cfg.MetricsServer)
-	if err != nil {
-		log.Error("failed to create indexer", "err", err)
-		return err
-	}
-
-	return indexer.Run(ctx.Context)
+	return indexer.NewIndexer(ctx.Context, log, &cfg, shutdown)
 }
 
-func runApi(ctx *cli.Context) error {
+func runApi(ctx *cli.Context, _ context.CancelCauseFunc) (cliapp.Lifecycle, error) {
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "api")
 	oplog.SetGlobalLogHandler(log.GetHandler())
 	log.Info("running api...")
@@ -67,26 +54,22 @@ func runApi(ctx *cli.Context) error {
 	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		log.Error("failed to load config", "err", err)
-		return err
+		return nil, err
 	}
 
-	db, err := database.NewDB(log, cfg.DB)
-	if err != nil {
-		log.Error("failed to connect to database", "err", err)
-		return err
+	apiCfg := &api.Config{
+		DB:            &api.DBConfigConnector{DBConfig: cfg.DB},
+		HTTPServer:    cfg.HTTPServer,
+		MetricsServer: cfg.MetricsServer,
 	}
-	defer func() {
-		err := db.Close()
-		if err != nil {
-			log.Error("failed to close database", "err", err)
-		}
-	}()
 
-	api := api.NewApi(log, db.BridgeTransfers, cfg.HTTPServer, cfg.MetricsServer)
-	return api.Run(ctx.Context)
+	return api.NewApi(ctx.Context, log, apiCfg)
 }
 
 func runMigrations(ctx *cli.Context) error {
+	// We don't maintain a complicated lifecycle here, just interrupt to shut down.
+	ctx.Context = opio.CancelOnInterrupt(ctx.Context)
+
 	log := oplog.NewLogger(oplog.AppOut(ctx), oplog.ReadCLIConfig(ctx)).New("role", "migrations")
 	oplog.SetGlobalLogHandler(log.GetHandler())
 	log.Info("running migrations...")
@@ -97,7 +80,7 @@ func runMigrations(ctx *cli.Context) error {
 		return err
 	}
 
-	db, err := database.NewDB(log, cfg.DB)
+	db, err := database.NewDB(ctx.Context, log, cfg.DB)
 	if err != nil {
 		log.Error("failed to connect to database", "err", err)
 		return err
@@ -122,13 +105,13 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Name:        "api",
 				Flags:       flags,
 				Description: "Runs the api service",
-				Action:      runApi,
+				Action:      cliapp.LifecycleCmd(runApi),
 			},
 			{
 				Name:        "index",
 				Flags:       flags,
 				Description: "Runs the indexing service",
-				Action:      runIndexer,
+				Action:      cliapp.LifecycleCmd(runIndexer),
 			},
 			{
 				Name:        "migrate",
