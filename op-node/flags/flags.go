@@ -317,7 +317,7 @@ var optionalFlags = []cli.Flag{
 	L1HTTPPollInterval,
 	L2EngineJWTSecret,
 	L2RpcTimeout,
-	L2RpcBatchTimeout
+	L2RpcBatchTimeout,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
