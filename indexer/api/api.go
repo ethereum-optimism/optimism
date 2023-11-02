@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/config"
@@ -63,6 +64,7 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView, serverConfig con
 
 	// (2) Inject routing middleware
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
+	apiRouter.Use(middleware.Timeout(time.Duration(serverConfig.WriteTimeout) * time.Second))
 	apiRouter.Use(middleware.Recoverer)
 	apiRouter.Use(middleware.Heartbeat(HealthPath))
 
