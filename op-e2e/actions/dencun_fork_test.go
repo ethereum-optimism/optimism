@@ -22,17 +22,17 @@ func TestDencunL1Fork(gt *testing.T) {
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	l1Head := miner.l1Chain.CurrentBlock()
-	require.False(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun not active yet") // QUESTION: what other arg should be supplied?
+	require.False(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun not active yet")
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
 	// build empty L1 blocks, crossing the fork boundary
+	miner.ActEmptyBlock(t) // test fails here
 	miner.ActEmptyBlock(t)
 	miner.ActEmptyBlock(t)
-	miner.ActEmptyBlock(t)
-
+	
 	// verify Cancun is active
 	l1Head = miner.l1Chain.CurrentBlock()
 	require.True(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun active")
