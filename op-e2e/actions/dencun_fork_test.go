@@ -54,7 +54,7 @@ func TestDencunL1Fork(gt *testing.T) {
 	l1Head = miner.l1Chain.CurrentBlock()
 	require.True(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun active")
 
-	//BEFORE MERGE OF PR #7993: Also, add a few blob txs in as dummy data TODO
+	//NEXT THING TO DO AFTER MERGE OF PR #7993: Also, add a few blob txs in as dummy data
 
 	// build L2 chain up to and including L2 blocks referencing Cancun L1 blocks
 	sequencer.ActL1HeadSignal(t)
