@@ -2,10 +2,10 @@
 pragma solidity 0.8.15;
 
 import { stdError } from "forge-std/Test.sol";
-import { CommonTest } from "test/CommonTest.t.sol";
+import { Test } from "forge-std/Test.sol";
 import { RLPReader } from "src/libraries/rlp/RLPReader.sol";
 
-contract RLPReader_readBytes_Test is CommonTest {
+contract RLPReader_readBytes_Test is Test {
     function test_readBytes_bytestring00_succeeds() external {
         assertEq(RLPReader.readBytes(hex"00"), hex"00");
     }
@@ -44,7 +44,7 @@ contract RLPReader_readBytes_Test is CommonTest {
     }
 }
 
-contract RLPReader_readList_Test is CommonTest {
+contract RLPReader_readList_Test is Test {
     function test_readList_empty_succeeds() external {
         RLPReader.RLPItem[] memory list = RLPReader.readList(hex"c0");
         assertEq(list.length, 0);
