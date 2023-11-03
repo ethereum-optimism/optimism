@@ -2,9 +2,9 @@
 pragma solidity 0.8.15;
 
 import { RLPWriter } from "src/libraries/rlp/RLPWriter.sol";
-import { CommonTest } from "test/CommonTest.t.sol";
+import { Test } from "forge-std/Test.sol";
 
-contract RLPWriter_writeString_Test is CommonTest {
+contract RLPWriter_writeString_Test is Test {
     function test_writeString_empty_succeeds() external {
         assertEq(RLPWriter.writeString(""), hex"80");
     }
@@ -49,7 +49,7 @@ contract RLPWriter_writeString_Test is CommonTest {
     }
 }
 
-contract RLPWriter_writeUint_Test is CommonTest {
+contract RLPWriter_writeUint_Test is Test {
     function test_writeUint_zero_succeeds() external {
         assertEq(RLPWriter.writeUint(0x0), hex"80");
     }
@@ -83,7 +83,7 @@ contract RLPWriter_writeUint_Test is CommonTest {
     }
 }
 
-contract RLPWriter_writeList_Test is CommonTest {
+contract RLPWriter_writeList_Test is Test {
     function test_writeList_empty_succeeds() external {
         assertEq(RLPWriter.writeList(new bytes[](0)), hex"c0");
     }
