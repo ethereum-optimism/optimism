@@ -104,7 +104,7 @@ RUN /bin/sh -c set -eux; \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt; \
   npm i -g depcheck; \
   pip install slither-analyzer==$SLITHER_VERSION capstone pyelftools; \
-  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash; \
+  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/main/install.sh | bash; \
   apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
   rm -rf /var/lib/apt/lists/*; \
   rm -rf /root/.cache/pip; \

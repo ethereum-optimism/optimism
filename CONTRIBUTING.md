@@ -6,13 +6,13 @@
 
 There are plenty of ways to contribute, in particular we appreciate support in the following areas:
 
-- Reporting issues. For security issues see [Security policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md).
+- Reporting issues. For security issues see [Security policy](https://github.com/ethereum-optimism/.github/blob/main/SECURITY.md).
 - Fixing and responding to existing issues. You can start off with those tagged ["good first issue"](https://github.com/ethereum-optimism/optimism/contribute) which are meant as introductory issues for external contributors.
 - Improving the [community site](https://community.optimism.io/), [documentation](https://github.com/ethereum-optimism/community-hub) and [tutorials](https://github.com/ethereum-optimism/optimism-tutorial).
 - Become an "Optimizer" and answer questions in the [Optimism Discord](https://discord.optimism.io).
 - Get involved in the protocol design process by proposing changes or new features or write parts of the spec yourself in the [specs subdirectory](./specs/).
 
-Note that we have a [Code of Conduct](https://github.com/ethereum-optimism/.github/blob/master/CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
+Note that we have a [Code of Conduct](https://github.com/ethereum-optimism/.github/blob/main/CODE_OF_CONDUCT.md), please follow it in all your interactions with the project.
 
 ## Workflow for Pull Requests
 

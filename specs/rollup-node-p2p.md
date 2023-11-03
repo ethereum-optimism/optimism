@@ -402,18 +402,18 @@ but the client should regard any error like any any other unanswered request, as
 ----
 
 [libp2p]: https://libp2p.io/
-[discv5]: https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md
+[discv5]: https://github.com/ethereum/devp2p/blob/main/discv5/discv5.md
 [discv5-random-nodes]: https://pkg.go.dev/github.com/ethereum/go-ethereum@v1.10.12/p2p/discover#UDPv5.RandomNodes
 [eth2-p2p]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md
 [eth2-p2p-reqresp]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#the-reqresp-domain
 [eth2-p2p-altair-reqresp]: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/p2p-interface.md#the-reqresp-domain
-[libp2p-noise]: https://github.com/libp2p/specs/tree/master/noise
+[libp2p-noise]: https://github.com/libp2p/specs/tree/main/noise
 [multistream-select]: https://github.com/multiformats/multistream-select/
-[mplex]: https://github.com/libp2p/specs/tree/master/mplex
-[yamux]: https://github.com/hashicorp/yamux/blob/master/spec.md
-[gossipsub]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md
-[signature-policy]: https://github.com/libp2p/specs/blob/master/pubsub/README.md#signature-policy-options
+[mplex]: https://github.com/libp2p/specs/tree/main/mplex
+[yamux]: https://github.com/hashicorp/yamux/blob/main/spec.md
+[gossipsub]: https://github.com/libp2p/specs/blob/main/pubsub/gossipsub/gossipsub-v1.1.md
+[signature-policy]: https://github.com/libp2p/specs/blob/main/pubsub/README.md#signature-policy-options
 [snappy]: https://github.com/google/snappy
 [l1-message-id]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#topics-and-messages
-[gossip-parameters]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.0.md#parameters
-[extended-validator]: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#extended-validators
+[gossip-parameters]: https://github.com/libp2p/specs/blob/main/pubsub/gossipsub/gossipsub-v1.0.md#parameters
+[extended-validator]: https://github.com/libp2p/specs/blob/main/pubsub/gossipsub/gossipsub-v1.1.md#extended-validators

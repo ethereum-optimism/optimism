@@ -80,7 +80,7 @@ func IsValidID(id json.RawMessage) bool {
 	}
 
 	// technically allows a boolean/null ID, but so does Geth
-	// https://github.com/ethereum/go-ethereum/blob/master/rpc/json.go#L72
+	// https://github.com/ethereum/go-ethereum/blob/main/rpc/json.go#L72
 	return len(id) > 0 && id[0] != '{' && id[0] != '['
 }
 

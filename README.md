@@ -32,7 +32,7 @@ Then check out the list of [Good First Issues](https://github.com/ethereum-optim
 
 ## Security Policy and Vulnerability Reporting
 
-Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
+Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/main/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
 Bounty hunters are encouraged to check out [the Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
 The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
 
@@ -80,9 +80,9 @@ Refer to the Directory Structure section below to understand which packages are 
 
 | Branch          | Status                                                                           |
 | --------------- | -------------------------------------------------------------------------------- |
-| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `main` when intending to deploy to production.                  |
-| [main](https://github.com/ethereum-optimism/optimism/tree/main/)                 | Accepts PRs that are compatible with `master` OR from `release/X.X.X` branches.                    |
-| release/X.X.X                                                                          | Accepts PRs for all changes, particularly those not backwards compatible with `main` and `master`. |
+| [main](https://github.com/ethereum-optimism/optimism/tree/main/)                   | Accepts PRs from `main` when intending to deploy to production.                  |
+| [main](https://github.com/ethereum-optimism/optimism/tree/main/)                 | Accepts PRs that are compatible with `main` OR from `release/X.X.X` branches.                    |
+| release/X.X.X                                                                          | Accepts PRs for all changes, particularly those not backwards compatible with `main` and `main`. |
 
 ### Overview
 
@@ -91,9 +91,9 @@ Please read the linked post if you're planning to make frequent PRs into this re
 
 ### Production branch
 
-The production branch is `master`.
-The `master` branch contains the code for latest "stable" releases.
-Updates from `master` **always** come from the `main` branch.
+The production branch is `main`.
+The `main` branch contains the code for latest "stable" releases.
+Updates from `main` **always** come from the `main` branch.
 
 ### Development branch
 
@@ -110,7 +110,7 @@ See below for info about release candidate branches.
 
 Branches marked `release/X.X.X` are **release candidate branches**.
 Changes that are not backwards compatible and all changes to contracts within `packages/contracts-bedrock/src` MUST be directed towards a release candidate branch.
-Release candidates are merged into `main` and then into `master` once they've been fully deployed.
+Release candidates are merged into `main` and then into `main` once they've been fully deployed.
 We may sometimes have more than one active `release/X.X.X` branch if we're in the middle of a deployment.
 See table in the **Active Branches** section above to find the right branch to target.
 
@@ -129,17 +129,17 @@ Comments within changeset files will be automatically included in the changelog 
 
 Releases can be triggered using the following process:
 
-1. Create a PR that merges the `main` branch into the `master` branch.
+1. Create a PR that merges the `main` branch into the `main` branch.
 2. Wait for the auto-generated `Version Packages` PR to be opened (may take several minutes).
-3. Change the base branch of the auto-generated `Version Packages` PR from `master` to `main` and merge into `main`.
-4. Create a second PR to merge the `main` branch into the `master` branch.
+3. Change the base branch of the auto-generated `Version Packages` PR from `main` to `main` and merge into `main`.
+4. Create a second PR to merge the `main` branch into the `main` branch.
 
-After merging the second PR into the `master` branch, packages will be automatically released to their respective locations according to the set of changeset files in the `main` branch at the start of the process.
-Please carry this process out exactly as listed to avoid `main` and `master` falling out of sync.
+After merging the second PR into the `main` branch, packages will be automatically released to their respective locations according to the set of changeset files in the `main` branch at the start of the process.
+Please carry this process out exactly as listed to avoid `main` and `main` falling out of sync.
 
 **NOTE**: PRs containing changeset files merged into `main` during the release process can cause issues with changesets that can require manual intervention to fix.
 It's strongly recommended to avoid merging PRs into main during an active release.
 
 ## License
 
-All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/main/LICENSE) unless stated otherwise.

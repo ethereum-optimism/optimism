@@ -21,7 +21,7 @@ with open("../../nx.json") as file:
 REBUILD_ALL_PATTERNS += nx_json_data["implicitDependencies"].keys()
 
 WHITELISTED_BRANCHES = {
-    'master',
+    'main',
     'main'
 }
 

@@ -253,11 +253,11 @@ No modifications to L1 network functionality are required, except configuration:
 - Bootnode list: DiscV5 is a shared network,
   [bootstrap][discv5-rationale] is faster through connecting with L2 nodes first.
 
-[discv5]: https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md
-[eth66]: https://github.com/ethereum/devp2p/blob/master/caps/eth.md
-[network-id]: https://github.com/ethereum/devp2p/blob/master/caps/eth.md#status-0x00
-[chain-id]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-155.md
-[discv5-rationale]: https://github.com/ethereum/devp2p/blob/master/discv5/discv5-rationale.md
+[discv5]: https://github.com/ethereum/devp2p/blob/main/discv5/discv5.md
+[eth66]: https://github.com/ethereum/devp2p/blob/main/caps/eth.md
+[network-id]: https://github.com/ethereum/devp2p/blob/main/caps/eth.md#status-0x00
+[chain-id]: https://github.com/ethereum/EIPs/blob/main/EIPS/eip-155.md
+[discv5-rationale]: https://github.com/ethereum/devp2p/blob/main/discv5/discv5-rationale.md
 
 ## Sync
 
@@ -269,7 +269,7 @@ The execution engine can operate sync in different ways:
 The happy-path is more suitable to bring new nodes online quickly,
 as the engine implementation can sync state faster through methods like [snap-sync][snap-sync].
 
-[snap-sync]: https://github.com/ethereum/devp2p/blob/master/caps/snap.md
+[snap-sync]: https://github.com/ethereum/devp2p/blob/main/caps/snap.md
 
 ### Happy-path sync
 

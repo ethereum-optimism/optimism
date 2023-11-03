@@ -133,7 +133,7 @@ the PR (36,311 lines added, 47,430 lines removed), which consumed the attention 
 engineering team with a sense of urgency for several months.
 
 An additional factor contributing to this bug was the significant complexity of the
-[L2Geth](https://github.com/ethereum-optimism/optimism/tree/master/l2geth) codebase, which is a fork
+[L2Geth](https://github.com/ethereum-optimism/optimism/tree/main/l2geth) codebase, which is a fork
 of [Geth](https://github.com/ethereum/go-ethereum). Geth itself is already a very complex codebase.
 The changes introduced to L2Geth in order to support the OVM made it much more complex, such that
 very few people properly understood how it worked.
@@ -276,7 +276,7 @@ This means that we reserve the right to hide the fix, and delay the public annou
 reserve the right to directly notify a subset of downstream users prior to the public announcement.
 
 **Action taken:** This disclosure process is now documented in our
-[Security Policies page](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md).
+[Security Policies page](https://github.com/ethereum-optimism/.github/blob/main/SECURITY.md).
 
 ### Defensive measures during an incident
 

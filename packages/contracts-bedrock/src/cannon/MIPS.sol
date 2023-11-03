@@ -17,7 +17,7 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 ///      (page A-177)
 /// @dev https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
 /// @dev https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
-/// @dev https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
+/// @dev https://github.com/golang/go/blob/main/src/syscall/zerrors_linux_mips.go
 ///      MIPS linux kernel errors used by Go runtime
 contract MIPS {
     /// @notice Stores the VM state.
