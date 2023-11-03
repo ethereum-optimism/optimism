@@ -178,22 +178,23 @@ func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) 
 	txHash := types.DeriveSha(rawTransactions(payload.Transactions), hasher)
 
 	header := types.Header{
-		ParentHash:  payload.ParentHash,
-		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    payload.FeeRecipient,
-		Root:        common.Hash(payload.StateRoot),
-		TxHash:      txHash,
-		ReceiptHash: common.Hash(payload.ReceiptsRoot),
-		Bloom:       types.Bloom(payload.LogsBloom),
-		Difficulty:  common.Big0, // zeroed, proof-of-work legacy
-		Number:      big.NewInt(int64(payload.BlockNumber)),
-		GasLimit:    uint64(payload.GasLimit),
-		GasUsed:     uint64(payload.GasUsed),
-		Time:        uint64(payload.Timestamp),
-		Extra:       payload.ExtraData,
-		MixDigest:   common.Hash(payload.PrevRandao),
-		Nonce:       types.BlockNonce{}, // zeroed, proof-of-work legacy
-		BaseFee:     payload.BaseFeePerGas.ToBig(),
+		ParentHash:       payload.ParentHash,
+		UncleHash:        types.EmptyUncleHash,
+		Coinbase:         payload.FeeRecipient,
+		Root:             common.Hash(payload.StateRoot),
+		TxHash:           txHash,
+		ReceiptHash:      common.Hash(payload.ReceiptsRoot),
+		Bloom:            types.Bloom(payload.LogsBloom),
+		Difficulty:       common.Big0, // zeroed, proof-of-work legacy
+		Number:           big.NewInt(int64(payload.BlockNumber)),
+		GasLimit:         uint64(payload.GasLimit),
+		GasUsed:          uint64(payload.GasUsed),
+		Time:             uint64(payload.Timestamp),
+		Extra:            payload.ExtraData,
+		MixDigest:        common.Hash(payload.PrevRandao),
+		Nonce:            types.BlockNonce{}, // zeroed, proof-of-work legacy
+		BaseFee:          payload.BaseFeePerGas.ToBig(),
+		ParentBeaconRoot: &common.Hash{}, // zeroed, proof-of-stake legacy(?)
 	}
 
 	if payload.CanyonBlock() {

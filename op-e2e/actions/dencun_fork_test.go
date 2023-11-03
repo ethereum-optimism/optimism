@@ -39,9 +39,9 @@ func TestDencunL1Fork(gt *testing.T) {
 	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
 	miner.ActEmptyBlock(t)
 	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
-	miner.ActEmptyBlock(t) //// test fails here
+	miner.ActEmptyBlock(t) //// test fails here as cancun activates
 	/*
-			########## BAD BLOCK #########
+		########## BAD BLOCK #########
 		Block: 2 (0xf227de28aae80d15e8a50c5639a9b31be65fdefe97e21eadd23b957bd3d6ee5a)
 		Error: header is missing beaconRoot
 		Platform: geth 0.1.0-unstable go1.21.3 arm64 darwin
@@ -49,9 +49,7 @@ func TestDencunL1Fork(gt *testing.T) {
 		Receipts:
 		##############################
 	*/
-	return
 	miner.ActEmptyBlock(t)
-	return
 	// verify Cancun is active
 	l1Head = miner.l1Chain.CurrentBlock()
 	require.True(t, sd.L1Cfg.Config.IsCancun(l1Head.Number, l1Head.Time), "Cancun active")
