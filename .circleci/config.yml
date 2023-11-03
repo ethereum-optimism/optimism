@@ -1418,6 +1418,13 @@ workflows:
             - op-stack-go-lint
             - devnet-allocs
             - l1-geth-version-check
+      - go-e2e-test:
+          name: op-e2e-span-batch-tests
+          module: op-e2e
+          target: test-span-batch
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
       - op-program-compat:
           requires:
             - op-program-tests
