@@ -4,11 +4,11 @@ pragma solidity ^0.8.0;
 import { ERC20 } from "@rari-capital/solmate/src/tokens/ERC20.sol";
 import { ERC721 } from "@rari-capital/solmate/src/tokens/ERC721.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { OptimistInviter } from "../src/periphery/op-nft/OptimistInviter.sol";
+import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ECDSAUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
-import { AdminFaucetAuthModule } from "../src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
+import { AdminFaucetAuthModule } from "src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 
 contract TestERC20 is ERC20 {
     constructor() ERC20("TEST", "TST", 18) { }

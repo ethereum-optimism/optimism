@@ -34,6 +34,18 @@ var (
 		Usage:   "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
 		EnvVars: prefixEnvVars("L2_ENGINE_RPC"),
 	}
+	L2RpcTimeout = &cli.DurationFlag{
+		Name:    "l2.rpc-timeout",
+		Usage:   "Timeout for L2 RPC requests",
+		EnvVars: prefixEnvVars("L2_RPC_TIMEOUT"),
+		Value:   time.Second * 10,
+	}
+	L2RpcBatchTimeout = &cli.DurationFlag{
+		Name:    "l2.rpc-batch-timeout",
+		Usage:   "Timeout for L2 RPC batch requests",
+		EnvVars: prefixEnvVars("L2_RPC_BATCH_TIMEOUT"),
+		Value:   time.Second * 20,
+	}
 	RollupConfig = &cli.StringFlag{
 		Name:    "rollup.config",
 		Usage:   "Rollup chain parameters",
@@ -57,6 +69,30 @@ var (
 		EnvVars: prefixEnvVars("RPC_PORT"),
 		Value:   9545, // Note: op-service/rpc/cli.go uses 8545 as the default.
 	}
+	RPCListenReadTimeout = &cli.DurationFlag{
+		Name:    "rpc.read-timeout",
+		Usage:   "RPC read timeout",
+		EnvVars: prefixEnvVars("RPC_READ_TIMEOUT"),
+		Value:   time.Second * 30,
+	}
+	RPCListenReadHeaderTimeout = &cli.DurationFlag{
+		Name:    "rpc.read-header-timeout",
+		Usage:   "RPC read header timeout",
+		EnvVars: prefixEnvVars("RPC_READ_HEADER_TIMEOUT"),
+		Value:   time.Second * 30,
+	}
+	RPCListenWriteTimeout = &cli.DurationFlag{
+		Name:    "rpc.write-timeout",
+		Usage:   "RPC write timeout",
+		EnvVars: prefixEnvVars("RPC_WRITE_TIMEOUT"),
+		Value:   time.Second * 30,
+	}
+	RPCListenIdleTimeout = &cli.DurationFlag{
+		Name:    "rpc.idle-timeout",
+		Usage:   "RPC idle timeout",
+		EnvVars: prefixEnvVars("RPC_IDLE_TIMEOUT"),
+		Value:   time.Second * 120,
+	}
 	RPCEnableAdmin = &cli.BoolFlag{
 		Name:    "rpc.enable-admin",
 		Usage:   "Enable the admin API (experimental)",
@@ -66,12 +102,6 @@ var (
 		Name:    "rpc.admin-state",
 		Usage:   "File path used to persist state changes made via the admin API so they persist across restarts. Disabled if not set.",
 		EnvVars: prefixEnvVars("RPC_ADMIN_STATE"),
-	}
-	RPCTimeout = &cli.DurationFlag{
-		Name:    "rpc.timeout",
-		Usage:   "Timeout for RPC requests",
-		Value:   time.Second * 10,
-		EnvVars: prefixEnvVars("RPC_TIMEOUT"),
 	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",
@@ -87,6 +117,12 @@ var (
 			out := sources.RPCKindStandard
 			return &out
 		}(),
+	}
+	L1RethDBPath = &cli.StringFlag{
+		Name:     "l1.rethdb",
+		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
+		EnvVars:  prefixEnvVars("L1_RETHDB"),
+		Required: false,
 	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
@@ -260,9 +296,10 @@ var (
 		EnvVars: prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
 	}
 	CanyonOverrideFlag = &cli.Uint64Flag{
-		Name:   "override.canyon",
-		Usage:  "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-		Hidden: true,
+		Name:    "override.canyon",
+		Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
+		EnvVars: prefixEnvVars("OVERRIDE_CANYON"),
+		Hidden:  false,
 	}
 )
 
@@ -274,6 +311,10 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	RPCListenAddr,
 	RPCListenPort,
+	RPCListenReadTimeout,
+	RPCListenReadHeaderTimeout,
+	RPCListenWriteTimeout,
+	RPCListenIdleTimeout,
 	RollupConfig,
 	Network,
 	L1TrustRPC,
@@ -282,6 +323,8 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxBatchSize,
 	L1HTTPPollInterval,
 	L2EngineJWTSecret,
+	L2RpcTimeout,
+	L2RpcBatchTimeout,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
@@ -290,7 +333,6 @@ var optionalFlags = []cli.Flag{
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
 	RPCEnableAdmin,
-	RPCTimeout,
 	RPCAdminPersistence,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
@@ -310,6 +352,7 @@ var optionalFlags = []cli.Flag{
 	RollupHalt,
 	RollupLoadProtocolVersions,
 	CanyonOverrideFlag,
+	L1RethDBPath,
 }
 
 // Flags contains the list of configuration options available to the binary.

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2OutputOracle_Initializer } from "../CommonTest.t.sol";
-import { L2OutputOracle } from "../../src/L1/L2OutputOracle.sol";
+import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 
 contract L2OutputOracle_Proposer {

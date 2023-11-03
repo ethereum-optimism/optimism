@@ -2,13 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "./CommonTest.t.sol";
+import { CommonTest } from "test/CommonTest.t.sol";
 
 // Testing contract dependencies
-import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract
-import { LegacyMessagePasser } from "../src/legacy/LegacyMessagePasser.sol";
+import { LegacyMessagePasser } from "src/legacy/LegacyMessagePasser.sol";
 
 contract LegacyMessagePasser_Test is CommonTest {
     LegacyMessagePasser messagePasser;

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/urfave/cli/v2"
@@ -78,10 +79,15 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
-			ListenAddr:  ctx.String(flags.RPCListenAddr.Name),
-			ListenPort:  ctx.Int(flags.RPCListenPort.Name),
+			ListenAddr: ctx.String(flags.RPCListenAddr.Name),
+			ListenPort: ctx.Int(flags.RPCListenPort.Name),
+			ListenTimeout: &httputil.HTTPTimeouts{
+				ReadTimeout:       ctx.Duration(flags.RPCListenReadTimeout.Name),
+				ReadHeaderTimeout: ctx.Duration(flags.RPCListenReadHeaderTimeout.Name),
+				WriteTimeout:      ctx.Duration(flags.RPCListenWriteTimeout.Name),
+				IdleTimeout:       ctx.Duration(flags.RPCListenIdleTimeout.Name),
+			},
 			EnableAdmin: ctx.Bool(flags.RPCEnableAdmin.Name),
-			RpcTimout:   ctx.Duration(flags.RPCTimeout.Name),
 		},
 		Metrics: node.MetricsConfig{
 			Enabled:    ctx.Bool(flags.MetricsEnabledFlag.Name),
@@ -105,6 +111,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		ConfigPersistence: configPersistence,
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
+		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -155,6 +162,8 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	return &node.L2EndpointConfig{
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
+		L2RpcTimeout:      ctx.Duration(flags.L2RpcTimeout.Name),
+		L2RpcBatchTimeout: ctx.Duration(flags.L2RpcBatchTimeout.Name),
 	}, nil
 }
 

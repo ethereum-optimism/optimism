@@ -57,9 +57,9 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 
 		nextBlockTime := eth.Uint64Quantity(genesis.Time + 1)
 
-		var w *eth.Withdrawals
+		var w *types.Withdrawals
 		if api.backend.Config().IsCanyon(uint64(nextBlockTime)) {
-			w = &eth.Withdrawals{}
+			w = &types.Withdrawals{}
 		}
 
 		result, err := api.engine.ForkchoiceUpdatedV2(api.ctx, &eth.ForkchoiceState{
@@ -111,9 +111,9 @@ func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.
 	t.Run("RejectInvalidBlockHash", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
 
-		var w *eth.Withdrawals
+		var w *types.Withdrawals
 		if api.backend.Config().IsCanyon(uint64(0)) {
-			w = &eth.Withdrawals{}
+			w = &types.Withdrawals{}
 		}
 
 		// Invalid because BlockHash won't be correct (among many other reasons)
@@ -385,9 +385,9 @@ func (h *testHelper) startBlockBuilding(head *types.Header, newBlockTimestamp et
 	}
 
 	canyonTime := h.backend.Config().CanyonTime
-	var w *eth.Withdrawals
+	var w *types.Withdrawals
 	if canyonTime != nil && *canyonTime <= uint64(newBlockTimestamp) {
-		w = &eth.Withdrawals{}
+		w = &types.Withdrawals{}
 	}
 
 	result, err := h.engine.ForkchoiceUpdatedV2(h.ctx, &eth.ForkchoiceState{

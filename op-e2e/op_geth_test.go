@@ -823,7 +823,7 @@ func TestCanyon(t *testing.T) {
 
 			b, err := opGeth.AddL2Block(ctx)
 			require.NoError(t, err)
-			assert.Equal(t, *b.Withdrawals, eth.Withdrawals{})
+			assert.Equal(t, *b.Withdrawals, types.Withdrawals{})
 
 			l1Block, err := opGeth.L2Client.BlockByNumber(ctx, nil)
 			require.Nil(t, err)

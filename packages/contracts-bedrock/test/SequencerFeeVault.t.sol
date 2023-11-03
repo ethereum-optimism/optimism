@@ -2,17 +2,17 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { FeeVault_Initializer, Reverter } from "./CommonTest.t.sol";
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
+import { FeeVault_Initializer, Reverter } from "test/CommonTest.t.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 
 // Libraries
-import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 // Target contract dependencies
-import { FeeVault } from "../src/universal/FeeVault.sol";
+import { FeeVault } from "src/universal/FeeVault.sol";
 
 // Target contract
-import { SequencerFeeVault } from "../src/L2/SequencerFeeVault.sol";
+import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
 contract SequencerFeeVault_Test is FeeVault_Initializer {
     /// @dev Sets up the test suite.

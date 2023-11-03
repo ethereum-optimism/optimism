@@ -98,7 +98,7 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	l1Head := l1HeadBlock.Hash()
 
 	if dataDir == "" {
-		dataDir, err := os.MkdirTemp("", "oracledata")
+		dataDir, err = os.MkdirTemp("", "oracledata")
 		if err != nil {
 			return fmt.Errorf("create temp dir: %w", err)
 		}

@@ -471,9 +471,8 @@ channels available. These transactions carry one or more full frames, which may 
 channel's frame may be split between multiple batcher transactions.
 
 When submitted to Ethereum calldata, the batcher transaction's receiver must be the sequencer inbox address. The
-transaction must also be signed by a recognized batch submitter account.
-
-> **TODO** specify where these recognized batch submitter accounts are stored
+transaction must also be signed by a recognized batch submitter account. The recognized batch submitter account
+is stored in the [System Configuration][system-config].
 
 ## Channel Timeout
 

@@ -154,12 +154,11 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, c
 		cursorClause = fmt.Sprintf("l1_transaction_deposits.timestamp <= %d", txDeposit.Tx.Timestamp)
 	}
 
-	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
 	// Coalesce l1 transaction deposits that are simply ETH sends
 	ethTransactionDeposits := db.gorm.Model(&L1TransactionDeposit{})
-	ethTransactionDeposits = ethTransactionDeposits.Where(&Transaction{FromAddress: address}).Where("data = '0x' AND amount > 0")
+	ethTransactionDeposits = ethTransactionDeposits.Where(&Transaction{FromAddress: address}).Where("amount > 0")
 	ethTransactionDeposits = ethTransactionDeposits.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = initiated_l1_event_guid")
 	ethTransactionDeposits = ethTransactionDeposits.Select(`
 from_address, to_address, amount, data, source_hash AS transaction_source_hash,
@@ -283,7 +282,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 
 	// Coalesce l2 transaction withdrawals that are simply ETH sends
 	ethTransactionWithdrawals := db.gorm.Model(&L2TransactionWithdrawal{})
-	ethTransactionWithdrawals = ethTransactionWithdrawals.Where(&Transaction{FromAddress: address}).Where(`data = '0x' AND amount > 0`)
+	ethTransactionWithdrawals = ethTransactionWithdrawals.Where(&Transaction{FromAddress: address}).Where("amount > 0")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("LEFT JOIN l1_contract_events AS proven_l1_events ON proven_l1_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("LEFT JOIN l1_contract_events AS finalized_l1_events ON finalized_l1_events.guid = l2_transaction_withdrawals.finalized_l1_event_guid")

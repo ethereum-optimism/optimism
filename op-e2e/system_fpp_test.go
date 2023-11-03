@@ -93,7 +93,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	l2OutputRoot := agreedL2Output.OutputRoot
 
 	t.Log("=====Stopping batch submitter=====")
-	err = sys.BatchSubmitter.Stop(ctx)
+	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(ctx)
 	require.NoError(t, err, "could not stop batch submitter")
 
 	// Wait for the sequencer to catch up with the current L1 head so we know all submitted batches are processed
@@ -121,7 +121,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	l2Claim := l2Output.OutputRoot
 
 	t.Log("=====Restarting batch submitter=====")
-	err = sys.BatchSubmitter.Start()
+	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
 	require.NoError(t, err, "could not start batch submitter")
 
 	t.Log("Add a transaction to the next batch after sequence of empty blocks")
@@ -258,7 +258,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	t.Log("Shutting down network")
 	// Shutdown the nodes from the actual chain. Should now be able to run using only the pre-fetched data.
-	sys.BatchSubmitter.StopIfRunning(context.Background())
+	require.NoError(t, sys.BatchSubmitter.Kill())
 	sys.L2OutputSubmitter.Stop()
 	sys.L2OutputSubmitter = nil
 	for _, node := range sys.EthInstances {

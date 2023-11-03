@@ -708,7 +708,6 @@ func TestSystemP2PAltSync(t *testing.T) {
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,
 			EnableAdmin: true,
-			RpcTimout:   10 * time.Second,
 		},
 		P2P:                 &p2p.Prepared{HostP2P: h, EnableReqRespSync: true},
 		Metrics:             rollupNode.MetricsConfig{Enabled: false}, // no metrics server
@@ -1280,7 +1279,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
 	// stop the batch submission
-	err = sys.BatchSubmitter.Stop(context.Background())
+	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(context.Background())
 	require.Nil(t, err)
 
 	// wait for any old safe blocks being submitted / derived
@@ -1300,7 +1299,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Equal(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain advanced while batcher was stopped")
 
 	// start the batch submission
-	err = sys.BatchSubmitter.Start()
+	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
 	require.Nil(t, err)
 	time.Sleep(safeBlockInclusionDuration)
 
@@ -1339,7 +1338,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	require.Nil(t, err)
 
 	// start batch submission
-	err = sys.BatchSubmitter.Start()
+	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
 	require.Nil(t, err)
 
 	totalTxCount := 0

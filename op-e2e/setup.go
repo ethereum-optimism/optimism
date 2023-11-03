@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"net"
@@ -37,7 +38,6 @@ import (
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
-	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
@@ -49,6 +49,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
@@ -122,7 +123,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					ListenAddr:  "127.0.0.1",
 					ListenPort:  0,
 					EnableAdmin: true,
-					RpcTimout:   time.Second * 10,
 				},
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,
@@ -255,7 +255,7 @@ type System struct {
 	RawClients        map[string]*rpc.Client
 	RollupNodes       map[string]*rollupNode.OpNode
 	L2OutputSubmitter *l2os.L2OutputSubmitter
-	BatchSubmitter    *bss.BatchSubmitter
+	BatchSubmitter    *bss.BatcherService
 	Mocknet           mocknet.Mocknet
 
 	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
@@ -271,17 +271,15 @@ func (sys *System) NodeEndpoint(name string) string {
 }
 
 func (sys *System) Close() {
+	postCtx, postCancel := context.WithCancel(context.Background())
+	postCancel() // immediate shutdown, no allowance for idling
+
 	if sys.L2OutputSubmitter != nil {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		sys.BatchSubmitter.StopIfRunning(ctx)
+		_ = sys.BatchSubmitter.Kill()
 	}
-
-	postCtx, postCancel := context.WithCancel(context.Background())
-	postCancel() // immediate shutdown, no allowance for idling
 
 	for _, node := range sys.RollupNodes {
 		_ = node.Stop(postCtx)
@@ -682,8 +680,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
-	// Batch Submitter
-	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
+	batchType := derive.SingularBatchType
+	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
+		batchType = derive.SpanBatchType
+	}
+	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
@@ -702,17 +703,18 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
+		Stopped:   sys.cfg.DisableBatcher, // Batch submitter may be enabled later
+		BatchType: uint(batchType),
+	}
+	// Batch Submitter
+	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
-
-	// Batcher may be enabled later
-	if !sys.cfg.DisableBatcher {
-		if err := sys.BatchSubmitter.Start(); err != nil {
-			return nil, fmt.Errorf("unable to start batch submitter: %w", err)
-		}
+	if err := batcher.Start(context.Background()); err != nil {
+		return nil, errors.Join(fmt.Errorf("failed to start batch submitter: %w", err), batcher.Stop(context.Background()))
 	}
+	sys.BatchSubmitter = batcher
 
 	return sys, nil
 }
@@ -762,9 +764,12 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
+func UseHTTP() bool {
+	return os.Getenv("OP_E2E_USE_HTTP") == "true"
+}
+
 func selectEndpoint(node EthInstance) string {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
-	if useHTTP {
+	if UseHTTP() {
 		log.Info("using HTTP client")
 		return node.HTTPEndpoint()
 	}
@@ -789,15 +794,16 @@ type WSOrHTTPEndpoint interface {
 }
 
 func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
-	if useHTTP {
+	if UseHTTP() {
 		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
 	}
 
 	rollupNodeCfg.L2 = &rollupNode.L2EndpointConfig{
 		L2EngineAddr:      l2EndpointConfig,
 		L2EngineJWTSecret: jwtSecret,
+		L2RpcTimeout:      10 * time.Second,
+		L2RpcBatchTimeout: 20 * time.Second,
 	}
 }
 

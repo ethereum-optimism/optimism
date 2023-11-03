@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -60,13 +61,16 @@ type Config struct {
 
 	// Cancel to request a premature shutdown of the node itself, e.g. when halting. This may be nil.
 	Cancel context.CancelCauseFunc
+
+	// [OPTIONAL] The reth DB path to read receipts from
+	RethDBPath string
 }
 
 type RPCConfig struct {
-	ListenAddr  string
-	ListenPort  int
-	EnableAdmin bool
-	RpcTimout   time.Duration
+	ListenAddr    string
+	ListenPort    int
+	EnableAdmin   bool
+	ListenTimeout *httputil.HTTPTimeouts
 }
 
 func (cfg *RPCConfig) HttpEndpoint() string {

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { CheckTrue } from "../src/periphery/drippie/dripchecks/CheckTrue.sol";
+import { CheckTrue } from "src/periphery/drippie/dripchecks/CheckTrue.sol";
 
 /// @title  CheckTrueTest
 /// @notice Ensures that the CheckTrue DripCheck contract always returns true.
