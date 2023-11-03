@@ -1,7 +1,7 @@
 {
-  "defaultBase": "develop",
+  "defaultBase": "main",
   "affected": {
-    "defaultBase": "develop"
+    "defaultBase": "main"
   },
   "implicitDependencies": {
     "nx.json": "*",

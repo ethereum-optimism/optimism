@@ -1,6 +1,6 @@
 # @eth-optimism/fault-mon
 
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=fault-detector-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/main/graph/badge.svg?token=0VTG7PG7YR&flag=fault-detector-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 The `fault-mon` is a simple service for detecting discrepancies between your local view of the Optimism network and the L2 output proposals published to Ethereum.
 

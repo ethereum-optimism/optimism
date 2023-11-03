@@ -10,7 +10,7 @@ with priority on the `L2OutputOracle` and `OptimismPortal`.
 
 #### Comments
 
-Optimism smart contracts follow the triple-slash [solidity natspec comment style](https://docs.soliditylang.org/en/develop/natspec-format.html#documentation-example)
+Optimism smart contracts follow the triple-slash [solidity natspec comment style](https://docs.soliditylang.org/en/main/natspec-format.html#documentation-example)
 with additional rules. These are:
 
 - Always use `@notice` since it has the same general effect as `@dev` but avoids confusion about when to use one over the other.

@@ -1,6 +1,6 @@
 ## Contracts TS
 
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-bedrock-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/main/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-bedrock-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 ABI and Address constants + generated code from [@eth-optimism/contracts-bedrock/](../contracts-bedrock/) for use in TypeScript.
 

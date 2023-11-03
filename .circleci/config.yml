@@ -58,7 +58,7 @@ commands:
             cd ops/check-changed
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
-  notify-failures-on-develop:
+  notify-failures-on-main:
     description: "Notify Slack"
     parameters:
       channel:
@@ -69,7 +69,7 @@ commands:
           channel: << parameters.channel >>
           event: fail
           template: basic_fail_1
-          branch_pattern: develop
+          branch_pattern: main
 
 jobs:
   cannon-go-lint-and-test:
@@ -276,7 +276,7 @@ jobs:
       - when:
           condition: "<<parameters.publish>>"
           steps:
-            - notify-failures-on-develop
+            - notify-failures-on-main
       - when:
           condition: "<<parameters.save_image_tag>>"
           steps:
@@ -602,7 +602,7 @@ jobs:
       - run:
           name: Check TODO issues
           command: ./ops/scripts/todo-checker.sh --verbose
-      - notify-failures-on-develop
+      - notify-failures-on-main
 
   bedrock-markdown:
     machine:
@@ -646,7 +646,7 @@ jobs:
           name: link lint
           command: |
             make bedrock-markdown-links
-      - notify-failures-on-develop:
+      - notify-failures-on-main:
           channel: C055R639XT9 #notify-link-check
 
   fuzz-golang:
@@ -1104,7 +1104,7 @@ jobs:
     parameters:
       diff_branch:
         type: string
-        default: develop
+        default: main
     environment:
       TEMPORARY_BASELINE_REF: << parameters.diff_branch >>
       SEMGREP_REPO_URL: << pipeline.project.git_url >>
@@ -1121,11 +1121,11 @@ jobs:
       - checkout
       - unless:
           condition:
-            equal: [ "develop", << pipeline.git.branch >> ]
+            equal: [ "main", << pipeline.git.branch >> ]
           steps:
             - run:
                 # Scan changed files in PRs, block on new issues only (existing issues ignored)
-                # Do a full scan when scanning develop, otherwise do an incremental scan.
+                # Do a full scan when scanning main, otherwise do an incremental scan.
                 name: "Conditionally set BASELINE env var"
                 command: |
                   echo 'export SEMGREP_BASELINE_REF=${TEMPORARY_BASELINE_REF}' >> $BASH_ENV
@@ -1138,7 +1138,7 @@ jobs:
       - run:
           name: "Semgrep scan"
           command: semgrep ci
-      - notify-failures-on-develop
+      - notify-failures-on-main
 
   go-mod-download:
     docker:
@@ -1198,7 +1198,7 @@ jobs:
           command: |
             make verify-goerli
           working_directory: op-program
-      - notify-failures-on-develop
+      - notify-failures-on-main
 
   op-program-compat:
     docker:

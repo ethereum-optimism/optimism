@@ -161,7 +161,7 @@ test-integration:
 
 # Remove the baseline-commit to generate a base reading & show all issues
 semgrep:
-	$(eval DEV_REF := $(shell git rev-parse develop))
+	$(eval DEV_REF := $(shell git rev-parse main))
 	SEMGREP_REPO_NAME=ethereum-optimism/optimism semgrep ci --baseline-commit=$(DEV_REF)
 .PHONY: semgrep
 

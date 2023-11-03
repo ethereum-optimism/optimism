@@ -22,7 +22,7 @@ REBUILD_ALL_PATTERNS += nx_json_data["implicitDependencies"].keys()
 
 WHITELISTED_BRANCHES = {
     'master',
-    'develop'
+    'main'
 }
 
 LOGGING_CONFIG = {

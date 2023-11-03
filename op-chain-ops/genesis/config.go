@@ -28,7 +28,7 @@ import (
 
 // initialzedValue represents the `Initializable` contract value. It should be kept in
 // sync with the constant in `Constants.sol`.
-// https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/libraries/Constants.sol
+// https://github.com/ethereum-optimism/optimism/blob/main/packages/contracts-bedrock/src/libraries/Constants.sol
 const initializedValue = 3
 
 var (

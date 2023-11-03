@@ -177,7 +177,7 @@ type Epoch struct {
 // continue all the way to latest indexed heights if `maxL1Range == 0`.
 //
 // For more, see the protocol spec:
-//   - https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md
+//   - https://github.com/ethereum-optimism/optimism/blob/main/specs/derivation.md
 func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64) (*Epoch, error) {
 	// We use timestamps since that translates to both L1 & L2
 	var fromTimestamp, toTimestamp uint64

@@ -26,7 +26,7 @@
     "common",
     "typescript"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/common-ts#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/main/packages/common-ts#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {

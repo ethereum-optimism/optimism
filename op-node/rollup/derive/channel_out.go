@@ -21,7 +21,7 @@ var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limi
 // This is the fixed overhead frame size, calculated as specified
 // in the [Frame Format] specs: 16 + 2 + 4 + 1 = 23 bytes.
 //
-// [Frame Format]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#frame-format
+// [Frame Format]: https://github.com/ethereum-optimism/optimism/blob/main/specs/derivation.md#frame-format
 const FrameV0OverHeadSize = 23
 
 var CompressorFullErr = errors.New("compressor is full")

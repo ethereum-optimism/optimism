@@ -5,7 +5,7 @@
   "fixed": [],
   "linked": [["@eth-optimism/contracts-bedrock", "@eth-optimism/contracts-ts"]],
   "access": "public",
-  "baseBranch": "develop",
+  "baseBranch": "main",
   "updateInternalDependencies": "patch",
   "ignore": []
 }

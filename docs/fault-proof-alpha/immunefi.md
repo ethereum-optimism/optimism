@@ -6,7 +6,7 @@ During this early phase of ongoing development, we invite security researchers a
 The current system is not production ready, however the core infrastructure for creating an instruction trace ([Cannon][cannon] + the [`op-program`][op-program]), the off-chain challenge agent ([`op-challenger`][op-challenger]),
 and the on-chain infrastructure for the [Dispute Game][dispute-game] are all in place.
 
-For the Fault Proof Alpha security review, we've pinned `546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f` as the commit hash in the monorepo. This commit hash was the head of the `develop` branch at the time of the alpha's launch. All
+For the Fault Proof Alpha security review, we've pinned `546fb2c7a5796b7fe50b0b7edc7666d3bd281d6f` as the commit hash in the monorepo. This commit hash was the head of the `main` branch at the time of the alpha's launch. All
 security reviews and PoCs should be derived from this commit hash, as the contracts and off-chain agents are being updated frequently at this stage of development.
 
 ### Resources
@@ -87,14 +87,14 @@ but use custom configurations will be assessed on a case by case basis, and thei
 See our bounty program on [Immunefi][immunefi] for information regarding reward sizes.
 
 <!-- LINKS -->
-[cannon]: https://github.com/ethereum-optimism/optimism/tree/develop/cannon
-[cannon-vm-specs]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/cannon-fault-proof-vm.md
-[dispute-game]: https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/dispute
-[fault-dispute-specs]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/fault-dispute-game.md
-[cannon-contracts]: https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/src/cannon
-[op-program]: https://github.com/ethereum-optimism/optimism/tree/develop/op-program
-[op-challenger]: https://github.com/ethereum-optimism/optimism/tree/develop/op-challenger
+[cannon]: https://github.com/ethereum-optimism/optimism/tree/main/cannon
+[cannon-vm-specs]: https://github.com/ethereum-optimism/optimism/blob/main/specs/cannon-fault-proof-vm.md
+[dispute-game]: https://github.com/ethereum-optimism/optimism/tree/main/packages/contracts-bedrock/src/dispute
+[fault-dispute-specs]: https://github.com/ethereum-optimism/optimism/blob/main/specs/fault-dispute-game.md
+[cannon-contracts]: https://github.com/ethereum-optimism/optimism/tree/main/packages/contracts-bedrock/src/cannon
+[op-program]: https://github.com/ethereum-optimism/optimism/tree/main/op-program
+[op-challenger]: https://github.com/ethereum-optimism/optimism/tree/main/op-challenger
 [alphabet-vm]: https://github.com/ethereum-optimism/optimism/blob/c1cbacef0097c28f999e3655200e6bd0d4dba9f2/packages/contracts-bedrock/test/FaultDisputeGame.t.sol#L977-L1005
-[fault-proof-specs]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/fault-proof.md
+[fault-proof-specs]: https://github.com/ethereum-optimism/optimism/blob/main/specs/fault-proof.md
 [immunefi]: https://immunefi.com/bounty/optimism/
-[invalid-proposal-doc]: https://github.com/ethereum-optimism/optimism/blob/develop/docs/fault-proof-alpha/invalid-proposals.md
+[invalid-proposal-doc]: https://github.com/ethereum-optimism/optimism/blob/main/docs/fault-proof-alpha/invalid-proposals.md

@@ -25,7 +25,7 @@
     "core",
     "utils"
   ],
-  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/core-utils#readme",
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/main/packages/core-utils#readme",
   "license": "MIT",
   "author": "Optimism PBC",
   "repository": {

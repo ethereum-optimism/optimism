@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - develop
+      - main
 
 # Always wait for previous release to finish before releasing again
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -36,7 +36,7 @@ jobs:
         with:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
-          ref: "develop"
+          ref: "main"
 
       - name: Setup
         uses: ./.github/actions/setup

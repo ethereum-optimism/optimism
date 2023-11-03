@@ -23,7 +23,7 @@ pull_request_rules:
         - "label!=M-do-not-merge"
         - "label!=M-multiple-reviewers"
         - "label!=M-mergify-ignore"
-        - "base=develop"
+        - "base=main"
     actions:
       queue:
         name: default
