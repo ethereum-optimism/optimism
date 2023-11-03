@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 // Testing utilities
 import { VmSafe } from "forge-std/Vm.sol";
 import { Test } from "forge-std/Test.sol";
-import { CommonTest, Portal_Initializer } from "test/CommonTest.t.sol";
+import { Portal_Initializer } from "test/CommonTest.t.sol";
 
 // Libraries
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
