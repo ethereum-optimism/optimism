@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "test/CommonTest.t.sol";
+import { Test } from "forge-std/Test.sol";
 import { MerkleTrie } from "src/libraries/trie/MerkleTrie.sol";
+import { FFIInterface } from "test/setup/FFIInterface.sol";
 
-contract MerkleTrie_get_Test is CommonTest {
+contract MerkleTrie_get_Test is Test {
+    FFIInterface ffi;
+
+    function setUp() public {
+        ffi = new FFIInterface();
+    }
+
     function test_get_validProof1_succeeds() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579326262";
