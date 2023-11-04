@@ -43,7 +43,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.BridgeProcessor.LatestL1Header
+		l1Header := testSuite.Indexer.BridgeProcessor.LastL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
 	}))
 
@@ -77,7 +77,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	l2DepositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, transaction.L2TransactionHash)
 	require.NoError(t, err)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.BridgeProcessor.LatestL2Header
+		l2Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL2Header
 		return l2Header != nil && l2Header.Number.Uint64() >= l2DepositReceipt.BlockNumber.Uint64(), nil
 	}))
 
@@ -130,7 +130,7 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.BridgeProcessor.LatestL2Header
+		l2Header := testSuite.Indexer.BridgeProcessor.LastL2Header
 		return l2Header != nil && l2Header.Number.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
 	}))
 
@@ -159,7 +159,7 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.BridgeProcessor.LatestL1Header
+		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizedReceipt.BlockNumber.Uint64(), nil
 	}))
 

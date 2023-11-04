@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -19,6 +20,7 @@ import (
 
 type L2ETL struct {
 	ETL
+	LatestHeader *types.Header
 
 	// the batch handler may do work that we can interrupt on shutdown
 	resourceCtx    context.Context
@@ -27,6 +29,9 @@ type L2ETL struct {
 	tasks tasks.Group
 
 	db *database.DB
+
+	mu        sync.Mutex
+	listeners []chan interface{}
 }
 
 func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, client node.EthClient,
@@ -80,7 +85,9 @@ func NewL2ETL(cfg Config, log log.Logger, db *database.DB, metrics Metricer, cli
 
 	resCtx, resCancel := context.WithCancel(context.Background())
 	return &L2ETL{
-		ETL:            etl,
+		ETL:          etl,
+		LatestHeader: fromHeader,
+
 		resourceCtx:    resCtx,
 		resourceCancel: resCancel,
 		db:             db,
@@ -102,10 +109,16 @@ func (l2Etl *L2ETL) Close() error {
 	if err := l2Etl.tasks.Wait(); err != nil {
 		result = errors.Join(result, fmt.Errorf("failed to await batch handler completion: %w", err))
 	}
+	// close listeners
+	for i := range l2Etl.listeners {
+		close(l2Etl.listeners[i])
+	}
 	return result
 }
 
 func (l2Etl *L2ETL) Start() error {
+	l2Etl.log.Info("starting etl...")
+
 	// start ETL batch producer
 	if err := l2Etl.ETL.Start(); err != nil {
 		return fmt.Errorf("failed to start internal ETL: %w", err)
@@ -113,17 +126,13 @@ func (l2Etl *L2ETL) Start() error {
 
 	// start ETL batch consumer
 	l2Etl.tasks.Go(func() error {
-		for {
-			// Index incoming batches (all L2 blocks)
-			batch, ok := <-l2Etl.etlBatches
-			if !ok {
-				l2Etl.log.Info("No more batches, shutting down L2 batch handler")
-				return nil
-			}
+		for batch := range l2Etl.etlBatches {
 			if err := l2Etl.handleBatch(batch); err != nil {
 				return fmt.Errorf("failed to handle batch, stopping L2 ETL: %w", err)
 			}
 		}
+		l2Etl.log.Info("no more batches, shutting down batch handler")
+		return nil
 	})
 	return nil
 }
@@ -169,5 +178,30 @@ func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
 	}
 
 	batch.Logger.Info("indexed batch")
+	l2Etl.LatestHeader = &batch.Headers[len(batch.Headers)-1]
+
+	// Notify Listeners
+	l2Etl.mu.Lock()
+	defer l2Etl.mu.Unlock()
+	for i := range l2Etl.listeners {
+		select {
+		case l2Etl.listeners[i] <- struct{}{}:
+		default:
+			// do nothing if the listener hasn't picked
+			// up the previous notif
+		}
+	}
+
 	return nil
+}
+
+// Notify returns a channel that'll receive a value every time new data has
+// been persisted by the L2ETL
+func (l2Etl *L2ETL) Notify() <-chan interface{} {
+	receiver := make(chan interface{})
+	l2Etl.mu.Lock()
+	defer l2Etl.mu.Unlock()
+
+	l2Etl.listeners = append(l2Etl.listeners, receiver)
+	return receiver
 }

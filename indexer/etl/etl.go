@@ -59,10 +59,9 @@ func (etl *ETL) Start() error {
 	if etl.worker != nil {
 		return errors.New("already started")
 	}
-	etl.log.Info("starting etl...")
 	etl.worker = clock.NewLoopFn(clock.SystemClock, etl.tick, func() error {
+		etl.log.Info("shutting down batch producer")
 		close(etl.etlBatches) // can close the channel now, to signal to the consumer that we're done
-		etl.log.Info("stopped etl worker loop")
 		return nil
 	}, etl.loopInterval)
 	return nil
