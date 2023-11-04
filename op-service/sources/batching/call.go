@@ -110,6 +110,10 @@ func (c *CallResult) GetHash(i int) common.Hash {
 	return *abi.ConvertType(c.out[i], new([32]byte)).(*[32]byte)
 }
 
+func (c *CallResult) GetAddress(i int) common.Address {
+	return *abi.ConvertType(c.out[i], new([20]byte)).(*[20]byte)
+}
+
 func (c *CallResult) GetBigInt(i int) *big.Int {
 	return *abi.ConvertType(c.out[i], new(*big.Int)).(**big.Int)
 }
