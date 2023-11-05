@@ -51,7 +51,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -257,7 +256,7 @@ type System struct {
 	Clients           map[string]*ethclient.Client
 	RawClients        map[string]*rpc.Client
 	RollupNodes       map[string]*rollupNode.OpNode
-	L2OutputSubmitter *l2os.L2OutputSubmitter
+	L2OutputSubmitter *l2os.ProposerService
 	BatchSubmitter    *bss.BatcherService
 	Mocknet           mocknet.Mocknet
 
@@ -278,7 +277,7 @@ func (sys *System) Close() {
 	postCancel() // immediate shutdown, no allowance for idling
 
 	if sys.L2OutputSubmitter != nil {
-		sys.L2OutputSubmitter.Stop()
+		_ = sys.L2OutputSubmitter.Kill()
 	}
 	if sys.BatchSubmitter != nil {
 		_ = sys.BatchSubmitter.Kill()
@@ -663,7 +662,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// L2Output Submitter
-	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
+	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
 		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
@@ -674,14 +673,17 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
+	}
+	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
 
-	if err := sys.L2OutputSubmitter.Start(); err != nil {
+	if err := proposer.Start(context.Background()); err != nil {
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
+
+	sys.L2OutputSubmitter = proposer
 
 	batchType := derive.SingularBatchType
 	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {

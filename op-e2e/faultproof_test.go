@@ -532,7 +532,7 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 	l2oo.WaitForProposals(ctx, 1)
 
 	// Stop the honest output submitter so we can publish invalid outputs
-	sys.L2OutputSubmitter.Stop()
+	sys.L2OutputSubmitter.Driver().StopL2OutputSubmitting()
 	sys.L2OutputSubmitter = nil
 
 	// Submit an invalid output root
