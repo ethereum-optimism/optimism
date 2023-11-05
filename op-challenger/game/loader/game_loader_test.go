@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -25,44 +24,39 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 		name        string
 		caller      *mockMinimalDisputeGameFactoryCaller
 		earliest    uint64
-		blockNumber *big.Int
+		blockNumber uint64
 		expectedErr error
 		expectedLen int
 	}{
 		{
 			name:        "success",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, false),
-			blockNumber: big.NewInt(1),
+			blockNumber: 1,
 			expectedLen: 10,
 		},
 		{
 			name:        "expired game ignored",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, false),
 			earliest:    500,
-			blockNumber: big.NewInt(1),
+			blockNumber: 1,
 			expectedLen: 5,
 		},
 		{
 			name:        "game count error",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, true, false),
-			blockNumber: big.NewInt(1),
+			blockNumber: 1,
 			expectedErr: gameCountErr,
 		},
 		{
 			name:        "game index error",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, true),
-			blockNumber: big.NewInt(1),
+			blockNumber: 1,
 			expectedErr: gameIndexErr,
 		},
 		{
 			name:        "no games",
 			caller:      newMockMinimalDisputeGameFactoryCaller(0, false, false),
-			blockNumber: big.NewInt(1),
-		},
-		{
-			name:        "missing block number",
-			caller:      newMockMinimalDisputeGameFactoryCaller(0, false, false),
-			expectedErr: ErrMissingBlockNumber,
+			blockNumber: 1,
 		},
 	}
 
@@ -144,20 +138,15 @@ func newMockMinimalDisputeGameFactoryCaller(count uint64, gameCountErr bool, ind
 	}
 }
 
-func (m *mockMinimalDisputeGameFactoryCaller) GameCount(opts *bind.CallOpts) (*big.Int, error) {
+func (m *mockMinimalDisputeGameFactoryCaller) GetGameCount(_ context.Context, blockNum uint64) (uint64, error) {
 	if m.gameCountErr {
-		return nil, gameCountErr
+		return 0, gameCountErr
 	}
 
-	return big.NewInt(int64(m.gameCount)), nil
+	return m.gameCount, nil
 }
 
-func (m *mockMinimalDisputeGameFactoryCaller) GameAtIndex(opts *bind.CallOpts, _index *big.Int) (struct {
-	GameType  uint8
-	Timestamp uint64
-	Proxy     common.Address
-}, error) {
-	index := _index.Uint64()
+func (m *mockMinimalDisputeGameFactoryCaller) GetGame(_ context.Context, index uint64, blockNum uint64) (types.GameMetadata, error) {
 	if m.indexErrors[index] {
 		return struct {
 			GameType  uint8
@@ -166,13 +155,5 @@ func (m *mockMinimalDisputeGameFactoryCaller) GameAtIndex(opts *bind.CallOpts, _
 		}{}, gameIndexErr
 	}
 
-	return struct {
-		GameType  uint8
-		Timestamp uint64
-		Proxy     common.Address
-	}{
-		GameType:  m.games[index].GameType,
-		Timestamp: m.games[index].Timestamp,
-		Proxy:     m.games[index].Proxy,
-	}, nil
+	return m.games[index], nil
 }

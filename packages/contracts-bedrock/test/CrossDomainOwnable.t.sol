@@ -2,17 +2,18 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Vm, VmSafe } from "forge-std/Vm.sol";
-import { CommonTest, Portal_Initializer } from "test/CommonTest.t.sol";
+import { VmSafe } from "forge-std/Vm.sol";
+import { Test } from "forge-std/Test.sol";
+import { Portal_Initializer } from "test/CommonTest.t.sol";
 
 // Libraries
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 // Target contract dependencies
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Target contract
-import { CrossDomainOwnable } from "../src/L2/CrossDomainOwnable.sol";
+import { CrossDomainOwnable } from "src/L2/CrossDomainOwnable.sol";
 
 contract XDomainSetter is CrossDomainOwnable {
     uint256 public value;
@@ -22,11 +23,10 @@ contract XDomainSetter is CrossDomainOwnable {
     }
 }
 
-contract CrossDomainOwnable_Test is CommonTest {
+contract CrossDomainOwnable_Test is Test {
     XDomainSetter setter;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() public {
         setter = new XDomainSetter();
     }
 

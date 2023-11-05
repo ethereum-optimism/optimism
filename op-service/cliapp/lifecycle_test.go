@@ -3,12 +3,13 @@ package cliapp
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 type fakeLifecycle struct {
@@ -77,19 +78,19 @@ func TestLifecycleCmd(t *testing.T) {
 			return app, nil
 		}
 
-		// puppeteer a system signal waiter with a test signal channel
-		fakeSignalWaiter := func(ctx context.Context, signals ...os.Signal) {
+		// turn our mock app and system signal into a lifecycle-managed command
+		actionFn := LifecycleCmd(mockAppFn)
+
+		// try to shut the test down after being locked more than a minute
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+
+		// puppeteer system signal interrupts by hooking up the test signal channel as "blocker" for the app to use.
+		ctx = opio.WithBlocker(ctx, func(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 			case <-signalCh:
 			}
-		}
-
-		// turn our mock app and system signal into a lifecycle-managed command
-		actionFn := lifecycleCmd(mockAppFn, fakeSignalWaiter)
-
-		// try to shut the test down after being locked more than a minute
-		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		})
 		t.Cleanup(cancel)
 
 		// create a fake CLI context to run our command with

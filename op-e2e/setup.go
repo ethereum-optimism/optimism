@@ -678,14 +678,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
-
 	if err := proposer.Start(context.Background()); err != nil {
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
-
 	sys.L2OutputSubmitter = proposer
 
-	batchType := derive.SingularBatchType
+	var batchType uint = derive.SingularBatchType
+
 	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
 		batchType = derive.SpanBatchType
 	}
@@ -713,7 +712,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Format: oplog.FormatText,
 		},
 		Stopped:   sys.cfg.DisableBatcher, // Batch submitter may be enabled later
-		BatchType: uint(batchType),
+		BatchType: batchType,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.cfg.Loggers["batcher"])

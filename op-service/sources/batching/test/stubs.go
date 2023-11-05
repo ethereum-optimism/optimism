@@ -7,22 +7,25 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 )
 
 type expectedCall struct {
+	block      batching.Block
 	args       []interface{}
 	packedArgs []byte
 	outputs    []interface{}
 }
 
 func (e *expectedCall) String() string {
-	return fmt.Sprintf("{args: %v, outputs: %v}", e.args, e.outputs)
+	return fmt.Sprintf("{block: %v, args: %v, outputs: %v}", e.block, e.args, e.outputs)
 }
 
 type AbiBasedRpc struct {
@@ -42,7 +45,7 @@ func NewAbiBasedRpc(t *testing.T, contractAbi *abi.ABI, addr common.Address) *Ab
 	}
 }
 
-func (l *AbiBasedRpc) SetResponse(method string, expected []interface{}, output []interface{}) {
+func (l *AbiBasedRpc) SetResponse(method string, block batching.Block, expected []interface{}, output []interface{}) {
 	if expected == nil {
 		expected = []interface{}{}
 	}
@@ -54,6 +57,7 @@ func (l *AbiBasedRpc) SetResponse(method string, expected []interface{}, output 
 	packedArgs, err := abiMethod.Inputs.Pack(expected...)
 	require.NoErrorf(l.t, err, "Invalid expected arguments for method %v: %v", method, expected)
 	l.expectedCalls[method] = append(l.expectedCalls[method], &expectedCall{
+		block:      block,
 		args:       expected,
 		packedArgs: packedArgs,
 		outputs:    output,
@@ -72,7 +76,7 @@ func (l *AbiBasedRpc) BatchCallContext(ctx context.Context, b []rpc.BatchElem) e
 func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method string, args ...interface{}) error {
 	require.Equal(l.t, "eth_call", method)
 	require.Len(l.t, args, 2)
-	require.Equal(l.t, "latest", args[1])
+	actualBlockRef := args[1]
 	callOpts, ok := args[0].(map[string]any)
 	require.True(l.t, ok)
 	require.Equal(l.t, &l.addr, callOpts["to"])
@@ -90,12 +94,12 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 	require.Truef(l.t, ok, "Unexpected call to %v", abiMethod.Name)
 	var call *expectedCall
 	for _, candidate := range expectedCalls {
-		if slices.Equal(candidate.packedArgs, argData) {
+		if slices.Equal(candidate.packedArgs, argData) && assert.ObjectsAreEqualValues(candidate.block.ArgValue(), actualBlockRef) {
 			call = candidate
 			break
 		}
 	}
-	require.NotNilf(l.t, call, "No expected calls to %v with arguments: %v\nExpected calls: %v", abiMethod.Name, args, expectedCalls)
+	require.NotNilf(l.t, call, "No expected calls to %v at block %v with arguments: %v\nExpected calls: %v", abiMethod.Name, actualBlockRef, args, expectedCalls)
 
 	output, err := abiMethod.Outputs.Pack(call.outputs...)
 	require.NoErrorf(l.t, err, "Invalid outputs for method %v: %v", abiMethod.Name, call.outputs)

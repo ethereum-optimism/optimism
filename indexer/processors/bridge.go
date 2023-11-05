@@ -3,22 +3,28 @@ package processors
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/etl"
 	"github.com/ethereum-optimism/optimism/indexer/processors/bridge"
-
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
 type BridgeProcessor struct {
 	log     log.Logger
 	db      *database.DB
 	metrics bridge.Metricer
+
+	resourceCtx    context.Context
+	resourceCancel context.CancelFunc
+	tasks          tasks.Group
 
 	l1Etl       *etl.L1ETL
 	chainConfig config.ChainConfig
@@ -27,7 +33,8 @@ type BridgeProcessor struct {
 	LatestL2Header *types.Header
 }
 
-func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer, l1Etl *etl.L1ETL, chainConfig config.ChainConfig) (*BridgeProcessor, error) {
+func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer, l1Etl *etl.L1ETL,
+	chainConfig config.ChainConfig, shutdown context.CancelCauseFunc) (*BridgeProcessor, error) {
 	log = log.New("processor", "bridge")
 
 	latestL1Header, err := db.BridgeTransactions.L1LatestBlockHeader()
@@ -57,11 +64,25 @@ func NewBridgeProcessor(log log.Logger, db *database.DB, metrics bridge.Metricer
 		log.Info("detected latest indexed bridge state", "l1_block_number", l1Height, "l2_block_number", l2Height)
 	}
 
-	return &BridgeProcessor{log, db, metrics, l1Etl, chainConfig, l1Header, l2Header}, nil
+	resCtx, resCancel := context.WithCancel(context.Background())
+	return &BridgeProcessor{
+		log:            log,
+		db:             db,
+		metrics:        metrics,
+		l1Etl:          l1Etl,
+		resourceCtx:    resCtx,
+		resourceCancel: resCancel,
+		chainConfig:    chainConfig,
+		LatestL1Header: l1Header,
+		LatestL2Header: l2Header,
+		tasks: tasks.Group{HandleCrit: func(err error) {
+			shutdown(fmt.Errorf("critical error in bridge processor: %w", err))
+		}},
+	}, nil
 }
 
-func (b *BridgeProcessor) Start(ctx context.Context) error {
-	done := ctx.Done()
+func (b *BridgeProcessor) Start() error {
+	b.log.Info("starting bridge processor...")
 
 	// Fire off independently on startup to check for
 	// new data or if we've indexed new L1 data.
@@ -69,21 +90,35 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 	startup := make(chan interface{}, 1)
 	startup <- nil
 
-	b.log.Info("starting bridge processor...")
-	for {
-		select {
-		case <-done:
-			b.log.Info("stopping bridge processor")
-			return nil
+	b.tasks.Go(func() error {
+		for {
+			select {
+			case <-b.resourceCtx.Done():
+				b.log.Info("stopping bridge processor")
+				return nil
 
-		// Tickers
-		case <-startup:
-		case <-l1EtlUpdates:
+			// Tickers
+			case <-startup:
+			case <-l1EtlUpdates:
+			}
+
+			done := b.metrics.RecordInterval()
+			// TODO(8013): why log all the errors and return the same thing, if we just return the error, and log here?
+			err := b.run()
+			if err != nil {
+				b.log.Error("bridge processor error", "err", err)
+			}
+			done(err)
 		}
+	})
+	return nil
+}
 
-		done := b.metrics.RecordInterval()
-		done(b.run())
-	}
+func (b *BridgeProcessor) Close() error {
+	// signal that we can stop any ongoing work
+	b.resourceCancel()
+	// await the work to stop
+	return b.tasks.Wait()
 }
 
 // Runs the processing loop. In order to ensure all seen bridge finalization events

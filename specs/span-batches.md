@@ -9,6 +9,7 @@
 
 - [Introduction](#introduction)
 - [Span batch format](#span-batch-format)
+- [Span batch Activation Rule](#span-batch-activation-rule)
 - [Optimization Strategies](#optimization-strategies)
   - [Truncating information and storing only necessary data](#truncating-information-and-storing-only-necessary-data)
   - [`tx_data_headers` removal from initial specs](#tx_data_headers-removal-from-initial-specs)
@@ -153,6 +154,16 @@ decoding. For example, lets say bad batcher wrote span batch which `block_count 
 the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for decoding
 because we know the upper limit of memory usage.
 
+## Span batch Activation Rule
+
+The span batch upgrade is activated based on timestamp.
+
+Activation Rule: `upgradeTime != null && span_start.l1_origin.timestamp >= upgradeTime`
+
+`span_start.l1_origin.timestamp` is the L1 origin block timestamp of the first block in the span batch.
+This rule ensures that every chain activity regarding this span batch is done after the hard fork.
+i.e. Every block in the span is created, submitted to the L1, and derived from the L1 after the hard fork.
+
 ## Optimization Strategies
 
 ### Truncating information and storing only necessary data
@@ -261,6 +272,13 @@ Rules are enforced with the [contextual definitions](./derivation.md#batch-queue
 
 Span-batch rules, in validation order:
 
+- `batch_origin` is determined like with singular batches:
+  - `batch.epoch_num == epoch.number+1`:
+    - If `next_epoch` is not known -> `undecided`:
+      i.e. a batch that changes the L1 origin cannot be processed until we have the L1 origin data.
+    - If known, then define `batch_origin` as `next_epoch`
+- `batch_origin.timestamp < span_batch_upgrade_timestamp` -> `drop`:
+  i.e. enforce the [span batch upgrade activation rule](#span-batch-activation-rule).
 - `batch.start_timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
 - `batch.start_timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
 - `batch.parent_check != safe_l2_head.hash[:20]` -> `drop`: i.e. the checked part of the parent hash must be equal

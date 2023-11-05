@@ -26,7 +26,7 @@ func TestProposer(gt *testing.T) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	proposer := NewL2Proposer(t, log, &ProposerCfg{
 		OutputOracleAddr:  sd.DeploymentsL1.L2OutputOracleProxy,

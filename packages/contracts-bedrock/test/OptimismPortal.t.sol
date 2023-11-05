@@ -25,6 +25,13 @@ contract OptimismPortal_Test is Portal_Initializer {
     event Paused(address);
     event Unpaused(address);
 
+    address depositor;
+
+    function setUp() public override {
+        super.setUp();
+        depositor = makeAddr("depositor");
+    }
+
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
         assertEq(address(op.L2_ORACLE()), address(oracle));
@@ -162,146 +169,83 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertTrue(op.minimumGasLimit(3) > op.minimumGasLimit(2));
     }
 
-    /// @dev Tests that `depositTransaction` succeeds for an EOA depositing a tx with 0 value.
-    function test_depositTransaction_noValueEOA_succeeds() external {
+    /// @dev Tests that `depositTransaction` succeeds for an EOA.
+    function testFuzz_depositTransaction_eoa_succeeds(
+        address _to,
+        uint64 _gasLimit,
+        uint256 _value,
+        uint256 _mint,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        _gasLimit = uint64(
+            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
+        );
+        if (_isCreation) _to = address(0);
+
         // EOA emulation
-        vm.prank(address(this), address(this));
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            address(this), NON_ZERO_ADDRESS, ZERO_VALUE, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
-        );
+        vm.expectEmit(address(op));
+        emitTransactionDeposited({
+            _from: depositor,
+            _to: _to,
+            _value: _value,
+            _mint: _mint,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
 
-        op.depositTransaction(NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA);
+        vm.deal(depositor, _mint);
+        vm.prank(depositor, depositor);
+        op.depositTransaction{ value: _mint }({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+        assertEq(address(op).balance, _mint);
     }
 
-    /// @dev Tests that `depositTransaction` succeeds for a contract depositing a tx with 0 value.
-    function test_depositTransaction_noValueContract_succeeds() external {
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            NON_ZERO_ADDRESS,
-            ZERO_VALUE,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            false,
-            NON_ZERO_DATA
+    /// @dev Tests that `depositTransaction` succeeds for a contract.
+    function testFuzz_depositTransaction_contract_succeeds(
+        address _to,
+        uint64 _gasLimit,
+        uint256 _value,
+        uint256 _mint,
+        bool _isCreation,
+        bytes memory _data
+    )
+        external
+    {
+        _gasLimit = uint64(
+            bound(_gasLimit, op.minimumGasLimit(uint64(_data.length)), systemConfig.resourceConfig().maxResourceLimit)
         );
+        if (_isCreation) _to = address(0);
 
-        op.depositTransaction(NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA);
-    }
+        vm.expectEmit(address(op));
+        emitTransactionDeposited({
+            _from: AddressAliasHelper.applyL1ToL2Alias(address(this)),
+            _to: _to,
+            _value: _value,
+            _mint: _mint,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
 
-    /// @dev Tests that `depositTransaction` succeeds for an EOA
-    ///      depositing a contract creation with 0 value.
-    function test_depositTransaction_createWithZeroValueForEOA_succeeds() external {
-        // EOA emulation
-        vm.prank(address(this), address(this));
-
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            address(this), ZERO_ADDRESS, ZERO_VALUE, ZERO_VALUE, NON_ZERO_GASLIMIT, true, NON_ZERO_DATA
-        );
-
-        op.depositTransaction(ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, NON_ZERO_DATA);
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for a contract
-    ///      depositing a contract creation with 0 value.
-    function test_depositTransaction_createWithZeroValueForContract_succeeds() external {
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            ZERO_ADDRESS,
-            ZERO_VALUE,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            true,
-            NON_ZERO_DATA
-        );
-
-        op.depositTransaction(ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, NON_ZERO_DATA);
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for an EOA depositing a tx with ETH.
-    function test_depositTransaction_withEthValueFromEOA_succeeds() external {
-        // EOA emulation
-        vm.prank(address(this), address(this));
-
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            address(this), NON_ZERO_ADDRESS, NON_ZERO_VALUE, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
-        );
-
-        op.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
-        );
-        assertEq(address(op).balance, NON_ZERO_VALUE);
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for a contract depositing a tx with ETH.
-    function test_depositTransaction_withEthValueFromContract_succeeds() external {
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            NON_ZERO_ADDRESS,
-            NON_ZERO_VALUE,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            false,
-            NON_ZERO_DATA
-        );
-
-        op.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
-        );
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for an EOA depositing a contract creation with ETH.
-    function test_depositTransaction_withEthValueAndEOAContractCreation_succeeds() external {
-        // EOA emulation
-        vm.prank(address(this), address(this));
-
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            address(this), ZERO_ADDRESS, NON_ZERO_VALUE, ZERO_VALUE, NON_ZERO_GASLIMIT, true, hex""
-        );
-
-        op.depositTransaction{ value: NON_ZERO_VALUE }(ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, hex"");
-        assertEq(address(op).balance, NON_ZERO_VALUE);
-    }
-
-    /// @dev Tests that `depositTransaction` succeeds for a contract depositing a contract creation with ETH.
-    function test_depositTransaction_withEthValueAndContractContractCreation_succeeds() external {
-        vm.expectEmit(true, true, false, true);
-        emitTransactionDeposited(
-            AddressAliasHelper.applyL1ToL2Alias(address(this)),
-            ZERO_ADDRESS,
-            NON_ZERO_VALUE,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            true,
-            NON_ZERO_DATA
-        );
-
-        op.depositTransaction{ value: NON_ZERO_VALUE }(ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, true, NON_ZERO_DATA);
-        assertEq(address(op).balance, NON_ZERO_VALUE);
-    }
-
-    /// @dev Tests that `isOutputFinalized` succeeds for an EOA depositing a tx with ETH and data.
-    function test_simple_isOutputFinalized_succeeds() external {
-        uint256 ts = block.timestamp;
-        vm.mockCall(
-            address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(bytes32(uint256(1)), uint128(ts), uint128(startingBlockNumber)))
-        );
-
-        // warp to the finalization period
-        vm.warp(ts + oracle.FINALIZATION_PERIOD_SECONDS());
-        assertEq(op.isOutputFinalized(0), false);
-
-        // warp past the finalization period
-        vm.warp(ts + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
-        assertEq(op.isOutputFinalized(0), true);
+        vm.deal(address(this), _mint);
+        vm.prank(address(this));
+        op.depositTransaction{ value: _mint }({
+            _to: _to,
+            _value: _value,
+            _gasLimit: _gasLimit,
+            _isCreation: _isCreation,
+            _data: _data
+        });
+        assertEq(address(op).balance, _mint);
     }
 
     /// @dev Tests `isOutputFinalized` for a finalized output.

@@ -711,6 +711,33 @@ func TestValidBatch(t *testing.T) {
 				}),
 			},
 			Expected:      BatchUndecided,
+			ExpectedLog:   "eager batch wants to advance epoch, but could not without more L1 blocks",
+			SpanBatchTime: &minTs,
+		},
+		{
+			Name:       "insufficient L1 info for eager derivation - long span",
+			L1Blocks:   []eth.L1BlockRef{l1A}, // don't know about l1B yet
+			L2SafeHead: l2A2,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1C,
+				Batch: NewSpanBatch([]*SingularBatch{
+					{
+						ParentHash:   l2A3.ParentHash,
+						EpochNum:     rollup.Epoch(l2A3.L1Origin.Number),
+						EpochHash:    l2A3.L1Origin.Hash,
+						Timestamp:    l2A3.Time,
+						Transactions: nil,
+					},
+					{
+						ParentHash:   l2B0.ParentHash,
+						EpochNum:     rollup.Epoch(l2B0.L1Origin.Number),
+						EpochHash:    l2B0.L1Origin.Hash,
+						Timestamp:    l2B0.Time,
+						Transactions: nil,
+					},
+				}),
+			},
+			Expected:      BatchUndecided,
 			ExpectedLog:   "need more l1 blocks to check entire origins of span batch",
 			SpanBatchTime: &minTs,
 		},
@@ -1413,7 +1440,7 @@ func TestValidBatch(t *testing.T) {
 					Transactions: []hexutil.Bytes{randTxData},
 				},
 			},
-			SpanBatchTime: &l2A2.Time,
+			SpanBatchTime: &l1B.Time,
 			Expected:      BatchAccept,
 		},
 		{
@@ -1432,8 +1459,9 @@ func TestValidBatch(t *testing.T) {
 					},
 				}),
 			},
-			SpanBatchTime: &l2A2.Time,
+			SpanBatchTime: &l1B.Time,
 			Expected:      BatchDrop,
+			ExpectedLog:   "received SpanBatch with L1 origin before SpanBatch hard fork",
 		},
 		{
 			Name:       "singular batch after hard fork",
@@ -1449,7 +1477,7 @@ func TestValidBatch(t *testing.T) {
 					Transactions: []hexutil.Bytes{randTxData},
 				},
 			},
-			SpanBatchTime: &l2A0.Time,
+			SpanBatchTime: &l1A.Time,
 			Expected:      BatchAccept,
 		},
 		{
@@ -1468,7 +1496,7 @@ func TestValidBatch(t *testing.T) {
 					},
 				}),
 			},
-			SpanBatchTime: &l2A0.Time,
+			SpanBatchTime: &l1A.Time,
 			Expected:      BatchAccept,
 		},
 	}
