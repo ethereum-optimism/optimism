@@ -184,7 +184,7 @@ jobs:
       repo:
         description: Docker repo
         type: string
-        default: "${GCP_ARTIFACT_REPOSITORY}/images"
+        default: "${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
       save_image_tag:
         description: Save docker image with given tag
         type: string
@@ -239,7 +239,6 @@ jobs:
             fi
 
             export REGISTRY="<<parameters.registry>>"
-            export PROJECT_ID="<<parameters.project_id>>"
             export REPOSITORY="<<parameters.repo>>"
             export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
@@ -293,7 +292,7 @@ jobs:
             - run:
                 name: Save
                 command: |
-                  IMAGE_NAME="<<parameters.registry>>/<<parameters.project_id>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
+                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
                   docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
             - persist_to_workspace:
                 root: /tmp/docker_images
@@ -305,7 +304,7 @@ jobs:
             - run:
                 name: Tag
                 command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.project_id>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-coverage:
     docker:
@@ -1502,6 +1501,10 @@ workflows:
           module: op-heartbeat
           requires: [ "op-stack-go-lint" ]
       - go-test:
+          name: boba-chain-ops-tests
+          module: boba-chain-ops
+          requires: ["op-stack-go-lint"]
+      - go-test:
           name: op-batcher-tests
           module: op-batcher
           requires: ["op-stack-go-lint"]
@@ -1636,6 +1639,14 @@ workflows:
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
           requires: ["op-stack-go-lint"]
+      - devnet-hardhat:
+          requires:
+            - op-node-docker-build
+            - op-batcher-docker-build
+            - op-proposer-docker-build
+            - l1-geth-version-check
+            - devnet-allocs
+            - cannon-prestate
       - devnet:
           requires:
             - op-node-docker-build
