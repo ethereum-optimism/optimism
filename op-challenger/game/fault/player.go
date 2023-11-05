@@ -1,14 +1,12 @@
 package fault
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -34,7 +32,9 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
+type absolutePrestateValidator func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error
+
+type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceAccessor, types.OracleUpdater, absolutePrestateValidator, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -77,12 +77,12 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	provider, updater, err := creator(addr, gameDepth, dir)
+	provider, updater, prestateValidator, err := creator(addr, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
 
-	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
+	if err := prestateValidator(ctx, loader); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
@@ -92,7 +92,7 @@ func NewGamePlayer(
 	}
 
 	return &GamePlayer{
-		act:                     NewAgent(m, loader, int(gameDepth), trace.NewSimpleTraceAccessor(provider), responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
@@ -145,24 +145,4 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameSta
 	} else {
 		g.logger.Error("Game lost", "status", status)
 	}
-}
-
-type PrestateLoader interface {
-	GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
-}
-
-// ValidateAbsolutePrestate validates the absolute prestate of the fault game.
-func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, loader PrestateLoader) error {
-	providerPrestateHash, err := trace.AbsolutePreStateCommitment(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
-	}
-	onchainPrestate, err := loader.GetAbsolutePrestateHash(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
-	}
-	if !bytes.Equal(providerPrestateHash[:], onchainPrestate[:]) {
-		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate: Provider: %s | Chain %s", providerPrestateHash.Hex(), onchainPrestate.Hex())
-	}
-	return nil
 }

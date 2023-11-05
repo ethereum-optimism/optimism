@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 
@@ -67,6 +68,36 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, 
 		return nil, fmt.Errorf("create caller for game %v: %w", gameAddr, err)
 	}
 	localInputs, err := fetchLocalInputs(ctx, gameAddr, gameCaller, l2Client)
+	if err != nil {
+		return nil, fmt.Errorf("fetch local game inputs: %w", err)
+	}
+	return NewTraceProviderFromInputs(logger, m, cfg, localInputs, dir, gameDepth), nil
+}
+
+func NewTraceProviderFromOutputRoots(
+	ctx context.Context,
+	logger log.Logger,
+	m CannonMetricer,
+	cfg *config.Config,
+	l1Client bind.ContractCaller,
+	dir string,
+	gameAddr common.Address,
+	gameDepth uint64,
+	agreedOutputRoot common.Hash,
+	agreedBlockNumber *big.Int,
+	disputedOutputRoot common.Hash,
+	disputedBlockNumber *big.Int,
+) (*CannonTraceProvider, error) {
+	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	if err != nil {
+		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
+	}
+	defer l2Client.Close() // Not needed after fetching the inputs
+	gameCaller, err := bindings.NewFaultDisputeGameCaller(gameAddr, l1Client)
+	if err != nil {
+		return nil, fmt.Errorf("create caller for game %v: %w", gameAddr, err)
+	}
+	localInputs, err := fetchLocalInputsForOutputRoots(ctx, gameAddr, agreedOutputRoot, agreedBlockNumber, disputedOutputRoot, disputedBlockNumber, gameCaller, l2Client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}

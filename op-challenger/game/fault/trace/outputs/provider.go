@@ -52,13 +52,9 @@ func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClie
 }
 
 func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
-	traceIndex := pos.TraceIndex(int(o.gameDepth))
-	if !traceIndex.IsUint64() {
-		return common.Hash{}, fmt.Errorf("trace index %v is greater than max uint64", traceIndex)
-	}
-	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1
-	if outputBlock > o.poststateBlock {
-		outputBlock = o.poststateBlock
+	outputBlock, err := o.BlockNumberAtPosition(pos)
+	if err != nil {
+		return common.Hash{}, err
 	}
 	output, err := o.rollupClient.OutputAtBlock(ctx, outputBlock)
 	if err != nil {
@@ -66,6 +62,18 @@ func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 		return common.Hash{}, err
 	}
 	return common.Hash(output.OutputRoot), nil
+}
+
+func (o *OutputTraceProvider) BlockNumberAtPosition(pos types.Position) (uint64, error) {
+	traceIndex := pos.TraceIndex(int(o.gameDepth))
+	if !traceIndex.IsUint64() {
+		return 0, fmt.Errorf("trace index %v is greater than max uint64", traceIndex)
+	}
+	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1
+	if outputBlock > o.poststateBlock {
+		outputBlock = o.poststateBlock
+	}
+	return outputBlock, nil
 }
 
 // AbsolutePreStateCommitment returns the absolute prestate at the configured prestateBlock.
