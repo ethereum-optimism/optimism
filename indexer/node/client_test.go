@@ -1,6 +1,7 @@
 package node
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"strings"
@@ -21,14 +22,14 @@ func TestDialEthClientUnavailable(t *testing.T) {
 	metrics := &clientMetrics{}
 
 	// available
-	_, err = DialEthClient(addr, metrics)
+	_, err = DialEthClient(context.Background(), addr, metrics)
 	require.NoError(t, err)
 
 	// :0 requests a new unbound port
-	_, err = DialEthClient("http://localhost:0", metrics)
+	_, err = DialEthClient(context.Background(), "http://localhost:0", metrics)
 	require.Error(t, err)
 
 	// Fail open if we don't recognize the scheme
-	_, err = DialEthClient("mailto://example.com", metrics)
+	_, err = DialEthClient(context.Background(), "mailto://example.com", metrics)
 	require.Error(t, err)
 }

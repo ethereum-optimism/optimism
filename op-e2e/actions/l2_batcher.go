@@ -46,6 +46,10 @@ type BatcherCfg struct {
 	GarbageCfg *GarbageChannelCfg
 }
 
+type L2BlockRefs interface {
+	L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error)
+}
+
 // L2Batcher buffers and submits L2 batches to L1.
 //
 // TODO: note the batcher shares little logic/state with actual op-batcher,
@@ -59,24 +63,26 @@ type L2Batcher struct {
 	syncStatusAPI SyncStatusAPI
 	l2            BlocksAPI
 	l1            L1TxAPI
+	engCl         L2BlockRefs
 
 	l1Signer types.Signer
 
 	l2ChannelOut     ChannelOutIface
 	l2Submitting     bool // when the channel out is being submitted, and not safe to write to without resetting
-	l2BufferedBlock  eth.BlockID
-	l2SubmittedBlock eth.BlockID
+	l2BufferedBlock  eth.L2BlockRef
+	l2SubmittedBlock eth.L2BlockRef
 	l2BatcherCfg     *BatcherCfg
 	batcherAddr      common.Address
 }
 
-func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI) *L2Batcher {
+func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI, engCl L2BlockRefs) *L2Batcher {
 	return &L2Batcher{
 		log:           log,
 		rollupCfg:     rollupCfg,
 		syncStatusAPI: api,
 		l1:            l1,
 		l2:            l2,
+		engCl:         engCl,
 		l2BatcherCfg:  batcherCfg,
 		l1Signer:      types.LatestSignerForChainID(rollupCfg.L1ChainID),
 		batcherAddr:   crypto.PubkeyToAddress(batcherCfg.BatcherKey.PublicKey),
@@ -103,30 +109,38 @@ func (s *L2Batcher) Buffer(t Testing) error {
 	syncStatus, err := s.syncStatusAPI.SyncStatus(t.Ctx())
 	require.NoError(t, err, "no sync status error")
 	// If we just started, start at safe-head
-	if s.l2SubmittedBlock == (eth.BlockID{}) {
+	if s.l2SubmittedBlock == (eth.L2BlockRef{}) {
 		s.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
-		s.l2SubmittedBlock = syncStatus.SafeL2.ID()
-		s.l2BufferedBlock = syncStatus.SafeL2.ID()
+		s.l2SubmittedBlock = syncStatus.SafeL2
+		s.l2BufferedBlock = syncStatus.SafeL2
 		s.l2ChannelOut = nil
 	}
 	// If it's lagging behind, catch it up.
 	if s.l2SubmittedBlock.Number < syncStatus.SafeL2.Number {
 		s.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", s.l2SubmittedBlock, "safe", syncStatus.SafeL2)
-		s.l2SubmittedBlock = syncStatus.SafeL2.ID()
-		s.l2BufferedBlock = syncStatus.SafeL2.ID()
+		s.l2SubmittedBlock = syncStatus.SafeL2
+		s.l2BufferedBlock = syncStatus.SafeL2
 		s.l2ChannelOut = nil
 	}
 	// Add the next unsafe block to the channel
 	if s.l2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
 		if s.l2BufferedBlock.Number > syncStatus.UnsafeL2.Number || s.l2BufferedBlock.Hash != syncStatus.UnsafeL2.Hash {
 			s.log.Error("detected a reorg in L2 chain vs previous buffered information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
-			s.l2SubmittedBlock = syncStatus.SafeL2.ID()
-			s.l2BufferedBlock = syncStatus.SafeL2.ID()
+			s.l2SubmittedBlock = syncStatus.SafeL2
+			s.l2BufferedBlock = syncStatus.SafeL2
 			s.l2ChannelOut = nil
 		} else {
 			s.log.Info("nothing left to submit")
 			return nil
 		}
+	}
+	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.l2BufferedBlock.Number+1)))
+	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
+	if block.ParentHash() != s.l2BufferedBlock.Hash {
+		s.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
+		s.l2SubmittedBlock = syncStatus.SafeL2
+		s.l2BufferedBlock = syncStatus.SafeL2
+		s.l2ChannelOut = nil
 	}
 	// Create channel if we don't have one yet
 	if s.l2ChannelOut == nil {
@@ -140,23 +154,24 @@ func (s *L2Batcher) Buffer(t Testing) error {
 				ApproxComprRatio: 1,
 			})
 			require.NoError(t, e, "failed to create compressor")
-			ch, err = derive.NewChannelOut(derive.SingularBatchType, c, nil)
+
+			var batchType uint = derive.SingularBatchType
+			var spanBatchBuilder *derive.SpanBatchBuilder = nil
+			if s.rollupCfg.IsSpanBatch(block.Time()) {
+				batchType = derive.SpanBatchType
+				spanBatchBuilder = derive.NewSpanBatchBuilder(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID)
+			}
+			ch, err = derive.NewChannelOut(batchType, c, spanBatchBuilder)
 		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
 	}
-	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.l2BufferedBlock.Number+1)))
-	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
-	if block.ParentHash() != s.l2BufferedBlock.Hash {
-		s.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
-		s.l2SubmittedBlock = syncStatus.SafeL2.ID()
-		s.l2BufferedBlock = syncStatus.SafeL2.ID()
-		s.l2ChannelOut = nil
-	}
 	if _, err := s.l2ChannelOut.AddBlock(block); err != nil { // should always succeed
 		return err
 	}
-	s.l2BufferedBlock = eth.ToBlockID(block)
+	ref, err := s.engCl.L2BlockRefByHash(t.Ctx(), block.Hash())
+	require.NoError(t, err, "failed to get L2BlockRef")
+	s.l2BufferedBlock = ref
 	return nil
 }
 

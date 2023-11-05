@@ -189,8 +189,9 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			EnvVars:  p2pEnv(envPrefix, "BOOTNODES"),
 		},
 		&cli.StringFlag{
-			Name:     StaticPeersName,
-			Usage:    "Comma-separated multiaddr-format peer list. Static connections to make and maintain, these peers will be regarded as trusted.",
+			Name: StaticPeersName,
+			Usage: "Comma-separated multiaddr-format peer list. Static connections to make and maintain, these peers will be regarded as trusted. " +
+				"Addresses of the local peer are ignored. Duplicate/Alternative addresses for the same peer all apply, but only a single connection per peer is maintained.",
 			Required: false,
 			Value:    "",
 			EnvVars:  p2pEnv(envPrefix, "STATIC"),

@@ -2,16 +2,16 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest } from "test/CommonTest.t.sol";
+import { Test } from "forge-std/Test.sol";
 
 // Target contract
 import { DeployerWhitelist } from "src/legacy/DeployerWhitelist.sol";
 
-contract DeployerWhitelist_Test is CommonTest {
+contract DeployerWhitelist_Test is Test {
     DeployerWhitelist list;
 
     /// @dev Sets up the test suite.
-    function setUp() public virtual override {
+    function setUp() public {
         list = new DeployerWhitelist();
     }
 

@@ -47,10 +47,6 @@ func CheckBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1Block
 			log.Error("failed type assertion to SpanBatch")
 			return BatchDrop
 		}
-		if !cfg.IsSpanBatch(batch.Batch.GetTimestamp()) {
-			log.Warn("received SpanBatch before SpanBatch hard fork")
-			return BatchDrop
-		}
 		return checkSpanBatch(ctx, cfg, log, l1Blocks, l2SafeHead, spanBatch, batch.L1InclusionBlock, l2Fetcher)
 	default:
 		log.Warn("Unrecognized batch type: %d", batch.Batch.GetBatchType())
@@ -181,6 +177,20 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 	}
 	epoch := l1Blocks[0]
 
+	startEpochNum := uint64(batch.GetStartEpochNum())
+	batchOrigin := epoch
+	if startEpochNum == batchOrigin.Number+1 {
+		if len(l1Blocks) < 2 {
+			log.Info("eager batch wants to advance epoch, but could not without more L1 blocks", "current_epoch", epoch.ID())
+			return BatchUndecided
+		}
+		batchOrigin = l1Blocks[1]
+	}
+	if !cfg.IsSpanBatch(batchOrigin.Time) {
+		log.Warn("received SpanBatch with L1 origin before SpanBatch hard fork")
+		return BatchDrop
+	}
+
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 
 	if batch.GetTimestamp() > nextTimestamp {
@@ -219,8 +229,6 @@ func checkSpanBatch(ctx context.Context, cfg *rollup.Config, log log.Logger, l1B
 		log.Warn("ignoring batch with mismatching parent hash", "parent_block", parentBlock.Hash)
 		return BatchDrop
 	}
-
-	startEpochNum := uint64(batch.GetStartEpochNum())
 
 	// Filter out batches that were included too late.
 	if startEpochNum+cfg.SeqWindowSize < l1InclusionBlock.Number {

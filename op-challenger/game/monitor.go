@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -23,7 +22,7 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]types.GameMetadata, error)
+	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber uint64) ([]types.GameMetadata, error)
 }
 
 type gameScheduler interface {
@@ -101,7 +100,7 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 }
 
 func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error {
-	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), new(big.Int).SetUint64(blockNum))
+	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockNum)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}

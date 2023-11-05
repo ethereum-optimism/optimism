@@ -45,3 +45,6 @@ func (m *MockEthClient) FilterLogs(query ethereum.FilterQuery) (Logs, error) {
 	args := m.Called(query)
 	return args.Get(0).(Logs), args.Error(1)
 }
+
+func (m *MockEthClient) Close() {
+}

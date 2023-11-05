@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+var DefaultBatchSize = 100
 
 type EthRpc interface {
 	CallContext(ctx context.Context, out interface{}, method string, args ...interface{}) error
@@ -26,15 +29,15 @@ func NewMultiCaller(rpc EthRpc, batchSize int) *MultiCaller {
 	}
 }
 
-func (m *MultiCaller) SingleCallLatest(ctx context.Context, call *ContractCall) (*CallResult, error) {
-	results, err := m.CallLatest(ctx, call)
+func (m *MultiCaller) SingleCall(ctx context.Context, block Block, call *ContractCall) (*CallResult, error) {
+	results, err := m.Call(ctx, block, call)
 	if err != nil {
 		return nil, err
 	}
 	return results[0], nil
 }
 
-func (m *MultiCaller) CallLatest(ctx context.Context, calls ...*ContractCall) ([]*CallResult, error) {
+func (m *MultiCaller) Call(ctx context.Context, block Block, calls ...*ContractCall) ([]*CallResult, error) {
 	keys := make([]interface{}, len(calls))
 	for i := 0; i < len(calls); i++ {
 		args, err := calls[i].ToCallArgs()
@@ -49,7 +52,7 @@ func (m *MultiCaller) CallLatest(ctx context.Context, calls ...*ContractCall) ([
 			out := new(hexutil.Bytes)
 			return out, rpc.BatchElem{
 				Method: "eth_call",
-				Args:   []interface{}{args, "latest"},
+				Args:   []interface{}{args, block.value},
 				Result: &out,
 			}
 		},
@@ -78,4 +81,31 @@ func (m *MultiCaller) CallLatest(ctx context.Context, calls ...*ContractCall) ([
 		callResults[i] = out
 	}
 	return callResults, nil
+}
+
+// Block represents the block ref value in RPC calls.
+// It can be either a label (e.g. latest), a block number or block hash.
+type Block struct {
+	value any
+}
+
+func (b Block) ArgValue() any {
+	return b.value
+}
+
+var (
+	BlockPending   = Block{"pending"}
+	BlockLatest    = Block{"latest"}
+	BlockSafe      = Block{"safe"}
+	BlockFinalized = Block{"finalized"}
+)
+
+// BlockByNumber references a canonical block by number.
+func BlockByNumber(blockNum uint64) Block {
+	return Block{rpc.BlockNumber(blockNum)}
+}
+
+// BlockByHash references a block by hash. Canonical or non-canonical blocks may be referenced.
+func BlockByHash(hash common.Hash) Block {
+	return Block{rpc.BlockNumberOrHashWithHash(hash, false)}
 }
