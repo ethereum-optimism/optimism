@@ -1,9 +1,15 @@
 version: 2.1
 
 parameters:
+  registry:
+    type: string
+    default: "us-docker.pkg.dev"
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images/ci-builder:latest
+  repo:
+    type: string
+    default: ${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images
 
 orbs:
   go: circleci/go@1.8.0
@@ -173,18 +179,6 @@ jobs:
         description: "Docker buildx bake target"
         type: string
         default: ""
-      registry:
-        description: Docker registry
-        type: string
-        default: "us-docker.pkg.dev"
-      project_id:
-        description: GCP project id
-        type: string
-        default: "${GCP_PROJECT_ID}"
-      repo:
-        description: Docker repo
-        type: string
-        default: "${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
       save_image_tag:
         description: Save docker image with given tag
         type: string
@@ -238,8 +232,8 @@ jobs:
               echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
             fi
 
-            export REGISTRY="<<parameters.registry>>"
-            export REPOSITORY="<<parameters.repo>>"
+            export REGISTRY="<<pipeline.parameters.registry>>"
+            export REPOSITORY="<< pipeline.parameters.repo >>"
             export IMAGE_TAGS="$(echo -ne "<<parameters.docker_tags>>" | sed "s/[^a-zA-Z0-9\n,]/-/g")"
             export GIT_COMMIT="$(git rev-parse HEAD)"
             export GIT_DATE="$(git show -s --format='%ct')"
@@ -253,7 +247,7 @@ jobs:
 
             DOCKER_OUTPUT_DESTINATION=""
             if [ "<<parameters.publish>>" == "true" ]; then
-              gcloud auth configure-docker <<parameters.registry>>
+              gcloud auth configure-docker <<pipeline.parameters.registry>>
               echo "Building for platforms $PLATFORMS and then publishing to registry"
               DOCKER_OUTPUT_DESTINATION="--push"
               if [ "<<parameters.save_image_tag>>" != "" ]; then
@@ -292,7 +286,7 @@ jobs:
             - run:
                 name: Save
                 command: |
-                  IMAGE_NAME="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
+                  IMAGE_NAME="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>/<<parameters.docker_name>>:<<parameters.save_image_tag>>"
                   docker save -o /tmp/docker_images/<<parameters.docker_name>>.tar $IMAGE_NAME
             - persist_to_workspace:
                 root: /tmp/docker_images
@@ -304,7 +298,7 @@ jobs:
             - run:
                 name: Tag
                 command: |
-                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+                  ./ops/scripts/ci-docker-tag-op-stack-release.sh <<pipeline.parameters.registry>>/<<pipeline.parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-coverage:
     docker:
@@ -1067,7 +1061,7 @@ jobs:
       - run:
           name: Load and tag docker images
           command: |
-            IMAGE_BASE_PREFIX="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
+            IMAGE_BASE_PREFIX="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>"
             # Load from previous docker-build job
             docker load < "/tmp/workspace/op-stack-go.tar"
             docker load < "/tmp/workspace/op-node.tar"
@@ -1190,7 +1184,7 @@ jobs:
       - run:
           name: Load and tag docker images
           command: |
-            IMAGE_BASE_PREFIX="us-docker.pkg.dev/${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images"
+            IMAGE_BASE_PREFIX="<<pipeline.parameters.registry>>/<<pipeline.parameters.repo>>"
             # Load from previous docker-build job
             docker load < "/tmp/workspace/op-stack-go.tar"
             docker load < "/tmp/workspace/op-node.tar"
