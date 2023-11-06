@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
+	"github.com/mroth/weightedrand/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
 
@@ -695,6 +697,26 @@ type BackendGroup struct {
 	Backends        []*Backend
 	WeightedRouting bool
 	Consensus       *ConsensusPoller
+	weightedChooser *weightedrand.Chooser[*Backend, int]
+}
+
+func NewBackendGroup(name string, backends []*Backend, weightedRouting bool) (*BackendGroup, error) {
+	choices := make([]weightedrand.Choice[*Backend, int], len(backends))
+	for i, backend := range backends {
+		choices[i] = weightedrand.Choice[*Backend, int]{Item: backend, Weight: backend.weight}
+	}
+
+	chooser, err := weightedrand.NewChooser(choices...)
+	if err != nil && weightedRouting {
+		return nil, err
+	}
+
+	return &BackendGroup{
+		Name:            name,
+		Backends:        backends,
+		WeightedRouting: weightedRouting,
+		weightedChooser: chooser,
+	}, nil
 }
 
 func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
@@ -702,7 +724,7 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 		return nil, "", nil
 	}
 
-	backends := bg.Backends
+	backends := bg.orderedBackendsForRequest()
 
 	overriddenResponses := make([]*indexedReqRes, 0)
 	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
@@ -710,7 +732,6 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 	if bg.Consensus != nil {
 		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
 		// serving traffic from any backend that agrees in the consensus group
-		backends = bg.loadBalancedConsensusGroup()
 
 		// We also rewrite block tags to enforce compliance with consensus
 		rctx := RewriteContext{
@@ -750,8 +771,6 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 			}
 		}
 		rpcReqs = rewrittenReqs
-	} else if bg.WeightedRouting {
-		backends = randomizeFirstBackendByWeight(backends)
 	}
 
 	rpcRequestsTotal.Inc()
@@ -819,36 +838,19 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 	return nil, "", ErrNoBackends
 }
 
-func randomizeFirstBackendByWeight(backends []*Backend) []*Backend {
-	if len(backends) <= 1 {
-		return backends
+func moveBackendToStart(choice *Backend, options []*Backend) []*Backend {
+	result := make([]*Backend, 0, len(options))
+
+	if slices.Contains(options, choice) {
+		result = append(result, choice)
 	}
 
-	totalWeight := 0
-	for _, backend := range backends {
-		totalWeight += backend.weight
-	}
-
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	random := r.Intn(totalWeight)
-	currentSum := 0
-
-	for idx, backend := range backends {
-		currentSum += backend.weight
-		if currentSum > random {
-			return moveIndexToStart(backends, idx)
+	for _, opt := range options {
+		if opt != choice {
+			result = append(result, opt)
 		}
 	}
 
-	log.Warn("unable to select weighted backend, using ordered input")
-	return backends
-}
-
-func moveIndexToStart(backends []*Backend, index int) []*Backend {
-	result := make([]*Backend, 0, len(backends))
-	result = append(result, backends[index])
-	result = append(result, backends[:index]...)
-	result = append(result, backends[index+1:]...)
 	return result
 }
 
@@ -889,6 +891,17 @@ func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn,
 	return nil, ErrNoBackends
 }
 
+func (bg *BackendGroup) orderedBackendsForRequest() []*Backend {
+	backends := bg.Backends
+	if bg.Consensus != nil {
+		backends = bg.loadBalancedConsensusGroup()
+	} else if bg.WeightedRouting {
+		choice := bg.weightedChooser.Pick()
+		backends = moveBackendToStart(choice, backends)
+	}
+	return backends
+}
+
 func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	cg := bg.Consensus.GetConsensusGroup()
 
@@ -917,8 +930,9 @@ func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	})
 
 	if bg.WeightedRouting {
-		backendsHealthy = randomizeFirstBackendByWeight(backendsHealthy)
-		backendsDegraded = randomizeFirstBackendByWeight(backendsDegraded)
+		choice := bg.weightedChooser.Pick()
+		backendsHealthy = moveBackendToStart(choice, backendsHealthy)
+		backendsDegraded = moveBackendToStart(choice, backendsDegraded)
 	}
 
 	// healthy are put into a priority position

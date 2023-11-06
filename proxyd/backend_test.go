@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -20,51 +21,116 @@ func TestStripXFF(t *testing.T) {
 	}
 }
 
-func TestMoveIndexToStart(t *testing.T) {
-	backends := []*Backend{
-		{
-			Name: "node1",
-		},
-		{
-			Name: "node1",
-		},
-		{
-			Name: "node1",
-		},
+func TestCreateBackendGroup(t *testing.T) {
+	unweightedOne := &Backend{
+		Name:   "one",
+		weight: 0,
+	}
+
+	unweightedTwo := &Backend{
+		Name:   "two",
+		weight: 0,
+	}
+
+	weightedOne := &Backend{
+		Name:   "one",
+		weight: 1,
+	}
+
+	weightedTwo := &Backend{
+		Name:   "two",
+		weight: 1,
 	}
 
 	tests := []struct {
-		index int
-		out   []*Backend
+		name            string
+		backends        []*Backend
+		weightedRouting bool
+		expectError     bool
 	}{
 		{
-			index: 0,
-			out: []*Backend{
-				backends[0],
-				backends[1],
-				backends[2],
-			},
+			name:            "weighting disabled",
+			backends:        []*Backend{unweightedOne, unweightedTwo},
+			weightedRouting: false,
+			expectError:     false,
 		},
 		{
-			index: 1,
-			out: []*Backend{
-				backends[1],
-				backends[0],
-				backends[2],
-			},
+			name:            "weighting enabled -- all nodes have weight",
+			backends:        []*Backend{weightedOne, weightedTwo},
+			weightedRouting: true,
+			expectError:     false,
 		},
 		{
-			index: 2,
-			out: []*Backend{
-				backends[2],
-				backends[0],
-				backends[1],
-			},
+			name:            "weighting enabled -- some nodes have weight",
+			backends:        []*Backend{weightedOne, unweightedTwo},
+			weightedRouting: true,
+			expectError:     false,
+		},
+		{
+			name:            "weighting enabled -- no nodes have weight",
+			backends:        []*Backend{unweightedOne, unweightedTwo},
+			weightedRouting: true,
+			expectError:     true,
 		},
 	}
 
 	for _, test := range tests {
-		result := moveIndexToStart(backends, test.index)
-		assert.Equal(t, test.out, result)
+		result, err := NewBackendGroup(test.name, test.backends, test.weightedRouting)
+
+		if test.expectError {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+			assert.Equal(t, test.name, result.Name)
+			assert.Equal(t, test.backends, test.backends)
+			assert.Equal(t, test.weightedRouting, test.weightedRouting)
+		}
+	}
+
+}
+
+func TestMoveIndexToStart(t *testing.T) {
+	one := &Backend{
+		Name: "one",
+	}
+
+	two := &Backend{
+		Name: "two",
+	}
+
+	three := &Backend{
+		Name: "three",
+	}
+
+	tests := []struct {
+		choice *Backend
+		input  []*Backend
+		output []*Backend
+	}{
+		{
+			choice: one,
+			input:  []*Backend{one, two, three},
+			output: []*Backend{one, two, three},
+		},
+		{
+			choice: two,
+			input:  []*Backend{one, two, three},
+			output: []*Backend{two, one, three},
+		},
+		{
+			choice: three,
+			input:  []*Backend{one, two},
+			output: []*Backend{one, two},
+		},
+		{
+			choice: one,
+			input:  []*Backend{one},
+			output: []*Backend{one},
+		},
+	}
+
+	for _, test := range tests {
+		result := moveBackendToStart(test.choice, test.input)
+		assert.Equal(t, test.output, result)
 	}
 }
