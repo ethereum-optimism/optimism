@@ -25,3 +25,9 @@ func Clamp(start, end *big.Int, size uint64) *big.Int {
 func Matcher(num int64) func(*big.Int) bool {
 	return func(bi *big.Int) bool { return bi.Int64() == num }
 }
+
+func WeiToETH(wei *big.Int) *big.Float {
+	f := new(big.Float)
+	f.SetString(wei.String())
+	return f.Quo(f, big.NewFloat(1e18))
+}

@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { CheckGelatoLow, IGelatoTreasury } from "../src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
+import { CheckGelatoLow, IGelatoTreasury } from "src/periphery/drippie/dripchecks/CheckGelatoLow.sol";
 
 /// @title  MockGelatoTreasury
 /// @notice Mocks the Gelato treasury for testing purposes. Allows arbitrary
@@ -20,7 +20,7 @@ contract MockGelatoTreasury is IGelatoTreasury {
 }
 
 /// @title  CheckGelatoLowTest
-/// @notice Tests the CheckBalanceHigh contract via fuzzing both the success case
+/// @notice Tests the CheckGelatoLow contract via fuzzing both the success case
 ///         and the failure case.
 contract CheckGelatoLowTest is Test {
     /// @notice An instance of the CheckGelatoLow contract.

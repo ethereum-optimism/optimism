@@ -42,9 +42,6 @@ func WithFactoryAddress(addr common.Address) Option {
 
 func WithGameAddress(addr common.Address) Option {
 	return func(c *config.Config) {
-		if c.GameAllowlist == nil {
-			c.GameAllowlist = make([]common.Address, 0)
-		}
 		c.GameAllowlist = append(c.GameAllowlist, addr)
 	}
 }
@@ -63,7 +60,7 @@ func WithAgreeProposedOutput(agree bool) Option {
 
 func WithAlphabet(alphabet string) Option {
 	return func(c *config.Config) {
-		c.TraceType = config.TraceTypeAlphabet
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
 		c.AlphabetTrace = alphabet
 	}
 }
@@ -82,7 +79,7 @@ func WithCannon(
 ) Option {
 	return func(c *config.Config) {
 		require := require.New(t)
-		c.TraceType = config.TraceTypeCannon
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
 		c.CannonL2 = l2Endpoint
 		c.CannonBin = "../cannon/bin/cannon"
 		c.CannonServer = "../op-program/bin/op-program"
@@ -126,7 +123,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 
 func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, config.TraceTypeAlphabet, true, t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, true, t.TempDir())
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {

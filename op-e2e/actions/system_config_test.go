@@ -39,14 +39,14 @@ func TestBatcherKeyRotation(gt *testing.T) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// a batcher with a new key
 	batcherB := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Bob,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -80,7 +80,7 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	require.Equal(t, dp.Addresses.SysCfgOwner, owner, "system config owner mismatch")
 
 	// Change the batch sender key to Bob!
-	tx, err := sysCfgContract.SetBatcherHash(sysCfgOwner, dp.Addresses.Bob.Hash())
+	tx, err := sysCfgContract.SetBatcherHash(sysCfgOwner, eth.AddressAsLeftPaddedHash(dp.Addresses.Bob))
 	require.NoError(t, err)
 	t.Logf("batcher changes in L1 tx %s", tx.Hash())
 	miner.ActL1StartBlock(12)(t)
@@ -210,7 +210,7 @@ func TestGPOParamsChange(gt *testing.T) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	alice := NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.SetUserEnv(&BasicUserEnv[any]{
@@ -339,7 +339,7 @@ func TestGasLimitChange(gt *testing.T) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	sequencer.ActL2PipelineFull(t)
 	miner.ActEmptyBlock(t)

@@ -123,12 +123,13 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	}
 	var oracleData *types.PreimageOracleData
 	if len(proof.OracleKey) > 0 {
-		oracleData = types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset)
+		// TODO(client-pod#104): Replace the LocalContext `0` argument below with the correct local context.
+		oracleData = types.NewPreimageOracleData(0, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	}
 	return value, data, oracleData, nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {
+func (p *CannonTraceProvider) absolutePreState() ([]byte, error) {
 	state, err := parseState(p.prestate)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load absolute pre-state: %w", err)
@@ -136,8 +137,8 @@ func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, err
 	return state.EncodeWitness(), nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
-	state, err := p.AbsolutePreState(ctx)
+func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+	state, err := p.absolutePreState()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}

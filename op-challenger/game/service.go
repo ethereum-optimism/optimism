@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/loader"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	opClient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -55,7 +56,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
-	l1Client, err := dial.DialEthClientWithTimeout(dial.DefaultDialTimeout, logger, cfg.L1EthRpc)
+	l1Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.L1EthRpc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}
@@ -88,11 +89,14 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		m.StartBalanceMetrics(ctx, logger, l1Client, txMgr.From())
 	}
 
-	factoryContract, err := bindings.NewDisputeGameFactory(cfg.GameFactoryAddress, l1Client)
+	factoryContract, err := contracts.NewDisputeGameFactoryContract(cfg.GameFactoryAddress, batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize))
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("failed to bind the fault dispute game factory contract: %w", err), s.Stop(ctx))
 	}
 	loader := loader.NewGameLoader(factoryContract)
+
+	gameTypeRegistry := registry.NewGameTypeRegistry()
+	fault.RegisterGameTypes(gameTypeRegistry, ctx, logger, m, cfg, txMgr, l1Client)
 
 	disk := newDiskManager(cfg.Datadir)
 	s.sched = scheduler.NewScheduler(
@@ -100,9 +104,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Se
 		m,
 		disk,
 		cfg.MaxConcurrency,
-		func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-			return fault.NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, l1Client)
-		})
+		gameTypeRegistry.CreatePlayer)
 
 	pollClient, err := opClient.NewRPCWithClient(ctx, logger, cfg.L1EthRpc, opClient.NewBaseRPCClient(l1Client.Client()), cfg.PollInterval)
 	if err != nil {

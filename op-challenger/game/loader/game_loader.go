@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -18,12 +15,8 @@ var (
 // MinimalDisputeGameFactoryCaller is a minimal interface around [bindings.DisputeGameFactoryCaller].
 // This needs to be updated if the [bindings.DisputeGameFactoryCaller] interface changes.
 type MinimalDisputeGameFactoryCaller interface {
-	GameCount(opts *bind.CallOpts) (*big.Int, error)
-	GameAtIndex(opts *bind.CallOpts, _index *big.Int) (struct {
-		GameType  uint8
-		Timestamp uint64
-		Proxy     common.Address
-	}, error)
+	GetGameCount(ctx context.Context, blockNum uint64) (uint64, error)
+	GetGame(ctx context.Context, idx uint64, blockNum uint64) (types.GameMetadata, error)
 }
 
 type GameLoader struct {
@@ -38,27 +31,17 @@ func NewGameLoader(caller MinimalDisputeGameFactoryCaller) *GameLoader {
 }
 
 // FetchAllGamesAtBlock fetches all dispute games from the factory at a given block number.
-func (l *GameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]types.GameMetadata, error) {
-	if blockNumber == nil {
-		return nil, ErrMissingBlockNumber
-	}
-	callOpts := &bind.CallOpts{
-		Context:     ctx,
-		BlockNumber: blockNumber,
-	}
-	gameCount, err := l.caller.GameCount(callOpts)
+func (l *GameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber uint64) ([]types.GameMetadata, error) {
+	gameCount, err := l.caller.GetGameCount(ctx, blockNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game count: %w", err)
 	}
 
-	games := make([]types.GameMetadata, 0)
-	if gameCount.Uint64() == 0 {
-		return games, nil
-	}
-	for i := gameCount.Uint64(); i > 0; i-- {
-		game, err := l.caller.GameAtIndex(callOpts, big.NewInt(int64(i-1)))
+	games := make([]types.GameMetadata, 0, gameCount)
+	for i := gameCount; i > 0; i-- {
+		game, err := l.caller.GetGame(ctx, i-1, blockNumber)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch game at index %d: %w", i, err)
+			return nil, fmt.Errorf("failed to fetch game at index %d: %w", i-1, err)
 		}
 		if game.Timestamp < earliestTimestamp {
 			break

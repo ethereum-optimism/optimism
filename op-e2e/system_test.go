@@ -491,7 +491,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	verifierPeerID := sys.RollupNodes["verifier"].P2P().Host().ID()
 	check := func() bool {
-		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().BlocksTopicPeers()
+		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().AllBlockTopicsPeers()
 		return slices.Contains[[]peer.ID](sequencerBlocksTopicPeers, verifierPeerID)
 	}
 
@@ -591,6 +591,10 @@ func TestSystemRPCAltSync(t *testing.T) {
 		// Wait for alt RPC sync to pick up the blocks on the sequencer chain
 		opts.VerifyOnClients(l2Verif)
 	})
+
+	// Sometimes we get duplicate blocks on the sequencer which makes this test flaky
+	published = slices.Compact(published)
+	received = slices.Compact(received)
 
 	// Verify that the tx was received via RPC sync (P2P is disabled)
 	require.Contains(t, received, eth.BlockID{Hash: receiptSeq.BlockHash, Number: receiptSeq.BlockNumber.Uint64()}.String())
@@ -1255,6 +1259,7 @@ func TestStopStartBatcher(t *testing.T) {
 	safeBlockInclusionDuration := time.Duration(6*cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
+	require.NoError(t, wait.ForProcessingFullBatch(context.Background(), rollupClient))
 
 	// ensure the safe chain advances
 	newSeqStatus, err := rollupClient.SyncStatus(context.Background())
@@ -1262,7 +1267,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
 	// stop the batch submission
-	err = sys.BatchSubmitter.Stop(context.Background())
+	err = sys.BatchSubmitter.Driver().StopBatchSubmitting(context.Background())
 	require.Nil(t, err)
 
 	// wait for any old safe blocks being submitted / derived
@@ -1282,7 +1287,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Equal(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain advanced while batcher was stopped")
 
 	// start the batch submission
-	err = sys.BatchSubmitter.Start()
+	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
 	require.Nil(t, err)
 	time.Sleep(safeBlockInclusionDuration)
 
@@ -1292,6 +1297,7 @@ func TestStopStartBatcher(t *testing.T) {
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
 	_, err = geth.WaitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
+	require.NoError(t, wait.ForProcessingFullBatch(context.Background(), rollupClient))
 
 	// ensure that the safe chain advances after restarting the batcher
 	newSeqStatus, err = rollupClient.SyncStatus(context.Background())
@@ -1321,7 +1327,7 @@ func TestBatcherMultiTx(t *testing.T) {
 	require.Nil(t, err)
 
 	// start batch submission
-	err = sys.BatchSubmitter.Start()
+	err = sys.BatchSubmitter.Driver().StartBatchSubmitting()
 	require.Nil(t, err)
 
 	totalTxCount := 0
@@ -1548,4 +1554,15 @@ func TestRequiredProtocolVersionChangeAndHalt(t *testing.T) {
 	})
 	require.NoError(t, err)
 	t.Log("verified that op-geth closed!")
+}
+
+func TestIncorrectBatcherConfiguration(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// make the batcher configuration invalid
+	cfg.BatcherMaxL1TxSizeBytes = 1
+
+	_, err := cfg.Start(t)
+	require.Error(t, err, "Expected error on invalid batcher configuration")
 }

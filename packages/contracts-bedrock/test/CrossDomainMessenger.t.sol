@@ -2,13 +2,16 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer, Reverter, CallerCaller, CommonTest } from "./CommonTest.t.sol";
-import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
+import { Test } from "forge-std/Test.sol";
+import { Messenger_Initializer, Test } from "test/CommonTest.t.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+
+import { Reverter, CallerCaller } from "test/mocks/Callers.sol";
 
 // Libraries
-import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { Hashing } from "../src/libraries/Hashing.sol";
-import { Encoding } from "../src/libraries/Encoding.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 
 // CrossDomainMessenger_Test is for testing functionality which is common to both the L1 and L2
 // CrossDomainMessenger contracts. For simplicity, we use the L1 Messenger as the test contract.
@@ -39,7 +42,7 @@ contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
 /// @title ExternalRelay
 /// @notice A mock external contract called via the SafeCall inside
 ///         the CrossDomainMessenger's `relayMessage` function.
-contract ExternalRelay is CommonTest {
+contract ExternalRelay is Test {
     address internal op;
     address internal fuzzedSender;
     L1CrossDomainMessenger internal L1Messenger;

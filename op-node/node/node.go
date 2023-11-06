@@ -156,6 +156,9 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
+	// Set the RethDB path in the EthClientConfig, if there is one configured.
+	rpcCfg.EthClientConfig.RethDBPath = cfg.RethDBPath
+
 	n.l1Source, err = sources.NewL1Client(
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache, rpcCfg)
 	if err != nil {
@@ -510,6 +513,7 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *e
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
+
 	if err := n.l2Driver.OnUnsafeL2Payload(ctx, payload); err != nil {
 		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
 	}

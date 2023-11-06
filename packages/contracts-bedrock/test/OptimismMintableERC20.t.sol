@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Bridge_Initializer } from "./CommonTest.t.sol";
-import { ILegacyMintableERC20, IOptimismMintableERC20 } from "../src/universal/IOptimismMintableERC20.sol";
+import { Bridge_Initializer } from "test/CommonTest.t.sol";
+import { ILegacyMintableERC20, IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableERC20_Test is Bridge_Initializer {

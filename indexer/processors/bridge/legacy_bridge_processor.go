@@ -5,9 +5,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -31,17 +31,18 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction deposits", "size", len(ctcTxDepositEvents))
 	}
 
+	mintedWEI := bigint.Zero
 	ctcTxDeposits := make(map[logKey]*contracts.LegacyCTCDepositEvent, len(ctcTxDepositEvents))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(ctcTxDepositEvents))
 	for i := range ctcTxDepositEvents {
 		deposit := ctcTxDepositEvents[i]
 		ctcTxDeposits[logKey{deposit.Event.BlockHash, deposit.Event.LogIndex}] = &deposit
-		transactionDeposits[i] = database.L1TransactionDeposit{
-			// We re-use the L2 Transaction hash as the source hash
-			// to remain consistent in the schema.
-			SourceHash:        deposit.TxHash,
-			L2TransactionHash: deposit.TxHash,
+		mintedWEI = new(big.Int).Add(mintedWEI, deposit.Tx.Amount)
 
+		// We re-use the L2 Transaction hash as the source hash to remain consistent in the schema.
+		transactionDeposits[i] = database.L1TransactionDeposit{
+			SourceHash:           deposit.TxHash,
+			L2TransactionHash:    deposit.TxHash,
 			InitiatedL1EventGUID: deposit.Event.GUID,
 			GasLimit:             deposit.GasLimit,
 			Tx:                   deposit.Tx,
@@ -51,7 +52,9 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
 		}
-		metrics.RecordL1TransactionDeposits(len(transactionDeposits))
+
+		mintedETH, _ := bigint.WeiToETH(mintedWEI).Float64()
+		metrics.RecordL1TransactionDeposits(len(transactionDeposits), mintedETH)
 	}
 
 	// (2) L1CrossDomainMessenger
@@ -72,8 +75,11 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// extract the deposit hash from the previous TransactionDepositedEvent
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("missing transaction deposit for cross domain message", "tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("missing preceding TransactionEnqueued for SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+			log.Error("expected TransactionEnqueued preceding SentMessage event", "tx_hash", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+		} else if ctcTxDeposit.Event.TransactionHash != sentMessage.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "deposit_tx_hash", ctcTxDeposit.Event.TransactionHash.String(), "message_tx_hash", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		bridgeMessages[i] = database.L1BridgeMessage{TransactionSourceHash: ctcTxDeposit.TxHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -104,13 +110,20 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// 	- Event Flow: TransactionEnqueued -> SentMessage -> DepositInitiated
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("missing cross domain message for bridge transfer", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			log.Error("expected SentMessage preceding BridgeInitiated event", "tx_hash", sentMessage.Event.TransactionHash.String())
 			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
+
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 2}]
 		if !ok {
-			log.Error("missing transaction deposit for bridge transfer", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected TransactionEnqueued preceding DepostInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			log.Error("expected TransactionEnqueued preceding BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+		} else if ctcTxDeposit.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "deposit_tx_hash", ctcTxDeposit.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -148,18 +161,22 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected legacy transaction withdrawals (via L2CrossDomainMessenger)", "size", len(crossDomainSentMessages))
 	}
 
-	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
+	type sentMessageEvent struct {
+		*contracts.CrossDomainMessengerSentMessageEvent
+		WithdrawalHash common.Hash
+	}
+
+	withdrawnWEI := bigint.Zero
+	sentMessages := make(map[logKey]sentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
-		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
+		withdrawnWEI = new(big.Int).Add(withdrawnWEI, sentMessage.BridgeMessage.Tx.Amount)
 
-		// To ensure consistency in the schema, we duplicate this as the "root" transaction withdrawal. The storage key in the message
-		// passer contract is sha3(calldata + sender). The sender always being the L2CrossDomainMessenger pre-bedrock.
-		withdrawalHash := crypto.Keccak256Hash(append(sentMessage.MessageCalldata, l2Contracts.L2CrossDomainMessenger[:]...))
+		// We re-use the L2CrossDomainMessenger message hash as the withdrawal hash to remain consistent in the schema.
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
-			WithdrawalHash:       withdrawalHash,
+			WithdrawalHash:       sentMessage.BridgeMessage.MessageHash,
 			InitiatedL2EventGUID: sentMessage.Event.GUID,
 			Nonce:                sentMessage.BridgeMessage.Nonce,
 			GasLimit:             sentMessage.BridgeMessage.GasLimit,
@@ -172,8 +189,9 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 			},
 		}
 
+		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, sentMessage.BridgeMessage.MessageHash}
 		bridgeMessages[i] = database.L2BridgeMessage{
-			TransactionWithdrawalHash: withdrawalHash,
+			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
 			BridgeMessage:             sentMessage.BridgeMessage,
 		}
 	}
@@ -184,7 +202,9 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err := db.BridgeMessages.StoreL2BridgeMessages(bridgeMessages); err != nil {
 			return err
 		}
-		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals))
+
+		withdrawnETH, _ := bigint.WeiToETH(withdrawnWEI).Float64()
+		metrics.RecordL2TransactionWithdrawals(len(transactionWithdrawals), withdrawnETH)
 		metrics.RecordL2CrossDomainSentMessages(len(bridgeMessages))
 	}
 
@@ -207,14 +227,17 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// 	- Event Flow: TransactionEnqueued -> SentMessage -> DepositInitiated
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected SentMessage preceding DepositInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+			log.Error("expected SentMessage preceding BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected SentMessage preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
+			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("correlated events tx hash mismatch")
 		}
-		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
+		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
 		l2BridgeWithdrawals[i] = database.L2BridgeWithdrawal{
-			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
+			TransactionWithdrawalHash: sentMessage.WithdrawalHash,
 			BridgeTransfer:            initiatedBridge.BridgeTransfer,
 		}
 	}
@@ -259,7 +282,8 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			// for OP-Mainnet pre-regensis withdrawals that no longer exist on L2.
 			tx, err := l1Client.TxByHash(relayedMessage.Event.TransactionHash)
 			if err != nil {
-				return err
+				log.Error("unable to query legacy relayed tx", "tx_hash", relayedMessage.Event.TransactionHash.String(), "err", err)
+				return fmt.Errorf("unable to query legacy relayed tx_hash = %s: %w", relayedMessage.Event.TransactionHash.String(), err)
 			} else if tx == nil {
 				log.Error("missing tx for relayed message", "tx_hash", relayedMessage.Event.TransactionHash.String())
 				return fmt.Errorf("missing tx for relayed message. tx_hash = %s", relayedMessage.Event.TransactionHash.String())
@@ -285,7 +309,7 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			}
 		}
 
-		// Mark the associated tx withdrawal as proven/finalized with the same event
+		// Mark the associated tx withdrawal as proven/finalized with the same event. The message hash is also the transaction withdrawal hash
 		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
 			log.Error("failed to mark withdrawal as proven", "err", err)
 			return err
@@ -309,10 +333,12 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Warn("skipped pre-regensis relayed L2CrossDomainMessenger withdrawals", "size", skippedPreRegenesisMessages)
 	}
 
-	// (2) L2StandardBridge -- no-op for now as there's nothing actionable to do here besides
-	// santiy checks which is not important for legacy code. Not worth extra code pre-bedrock.
-	// The message status is already tracked via the relayed bridge messed through the cross domain messenger.
-	//  - NOTE: This means we dont increment metrics for finalized bridge transfers
+	// (2) L1StandardBridge
+	// 	- Nothing actionable on the database. Since the StandardBridge is layered ontop of the
+	// CrossDomainMessenger, there's no need for any sanity or invariant checks as the previous step
+	// ensures a relayed message (finalized bridge) can be linked with a sent message (initiated bridge).
+
+	//  - NOTE: Ignoring metrics for pre-bedrock transfers
 
 	// a-ok!
 	return nil
@@ -351,10 +377,12 @@ func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		metrics.RecordL2CrossDomainRelayedMessages(len(crossDomainRelayedMessages))
 	}
 
-	// (2) L2StandardBridge -- no-op for now as there's nothing actionable to do here besides
-	// santiy checks which is not important for legacy code. Not worth the extra code pre-bedorck.
-	// The message status is already tracked via the relayed bridge messed through the cross domain messenger.
-	//  - NOTE: This means we dont increment metrics for finalized bridge transfers
+	// (2) L2StandardBridge
+	// 	- Nothing actionable on the database. Since the StandardBridge is layered ontop of the
+	// CrossDomainMessenger, there's no need for any sanity or invariant checks as the previous step
+	// ensures a relayed message (finalized bridge) can be linked with a sent message (initiated bridge).
+
+	//  - NOTE: Ignoring metrics for pre-bedrock transfers
 
 	// a-ok!
 	return nil

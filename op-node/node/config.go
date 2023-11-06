@@ -60,6 +60,9 @@ type Config struct {
 
 	// Cancel to request a premature shutdown of the node itself, e.g. when halting. This may be nil.
 	Cancel context.CancelCauseFunc
+
+	// [OPTIONAL] The reth DB path to read receipts from
+	RethDBPath string
 }
 
 type RPCConfig struct {

@@ -7,8 +7,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 /**
@@ -67,17 +69,23 @@ type BlocksDB interface {
  */
 
 type blocksDB struct {
+	log  log.Logger
 	gorm *gorm.DB
 }
 
-func newBlocksDB(db *gorm.DB) BlocksDB {
-	return &blocksDB{gorm: db}
+func newBlocksDB(log log.Logger, db *gorm.DB) BlocksDB {
+	return &blocksDB{log: log.New("table", "blocks"), gorm: db}
 }
 
 // L1
 
 func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
-	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "hash"}}, DoNothing: true})
+	result := deduped.Create(&headers)
+	if result.Error == nil && int(result.RowsAffected) < len(headers) {
+		db.log.Warn("ignored L1 block duplicates", "duplicates", len(headers)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -115,7 +123,12 @@ func (db *blocksDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 // L2
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
-	result := db.gorm.CreateInBatches(&headers, batchInsertSize)
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "hash"}}, DoNothing: true})
+	result := deduped.Create(&headers)
+	if result.Error == nil && int(result.RowsAffected) < len(headers) {
+		db.log.Warn("ignored L2 block duplicates", "duplicates", len(headers)-int(result.RowsAffected))
+	}
+
 	return result.Error
 }
 
@@ -173,7 +186,6 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 	var header L1BlockHeader
 	if fromL1Height != nil {
 		result := db.gorm.Where("number = ?", fromL1Height).Take(&header)
-		// TODO - Embed logging to db
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return nil, nil
@@ -183,7 +195,8 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 
 		fromTimestamp = header.Timestamp
 	} else {
-		result := db.gorm.Order("number desc").Take(&header)
+		// Take the lowest indexed L1 block to compute the lower bound
+		result := db.gorm.Order("number ASC").Take(&header)
 		if result.Error != nil {
 			if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 				return nil, nil
@@ -192,6 +205,7 @@ func (db *blocksDB) LatestObservedEpoch(fromL1Height *big.Int, maxL1Range uint64
 		}
 
 		fromL1Height = header.Number
+		fromTimestamp = header.Timestamp
 	}
 
 	// Upper Bound (lowest timestamp indexed between L1/L2 bounded by `maxL1Range`)

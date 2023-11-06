@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 	"strings"
@@ -17,10 +16,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
-
-type CallContextFn func(ctx context.Context, result any, method string, args ...any) error
 
 // Note: these types are used, instead of the geth types, to enable:
 // - batched calls of many block requests (standard bindings do extra uncle-header fetches, cannot be batched nicely)
@@ -181,14 +176,37 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 type rpcBlock struct {
 	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
+	Withdrawals  *types.Withdrawals   `json:"withdrawals,omitempty"`
 }
 
 func (block *rpcBlock) verify() error {
 	if computed := block.computeBlockHash(); computed != block.Hash {
 		return fmt.Errorf("failed to verify block hash: computed %s but RPC said %s", computed, block.Hash)
 	}
+	for i, tx := range block.Transactions {
+		if tx == nil {
+			return fmt.Errorf("block tx %d is null", i)
+		}
+	}
 	if computed := types.DeriveSha(types.Transactions(block.Transactions), trie.NewStackTrie(nil)); block.TxHash != computed {
 		return fmt.Errorf("failed to verify transactions list: computed %s but RPC said %s", computed, block.TxHash)
+	}
+	if block.WithdrawalsRoot != nil {
+		if block.Withdrawals == nil {
+			return fmt.Errorf("expected withdrawals")
+		}
+		for i, w := range *block.Withdrawals {
+			if w == nil {
+				return fmt.Errorf("block withdrawal %d is null", i)
+			}
+		}
+		if computed := types.DeriveSha(*block.Withdrawals, trie.NewStackTrie(nil)); *block.WithdrawalsRoot != computed {
+			return fmt.Errorf("failed to verify withdrawals list: computed %s but RPC said %s", computed, block.WithdrawalsRoot)
+		}
+	} else {
+		if block.Withdrawals != nil {
+			return fmt.Errorf("expected no withdrawals due to missing withdrawals-root, but got %d", len(*block.Withdrawals))
+		}
 	}
 	return nil
 }
@@ -252,6 +270,7 @@ func (block *rpcBlock) ExecutionPayload(trustCache bool) (*eth.ExecutionPayload,
 		BaseFeePerGas: baseFee,
 		BlockHash:     block.Hash,
 		Transactions:  opaqueTxs,
+		Withdrawals:   block.Withdrawals,
 	}, nil
 }
 

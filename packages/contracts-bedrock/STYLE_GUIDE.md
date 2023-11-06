@@ -45,6 +45,18 @@ We also have the following custom tags:
 
 - Event parameters should NOT be prefixed with an underscore.
 
+#### Immutable variables
+
+Immutable variables:
+
+- should be in `SCREAMING_SNAKE_CASE`
+- should be `internal`
+- should have a hand written getter function
+
+This approach clearly indicates to the developer that the value is immutable, without exposing
+the non-standard casing to the interface. It also ensure that we don’t need to break the ABIs if
+we switch between values being in storage and immutable.
+
 #### Spacers
 
 We use spacer variables to account for old storage slots that are no longer being used.
@@ -118,7 +130,7 @@ _Note: This is a work in progress, not all test files are compliant with these g
 
 Test function names are split by underscores, into 3 or 4 parts. An example function name is `test_onlyOwner_callerIsNotOwner_reverts()`.
 
-The parts are: `[method]_[FunctionName]_[reason]_[success]`, where:
+The parts are: `[method]_[FunctionName]_[reason]_[status]`, where:
 
 - `[method]` is either `test`, `testFuzz`, or `testDiff`
 - `[FunctionName]` is the name of the function or higher level behavior being tested.

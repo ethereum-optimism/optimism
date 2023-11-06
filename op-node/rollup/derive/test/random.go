@@ -1,6 +1,7 @@
 package test
 
 import (
+	"math/big"
 	"math/rand"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -20,4 +21,14 @@ func RandomL2Block(rng *rand.Rand, txCount int) (*types.Block, []*types.Receipt)
 		panic("L1InfoDeposit: " + err.Error())
 	}
 	return testutils.RandomBlockPrependTxs(rng, txCount, types.NewTx(l1InfoTx))
+}
+
+func RandomL2BlockWithChainId(rng *rand.Rand, txCount int, chainId *big.Int) *types.Block {
+	signer := types.NewLondonSigner(chainId)
+	block, _ := RandomL2Block(rng, 0)
+	txs := []*types.Transaction{block.Transactions()[0]} // L1 info deposit TX
+	for i := 0; i < txCount; i++ {
+		txs = append(txs, testutils.RandomTx(rng, big.NewInt(int64(rng.Uint32())), signer))
+	}
+	return block.WithBody(txs, nil)
 }

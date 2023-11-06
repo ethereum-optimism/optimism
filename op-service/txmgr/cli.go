@@ -26,6 +26,7 @@ const (
 	// TxMgr Flags (new + legacy + some shared flags)
 	NumConfirmationsFlagName          = "num-confirmations"
 	SafeAbortNonceTooLowCountFlagName = "safe-abort-nonce-too-low-count"
+	FeeLimitMultiplierFlagName        = "fee-limit-multiplier"
 	ResubmissionTimeoutFlagName       = "resubmission-timeout"
 	NetworkTimeoutFlagName            = "network-timeout"
 	TxSendTimeoutFlagName             = "txmgr.send-timeout"
@@ -51,6 +52,7 @@ var (
 type DefaultFlagValues struct {
 	NumConfirmations          uint64
 	SafeAbortNonceTooLowCount uint64
+	FeeLimitMultiplier        uint64
 	ResubmissionTimeout       time.Duration
 	NetworkTimeout            time.Duration
 	TxSendTimeout             time.Duration
@@ -62,6 +64,7 @@ var (
 	DefaultBatcherFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(10),
 		SafeAbortNonceTooLowCount: uint64(3),
+		FeeLimitMultiplier:        uint64(5),
 		ResubmissionTimeout:       48 * time.Second,
 		NetworkTimeout:            10 * time.Second,
 		TxSendTimeout:             0 * time.Second,
@@ -71,6 +74,7 @@ var (
 	DefaultChallengerFlagValues = DefaultFlagValues{
 		NumConfirmations:          uint64(3),
 		SafeAbortNonceTooLowCount: uint64(3),
+		FeeLimitMultiplier:        uint64(5),
 		ResubmissionTimeout:       24 * time.Second,
 		NetworkTimeout:            10 * time.Second,
 		TxSendTimeout:             2 * time.Minute,
@@ -115,6 +119,12 @@ func CLIFlagsWithDefaults(envPrefix string, defaults DefaultFlagValues) []cli.Fl
 			Value:   defaults.SafeAbortNonceTooLowCount,
 			EnvVars: prefixEnvVars("SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
 		},
+		&cli.Uint64Flag{
+			Name:    FeeLimitMultiplierFlagName,
+			Usage:   "The multiplier applied to fee suggestions to put a hard limit on fee increases",
+			Value:   defaults.FeeLimitMultiplier,
+			EnvVars: prefixEnvVars("TXMGR_FEE_LIMIT_MULTIPLIER"),
+		},
 		&cli.DurationFlag{
 			Name:    ResubmissionTimeoutFlagName,
 			Usage:   "Duration we will wait before resubmitting a transaction to L1",
@@ -158,6 +168,7 @@ type CLIConfig struct {
 	SignerCLIConfig           opsigner.CLIConfig
 	NumConfirmations          uint64
 	SafeAbortNonceTooLowCount uint64
+	FeeLimitMultiplier        uint64
 	ResubmissionTimeout       time.Duration
 	ReceiptQueryInterval      time.Duration
 	NetworkTimeout            time.Duration
@@ -170,6 +181,7 @@ func NewCLIConfig(l1RPCURL string, defaults DefaultFlagValues) CLIConfig {
 		L1RPCURL:                  l1RPCURL,
 		NumConfirmations:          defaults.NumConfirmations,
 		SafeAbortNonceTooLowCount: defaults.SafeAbortNonceTooLowCount,
+		FeeLimitMultiplier:        defaults.FeeLimitMultiplier,
 		ResubmissionTimeout:       defaults.ResubmissionTimeout,
 		NetworkTimeout:            defaults.NetworkTimeout,
 		TxSendTimeout:             defaults.TxSendTimeout,
@@ -188,6 +200,9 @@ func (m CLIConfig) Check() error {
 	}
 	if m.NetworkTimeout == 0 {
 		return errors.New("must provide NetworkTimeout")
+	}
+	if m.FeeLimitMultiplier == 0 {
+		return errors.New("must provide FeeLimitMultiplier")
 	}
 	if m.ResubmissionTimeout == 0 {
 		return errors.New("must provide ResubmissionTimeout")
@@ -218,6 +233,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		SignerCLIConfig:           opsigner.ReadCLIConfig(ctx),
 		NumConfirmations:          ctx.Uint64(NumConfirmationsFlagName),
 		SafeAbortNonceTooLowCount: ctx.Uint64(SafeAbortNonceTooLowCountFlagName),
+		FeeLimitMultiplier:        ctx.Uint64(FeeLimitMultiplierFlagName),
 		ResubmissionTimeout:       ctx.Duration(ResubmissionTimeoutFlagName),
 		ReceiptQueryInterval:      ctx.Duration(ReceiptQueryIntervalFlagName),
 		NetworkTimeout:            ctx.Duration(NetworkTimeoutFlagName),
@@ -261,6 +277,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 	return Config{
 		Backend:                   l1,
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
+		FeeLimitMultiplier:        cfg.FeeLimitMultiplier,
 		ChainID:                   chainID,
 		TxSendTimeout:             cfg.TxSendTimeout,
 		TxNotInMempoolTimeout:     cfg.TxNotInMempoolTimeout,
@@ -281,6 +298,9 @@ type Config struct {
 	// price will be published. Only one publication at MaxGasPrice will be
 	// attempted.
 	ResubmissionTimeout time.Duration
+
+	// The multiplier applied to fee suggestions to put a hard limit on fee increases.
+	FeeLimitMultiplier uint64
 
 	// ChainID is the chain ID of the L1 chain.
 	ChainID *big.Int
@@ -325,6 +345,9 @@ func (m Config) Check() error {
 	}
 	if m.NetworkTimeout == 0 {
 		return errors.New("must provide NetworkTimeout")
+	}
+	if m.FeeLimitMultiplier == 0 {
+		return errors.New("must provide FeeLimitMultiplier")
 	}
 	if m.ResubmissionTimeout == 0 {
 		return errors.New("must provide ResubmissionTimeout")

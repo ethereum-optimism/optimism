@@ -75,7 +75,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 
 func TestNetwork(t *testing.T) {
 	t.Run("Unknown", func(t *testing.T) {
-		verifyArgsInvalid(t, "unavailable network: \"bar\"", replaceRequiredArg("--network", "bar"))
+		verifyArgsInvalid(t, "invalid network: \"bar\"", replaceRequiredArg("--network", "bar"))
 	})
 
 	t.Run("Required", func(t *testing.T) {
@@ -210,7 +210,7 @@ func TestL1TrustRPC(t *testing.T) {
 func TestL1RPCKind(t *testing.T) {
 	t.Run("DefaultBasic", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs())
-		require.Equal(t, sources.RPCKindBasic, cfg.L1RPCKind)
+		require.Equal(t, sources.RPCKindStandard, cfg.L1RPCKind)
 	})
 	for _, kind := range sources.RPCProviderKinds {
 		t.Run(kind.String(), func(t *testing.T) {

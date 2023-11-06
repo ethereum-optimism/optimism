@@ -21,8 +21,8 @@ const defaultRetryTime = 2 * time.Second
 // DialEthClientWithTimeout attempts to dial the L1 provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func DialEthClientWithTimeout(timeout time.Duration, log log.Logger, url string) (*ethclient.Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func DialEthClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string) (*ethclient.Client, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	c, err := dialRPCClientWithBackoff(ctx, log, url)
@@ -35,8 +35,8 @@ func DialEthClientWithTimeout(timeout time.Duration, log log.Logger, url string)
 
 // DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
 // If the dial doesn't complete within timeout seconds, this method will return an error.
-func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url string) (*sources.RollupClient, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string) (*sources.RollupClient, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	rpcCl, err := dialRPCClientWithBackoff(ctx, log, url)

@@ -185,6 +185,27 @@
       }
     }
 - method: debug_getRawReceipts
+  block: 0x55
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "debug_getRawReceipts"
+      }
+    }
+- method: debug_getRawReceipts
+  block: 0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "debug_getRawReceipts"
+      }
+    }
+- method: debug_getRawReceipts
+  block: 0x101
   response: >
     {
       "jsonrpc": "2.0",

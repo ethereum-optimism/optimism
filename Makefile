@@ -1,12 +1,20 @@
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
+OP_STACK_GO_BUILDER?=us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:latest
+
+# Requires at least Python v3.9; specify a minor version below if needed
+PYTHON?=python3
 
 build: build-go build-ts
 .PHONY: build
 
 build-go: submodules op-node op-proposer op-batcher
 .PHONY: build-go
+
+lint-go:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+.PHONY: lint-go
 
 build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
@@ -18,6 +26,18 @@ build-ts: submodules
 
 ci-builder:
 	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
+
+golang-docker:
+	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
+	GIT_COMMIT=$$(git rev-parse HEAD) \
+	GIT_DATE=$$(git show -s --format='%ct') \
+	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	docker buildx bake \
+			--progress plain \
+			--load \
+			-f docker-bake.hcl \
+			op-node op-batcher op-proposer op-challenger
+.PHONY: golang-docker
 
 submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
@@ -97,14 +117,14 @@ pre-devnet:
 devnet-up: pre-devnet
 	./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock \
 		|| make devnet-allocs
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 # alias for devnet-up
 devnet-up-deploy: devnet-up
 
 devnet-test: pre-devnet
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --test
 .PHONY: devnet-test
 
 devnet-down:
@@ -120,7 +140,7 @@ devnet-clean:
 .PHONY: devnet-clean
 
 devnet-allocs: pre-devnet
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
+	PYTHONPATH=./bedrock-devnet $(PYTHON) ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker compose logs -f)
@@ -163,4 +183,9 @@ bedrock-markdown-links:
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
 
 install-geth:
-	go install github.com/ethereum/go-ethereum/cmd/geth@v1.12.0
+	./ops/scripts/geth-version-checker.sh && \
+	 	(echo "Geth versions match, not installing geth..."; true) || \
+ 		(echo "Versions do not match, installing geth!"; \
+ 			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell cat .gethrc); \
+ 			echo "Installed geth!"; true)
+.PHONY: install-geth

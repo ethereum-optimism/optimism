@@ -10,6 +10,9 @@ import time
 import shutil
 import http.client
 from multiprocessing import Process, Queue
+import concurrent.futures
+from collections import namedtuple
+
 
 import devnet.log_setup
 
@@ -94,10 +97,21 @@ def main():
         devnet_l1_genesis(paths)
         return
 
-    log.info('Building docker images')
-    run_command(['docker', 'compose', 'build', '--progress', 'plain'], cwd=paths.ops_bedrock_dir, env={
-        'PWD': paths.ops_bedrock_dir
-    })
+    git_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], capture_output=True, text=True).stdout.strip()
+    git_date = subprocess.run(['git', 'show', '-s', "--format=%ct"], capture_output=True, text=True).stdout.strip()
+
+    # CI loads the images from workspace, and does not otherwise know the images are good as-is
+    if os.getenv('DEVNET_NO_BUILD') == "true":
+        log.info('Skipping docker images build')
+    else:
+        log.info(f'Building docker images for git commit {git_commit} ({git_date})')
+        run_command(['docker', 'compose', 'build', '--progress', 'plain',
+                     '--build-arg', f'GIT_COMMIT={git_commit}', '--build-arg', f'GIT_DATE={git_date}'],
+                    cwd=paths.ops_bedrock_dir, env={
+            'PWD': paths.ops_bedrock_dir,
+            'DOCKER_BUILDKIT': '1', # (should be available by default in later versions, but explicitly enable it anyway)
+            'COMPOSE_DOCKER_CLI_BUILD': '1'  # use the docker cache
+        })
 
     log.info('Devnet starting')
     devnet_deploy(paths)
@@ -188,13 +202,12 @@ def devnet_deploy(paths):
         # If someone reads this comment and understands why this is being done, please
         # update this comment to explain.
         init_devnet_l1_deploy_config(paths, update_timestamp=True)
-        outfile_l1 = pjoin(paths.devnet_dir, 'genesis-l1.json')
         run_command([
             'go', 'run', 'cmd/main.go', 'genesis', 'l1',
             '--deploy-config', paths.devnet_config_path,
             '--l1-allocs', paths.allocs_path,
             '--l1-deployments', paths.addresses_json_path,
-            '--outfile.l1', outfile_l1,
+            '--outfile.l1', paths.genesis_l1_path,
         ], cwd=paths.op_node_dir)
 
     log.info('Starting L1.')
@@ -213,8 +226,8 @@ def devnet_deploy(paths):
             '--l1-rpc', 'http://localhost:8545',
             '--deploy-config', paths.devnet_config_path,
             '--deployment-dir', paths.deployment_dir,
-            '--outfile.l2', pjoin(paths.devnet_dir, 'genesis-l2.json'),
-            '--outfile.rollup', pjoin(paths.devnet_dir, 'rollup.json')
+            '--outfile.l2', paths.genesis_l2_path,
+            '--outfile.rollup', paths.rollup_config_path
         ], cwd=paths.op_node_dir)
 
     rollup_config = read_json(paths.rollup_config_path)
@@ -274,21 +287,27 @@ def debug_dumpBlock(url):
 def wait_for_rpc_server(url):
     log.info(f'Waiting for RPC server at {url}')
 
-    conn = http.client.HTTPConnection(url)
     headers = {'Content-type': 'application/json'}
     body = '{"id":1, "jsonrpc":"2.0", "method": "eth_chainId", "params":[]}'
 
     while True:
         try:
+            conn = http.client.HTTPConnection(url)
             conn.request('POST', '/', body, headers)
             response = conn.getresponse()
-            conn.close()
             if response.status < 300:
                 log.info(f'RPC server at {url} ready')
                 return
         except Exception as e:
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
+        finally:
+            if conn:
+                conn.close()
+
+
+CommandPreset = namedtuple('Command', ['name', 'args', 'cwd', 'timeout'])
+
 
 def devnet_test(paths):
     # Check the L2 config
@@ -297,17 +316,57 @@ def devnet_test(paths):
         cwd=paths.ops_chain_ops,
     )
 
-    run_command(
-         ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1', '--l1-contracts-json-path', paths.addresses_json_path],
-         cwd=paths.sdk_dir,
-         timeout=8*60,
-    )
+    # Run the two commands with different signers, so the ethereum nonce management does not conflict
+    # And do not use devnet system addresses, to avoid breaking fee-estimation or nonce values.
+    run_commands([
+        CommandPreset('erc20-test',
+          ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1',
+           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '14'],
+          cwd=paths.sdk_dir, timeout=8*60),
+        CommandPreset('eth-test',
+          ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1',
+           '--l1-contracts-json-path', paths.addresses_json_path, '--signer-index', '15'],
+          cwd=paths.sdk_dir, timeout=8*60)
+    ], max_workers=2)
 
-    run_command(
-         ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1', '--l1-contracts-json-path', paths.addresses_json_path],
-         cwd=paths.sdk_dir,
-         timeout=8*60,
-    )
+
+def run_commands(commands: list[CommandPreset], max_workers=2):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(run_command_preset, cmd) for cmd in commands]
+
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                print(result.stdout)
+
+
+def run_command_preset(command: CommandPreset):
+    with subprocess.Popen(command.args, cwd=command.cwd,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
+        try:
+            # Live output processing
+            for line in proc.stdout:
+                # Annotate and print the line with timestamp and command name
+                timestamp = datetime.datetime.utcnow().strftime('%H:%M:%S.%f')
+                # Annotate and print the line with the timestamp
+                print(f"[{timestamp}][{command.name}] {line}", end='')
+
+            stdout, stderr = proc.communicate(timeout=command.timeout)
+
+            if proc.returncode != 0:
+                raise RuntimeError(f"Command '{' '.join(command.args)}' failed with return code {proc.returncode}: {stderr}")
+
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Command '{' '.join(command.args)}' timed out!")
+
+        except Exception as e:
+            raise RuntimeError(f"Error executing '{' '.join(command.args)}': {e}")
+
+        finally:
+            # Ensure process is terminated
+            proc.kill()
+    return proc.returncode
+
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, timeout=None):
     env = env if env else {}

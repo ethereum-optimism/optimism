@@ -3,6 +3,7 @@ package disputegame
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -96,7 +97,9 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
 
 	var numClaimsSeen int64
 	for {
-		newCount, err := d.WaitForNewClaim(ctx, numClaimsSeen)
+		// Use a short timeout since we don't know the challenger will respond,
+		// and this is only designed for the alphabet game where the response should be fast.
+		newCount, err := d.waitForNewClaim(ctx, numClaimsSeen, 30*time.Second)
 		if errors.Is(err, context.DeadlineExceeded) {
 			// we assume that the honest challenger has stopped responding
 			// There's nothing to respond to.

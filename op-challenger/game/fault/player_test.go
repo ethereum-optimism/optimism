@@ -181,7 +181,7 @@ func (s *stubGameState) Act(ctx context.Context) error {
 	return s.actErr
 }
 
-func (s *stubGameState) GetGameStatus(ctx context.Context) (gameTypes.GameStatus, error) {
+func (s *stubGameState) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
 	return s.status, nil
 }
 
@@ -234,7 +234,7 @@ func newMockPrestateLoader(prestateError bool, prestate common.Hash) *mockLoader
 		prestate:      prestate,
 	}
 }
-func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
+func (m *mockLoader) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	if m.prestateError {
 		return common.Hash{}, mockLoaderError
 	}

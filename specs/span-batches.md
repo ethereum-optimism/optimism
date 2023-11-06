@@ -9,6 +9,7 @@
 
 - [Introduction](#introduction)
 - [Span batch format](#span-batch-format)
+- [Span batch Activation Rule](#span-batch-activation-rule)
 - [Optimization Strategies](#optimization-strategies)
   - [Truncating information and storing only necessary data](#truncating-information-and-storing-only-necessary-data)
   - [`tx_data_headers` removal from initial specs](#tx_data_headers-removal-from-initial-specs)
@@ -94,7 +95,7 @@ Where:
   - `l1_origin_check`: the block hash of the last L1 origin is referenced.
     The hash is truncated to 20 bytes for efficiency, i.e. `span_end.l1_origin.hash[:20]`.
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs`:
-  - `block_count`: `uvarint` number of L2 blocks.
+  - `block_count`: `uvarint` number of L2 blocks. This is at least 1, empty span batches are invalid.
   - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
@@ -130,6 +131,7 @@ Where:
 - `prefix = rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check`:
   - Identical to `batch_version` 1
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs ++ fee_recipients`:
+  - An empty span-batch, i.e. with `block_count == 0`, is invalid and must not be processed.
   - Every field definition identical to `batch_version` 1 except that `fee_recipients` is
     added to support more decentralized sequencing.
   - `fee_recipients = fee_recipients_idxs + fee_recipients_set`
@@ -142,6 +144,25 @@ Where:
 [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
 
 [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
+
+Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
+equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
+`MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
+to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
+limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
+decoding. For example, lets say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return using
+the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for decoding
+because we know the upper limit of memory usage.
+
+## Span batch Activation Rule
+
+The span batch upgrade is activated based on timestamp.
+
+Activation Rule: `upgradeTime != null && span_start.l1_origin.timestamp >= upgradeTime`
+
+`span_start.l1_origin.timestamp` is the L1 origin block timestamp of the first block in the span batch.
+This rule ensures that every chain activity regarding this span batch is done after the hard fork.
+i.e. Every block in the span is created, submitted to the L1, and derived from the L1 after the hard fork.
 
 ## Optimization Strategies
 
@@ -251,6 +272,13 @@ Rules are enforced with the [contextual definitions](./derivation.md#batch-queue
 
 Span-batch rules, in validation order:
 
+- `batch_origin` is determined like with singular batches:
+  - `batch.epoch_num == epoch.number+1`:
+    - If `next_epoch` is not known -> `undecided`:
+      i.e. a batch that changes the L1 origin cannot be processed until we have the L1 origin data.
+    - If known, then define `batch_origin` as `next_epoch`
+- `batch_origin.timestamp < span_batch_upgrade_timestamp` -> `drop`:
+  i.e. enforce the [span batch upgrade activation rule](#span-batch-activation-rule).
 - `batch.start_timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
 - `batch.start_timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
 - `batch.parent_check != safe_l2_head.hash[:20]` -> `drop`: i.e. the checked part of the parent hash must be equal
