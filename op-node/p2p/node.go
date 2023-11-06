@@ -142,7 +142,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if err != nil {
 			return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 		}
-		log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
+		log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().String())
 
 		tcpPort, err := FindActiveTCPPort(n.host)
 		if err != nil {
