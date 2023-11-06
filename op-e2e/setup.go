@@ -684,7 +684,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	var batchType uint = derive.SingularBatchType
-	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
+	if cfg.DeployConfig.L2GenesisSpanBatchTimeOffset != nil && *cfg.DeployConfig.L2GenesisSpanBatchTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
 	}
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
