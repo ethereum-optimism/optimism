@@ -45,10 +45,12 @@ contract Setup is Deploy {
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
 
-    L2CrossDomainMessenger l2CrossDomainMessenger = L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
+    L2CrossDomainMessenger l2CrossDomainMessenger =
+        L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
     L2StandardBridge l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
     L2ToL1MessagePasser l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
-    OptimismMintableERC20Factory l2OptimismMintableERC20Factory = OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
+    OptimismMintableERC20Factory l2OptimismMintableERC20Factory =
+        OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
     L2ERC721Bridge l2ERC721Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
     BaseFeeVault baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
     SequencerFeeVault sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
@@ -108,8 +110,7 @@ contract Setup is Deploy {
     function L2(DeployConfig cfg) public {
         // Set up L2. There are currently no proxies set in the L2 initialization.
         vm.etch(
-            address(l2CrossDomainMessenger),
-            address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
+            address(l2CrossDomainMessenger), address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
         );
         l2CrossDomainMessenger.initialize();
 
