@@ -178,8 +178,8 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	rpcTimeoutCfg := client.BaseRpcTimeout{
-		RpcTimeout: cfg.TxMgrConfig.NetworkTimeout,
+	rpcTimeoutCfg := client.BaseRPCTimeout{
+		RPCTimeout: cfg.TxMgrConfig.NetworkTimeout,
 	}
 	rollupClient, err := dial.DialRollupClientWithTimeout(context.Background(), dial.DefaultDialTimeout, l, cfg.RollupRpc, rpcTimeoutCfg)
 	if err != nil {
