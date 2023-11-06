@@ -105,12 +105,12 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 		return nil, err
 	}
 
-	baseRPCClient := &BaseRPCClient{c: underlying, rpcTimeout: defaultRpcTimeout, rpcBatchTimeout: defaultRpcBatchTimeout}
+	baseRPCClient := &BaseRPCClient{c: underlying, RpcTimeout: defaultRpcTimeout, RpcBatchTimeout: defaultRpcBatchTimeout}
 	if cfg.rpcTimeout != nil {
-		baseRPCClient.rpcTimeout = *cfg.rpcTimeout
+		baseRPCClient.RpcTimeout = *cfg.rpcTimeout
 	}
 	if cfg.rpcBatchTimeout != nil {
-		baseRPCClient.rpcBatchTimeout = *cfg.rpcBatchTimeout
+		baseRPCClient.RpcBatchTimeout = *cfg.rpcBatchTimeout
 	}
 	var wrapped RPC = baseRPCClient
 
@@ -175,12 +175,17 @@ func IsURLAvailable(address string) bool {
 // It sets a timeout of 10s on CallContext & 20s on BatchCallContext made through it.
 type BaseRPCClient struct {
 	c               *rpc.Client
-	rpcTimeout      time.Duration
-	rpcBatchTimeout time.Duration
+	RpcTimeout      time.Duration
+	RpcBatchTimeout time.Duration
+}
+
+type BaseRpcTimeout struct {
+	RpcTimeout      time.Duration
+	RpcBatchTimeout time.Duration
 }
 
 func NewBaseRPCClient(c *rpc.Client) *BaseRPCClient {
-	return &BaseRPCClient{c: c, rpcTimeout: defaultRpcTimeout, rpcBatchTimeout: defaultRpcBatchTimeout}
+	return &BaseRPCClient{c: c, RpcTimeout: defaultRpcTimeout, RpcBatchTimeout: defaultRpcBatchTimeout}
 }
 
 func (b *BaseRPCClient) Close() {
@@ -188,13 +193,13 @@ func (b *BaseRPCClient) Close() {
 }
 
 func (b *BaseRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
-	cCtx, cancel := context.WithTimeout(ctx, b.rpcTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, b.RpcTimeout)
 	defer cancel()
 	return b.c.CallContext(cCtx, result, method, args...)
 }
 
 func (b *BaseRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
-	cCtx, cancel := context.WithTimeout(ctx, b.rpcBatchTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, b.RpcBatchTimeout)
 	defer cancel()
 	return b.c.BatchCallContext(cCtx, batch)
 }
