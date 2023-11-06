@@ -138,14 +138,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     ///               to dispute the first output root by using genesis as the starting point.
     ///               For now, it is critical that the first proposed output root of an OP stack
     ///               chain is done so by an honest party.
-
-    /*
     function test_initialize_firstOutput_reverts() public {
-        uint256 submissionInterval = oracle.SUBMISSION_INTERVAL();
+        uint256 submissionInterval = l2OutputOracle.submissionInterval();
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(submissionInterval, block.number - 1));
     }
-    */
 
     /// @dev Tests that the `create` function reverts when the rootClaim does not disagree with the outcome.
     function testFuzz_initialize_badRootStatus_reverts(Claim rootClaim, bytes calldata extraData) public {

@@ -984,8 +984,6 @@ contract OptimismPortalResourceFuzz_Test is CommonTest {
         // Pick a pseudorandom block number
         vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max) + uint256(_blockDiff));
 
-        vm.roll(uint256(keccak256(abi.encode(_blockDiff))) % uint256(type(uint16).max));
-
         // Create a resource config to mock the call to the system config with
         ResourceMetering.ResourceConfig memory rcfg = ResourceMetering.ResourceConfig({
             maxResourceLimit: _maxResourceLimit,

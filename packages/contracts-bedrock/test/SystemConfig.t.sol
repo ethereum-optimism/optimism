@@ -6,6 +6,7 @@ import { CommonTest } from "test/setup/CommonTest.sol";
 
 // Libraries
 import { Constants } from "src/libraries/Constants.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Target contract dependencies
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -121,8 +122,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(0xff)));
 
         // Initialize with a non zero start block, should see a revert
-        address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
-        vm.prank(admin);
+        vm.prank(EIP1967Helper.getAdmin(address(systemConfig)));
         // The call to initialize reverts due to: "SystemConfig: cannot override an already set start block"
         // but the proxy revert message bubbles up.
         Proxy(payable(address(systemConfig))).upgradeToAndCall(
