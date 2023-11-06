@@ -120,6 +120,9 @@ abstract contract Deployer is Script {
                 continue;
             }
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
+            if (keccak256(abi.encodePacked(contractName)) == keccak256(abi.encodePacked("null"))) {
+                contractName = deploymentName;
+            }
             console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);

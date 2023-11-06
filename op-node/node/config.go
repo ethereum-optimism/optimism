@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -66,9 +67,10 @@ type Config struct {
 }
 
 type RPCConfig struct {
-	ListenAddr  string
-	ListenPort  int
-	EnableAdmin bool
+	ListenAddr    string
+	ListenPort    int
+	EnableAdmin   bool
+	ListenTimeout *httputil.HTTPTimeouts
 }
 
 func (cfg *RPCConfig) HttpEndpoint() string {

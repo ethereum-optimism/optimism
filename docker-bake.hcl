@@ -3,7 +3,7 @@ variable "REGISTRY" {
 }
 
 variable "REPOSITORY" {
-  default = "oplabs-tools-artifacts/images"
+  default = "boba-392114/bobanetwork-tools-artifacts/images"
 }
 
 variable "GIT_COMMIT" {
@@ -179,5 +179,4 @@ target "ci-builder" {
   platforms = split(",", PLATFORMS)
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder:${tag}"]
 }
-
 

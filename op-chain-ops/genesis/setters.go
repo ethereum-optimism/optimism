@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -78,6 +79,16 @@ func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, s
 		}
 		log.Info("Setting deployed bytecode from solc compiler output", "name", name, "address", implAddr)
 		db.SetCode(implAddr, depBytecode)
+	}
+
+	// This is to handle a very special case in L2GovernaceContract
+	// Although we put _decimals as an input when we deploy the contract,
+	// _decimals is not in the storage. It's set as the constant value, so we have to remove
+	// this key from storage when we build the genesis state.
+	if storageConfig, ok := storage["BobaL2"]; ok {
+		delete(storageConfig, "_decimals")
+	} else {
+		return fmt.Errorf("storage config not found for BobaL2")
 	}
 
 	// Set the storage values

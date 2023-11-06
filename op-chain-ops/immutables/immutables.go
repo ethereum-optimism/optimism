@@ -150,6 +150,22 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "SchemaRegistry",
 		},
+		{
+			Name: "BobaTuringCredit",
+		},
+		{
+			Name: "BobaHCHelper",
+		},
+		{
+			Name: "BobaL2",
+			Args: []interface{}{
+				immutable["BobaL2"]["l2Bridge"],
+				immutable["BobaL2"]["l1Token"],
+				immutable["BobaL2"]["_name"],
+				immutable["BobaL2"]["_symbol"],
+				immutable["BobaL2"]["_decimals"],
+			},
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -245,6 +261,40 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "BobaTuringCredit":
+		_, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+	case "BobaHCHelper":
+		_, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
+	case "BobaL2":
+		l2Bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l2Bridge")
+		}
+		l1Token, ok := deployment.Args[1].(*common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1Token")
+		}
+		_name, ok := deployment.Args[2].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _name")
+		}
+		_symbol, ok := deployment.Args[3].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _symbol")
+		}
+		_decimals, ok := deployment.Args[4].(uint8)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _decimals")
+		}
+		_, tx, _, err = bindings.DeployL2GovernanceERC20(
+			opts,
+			backend,
+			l2Bridge,
+			*l1Token,
+			_name,
+			_symbol,
+			uint8(_decimals),
+		)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
