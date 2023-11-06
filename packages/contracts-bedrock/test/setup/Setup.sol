@@ -45,19 +45,19 @@ contract Setup is Deploy {
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
 
-    L2CrossDomainMessenger l2CrossDomainMessenger;
-    L2StandardBridge l2StandardBridge;
-    L2ToL1MessagePasser l2ToL1MessagePasser;
-    OptimismMintableERC20Factory l2OptimismMintableERC20Factory;
-    L2ERC721Bridge l2ERC721Bridge;
-    BaseFeeVault baseFeeVault;
-    SequencerFeeVault sequencerFeeVault;
-    L1FeeVault l1FeeVault;
-    GasPriceOracle gasPriceOracle;
-    L1Block l1Block;
-    LegacyMessagePasser legacyMessagePasser;
-    GovernanceToken governanceToken;
-    LegacyERC20ETH legacyERC20ETH;
+    L2CrossDomainMessenger l2CrossDomainMessenger = L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
+    L2StandardBridge l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+    L2ToL1MessagePasser l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
+    OptimismMintableERC20Factory l2OptimismMintableERC20Factory = OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
+    L2ERC721Bridge l2ERC721Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+    BaseFeeVault baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
+    SequencerFeeVault sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+    L1FeeVault l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
+    GasPriceOracle gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
+    L1Block l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
+    LegacyMessagePasser legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
+    GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
+    LegacyERC20ETH legacyERC20ETH = LegacyERC20ETH(Predeploys.LEGACY_ERC20_ETH);
 
     function setUp() public virtual override {
         Deploy.setUp();
@@ -108,73 +108,60 @@ contract Setup is Deploy {
     function L2(DeployConfig cfg) public {
         // Set up L2. There are currently no proxies set in the L2 initialization.
         vm.etch(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            address(l2CrossDomainMessenger),
             address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
         );
-        l2CrossDomainMessenger = L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
         l2CrossDomainMessenger.initialize();
 
-        vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
-        l2ToL1MessagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
+        vm.etch(address(l2ToL1MessagePasser), address(new L2ToL1MessagePasser()).code);
 
         vm.etch(
-            Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code
+            address(l2StandardBridge), address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code
         );
-        l2StandardBridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
         l2StandardBridge.initialize();
 
-        vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, address(new OptimismMintableERC20Factory()).code);
-        l2OptimismMintableERC20Factory = OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
-        l2OptimismMintableERC20Factory.initialize(Predeploys.L2_STANDARD_BRIDGE);
+        vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
+        l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
 
-        vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
-        legacyERC20ETH = LegacyERC20ETH(Predeploys.LEGACY_ERC20_ETH);
+        vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
 
-        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
-        l2ERC721Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+        vm.etch(address(l2ERC721Bridge), address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
         l2ERC721Bridge.initialize();
 
         vm.etch(
-            Predeploys.SEQUENCER_FEE_WALLET,
+            address(sequencerFeeVault),
             address(
                 new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
             ).code
         );
         vm.etch(
-            Predeploys.BASE_FEE_VAULT,
+            address(baseFeeVault),
             address(
                 new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
             ).code
         );
         vm.etch(
-            Predeploys.L1_FEE_VAULT,
+            address(l1FeeVault),
             address(
                 new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
             ).code
         );
 
-        sequencerFeeVault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
-        baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
-        l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
+        vm.etch(address(l1Block), address(new L1Block()).code);
 
-        vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new L1Block()).code);
-        l1Block = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
+        vm.etch(address(gasPriceOracle), address(new GasPriceOracle()).code);
 
-        vm.etch(Predeploys.GAS_PRICE_ORACLE, address(new GasPriceOracle()).code);
-        gasPriceOracle = GasPriceOracle(Predeploys.GAS_PRICE_ORACLE);
+        vm.etch(address(legacyMessagePasser), address(new LegacyMessagePasser()).code);
 
-        vm.etch(Predeploys.LEGACY_MESSAGE_PASSER, address(new LegacyMessagePasser()).code);
-        legacyMessagePasser = LegacyMessagePasser(Predeploys.LEGACY_MESSAGE_PASSER);
-
-        vm.etch(Predeploys.GOVERNANCE_TOKEN, address(new GovernanceToken()).code);
-        governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
+        vm.etch(address(governanceToken), address(new GovernanceToken()).code);
+        // Set the ERC20 token name and symbol
         vm.store(
-            Predeploys.GOVERNANCE_TOKEN,
+            address(governanceToken),
             bytes32(uint256(3)),
             bytes32(0x4f7074696d69736d000000000000000000000000000000000000000000000010)
         );
         vm.store(
-            Predeploys.GOVERNANCE_TOKEN,
+            address(governanceToken),
             bytes32(uint256(4)),
             bytes32(0x4f50000000000000000000000000000000000000000000000000000000000004)
         );
