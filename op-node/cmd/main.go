@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
 	"os"
 
 	"github.com/urfave/cli/v2"
@@ -56,6 +57,10 @@ func main() {
 		{
 			Name:        "doc",
 			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
+		},
+		{
+			Name:        "networks",
+			Subcommands: networks.Subcommands,
 		},
 	}
 
