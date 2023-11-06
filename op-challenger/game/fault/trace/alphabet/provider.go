@@ -14,6 +14,7 @@ import (
 
 var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
+	absolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 )
 
 // AlphabetTraceProvider is a [TraceProvider] that provides claims for specific
@@ -36,11 +37,7 @@ func NewTraceProvider(state string, depth uint64) *AlphabetTraceProvider {
 func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Position) ([]byte, []byte, *types.PreimageOracleData, error) {
 	traceIndex := i.TraceIndex(int(ap.depth))
 	if traceIndex.Cmp(common.Big0) == 0 {
-		prestate, err := ap.AbsolutePreState(ctx)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		return prestate, []byte{}, nil, nil
+		return absolutePrestate, []byte{}, nil, nil
 	}
 	// We want the pre-state which is the value prior to the one requested
 	traceIndex = traceIndex.Sub(traceIndex, big.NewInt(1))
@@ -67,17 +64,8 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 	return alphabetStateHash(claimBytes), nil
 }
 
-// AbsolutePreState returns the absolute pre-state for the alphabet trace.
-func (ap *AlphabetTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {
-	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060"), nil
-}
-
-func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
-	prestate, err := ap.AbsolutePreState(ctx)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	hash := common.BytesToHash(crypto.Keccak256(prestate))
+func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+	hash := common.BytesToHash(crypto.Keccak256(absolutePrestate))
 	hash[0] = mipsevm.VMStatusUnfinished
 	return hash, nil
 }
