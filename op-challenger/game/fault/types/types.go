@@ -69,9 +69,6 @@ type TraceProvider interface {
 	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
 	GetStepData(ctx context.Context, i Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
 
-	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
-	AbsolutePreState(ctx context.Context) (preimage []byte, err error)
-
 	// AbsolutePreStateCommitment is the commitment of the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error)
 }
