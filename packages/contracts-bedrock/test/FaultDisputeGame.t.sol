@@ -139,8 +139,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     ///               For now, it is critical that the first proposed output root of an OP stack
     ///               chain is done so by an honest party.
     function test_initialize_firstOutput_reverts() public {
+        uint256 submissionInterval = oracle.SUBMISSION_INTERVAL();
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
-        factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(1800, block.number - 1));
+        factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(submissionInterval, block.number - 1));
     }
 
     /// @dev Tests that the `create` function reverts when the rootClaim does not disagree with the outcome.
