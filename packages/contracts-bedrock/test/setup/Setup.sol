@@ -116,18 +116,17 @@ contract Setup is Deploy {
 
         vm.etch(address(l2ToL1MessagePasser), address(new L2ToL1MessagePasser()).code);
 
-        vm.etch(
-            address(l2StandardBridge), address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code
-        );
-        l2StandardBridge.initialize();
+        vm.etch(address(l2StandardBridge), address(new L2StandardBridge(payable(l1StandardBridge))).code);
 
         vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
         l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
 
         vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
 
-        vm.etch(address(l2ERC721Bridge), address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
-        l2ERC721Bridge.initialize();
+        vm.etch(
+            address(l2ERC721Bridge),
+            address(new L2ERC721Bridge(address(l2CrossDomainMessenger), address(l1ERC721Bridge))).code
+        );
 
         vm.etch(
             address(sequencerFeeVault),

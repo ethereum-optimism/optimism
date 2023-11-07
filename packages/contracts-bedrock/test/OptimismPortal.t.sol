@@ -36,9 +36,7 @@ contract OptimismPortal_Test is CommonTest {
     function test_constructor_succeeds() external {
         address guardian = cfg.portalGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
-        assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
         assertEq(optimismPortal.GUARDIAN(), guardian);
-        assertEq(optimismPortal.guardian(), guardian);
         assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(optimismPortal.paused(), false);
     }
@@ -900,24 +898,14 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initialize_cannotInitProxy_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal.initialize({
-            _l2Oracle: L2OutputOracle(address(0)),
-            _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
-        });
+        optimismPortal.initialize({ _paused: false });
     }
 
     /// @dev Tests that the implementation cannot be initialized twice.
     function test_initialize_cannotInitImpl_reverts() external {
         address opImpl = mustGetAddress("OptimismPortal");
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(opImpl)).initialize({
-            _l2Oracle: L2OutputOracle(address(0)),
-            _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
-        });
+        OptimismPortal(payable(opImpl)).initialize({ _paused: false });
     }
 
     /// @dev Tests that the proxy can be upgraded.

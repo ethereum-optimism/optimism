@@ -29,27 +29,29 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
 
         assertEq(l2OutputOracle.PROPOSER(), proposer);
-        assertEq(l2OutputOracle.proposer(), proposer);
         assertEq(l2OutputOracle.CHALLENGER(), challenger);
-        assertEq(l2OutputOracle.challenger(), challenger);
         assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
-        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
         assertEq(l2OutputOracle.latestBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
         assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
-        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
-        assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
     /// @dev Tests that the constructor reverts if the l2BlockTime is invalid.
     function test_constructor_l2BlockTimeZero_reverts() external {
+        address proposer = cfg.l2OutputOracleProposer();
+        address challenger = cfg.l2OutputOracleChallenger();
         uint256 submissionInterval = cfg.l2OutputOracleSubmissionInterval();
+        uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
         vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
         new L2OutputOracle({
             _submissionInterval: submissionInterval,
             _l2BlockTime: 0,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: block.timestamp,
+            _proposer: proposer,
+            _challenger: challenger,
             _finalizationPeriodSeconds: 7 days
         });
     }
@@ -57,10 +59,17 @@ contract L2OutputOracle_constructor_Test is CommonTest {
     /// @dev Tests that the constructor reverts if the submissionInterval is zero.
     function test_constructor_submissionInterval_reverts() external {
         uint256 l2BlockTime = cfg.l2BlockTime();
+        address proposer = cfg.l2OutputOracleProposer();
+        address challenger = cfg.l2OutputOracleChallenger();
+        uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
         vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
         new L2OutputOracle({
             _submissionInterval: 0,
             _l2BlockTime: l2BlockTime,
+            _startingBlockNumber:  startingBlockNumber,
+            _startingTimestamp: block.timestamp,
+            _proposer: proposer,
+            _challenger: challenger,
             _finalizationPeriodSeconds: 7 days
         });
     }
@@ -71,12 +80,7 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         // so that initialize can be called again.
         vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
         vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
-        l2OutputOracle.initialize({
-            _startingBlockNumber: 0,
-            _startingTimestamp: block.timestamp + 1,
-            _proposer: address(0),
-            _challenger: address(0)
-        });
+        l2OutputOracle.initialize({ _startingBlockNumber: 0, _startingTimestamp: block.timestamp + 1 });
     }
 }
 
@@ -318,7 +322,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         uint256 latestOutputIndex = l2OutputOracle.latestOutputIndex();
         Types.OutputProposal memory newLatestOutput = l2OutputOracle.getL2Output(latestOutputIndex - 1);
 
-        vm.prank(l2OutputOracle.challenger());
+        vm.prank(l2OutputOracle.CHALLENGER());
         vm.expectEmit(true, true, false, false);
         emit OutputsDeleted(latestOutputIndex + 1, latestOutputIndex);
         l2OutputOracle.deleteL2Outputs(latestOutputIndex);
@@ -346,7 +350,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         uint256 latestOutputIndex = l2OutputOracle.latestOutputIndex();
         Types.OutputProposal memory newLatestOutput = l2OutputOracle.getL2Output(latestOutputIndex - 3);
 
-        vm.prank(l2OutputOracle.challenger());
+        vm.prank(l2OutputOracle.CHALLENGER());
         vm.expectEmit(true, true, false, false);
         emit OutputsDeleted(latestOutputIndex + 1, latestOutputIndex - 2);
         l2OutputOracle.deleteL2Outputs(latestOutputIndex - 2);
@@ -377,7 +381,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
 
         uint256 latestBlockNumber = l2OutputOracle.latestBlockNumber();
 
-        vm.prank(l2OutputOracle.challenger());
+        vm.prank(l2OutputOracle.CHALLENGER());
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         l2OutputOracle.deleteL2Outputs(latestBlockNumber + 1);
     }
@@ -391,11 +395,11 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
 
         // Delete the latest two outputs
         uint256 latestOutputIndex = l2OutputOracle.latestOutputIndex();
-        vm.prank(l2OutputOracle.challenger());
+        vm.prank(l2OutputOracle.CHALLENGER());
         l2OutputOracle.deleteL2Outputs(latestOutputIndex - 2);
 
         // Now try to delete the same output again
-        vm.prank(l2OutputOracle.challenger());
+        vm.prank(l2OutputOracle.CHALLENGER());
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         l2OutputOracle.deleteL2Outputs(latestOutputIndex - 2);
     }
@@ -410,7 +414,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         uint256 latestOutputIndex = l2OutputOracle.latestOutputIndex();
 
         // Try to delete a finalized output
-        vm.prank(l2OutputOracle.challenger());
+        vm.prank(l2OutputOracle.CHALLENGER());
         vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
         l2OutputOracle.deleteL2Outputs(latestOutputIndex);
     }
@@ -428,35 +432,35 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
 
         assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
-        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
         assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
-        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
         assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
-        assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(l2OutputOracle.PROPOSER(), proposer);
-        assertEq(l2OutputOracle.proposer(), proposer);
         assertEq(l2OutputOracle.CHALLENGER(), challenger);
-        assertEq(l2OutputOracle.challenger(), challenger);
+        assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
     /// @dev Tests that the impl is created with the correct values.
     function test_initValuesOnImpl_succeeds() external {
         L2OutputOracle oracleImpl = L2OutputOracle(mustGetAddress("L2OutputOracle"));
 
+        address proposer = cfg.l2OutputOracleProposer();
+        address challenger = cfg.l2OutputOracleChallenger();
         uint256 submissionInterval = cfg.l2OutputOracleSubmissionInterval();
-        assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
+        uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
+        uint256 startingTimestamp = cfg.l2OutputOracleStartingTimestamp();
         uint256 l2BlockTime = cfg.l2BlockTime();
-        assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
+        uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
 
         // The values that are set in the initialize function should be all
         // zero values in the implementation contract.
-        assertEq(oracleImpl.startingBlockNumber(), 0);
-        assertEq(oracleImpl.startingTimestamp(), 0);
-        assertEq(oracleImpl.PROPOSER(), address(0));
-        assertEq(oracleImpl.proposer(), address(0));
-        assertEq(oracleImpl.CHALLENGER(), address(0));
-        assertEq(oracleImpl.challenger(), address(0));
+        assertEq(oracleImpl.startingBlockNumber(), startingBlockNumber);
+        assertEq(oracleImpl.startingTimestamp(), startingTimestamp);
+        assertEq(oracleImpl.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(oracleImpl.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
+        assertEq(oracleImpl.PROPOSER(), proposer);
+        assertEq(oracleImpl.CHALLENGER(), challenger);
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
@@ -464,12 +468,7 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = cfg.l2OutputOracleStartingTimestamp();
         vm.expectRevert("Initializable: contract is already initialized");
-        l2OutputOracle.initialize({
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: address(1),
-            _challenger: address(2)
-        });
+        l2OutputOracle.initialize({ _startingBlockNumber: startingBlockNumber, _startingTimestamp: startingTimestamp });
     }
 
     /// @dev Tests that the implementation contract cannot be initialized twice.
@@ -478,12 +477,7 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = cfg.l2OutputOracleStartingTimestamp();
         vm.expectRevert("Initializable: contract is already initialized");
-        oracleImpl.initialize({
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: address(1),
-            _challenger: address(2)
-        });
+        oracleImpl.initialize({ _startingBlockNumber: startingBlockNumber, _startingTimestamp: startingTimestamp });
     }
 
     /// @dev Tests that the proxy can be successfully upgraded.
