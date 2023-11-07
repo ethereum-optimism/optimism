@@ -19,10 +19,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /// @custom:semver 1.4.1
     /// @notice Constructs the L1CrossDomainMessenger contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
-    constructor(OptimismPortal _portal)
-        Semver(1, 4, 1)
-        CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-    {
+    constructor(OptimismPortal _portal) Semver(1, 4, 1) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
         PORTAL = _portal;
         initialize();
     }
@@ -33,12 +30,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _sendMessage(
-        address _to,
-        uint64 _gasLimit,
-        uint256 _value,
-        bytes memory _data
-    ) internal override {
+    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
         PORTAL.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
     }
 

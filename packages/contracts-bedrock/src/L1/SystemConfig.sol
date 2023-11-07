@@ -76,7 +76,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config
-    ) Semver(1, 3, 1) {
+    )
+        Semver(1, 3, 1)
+    {
         initialize({
             _owner: _owner,
             _overhead: _overhead,
@@ -105,7 +107,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config
-    ) public initializer {
+    )
+        public
+        initializer
+    {
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;
@@ -212,29 +217,19 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.
         require(
-            _config.minimumBaseFee <= _config.maximumBaseFee,
-            "SystemConfig: min base fee must be less than max base"
+            _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than max base"
         );
         // Base fee change denominator must be greater than 1.
-        require(
-            _config.baseFeeMaxChangeDenominator > 1,
-            "SystemConfig: denominator must be larger than 1"
-        );
+        require(_config.baseFeeMaxChangeDenominator > 1, "SystemConfig: denominator must be larger than 1");
         // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
         // The gas limit must be increased before these values can be increased.
-        require(
-            _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
-            "SystemConfig: gas limit too low"
-        );
+        require(_config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit, "SystemConfig: gas limit too low");
         // Elasticity multiplier must be greater than 0.
-        require(
-            _config.elasticityMultiplier > 0,
-            "SystemConfig: elasticity multiplier cannot be 0"
-        );
+        require(_config.elasticityMultiplier > 0, "SystemConfig: elasticity multiplier cannot be 0");
         // No precision loss when computing target resource limit.
         require(
-            ((_config.maxResourceLimit / _config.elasticityMultiplier) *
-                _config.elasticityMultiplier) == _config.maxResourceLimit,
+            ((_config.maxResourceLimit / _config.elasticityMultiplier) * _config.elasticityMultiplier)
+                == _config.maxResourceLimit,
             "SystemConfig: precision loss with target resource limit"
         );
 

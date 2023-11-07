@@ -44,10 +44,7 @@ contract L2OutputOracle is Initializable, Semver {
     /// @param l2BlockNumber The L2 block number of the output root.
     /// @param l1Timestamp   The L1 timestamp when proposed.
     event OutputProposed(
-        bytes32 indexed outputRoot,
-        uint256 indexed l2OutputIndex,
-        uint256 indexed l2BlockNumber,
-        uint256 l1Timestamp
+        bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
     );
 
     /// @notice Emitted when outputs are deleted.
@@ -71,12 +68,11 @@ contract L2OutputOracle is Initializable, Semver {
         address _proposer,
         address _challenger,
         uint256 _finalizationPeriodSeconds
-    ) Semver(1, 3, 1) {
+    )
+        Semver(1, 3, 1)
+    {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
-        require(
-            _submissionInterval > 0,
-            "L2OutputOracle: submission interval must be greater than 0"
-        );
+        require(_submissionInterval > 0, "L2OutputOracle: submission interval must be greater than 0");
 
         SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
@@ -90,10 +86,7 @@ contract L2OutputOracle is Initializable, Semver {
     /// @notice Initializer.
     /// @param _startingBlockNumber Block number for the first recoded L2 block.
     /// @param _startingTimestamp   Timestamp for the first recoded L2 block.
-    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp)
-        public
-        initializer
-    {
+    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp) public initializer {
         require(
             _startingTimestamp <= block.timestamp,
             "L2OutputOracle: starting L2 timestamp must be less than current time"
@@ -109,15 +102,11 @@ contract L2OutputOracle is Initializable, Semver {
     ///                       All outputs after this output will also be deleted.
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2OutputIndex) external {
-        require(
-            msg.sender == CHALLENGER,
-            "L2OutputOracle: only the challenger address can delete outputs"
-        );
+        require(msg.sender == CHALLENGER, "L2OutputOracle: only the challenger address can delete outputs");
 
         // Make sure we're not *increasing* the length of the array.
         require(
-            _l2OutputIndex < l2Outputs.length,
-            "L2OutputOracle: cannot delete outputs after the latest output index"
+            _l2OutputIndex < l2Outputs.length, "L2OutputOracle: cannot delete outputs after the latest output index"
         );
 
         // Do not allow deleting any outputs that have already been finalized.
@@ -148,11 +137,11 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _l2BlockNumber,
         bytes32 _l1BlockHash,
         uint256 _l1BlockNumber
-    ) external payable {
-        require(
-            msg.sender == PROPOSER,
-            "L2OutputOracle: only the proposer address can propose new outputs"
-        );
+    )
+        external
+        payable
+    {
+        require(msg.sender == PROPOSER, "L2OutputOracle: only the proposer address can propose new outputs");
 
         require(
             _l2BlockNumber == nextBlockNumber(),
@@ -164,10 +153,7 @@ contract L2OutputOracle is Initializable, Semver {
             "L2OutputOracle: cannot propose L2 output in the future"
         );
 
-        require(
-            _outputRoot != bytes32(0),
-            "L2OutputOracle: L2 output proposal cannot be the zero hash"
-        );
+        require(_outputRoot != bytes32(0), "L2OutputOracle: L2 output proposal cannot be the zero hash");
 
         if (_l1BlockHash != bytes32(0)) {
             // This check allows the proposer to propose an output based on a given L1 block,
@@ -198,11 +184,7 @@ contract L2OutputOracle is Initializable, Semver {
     /// @notice Returns an output by index. Needed to return a struct instead of a tuple.
     /// @param _l2OutputIndex Index of the output to return.
     /// @return The output at the given index.
-    function getL2Output(uint256 _l2OutputIndex)
-        external
-        view
-        returns (Types.OutputProposal memory)
-    {
+    function getL2Output(uint256 _l2OutputIndex) external view returns (Types.OutputProposal memory) {
         return l2Outputs[_l2OutputIndex];
     }
 
@@ -219,10 +201,7 @@ contract L2OutputOracle is Initializable, Semver {
         );
 
         // Make sure there's at least one output proposed.
-        require(
-            l2Outputs.length > 0,
-            "L2OutputOracle: cannot get output as no outputs have been proposed yet"
-        );
+        require(l2Outputs.length > 0, "L2OutputOracle: cannot get output as no outputs have been proposed yet");
 
         // Find the output via binary search, guaranteed to exist.
         uint256 lo = 0;
@@ -244,11 +223,7 @@ contract L2OutputOracle is Initializable, Semver {
     ///         block.
     /// @param _l2BlockNumber L2 block number to find a checkpoint for.
     /// @return First checkpoint that commits to the given L2 block number.
-    function getL2OutputAfter(uint256 _l2BlockNumber)
-        external
-        view
-        returns (Types.OutputProposal memory)
-    {
+    function getL2OutputAfter(uint256 _l2BlockNumber) external view returns (Types.OutputProposal memory) {
         return l2Outputs[getL2OutputIndexAfter(_l2BlockNumber)];
     }
 
@@ -270,10 +245,7 @@ contract L2OutputOracle is Initializable, Semver {
     ///         block number.
     /// @return Latest submitted L2 block number.
     function latestBlockNumber() public view returns (uint256) {
-        return
-            l2Outputs.length == 0
-                ? startingBlockNumber
-                : l2Outputs[l2Outputs.length - 1].l2BlockNumber;
+        return l2Outputs.length == 0 ? startingBlockNumber : l2Outputs[l2Outputs.length - 1].l2BlockNumber;
     }
 
     /// @notice Computes the block number of the next L2 block that needs to be checkpointed.

@@ -58,17 +58,12 @@ contract L2StandardBridge is StandardBridge, Semver {
     constructor(address payable _otherBridge)
         Semver(1, 1, 1)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
-    {}
+    { }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
         _initiateWithdrawal(
-            Predeploys.LEGACY_ERC20_ETH,
-            msg.sender,
-            msg.sender,
-            msg.value,
-            RECEIVE_DEFAULT_GAS_LIMIT,
-            bytes("")
+            Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes("")
         );
     }
 
@@ -85,7 +80,12 @@ contract L2StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) external payable virtual onlyEOA {
+    )
+        external
+        payable
+        virtual
+        onlyEOA
+    {
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
@@ -108,7 +108,11 @@ contract L2StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) external payable virtual {
+    )
+        external
+        payable
+        virtual
+    {
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 
@@ -128,7 +132,11 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) external payable virtual {
+    )
+        external
+        payable
+        virtual
+    {
         if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
             finalizeBridgeETH(_from, _to, _amount, _extraData);
         } else {
@@ -158,7 +166,9 @@ contract L2StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes memory _extraData
-    ) internal {
+    )
+        internal
+    {
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
         } else {
@@ -175,15 +185,11 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         bytes memory _extraData
-    ) internal override {
-        emit WithdrawalInitiated(
-            address(0),
-            Predeploys.LEGACY_ERC20_ETH,
-            _from,
-            _to,
-            _amount,
-            _extraData
-        );
+    )
+        internal
+        override
+    {
+        emit WithdrawalInitiated(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
         super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
@@ -195,15 +201,11 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         bytes memory _extraData
-    ) internal override {
-        emit DepositFinalized(
-            address(0),
-            Predeploys.LEGACY_ERC20_ETH,
-            _from,
-            _to,
-            _amount,
-            _extraData
-        );
+    )
+        internal
+        override
+    {
+        emit DepositFinalized(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
         super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 
@@ -217,7 +219,10 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         bytes memory _extraData
-    ) internal override {
+    )
+        internal
+        override
+    {
         emit WithdrawalInitiated(_remoteToken, _localToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
@@ -232,7 +237,10 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         bytes memory _extraData
-    ) internal override {
+    )
+        internal
+        override
+    {
         emit DepositFinalized(_remoteToken, _localToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }

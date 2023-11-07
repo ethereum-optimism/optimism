@@ -104,7 +104,9 @@ abstract contract ERC721Bridge {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) external {
+    )
+        external
+    {
         // Modifier requiring sender to be EOA. This prevents against a user error that would occur
         // if the sender is a smart contract wallet that has a different address on the remote chain
         // (or doesn't have an address on the remote chain at all). The user would fail to receive
@@ -113,15 +115,7 @@ abstract contract ERC721Bridge {
         // care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "ERC721Bridge: account is not externally owned");
 
-        _initiateBridgeERC721(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            msg.sender,
-            _tokenId,
-            _minGasLimit,
-            _extraData
-        );
+        _initiateBridgeERC721(_localToken, _remoteToken, msg.sender, msg.sender, _tokenId, _minGasLimit, _extraData);
     }
 
     /// @notice Initiates a bridge of an NFT to some recipient's account on the other chain. Note
@@ -146,18 +140,12 @@ abstract contract ERC721Bridge {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) external {
+    )
+        external
+    {
         require(_to != address(0), "ERC721Bridge: nft recipient cannot be address(0)");
 
-        _initiateBridgeERC721(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            _to,
-            _tokenId,
-            _minGasLimit,
-            _extraData
-        );
+        _initiateBridgeERC721(_localToken, _remoteToken, msg.sender, _to, _tokenId, _minGasLimit, _extraData);
     }
 
     /// @notice Internal function for initiating a token bridge to the other domain.
@@ -178,5 +166,7 @@ abstract contract ERC721Bridge {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) internal virtual;
+    )
+        internal
+        virtual;
 }
