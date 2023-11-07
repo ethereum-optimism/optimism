@@ -337,6 +337,11 @@ def devnet_test(paths):
           cwd=paths.sdk_dir, timeout=8*60)
     ], max_workers=2)
 
+    run_command(
+         ['npx', 'hardhat',  'deposit-boba', '--network',  'hardhat-local', '--l1-contracts-json-path', paths.addresses_json_path],
+         cwd=paths.sdk_dir,
+         timeout=8*60,
+    )
 
 def run_commands(commands: list[CommandPreset], max_workers=2):
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -374,13 +379,6 @@ def run_command_preset(command: CommandPreset):
             # Ensure process is terminated
             proc.kill()
     return proc.returncode
-
-
-    run_command(
-         ['npx', 'hardhat',  'deposit-boba', '--network',  'hardhat-local', '--l1-contracts-json-path', paths.addresses_json_path],
-         cwd=paths.sdk_dir,
-         timeout=8*60,
-    )
 
 def run_command(args, check=True, shell=False, cwd=None, env=None, timeout=None):
     env = env if env else {}
