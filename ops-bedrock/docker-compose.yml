@@ -67,7 +67,8 @@ services:
       - "8060:6060"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.devnet:/config"
+      - "${PWD}/../.devnet/genesis-l2.json:/config/genesis-l2.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/home/boba/l2-erigon.sh"
@@ -116,7 +117,7 @@ services:
     volumes:
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
       - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
-      - "${PWD}/../.devnet/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
 
