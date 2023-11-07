@@ -895,7 +895,7 @@ without dispute (fault proof challenge window), a name-collision with the proof-
 [deriving-payload-attr]: #deriving-payload-attributes
 
 For every L2 block derived from L1 data, we need to build [payload attributes][g-payload-attr],
-represented by an [expanded version][expanded-payload] of the [`PayloadAttributesV1`][eth-payload] object,
+represented by an [expanded version][expanded-payload] of the [`PayloadAttributesV2`][eth-payload] object,
 which includes additional `transactions` and `noTxPool` fields.
 
 This process happens during the payloads-attributes queue ran by a verifier node, as well as during block-production
@@ -915,7 +915,7 @@ This block is part of a [sequencing epoch][g-sequencing-epoch],
 whose number matches that of an L1 block (its *[L1 origin][g-l1-origin]*).
 This L1 block is used to derive L1 attributes and (for the first L2 block in the epoch) user deposits.
 
-Therefore, a [`PayloadAttributesV1`][expanded-payload] object must include the following transactions:
+Therefore, a [`PayloadAttributesV2`][expanded-payload] object must include the following transactions:
 
 - one or more [deposited transactions][g-deposited], of two kinds:
   - a single *[L1 attributes deposited transaction][g-l1-attr-deposit]*, derived from the L1 origin.
@@ -936,7 +936,7 @@ entries.
 
 [payload attributes]: #building-individual-payload-attributes
 
-After deriving the transactions list, the rollup node constructs a [`PayloadAttributesV1`][extended-attributes] as
+After deriving the transactions list, the rollup node constructs a [`PayloadAttributesV2`][extended-attributes] as
 follows:
 
 - `timestamp` is set to the batch's timestamp.
@@ -946,6 +946,7 @@ follows:
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 - `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
+- 'withdrawals' is set to nil prior to Canyon and an empty array after Canyon
 
 [extended-attributes]: exec-engine.md#extended-payloadattributesv1
 [Fee Vaults]: exec-engine.md#fee-vaults
