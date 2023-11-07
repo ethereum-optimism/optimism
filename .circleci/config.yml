@@ -469,7 +469,7 @@ jobs:
   op-bindings-build:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - run:
