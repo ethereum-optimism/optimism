@@ -74,7 +74,7 @@ type BatchSubmitter struct {
 func NewBatchSubmitter(setup DriverSetup) *BatchSubmitter {
 	return &BatchSubmitter{
 		DriverSetup: setup,
-		state:       NewChannelManager(setup.Log, setup.Metr, setup.Channel),
+		state:       NewChannelManager(setup.Log, setup.Metr, setup.Channel, setup.RollupCfg),
 	}
 }
 

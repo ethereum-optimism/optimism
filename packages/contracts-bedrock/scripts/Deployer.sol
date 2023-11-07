@@ -88,7 +88,10 @@ abstract contract Deployer is Script {
         string memory chainIdPath = string.concat(deploymentsDir, "/.chainId");
         try vm.readFile(chainIdPath) returns (string memory localChainId) {
             if (vm.envOr("STRICT_DEPLOYMENT", true)) {
-                require(vm.parseUint(localChainId) == chainId, "Misconfigured networks");
+                require(
+                    vm.parseUint(localChainId) == chainId,
+                    string.concat("Misconfigured networks: ", localChainId, " != ", vm.toString(chainId))
+                );
             }
         } catch {
             vm.writeFile(chainIdPath, vm.toString(chainId));
@@ -163,6 +166,8 @@ abstract contract Deployer is Script {
 
     /// @notice Returns the name of the deployment script. Children contracts
     ///         must implement this to ensure that the deploy artifacts can be found.
+    ///         This should be the same as the name of the script and is used as the file
+    ///         name inside of the `broadcast` directory when looking up deployment artifacts.
     function name() public pure virtual returns (string memory);
 
     /// @notice Returns all of the deployments done in the current context.

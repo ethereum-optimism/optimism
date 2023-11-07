@@ -2,18 +2,18 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { CommonTest, Messenger_Initializer } from "./CommonTest.t.sol";
+import { Bridge_Initializer } from "test/setup/Bridge_Initializer.sol";
 
 // Libraries
-import { Hashing } from "../src/libraries/Hashing.sol";
-import { Encoding } from "../src/libraries/Encoding.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
+import { Encoding } from "src/libraries/Encoding.sol";
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 // Target contract dependencies
-import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
+import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Target contract
-import { CrossDomainOwnable3 } from "../src/L2/CrossDomainOwnable3.sol";
+import { CrossDomainOwnable3 } from "src/L2/CrossDomainOwnable3.sol";
 
 contract XDomainSetter3 is CrossDomainOwnable3 {
     uint256 public value;
@@ -23,7 +23,7 @@ contract XDomainSetter3 is CrossDomainOwnable3 {
     }
 }
 
-contract CrossDomainOwnable3_Test is Messenger_Initializer {
+contract CrossDomainOwnable3_Test is Bridge_Initializer {
     XDomainSetter3 setter;
 
     /// @dev CrossDomainOwnable3.sol transferOwnership event
@@ -73,9 +73,9 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
         bytes32 value = Bytes32AddressLib.fillLast12Bytes(bob);
-        vm.store(address(L2Messenger), key, value);
+        vm.store(address(l2CrossDomainMessenger), key, value);
 
-        vm.prank(address(L2Messenger));
+        vm.prank(address(l2CrossDomainMessenger));
         vm.expectRevert("CrossDomainOwnable3: caller is not the owner");
         setter.set(1);
     }
@@ -109,11 +109,13 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
         // It should be a failed message. The revert is caught,
         // so we cannot expectRevert here.
-        vm.expectEmit(true, true, true, true, address(L2Messenger));
+        vm.expectEmit(true, true, true, true, address(l2CrossDomainMessenger));
         emit FailedRelayedMessage(hash);
 
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message);
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
+        l2CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message
+        );
 
         assertEq(setter.value(), 0);
     }
@@ -212,8 +214,8 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
         // Simulate the L2 execution where the call is coming from
         // the L1CrossDomainMessenger
-        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)));
+        l2CrossDomainMessenger.relayMessage(
             Encoding.encodeVersionedNonce(1, 1),
             bob,
             address(setter),

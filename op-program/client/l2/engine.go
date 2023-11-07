@@ -34,8 +34,11 @@ func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engine
 	}
 }
 
-func (o *OracleEngine) L2OutputRoot() (eth.Bytes32, error) {
-	outBlock := o.backend.CurrentHeader()
+func (o *OracleEngine) L2OutputRoot(l2ClaimBlockNum uint64) (eth.Bytes32, error) {
+	outBlock := o.backend.GetHeaderByNumber(l2ClaimBlockNum)
+	if outBlock == nil {
+		return eth.Bytes32{}, fmt.Errorf("failed to get L2 block at %d", l2ClaimBlockNum)
+	}
 	stateDB, err := o.backend.StateAt(outBlock.Root)
 	if err != nil {
 		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)
@@ -107,6 +110,14 @@ func (o *OracleEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash)
 		return eth.L2BlockRef{}, ErrNotFound
 	}
 	return derive.L2BlockToBlockRef(block, &o.rollupCfg.Genesis)
+}
+
+func (o *OracleEngine) L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error) {
+	hash := o.backend.GetCanonicalHash(n)
+	if hash == (common.Hash{}) {
+		return eth.L2BlockRef{}, ErrNotFound
+	}
+	return o.L2BlockRefByHash(ctx, hash)
 }
 
 func (o *OracleEngine) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error) {

@@ -1,7 +1,6 @@
 package sources
 
 import (
-	"context"
 	"fmt"
 	"math/big"
 	"strings"
@@ -17,10 +16,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
-
-type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
-
-type CallContextFn func(ctx context.Context, result any, method string, args ...any) error
 
 // Note: these types are used, instead of the geth types, to enable:
 // - batched calls of many block requests (standard bindings do extra uncle-header fetches, cannot be batched nicely)
@@ -81,6 +76,10 @@ func (h headerInfo) ReceiptHash() common.Hash {
 
 func (h headerInfo) GasUsed() uint64 {
 	return h.Header.GasUsed
+}
+
+func (h headerInfo) GasLimit() uint64 {
+	return h.Header.GasLimit
 }
 
 func (h headerInfo) HeaderRLP() ([]byte, error) {

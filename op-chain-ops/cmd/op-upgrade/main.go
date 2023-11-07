@@ -112,7 +112,7 @@ func entrypoint(ctx *cli.Context) error {
 		name, _ := toDeployConfigName(chainConfig)
 		config, err := genesis.NewDeployConfigWithNetwork(name, deployConfig)
 		if err != nil {
-			log.Warn("Cannot find deploy config for network", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig)
+			log.Warn("Cannot find deploy config for network", "name", chainConfig.Name, "deploy-config-name", name, "path", deployConfig, "err", err)
 		}
 
 		if config != nil {

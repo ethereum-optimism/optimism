@@ -199,7 +199,10 @@ and are then retrieved from the superchain target configuration.
 
 ### L2 Block-number based activation (deprecated)
 
-Activation rule: `x != null && x >= upgradeNumber`
+Activation rule: `upgradeNumber != null && block.number >= upgradeNumber`
+
+Starting at, and including, the L2 `block` with `block.number >= upgradeNumber`, the upgrade rules apply.
+If the upgrade block-number `upgradeNumber` is not specified in the configuration, the upgrade is ignored.
 
 This block number based method has commonly been used in L1 up until the Bellatrix/Paris upgrade, a.k.a. The Merge,
 which was upgraded through special rules.
@@ -207,21 +210,18 @@ which was upgraded through special rules.
 This method is not superchain-compatible, as the activation-parameter is chain-specific
 (different chains may have different block-heights at the same moment in time).
 
-Starting at, and including, the L2 `block` with `block.number == x`, the upgrade rules apply.
-If the upgrade block-number `x` is not specified in the configuration, the upgrade is ignored.
-
 This applies to the L2 block number, not to the L1-origin block number.
 This means that an L2 upgrade may be inactive, and then active, without changing the L1-origin.
 
 ### L2 Block-timestamp based activation
 
-Activation rule: `x != null && x >= upgradeTime`
+Activation rule: `upgradeTime != null && block.timestamp >= upgradeTime`
+
+Starting at, and including, the L2 `block` with `block.timestamp >= upgradeTime`, the upgrade rules apply.
+If the upgrade block-timestamp `upgradeTime` is not specified in the configuration, the upgrade is ignored.
 
 This is the preferred superchain upgrade activation-parameter type:
 it is synchronous between all L2 chains and compatible with post-Merge timestamp-based chain upgrades in L1.
-
-Starting at, and including, the L2 `block` with `block.timestamp == x`, the upgrade rules apply.
-If the upgrade block-timestamp `x` is not specified in the configuration, the upgrade is ignored.
 
 This applies to the L2 block timestamp, not to the L1-origin block timestamp.
 This means that an L2 upgrade may be inactive, and then active, without changing the L1-origin.

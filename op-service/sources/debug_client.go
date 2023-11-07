@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 )
 
 type DebugClient struct {
-	callContext CallContextFn
+	callContext batching.CallContextFn
 }
 
-func NewDebugClient(callContext CallContextFn) *DebugClient {
+func NewDebugClient(callContext batching.CallContextFn) *DebugClient {
 	return &DebugClient{callContext}
 }
 

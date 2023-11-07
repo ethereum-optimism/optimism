@@ -27,8 +27,6 @@ func TestGetRollupConfig(t *testing.T) {
 	}
 
 	for name, expectedCfg := range configsByName {
-		require.True(t, IsAvailableNetwork(name, false))
-
 		gotCfg, err := GetRollupConfig(name)
 		require.NoError(t, err)
 
@@ -95,6 +93,7 @@ var goerliCfg = rollup.Config{
 	DepositContractAddress:  common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
 	L1SystemConfigAddress:   common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
 	RegolithTime:            u64Ptr(1679079600),
+	CanyonTime:              u64Ptr(1699981200),
 	ProtocolVersionsAddress: common.HexToAddress("0x0C24F5098774aA366827D667494e9F889f7cFc08"),
 }
 
@@ -126,6 +125,7 @@ var sepoliaCfg = rollup.Config{
 	DepositContractAddress:  common.HexToAddress("0x16fc5058f25648194471939df75cf27a2fdc48bc"),
 	L1SystemConfigAddress:   common.HexToAddress("0x034edd2a225f7f429a63e0f1d2084b9e0a93b538"),
 	RegolithTime:            u64Ptr(0),
+	CanyonTime:              u64Ptr(1699981200),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 

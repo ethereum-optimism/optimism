@@ -5,10 +5,10 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 // Target contract dependencies
-import { AddressManager } from "../src/legacy/AddressManager.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
 
 // Target contract
-import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 
 contract ResolvedDelegateProxy_Test is Test {
     AddressManager internal addressManager;

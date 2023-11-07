@@ -17,13 +17,13 @@ func FuzzBatchRoundTrip(f *testing.F) {
 		typeProvider := fuzz.NewFromGoFuzz(fuzzedData).NilChance(0).MaxDepth(10000).NumElements(0, 0x100).AllowUnexportedFields(true)
 		fuzzerutils.AddFuzzerFunctions(typeProvider)
 
+		var singularBatch SingularBatch
+		typeProvider.Fuzz(&singularBatch)
+
 		// Create our batch data from fuzzed data
 		var batchData BatchData
-		typeProvider.Fuzz(&batchData)
-
 		// force batchdata to only contain singular batch
-		batchData.BatchType = SingularBatchType
-		batchData.RawSpanBatch = RawSpanBatch{}
+		batchData.inner = &singularBatch
 
 		// Encode our batch data
 		enc, err := batchData.MarshalBinary()

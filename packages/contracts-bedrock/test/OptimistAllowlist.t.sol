@@ -3,11 +3,11 @@ pragma solidity 0.8.15;
 
 // Testing utilities
 import { Test } from "forge-std/Test.sol";
-import { AttestationStation } from "../src/periphery/op-nft/AttestationStation.sol";
-import { OptimistAllowlist } from "../src/periphery/op-nft/OptimistAllowlist.sol";
-import { OptimistInviter } from "../src/periphery/op-nft/OptimistInviter.sol";
-import { OptimistInviterHelper } from "./Helpers.sol";
-import { OptimistConstants } from "../src/periphery/op-nft/libraries/OptimistConstants.sol";
+import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
+import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
+import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
+import { OptimistInviterHelper } from "test/mocks/OptimistInviterHelper.sol";
+import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
 
 contract OptimistAllowlist_Initializer is Test {
     event AttestationCreated(address indexed creator, address indexed about, bytes32 indexed key, bytes val);

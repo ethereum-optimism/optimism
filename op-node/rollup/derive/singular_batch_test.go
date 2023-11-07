@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSingularBatchForBatchInterface(t *testing.T) {
@@ -15,7 +15,7 @@ func TestSingularBatchForBatchInterface(t *testing.T) {
 
 	singularBatch := RandomSingularBatch(rng, txCount, chainID)
 
-	assert.Equal(t, SingularBatchType, singularBatch.GetBatchType())
-	assert.Equal(t, singularBatch.Timestamp, singularBatch.GetTimestamp())
-	assert.Equal(t, singularBatch.EpochNum, singularBatch.GetEpochNum())
+	require.Equal(t, SingularBatchType, singularBatch.GetBatchType())
+	require.Equal(t, singularBatch.Timestamp, singularBatch.GetTimestamp())
+	require.Equal(t, singularBatch.EpochNum, singularBatch.GetEpochNum())
 }

@@ -59,7 +59,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	deployConfig.L1BlockTime = tp.L1BlockTime
 	deployConfig.L2GenesisRegolithTimeOffset = nil
 	deployConfig.L2GenesisCanyonTimeOffset = CanyonTimeOffset()
-	deployConfig.L2GenesisSpanBatchTimeOffset = SpanBatchTimeOffset()
 
 	require.NoError(t, deployConfig.Check())
 	require.Equal(t, addresses.Batcher, deployConfig.BatchSenderAddress)
@@ -184,14 +183,6 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
 		GasLimit:    uint64(deployConfig.L2GenesisBlockGasLimit),
 	}
-}
-
-func SpanBatchTimeOffset() *hexutil.Uint64 {
-	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
-		offset := hexutil.Uint64(0)
-		return &offset
-	}
-	return nil
 }
 
 func CanyonTimeOffset() *hexutil.Uint64 {

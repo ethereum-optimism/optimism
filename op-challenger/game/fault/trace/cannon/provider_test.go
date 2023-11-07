@@ -216,28 +216,28 @@ func TestGetStepData(t *testing.T) {
 	})
 }
 
-func TestAbsolutePreState(t *testing.T) {
+func TestAbsolutePreStateCommitment(t *testing.T) {
 	dataDir := t.TempDir()
 
 	prestate := "state.json"
 
 	t.Run("StateUnavailable", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, "/dir/does/not/exist", prestate)
-		_, err := provider.AbsolutePreState(context.Background())
+		_, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	t.Run("InvalidStateFile", func(t *testing.T) {
 		setupPreState(t, dataDir, "invalid.json")
 		provider, _ := setupWithTestData(t, dataDir, prestate)
-		_, err := provider.AbsolutePreState(context.Background())
+		_, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorContains(t, err, "invalid mipsevm state")
 	})
 
 	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
 		setupPreState(t, dataDir, "state.json")
 		provider, _ := setupWithTestData(t, dataDir, prestate)
-		preState, err := provider.AbsolutePreState(context.Background())
+		actual, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		state := mipsevm.State{
 			Memory:         mipsevm.NewMemory(),
@@ -253,7 +253,9 @@ func TestAbsolutePreState(t *testing.T) {
 			Step:           0,
 			Registers:      [32]uint32{},
 		}
-		require.Equal(t, []byte(state.EncodeWitness()), preState)
+		expected, err := state.EncodeWitness().StateHash()
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
 	})
 }
 

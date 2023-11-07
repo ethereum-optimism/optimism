@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -20,7 +21,8 @@ func TestChannelTimeout(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
-	})
+	}, &rollup.Config{})
+	m.Clear()
 
 	// Pending channel is nil so is cannot be timed out
 	require.Nil(t, m.currentChannel)
@@ -61,7 +63,8 @@ func TestChannelTimeout(t *testing.T) {
 // TestChannelNextTxData checks the nextTxData function.
 func TestChannelNextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
+	m.Clear()
 
 	// Nil pending channel should return EOF
 	returnedTxData, err := m.nextTxData(nil)
@@ -109,7 +112,8 @@ func TestChannelTxConfirmed(t *testing.T) {
 		// channels on confirmation. This would result in [TxConfirmed]
 		// clearing confirmed transactions, and reseting the pendingChannels map
 		ChannelTimeout: 10,
-	})
+	}, &rollup.Config{})
+	m.Clear()
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
@@ -157,7 +161,8 @@ func TestChannelTxConfirmed(t *testing.T) {
 func TestChannelTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{}, &rollup.Config{})
+	m.Clear()
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness

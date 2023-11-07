@@ -25,7 +25,7 @@ type Responder interface {
 }
 
 type ClaimLoader interface {
-	FetchClaims(ctx context.Context) ([]types.Claim, error)
+	GetAllClaims(ctx context.Context) ([]types.Claim, error)
 }
 
 type Agent struct {
@@ -136,7 +136,7 @@ func (a *Agent) tryResolve(ctx context.Context) bool {
 var errNoResolvableClaims = errors.New("no resolvable claims")
 
 func (a *Agent) tryResolveClaims(ctx context.Context) error {
-	claims, err := a.loader.FetchClaims(ctx)
+	claims, err := a.loader.GetAllClaims(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to fetch claims: %w", err)
 	}
@@ -189,7 +189,7 @@ func (a *Agent) resolveClaims(ctx context.Context) error {
 
 // newGameFromContracts initializes a new game state from the state in the contract
 func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
-	claims, err := a.loader.FetchClaims(ctx)
+	claims, err := a.loader.GetAllClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch claims: %w", err)
 	}

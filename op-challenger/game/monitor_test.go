@@ -230,7 +230,7 @@ type stubGameSource struct {
 func (s *stubGameSource) FetchAllGamesAtBlock(
 	ctx context.Context,
 	earliest uint64,
-	blockNumber *big.Int,
+	blockNumber uint64,
 ) ([]types.GameMetadata, error) {
 	return s.games, nil
 }
