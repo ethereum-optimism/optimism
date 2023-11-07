@@ -204,6 +204,23 @@ func (block *rpcBlock) verify() error {
 	if computed := types.DeriveSha(types.Transactions(block.Transactions), trie.NewStackTrie(nil)); block.TxHash != computed {
 		return fmt.Errorf("failed to verify transactions list: computed %s but RPC said %s", computed, block.TxHash)
 	}
+	if block.WithdrawalsRoot != nil {
+		if block.Withdrawals == nil {
+			return fmt.Errorf("expected withdrawals")
+		}
+		for i, w := range *block.Withdrawals {
+			if w == nil {
+				return fmt.Errorf("block withdrawal %d is null", i)
+			}
+		}
+		if computed := types.DeriveSha(*block.Withdrawals, trie.NewStackTrie(nil)); *block.WithdrawalsRoot != computed {
+			return fmt.Errorf("failed to verify withdrawals list: computed %s but RPC said %s", computed, block.WithdrawalsRoot)
+		}
+	} else {
+		if block.Withdrawals != nil {
+			return fmt.Errorf("expected no withdrawals due to missing withdrawals-root, but got %d", len(*block.Withdrawals))
+		}
+	}
 	return nil
 }
 
