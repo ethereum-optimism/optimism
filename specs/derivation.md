@@ -694,9 +694,12 @@ equivalents. The `v2` methods are backwards compatible with `v1` payloads but su
 [`engine_getPayloadV2`]: exec-engine.md#engine_getpayloadv2
 [`engine_newPayloadV2`]: exec-engine.md#engine_newpayloadv2
 
-The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
+The execution payload is an object of type [`ExecutionPayloadV2`][eth-payload].
 
-[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#executionpayloadv1
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#payloadattributesv2
+
+With V2 of the execution payload, before Canyon the withdrawals field is required to be nil. After Canyon the
+withdrawals field is required to be non-nil. The op-node should set the withdrawals field to be an empty list.
 
 #### Forkchoice synchronization
 
