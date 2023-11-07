@@ -64,6 +64,8 @@ Span-batches address these inefficiencies, with a new batch format version.
 
 ## Span batch format
 
+[span-batch-format]: #span-batch-format
+
 Note that span-batches, unlike previous singular batches,
 encode *a range of consecutive* L2 blocks at the same time.
 
@@ -268,7 +270,13 @@ Span-batches share the same queue with v0 batches: batches are processed in L1 i
 A set of modified validation rules apply to the span-batches.
 
 Rules are enforced with the [contextual definitions](./derivation.md#batch-queue) as v0-batch validation:
-`batch`, `epoch`, `inclusion_block_number`, `next_timestamp`, `next_epoch`, `batch_origin`
+`epoch`, `inclusion_block_number`, `next_timestamp`
+
+Definitions:
+
+- `batch` as defined in the [Span batch format section][span-batch-format].
+- `prev_l2_block` is the L2 block from the current safe chain,
+  whose timestamp is at `span_start.timestamp - l2_block_time`
 
 Span-batch rules, in validation order:
 
@@ -279,10 +287,12 @@ Span-batch rules, in validation order:
     - If known, then define `batch_origin` as `next_epoch`
 - `batch_origin.timestamp < span_batch_upgrade_timestamp` -> `drop`:
   i.e. enforce the [span batch upgrade activation rule](#span-batch-activation-rule).
-- `batch.start_timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process.
-- `batch.start_timestamp < next_timestamp` -> `drop`: i.e. the batch must not be too old.
-- `batch.parent_check != safe_l2_head.hash[:20]` -> `drop`: i.e. the checked part of the parent hash must be equal
-  to the L2 safe head block hash.
+- `span_start.timestamp > next_timestamp` -> `future`: i.e. the batch must be ready to process,
+  but does not have to start exactly at the `next_timestamp`, since it can overlap with previously processed blocks,
+- `span_end.timestamp < next_timestamp` -> `drop`: i.e. the batch must have at least one new block to process.
+- If there's no `prev_l2_block` in the current safe chain -> `drop`: i.e. the timestamp must be aligned.
+- `batch.parent_check != prev_l2_block.hash[:20]` -> `drop`:
+  i.e. the checked part of the parent hash must be equal to the same part of the corresponding L2 block hash.
 - Sequencing-window checks:
   - Note: The sequencing window is enforced for the *batch as a whole*:
     if the batch was partially invalid instead, it would drop the oldest L2 blocks,
@@ -294,7 +304,7 @@ Span-batch rules, in validation order:
   - Rules:
     - `start_epoch_num + sequence_window_size < inclusion_block_number` -> `drop`:
       i.e. the batch must be included timely.
-    - `start_epoch_num > epoch.number + 1` -> `drop`:
+    - `start_epoch_num > prev_l2_block.l1_origin.number + 1` -> `drop`:
       i.e. the L1 origin cannot change by more than one L1 block per L2 block.
     - If `batch.l1_origin_check` does not match the canonical L1 chain at `end_epoch_num` -> `drop`:
       verify the batch is intended for this L1 chain.
@@ -302,9 +312,8 @@ Span-batch rules, in validation order:
         is past `inclusion_block_number` because of the following invariant.
       - Invariant: the epoch-num in the batch is always less than the inclusion block number,
         if and only if the L1 epoch hash is correct.
-    - `start_epoch_num < epoch.number` -> `drop`: must have been duplicate batch,
-      we may be past this L1 block in the safe L2 chain. If a span-batch overlaps with older information,
-      it is dropped, since partially valid span-batches are not accepted.
+    - `start_epoch_num < prev_l2_block.l1_origin.number` -> `drop`:
+      epoch number cannot be older than the origin of parent block
 - Max Sequencer time-drift checks:
   - Note: The max time-drift is enforced for the *batch as a whole*, to keep the possible output variants small.
   - Variables:
@@ -313,7 +322,7 @@ Span-batch rules, in validation order:
     - `next_epoch`: `block_input.origin`'s next L1 block.
       It may reach to the next origin outside the L1 origins of the span.
   - Rules:
-    - For each `block_input` that can be read from the span-batch:
+    - For each `block_input` whose timestamp is greater than `safe_head.timestamp`:
       - `block_input.timestamp < block_input.origin.time` -> `drop`: enforce the min L2 timestamp rule.
       - `block_input.timestamp > block_input.origin.time + max_sequencer_drift`: enforce the L2 timestamp drift rule,
         but with exceptions to preserve above min L2 timestamp invariant:
@@ -332,6 +341,16 @@ Span-batch rules, in validation order:
     that is invalid or derived by other means exclusively:
     - any transaction that is empty (zero length `tx_data`)
     - any [deposited transactions][g-deposit-tx-type] (identified by the transaction type prefix byte in `tx_data`)
+- Overlapped blocks checks:
+  - Note: If the span batch overlaps the current L2 safe chain, we must validate all overlapped blocks.
+  - Variables:
+    - `block_input`: an L2 block derived from the span-batch.
+    - `safe_block`: an L2 block from the current L2 safe chain, at same timestamp as `block_input`
+  - Rules:
+    - For each `block_input`, whose timestamp is less than `next_timestamp`:
+      - `block_input.l1_origin.number != safe_block.l1_origin.number` -> `drop`
+      - `block_input.transactions != safe_block.transactions` -> `drop`
+        - compare excluding deposit transactions
 
 Once validated, the batch-queue then emits a block-input for each of the blocks included in the span-batch.
 The next derivation stage is thus only aware of individual block inputs, similar to the previous V0 batch,
