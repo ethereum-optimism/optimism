@@ -88,7 +88,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	deployConfig := config.DeployConfig.Copy()
 	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 	deployConfig.L2GenesisCanyonTimeOffset = e2eutils.CanyonTimeOffset()
-	deployConfig.L2GenesisSpanBatchTimeOffset = e2eutils.SpanBatchTimeOffset()
 	require.NoError(t, deployConfig.Check(), "Deploy config is invalid, do you need to run make devnet-allocs?")
 	l1Deployments := config.L1Deployments.Copy()
 	require.NoError(t, l1Deployments.Check())
@@ -684,7 +683,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	var batchType uint = derive.SingularBatchType
-	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
+	if cfg.DeployConfig.L2GenesisSpanBatchTimeOffset != nil && *cfg.DeployConfig.L2GenesisSpanBatchTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
 	}
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes

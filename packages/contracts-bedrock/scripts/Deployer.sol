@@ -88,7 +88,10 @@ abstract contract Deployer is Script {
         string memory chainIdPath = string.concat(deploymentsDir, "/.chainId");
         try vm.readFile(chainIdPath) returns (string memory localChainId) {
             if (vm.envOr("STRICT_DEPLOYMENT", true)) {
-                require(vm.parseUint(localChainId) == chainId, "Misconfigured networks");
+                require(
+                    vm.parseUint(localChainId) == chainId,
+                    string.concat("Misconfigured networks: ", localChainId, " != ", vm.toString(chainId))
+                );
             }
         } catch {
             vm.writeFile(chainIdPath, vm.toString(chainId));
