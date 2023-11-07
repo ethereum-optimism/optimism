@@ -11,7 +11,7 @@ import { Constants } from "src/libraries/Constants.sol";
 /// @notice The SystemConfig contract is used to manage configuration of an Optimism network.
 ///         All configuration is stored on L1 and picked up by L2 as part of the derviation of
 ///         the L2 chain.
-contract SystemConfig is OwnableUpgradeable, ISemver {
+contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice Enum representing different types of updates.
     /// @custom:value BATCHER              Represents an update to the batcher hash.
     /// @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
@@ -25,17 +25,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         UNSAFE_BLOCK_SIGNER
     }
 
-    /// @notice Struct representing the addresses of L1 system contracts. These should be the
-    ///         proxies and will differ for each OP Stack chain.
-    struct Addresses {
-        address l1CrossDomainMessenger;
-        address l1ERC721Bridge;
-        address l1StandardBridge;
-        address l2OutputOracle;
-        address optimismPortal;
-        address optimismMintableERC20Factory;
-    }
-
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -43,34 +32,7 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
-    /// @dev    NOTE: this value will be migrated to another storage slot in a future version.
-    ///         User input should not be placed in storage in this contract until this migration
-    ///         happens. It is unlikely that keccak second preimage resistance will be broken,
-    ///         but it is better to be safe than sorry.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
-
-    /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
-    bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT =
-        bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
-
-    /// @notice Storage slot that the L1ERC721Bridge address is stored at.
-    bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
-
-    /// @notice Storage slot that the L1StandardBridge address is stored at.
-    bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
-
-    /// @notice Storage slot that the L2OutputOracle address is stored at.
-    bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
-
-    /// @notice Storage slot that the OptimismPortal address is stored at.
-    bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
-
-    /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
-    bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
-        bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
-
-    /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
@@ -97,42 +59,32 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
-    /// @notice The block at which the op-node can start searching for logs from.
-    uint256 public startBlock;
-
-    /// @notice Semantic version.
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
-
-    /// @notice Constructs the SystemConfig contract. Cannot set
-    ///         the owner to `address(0)` due to the Ownable contract's
-    ///         implementation, so set it to `address(0xdEaD)`
-    constructor() {
+    /// @custom:semver 1.3.1
+    /// @notice Constructs the SystemConfig contract.
+    /// @param _owner             Initial owner of the contract.
+    /// @param _overhead          Initial overhead value.
+    /// @param _scalar            Initial scalar value.
+    /// @param _batcherHash       Initial batcher hash.
+    /// @param _gasLimit          Initial gas limit.
+    /// @param _unsafeBlockSigner Initial unsafe block signer address.
+    /// @param _config            Initial resource config.
+    constructor(
+        address _owner,
+        uint256 _overhead,
+        uint256 _scalar,
+        bytes32 _batcherHash,
+        uint64 _gasLimit,
+        address _unsafeBlockSigner,
+        ResourceMetering.ResourceConfig memory _config
+    ) Semver(1, 3, 1) {
         initialize({
-            _owner: address(0xdEaD),
-            _overhead: 0,
-            _scalar: 0,
-            _batcherHash: bytes32(0),
-            _gasLimit: 1,
-            _unsafeBlockSigner: address(0),
-            _config: ResourceMetering.ResourceConfig({
-                maxResourceLimit: 1,
-                elasticityMultiplier: 1,
-                baseFeeMaxChangeDenominator: 2,
-                minimumBaseFee: 0,
-                systemTxMaxGas: 0,
-                maximumBaseFee: 0
-            }),
-            _startBlock: type(uint256).max,
-            _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
-                l1CrossDomainMessenger: address(0),
-                l1ERC721Bridge: address(0),
-                l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
-                optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
-            })
+            _owner: _owner,
+            _overhead: _overhead,
+            _scalar: _scalar,
+            _batcherHash: _batcherHash,
+            _gasLimit: _gasLimit,
+            _unsafeBlockSigner: _unsafeBlockSigner,
+            _config: _config
         });
     }
 
@@ -145,13 +97,6 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
-    /// @param _startBlock        Starting block for the op-node to search for logs from.
-    ///                           Contracts that were deployed before this field existed
-    ///                           need to have this field set manually via an override.
-    ///                           Newly deployed contracts should set this value to uint256(0).
-    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
-    ///                           canonical data.
-    /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
         uint256 _overhead,
@@ -159,33 +104,15 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config,
-        uint256 _startBlock,
-        address _batchInbox,
-        SystemConfig.Addresses memory _addresses
-    )
-        public
-        reinitializer(Constants.INITIALIZER)
-    {
+        ResourceMetering.ResourceConfig memory _config
+    ) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
-
-        // These are set in ascending order of their UpdateTypes.
-        _setBatcherHash(_batcherHash);
-        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
-        _setGasLimit(_gasLimit);
+        overhead = _overhead;
+        scalar = _scalar;
+        batcherHash = _batcherHash;
+        gasLimit = _gasLimit;
         _setUnsafeBlockSigner(_unsafeBlockSigner);
-
-        Storage.setAddress(BATCH_INBOX_SLOT, _batchInbox);
-        Storage.setAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT, _addresses.l1CrossDomainMessenger);
-        Storage.setAddress(L1_ERC_721_BRIDGE_SLOT, _addresses.l1ERC721Bridge);
-        Storage.setAddress(L1_STANDARD_BRIDGE_SLOT, _addresses.l1StandardBridge);
-        Storage.setAddress(L2_OUTPUT_ORACLE_SLOT, _addresses.l2OutputOracle);
-        Storage.setAddress(OPTIMISM_PORTAL_SLOT, _addresses.optimismPortal);
-        Storage.setAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT, _addresses.optimismMintableERC20Factory);
-
-        _setStartBlock(_startBlock);
-
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
@@ -203,109 +130,39 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice High level getter for the unsafe block signer address.
     ///         Unsafe blocks can be propagated across the p2p network if they are signed by the
     ///         key corresponding to this address.
-    /// @return addr_ Address of the unsafe block signer.
+    /// @return Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() public view returns (address addr_) {
-        addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
-    }
-
-    /// @notice Getter for the L1CrossDomainMessenger address.
-    function l1CrossDomainMessenger() external view returns (address addr_) {
-        addr_ = Storage.getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
-    }
-
-    /// @notice Getter for the L1ERC721Bridge address.
-    function l1ERC721Bridge() external view returns (address addr_) {
-        addr_ = Storage.getAddress(L1_ERC_721_BRIDGE_SLOT);
-    }
-
-    /// @notice Getter for the L1StandardBridge address.
-    function l1StandardBridge() external view returns (address addr_) {
-        addr_ = Storage.getAddress(L1_STANDARD_BRIDGE_SLOT);
-    }
-
-    /// @notice Getter for the L2OutputOracle address.
-    function l2OutputOracle() external view returns (address addr_) {
-        addr_ = Storage.getAddress(L2_OUTPUT_ORACLE_SLOT);
-    }
-
-    /// @notice Getter for the OptimismPortal address.
-    function optimismPortal() external view returns (address addr_) {
-        addr_ = Storage.getAddress(OPTIMISM_PORTAL_SLOT);
-    }
-
-    /// @notice Getter for the OptimismMintableERC20Factory address.
-    function optimismMintableERC20Factory() external view returns (address addr_) {
-        addr_ = Storage.getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
-    }
-
-    /// @notice Getter for the BatchInbox address.
-    function batchInbox() external view returns (address addr_) {
-        addr_ = Storage.getAddress(BATCH_INBOX_SLOT);
-    }
-
-    /// @notice Sets the start block in a backwards compatible way. Proxies
-    ///         that were initialized before the startBlock existed in storage
-    ///         can have their start block set by a user provided override.
-    ///         A start block of 0 indicates that there is no override and the
-    ///         start block will be set by `block.number`.
-    /// @dev    This logic is used to patch legacy deployments with new storage values.
-    ///         Use the override if it is provided as a non zero value and the value
-    ///         has not already been set in storage. Use `block.number` if the value
-    ///         has already been set in storage
-    /// @param  _startBlock The start block override to set in storage.
-    function _setStartBlock(uint256 _startBlock) internal {
-        if (_startBlock != 0 && startBlock == 0) {
-            // There is an override and it is not already set, this is for legacy chains.
-            startBlock = _startBlock;
-        } else if (startBlock == 0) {
-            // There is no override and it is not set in storage. Set it to the block number.
-            // This is for newly deployed chains.
-            startBlock = block.number;
+    function unsafeBlockSigner() external view returns (address) {
+        address addr;
+        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
+        assembly {
+            addr := sload(slot)
         }
-    }
-
-    /// @notice Updates the unsafe block signer address. Can only be called by the owner.
-    /// @param _unsafeBlockSigner New unsafe block signer address.
-    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
-        _setUnsafeBlockSigner(_unsafeBlockSigner);
+        return addr;
     }
 
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
-    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
+    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
     }
 
-    /// @notice Updates the batcher hash. Can only be called by the owner.
+    /// @notice Updates the batcher hash.
     /// @param _batcherHash New batcher hash.
     function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
-        _setBatcherHash(_batcherHash);
-    }
-
-    /// @notice Internal function for updating the batcher hash.
-    /// @param _batcherHash New batcher hash.
-    function _setBatcherHash(bytes32 _batcherHash) internal {
         batcherHash = _batcherHash;
 
         bytes memory data = abi.encode(_batcherHash);
         emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
-    /// @notice Updates gas config. Can only be called by the owner.
+    /// @notice Updates gas config.
     /// @param _overhead New overhead value.
     /// @param _scalar   New scalar value.
     function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
-        _setGasConfig(_overhead, _scalar);
-    }
-
-    /// @notice Internal function for updating the gas config.
-    /// @param _overhead New overhead value.
-    /// @param _scalar   New scalar value.
-    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
         overhead = _overhead;
         scalar = _scalar;
 
@@ -313,20 +170,25 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
-    /// @notice Updates the L2 gas limit. Can only be called by the owner.
+    /// @notice Updates the L2 gas limit.
     /// @param _gasLimit New gas limit.
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
-        _setGasLimit(_gasLimit);
-    }
-
-    /// @notice Internal function for updating the L2 gas limit.
-    /// @param _gasLimit New gas limit.
-    function _setGasLimit(uint64 _gasLimit) internal {
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
+    }
+
+    /// @notice Low level setter for the unsafe block signer address.
+    ///         This function exists to deduplicate code around storing the unsafeBlockSigner
+    ///         address in storage.
+    /// @param _unsafeBlockSigner New unsafeBlockSigner value.
+    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
+        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
+        assembly {
+            sstore(slot, _unsafeBlockSigner)
+        }
     }
 
     /// @notice A getter for the resource config.
@@ -350,19 +212,29 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.
         require(
-            _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than max base"
+            _config.minimumBaseFee <= _config.maximumBaseFee,
+            "SystemConfig: min base fee must be less than max base"
         );
         // Base fee change denominator must be greater than 1.
-        require(_config.baseFeeMaxChangeDenominator > 1, "SystemConfig: denominator must be larger than 1");
+        require(
+            _config.baseFeeMaxChangeDenominator > 1,
+            "SystemConfig: denominator must be larger than 1"
+        );
         // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
         // The gas limit must be increased before these values can be increased.
-        require(_config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit, "SystemConfig: gas limit too low");
+        require(
+            _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
+            "SystemConfig: gas limit too low"
+        );
         // Elasticity multiplier must be greater than 0.
-        require(_config.elasticityMultiplier > 0, "SystemConfig: elasticity multiplier cannot be 0");
+        require(
+            _config.elasticityMultiplier > 0,
+            "SystemConfig: elasticity multiplier cannot be 0"
+        );
         // No precision loss when computing target resource limit.
         require(
-            ((_config.maxResourceLimit / _config.elasticityMultiplier) * _config.elasticityMultiplier)
-                == _config.maxResourceLimit,
+            ((_config.maxResourceLimit / _config.elasticityMultiplier) *
+                _config.elasticityMultiplier) == _config.maxResourceLimit,
             "SystemConfig: precision loss with target resource limit"
         );
 

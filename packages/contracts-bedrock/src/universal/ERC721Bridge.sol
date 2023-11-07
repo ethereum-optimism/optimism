@@ -7,17 +7,15 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
-abstract contract ERC721Bridge is Initializable {
+abstract contract ERC721Bridge {
     /// @notice Messenger contract on this domain.
-    /// @custom:network-specific
-    CrossDomainMessenger public messenger;
+    CrossDomainMessenger public immutable MESSENGER;
 
     /// @notice Address of the bridge on the other network.
-    /// @custom:legacy
     address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[48] private __gap;
+    uint256[49] private __gap;
 
     /// @notice Emitted when an ERC721 bridge to the other network is initiated.
     /// @param localToken  Address of the token on this domain.
@@ -54,31 +52,31 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == OTHER_BRIDGE,
+            msg.sender == address(MESSENGER) && MESSENGER.xDomainMessageSender() == OTHER_BRIDGE,
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
     }
 
-    /// @notice Constructs the contract.
+    /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) {
+    constructor(address _messenger, address _otherBridge) {
+        require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
         require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
+
+        MESSENGER = CrossDomainMessenger(_messenger);
         OTHER_BRIDGE = _otherBridge;
     }
 
-    // @notice Initializes the contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function __ERC721Bridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
-        messenger = _messenger;
+    /// @custom:legacy
+    /// @notice Legacy getter for messenger contract.
+    /// @return Messenger contract on this domain.
+    function messenger() external view returns (CrossDomainMessenger) {
+        return MESSENGER;
     }
 
-    /// @notice Getter for messenger contract.
-    function MESSENGER() external view returns (CrossDomainMessenger) {
-        return messenger;
-    }
-
-    /// @notice Getter for other bridge address.
+    /// @custom:legacy
+    /// @notice Legacy getter for other bridge address.
     /// @return Address of the bridge on the other network.
     function otherBridge() external view returns (address) {
         return OTHER_BRIDGE;
@@ -106,9 +104,7 @@ abstract contract ERC721Bridge is Initializable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    )
-        external
-    {
+    ) external {
         // Modifier requiring sender to be EOA. This prevents against a user error that would occur
         // if the sender is a smart contract wallet that has a different address on the remote chain
         // (or doesn't have an address on the remote chain at all). The user would fail to receive
@@ -117,7 +113,15 @@ abstract contract ERC721Bridge is Initializable {
         // care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "ERC721Bridge: account is not externally owned");
 
-        _initiateBridgeERC721(_localToken, _remoteToken, msg.sender, msg.sender, _tokenId, _minGasLimit, _extraData);
+        _initiateBridgeERC721(
+            _localToken,
+            _remoteToken,
+            msg.sender,
+            msg.sender,
+            _tokenId,
+            _minGasLimit,
+            _extraData
+        );
     }
 
     /// @notice Initiates a bridge of an NFT to some recipient's account on the other chain. Note
@@ -142,12 +146,18 @@ abstract contract ERC721Bridge is Initializable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    )
-        external
-    {
+    ) external {
         require(_to != address(0), "ERC721Bridge: nft recipient cannot be address(0)");
 
-        _initiateBridgeERC721(_localToken, _remoteToken, msg.sender, _to, _tokenId, _minGasLimit, _extraData);
+        _initiateBridgeERC721(
+            _localToken,
+            _remoteToken,
+            msg.sender,
+            _to,
+            _tokenId,
+            _minGasLimit,
+            _extraData
+        );
     }
 
     /// @notice Internal function for initiating a token bridge to the other domain.
@@ -168,7 +178,5 @@ abstract contract ERC721Bridge is Initializable {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    )
-        internal
-        virtual;
+    ) internal virtual;
 }
