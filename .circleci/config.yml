@@ -480,7 +480,7 @@ jobs:
   boba-bindings-build:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - run:
@@ -968,6 +968,7 @@ jobs:
   devnet-allocs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
     steps:
       - checkout
       - restore_cache:
