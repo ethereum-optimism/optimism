@@ -448,6 +448,7 @@ jobs:
   contracts-bedrock-validate-spaces:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
