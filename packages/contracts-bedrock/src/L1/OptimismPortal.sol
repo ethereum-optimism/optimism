@@ -11,7 +11,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { Semver } from "src/universal/Semver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied

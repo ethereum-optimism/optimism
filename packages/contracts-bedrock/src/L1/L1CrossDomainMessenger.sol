@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { ISemver } from "src/universal/ISemver.sol";
+import { Semver } from "src/universal/Semver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
