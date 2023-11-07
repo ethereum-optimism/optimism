@@ -371,10 +371,12 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: implSalt() }();
+        address portal = mustGetAddress("OptimismPortalProxy");
+        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: implSalt() }({
+            _portal: OptimismPortal(payable(portal))
+        });
 
-        require(address(messenger.PORTAL()) == address(0));
-        require(address(messenger.portal()) == address(0));
+        require(address(messenger.PORTAL()) == portal);
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
@@ -387,11 +389,24 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        OptimismPortal portal = new OptimismPortal{ salt: implSalt() }();
+        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
+        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
 
-        require(address(portal.L2_ORACLE()) == address(0));
-        require(portal.GUARDIAN() == address(0));
-        require(address(portal.SYSTEM_CONFIG()) == address(0));
+        address guardian = cfg.portalGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Portal guardian has no code: %s", guardian);
+        }
+
+        OptimismPortal portal = new OptimismPortal{ salt: implSalt() }({
+            _l2Oracle: L2OutputOracle(l2OutputOracleProxy),
+            _guardian: guardian,
+            _paused: true,
+            _config: SystemConfig(systemConfigProxy)
+        });
+
+        require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
+        require(portal.GUARDIAN() == guardian);
+        require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
         require(portal.paused() == true);
 
         save("OptimismPortal", address(portal));
@@ -405,21 +420,20 @@ contract Deploy is Deployer {
         L2OutputOracle oracle = new L2OutputOracle{ salt: implSalt() }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
+            _startingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
+            _startingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
+            _proposer: cfg.l2OutputOracleProposer(),
+            _challenger: cfg.l2OutputOracleChallenger(),
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
         });
 
         require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
-        require(oracle.l2BlockTime() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == address(0));
-        require(oracle.proposer() == address(0));
-        require(oracle.CHALLENGER() == address(0));
-        require(oracle.challenger() == address(0));
+        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
+        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
-        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
-        require(oracle.startingBlockNumber() == 0);
-        require(oracle.startingTimestamp() == 0);
+        require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
+        require(oracle.startingTimestamp() == cfg.l2OutputOracleStartingTimestamp());
 
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
@@ -487,30 +501,32 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        SystemConfig config = new SystemConfig{ salt: implSalt() }();
+        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
-        require(config.owner() == address(0xdEaD));
-        require(config.overhead() == 0);
-        require(config.scalar() == 0);
-        require(config.unsafeBlockSigner() == address(0));
-        require(config.batcherHash() == bytes32(0));
-        require(config.gasLimit() == 1);
+        SystemConfig config = new SystemConfig({
+            _owner: cfg.finalSystemOwner(),
+            _overhead: cfg.gasPriceOracleOverhead(),
+            _scalar: cfg.gasPriceOracleScalar(),
+            _batcherHash: batcherHash,
+            _gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
+            _unsafeBlockSigner: cfg.p2pSequencerAddress(),
+            _config: Constants.DEFAULT_RESOURCE_CONFIG()
+        });
 
+        require(config.owner() == cfg.finalSystemOwner());
+        require(config.overhead() == cfg.gasPriceOracleOverhead());
+        require(config.scalar() == cfg.gasPriceOracleScalar());
+        require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
+        require(config.batcherHash() == batcherHash);
+
+        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == 1);
-        require(resourceConfig.elasticityMultiplier == 1);
-        require(resourceConfig.baseFeeMaxChangeDenominator == 2);
-        require(resourceConfig.systemTxMaxGas == 0);
-        require(resourceConfig.minimumBaseFee == 0);
-        require(resourceConfig.maximumBaseFee == 0);
-
-        require(config.l1ERC721Bridge() == address(0));
-        require(config.l1StandardBridge() == address(0));
-        require(config.l2OutputOracle() == address(0));
-        require(config.optimismPortal() == address(0));
-        require(config.l1CrossDomainMessenger() == address(0));
-        require(config.optimismMintableERC20Factory() == address(0));
-        require(config.startBlock() == type(uint256).max);
+        require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
+        require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
+        require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
+        require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
+        require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
+        require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
@@ -520,12 +536,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
-        L1StandardBridge bridge = new L1StandardBridge{ salt: implSalt() }();
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        require(address(bridge.MESSENGER()) == address(0));
-        require(address(bridge.messenger()) == address(0));
+        L1StandardBridge bridge = new L1StandardBridge{ salt: implSalt() }({
+            _messenger: payable(l1CrossDomainMessengerProxy)
+        });
+
+        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
 
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
@@ -535,9 +553,13 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: implSalt() }();
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: implSalt() }({
+            _messenger: l1CrossDomainMessengerProxy,
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE
+        });
 
-        require(address(bridge.MESSENGER()) == address(0));
+        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
 
         save("L1ERC721Bridge", address(bridge));
