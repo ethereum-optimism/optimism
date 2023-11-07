@@ -78,6 +78,10 @@ func (h headerInfo) GasUsed() uint64 {
 	return h.Header.GasUsed
 }
 
+func (h headerInfo) GasLimit() uint64 {
+	return h.Header.GasLimit
+}
+
 func (h headerInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.Header)
 }
