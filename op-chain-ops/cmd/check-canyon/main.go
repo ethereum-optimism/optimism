@@ -139,11 +139,6 @@ func Validate1559Params(ctx Args, canyonActive bool) error {
 		return err
 	}
 
-	if block.BaseFee().Cmp(big.NewInt(1000)) < 0 {
-		log.Info("Basefee to low to properly validate", "basefee", block.BaseFee())
-		return nil
-	}
-
 	parent, err := ctx.Client.InfoByNumber(context.Background(), ctx.Number-1)
 	if err != nil {
 		return err
@@ -194,29 +189,19 @@ func ValidateCreate2Deployer(ctx Args, canyonActive bool) error {
 }
 
 // CheckActivation takes a function f which determines in a specific block follows the rules of a fork.
-// forkActivated tells `f` if the fork is active or not. `f` is called twice: First to validate that
-// there is no error when checking the new value and second to validate the it returns an error when
-// attempting to validate the block against the opposite of what is is.
-// If any error is encountered, valid is set to false.
 func CheckActivation(f func(Args, bool) error, ctx Args, forkActivated bool, valid *bool) {
-	if forkActivated {
-		if err := f(ctx, true); err != nil {
-			log.Error("Pre-state was invalid when it was expected to be valid", "err", err)
-			*valid = false
-		}
-		if err := f(ctx, false); err == nil {
-			log.Error("Post-state was valid when it was expected to be invalid")
-			*valid = false
-		}
-	} else {
-		if err := f(ctx, true); err == nil {
-			log.Error("Pre-state was valid when it was expected to be invalid")
-			*valid = false
-		}
-		if err := f(ctx, false); err != nil {
-			log.Error("Post-state was invalid when it was expected to be valid", "err", err)
-			*valid = false
-		}
+	if err := f(ctx, forkActivated); err != nil {
+		log.Error("Block did not follow fork rules", "err", err)
+		*valid = false
+	}
+}
+
+// CheckInactivation takes a function f which determines in a specific block follows the rules of a fork.
+// It passes the oppose value of forkActivated & asserts that an error is returned.
+func CheckInactivation(f func(Args, bool) error, ctx Args, forkActivated bool, valid *bool) {
+	if err := f(ctx, !forkActivated); err == nil {
+		log.Error("Block followed the wrong side of the fork rules")
+		*valid = false
 	}
 }
 
@@ -266,9 +251,16 @@ func main() {
 	}
 
 	CheckActivation(ValidateReceipts, ctx, canyonActive, &valid)
+	CheckInactivation(ValidateReceipts, ctx, canyonActive, &valid)
+
 	CheckActivation(Validate1559Params, ctx, canyonActive, &valid)
+	// Don't check in-activation for 1559 b/c at low basefees the two cannot be differentiated
+
 	CheckActivation(ValidateWithdrawals, ctx, canyonActive, &valid)
+	CheckInactivation(ValidateWithdrawals, ctx, canyonActive, &valid)
+
 	CheckActivation(ValidateCreate2Deployer, ctx, canyonActive, &valid)
+	CheckInactivation(ValidateCreate2Deployer, ctx, canyonActive, &valid)
 
 	if !valid {
 		os.Exit(1)
