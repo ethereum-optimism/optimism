@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -73,6 +74,11 @@ func (l *AbiBasedRpc) BatchCallContext(ctx context.Context, b []rpc.BatchElem) e
 	return errors.Join(errs...)
 }
 
+func (l *AbiBasedRpc) VerifyTxCandidate(candidate txmgr.TxCandidate) {
+	require.EqualValues(l.t, &l.addr, candidate.To, "Incorrect To address")
+	l.findExpectedCall(candidate.TxData, batching.BlockLatest.ArgValue())
+}
+
 func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method string, args ...interface{}) error {
 	require.Equal(l.t, "eth_call", method)
 	require.Len(l.t, args, 2)
@@ -82,11 +88,27 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 	require.Equal(l.t, &l.addr, callOpts["to"])
 	data, ok := callOpts["input"].(hexutil.Bytes)
 	require.True(l.t, ok)
+
+	call, abiMethod := l.findExpectedCall(data, actualBlockRef)
+
+	output, err := abiMethod.Outputs.Pack(call.outputs...)
+	require.NoErrorf(l.t, err, "Invalid outputs for method %v: %v", abiMethod.Name, call.outputs)
+
+	// I admit I do not understand Go reflection.
+	// So leverage json.Unmarshal to set the out value correctly.
+	j, err := json.Marshal(hexutil.Bytes(output))
+	require.NoError(l.t, err)
+	require.NoError(l.t, json.Unmarshal(j, out))
+	return nil
+}
+
+func (l *AbiBasedRpc) findExpectedCall(data []byte, actualBlockRef interface{}) (*expectedCall, *abi.Method) {
+
 	abiMethod, err := l.abi.MethodById(data[0:4])
 	require.NoError(l.t, err)
 
 	argData := data[4:]
-	args, err = abiMethod.Inputs.Unpack(argData)
+	args, err := abiMethod.Inputs.Unpack(argData)
 	require.NoError(l.t, err)
 	require.Len(l.t, args, len(abiMethod.Inputs))
 
@@ -100,14 +122,5 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 		}
 	}
 	require.NotNilf(l.t, call, "No expected calls to %v at block %v with arguments: %v\nExpected calls: %v", abiMethod.Name, actualBlockRef, args, expectedCalls)
-
-	output, err := abiMethod.Outputs.Pack(call.outputs...)
-	require.NoErrorf(l.t, err, "Invalid outputs for method %v: %v", abiMethod.Name, call.outputs)
-
-	// I admit I do not understand Go reflection.
-	// So leverage json.Unmarshal to set the out value correctly.
-	j, err := json.Marshal(hexutil.Bytes(output))
-	require.NoError(l.t, err)
-	require.NoError(l.t, json.Unmarshal(j, out))
-	return nil
+	return call, abiMethod
 }

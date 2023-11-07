@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -19,6 +20,11 @@ const (
 	methodStatus           = "status"
 	methodClaimCount       = "claimDataLen"
 	methodClaim            = "claimData"
+	methodResolve          = "resolve"
+	methodResolveClaim     = "resolveClaim"
+	methodAttack           = "attack"
+	methodDefend           = "defend"
+	methodStep             = "step"
 )
 
 type FaultDisputeGameContract struct {
@@ -107,6 +113,57 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 		claims = append(claims, f.decodeClaim(result, idx))
 	}
 	return claims, nil
+}
+
+func (f *FaultDisputeGameContract) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodAttack, new(big.Int).SetUint64(parentContractIndex), pivot)
+	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodDefend, new(big.Int).SetUint64(parentContractIndex), pivot)
+	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(methodStep, new(big.Int).SetUint64(claimIdx), isAttack, stateData, proof)
+	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) CallResolveClaim(ctx context.Context, claimIdx uint64) error {
+	call := f.resolveClaimCall(claimIdx)
+	_, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return fmt.Errorf("failed to call resolve claim: %w", err)
+	}
+	return nil
+}
+
+func (f *FaultDisputeGameContract) ResolveClaimTx(claimIdx uint64) (txmgr.TxCandidate, error) {
+	call := f.resolveClaimCall(claimIdx)
+	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) resolveClaimCall(claimIdx uint64) *batching.ContractCall {
+	return f.contract.Call(methodResolveClaim, new(big.Int).SetUint64(claimIdx))
+}
+
+func (f *FaultDisputeGameContract) CallResolve(ctx context.Context) (gameTypes.GameStatus, error) {
+	call := f.resolveCall()
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, call)
+	if err != nil {
+		return gameTypes.GameStatusInProgress, fmt.Errorf("failed to call resolve: %w", err)
+	}
+	return gameTypes.GameStatusFromUint8(result.GetUint8(0))
+}
+
+func (f *FaultDisputeGameContract) ResolveTx() (txmgr.TxCandidate, error) {
+	call := f.resolveCall()
+	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
+	return f.contract.Call(methodResolve)
 }
 
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {

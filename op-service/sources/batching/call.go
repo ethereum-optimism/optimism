@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -84,6 +85,17 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
 	}
 	return arg
+}
+
+func (c *ContractCall) ToTxCandidate() (txmgr.TxCandidate, error) {
+	data, err := c.Pack()
+	if err != nil {
+		return txmgr.TxCandidate{}, fmt.Errorf("failed to pack arguments: %w", err)
+	}
+	return txmgr.TxCandidate{
+		TxData: data,
+		To:     &c.Addr,
+	}, nil
 }
 
 type CallResult struct {
