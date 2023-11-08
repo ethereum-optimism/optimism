@@ -29,6 +29,7 @@ name = "$INDEXER_DB_NAME"
 [http]
 host = "127.0.0.1"
 port = 8080
+timeout = 10
 
 [metrics]
 host = "127.0.0.1"

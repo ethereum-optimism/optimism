@@ -11,7 +11,11 @@
   - [Owner removal call flow](#owner-removal-call-flow)
   - [Shutdown](#shutdown)
   - [Security Properties](#security-properties)
+    - [In the guard](#in-the-guard)
+    - [In the module](#in-the-module)
   - [Interdependency between the guard and module](#interdependency-between-the-guard-and-module)
+- [Operational considerations](#operational-considerations)
+  - [Manual validation of new owner liveness](#manual-validation-of-new-owner-liveness)
   - [Deploying the liveness checking system](#deploying-the-liveness-checking-system)
   - [Modify the liveness checking system](#modify-the-liveness-checking-system)
     - [Replacing the module](#replacing-the-module)
@@ -45,7 +49,18 @@ For implementing liveness checks a `LivenessGuard` is created which receives the
 each executed transaction, and tracks the latest time at which a transaction was signed by each
 signer. This time is made publicly available by calling a `lastLive(address)(Timestamp)` method.
 
-Signers may also call the contract's `showLiveness()()` method directly in order to prove liveness.
+Owners are recorded in this mapping in one of 4 ways:
+
+1. Upon deployment, the guard reads the current set of owners from the Safe contract.
+1. When a new owner is added to the safe. Similarly, when an owner is removed from the Safe, it's
+   entry is deleted from the mapping.
+1. When a transaction is executed, the signatures on that transaction are passed to the guard and
+   used to identify the signers. If more than the required number of signatures is provided, they
+   are ignored.
+1. An owner may call the contract's `showLiveness()()` method directly in order to prove liveness.
+
+Note that the first two methods do not require the owner to actually sign anything. However these mechanisms
+are necessary to prevent new owners from being removed before they have had a chance to show liveness.
 
 ### The liveness module
 
@@ -85,25 +100,34 @@ sequenceDiagram
 
 ### Shutdown
 
-In the unlikely event that the signer set (`N`) is reduced below the allowed threshold, then (and only then) is a
-   shutdown mechanism activated which removes the existing signers, and hands control of the
-   multisig over to a predetermined entity.
+In the unlikely event that the signer set (`N`) is reduced below the allowed minimum number of
+   owners, then (and only then) is a shutdown mechanism activated which removes the existing
+   signers, and hands control of the multisig over to a predetermined entity.
 
 ### Security Properties
 
 The following security properties must be upheld:
 
+#### In the guard
+
 1. Signatures are assigned to the correct signer.
 1. Non-signers are unable to create a record of having signed.
-1. A signer cannot be censored or griefed such that their signing is not recorded.
-1. Signers may demonstrate liveness either by signing a transaction or by calling directly to the
+1. An owner cannot be censored or griefed such that their signing is not recorded.
+1. Owners may demonstrate liveness either by signing a transaction or by calling directly to the
    guard.
-1. The module only removes a signer if they have demonstrated liveness during the interval, or
-     if necessary to convert the safe to a 1 of 1.
-1. The module sets the correct 75% threshold upon removing a signer.
+1. It must be impossible for the guard's `checkTransaction` or `checkAfterExecution` method to
+   permanently revert given any calldata and the current state.
+1. The guard correctly handles updates to the owners list, such that new owners are recorded, and
+   removed owners are deleted.
+   1. An `ownersBefore` enumerable set variable is used to accomplish this, it must be emptied at
+      the end of the `checkAfterExecution` call.
+
+#### In the module
+
 1. During a shutdown the module correctly removes all signers, and converts the safe to a 1 of 1.
-1. It must be impossible for the guard's checkTransaction or checkAfterExecution to permanently
-   revert given any calldata and the current state.
+1. The module only removes an owner if they have not demonstrated liveness during the interval, or
+     if enough other owners have been removed to activate the shutdown mechanism.
+1. The module correctly sets the Safe's threshold upon removing a signer.
 
 Note: neither the module nor guard attempt to prevent a quorum of owners from removing either the liveness
 module or guard. There are legitimate reasons they might wish to do so. Moreover, if such a quorum
@@ -118,6 +142,14 @@ This means that the module can be removed or replaced without any affect on the 
 
 The module however does have a dependency on the guard; if the guard is removed from the Safe, then
 the module will no longer be functional and calls to its `removeOwners` function will revert.
+
+## Operational considerations
+
+### Manual validation of new owner liveness
+
+As [noted above](#the-liveness-guard) newly added owners are recorded in the guard without
+necessarily having signed a transaction. Off-chain validation of the liveness of an address must
+therefore be done prior to adding a new owner.
 
 ### Deploying the liveness checking system
 

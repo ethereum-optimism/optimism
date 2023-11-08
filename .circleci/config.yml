@@ -448,6 +448,7 @@ jobs:
   contracts-bedrock-validate-spaces:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -469,7 +470,7 @@ jobs:
   op-bindings-build:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - run:
@@ -480,7 +481,7 @@ jobs:
   boba-bindings-build:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - run:
@@ -892,7 +893,7 @@ jobs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
       - image: cimg/postgres:14.1
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
@@ -968,6 +969,7 @@ jobs:
   devnet-allocs:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
     steps:
       - checkout
       - restore_cache:
@@ -1554,6 +1556,13 @@ workflows:
             - op-stack-go-lint
             - devnet-allocs
             - l1-geth-version-check
+      - go-e2e-test:
+          name: op-e2e-span-batch-tests
+          module: op-e2e
+          target: test-span-batch
+          requires:
+            - op-stack-go-lint
+            - devnet-allocs
       - go-e2e-test:
           name: op-e2e-ext-erigon-tests
           module: op-e2e

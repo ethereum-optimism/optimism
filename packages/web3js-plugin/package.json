@@ -37,13 +37,13 @@
     "@vitest/coverage-istanbul": "^0.34.6",
     "tsup": "^7.2.0",
     "typescript": "^5.2.2",
-    "viem": "^1.18.0",
+    "viem": "^1.18.4",
     "vite": "^4.5.0",
     "vitest": "^0.34.1",
     "zod": "^3.22.4"
   },
   "dependencies": {
-    "@ethereumjs/rlp": "^5.0.0",
+    "@ethereumjs/rlp": "^5.0.1",
     "web3-eth": "^4.0.3",
     "web3-eth-accounts": "^4.0.3"
   },

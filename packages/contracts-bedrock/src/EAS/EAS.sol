@@ -16,7 +16,7 @@ import {
     NotFound,
     NO_EXPIRATION_TIME,
     uncheckedInc
-} from "./Common.sol";
+} from "src/EAS/Common.sol";
 
 import {
     Attestation,
@@ -31,9 +31,9 @@ import {
     MultiRevocationRequest,
     RevocationRequest,
     RevocationRequestData
-} from "./IEAS.sol";
+} from "src/EAS/IEAS.sol";
 
-import { ISchemaRegistry, SchemaRecord } from "./ISchemaRegistry.sol";
+import { ISchemaRegistry, SchemaRecord } from "src/EAS/ISchemaRegistry.sol";
 
 struct AttestationsResult {
     uint256 usedValue; // Total ETH amount that was sent to resolvers.

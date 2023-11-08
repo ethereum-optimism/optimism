@@ -23,19 +23,20 @@ import (
 )
 
 type fakeAttributesQueue struct {
-	origin eth.L1BlockRef
-	attrs  *eth.PayloadAttributes
+	origin       eth.L1BlockRef
+	attrs        *eth.PayloadAttributes
+	islastInSpan bool
 }
 
 func (f *fakeAttributesQueue) Origin() eth.L1BlockRef {
 	return f.origin
 }
 
-func (f *fakeAttributesQueue) NextAttributes(_ context.Context, _ eth.L2BlockRef) (*eth.PayloadAttributes, error) {
+func (f *fakeAttributesQueue) NextAttributes(_ context.Context, safeHead eth.L2BlockRef) (*AttributesWithParent, error) {
 	if f.attrs == nil {
 		return nil, io.EOF
 	}
-	return f.attrs, nil
+	return &AttributesWithParent{f.attrs, safeHead, f.islastInSpan}, nil
 }
 
 var _ NextAttributesProvider = (*fakeAttributesQueue)(nil)
@@ -909,7 +910,7 @@ func TestBlockBuildingRace(t *testing.T) {
 		GasLimit:              &gasLimit,
 	}
 
-	prev := &fakeAttributesQueue{origin: refA, attrs: attrs}
+	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F, &sync.Config{})
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
@@ -1078,7 +1079,7 @@ func TestResetLoop(t *testing.T) {
 	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
 	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
 
-	prev := &fakeAttributesQueue{origin: refA, attrs: attrs}
+	prev := &fakeAttributesQueue{origin: refA, attrs: attrs, islastInSpan: true}
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F, &sync.Config{})
 	eq.unsafeHead = refA2

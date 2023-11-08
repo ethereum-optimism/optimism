@@ -106,12 +106,12 @@ func (co *SpanChannelOut) AddSingularBatch(batch *SingularBatch, seqNum uint64) 
 		return 0, fmt.Errorf("failed to convert SpanBatch into RawSpanBatch: %w", err)
 	}
 	// Encode RawSpanBatch into bytes
-	if err = rlp.Encode(&buf, NewSpanBatchData(*rawSpanBatch)); err != nil {
+	if err = rlp.Encode(&buf, NewBatchData(rawSpanBatch)); err != nil {
 		return 0, fmt.Errorf("failed to encode RawSpanBatch into bytes: %w", err)
 	}
 	// Ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	if buf.Len() > MaxRLPBytesPerChannel {
-		return 0, fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
+		return 0, fmt.Errorf("could not take %d bytes as replacement of channel of %d bytes, max is %d. err: %w",
 			buf.Len(), co.rlpLength, MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 	co.rlpLength = buf.Len()

@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../../universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { ERC721BurnableUpgradeable } from
     "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
-import { AttestationStation } from "./AttestationStation.sol";
-import { OptimistAllowlist } from "./OptimistAllowlist.sol";
+import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol";
+import { OptimistAllowlist } from "src/periphery/op-nft/OptimistAllowlist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @author Optimism Collective
 /// @author Gitcoin
 /// @title  Optimist
 /// @notice A Soul Bound Token for real humans only(tm).
-contract Optimist is ERC721BurnableUpgradeable, Semver {
+contract Optimist is ERC721BurnableUpgradeable, ISemver {
     /// @notice Attestation key used by the attestor to attest the baseURI.
     bytes32 public constant BASE_URI_ATTESTATION_KEY = bytes32("optimist.base-uri");
 
@@ -25,7 +25,10 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     /// @notice Address of the OptimistAllowlist contract.
     OptimistAllowlist public immutable OPTIMIST_ALLOWLIST;
 
-    /// @custom:semver 2.0.2
+    /// @notice Semantic version.
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
+
     /// @param _name               Token name.
     /// @param _symbol             Token symbol.
     /// @param _baseURIAttestor    Address of the baseURI attestor.
@@ -37,9 +40,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         address _baseURIAttestor,
         AttestationStation _attestationStation,
         OptimistAllowlist _optimistAllowlist
-    )
-        Semver(2, 0, 2)
-    {
+    ) {
         BASE_URI_ATTESTOR = _baseURIAttestor;
         ATTESTATION_STATION = _attestationStation;
         OPTIMIST_ALLOWLIST = _optimistAllowlist;

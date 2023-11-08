@@ -37,7 +37,7 @@ golang-docker:
 	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
 	GIT_COMMIT=$$(git rev-parse HEAD) \
 	GIT_DATE=$$(git show -s --format='%ct') \
-	IMAGE_TAGS=$$GIT_COMMIT,latest \
+	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
 	docker buildx bake \
 			--progress plain \
 			--load \
@@ -211,4 +211,3 @@ install-geth:
  			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell cat .gethrc); \
  			echo "Installed geth!"; true)
 .PHONY: install-geth
-

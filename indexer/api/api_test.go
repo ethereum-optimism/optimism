@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,11 +25,12 @@ var mockAddress = "0x4204204204204204204204204204204204204204"
 
 var apiConfig = config.ServerConfig{
 	Host: "localhost",
-	Port: 8080,
+	Port: 0, // random port, to allow parallel tests
 }
+
 var metricsConfig = config.ServerConfig{
 	Host: "localhost",
-	Port: 7300,
+	Port: 0, // random port, to allow parallel tests
 }
 
 var (
@@ -95,8 +97,14 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.
 }
 func TestHealthz(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)
-	request, err := http.NewRequest("GET", "/healthz", nil)
+	cfg := &Config{
+		DB:            &TestDBConnector{BridgeTransfers: &MockBridgeTransfersView{}},
+		HTTPServer:    apiConfig,
+		MetricsServer: metricsConfig,
+	}
+	api, err := NewApi(context.Background(), logger, cfg)
+	require.NoError(t, err)
+	request, err := http.NewRequest("GET", "http://"+api.Addr()+"/healthz", nil)
 	assert.Nil(t, err)
 
 	responseRecorder := httptest.NewRecorder()
@@ -107,8 +115,14 @@ func TestHealthz(t *testing.T) {
 
 func TestL1BridgeDepositsHandler(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)
-	request, err := http.NewRequest("GET", fmt.Sprintf("/api/v0/deposits/%s", mockAddress), nil)
+	cfg := &Config{
+		DB:            &TestDBConnector{BridgeTransfers: &MockBridgeTransfersView{}},
+		HTTPServer:    apiConfig,
+		MetricsServer: metricsConfig,
+	}
+	api, err := NewApi(context.Background(), logger, cfg)
+	require.NoError(t, err)
+	request, err := http.NewRequest("GET", fmt.Sprintf("http://"+api.Addr()+"/api/v0/deposits/%s", mockAddress), nil)
 	assert.Nil(t, err)
 
 	responseRecorder := httptest.NewRecorder()
@@ -130,8 +144,14 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 
 func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(logger, &MockBridgeTransfersView{}, apiConfig, metricsConfig)
-	request, err := http.NewRequest("GET", fmt.Sprintf("/api/v0/withdrawals/%s", mockAddress), nil)
+	cfg := &Config{
+		DB:            &TestDBConnector{BridgeTransfers: &MockBridgeTransfersView{}},
+		HTTPServer:    apiConfig,
+		MetricsServer: metricsConfig,
+	}
+	api, err := NewApi(context.Background(), logger, cfg)
+	require.NoError(t, err)
+	request, err := http.NewRequest("GET", fmt.Sprintf("http://"+api.Addr()+"/api/v0/withdrawals/%s", mockAddress), nil)
 	assert.Nil(t, err)
 
 	responseRecorder := httptest.NewRecorder()
@@ -149,8 +169,8 @@ func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	assert.Equal(t, resp.Items[0].To, withdrawal.Tx.ToAddress.String())
 	assert.Equal(t, resp.Items[0].TransactionHash, common.HexToHash("0x789").String())
 	assert.Equal(t, resp.Items[0].Amount, withdrawal.Tx.Amount.String())
-	assert.Equal(t, resp.Items[0].ProofTransactionHash, common.HexToHash("0x123").String())
-	assert.Equal(t, resp.Items[0].ClaimTransactionHash, common.HexToHash("0x123").String())
+	assert.Equal(t, resp.Items[0].L1ProvenTxHash, common.HexToHash("0x123").String())
+	assert.Equal(t, resp.Items[0].L1FinalizedTxHash, common.HexToHash("0x123").String())
 	assert.Equal(t, resp.Items[0].L1TokenAddress, withdrawal.TokenPair.RemoteTokenAddress.String())
 	assert.Equal(t, resp.Items[0].L2TokenAddress, withdrawal.TokenPair.LocalTokenAddress.String())
 	assert.Equal(t, resp.Items[0].Timestamp, withdrawal.Tx.Timestamp)

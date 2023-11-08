@@ -759,7 +759,7 @@ func TestFramePublished(t *testing.T) {
 }
 
 func ChannelBuilder_PendingFrames_TotalFrames(t *testing.T, batchType uint) {
-	const tnf = 8
+	const tnf = 9
 	rng := rand.New(rand.NewSource(94572314))
 	require := require.New(t)
 	cfg := defaultTestChannelConfig
@@ -828,7 +828,7 @@ func ChannelBuilder_InputBytes(t *testing.T, batchType uint) {
 			spanBatchBuilder.AppendSingularBatch(singularBatch, l1Info.SequenceNumber)
 			rawSpanBatch, err := spanBatchBuilder.GetRawSpanBatch()
 			require.NoError(err)
-			batch := derive.NewSpanBatchData(*rawSpanBatch)
+			batch := derive.NewBatchData(rawSpanBatch)
 			var buf bytes.Buffer
 			require.NoError(batch.EncodeRLP(&buf))
 			l = buf.Len()
@@ -878,7 +878,7 @@ func ChannelBuilder_OutputBytes(t *testing.T, batchType uint) {
 func blockBatchRlpSize(t *testing.T, b *types.Block) int {
 	t.Helper()
 	singularBatch, _, err := derive.BlockToSingularBatch(b)
-	batch := derive.NewSingularBatchData(*singularBatch)
+	batch := derive.NewBatchData(singularBatch)
 	require.NoError(t, err)
 	var buf bytes.Buffer
 	require.NoError(t, batch.EncodeRLP(&buf), "RLP-encoding batch")

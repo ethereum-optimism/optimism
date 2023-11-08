@@ -134,10 +134,11 @@ type DBConfig struct {
 	Password string `toml:"password"`
 }
 
-// Configures the a server
+// Configures the server
 type ServerConfig struct {
-	Host string `toml:"host"`
-	Port int    `toml:"port"`
+	Host         string `toml:"host"`
+	Port         int    `toml:"port"`
+	WriteTimeout int    `toml:"timeout"`
 }
 
 // LoadConfig loads the `indexer.toml` config file from a given path

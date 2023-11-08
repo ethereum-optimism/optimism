@@ -124,7 +124,7 @@ type stubClaimLoader struct {
 	claims    []types.Claim
 }
 
-func (s *stubClaimLoader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
+func (s *stubClaimLoader) GetAllClaims(ctx context.Context) ([]types.Claim, error) {
 	s.callCount++
 	return s.claims, nil
 }

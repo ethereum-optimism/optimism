@@ -79,7 +79,7 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 			return err
 		}
 	}
-	return d.ValidateClaim(eth.Bytes32(l2Claim))
+	return d.ValidateClaim(l2ClaimBlockNum, eth.Bytes32(l2Claim))
 }
 
 func CreateHinterChannel() oppio.FileChannel {
