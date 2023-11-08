@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -177,7 +178,10 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	rollupClient, err := dial.DialRollupClientWithTimeout(context.Background(), dial.DefaultDialTimeout, l, cfg.RollupRpc)
+	rpcTimeoutCfg := client.BaseRPCTimeout{
+		RPCTimeout: cfg.TxMgrConfig.NetworkTimeout,
+	}
+	rollupClient, err := dial.DialRollupClientWithTimeout(context.Background(), dial.DefaultDialTimeout, l, cfg.RollupRpc, rpcTimeoutCfg)
 	if err != nil {
 		return nil, err
 	}
