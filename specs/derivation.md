@@ -946,7 +946,7 @@ follows:
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 - `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
-- 'withdrawals' is set to nil prior to Canyon and an empty array after Canyon
+- `withdrawals` is set to nil prior to Canyon and an empty array after Canyon
 
 [extended-attributes]: exec-engine.md#extended-payloadattributesv1
 [Fee Vaults]: exec-engine.md#fee-vaults
