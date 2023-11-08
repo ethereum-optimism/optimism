@@ -139,6 +139,24 @@ func TestCallResult_GetValues(t *testing.T) {
 			},
 			expected: big.NewInt(2398423),
 		},
+		{
+			name: "GetStruct",
+			getter: func(result *CallResult, i int) interface{} {
+				out := struct {
+					a *big.Int
+					b common.Hash
+				}{}
+				result.GetStruct(i, &out)
+				return out
+			},
+			expected: struct {
+				a *big.Int
+				b common.Hash
+			}{
+				a: big.NewInt(6),
+				b: common.Hash{0xee},
+			},
+		},
 	}
 
 	for _, test := range tests {
