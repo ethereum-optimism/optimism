@@ -29,12 +29,17 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
 
         assertEq(l2OutputOracle.PROPOSER(), proposer);
+        assertEq(l2OutputOracle.proposer(), proposer);
         assertEq(l2OutputOracle.CHALLENGER(), challenger);
+        assertEq(l2OutputOracle.challenger(), challenger);
         assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
         assertEq(l2OutputOracle.latestBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
         assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
+        assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
@@ -323,6 +328,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         Types.OutputProposal memory newLatestOutput = l2OutputOracle.getL2Output(latestOutputIndex - 1);
 
         vm.prank(l2OutputOracle.CHALLENGER());
+        vm.prank(l2OutputOracle.challenger());
         vm.expectEmit(true, true, false, false);
         emit OutputsDeleted(latestOutputIndex + 1, latestOutputIndex);
         l2OutputOracle.deleteL2Outputs(latestOutputIndex);
@@ -351,6 +357,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         Types.OutputProposal memory newLatestOutput = l2OutputOracle.getL2Output(latestOutputIndex - 3);
 
         vm.prank(l2OutputOracle.CHALLENGER());
+        vm.prank(l2OutputOracle.challenger());
         vm.expectEmit(true, true, false, false);
         emit OutputsDeleted(latestOutputIndex + 1, latestOutputIndex - 2);
         l2OutputOracle.deleteL2Outputs(latestOutputIndex - 2);
@@ -382,6 +389,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         uint256 latestBlockNumber = l2OutputOracle.latestBlockNumber();
 
         vm.prank(l2OutputOracle.CHALLENGER());
+        vm.prank(l2OutputOracle.challenger());
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         l2OutputOracle.deleteL2Outputs(latestBlockNumber + 1);
     }
@@ -396,10 +404,12 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
         // Delete the latest two outputs
         uint256 latestOutputIndex = l2OutputOracle.latestOutputIndex();
         vm.prank(l2OutputOracle.CHALLENGER());
+        vm.prank(l2OutputOracle.challenger());
         l2OutputOracle.deleteL2Outputs(latestOutputIndex - 2);
 
         // Now try to delete the same output again
         vm.prank(l2OutputOracle.CHALLENGER());
+        vm.prank(l2OutputOracle.challenger());
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         l2OutputOracle.deleteL2Outputs(latestOutputIndex - 2);
     }
@@ -415,6 +425,7 @@ contract L2OutputOracle_deleteOutputs_Test is CommonTest {
 
         // Try to delete a finalized output
         vm.prank(l2OutputOracle.CHALLENGER());
+        vm.prank(l2OutputOracle.challenger());
         vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
         l2OutputOracle.deleteL2Outputs(latestOutputIndex);
     }
@@ -432,12 +443,17 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
 
         assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
         assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
         assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
         assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
+        assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(l2OutputOracle.PROPOSER(), proposer);
+        assertEq(l2OutputOracle.proposer(), proposer);
         assertEq(l2OutputOracle.CHALLENGER(), challenger);
         assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
+        assertEq(l2OutputOracle.challenger(), challenger);
     }
 
     /// @dev Tests that the impl is created with the correct values.
@@ -449,8 +465,10 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 submissionInterval = cfg.l2OutputOracleSubmissionInterval();
         uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = cfg.l2OutputOracleStartingTimestamp();
+        assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
         uint256 l2BlockTime = cfg.l2BlockTime();
         uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
+        assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
 
         // The values that are set in the initialize function should be all
         // zero values in the implementation contract.
@@ -461,6 +479,12 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
         assertEq(oracleImpl.PROPOSER(), proposer);
         assertEq(oracleImpl.CHALLENGER(), challenger);
+        assertEq(oracleImpl.startingBlockNumber(), 0);
+        assertEq(oracleImpl.startingTimestamp(), 0);
+        assertEq(oracleImpl.PROPOSER(), address(0));
+        assertEq(oracleImpl.proposer(), address(0));
+        assertEq(oracleImpl.CHALLENGER(), address(0));
+        assertEq(oracleImpl.challenger(), address(0));
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.

@@ -45,12 +45,21 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
 
     /// @dev Tests that initailization sets the correct values.
     function test_initialize_values_succeeds() external {
+        assertEq(systemConfig.l1CrossDomainMessenger(), address(l1CrossDomainMessenger));
+        assertEq(systemConfig.l1ERC721Bridge(), address(l1ERC721Bridge));
+        assertEq(systemConfig.l1StandardBridge(), address(l1StandardBridge));
+        assertEq(systemConfig.l2OutputOracle(), address(l2OutputOracle));
+        assertEq(systemConfig.optimismPortal(), address(optimismPortal));
+        assertEq(systemConfig.optimismMintableERC20Factory(), optimismMintableERC20Factory);
+        assertEq(systemConfig.batchInbox(), batchInbox);
         assertEq(systemConfig.owner(), owner);
         assertEq(systemConfig.overhead(), overhead);
         assertEq(systemConfig.scalar(), scalar);
         assertEq(systemConfig.batcherHash(), batcherHash);
         assertEq(systemConfig.gasLimit(), gasLimit);
         assertEq(systemConfig.unsafeBlockSigner(), unsafeBlockSigner);
+        // Depends on start block being set to 0 in `initialize`
+        assertEq(systemConfig.startBlock(), block.number);
         // Depends on `initialize` being called with defaults
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory actual = systemConfig.resourceConfig();

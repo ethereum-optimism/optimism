@@ -36,7 +36,9 @@ contract OptimismPortal_Test is CommonTest {
     function test_constructor_succeeds() external {
         address guardian = cfg.portalGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
+        assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
         assertEq(optimismPortal.GUARDIAN(), guardian);
+        assertEq(optimismPortal.guardian(), guardian);
         assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(optimismPortal.paused(), false);
     }
