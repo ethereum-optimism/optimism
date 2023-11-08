@@ -17,6 +17,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/Types.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
     /// @notice Asserts the correctness of an L1 deployment
@@ -125,9 +126,18 @@ library ChainAssertions {
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal(Types.ContractSet memory proxies, DeployConfig cfg) internal view {
         OptimismPortal portal = OptimismPortal(payable(proxies.OptimismPortal));
+
+        address guardian = cfg.portalGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Portal guardian has no code: %s", guardian);
+        }
+
         require(address(portal.L2_ORACLE()) == proxies.L2OutputOracle);
+        require(address(portal.l2Oracle()) == proxies.L2OutputOracle);
         require(portal.GUARDIAN() == cfg.portalGuardian());
+        require(portal.guardian() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == proxies.SystemConfig);
+        require(address(portal.systemConfig()) == proxies.SystemConfig);
         require(portal.paused() == false);
     }
 

@@ -389,24 +389,27 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
-
         address guardian = cfg.portalGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
         }
 
+        L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
+        SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
+
         OptimismPortal portal = new OptimismPortal{ salt: implSalt() }({
-            _l2Oracle: L2OutputOracle(l2OutputOracleProxy),
+            _l2Oracle: l2OutputOracle,
             _guardian: guardian,
             _paused: true,
-            _config: SystemConfig(systemConfigProxy)
+            _config: systemConfig
         });
 
-        require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
+        require(address(portal.L2_ORACLE()) == address(l2OutputOracle));
+        require(address(portal.l2Oracle()) == address(l2OutputOracle));
         require(portal.GUARDIAN() == guardian);
-        require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
+        require(portal.guardian() == guardian);
+        require(address(portal.SYSTEM_CONFIG()) == address(systemConfig));
+        require(address(portal.systemConfig()) == address(systemConfig));
         require(portal.paused() == true);
 
         save("OptimismPortal", address(portal));
@@ -420,20 +423,25 @@ contract Deploy is Deployer {
         L2OutputOracle oracle = new L2OutputOracle{ salt: implSalt() }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
-            _startingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
-            _startingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
+            _startingBlockNumber: 0,
+            _startingTimestamp: 0,
             _proposer: cfg.l2OutputOracleProposer(),
             _challenger: cfg.l2OutputOracleChallenger(),
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
         });
 
         require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
+        require(oracle.l2BlockTime() == cfg.l2BlockTime());
         require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
+        require(oracle.proposer() == cfg.l2OutputOracleProposer());
         require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
+        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
-        require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
-        require(oracle.startingTimestamp() == cfg.l2OutputOracleStartingTimestamp());
+        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
+        require(oracle.startingBlockNumber() == 0);
+        require(oracle.startingTimestamp() == 0);
 
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
@@ -503,32 +511,32 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-
+        ResourceMetering.ResourceConfig memory defaultConfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        uint64 minimumGasLimit = uint64(defaultConfig.maxResourceLimit) + uint64(defaultConfig.systemTxMaxGas);
         SystemConfig config = new SystemConfig({
-            _owner: cfg.finalSystemOwner(),
-            _overhead: cfg.gasPriceOracleOverhead(),
-            _scalar: cfg.gasPriceOracleScalar(),
-            _batcherHash: batcherHash,
-            _gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
-            _unsafeBlockSigner: cfg.p2pSequencerAddress(),
-            _config: Constants.DEFAULT_RESOURCE_CONFIG()
+            _owner: address(0xdEaD),
+            _overhead: 0,
+            _scalar: 0,
+            _batcherHash: bytes32(0),
+            _gasLimit: minimumGasLimit,
+            _unsafeBlockSigner: address(0),
+            _config: defaultConfig
         });
 
-        require(config.owner() == cfg.finalSystemOwner());
-        require(config.overhead() == cfg.gasPriceOracleOverhead());
-        require(config.scalar() == cfg.gasPriceOracleScalar());
-        require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
-        require(config.batcherHash() == batcherHash);
+        require(config.owner() == address(0xdEaD));
+        require(config.overhead() == 0);
+        require(config.scalar() == 0);
+        require(config.unsafeBlockSigner() == address(0));
+        require(config.batcherHash() == bytes32(0));
+        require(config.gasLimit() == minimumGasLimit);
 
-        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
-        require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
-        require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
-        require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
-        require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
-        require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
+        require(resourceConfig.maxResourceLimit == defaultConfig.maxResourceLimit);
+        require(resourceConfig.elasticityMultiplier == defaultConfig.elasticityMultiplier);
+        require(resourceConfig.baseFeeMaxChangeDenominator == defaultConfig.baseFeeMaxChangeDenominator);
+        require(resourceConfig.systemTxMaxGas == defaultConfig.systemTxMaxGas);
+        require(resourceConfig.minimumBaseFee == defaultConfig.minimumBaseFee);
+        require(resourceConfig.maximumBaseFee == defaultConfig.maximumBaseFee);
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
@@ -795,11 +803,6 @@ contract Deploy is Deployer {
         address optimismPortal = mustGetAddress("OptimismPortal");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
-
-        address guardian = cfg.portalGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
-        }
 
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),

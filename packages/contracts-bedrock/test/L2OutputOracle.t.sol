@@ -460,31 +460,19 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
     function test_initValuesOnImpl_succeeds() external {
         L2OutputOracle oracleImpl = L2OutputOracle(mustGetAddress("L2OutputOracle"));
 
-        address proposer = cfg.l2OutputOracleProposer();
-        address challenger = cfg.l2OutputOracleChallenger();
-        uint256 submissionInterval = cfg.l2OutputOracleSubmissionInterval();
-        uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
-        uint256 startingTimestamp = cfg.l2OutputOracleStartingTimestamp();
-        assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-        uint256 l2BlockTime = cfg.l2BlockTime();
-        uint256 finalizationPeriodSeconds = cfg.finalizationPeriodSeconds();
-        assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
+        assertEq(oracleImpl.SUBMISSION_INTERVAL(), cfg.l2OutputOracleSubmissionInterval());
+        assertEq(oracleImpl.submissionInterval(), cfg.l2OutputOracleSubmissionInterval());
+        assertEq(oracleImpl.L2_BLOCK_TIME(), cfg.l2BlockTime());
+        assertEq(oracleImpl.l2BlockTime(), cfg.l2BlockTime());
+        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), cfg.finalizationPeriodSeconds());
+        assertEq(oracleImpl.finalizationPeriodSeconds(), cfg.finalizationPeriodSeconds());
+        assertEq(oracleImpl.PROPOSER(), cfg.l2OutputOracleProposer());
+        assertEq(oracleImpl.proposer(), cfg.l2OutputOracleProposer());
+        assertEq(oracleImpl.CHALLENGER(), cfg.l2OutputOracleChallenger());
+        assertEq(oracleImpl.challenger(), cfg.l2OutputOracleChallenger());
 
-        // The values that are set in the initialize function should be all
-        // zero values in the implementation contract.
-        assertEq(oracleImpl.startingBlockNumber(), startingBlockNumber);
-        assertEq(oracleImpl.startingTimestamp(), startingTimestamp);
-        assertEq(oracleImpl.SUBMISSION_INTERVAL(), submissionInterval);
-        assertEq(oracleImpl.L2_BLOCK_TIME(), l2BlockTime);
-        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
-        assertEq(oracleImpl.PROPOSER(), proposer);
-        assertEq(oracleImpl.CHALLENGER(), challenger);
         assertEq(oracleImpl.startingBlockNumber(), 0);
         assertEq(oracleImpl.startingTimestamp(), 0);
-        assertEq(oracleImpl.PROPOSER(), address(0));
-        assertEq(oracleImpl.proposer(), address(0));
-        assertEq(oracleImpl.CHALLENGER(), address(0));
-        assertEq(oracleImpl.challenger(), address(0));
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
