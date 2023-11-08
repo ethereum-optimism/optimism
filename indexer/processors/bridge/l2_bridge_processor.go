@@ -72,11 +72,9 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		// extract the withdrawal hash from the previous MessagePassed event
 		messagePassed, ok := messagesPassed[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected MessagePassedEvent preceding SentMessage", "tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("expected MessagePassedEvent preceding SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("expected MessagePassedEvent preceding SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
 		} else if messagePassed.Event.TransactionHash != sentMessage.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "withdraw_tx_hash", messagePassed.Event.TransactionHash.String(), "message_tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. message_tx_hash = %s, withdraw_tx_hash = %s", sentMessage.Event.TransactionHash, messagePassed.Event.TransactionHash)
 		}
 
 		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -105,20 +103,16 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		// extract the cross domain message hash & withdraw hash from the following events
 		messagePassed, ok := messagesPassed[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
 		if !ok {
-			log.Error("expected MessagePassed following BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected MessagePassed following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected MessagePassed following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		} else if messagePassed.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "withdraw_tx_hash", messagePassed.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. bridge_tx_hash = %s, withdraw_tx_hash = %s", initiatedBridge.Event.TransactionHash, messagePassed.Event.TransactionHash)
 		}
 
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
 		if !ok {
-			log.Error("expected SentMessage following BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected SentMessage following BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. bridge_tx_hash = %s, message_tx_hash = %s", initiatedBridge.Event.TransactionHash, sentMessage.Event.TransactionHash)
 		}
 
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
@@ -164,13 +158,11 @@ func L2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L2M
 		if err != nil {
 			return err
 		} else if message == nil {
-			log.Error("missing indexed L1CrossDomainMessenger message", "tx_hash", relayed.Event.TransactionHash.String())
-			return fmt.Errorf("missing indexed L1CrossDomainMessager message. tx_hash = %s", relayed.Event.TransactionHash.String())
+			return fmt.Errorf("missing indexed L1CrossDomainMessager message! tx_hash = %s", relayed.Event.TransactionHash)
 		}
 
 		if err := db.BridgeMessages.MarkRelayedL1BridgeMessage(relayed.MessageHash, relayed.Event.GUID); err != nil {
-			log.Error("failed to relay cross domain message", "err", err, "tx_hash", relayed.Event.TransactionHash.String())
-			return err
+			return fmt.Errorf("failed to relay cross domain message. tx_hash = %s: %w", relayed.Event.TransactionHash, err)
 		}
 	}
 	if len(crossDomainRelayedMessages) > 0 {
