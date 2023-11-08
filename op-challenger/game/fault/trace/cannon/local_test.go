@@ -5,9 +5,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
@@ -15,15 +14,14 @@ import (
 
 func TestFetchLocalInputs(t *testing.T) {
 	ctx := context.Background()
-	gameAddr := common.Address{0xab}
-	l1Client := &mockGameInputsSource{
+	contract := &mockGameInputsSource{
 		l1Head: common.Hash{0xcc},
-		starting: bindings.IFaultDisputeGameOutputProposal{
+		starting: contracts.Proposal{
 			Index:         big.NewInt(6),
 			L2BlockNumber: big.NewInt(2222),
 			OutputRoot:    common.Hash{0xdd},
 		},
-		disputed: bindings.IFaultDisputeGameOutputProposal{
+		disputed: contracts.Proposal{
 			Index:         big.NewInt(7),
 			L2BlockNumber: big.NewInt(3333),
 			OutputRoot:    common.Hash{0xee},
@@ -32,41 +30,32 @@ func TestFetchLocalInputs(t *testing.T) {
 	l2Client := &mockL2DataSource{
 		chainID: big.NewInt(88422),
 		header: ethtypes.Header{
-			Number: l1Client.starting.L2BlockNumber,
+			Number: contract.starting.L2BlockNumber,
 		},
 	}
 
-	inputs, err := fetchLocalInputs(ctx, gameAddr, l1Client, l2Client)
+	inputs, err := fetchLocalInputs(ctx, contract, l2Client)
 	require.NoError(t, err)
 
-	require.Equal(t, l1Client.l1Head, inputs.L1Head)
+	require.Equal(t, contract.l1Head, inputs.L1Head)
 	require.Equal(t, l2Client.header.Hash(), inputs.L2Head)
-	require.EqualValues(t, l1Client.starting.OutputRoot, inputs.L2OutputRoot)
-	require.EqualValues(t, l1Client.disputed.OutputRoot, inputs.L2Claim)
-	require.Equal(t, l1Client.disputed.L2BlockNumber, inputs.L2BlockNumber)
+	require.EqualValues(t, contract.starting.OutputRoot, inputs.L2OutputRoot)
+	require.EqualValues(t, contract.disputed.OutputRoot, inputs.L2Claim)
+	require.Equal(t, contract.disputed.L2BlockNumber, inputs.L2BlockNumber)
 }
 
 type mockGameInputsSource struct {
 	l1Head   common.Hash
-	starting bindings.IFaultDisputeGameOutputProposal
-	disputed bindings.IFaultDisputeGameOutputProposal
+	starting contracts.Proposal
+	disputed contracts.Proposal
 }
 
-func (s *mockGameInputsSource) L1Head(opts *bind.CallOpts) ([32]byte, error) {
+func (s *mockGameInputsSource) GetL1Head(_ context.Context) (common.Hash, error) {
 	return s.l1Head, nil
 }
 
-func (s *mockGameInputsSource) Proposals(opts *bind.CallOpts) (struct {
-	Starting bindings.IFaultDisputeGameOutputProposal
-	Disputed bindings.IFaultDisputeGameOutputProposal
-}, error) {
-	return struct {
-		Starting bindings.IFaultDisputeGameOutputProposal
-		Disputed bindings.IFaultDisputeGameOutputProposal
-	}{
-		Starting: s.starting,
-		Disputed: s.disputed,
-	}, nil
+func (s *mockGameInputsSource) GetProposals(_ context.Context) (contracts.Proposal, contracts.Proposal, error) {
+	return s.starting, s.disputed, nil
 }
 
 type mockL2DataSource struct {

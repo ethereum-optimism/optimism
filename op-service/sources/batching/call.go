@@ -117,3 +117,7 @@ func (c *CallResult) GetAddress(i int) common.Address {
 func (c *CallResult) GetBigInt(i int) *big.Int {
 	return *abi.ConvertType(c.out[i], new(*big.Int)).(**big.Int)
 }
+
+func (c *CallResult) GetStruct(i int, target interface{}) {
+	abi.ConvertType(c.out[i], target)
+}

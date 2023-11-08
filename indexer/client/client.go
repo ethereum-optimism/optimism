@@ -23,6 +23,7 @@ const (
 	healthz     = "get_health"
 	deposits    = "get_deposits"
 	withdrawals = "get_withdrawals"
+	sum         = "get_sum"
 )
 
 // Option ... Provides configuration through callback injection
@@ -162,6 +163,25 @@ func (c *Client) GetAllDepositsByAddress(l1Address common.Address) ([]models.Dep
 
 	return deposits, nil
 
+}
+
+// GetSupplyAssessment ... Returns an assessment of the current supply
+// on both L1 and L2. This includes the individual sums of
+// (L1/L2) deposits and withdrawals
+func (c *Client) GetSupplyAssessment() (*models.BridgeSupplyView, error) {
+	url := c.cfg.BaseURL + api.SupplyPath
+
+	resp, err := c.doRecordRequest(sum, url)
+	if err != nil {
+		return nil, err
+	}
+
+	var bsv *models.BridgeSupplyView
+	if err := json.Unmarshal(resp, &bsv); err != nil {
+		return nil, err
+	}
+
+	return bsv, nil
 }
 
 // GetAllWithdrawalsByAddress ... Gets all withdrawals provided a L2 address
