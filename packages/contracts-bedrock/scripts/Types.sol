@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 library Types {
     /// @notice Represents a set of L1 contracts. Used to represent a set of proxies.

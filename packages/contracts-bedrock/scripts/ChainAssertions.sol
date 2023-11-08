@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
@@ -19,31 +19,6 @@ import { Vm } from "forge-std/Vm.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 
 library ChainAssertions {
-    /// @notice Asserts the correctness of an L1 deployment
-    function postDeployAssertions(
-        address systemConfig,
-        address protocolVersions,
-        DeployConfig cfg,
-        uint256 l2OutputOracleStartingTimestamp,
-        Vm vm
-    )
-        internal
-        view
-    {
-        SystemConfig sys = SystemConfig(systemConfig);
-        Types.ContractSet memory proxies = Types.ContractSet({
-            L1CrossDomainMessenger: sys.l1CrossDomainMessenger(),
-            L1StandardBridge: sys.l1StandardBridge(),
-            L2OutputOracle: sys.l2OutputOracle(),
-            OptimismMintableERC20Factory: sys.optimismMintableERC20Factory(),
-            OptimismPortal: sys.optimismPortal(),
-            SystemConfig: address(sys),
-            L1ERC721Bridge: sys.l1ERC721Bridge(),
-            ProtocolVersions: protocolVersions
-        });
-        postDeployAssertions(proxies, cfg, l2OutputOracleStartingTimestamp, vm);
-    }
-
     /// @notice Asserts the correctness of an L1 deployment
     function postDeployAssertions(
         Types.ContractSet memory prox,
@@ -70,28 +45,7 @@ library ChainAssertions {
 
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory proxies, DeployConfig cfg) internal view {
-        checkSystemConfigV0(proxies.SystemConfig, cfg);
-
-        // Then check the non-legacy fields
-        SystemConfig config = SystemConfig(proxies.SystemConfig);
-        require(config.l1ERC721Bridge() == proxies.L1ERC721Bridge);
-        require(config.l1StandardBridge() == proxies.L1StandardBridge);
-        require(config.l2OutputOracle() == proxies.L2OutputOracle);
-        require(config.optimismPortal() == proxies.OptimismPortal);
-        require(config.l1CrossDomainMessenger() == proxies.L1CrossDomainMessenger);
-
-        // A non zero start block is an override
-        uint256 startBlock = cfg.systemConfigStartBlock();
-        if (startBlock != 0) {
-            require(config.startBlock() == startBlock);
-        } else {
-            require(config.startBlock() == block.number);
-        }
-    }
-
-    /// @notice Asserts that the legacy SystemConfig is setup correctly
-    function checkSystemConfigV0(address systemConfigProxy, DeployConfig cfg) internal view {
-        ISystemConfigV0 config = ISystemConfigV0(systemConfigProxy);
+        ISystemConfigV0 config = ISystemConfigV0(proxies.SystemConfig);
         require(config.owner() == cfg.finalSystemOwner());
         require(config.overhead() == cfg.gasPriceOracleOverhead());
         require(config.scalar() == cfg.gasPriceOracleScalar());
