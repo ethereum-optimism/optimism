@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,36 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestL2BatcherBatchType run each batcher-related test case in singular batch mode and span batch mode.
-func TestL2BatcherBatchType(t *testing.T) {
-	tests := []struct {
-		name string
-		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
-	}{
-		{"NormalBatcher", NormalBatcher},
-		{"L2Finalization", L2Finalization},
-		{"L2FinalizationWithSparseL1", L2FinalizationWithSparseL1},
-		{"GarbageBatch", GarbageBatch},
-		{"ExtendedTimeWithoutL1Batches", ExtendedTimeWithoutL1Batches},
-		{"BigL2Txs", BigL2Txs},
-	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
-			test.f(t, nil)
-		})
-	}
-
-	spanBatchTimeOffset := hexutil.Uint64(0)
-	for _, test := range tests {
-		test := test
-		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &spanBatchTimeOffset)
-		})
-	}
-}
-
-func NormalBatcher(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestBatcher(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
@@ -59,7 +29,6 @@ func NormalBatcher(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -70,7 +39,7 @@ func NormalBatcher(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
 
 	// Alice makes a L2 tx
 	cl := seqEngine.EthClient()
@@ -86,7 +55,7 @@ func NormalBatcher(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		To:        &dp.Addresses.Bob,
 		Value:     e2eutils.Ether(2),
 	})
-	require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
+	require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -128,10 +97,9 @@ func NormalBatcher(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	require.NotNil(t, vTx)
 }
 
-func L2Finalization(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestL2Finalization(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -169,7 +137,7 @@ func L2Finalization(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engine.EngineClient(t, sd.RollupCfg))
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
 
 	heightToSubmit := sequencer.SyncStatus().UnsafeL2.Number
 
@@ -234,11 +202,10 @@ func L2Finalization(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
 }
 
-// L2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal
-func L2FinalizationWithSparseL1(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+// TestL2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal
+func TestL2FinalizationWithSparseL1(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -256,7 +223,7 @@ func L2FinalizationWithSparseL1(gt *testing.T, spanBatchTimeOffset *hexutil.Uint
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engine.EngineClient(t, sd.RollupCfg))
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
 	batcher.ActSubmitAll(t)
 
 	// include in L1
@@ -291,14 +258,13 @@ func L2FinalizationWithSparseL1(gt *testing.T, spanBatchTimeOffset *hexutil.Uint
 	require.Equal(t, finalStatus.FinalizedL2.Number, finalStatus.UnsafeL2.Number, "sequencer submitted its L2 block and it finalized")
 }
 
-// GarbageBatch tests the behavior of an invalid/malformed output channel frame containing
+// TestGarbageBatch tests the behavior of an invalid/malformed output channel frame containing
 // valid batches being submitted to the batch inbox. These batches should always be rejected
 // and the safe L2 head should remain unaltered.
-func GarbageBatch(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestGarbageBatch(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := defaultRollupTestParams
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	for _, garbageKind := range GarbageKinds {
 		sd := e2eutils.Setup(t, dp, defaultAlloc)
 		log := testlog.Logger(t, log.LvlError)
@@ -321,7 +287,7 @@ func GarbageBatch(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 			}
 		}
 
-		batcher := NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engine.EngineClient(t, sd.RollupCfg))
+		batcher := NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
 
 		sequencer.ActL2PipelineFull(t)
 		verifier.ActL2PipelineFull(t)
@@ -374,7 +340,7 @@ func GarbageBatch(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	}
 }
 
-func ExtendedTimeWithoutL1Batches(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
@@ -383,7 +349,6 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, spanBatchTimeOffset *hexutil.Ui
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -394,7 +359,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, spanBatchTimeOffset *hexutil.Ui
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engine.EngineClient(t, sd.RollupCfg))
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -421,7 +386,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, spanBatchTimeOffset *hexutil.Ui
 	require.Equal(t, sequencer.L2Unsafe(), sequencer.L2Safe(), "same for sequencer")
 }
 
-// BigL2Txs tests a high-throughput case with constrained batcher:
+// TestBigL2Txs tests a high-throughput case with constrained batcher:
 //   - Fill 40 L2 blocks to near max-capacity, with txs of 120 KB each
 //   - Buffer the L2 blocks into channels together as much as possible, submit data-txs only when necessary
 //     (just before crossing the max RLP channel size)
@@ -433,7 +398,7 @@ func ExtendedTimeWithoutL1Batches(gt *testing.T, spanBatchTimeOffset *hexutil.Ui
 // The goal of this test is to quickly run through an otherwise very slow process of submitting and including lots of data.
 // This does not test the batcher code, but is really focused at testing the batcher utils
 // and channel-decoding verifier code in the derive package.
-func BigL2Txs(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestBigL2Txs(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   100,
@@ -442,7 +407,6 @@ func BigL2Txs(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -453,7 +417,7 @@ func BigL2Txs(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 40_000, // try a small batch size, to force the data to be split between more frames
 		BatcherKey:  dp.Secrets.Batcher,
-	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient(), engine.EngineClient(t, sd.RollupCfg))
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
 
 	sequencer.ActL2PipelineFull(t)
 
@@ -500,13 +464,13 @@ func BigL2Txs(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 				Value:     big.NewInt(0),
 				Data:      data,
 			})
-			require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
+			require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)
 		for batcher.l2BufferedBlock.Number < sequencer.SyncStatus().UnsafeL2.Number {
 			// if we run out of space, close the channel and submit all the txs
-			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
+			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) {
 				log.Info("flushing filled channel to batch txs", "id", batcher.l2ChannelOut.ID())
 				batcher.ActL2ChannelClose(t)
 				for batcher.l2ChannelOut != nil {

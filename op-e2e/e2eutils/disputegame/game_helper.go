@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -16,8 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
-
-const defaultTimeout = 5 * time.Minute
 
 type FaultGameHelper struct {
 	t           *testing.T
@@ -43,7 +42,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 // This does not check that the number of claims is exactly the specified count to avoid intermittent failures
 // where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	err := wait.For(ctx, time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
@@ -71,7 +70,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 }
 
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
@@ -96,7 +95,7 @@ func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, pre
 }
 
 func (g *FaultGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	timedCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
@@ -194,7 +193,7 @@ func (g *FaultGameHelper) Status(ctx context.Context) Status {
 
 func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
-	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	timedCtx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(timedCtx, 30*time.Second)
@@ -303,10 +302,7 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 }
 
 func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
-	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
-}
-func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
-	timedCtx, cancel := context.WithTimeout(ctx, timeout)
+	timedCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	var newClaimLen int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
@@ -353,6 +349,25 @@ func (g *FaultGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	g.require.NoError(err, "ResolveClaim transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
+}
+
+// ResolveAllClaims resolves all subgames
+// This function does not resolve the game. That's the responsibility of challengers
+func (g *FaultGameHelper) ResolveAllClaims(ctx context.Context) {
+	loader := fault.NewLoader(g.game)
+	claims, err := loader.FetchClaims(ctx)
+	g.require.NoError(err, "Failed to fetch claims")
+	subgames := make(map[int]bool)
+	for i := len(claims) - 1; i > 0; i-- {
+		subgames[claims[i].ParentContractIndex] = true
+		// Subgames containing only one node are implicitly resolved
+		// i.e. uncountered and claims at MAX_DEPTH
+		if !subgames[i] {
+			continue
+		}
+		g.ResolveClaim(ctx, int64(i))
+	}
+	g.ResolveClaim(ctx, 0)
 }
 
 func (g *FaultGameHelper) gameData(ctx context.Context) string {

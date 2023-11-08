@@ -6,8 +6,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -58,13 +56,4 @@ func ForNextBlock(ctx context.Context, client BlockCaller) error {
 		return fmt.Errorf("get starting block number: %w", err)
 	}
 	return ForBlock(ctx, client, current+1)
-}
-
-func ForProcessingFullBatch(ctx context.Context, rollupCl *sources.RollupClient) error {
-	_, err := AndGet(ctx, time.Second, func() (*eth.SyncStatus, error) {
-		return rollupCl.SyncStatus(ctx)
-	}, func(syncStatus *eth.SyncStatus) bool {
-		return syncStatus.PendingSafeL2 == syncStatus.SafeL2
-	})
-	return err
 }

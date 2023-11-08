@@ -13,12 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-type hardforkScheduledTest struct {
-	name              string
-	regolithTime      *hexutil.Uint64
-	spanBatchTime     *hexutil.Uint64
-	activateRegolith  bool
-	activateSpanBatch bool
+type regolithScheduledTest struct {
+	name             string
+	regolithTime     *hexutil.Uint64
+	activateRegolith bool
 }
 
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various regolith configurations:
@@ -33,18 +31,11 @@ func TestCrossLayerUser(t *testing.T) {
 	zeroTime := hexutil.Uint64(0)
 	futureTime := hexutil.Uint64(20)
 	farFutureTime := hexutil.Uint64(2000)
-	tests := []hardforkScheduledTest{
-		{name: "NoRegolith", regolithTime: nil, activateRegolith: false, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "NoSpanBatch", regolithTime: &zeroTime, activateRegolith: true, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "NotYetSpanBatch", regolithTime: &zeroTime, activateRegolith: true,
-			spanBatchTime: &farFutureTime, activateSpanBatch: false},
-		{name: "SpanBatchAtGenesis", regolithTime: &zeroTime, activateRegolith: true,
-			spanBatchTime: &zeroTime, activateSpanBatch: true},
-		{name: "SpanBatchAfterGenesis", regolithTime: &zeroTime, activateRegolith: true,
-			spanBatchTime: &futureTime, activateSpanBatch: true},
+	tests := []regolithScheduledTest{
+		{name: "NoRegolith", regolithTime: nil, activateRegolith: false},
+		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false},
+		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true},
+		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true},
 	}
 	for _, test := range tests {
 		test := test // Use a fixed reference as the tests run in parallel
@@ -54,11 +45,10 @@ func TestCrossLayerUser(t *testing.T) {
 	}
 }
 
-func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
+func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = test.spanBatchTime
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
@@ -70,7 +60,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 		MinL1TxSize: 0,
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
-	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	}, seq.RollupClient(), miner.EthClient(), seqEngine.EthClient())
 	proposer := NewL2Proposer(t, log, &ProposerCfg{
 		OutputOracleAddr:  sd.DeploymentsL1.L2OutputOracleProxy,
 		ProposerKey:       dp.Secrets.Proposer,

@@ -127,9 +127,9 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 
 		nextBlockTime := eth.Uint64Quantity(parent.Time) + 2
 
-		var w *types.Withdrawals
+		var w *eth.Withdrawals
 		if sd.RollupCfg.IsCanyon(uint64(nextBlockTime)) {
-			w = &types.Withdrawals{}
+			w = &eth.Withdrawals{}
 		}
 
 		// Now let's ask the engine to build a block
