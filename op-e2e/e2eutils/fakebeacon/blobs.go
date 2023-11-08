@@ -165,7 +165,7 @@ func (f *FakeBeacon) LoadBlobsBundle(slot uint64) (*engine.BlobsBundleV1, error)
 	bundlePath := fmt.Sprintf("blobs_bundle_%d.json", slot)
 	data, err := os.ReadFile(filepath.Join(f.blobsDir, bundlePath))
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("no blobs bundle found for slot %d (%q): %w", slot, bundlePath, ethereum.NotFound)
 		} else {
 			return nil, fmt.Errorf("failed to read blobs bundle of slot %d (%q): %w", slot, bundlePath, err)
