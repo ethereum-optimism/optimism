@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
@@ -17,7 +17,7 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L1StandardBridge is StandardBridge, Semver {
+contract L1StandardBridge is StandardBridge, ISemver {
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.
@@ -68,13 +68,13 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.1.1
+    /// @notice Semantic version.
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
+
     /// @notice Constructs the L1StandardBridge contract.
     /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger)
-        Semver(1, 1, 1)
-        StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE))
-    { }
+    constructor(address payable _messenger) StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE)) { }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {

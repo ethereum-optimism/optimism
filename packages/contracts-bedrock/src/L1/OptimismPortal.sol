@@ -11,7 +11,7 @@ import { Hashing } from "src/libraries/Hashing.sol";
 import { SecureMerkleTrie } from "src/libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
@@ -19,7 +19,7 @@ import { Constants } from "src/libraries/Constants.sol";
 /// @notice The OptimismPortal is a low-level contract responsible for passing messages between L1
 ///         and L2. Messages sent directly to the OptimismPortal have no form of replayability.
 ///         Users are encouraged to use the L1CrossDomainMessenger for a higher-level interface.
-contract OptimismPortal is Initializable, ResourceMetering, Semver {
+contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Represents a proven withdrawal.
     /// @custom:field outputRoot    Root of the L2 output this was proven against.
     /// @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
@@ -95,13 +95,16 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         _;
     }
 
-    /// @custom:semver 1.7.2
+    /// @notice Semantic version.
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
+
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
     /// @param _guardian Address that can pause withdrawals.
     /// @param _paused Sets the contract's pausability state.
     /// @param _config Address of the SystemConfig contract.
-    constructor(L2OutputOracle _l2Oracle, address _guardian, bool _paused, SystemConfig _config) Semver(1, 7, 2) {
+    constructor(L2OutputOracle _l2Oracle, address _guardian, bool _paused, SystemConfig _config) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         SYSTEM_CONFIG = _config;

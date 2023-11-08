@@ -6,7 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "src/universal/IOptimismMintableERC721.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
@@ -19,12 +19,14 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 ///         bridge ONLY supports ERC721s originally deployed on Ethereum. Users will need to
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
-contract L2ERC721Bridge is ERC721Bridge, Semver {
-    /// @custom:semver 1.1.1
+contract L2ERC721Bridge is ERC721Bridge, ISemver {
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
+
     /// @notice Constructs the L2ERC721Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge) Semver(1, 1, 1) ERC721Bridge(_messenger, _otherBridge) { }
+    constructor(address _messenger, address _otherBridge) ERC721Bridge(_messenger, _otherBridge) { }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.

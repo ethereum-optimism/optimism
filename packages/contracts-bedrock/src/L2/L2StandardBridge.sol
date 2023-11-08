@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { OptimismMintableERC20 } from "src/universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -17,7 +17,7 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         NOTE: this contract is not intended to support all variations of ERC20 tokens. Examples
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
-contract L2StandardBridge is StandardBridge, Semver {
+contract L2StandardBridge is StandardBridge, ISemver {
     /// @custom:legacy
     /// @notice Emitted whenever a withdrawal from L2 to L1 is initiated.
     /// @param l1Token   Address of the token on L1.
@@ -52,11 +52,12 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
+
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
     constructor(address payable _otherBridge)
-        Semver(1, 1, 1)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
     { }
 

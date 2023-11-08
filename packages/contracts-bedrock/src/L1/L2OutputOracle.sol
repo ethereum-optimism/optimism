@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { Types } from "src/libraries/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
@@ -11,7 +11,7 @@ import { Constants } from "src/libraries/Constants.sol";
 /// @notice The L2OutputOracle contains an array of L2 state outputs, where each output is a
 ///         commitment to the state of the L2 chain. Other contracts like the OptimismPortal use
 ///         these outputs to verify information about the state of L2.
-contract L2OutputOracle is Initializable, Semver {
+contract L2OutputOracle is Initializable, ISemver {
     /// @notice The interval in L2 blocks at which checkpoints must be submitted.
     ///         Although this is immutable, it can safely be modified by upgrading the
     ///         implementation contract.
@@ -52,7 +52,10 @@ contract L2OutputOracle is Initializable, Semver {
     /// @param newNextOutputIndex  Next L2 output index after the deletion.
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
-    /// @custom:semver 1.3.1
+    /// @notice Semantic version.
+    /// @custom:semver 1.7.0
+    string public constant version = "1.7.0";
+
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
@@ -68,9 +71,7 @@ contract L2OutputOracle is Initializable, Semver {
         address _proposer,
         address _challenger,
         uint256 _finalizationPeriodSeconds
-    )
-        Semver(1, 3, 1)
-    {
+    ) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(_submissionInterval > 0, "L2OutputOracle: submission interval must be greater than 0");
 

@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
-import { Semver } from "src/universal/Semver.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
@@ -12,14 +12,17 @@ import { Constants } from "src/libraries/Constants.sol";
 /// @notice The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
-contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
+contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Address of the OptimismPortal.
     OptimismPortal public immutable PORTAL;
 
-    /// @custom:semver 1.4.1
+    /// @notice Semantic version.
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
+
     /// @notice Constructs the L1CrossDomainMessenger contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
-    constructor(OptimismPortal _portal) Semver(1, 4, 1) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+    constructor(OptimismPortal _portal) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
         PORTAL = _portal;
         initialize();
     }
