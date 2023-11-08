@@ -20,5 +20,22 @@
   "faucetOnchainAuthModuleAmount": 1000000000000000000,
   "faucetOffchainAuthModuleAdmin": "0xFe44Ae787A632c45ACea658492dDBebE39f002aC",
   "faucetOffchainAuthModuleTtl": 86400,
-  "faucetOffchainAuthModuleAmount": 50000000000000000
+  "faucetOffchainAuthModuleAmount": 50000000000000000,
+  "opL1BridgeAddress": "0xFBb0621E0B23b5478B630BD55a5f21f67730B0F1",
+  "baseL1BridgeAddress": "0xfd0Bf71F60660E2f608ed56e1659C450eB113120",
+  "pgnL1BridgeAddress": "0xFaE6abCAF30D23e233AC7faF747F2fC3a5a6Bfa3",
+  "zoraL1BridgeAddress": "0x5376f1D543dcbB5BD416c56C189e4cB7399fCcCB",
+  "orderlyL1BridgeAddress": "0x1Af0494040d6904A9F3EE21921de4b359C736333",
+  "modeL1BridgeAddress": "0xbC5C679879B2965296756CD959C3C739769995E2",
+  "lyraL1BridgeAddress": "0x915f179A77FB2e1AeA8b56Ebc0D75A7e1A8a7A17",
+  "installOpChainFaucetsDrips": false,
+  "archivePreviousOpChainFaucetsDrips": false,
+  "dripVersion": 1,
+  "previousDripVersion": 0,
+  "smallOpChainFaucetDripValue": 2000000000000000000,
+  "smallOpChainFaucetDripInterval": 86400,
+  "largeOpChainFaucetDripValue": 34000000000000000000,
+  "largeOpChainFaucetDripInterval": 86400,
+  "opChainAdminWalletDripValue": 1000000000000000000,
+  "opChainAdminWalletDripInterval": 2592000
 }

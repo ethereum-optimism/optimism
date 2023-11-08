@@ -12,7 +12,7 @@ type GameSolver struct {
 	claimSolver *claimSolver
 }
 
-func NewGameSolver(gameDepth int, trace types.TraceProvider) *GameSolver {
+func NewGameSolver(gameDepth int, trace types.TraceAccessor) *GameSolver {
 	return &GameSolver{
 		claimSolver: newClaimSolver(gameDepth, trace),
 	}

@@ -797,7 +797,7 @@ In these specifications, "execution engine" always refer to the L2 execution eng
 [Solidity events]: https://docs.soliditylang.org/en/latest/contracts.html?highlight=events#events
 [nano-header]: https://github.com/norswap/nanoeth/blob/cc5d94a349c90627024f3cd629a2d830008fec72/src/com/norswap/nanoeth/blocks/BlockHeader.java#L22-L156
 [yellow]: https://ethereum.github.io/yellowpaper/paper.pdf
-[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#PayloadAttributesV1
+[engine-api]: https://github.com/ethereum/execution-apis/blob/main/src/engine/shanghai.md#PayloadAttributesV2
 [merge]: https://ethereum.org/en/eth2/merge/
 [mempool]: https://www.quicknode.com/guides/defi/how-to-access-ethereum-mempool
 [L1 consensus layer]: https://github.com/ethereum/consensus-specs/#readme

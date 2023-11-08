@@ -140,7 +140,7 @@ GasBenchMark_L1StandardBridge_Finalize:test_finalizeETHWithdrawal_benchmark() (g
 GasBenchMark_L2OutputOracle:test_proposeL2Output_benchmark() (gas: 88797)
 GasBenchMark_OptimismPortal:test_depositTransaction_benchmark() (gas: 68320)
 GasBenchMark_OptimismPortal:test_depositTransaction_benchmark_1() (gas: 68973)
-GasBenchMark_OptimismPortal:test_proveWithdrawalTransaction_benchmark() (gas: 143295)
+GasBenchMark_OptimismPortal:test_proveWithdrawalTransaction_benchmark() (gas: 143303)
 GasPriceOracle_Test:test_baseFee_succeeds() (gas: 8348)
 GasPriceOracle_Test:test_decimals_succeeds() (gas: 6234)
 GasPriceOracle_Test:test_gasPrice_succeeds() (gas: 8340)
