@@ -210,9 +210,9 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		txBytes = append(txBytes, bin)
 	}
 
-	var withdrawals *eth.Withdrawals
+	var withdrawals *types.Withdrawals
 	if d.L2ChainConfig.IsCanyon(uint64(timestamp)) {
-		withdrawals = &eth.Withdrawals{}
+		withdrawals = &types.Withdrawals{}
 	}
 
 	attrs := eth.PayloadAttributes{
