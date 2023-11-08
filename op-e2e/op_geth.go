@@ -75,7 +75,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 
 	var node EthInstance
 	if cfg.ExternalL2Shim == "" {
-		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, t.TempDir())
+		gethNode, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 		require.Nil(t, err)
 		require.Nil(t, gethNode.Start())
 		node = gethNode
@@ -102,7 +102,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	)
 	require.Nil(t, err)
 
-	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
+	l2Client, err := ethclient.Dial(selectEndpoint(node))
 	require.Nil(t, err)
 
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock, cfg.DeployConfig.CanyonTime(l2GenesisBlock.Time()))
@@ -210,9 +210,9 @@ func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		txBytes = append(txBytes, bin)
 	}
 
-	var withdrawals *eth.Withdrawals
+	var withdrawals *types.Withdrawals
 	if d.L2ChainConfig.IsCanyon(uint64(timestamp)) {
-		withdrawals = &eth.Withdrawals{}
+		withdrawals = &types.Withdrawals{}
 	}
 
 	attrs := eth.PayloadAttributes{

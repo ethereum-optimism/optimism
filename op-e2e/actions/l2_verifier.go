@@ -59,8 +59,7 @@ type L2API interface {
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
-	// TODO blob testing
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, nil, eng, metrics, syncCfg)
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics, syncCfg)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{
@@ -136,6 +135,10 @@ func (s *L2Verifier) L2Safe() eth.L2BlockRef {
 	return s.derivation.SafeL2Head()
 }
 
+func (s *L2Verifier) L2PendingSafe() eth.L2BlockRef {
+	return s.derivation.PendingSafeL2Head()
+}
+
 func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
 	return s.derivation.UnsafeL2Head()
 }
@@ -154,6 +157,7 @@ func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 		UnsafeL2:           s.L2Unsafe(),
 		SafeL2:             s.L2Safe(),
 		FinalizedL2:        s.L2Finalized(),
+		PendingSafeL2:      s.L2PendingSafe(),
 		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
 		EngineSyncTarget:   s.EngineSyncTarget(),
 	}

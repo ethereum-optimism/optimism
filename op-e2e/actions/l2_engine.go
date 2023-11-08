@@ -1,15 +1,14 @@
 package actions
 
 import (
-	"context"
 	"errors"
-	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -21,12 +20,9 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/client"
-	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -52,7 +48,7 @@ type L2Engine struct {
 
 type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
-func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 opeth.BlockID, jwtPath string, options ...EngineOption) *L2Engine {
+func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string, options ...EngineOption) *L2Engine {
 	n, ethBackend, apiBackend := newBackend(t, genesis, jwtPath, options)
 	engineApi := engineapi.NewL2EngineAPI(log, apiBackend)
 	chain := ethBackend.BlockChain()
@@ -63,7 +59,7 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 		eth:  ethBackend,
 		rollupGenesis: &rollup.Genesis{
 			L1:     rollupGenesisL1,
-			L2:     opeth.BlockID{Hash: genesisBlock.Hash(), Number: genesisBlock.NumberU64()},
+			L2:     eth.BlockID{Hash: genesisBlock.Hash(), Number: genesisBlock.NumberU64()},
 			L2Time: genesis.Timestamp,
 		},
 		l2Chain:   chain,
@@ -88,11 +84,6 @@ func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, o
 	ethCfg := &ethconfig.Config{
 		NetworkId: genesis.Config.ChainID.Uint64(),
 		Genesis:   genesis,
-		BlobPool: blobpool.Config{
-			Datadir:   t.TempDir(),
-			Datacap:   blobpool.DefaultConfig.Datacap,
-			PriceBump: blobpool.DefaultConfig.PriceBump,
-		},
 	}
 	nodeCfg := &node.Config{
 		Name:        "l2-geth",
@@ -185,22 +176,8 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 
-		var i uint64
-		var txs []*types.Transaction
-		var q []*types.Transaction
-		// Wait for the tx to be in the pending tx queue
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		err := wait.For(ctx, time.Second, func() (bool, error) {
-			i = e.engineApi.PendingIndices(from)
-			txs, q = e.eth.TxPool().ContentFrom(from)
-			return uint64(len(txs)) > i, nil
-		})
-		require.NoError(t, err,
-			"no pending txs from %s, and have %d unprocessable queued txs from this account: %w", from, len(q), err)
-
-		tx := txs[i]
-		err = e.engineApi.IncludeTx(tx, from)
+		tx := firstValidTx(t, from, e.engineApi.PendingIndices, e.eth.TxPool().ContentFrom, e.EthClient().NonceAt)
+		err := e.engineApi.IncludeTx(tx, from)
 		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
 			t.InvalidAction(err.Error())
 		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
