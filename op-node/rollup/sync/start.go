@@ -50,6 +50,7 @@ type L2Chain interface {
 var ReorgFinalizedErr = errors.New("cannot reorg finalized block")
 var WrongChainErr = errors.New("wrong chain")
 var TooDeepReorgErr = errors.New("reorg is too deep")
+var UnavailableStateErr = errors.New("unavailable state, snap-sync required")
 
 const MaxReorgSeqWindows = 5
 
@@ -64,9 +65,15 @@ type FindHeadsResult struct {
 // If nothing has been marked safe yet, the safe head defaults to the finalized block.
 func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHeadsResult, error) {
 	finalized, err := l2.L2BlockRefByLabel(ctx, eth.Finalized)
+	if errors.Is(err, eth.PreMergePayloadErr) {
+		return nil, fmt.Errorf("%w, cannot handle pre-merge finalized payload, continuing with unavailable state: %w", UnavailableStateErr, err)
+	}
 	if errors.Is(err, ethereum.NotFound) {
 		// default to genesis if we have not finalized anything before.
 		finalized, err = l2.L2BlockRefByHash(ctx, cfg.Genesis.L2.Hash)
+		if cfg.Genesis.L2.Number != 0 && errors.Is(err, ethereum.NotFound) {
+			err = fmt.Errorf("genesis state is unavailable: %w", UnavailableStateErr)
+		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to find the finalized L2 block: %w", err)

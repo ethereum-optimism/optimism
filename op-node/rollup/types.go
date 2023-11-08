@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -175,6 +176,7 @@ func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client)
 type L2Client interface {
 	ChainID(context.Context) (*big.Int, error)
 	L2BlockRefByNumber(context.Context, uint64) (eth.L2BlockRef, error)
+	InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error)
 }
 
 // CheckL2ChainID checks that the configured L2 chain ID matches the client's chain ID.
@@ -191,12 +193,15 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 
 // CheckL2GenesisBlockHash checks that the configured L2 genesis block hash is valid for the given client.
 func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
-	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
+	l2GenesisHeader, err := client.InfoByNumber(ctx, cfg.Genesis.L2.Number)
 	if err != nil {
+		if cfg.Genesis.L2.Number != 0 && errors.Is(err, ethereum.NotFound) {
+			return nil // TODO add check for absolute 0 case when snap-syncing empty DB
+		}
 		return fmt.Errorf("failed to get L2 genesis blockhash: %w", err)
 	}
-	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
-		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisBlockRef.Hash, cfg.Genesis.L2.Hash)
+	if l2GenesisHeader.Hash() != cfg.Genesis.L2.Hash {
+		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisHeader.Hash(), cfg.Genesis.L2.Hash)
 	}
 	return nil
 }

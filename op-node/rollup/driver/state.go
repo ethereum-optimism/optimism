@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -315,6 +316,11 @@ func (s *Driver) eventLoop() {
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin(), "err", err)
+				stepAttempts = 0
+				s.metrics.SetDerivationIdle(true)
+				continue
+			} else if err != nil && errors.Is(err, sync.UnavailableStateErr) {
+				s.log.Debug("Derivation process went idle because the engine has no available state, triggering state-syncing will be attempted upon new unsafe blocks.")
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue

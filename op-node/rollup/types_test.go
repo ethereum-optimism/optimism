@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func randConfig() *Config {
@@ -200,6 +201,13 @@ func TestRegolithActivation(t *testing.T) {
 type mockL2Client struct {
 	chainID *big.Int
 	Hash    common.Hash
+}
+
+func (m *mockL2Client) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+	return &testutils.MockBlockInfo{ // just the basic block-info for the rollup config genesis validation
+		InfoHash: m.Hash,
+		InfoNum:  100,
+	}, nil
 }
 
 func (m *mockL2Client) ChainID(context.Context) (*big.Int, error) {

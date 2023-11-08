@@ -204,7 +204,11 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 			dp.resetting += 1
 			return nil
 		} else if err != nil {
-			return fmt.Errorf("stage %d failed resetting: %w", dp.resetting, err)
+			if errors.Is(err, sync.UnavailableStateErr) {
+				dp.resetting = len(dp.stages) // continue with just the engine stage, the rest is not going to be initialized.
+			} else {
+				return fmt.Errorf("stage %d failed resetting: %w", dp.resetting, err)
+			}
 		} else {
 			return nil
 		}

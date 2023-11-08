@@ -128,19 +128,19 @@ func (hdr *rpcHeader) checkPostMerge() error {
 	// TODO: the genesis block has a non-zero difficulty number value.
 	// Either this block needs to change, or we special case it. This is not valid w.r.t. EIP-3675.
 	if hdr.Number != 0 && (*big.Int)(&hdr.Difficulty).Cmp(common.Big0) != 0 {
-		return fmt.Errorf("post-merge block header requires zeroed difficulty field, but got: %s", &hdr.Difficulty)
+		return fmt.Errorf("%w: post-merge block header requires zeroed difficulty field, but got: %s", eth.PreMergePayloadErr, &hdr.Difficulty)
 	}
 	if hdr.Nonce != (types.BlockNonce{}) {
-		return fmt.Errorf("post-merge block header requires zeroed block nonce field, but got: %s", hdr.Nonce)
+		return fmt.Errorf("%w: post-merge block header requires zeroed block nonce field, but got: %s", eth.PreMergePayloadErr, hdr.Nonce)
 	}
 	if hdr.BaseFee == nil {
-		return fmt.Errorf("post-merge block header requires EIP-1559 basefee field, but got %s", hdr.BaseFee)
+		return fmt.Errorf("%w: post-merge block header requires EIP-1559 basefee field, but got %s", eth.PreMergePayloadErr, hdr.BaseFee)
 	}
 	if len(hdr.Extra) > 32 {
-		return fmt.Errorf("post-merge block header requires 32 or less bytes of extra data, but got %d", len(hdr.Extra))
+		return fmt.Errorf("%w: post-merge block header requires 32 or less bytes of extra data, but got %d", eth.PreMergePayloadErr, len(hdr.Extra))
 	}
 	if hdr.UncleHash != types.EmptyUncleHash {
-		return fmt.Errorf("post-merge block header requires uncle hash to be of empty uncle list, but got %s", hdr.UncleHash)
+		return fmt.Errorf("%w: post-merge block header requires uncle hash to be of empty uncle list, but got %s", eth.PreMergePayloadErr, hdr.UncleHash)
 	}
 	return nil
 }

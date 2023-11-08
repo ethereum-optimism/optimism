@@ -10,15 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-func FakeGenesis(l1 rune, l2 rune, l1GenesisNumber int) rollup.Genesis {
-	return rollup.Genesis{
-		L1: fakeID(l1, uint64(l1GenesisNumber)),
-		L2: fakeID(l2, 0),
-	}
+func FakeGenesis(l1 rune, l2 rune, l1GenesisNumber int) (l1ID, l2ID eth.BlockID) {
+	return fakeID(l1, uint64(l1GenesisNumber)), fakeID(l2, 0)
 }
 
 func fakeID(id rune, num uint64) eth.BlockID {

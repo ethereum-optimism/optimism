@@ -50,9 +50,10 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 			MaxRequestsPerBatch:   20, // TODO: tune batch param
 			MaxConcurrentRequests: 10,
 			TrustRPC:              trustRPC,
-			MustBePostMerge:       true,
 			RPCProviderKind:       RPCKindStandard,
 			MethodResetDuration:   time.Minute,
+			// don't enforce post-merge if the chain has pre-bedrock history.
+			MustBePostMerge: config.Genesis.L2.Number == 0,
 		},
 		// Not bounded by span, to cover find-sync-start range fully for speedy recovery after errors.
 		L2BlockRefsCacheSize: fullSpan,

@@ -37,6 +37,9 @@ type Engine interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	// InfoByHash is used to fetch pre-Merge/Bedrock blocks, after syncing to it
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
+	InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error)
 	SystemConfigL2Fetcher
 }
 
@@ -253,7 +256,89 @@ func (eq *EngineQueue) isEngineSyncing() bool {
 	return eq.unsafeHead.Hash != eq.engineSyncTarget.Hash
 }
 
+func (eq *EngineQueue) handleUnavailableState(ctx context.Context) error {
+	// Insert multiple buffered payloads: the engine can handle it,
+	// even when not marked canonical immediately, it will fill the skeleton chain faster this way.
+	//
+	// Try to insert up to 5 enqueued unsafe payloads (to not halt derivation for too long).
+	// It's ok if we miss blocks; the engine will backfill any gaps in the skeleton header chain.
+	//
+	// Even if we have no unsafe payloads,
+	// it's still good to check with the engine how far along its sync progress is.
+	for i := 0; i < 5 && eq.unsafePayloads.Len() > 0; i++ {
+		first := eq.unsafePayloads.Pop()
+		status, err := eq.engine.NewPayload(ctx, first)
+		if err != nil {
+			return NewTemporaryError(fmt.Errorf("failed to insert queued unsafe payload while syncing: %w", err))
+		}
+		log := eq.log.New("payload", first.ID())
+		if status.LatestValidHash != nil {
+			log = log.New("latest_valid", *status.LatestValidHash)
+		}
+		switch status.Status {
+		case eth.ExecutionSyncing:
+			log.Debug("engine is busy syncing")
+		case eth.ExecutionAccepted:
+			log.Debug("engine tentatively accepted unsafe block payload")
+		default:
+			log.Warn("engine cannot handle new block payload, and is not syncing or tentatively accepting the payload: got status %q", string(status.Status))
+		}
+		// Try to update the sync target if we can.
+		if eq.engineSyncTarget.Number < uint64(first.BlockNumber) {
+			ref, err := PayloadToBlockRef(first, &eq.cfg.Genesis)
+			if err != nil {
+				return NewTemporaryError(fmt.Errorf("failed to conver unsafe payload to L2 block ref: %w", err))
+			}
+			eq.engineSyncTarget = ref
+			eq.metrics.RecordL2Ref("l2_engineSyncTarget", ref)
+			eq.logSyncProgress("sync target improved")
+		}
+	}
+	// Try to see if the engine made any sync progress.
+	unsafe, err := eq.engine.InfoByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("unable to retrieve latest block from engine: %w", err))
+	}
+	target := eq.engineSyncTarget.Hash
+	if target == (common.Hash{}) { // if we don't have a sync-target yet, just repeat the latest known block.
+		target = unsafe.Hash()
+	}
+	res, err := eq.engine.ForkchoiceUpdate(ctx, &eth.ForkchoiceState{
+		HeadBlockHash: target,
+		// TODO: preserve safe/finalized state (likely just block absolute 0),
+		// maybe use checkpoints to advance the consolidation process faster.
+		SafeBlockHash:      unsafe.Hash(),
+		FinalizedBlockHash: unsafe.Hash(),
+	}, nil)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("engine failed to handle forkchoice-update while in state-sync: %w", err))
+	}
+	log := eq.log.New("target", target)
+	if res.PayloadStatus.LatestValidHash != nil {
+		log = log.New("latest_valid", *res.PayloadStatus.LatestValidHash)
+	}
+	switch res.PayloadStatus.Status {
+	case eth.ExecutionSyncing:
+		log.Debug("engine is syncing")
+	case eth.ExecutionAccepted:
+		log.Debug("engine tentatively accepted block")
+	default:
+		log.Warn("engine cannot handle new block payload, and is not syncing or tentatively accepting the payload: got status %q", string(res.PayloadStatus.Status))
+	}
+	// Check if we can exit the state-syncing phase:
+	// once the engine caught up with the Bedrock genesis point we can execute block-by-block derivation with available state.
+	// If the op-node is configured to, it can still trigger EL-sync when necessary.
+	if unsafe.Time() >= eq.cfg.Genesis.L2Time {
+		return NewResetError(fmt.Errorf("engine is sufficiently synced to pick up regular post-bedrock block derivation work, latest valid block: %s (time %d)", unsafe.Hash(), unsafe.Time()))
+	}
+	return EngineP2PSyncing
+}
+
 func (eq *EngineQueue) Step(ctx context.Context) error {
+	// if we haven't finalized anything, that means we are state-syncing a pre-bedrock chain
+	if eq.finalized == (eth.L2BlockRef{}) {
+		return eq.handleUnavailableState(ctx)
+	}
 	if eq.needForkchoiceUpdate {
 		return eq.tryUpdateEngine(ctx)
 	}
@@ -777,6 +862,30 @@ func (eq *EngineQueue) resetBuildingState() {
 func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	result, err := sync.FindL2Heads(ctx, eq.cfg, eq.l1Fetcher, eq.engine, eq.log, eq.syncCfg)
 	if err != nil {
+		if errors.Is(err, sync.UnavailableStateErr) {
+			// When the Engine has no available state,
+			// we reset the engine-queue into a special minimal state,
+			// where it just guides the engine towards state-sync completion
+			// with the necessary triggers and new unsafe payloads as they come in.
+			// Once this completes, the engine-queue forces a derivation-reset, to get back to normal operation.
+			eq.unsafeHead = eth.L2BlockRef{}
+			eq.engineSyncTarget = eth.L2BlockRef{}
+			eq.safeHead = eth.L2BlockRef{}
+			eq.pendingSafeHead = eth.L2BlockRef{}
+			eq.safeAttributes = nil
+			eq.finalized = eth.L2BlockRef{}
+			eq.resetBuildingState()
+			eq.needForkchoiceUpdate = true
+			eq.finalityData = eq.finalityData[:0]
+			eq.origin = eth.L1BlockRef{}
+			eq.sysCfg = eth.SystemConfig{}
+			eq.metrics.RecordL2Ref("l2_finalized", eth.L2BlockRef{})
+			eq.metrics.RecordL2Ref("l2_safe", eth.L2BlockRef{})
+			eq.metrics.RecordL2Ref("l2_unsafe", eth.L2BlockRef{})
+			eq.metrics.RecordL2Ref("l2_engineSyncTarget", eth.L2BlockRef{})
+			eq.logSyncProgress("entering unavailable-state sync-mode")
+			return err
+		}
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
 	finalized, safe, unsafe := result.Finalized, result.Safe, result.Unsafe

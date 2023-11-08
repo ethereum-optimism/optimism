@@ -2,6 +2,7 @@ package eth
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -127,6 +128,8 @@ type PayloadID = engine.PayloadID
 type ExecutionPayloadEnvelope struct {
 	ExecutionPayload *ExecutionPayload `json:"executionPayload"`
 }
+
+var PreMergePayloadErr = errors.New("block is pre-merge")
 
 type ExecutionPayload struct {
 	ParentHash    common.Hash     `json:"parentHash"`

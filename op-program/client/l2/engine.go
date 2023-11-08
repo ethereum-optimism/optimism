@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -23,6 +24,22 @@ type OracleEngine struct {
 	api       *engineapi.L2EngineAPI
 	backend   engineapi.EngineBackend
 	rollupCfg *rollup.Config
+}
+
+func (o *OracleEngine) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
+	hdr := o.backend.GetHeaderByHash(hash)
+	if hdr == nil {
+		return nil, fmt.Errorf("failed to get header by hash %s: %w", hash, ErrNotFound)
+	}
+	return eth.HeaderBlockInfo(hdr), nil
+}
+
+func (o *OracleEngine) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
+	hdr, err := o.headerByLabel(label)
+	if err != nil {
+		return nil, err
+	}
+	return eth.HeaderBlockInfo(hdr), nil
 }
 
 func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engineapi.EngineBackend) *OracleEngine {
@@ -82,7 +99,7 @@ func (o *OracleEngine) PayloadByNumber(ctx context.Context, n uint64) (*eth.Exec
 	return o.PayloadByHash(ctx, hash)
 }
 
-func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+func (o *OracleEngine) headerByLabel(label eth.BlockLabel) (*types.Header, error) {
 	var header *types.Header
 	switch label {
 	case eth.Unsafe:
@@ -92,10 +109,18 @@ func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 	case eth.Finalized:
 		header = o.backend.CurrentFinalBlock()
 	default:
-		return eth.L2BlockRef{}, fmt.Errorf("unknown label: %v", label)
+		return nil, fmt.Errorf("unknown label: %v", label)
 	}
 	if header == nil {
-		return eth.L2BlockRef{}, ErrNotFound
+		return nil, ErrNotFound
+	}
+	return header, nil
+}
+
+func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	header, err := o.headerByLabel(label)
+	if err != nil {
+		return eth.L2BlockRef{}, err
 	}
 	block := o.backend.GetBlockByHash(header.Hash())
 	if block == nil {
