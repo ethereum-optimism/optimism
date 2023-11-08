@@ -67,7 +67,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			MixDigest:  common.Hash{}, // TODO: maybe randomize this (prev-randao value)
 		}
 		if s.l1Cfg.Config.IsLondon(header.Number) {
-			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent, header.Time)
+			header.BaseFee = eip1559.CalcBaseFee(s.l1Cfg.Config, parent)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
@@ -75,13 +75,6 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		}
 		if s.l1Cfg.Config.IsShanghai(header.Number, header.Time) {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
-		}
-		if s.l1Cfg.Config.IsCancun(header.Number, header.Time) {
-			var root common.Hash
-			var zero uint64
-			header.BlobGasUsed = &zero
-			header.ExcessBlobGas = &zero
-			header.ParentBeaconRoot = &root
 		}
 
 		s.l1Building = true
@@ -102,12 +95,14 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.InvalidAction("no tx inclusion when not building l1 block")
 			return
 		}
-		getPendingIndex := func(from common.Address) uint64 {
-			return s.pendingIndices[from]
+		i := s.pendingIndices[from]
+		txs, q := s.eth.TxPool().ContentFrom(from)
+		if uint64(len(txs)) <= i {
+			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
 		}
-		tx := firstValidTx(t, from, getPendingIndex, s.eth.TxPool().ContentFrom, s.EthClient().NonceAt)
+		tx := txs[i]
 		s.IncludeTx(t, tx)
-		s.pendingIndices[from] = s.pendingIndices[from] + 1 // won't retry the tx
+		s.pendingIndices[from] = i + 1 // won't retry the tx
 	}
 }
 

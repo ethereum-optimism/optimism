@@ -6,47 +6,20 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
-// TestBlockTimeBatchType run each blocktime-related test case in singular batch mode and span batch mode.
-func TestBlockTimeBatchType(t *testing.T) {
-	tests := []struct {
-		name string
-		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
-	}{
-		{"BatchInLastPossibleBlocks", BatchInLastPossibleBlocks},
-		{"LargeL1Gaps", LargeL1Gaps},
-	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
-			test.f(t, nil)
-		})
-	}
-
-	spanBatchTimeOffset := hexutil.Uint64(0)
-	for _, test := range tests {
-		test := test
-		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &spanBatchTimeOffset)
-		})
-	}
-}
-
-// BatchInLastPossibleBlocks tests that the derivation pipeline
+// TestBatchInLastPossibleBlocks tests that the derivation pipeline
 // accepts a batch that is included in the last possible L1 block
 // where there are also no other batches included in the sequence
 // window.
 // This is a regression test against the bug fixed in PR #4566
-func BatchInLastPossibleBlocks(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestBatchInLastPossibleBlocks(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	dp.DeployConfig.SequencerWindowSize = 4
 	dp.DeployConfig.L2BlockTime = 2
 
@@ -143,7 +116,7 @@ func BatchInLastPossibleBlocks(gt *testing.T, spanBatchTimeOffset *hexutil.Uint6
 	verifyChainStateOnSequencer(12, 23, 11, 17, 8)
 }
 
-// LargeL1Gaps tests the case that there is a gap between two L1 blocks which
+// TestLargeL1Gaps tests the case that there is a gap between two L1 blocks which
 // is larger than the sequencer drift.
 // This test has the following parameters:
 // L1 Block time: 4s. L2 Block time: 2s. Sequencer Drift: 32s
@@ -154,14 +127,13 @@ func BatchInLastPossibleBlocks(gt *testing.T, spanBatchTimeOffset *hexutil.Uint6
 // Then it generates 3 more L1 blocks.
 // At this point it can verify that the batches where properly generated.
 // Note: It batches submits when possible.
-func LargeL1Gaps(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func TestLargeL1Gaps(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L1BlockTime = 4
 	dp.DeployConfig.L2BlockTime = 2
 	dp.DeployConfig.SequencerWindowSize = 4
 	dp.DeployConfig.MaxSequencerDrift = 32
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 

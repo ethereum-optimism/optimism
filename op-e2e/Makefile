@@ -21,7 +21,7 @@ test-ws: pre-test
 
 test-http: pre-test
 	OP_E2E_USE_HTTP=true $(go_test) $(go_test_flags) ./...
-.PHONY: test-http
+.PHONY: test-ws
 
 cannon-prestate:
 	make -C .. cannon-prestate
