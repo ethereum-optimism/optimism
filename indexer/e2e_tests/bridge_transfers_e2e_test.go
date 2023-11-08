@@ -468,6 +468,8 @@ func TestClientBridgeFunctions(t *testing.T) {
 	}
 
 	mintSum := bigint.Zero
+	withdrawSum := bigint.Zero
+
 	actors := []actor{
 		{
 			addr: aliceAddr,
@@ -512,6 +514,8 @@ func TestClientBridgeFunctions(t *testing.T) {
 			return l2Header != nil && l2Header.Number.Uint64() >= l2ToL1WithdrawReceipt.BlockNumber.Uint64(), nil
 		}))
 
+		withdrawSum = new(big.Int).Add(withdrawSum, l2ToL1MessagePasserWithdrawTx.Value())
+
 		// (3.d) Ensure that withdrawal and deposit txs are retrievable via API
 		deposits, err := testSuite.Client.GetAllDepositsByAddress(actor.addr)
 		require.NoError(t, err)
@@ -529,7 +533,10 @@ func TestClientBridgeFunctions(t *testing.T) {
 	assessment, err := testSuite.Client.GetSupplyAssessment()
 	require.NoError(t, err)
 
-	asFloat, _ := mintSum.Float64()
-	require.Equal(t, asFloat, assessment.L1DepositSum)
+	mintFloat, _ := mintSum.Float64()
+	require.Equal(t, mintFloat, assessment.L1DepositSum)
+
+	withdrawFloat, _ := withdrawSum.Float64()
+	require.Equal(t, withdrawFloat, assessment.L2WithdrawalSum)
 
 }

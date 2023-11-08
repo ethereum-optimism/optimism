@@ -66,6 +66,7 @@ type BridgeTransfersView interface {
 	L1BridgeDepositsByAddress(common.Address, string, int) (*L1BridgeDepositsResponse, error)
 
 	L2BridgeWithdrawal(common.Hash) (*L2BridgeWithdrawal, error)
+	L2BridgeWithdrawalSum() (float64, error)
 	L2BridgeWithdrawalWithFilter(BridgeTransfer) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalsByAddress(common.Address, string, int) (*L2BridgeWithdrawalsResponse, error)
 }
@@ -139,7 +140,6 @@ type L1BridgeDepositsResponse struct {
 
 // L1BridgeDepositSum ... returns the sum of all l1 bridge deposit mints in gwei
 func (db *bridgeTransfersDB) L1BridgeDepositSum() (float64, error) {
-	// (1) Fetch the sum of all deposits in gwei
 	var sum float64
 	result := db.gorm.Model(&L1TransactionDeposit{}).Select("sum(amount)").Scan(&sum)
 	if result.Error != nil {
@@ -244,6 +244,16 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*
 	}
 
 	return &withdrawal, nil
+}
+
+func (db *bridgeTransfersDB) L2BridgeWithdrawalSum() (float64, error) {
+	var sum float64
+	result := db.gorm.Model(&L2TransactionWithdrawal{}).Select("sum(amount)").Scan(&sum)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return sum, nil
 }
 
 // L2BridgeWithdrawalWithFilter queries for a bridge withdrawal with set fields in the `BridgeTransfer` filter

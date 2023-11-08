@@ -50,7 +50,8 @@ type WithdrawalResponse struct {
 }
 
 type BridgeSupplyView struct {
-	L1DepositSum float64 `json:"l1DepositSum"`
+	L1DepositSum    float64 `json:"l1DepositSum"`
+	L2WithdrawalSum float64 `json:"l2WithdrawalSum"`
 }
 
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
