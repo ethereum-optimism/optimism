@@ -4,6 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
+- [1559 Parameters](#1559-parameters)
 - [Deposited transaction processing](#deposited-transaction-processing)
   - [Deposited transaction boundaries](#deposited-transaction-boundaries)
 - [Fees](#fees)
@@ -25,6 +26,14 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 This document outlines the modifications, configuration and usage of a L1 execution engine for L2.
+
+## 1559 Parameters
+
+The execution engine must be able to take a per chain configuration which specifies the EIP-1559 Denominator
+and EIP-1559 elasticity. After Canyon it should also take a new value `EIP1559DenominatorCanyon` and use that as
+the denominator in the 1559 formula rather than the prior denominator.
+
+The formula for EIP-1559 is not otherwise modified.
 
 ## Deposited transaction processing
 
