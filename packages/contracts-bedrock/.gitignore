@@ -26,3 +26,6 @@ deployments/1337
 
 # Devnet config which changes with each 'make devnet-up'
 deploy-config/devnetL1.json
+
+# Getting Started guide deploy config
+deploy-config/getting-started.json
