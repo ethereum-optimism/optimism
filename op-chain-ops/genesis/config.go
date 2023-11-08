@@ -393,7 +393,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		l1StandardBridgeProxyDeployment, err := hh.GetDeployment("L1StandardBridgeProxy")
 		if err != nil {
-			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %s", err)
+			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
 		}
 		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
 	}
@@ -401,7 +401,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
 		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
 		if err != nil {
-			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %s", err)
+			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %w", err)
 		}
 		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
 	}
@@ -409,7 +409,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.L1ERC721BridgeProxy == (common.Address{}) {
 		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
 		if err != nil {
-			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %s", err)
+			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %w", err)
 		}
 		d.L1ERC721BridgeProxy = l1ERC721BridgeProxyDeployment.Address
 	}
@@ -417,7 +417,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.SystemConfigProxy == (common.Address{}) {
 		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
 		if err != nil {
-			return fmt.Errorf("cannot find SystemConfigProxy artifact: %s", err)
+			return fmt.Errorf("cannot find SystemConfigProxy artifact: %w", err)
 		}
 		d.SystemConfigProxy = systemConfigProxyDeployment.Address
 	}
@@ -425,7 +425,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		optimismPortalProxyDeployment, err := hh.GetDeployment("OptimismPortalProxy")
 		if err != nil {
-			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %s", err)
+			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
 		}
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
