@@ -28,7 +28,7 @@ var Subcommands = cli.Commands{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:     "deploy-config",
-				Usage:    "Path to hardhat deploy config file",
+				Usage:    "Path to deploy config file",
 				Required: true,
 			},
 			&cli.StringFlag{
@@ -97,12 +97,17 @@ var Subcommands = cli.Commands{
 				Usage: "L1 RPC URL",
 			},
 			&cli.StringFlag{
-				Name:  "deploy-config",
-				Usage: "Path to deploy config file",
+				Name:     "deploy-config",
+				Usage:    "Path to deploy config file",
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:  "deployment-dir",
-				Usage: "Path to network deployment directory",
+				Usage: "Path to network deployment directory. Cannot be used with --l1-deployments",
+			},
+			&cli.StringFlag{
+				Name:  "l1-deployments",
+				Usage: "Path to L1 deployments JSON file. Cannot be used with --deployment-dir",
 			},
 			&cli.StringFlag{
 				Name:  "outfile.l2",
@@ -122,20 +127,36 @@ var Subcommands = cli.Commands{
 			}
 
 			deployDir := ctx.String("deployment-dir")
-			if deployDir == "" {
-				return errors.New("Must specify --deployment-dir")
+			l1Deployments := ctx.String("l1-deployments")
+
+			if deployDir != "" && l1Deployments != "" {
+				return errors.New("cannot specify both --deployment-dir and --l1-deployments")
+			}
+			if deployDir == "" && l1Deployments == "" {
+				return errors.New("must specify either --deployment-dir or --l1-deployments")
 			}
 
-			log.Info("Deployment directory", "path", deployDir)
-			depPath, network := filepath.Split(deployDir)
-			hh, err := hardhat.New(network, nil, []string{depPath})
-			if err != nil {
-				return err
+			if deployDir != "" {
+				log.Info("Deployment directory", "path", deployDir)
+				depPath, network := filepath.Split(deployDir)
+				hh, err := hardhat.New(network, nil, []string{depPath})
+				if err != nil {
+					return err
+				}
+
+				// Read the appropriate deployment addresses from disk
+				if err := config.GetDeployedAddresses(hh); err != nil {
+					return err
+				}
 			}
 
-			// Read the appropriate deployment addresses from disk
-			if err := config.GetDeployedAddresses(hh); err != nil {
-				return err
+			if l1Deployments != "" {
+				log.Info("L1 deployments", "path", l1Deployments)
+				deployments, err := genesis.NewL1Deployments(l1Deployments)
+				if err != nil {
+					return err
+				}
+				config.SetDeployments(deployments)
 			}
 
 			client, err := ethclient.Dial(ctx.String("l1-rpc"))
