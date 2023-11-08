@@ -15,13 +15,16 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @notice The interval in L2 blocks at which checkpoints must be submitted.
     ///         Although this is immutable, it can safely be modified by upgrading the
     ///         implementation contract.
+    ///         Public getter is legacy and will be removed in the future. Use `submissionInterval`
+    ///         instead.
+    /// @custom:legacy
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /// @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
     uint256 public immutable L2_BLOCK_TIME;
 
     /// @notice The address of the challenger. Can be updated via upgrade. This will be removed in the
-    ///         future, use `proposer` instead.
+    ///         future, use `challenger` instead.
     /// @custom:legacy
     address public immutable CHALLENGER;
 

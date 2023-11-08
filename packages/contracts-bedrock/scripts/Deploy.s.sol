@@ -401,7 +401,7 @@ contract Deploy is Deployer {
             _l2Oracle: l2OutputOracle,
             _guardian: guardian,
             _paused: true,
-            _config: systemConfig
+            _systemConfig: systemConfig
         });
 
         require(address(portal.L2_ORACLE()) == address(l2OutputOracle));

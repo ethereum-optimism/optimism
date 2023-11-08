@@ -109,11 +109,11 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _l2Oracle Address of the L2OutputOracle contract.
     /// @param _guardian Address that can pause withdrawals.
     /// @param _paused Sets the contract's pausability state.
-    /// @param _config Address of the SystemConfig contract.
-    constructor(L2OutputOracle _l2Oracle, address _guardian, bool _paused, SystemConfig _config) {
+    /// @param _systemConfig Address of the SystemConfig contract.
+    constructor(L2OutputOracle _l2Oracle, address _guardian, bool _paused, SystemConfig _systemConfig) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
-        SYSTEM_CONFIG = _config;
+        SYSTEM_CONFIG = _systemConfig;
         initialize(_paused);
     }
 

@@ -19,8 +19,8 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.1
-    string public constant version = "1.5.1";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
