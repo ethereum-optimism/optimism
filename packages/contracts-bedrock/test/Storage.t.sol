@@ -41,7 +41,7 @@ contract Storage_Roundtrip_Test is Test {
     }
 
     /// @dev All keys must be unique in the input so deduplication is required.
-    function test_setGetBytes32Multi_succeeds(StorageSetter.Slot[] calldata _slots) external {
+    function testFuzz_setGetBytes32Multi_succeeds(StorageSetter.Slot[] calldata _slots) external {
         for (uint256 i; i < _slots.length; i++) {
             if (keys[_slots[i].key]) {
                 continue;
