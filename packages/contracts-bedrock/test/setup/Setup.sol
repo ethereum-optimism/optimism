@@ -118,8 +118,10 @@ contract Setup is Deploy {
 
         vm.etch(address(l2StandardBridge), address(new L2StandardBridge(payable(l1StandardBridge))).code);
 
-        vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
-        l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
+        vm.etch(
+            address(l2OptimismMintableERC20Factory),
+            address(new OptimismMintableERC20Factory(address(l2StandardBridge))).code
+        );
 
         vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
 

@@ -8,10 +8,14 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
 abstract contract ERC721Bridge {
-    /// @notice Messenger contract on this domain.
+    /// @notice Messenger contract on this domain. This will be removed in the
+    ///         future, use `messenger` instead.
+    /// @custom:legacy
     CrossDomainMessenger public immutable MESSENGER;
 
-    /// @notice Address of the bridge on the other network.
+    /// @notice Address of the bridge on the other network. This will be removed in the
+    ///         future, use `otherBridge` instead.
+    /// @custom:legacy
     address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
@@ -68,14 +72,12 @@ abstract contract ERC721Bridge {
         OTHER_BRIDGE = _otherBridge;
     }
 
-    /// @custom:legacy
     /// @notice Legacy getter for messenger contract.
     /// @return Messenger contract on this domain.
     function messenger() external view returns (CrossDomainMessenger) {
         return MESSENGER;
     }
 
-    /// @custom:legacy
     /// @notice Legacy getter for other bridge address.
     /// @return Address of the bridge on the other network.
     function otherBridge() external view returns (address) {

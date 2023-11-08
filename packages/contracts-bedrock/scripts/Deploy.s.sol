@@ -443,10 +443,12 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory{ salt: implSalt() }();
+        address l1standardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
+        OptimismMintableERC20Factory factory =
+            new OptimismMintableERC20Factory{ salt: implSalt() }({_bridge: l1standardBridgeProxy});
 
-        require(factory.BRIDGE() == address(0));
-        require(factory.bridge() == address(0));
+        require(factory.BRIDGE() == l1standardBridgeProxy);
+        require(factory.bridge() == l1standardBridgeProxy);
 
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
@@ -706,14 +708,16 @@ contract Deploy is Deployer {
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
         address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
-        _upgradeAndCallViaSafe({
-            _proxy: payable(optimismMintableERC20FactoryProxy),
-            _implementation: optimismMintableERC20Factory,
-            _innerCallData: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
+        _callViaSafe({
+            _target: proxyAdmin,
+            _data: abi.encodeCall(
+                ProxyAdmin.upgrade, (payable(optimismMintableERC20FactoryProxy), optimismMintableERC20Factory)
+                )
         });
 
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);

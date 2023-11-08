@@ -40,6 +40,12 @@ contract OptimismMintableERC20Factory is ISemver {
         BRIDGE = _bridge;
     }
 
+    /// @notice Getter function for the address of the StandardBridge on this chain.
+    /// @notice Address of the StandardBridge on this chain.
+    function bridge() public view returns (address) {
+        return BRIDGE;
+    }
+
     /// @custom:legacy
     /// @notice Creates an instance of the OptimismMintableERC20 contract. Legacy version of the
     ///         newer createOptimismMintableERC20 function, which has a more intuitive name.
@@ -93,7 +99,7 @@ contract OptimismMintableERC20Factory is ISemver {
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
         address localToken =
-            address(new OptimismMintableERC20{salt: salt}(bridge, _remoteToken, _name, _symbol, _decimals));
+            address(new OptimismMintableERC20{salt: salt}(BRIDGE, _remoteToken, _name, _symbol, _decimals));
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, localToken);

@@ -36,13 +36,19 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
-    /// @notice Address of the L2OutputOracle contract.
+    /// @notice Address of the L2OutputOracle contract. This will be removed in the
+    ///         future, use `l2Oracle` instead.
+    /// @custom:legacy
     L2OutputOracle public immutable L2_ORACLE;
 
-    /// @notice Address of the SystemConfig contract.
+    /// @notice Address of the SystemConfig contract. This will be removed in the
+    ///         future, use `systemConfig` instead.
+    /// @custom:legacy
     SystemConfig public immutable SYSTEM_CONFIG;
 
-    /// @notice Address that has the ability to pause and unpause withdrawals.
+    /// @notice Address that has the ability to pause and unpause withdrawals. This will be removed in the
+    ///         future, use `guardian` instead.
+    /// @custom:legacy
     address public immutable GUARDIAN;
 
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
@@ -116,6 +122,24 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         l2Sender = Constants.DEFAULT_L2_SENDER;
         paused = _paused;
         __ResourceMetering_init();
+    }
+
+    /// @notice Getter function for the address of the L2OutputOracle on this chain.
+    /// @notice Address of the L2OutputOracle on this chain.
+    function l2Oracle() public view returns (L2OutputOracle) {
+        return L2_ORACLE;
+    }
+
+    /// @notice Getter function for the address of the SystemConfig on this chain.
+    /// @notice Address of the SystemConfig on this chain.
+    function systemConfig() public view returns (SystemConfig) {
+        return SYSTEM_CONFIG;
+    }
+
+    /// @notice Getter function for the address of the L2OutputOracle on this chain.
+    /// @notice Address of the L2OutputOracle on this chain.
+    function guardian() public view returns (address) {
+        return GUARDIAN;
     }
 
     /// @notice Pauses withdrawals.

@@ -120,11 +120,16 @@ abstract contract StandardBridge {
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
 
-    /// @custom:legacy
-    /// @notice Legacy getter for messenger contract.
+    /// @notice Getter for messenger contract.
     /// @return Messenger contract on this domain.
     function messenger() external view returns (CrossDomainMessenger) {
         return MESSENGER;
+    }
+
+    /// @notice Getter for the other bridge.
+    /// @return The bridge contract on the other network.
+    function otherBridge() external view returns (StandardBridge) {
+        return OTHER_BRIDGE;
     }
 
     /// @notice Sends ETH to the sender's address on the other chain.

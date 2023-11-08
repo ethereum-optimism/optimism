@@ -140,7 +140,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     ///               chain is done so by an honest party.
     function test_initialize_firstOutput_reverts() public {
         uint256 submissionInterval = l2OutputOracle.SUBMISSION_INTERVAL();
-        uint256 submissionInterval = l2OutputOracle.submissionInterval();
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
         factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(submissionInterval, block.number - 1));
     }

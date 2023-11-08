@@ -20,10 +20,14 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
     uint256 public immutable L2_BLOCK_TIME;
 
-    /// @notice The address of the challenger. Can be updated via upgrade.
+    /// @notice The address of the challenger. Can be updated via upgrade. This will be removed in the
+    ///         future, use `proposer` instead.
+    /// @custom:legacy
     address public immutable CHALLENGER;
 
-    /// @notice The address of the proposer. Can be updated via upgrade.
+    /// @notice The address of the proposer. Can be updated via upgrade.  This will be removed in the
+    ///         future, use `proposer` instead.
+    /// @custom:legacy
     address public immutable PROPOSER;
 
     /// @notice The minimum time (in seconds) that must elapse before a withdrawal can be finalized.
@@ -95,6 +99,31 @@ contract L2OutputOracle is Initializable, ISemver {
 
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
+    }
+
+    /// @notice Getter for the challenger address.
+    function challenger() external view returns (address) {
+        return CHALLENGER;
+    }
+
+    /// @notice Getter for the PROPOSER address.
+    function proposer() external view returns (address) {
+        return PROPOSER;
+    }
+
+    /// @notice Getter for the SUBMISSION_INTERVAL.
+    function submissionInterval() external view returns (uint256) {
+        return SUBMISSION_INTERVAL;
+    }
+
+    /// @notice Getter for the L2_BLOCK_TIME.
+    function l2BlockTime() external view returns (uint256) {
+        return L2_BLOCK_TIME;
+    }
+
+    /// @notice Getter for the FINALIZATION_PERIOD_SECONDS.
+    function finalizationPeriodSeconds() external view returns (uint256) {
+        return FINALIZATION_PERIOD_SECONDS;
     }
 
     /// @notice Deletes all output proposals after and including the proposal that corresponds to

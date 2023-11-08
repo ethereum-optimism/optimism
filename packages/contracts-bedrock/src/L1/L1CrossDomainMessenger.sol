@@ -13,7 +13,9 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @notice Address of the OptimismPortal.
+    /// @notice Address of the OptimismPortal. This will be removed in the
+    ///         future, use `portal` instead.
+    /// @custom:legacy
     OptimismPortal public immutable PORTAL;
 
     /// @notice Semantic version.
@@ -30,6 +32,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Initializes the contract.
     function initialize() public initializer {
         __CrossDomainMessenger_init();
+    }
+
+    /// @notice Getter for the OptimismPortal address.
+    function portal() external view returns (address) {
+        return address(PORTAL);
     }
 
     /// @inheritdoc CrossDomainMessenger
