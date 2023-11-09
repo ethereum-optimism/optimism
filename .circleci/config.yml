@@ -1833,6 +1833,16 @@ workflows:
             - oplabs-gcr
             - slack
       - docker-build:
+          name: contracts-bedrock-docker-publish
+          docker_name: contracts-bedrock
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          resource_class: xlarge
+          requires: [ 'chain-mon-docker-publish' ] # use the cached base image
+          publish: true
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
           name: ufm-metamask-docker-publish
           docker_name: ufm-metamask
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
