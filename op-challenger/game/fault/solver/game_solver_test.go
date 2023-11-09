@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -113,7 +114,7 @@ func TestCalculateNextActions(t *testing.T) {
 					i, claim.Position.ToGIndex(), claim.Position.TraceIndex(maxDepth), claim.ParentContractIndex, claim.Countered, claim.Value)
 			}
 
-			solver := NewGameSolver(maxDepth, claimBuilder.CorrectTraceProvider())
+			solver := NewGameSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))
 			actions, err := solver.CalculateNextActions(context.Background(), game)
 			require.NoError(t, err)
 			for i, action := range actions {

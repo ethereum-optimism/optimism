@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -18,14 +17,14 @@ var (
 
 // claimSolver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type claimSolver struct {
-	trace     types.TraceProvider
+	trace     types.TraceAccessor
 	gameDepth int
 }
 
 // newClaimSolver creates a new [claimSolver] using the provided [TraceProvider].
-func newClaimSolver(gameDepth int, traceProvider types.TraceProvider) *claimSolver {
+func newClaimSolver(gameDepth int, trace types.TraceAccessor) *claimSolver {
 	return &claimSolver{
-		traceProvider,
+		trace,
 		gameDepth,
 	}
 }
@@ -53,14 +52,14 @@ func (s *claimSolver) NextMove(ctx context.Context, claim types.Claim, game type
 		}
 	}
 
-	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
+	agree, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return nil, err
 	}
 	if agree {
-		return s.defend(ctx, claim)
+		return s.defend(ctx, game, claim)
 	} else {
-		return s.attack(ctx, claim)
+		return s.attack(ctx, game, claim)
 	}
 }
 
@@ -93,27 +92,24 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 		return StepData{}, ErrStepIgnoreInvalidPath
 	}
 
-	claimCorrect, err := s.agreeWithClaim(ctx, claim.ClaimData)
+	claimCorrect, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return StepData{}, err
 	}
-	var preState []byte
-	var proofData []byte
-	var oracleData *types.PreimageOracleData
 
+	var position types.Position
 	if !claimCorrect {
 		// Attack the claim by executing step index, so we need to get the pre-state of that index
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.Position)
-		if err != nil {
-			return StepData{}, err
-		}
+		position = claim.Position
 	} else {
-		// We agree with the claim so Defend and use this claim as the starting point to
-		// execute the step after. Thus we need the pre-state of the next step.
-		preState, proofData, oracleData, err = s.trace.GetStepData(ctx, claim.MoveRight())
-		if err != nil {
-			return StepData{}, err
-		}
+		// Defend and use this claim as the starting point to execute the step after.
+		// Thus, we need the pre-state of the next step.
+		position = claim.Position.MoveRight()
+	}
+
+	preState, proofData, oracleData, err := s.trace.GetStepData(ctx, game, claim, position)
+	if err != nil {
+		return StepData{}, err
 	}
 
 	return StepData{
@@ -126,9 +122,9 @@ func (s *claimSolver) AttemptStep(ctx context.Context, game types.Game, claim ty
 }
 
 // attack returns a response that attacks the claim.
-func (s *claimSolver) attack(ctx context.Context, claim types.Claim) (*types.Claim, error) {
+func (s *claimSolver) attack(ctx context.Context, game types.Game, claim types.Claim) (*types.Claim, error) {
 	position := claim.Attack()
-	value, err := s.traceAtPosition(ctx, position)
+	value, err := s.trace.Get(ctx, game, claim, position)
 	if err != nil {
 		return nil, fmt.Errorf("attack claim: %w", err)
 	}
@@ -139,12 +135,12 @@ func (s *claimSolver) attack(ctx context.Context, claim types.Claim) (*types.Cla
 }
 
 // defend returns a response that defends the claim.
-func (s *claimSolver) defend(ctx context.Context, claim types.Claim) (*types.Claim, error) {
+func (s *claimSolver) defend(ctx context.Context, game types.Game, claim types.Claim) (*types.Claim, error) {
 	if claim.IsRoot() {
 		return nil, nil
 	}
 	position := claim.Defend()
-	value, err := s.traceAtPosition(ctx, position)
+	value, err := s.trace.Get(ctx, game, claim, position)
 	if err != nil {
 		return nil, fmt.Errorf("defend claim: %w", err)
 	}
@@ -155,19 +151,14 @@ func (s *claimSolver) defend(ctx context.Context, claim types.Claim) (*types.Cla
 }
 
 // agreeWithClaim returns true if the claim is correct according to the internal [TraceProvider].
-func (s *claimSolver) agreeWithClaim(ctx context.Context, claim types.ClaimData) (bool, error) {
-	ourValue, err := s.traceAtPosition(ctx, claim.Position)
+func (s *claimSolver) agreeWithClaim(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
+	ourValue, err := s.trace.Get(ctx, game, claim, claim.Position)
 	return bytes.Equal(ourValue[:], claim.Value[:]), err
-}
-
-// traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
-func (s *claimSolver) traceAtPosition(ctx context.Context, p types.Position) (common.Hash, error) {
-	return s.trace.Get(ctx, p)
 }
 
 // agreeWithClaimPath returns true if the every other claim in the path to root is correct according to the internal [TraceProvider].
 func (s *claimSolver) agreeWithClaimPath(ctx context.Context, game types.Game, claim types.Claim) (bool, error) {
-	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
+	agree, err := s.agreeWithClaim(ctx, game, claim)
 	if err != nil {
 		return false, err
 	}

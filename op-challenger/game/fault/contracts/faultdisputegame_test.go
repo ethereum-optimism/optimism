@@ -60,6 +60,20 @@ func TestSimpleGetters(t *testing.T) {
 				return game.GetClaimCount(context.Background())
 			},
 		},
+		{
+			method: methodL1Head,
+			result: common.Hash{0xdd, 0xbb},
+			call: func(game *FaultDisputeGameContract) (any, error) {
+				return game.GetL1Head(context.Background())
+			},
+		},
+		{
+			method: methodResolve,
+			result: types.GameStatusInProgress,
+			call: func(game *FaultDisputeGameContract) (any, error) {
+				return game.CallResolve(context.Background())
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test
@@ -75,6 +89,33 @@ func TestSimpleGetters(t *testing.T) {
 			require.Equal(t, expected, status)
 		})
 	}
+}
+
+func TestGetProposals(t *testing.T) {
+	stubRpc, game := setup(t)
+	agreedIndex := big.NewInt(5)
+	agreedBlockNum := big.NewInt(6)
+	agreedRoot := common.Hash{0xaa}
+	disputedIndex := big.NewInt(7)
+	disputedBlockNum := big.NewInt(8)
+	disputedRoot := common.Hash{0xdd}
+	agreed := Proposal{
+		Index:         agreedIndex,
+		L2BlockNumber: agreedBlockNum,
+		OutputRoot:    agreedRoot,
+	}
+	disputed := Proposal{
+		Index:         disputedIndex,
+		L2BlockNumber: disputedBlockNum,
+		OutputRoot:    disputedRoot,
+	}
+	stubRpc.SetResponse(methodProposals, batching.BlockLatest, []interface{}{}, []interface{}{
+		agreed, disputed,
+	})
+	actualAgreed, actualDisputed, err := game.GetProposals(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, agreed, actualAgreed)
+	require.Equal(t, disputed, actualDisputed)
 }
 
 func TestGetClaim(t *testing.T) {
@@ -140,6 +181,57 @@ func TestGetAllClaims(t *testing.T) {
 	claims, err := game.GetAllClaims(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, expectedClaims, claims)
+}
+
+func TestCallResolveClaim(t *testing.T) {
+	stubRpc, game := setup(t)
+	stubRpc.SetResponse(methodResolveClaim, batching.BlockLatest, []interface{}{big.NewInt(123)}, nil)
+	err := game.CallResolveClaim(context.Background(), 123)
+	require.NoError(t, err)
+}
+
+func TestResolveClaimTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	stubRpc.SetResponse(methodResolveClaim, batching.BlockLatest, []interface{}{big.NewInt(123)}, nil)
+	tx, err := game.ResolveClaimTx(123)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestResolveTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	stubRpc.SetResponse(methodResolve, batching.BlockLatest, nil, nil)
+	tx, err := game.ResolveTx()
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestAttackTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	value := common.Hash{0xaa}
+	stubRpc.SetResponse(methodAttack, batching.BlockLatest, []interface{}{big.NewInt(111), value}, nil)
+	tx, err := game.AttackTx(111, value)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestDefendTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	value := common.Hash{0xaa}
+	stubRpc.SetResponse(methodDefend, batching.BlockLatest, []interface{}{big.NewInt(111), value}, nil)
+	tx, err := game.DefendTx(111, value)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestStepTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	stateData := []byte{1, 2, 3}
+	proofData := []byte{4, 5, 6, 7, 8, 9}
+	stubRpc.SetResponse(methodStep, batching.BlockLatest, []interface{}{big.NewInt(111), true, stateData, proofData}, nil)
+	tx, err := game.StepTx(111, true, stateData, proofData)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
 }
 
 func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {

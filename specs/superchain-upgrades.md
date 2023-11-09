@@ -32,6 +32,7 @@ chains following the same Superchain Target upgrade synchronously.
 - [OP-Stack Protocol versions](#op-stack-protocol-versions)
 - [Post-Bedrock Network upgrades](#post-bedrock-network-upgrades)
   - [Regolith](#regolith)
+- [Canyon](#canyon)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -245,6 +246,7 @@ but the matching L1-origin information may not be present at the time of activat
   ([announcement](https://optimism.mirror.xyz/gQWKlrDqHzdKPsB1iUnI-cVN3v0NvsWnazK7ajlt1fI)).
 - `v3.0.0-1`: 2023 Jan 13th - Bedrock pre-release, deployed on OP-Goerli, and later Base-Goerli.
 - `v3.0.0`: 2023 Jun 6th - Bedrock, including the Regolith hardfork improvements, first deployed on OP-Mainnet.
+- `v4.0.0`: TBD - Canyon
 
 ## Post-Bedrock Network upgrades
 
@@ -273,3 +275,24 @@ The [execution engine specification](./exec-engine.md) specifies the L1 cost fun
 
 The Regolith upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
 rollup-node (`regolith_time`) and execution engine (`config.regolithTime`).
+
+## Canyon
+
+The Canyon upgrade contains the Shapella upgrade from L1 and some minor protocol fixes.
+
+- Shapella Upgrade
+  - [EIP-3651: Warm COINBASE](https://eips.ethereum.org/EIPS/eip-3651)
+  - [EIP-3855: PUSH0 instruction](https://eips.ethereum.org/EIPS/eip-3855)
+  - [EIP-3860: Limit and meter initcode](https://eips.ethereum.org/EIPS/eip-3860)
+  - [EIP-4895: Beacon chain push withdrawals as operations](https://eips.ethereum.org/EIPS/eip-4895)
+    - [Withdrawlas are prohibited in P2P Blocks](./rollup-node-p2p.md#block-validation)
+    - [Withdrawals should be set to the empty array with Canyon](./derivation.md#building-individual-payload-attributes)
+  - [EIP-6049: Deprecate SELFDESTRUCT](https://eips.ethereum.org/EIPS/eip-6049)
+- [Modifies the EIP-1559 Denominator](./exec-engine.md#1559-parameters)
+- [Channel Ordering Fix](./derivation.md#reading)
+- [Adds the deposit nonce & deposit nonce version to the deposit receipt hash](./deposits.md#deposit-receipt)
+- [Deploys the create2Deployer to `0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2`](./predeploys.md#create2deployer)
+
+The Canyon upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
+rollup-node (`canyon_time`) and execution engine (`config.canyonTime`). Shanghai time in the
+execution engine should be set to the same time as the Canyon time.

@@ -57,6 +57,18 @@ type OracleUpdater interface {
 	UpdateOracle(ctx context.Context, data *PreimageOracleData) error
 }
 
+// TraceAccessor defines an interface to request data from a TraceProvider with additional context for the game position.
+// This can be used to implement split games where lower layers of the game may have different values depending on claims
+// at higher levels in the game.
+type TraceAccessor interface {
+	// Get returns the claim value at the requested position, evaluated in the context of the specified claim (ref).
+	Get(ctx context.Context, game Game, ref Claim, pos Position) (common.Hash, error)
+
+	// GetStepData returns the data required to execute the step at the specified position,
+	// evaluated in the context of the specified claim (ref).
+	GetStepData(ctx context.Context, game Game, ref Claim, pos Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
+}
+
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.
 type TraceProvider interface {
 	// Get returns the claim value at the requested index.

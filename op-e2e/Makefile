@@ -23,10 +23,6 @@ test-http: pre-test
 	OP_E2E_USE_HTTP=true $(go_test) $(go_test_flags) ./...
 .PHONY: test-http
 
-test-span-batch: pre-test
-	OP_E2E_USE_SPAN_BATCH=true $(go_test) $(go_test_flags) ./...
-.PHONY: test-span-batch
-
 cannon-prestate:
 	make -C .. cannon-prestate
 .PHONY: cannon-prestate
