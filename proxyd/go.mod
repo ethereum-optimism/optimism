@@ -12,13 +12,13 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/mroth/weightedrand/v2 v2.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.17.0
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/rs/cors v1.10.1
 	github.com/stretchr/testify v1.8.4
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
+	github.com/xaionaro-go/weightedshuffle v0.0.0-20211213010739-6a74fbc7d24a
 	golang.org/x/sync v0.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )

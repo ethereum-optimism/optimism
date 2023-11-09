@@ -176,12 +176,11 @@ func Start(config *Config) (*Server, func(), error) {
 			backends = append(backends, backendsByName[bName])
 		}
 
-		group, err := NewBackendGroup(bgName, backends, bg.WeightedRouting)
-		if err != nil {
-			return nil, nil, fmt.Errorf("error creating backend group %s: %w", bgName, err)
+		backendGroups[bgName] = &BackendGroup{
+			Name:            bgName,
+			Backends:        backends,
+			WeightedRouting: bg.WeightedRouting,
 		}
-
-		backendGroups[bgName] = group
 	}
 
 	var wsBackendGroup *BackendGroup

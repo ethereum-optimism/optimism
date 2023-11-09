@@ -11,7 +11,6 @@ import (
 	"math"
 	"math/rand"
 	"net/http"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -22,8 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
-	"github.com/mroth/weightedrand/v2"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/xaionaro-go/weightedshuffle"
 	"golang.org/x/sync/semaphore"
 
 	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
@@ -697,26 +696,6 @@ type BackendGroup struct {
 	Backends        []*Backend
 	WeightedRouting bool
 	Consensus       *ConsensusPoller
-	weightedChooser *weightedrand.Chooser[*Backend, int]
-}
-
-func NewBackendGroup(name string, backends []*Backend, weightedRouting bool) (*BackendGroup, error) {
-	choices := make([]weightedrand.Choice[*Backend, int], len(backends))
-	for i, backend := range backends {
-		choices[i] = weightedrand.Choice[*Backend, int]{Item: backend, Weight: backend.weight}
-	}
-
-	chooser, err := weightedrand.NewChooser(choices...)
-	if err != nil && weightedRouting {
-		return nil, err
-	}
-
-	return &BackendGroup{
-		Name:            name,
-		Backends:        backends,
-		WeightedRouting: weightedRouting,
-		weightedChooser: chooser,
-	}, nil
 }
 
 func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
@@ -838,22 +817,6 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 	return nil, "", ErrNoBackends
 }
 
-func moveBackendToStart(choice *Backend, options []*Backend) []*Backend {
-	result := make([]*Backend, 0, len(options))
-
-	if slices.Contains(options, choice) {
-		result = append(result, choice)
-	}
-
-	for _, opt := range options {
-		if opt != choice {
-			result = append(result, opt)
-		}
-	}
-
-	return result
-}
-
 func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
 	for _, back := range bg.Backends {
 		proxier, err := back.ProxyWS(clientConn, methodWhitelist)
@@ -891,15 +854,25 @@ func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn,
 	return nil, ErrNoBackends
 }
 
-func (bg *BackendGroup) orderedBackendsForRequest() []*Backend {
-	backends := bg.Backends
-	if bg.Consensus != nil {
-		backends = bg.loadBalancedConsensusGroup()
-	} else if bg.WeightedRouting {
-		choice := bg.weightedChooser.Pick()
-		backends = moveBackendToStart(choice, backends)
+func weightedShuffle(backends []*Backend) {
+	weight := func(i int) float64 {
+		return float64(backends[i].weight)
 	}
-	return backends
+
+	weightedshuffle.ShuffleInplace(backends, weight, nil)
+}
+
+func (bg *BackendGroup) orderedBackendsForRequest() []*Backend {
+	if bg.Consensus != nil {
+		return bg.loadBalancedConsensusGroup()
+	} else if bg.WeightedRouting {
+		result := make([]*Backend, len(bg.Backends))
+		copy(result, bg.Backends)
+		weightedShuffle(result)
+		return result
+	} else {
+		return bg.Backends
+	}
 }
 
 func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
@@ -930,9 +903,7 @@ func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	})
 
 	if bg.WeightedRouting {
-		choice := bg.weightedChooser.Pick()
-		backendsHealthy = moveBackendToStart(choice, backendsHealthy)
-		backendsDegraded = moveBackendToStart(choice, backendsDegraded)
+		weightedShuffle(backendsHealthy)
 	}
 
 	// healthy are put into a priority position
