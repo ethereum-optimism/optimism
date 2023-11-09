@@ -192,9 +192,13 @@ jobs:
         description: Run the release script
         type: boolean
         default: false
+      resource_class:
+        description: Docker resoruce class
+        type: string
+        default: medium
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: medium
+      resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true  # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
       - checkout
@@ -1668,6 +1672,7 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,latest
           publish: true
           release: true
+          resource_class: xlarge
           context:
             - oplabs-gcr
           requires:

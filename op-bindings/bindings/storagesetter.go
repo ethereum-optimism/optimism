@@ -28,10 +28,16 @@ var (
 	_ = event.NewSubscription
 )
 
+// StorageSetterSlot is an auto generated low-level Go binding around an user-defined struct.
+type StorageSetterSlot struct {
+	Key   [32]byte
+	Value [32]byte
+}
+
 // StorageSetterMetaData contains all meta data concerning the StorageSetter contract.
 var StorageSetterMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getBytes32\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getUint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAddress\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_value\",\"type\":\"bytes32\"}],\"name\":\"setBytes32\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"setUint\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b5061025a806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c8063a6ed563e1161005b578063a6ed563e1461011c578063bd02d0f51461011c578063ca446dd914610138578063e2a4853a146100bf57600080fd5b806321f8a721146100825780634e91db08146100bf57806354fd4d50146100d3575b600080fd5b610095610090366004610156565b610146565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100d16100cd36600461016f565b9055565b005b61010f6040518060400160405280600581526020017f312e302e3000000000000000000000000000000000000000000000000000000081525081565b6040516100b69190610191565b61012a610090366004610156565b6040519081526020016100b6565b6100d16100cd366004610204565b6000610150825490565b92915050565b60006020828403121561016857600080fd5b5035919050565b6000806040838503121561018257600080fd5b50508035926020909101359150565b600060208083528351808285015260005b818110156101be578581018301518582016040015282016101a2565b818111156101d0576000604083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016929092016040019392505050565b6000806040838503121561021757600080fd5b82359150602083013573ffffffffffffffffffffffffffffffffffffffff8116811461024257600080fd5b80915050925092905056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getBytes32\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getUint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAddress\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"value\",\"type\":\"bytes32\"}],\"internalType\":\"structStorageSetter.Slot[]\",\"name\":\"slots\",\"type\":\"tuple[]\"}],\"name\":\"setBytes32\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_value\",\"type\":\"bytes32\"}],\"name\":\"setBytes32\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"setUint\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b506103de806100206000396000f3fe608060405234801561001057600080fd5b50600436106100885760003560e01c8063a6ed563e1161005b578063a6ed563e1461013a578063bd02d0f51461013a578063ca446dd914610156578063e2a4853a146100df57600080fd5b80630528afe21461008d57806321f8a721146100a25780634e91db08146100df57806354fd4d50146100f1575b600080fd5b6100a061009b3660046101d7565b610164565b005b6100b56100b036600461024c565b6101c7565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100a06100ed366004610265565b9055565b61012d6040518060400160405280600581526020017f312e312e3000000000000000000000000000000000000000000000000000000081525081565b6040516100d69190610287565b6101486100b036600461024c565b6040519081526020016100d6565b6100a06100ed3660046102fa565b8060005b818110156101c1576101af84848381811061018557610185610343565b905060400201600001358585848181106101a1576101a1610343565b905060400201602001359055565b806101b981610372565b915050610168565b50505050565b60006101d1825490565b92915050565b600080602083850312156101ea57600080fd5b823567ffffffffffffffff8082111561020257600080fd5b818501915085601f83011261021657600080fd5b81358181111561022557600080fd5b8660208260061b850101111561023a57600080fd5b60209290920196919550909350505050565b60006020828403121561025e57600080fd5b5035919050565b6000806040838503121561027857600080fd5b50508035926020909101359150565b600060208083528351808285015260005b818110156102b457858101830151858201604001528201610298565b818111156102c6576000604083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016929092016040019392505050565b6000806040838503121561030d57600080fd5b82359150602083013573ffffffffffffffffffffffffffffffffffffffff8116811461033857600080fd5b809150509250929050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036103ca577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea164736f6c634300080f000a",
 }
 
 // StorageSetterABI is the input ABI used to generate the binding from.
@@ -346,25 +352,46 @@ func (_StorageSetter *StorageSetterTransactorSession) SetAddress(_slot [32]byte,
 	return _StorageSetter.Contract.SetAddress(&_StorageSetter.TransactOpts, _slot, _address)
 }
 
-// SetBytes32 is a paid mutator transaction binding the contract method 0x4e91db08.
+// SetBytes32 is a paid mutator transaction binding the contract method 0x0528afe2.
 //
-// Solidity: function setBytes32(bytes32 _slot, bytes32 _value) returns()
-func (_StorageSetter *StorageSetterTransactor) SetBytes32(opts *bind.TransactOpts, _slot [32]byte, _value [32]byte) (*types.Transaction, error) {
-	return _StorageSetter.contract.Transact(opts, "setBytes32", _slot, _value)
+// Solidity: function setBytes32((bytes32,bytes32)[] slots) returns()
+func (_StorageSetter *StorageSetterTransactor) SetBytes32(opts *bind.TransactOpts, slots []StorageSetterSlot) (*types.Transaction, error) {
+	return _StorageSetter.contract.Transact(opts, "setBytes32", slots)
 }
 
-// SetBytes32 is a paid mutator transaction binding the contract method 0x4e91db08.
+// SetBytes32 is a paid mutator transaction binding the contract method 0x0528afe2.
 //
-// Solidity: function setBytes32(bytes32 _slot, bytes32 _value) returns()
-func (_StorageSetter *StorageSetterSession) SetBytes32(_slot [32]byte, _value [32]byte) (*types.Transaction, error) {
-	return _StorageSetter.Contract.SetBytes32(&_StorageSetter.TransactOpts, _slot, _value)
+// Solidity: function setBytes32((bytes32,bytes32)[] slots) returns()
+func (_StorageSetter *StorageSetterSession) SetBytes32(slots []StorageSetterSlot) (*types.Transaction, error) {
+	return _StorageSetter.Contract.SetBytes32(&_StorageSetter.TransactOpts, slots)
 }
 
-// SetBytes32 is a paid mutator transaction binding the contract method 0x4e91db08.
+// SetBytes32 is a paid mutator transaction binding the contract method 0x0528afe2.
+//
+// Solidity: function setBytes32((bytes32,bytes32)[] slots) returns()
+func (_StorageSetter *StorageSetterTransactorSession) SetBytes32(slots []StorageSetterSlot) (*types.Transaction, error) {
+	return _StorageSetter.Contract.SetBytes32(&_StorageSetter.TransactOpts, slots)
+}
+
+// SetBytes320 is a paid mutator transaction binding the contract method 0x4e91db08.
 //
 // Solidity: function setBytes32(bytes32 _slot, bytes32 _value) returns()
-func (_StorageSetter *StorageSetterTransactorSession) SetBytes32(_slot [32]byte, _value [32]byte) (*types.Transaction, error) {
-	return _StorageSetter.Contract.SetBytes32(&_StorageSetter.TransactOpts, _slot, _value)
+func (_StorageSetter *StorageSetterTransactor) SetBytes320(opts *bind.TransactOpts, _slot [32]byte, _value [32]byte) (*types.Transaction, error) {
+	return _StorageSetter.contract.Transact(opts, "setBytes320", _slot, _value)
+}
+
+// SetBytes320 is a paid mutator transaction binding the contract method 0x4e91db08.
+//
+// Solidity: function setBytes32(bytes32 _slot, bytes32 _value) returns()
+func (_StorageSetter *StorageSetterSession) SetBytes320(_slot [32]byte, _value [32]byte) (*types.Transaction, error) {
+	return _StorageSetter.Contract.SetBytes320(&_StorageSetter.TransactOpts, _slot, _value)
+}
+
+// SetBytes320 is a paid mutator transaction binding the contract method 0x4e91db08.
+//
+// Solidity: function setBytes32(bytes32 _slot, bytes32 _value) returns()
+func (_StorageSetter *StorageSetterTransactorSession) SetBytes320(_slot [32]byte, _value [32]byte) (*types.Transaction, error) {
+	return _StorageSetter.Contract.SetBytes320(&_StorageSetter.TransactOpts, _slot, _value)
 }
 
 // SetUint is a paid mutator transaction binding the contract method 0xe2a4853a.
