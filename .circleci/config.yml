@@ -155,8 +155,12 @@ jobs:
           root: "."
           paths:
             - "packages/**/dist"
+            - "packages/contracts-bedrock/cache"
+            - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
-            - "packages/contracts-bedrock/scripts/go-ffi/go-ffi"
+            - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
+            - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
+            - "packages/contracts-bedrock/scripts/go-ffi"
 
   docker-build:
     environment:
