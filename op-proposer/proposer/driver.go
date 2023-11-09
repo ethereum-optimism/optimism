@@ -44,7 +44,7 @@ type RollupClient interface {
 type DriverSetup struct {
 	Log      log.Logger
 	Metr     metrics.Metricer
-	Cfg      ProposerConfig //what need to be contented
+	Cfg      ProposerConfig
 	Txmgr    txmgr.TxManager
 	L1Client L1Client
 
