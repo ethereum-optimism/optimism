@@ -156,6 +156,7 @@ jobs:
           paths:
             - "packages/**/dist"
             - "packages/contracts-bedrock/forge-artifacts"
+            - "packages/contracts-bedrock/scripts/go-ffi/go-ffi"
 
   docker-build:
     environment:
@@ -359,10 +360,6 @@ jobs:
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile --prefer-offline
-      - run:
-          name: build contracts
-          command: pnpm build
-          working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
