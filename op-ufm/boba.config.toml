@@ -29,7 +29,7 @@ read_only = false
 # Interval to poll the provider for expected transactions
 read_interval = "10s"
 # Interval to submit new transactions to the provider
-send_interval = "30s"
+send_interval = "60s"
 # Interval between send transaction when we get "already known" txpool err
 send_transaction_retry_interval = "100ms"
 # Max time to retry
