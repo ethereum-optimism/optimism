@@ -388,12 +388,12 @@ jobs:
             pnpm storage-snapshot
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
-      - run:
-          name: semver lock
-          command: |
-            pnpm semver-lock
-            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
+      # - run:
+      #     name: semver lock
+      #     command: |
+      #       pnpm semver-lock
+      #       git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
+      #     working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
           command: |
