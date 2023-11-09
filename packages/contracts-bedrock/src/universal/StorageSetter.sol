@@ -9,14 +9,28 @@ import { Storage } from "src/libraries/Storage.sol";
 ///         WARNING: this contract is not safe to be called by untrusted parties.
 ///         It is only meant as an intermediate step during upgrades.
 contract StorageSetter is ISemver {
+    /// @notice Represents a storage slot key value pair.
+    struct Slot {
+        bytes32 key;
+        bytes32 value;
+    }
+
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Stores a bytes32 `_value` at `_slot`. Any storage slots that
     ///         are packed should be set through this interface.
     function setBytes32(bytes32 _slot, bytes32 _value) public {
         Storage.setBytes32(_slot, _value);
+    }
+
+    /// @notice Stores a bytes32 value at each key in `_slots`.
+    function setBytes32(Slot[] calldata slots) public {
+        uint256 length = slots.length;
+        for (uint256 i; i < length; i++) {
+            Storage.setBytes32(slots[i].key, slots[i].value);
+        }
     }
 
     /// @notice Retrieves a bytes32 value from `_slot`.

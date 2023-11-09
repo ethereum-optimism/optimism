@@ -13,6 +13,11 @@ import { Test } from "forge-std/Test.sol";
 contract Storage_Roundtrip_Test is Test {
     StorageSetter setter;
 
+    /// @notice A set of storage slots to pass to `setBytes32`.
+    StorageSetter.Slot[] slots;
+    /// @notice Used to deduplicate slots passed to `setBytes32`.
+    mapping(bytes32 => bool) keys;
+
     function setUp() external {
         setter = new StorageSetter();
     }
@@ -33,5 +38,22 @@ contract Storage_Roundtrip_Test is Test {
         setter.setBytes32(slot, hash);
         assertEq(setter.getBytes32(slot), hash);
         assertEq(hash, vm.load(address(setter), slot));
+    }
+
+    /// @dev All keys must be unique in the input so deduplication is required.
+    function testFuzz_setGetBytes32Multi_succeeds(StorageSetter.Slot[] calldata _slots) external {
+        for (uint256 i; i < _slots.length; i++) {
+            if (keys[_slots[i].key]) {
+                continue;
+            }
+            slots.push(_slots[i]);
+            keys[_slots[i].key] = true;
+        }
+
+        setter.setBytes32(slots);
+        for (uint256 i; i < slots.length; i++) {
+            assertEq(setter.getBytes32(slots[i].key), slots[i].value);
+            assertEq(slots[i].value, vm.load(address(setter), slots[i].key));
+        }
     }
 }
