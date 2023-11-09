@@ -26,28 +26,28 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type ProposerConfig struct{
+type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
-	PollInterval       time.Duration
-	NetworkTimeout     time.Duration
+	PollInterval   time.Duration
+	NetworkTimeout time.Duration
 
 	L2OutputOracleAddr common.Address
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
 	// is never valid on an alternative L1 chain that would produce different L2 data.
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
-	AllowNonFinalized  bool
+	AllowNonFinalized bool
 }
 
-type ProposerService struct{
-	Log        log.Logger
-	Metrics    metrics.Metricer
+type ProposerService struct {
+	Log     log.Logger
+	Metrics metrics.Metricer
 
 	ProposerConfig
 
-	TxManager          txmgr.TxManager
-	L1Client           *ethclient.Client
-	RollupClient       *sources.RollupClient
+	TxManager    txmgr.TxManager
+	L1Client     *ethclient.Client
+	RollupClient *sources.RollupClient
 
 	driver *L2OutputSubmitter
 

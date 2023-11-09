@@ -43,4 +43,3 @@ func main() {
 		log.Crit("Application failed", "message", err)
 	}
 }
-

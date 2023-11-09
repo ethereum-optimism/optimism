@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -66,8 +65,8 @@ type L2OutputSubmitter struct {
 	mutex   sync.Mutex
 	running bool
 
-	l2ooContract     *bindings.L2OutputOracleCaller
-	l2ooABI          *abi.ABI
+	l2ooContract *bindings.L2OutputOracleCaller
+	l2ooABI      *abi.ABI
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
@@ -97,12 +96,12 @@ func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
 
 	return &L2OutputSubmitter{
 		DriverSetup: setup,
-		done:   make(chan struct{}),
-		ctx:    ctx,
-		cancel: cancel,
+		done:        make(chan struct{}),
+		ctx:         ctx,
+		cancel:      cancel,
 
-		l2ooContract:     l2ooContract,
-		l2ooABI:          parsed,
+		l2ooContract: l2ooContract,
+		l2ooABI:      parsed,
 	}, nil
 }
 
@@ -132,7 +131,7 @@ func (l *L2OutputSubmitter) StopL2OutputSubmittingIfRunning() error {
 	return err
 }
 
-func (l *L2OutputSubmitter) StopL2OutputSubmitting() error{
+func (l *L2OutputSubmitter) StopL2OutputSubmitting() error {
 	l.Log.Info("Stopping Proposer")
 
 	l.mutex.Lock()
