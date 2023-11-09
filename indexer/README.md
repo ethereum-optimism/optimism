@@ -80,6 +80,7 @@ All security related issues should be filed via github issues and will be triage
 - Since the Indexer API only performs read operations on the database, access to the database for any API instances should be restricted to read-only operations.
 - The API has no rate limiting or authentication/authorization mechanisms. It is recommended to place the API behind a reverse proxy that can provide these features.
 - Postgres connection timeouts are unenforced in the services. It is recommended to configure the database to enforce connection timeouts to prevent connection exhaustion attacks.
+- Setting confirmation count values too low can result in indexing failures due to chain reorgs.
 
 ## Troubleshooting
 Please advise the [troubleshooting](./docs/troubleshooting.md) guide for common failure scenarios and how to resolve them.
