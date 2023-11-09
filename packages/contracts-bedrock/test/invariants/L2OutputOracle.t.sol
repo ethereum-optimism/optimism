@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { Vm } from "forge-std/Vm.sol";
 
@@ -29,14 +29,14 @@ contract L2OutputOracle_Proposer {
     }
 }
 
-contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_Initializer {
+contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is CommonTest {
     L2OutputOracle_Proposer internal actor;
 
     function setUp() public override {
         super.setUp();
 
         // Create a proposer actor.
-        actor = new L2OutputOracle_Proposer(oracle, vm);
+        actor = new L2OutputOracle_Proposer(l2OutputOracle, vm);
 
         // Set the target contract to the proposer actor.
         targetContract(address(actor));
@@ -57,6 +57,6 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
     ///                   correspond to a block number that is less than the current output.
     function invariant_monotonicBlockNumIncrease() external {
         // Assert that the block number of proposals must monotonically increase.
-        assertTrue(oracle.nextBlockNumber() >= oracle.latestBlockNumber());
+        assertTrue(l2OutputOracle.nextBlockNumber() >= l2OutputOracle.latestBlockNumber());
     }
 }

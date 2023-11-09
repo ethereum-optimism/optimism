@@ -318,7 +318,9 @@ func ChannelManagerCloseNoPendingChannel(t *testing.T, batchType uint) {
 // new channel frames after this point.
 func ChannelManagerClosePendingChannel(t *testing.T, batchType uint) {
 	require := require.New(t)
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	// The number of batch txs depends on compression of the random data, hence the static test RNG seed.
+	// Example of different RNG seed that creates less than 2 frames: 1698700588902821588
+	rng := rand.New(rand.NewSource(123))
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{

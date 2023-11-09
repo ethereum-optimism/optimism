@@ -18,7 +18,7 @@ import (
 )
 
 func TestMultipleCannonGames(t *testing.T) {
-	InitParallel(t, UsesCannon)
+	InitParallel(t, UsesCannon, UseExecutor(0))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -78,7 +78,7 @@ func TestMultipleCannonGames(t *testing.T) {
 }
 
 func TestMultipleGameTypes(t *testing.T) {
-	InitParallel(t, UsesCannon)
+	InitParallel(t, UsesCannon, UseExecutor(0))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -113,7 +113,7 @@ func TestMultipleGameTypes(t *testing.T) {
 }
 
 func TestChallengerCompleteDisputeGame(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UseExecutor(1))
 
 	tests := []struct {
 		name              string
@@ -182,7 +182,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			InitParallel(t)
+			InitParallel(t, UseExecutor(1))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -219,7 +219,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 }
 
 func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
-	InitParallel(t)
+	InitParallel(t, UseExecutor(1))
 
 	testCase := func(t *testing.T, isRootCorrect bool) {
 		ctx := context.Background()
@@ -267,17 +267,17 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 	}
 
 	t.Run("RootCorrect", func(t *testing.T) {
-		InitParallel(t)
+		InitParallel(t, UseExecutor(1))
 		testCase(t, true)
 	})
 	t.Run("RootIncorrect", func(t *testing.T) {
-		InitParallel(t)
+		InitParallel(t, UseExecutor(1))
 		testCase(t, false)
 	})
 }
 
 func TestCannonDisputeGame(t *testing.T) {
-	InitParallel(t, UsesCannon)
+	InitParallel(t, UsesCannon, UseExecutor(1))
 
 	tests := []struct {
 		name             string
@@ -290,7 +290,7 @@ func TestCannonDisputeGame(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			InitParallel(t)
+			InitParallel(t, UseExecutor(1))
 
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
@@ -328,7 +328,7 @@ func TestCannonDisputeGame(t *testing.T) {
 }
 
 func TestCannonDefendStep(t *testing.T) {
-	InitParallel(t, UsesCannon)
+	InitParallel(t, UsesCannon, UseExecutor(1))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -370,7 +370,7 @@ func TestCannonDefendStep(t *testing.T) {
 }
 
 func TestCannonProposedOutputRootInvalid(t *testing.T) {
-	InitParallel(t, UsesCannon)
+	InitParallel(t, UsesCannon, UseExecutor(0))
 	// honestStepsFail attempts to perform both an attack and defend step using the correct trace.
 	honestStepsFail := func(ctx context.Context, game *disputegame.CannonGameHelper, correctTrace *disputegame.HonestHelper, parentClaimIdx int64) {
 		// Attack step should fail
@@ -421,7 +421,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			InitParallel(t)
+			InitParallel(t, UseExecutor(0))
 
 			ctx := context.Background()
 			sys, l1Client, game, correctTrace := setupDisputeGameForInvalidOutputRoot(t, test.outputRoot)
@@ -448,7 +448,7 @@ func TestCannonProposedOutputRootInvalid(t *testing.T) {
 }
 
 func TestCannonPoisonedPostState(t *testing.T) {
-	InitParallel(t, UsesCannon)
+	InitParallel(t, UsesCannon, UseExecutor(0))
 
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -558,8 +558,7 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 }
 
 func TestCannonChallengeWithCorrectRoot(t *testing.T) {
-	InitParallel(t, UsesCannon)
-
+	InitParallel(t, UsesCannon, UseExecutor(0))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)

@@ -30,7 +30,9 @@ type DB struct {
 	BridgeTransactions BridgeTransactionsDB
 }
 
-func NewDB(log log.Logger, dbConfig config.DBConfig) (*DB, error) {
+// NewDB connects to the configured DB, and provides client-bindings to it.
+// The initial connection may fail, or the dial may be cancelled with the provided context.
+func NewDB(ctx context.Context, log log.Logger, dbConfig config.DBConfig) (*DB, error) {
 	log = log.New("module", "db")
 
 	dsn := fmt.Sprintf("host=%s dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Name)

@@ -203,6 +203,9 @@ type SystemConfig struct {
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
 
+	// Max L1 tx size for the batcher transactions
+	BatcherMaxL1TxSizeBytes uint64
+
 	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
 	SupportL1TimeTravel bool
 }
@@ -680,9 +683,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
-	batchType := derive.SingularBatchType
+	var batchType uint = derive.SingularBatchType
 	if os.Getenv("OP_E2E_USE_SPAN_BATCH") == "true" {
 		batchType = derive.SpanBatchType
+	}
+	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
+	if batcherMaxL1TxSizeBytes == 0 {
+		batcherMaxL1TxSizeBytes = 240_000
 	}
 	batcherCLIConfig := &bss.CLIConfig{
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
@@ -690,7 +697,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            240_000,
+		MaxL1TxSize:            batcherMaxL1TxSizeBytes,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
@@ -704,7 +711,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Format: oplog.FormatText,
 		},
 		Stopped:   sys.cfg.DisableBatcher, // Batch submitter may be enabled later
-		BatchType: uint(batchType),
+		BatchType: batchType,
 	}
 	// Batch Submitter
 	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.cfg.Loggers["batcher"])

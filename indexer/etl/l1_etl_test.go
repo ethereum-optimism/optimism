@@ -62,7 +62,7 @@ func TestL1ETLConstruction(t *testing.T) {
 			},
 			assertion: func(etl *L1ETL, err error) {
 				require.NoError(t, err)
-				require.Equal(t, etl.headerTraversal.LastHeader().ParentHash, common.HexToHash("0x69"))
+				require.Equal(t, etl.headerTraversal.LastTraversedHeader().ParentHash, common.HexToHash("0x69"))
 			},
 		},
 		{
@@ -94,7 +94,7 @@ func TestL1ETLConstruction(t *testing.T) {
 			},
 			assertion: func(etl *L1ETL, err error) {
 				require.NoError(t, err)
-				header := etl.headerTraversal.LastHeader()
+				header := etl.headerTraversal.LastTraversedHeader()
 
 				require.True(t, header.Number.Cmp(big.NewInt(69)) == 0)
 			},
@@ -108,7 +108,9 @@ func TestL1ETLConstruction(t *testing.T) {
 			logger := testlog.Logger(t, log.LvlInfo)
 			cfg := Config{StartHeight: ts.start}
 
-			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts)
+			etl, err := NewL1ETL(cfg, logger, ts.db.DB, etlMetrics, ts.client, ts.contracts, func(cause error) {
+				t.Fatalf("crit error: %v", cause)
+			})
 			test.assertion(etl, err)
 		})
 	}

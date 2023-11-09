@@ -8,9 +8,9 @@ import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { IDisputeGame } from "src/dispute/interfaces/IDisputeGame.sol";
 import { Proxy } from "src/universal/Proxy.sol";
-import { L2OutputOracle_Initializer } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 
-contract DisputeGameFactory_Init is L2OutputOracle_Initializer {
+contract DisputeGameFactory_Init is CommonTest {
     DisputeGameFactory factory;
     FakeClone fakeClone;
 

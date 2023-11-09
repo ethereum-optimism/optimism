@@ -7,11 +7,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
 type Config struct {
@@ -31,9 +33,15 @@ type ETL struct {
 	headerTraversal  *node.HeaderTraversal
 
 	contracts  []common.Address
-	etlBatches chan ETLBatch
+	etlBatches chan *ETLBatch
 
 	EthClient node.EthClient
+
+	// A reference that'll stay populated between intervals
+	// in the event of failures in order to retry.
+	headers []types.Header
+
+	worker *clock.LoopFn
 }
 
 type ETLBatch struct {
@@ -46,47 +54,54 @@ type ETLBatch struct {
 	HeadersWithLog map[common.Hash]bool
 }
 
-func (etl *ETL) Start(ctx context.Context) error {
-	done := ctx.Done()
-	pollTicker := time.NewTicker(etl.loopInterval)
-	defer pollTicker.Stop()
-
-	// A reference that'll stay populated between intervals
-	// in the event of failures in order to retry.
-	var headers []types.Header
-
+// Start starts the ETL polling routine. The ETL work should be stopped with Close().
+func (etl *ETL) Start() error {
+	if etl.worker != nil {
+		return errors.New("already started")
+	}
 	etl.log.Info("starting etl...")
-	for {
-		select {
-		case <-done:
-			etl.log.Info("stopping etl")
-			return nil
+	etl.worker = clock.NewLoopFn(clock.SystemClock, etl.tick, func() error {
+		close(etl.etlBatches) // can close the channel now, to signal to the consumer that we're done
+		etl.log.Info("stopped etl worker loop")
+		return nil
+	}, etl.loopInterval)
+	return nil
+}
 
-		case <-pollTicker.C:
-			done := etl.metrics.RecordInterval()
-			if len(headers) > 0 {
-				etl.log.Info("retrying previous batch")
-			} else {
-				newHeaders, err := etl.headerTraversal.NextFinalizedHeaders(etl.headerBufferSize)
-				if err != nil {
-					etl.log.Error("error querying for headers", "err", err)
-				} else if len(newHeaders) == 0 {
-					etl.log.Warn("no new headers. processor unexpectedly at head...")
-				} else {
-					headers = newHeaders
-					etl.metrics.RecordBatchHeaders(len(newHeaders))
-				}
-			}
+func (etl *ETL) Close() error {
+	if etl.worker == nil {
+		return nil // worker was not running
+	}
+	return etl.worker.Close()
+}
 
-			// only clear the reference if we were able to process this batch
-			err := etl.processBatch(headers)
-			if err == nil {
-				headers = nil
-			}
+func (etl *ETL) tick(_ context.Context) {
+	done := etl.metrics.RecordInterval()
+	if len(etl.headers) > 0 {
+		etl.log.Info("retrying previous batch")
+	} else {
+		newHeaders, err := etl.headerTraversal.NextHeaders(etl.headerBufferSize)
+		if err != nil {
+			etl.log.Error("error querying for headers", "err", err)
+		} else if len(newHeaders) == 0 {
+			etl.log.Warn("no new headers. etl at head?")
+		} else {
+			etl.headers = newHeaders
+		}
 
-			done(err)
+		latestHeader := etl.headerTraversal.LatestHeader()
+		if latestHeader != nil {
+			etl.metrics.RecordLatestHeight(latestHeader.Number)
 		}
 	}
+
+	// only clear the reference if we were able to process this batch
+	err := etl.processBatch(etl.headers)
+	if err == nil {
+		etl.headers = nil
+	}
+
+	done(err)
 }
 
 func (etl *ETL) processBatch(headers []types.Header) error {
@@ -98,7 +113,6 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	batchLog := etl.log.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
 	batchLog.Info("extracting batch", "size", len(headers))
 
-	etl.metrics.RecordBatchLatestHeight(lastHeader.Number)
 	headerMap := make(map[common.Hash]*types.Header, len(headers))
 	for i := range headers {
 		header := headers[i]
@@ -128,6 +142,7 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 
 	for i := range logs.Logs {
 		log := logs.Logs[i]
+		headersWithLog[log.BlockHash] = true
 		if _, ok := headerMap[log.BlockHash]; !ok {
 			// NOTE. Definitely an error state if the none of the headers were re-orged out in between
 			// the blocks and logs retrieval operations. Unlikely as long as the confirmation depth has
@@ -135,13 +150,10 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 			batchLog.Error("log found with block hash not in the batch", "block_hash", logs.Logs[i].BlockHash, "log_index", logs.Logs[i].Index)
 			return errors.New("parsed log with a block hash not in the batch")
 		}
-
-		etl.metrics.RecordBatchLog(log.Address)
-		headersWithLog[log.BlockHash] = true
 	}
 
 	// ensure we use unique downstream references for the etl batch
 	headersRef := headers
-	etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs.Logs, HeadersWithLog: headersWithLog}
+	etl.etlBatches <- &ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs.Logs, HeadersWithLog: headersWithLog}
 	return nil
 }

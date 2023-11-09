@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	MetricsNamespace = "rpc"
+	MetricsNamespace = "op_indexer_rpc"
 	batchMethod      = "<batch>"
 )
 

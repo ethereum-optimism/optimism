@@ -7,8 +7,8 @@ import { AttestationStation } from "src/periphery/op-nft/AttestationStation.sol"
 import { OptimistInviter } from "src/periphery/op-nft/OptimistInviter.sol";
 import { Optimist } from "src/periphery/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { TestERC1271Wallet } from "test/Helpers.sol";
-import { OptimistInviterHelper } from "test/Helpers.sol";
+import { TestERC1271Wallet } from "test/mocks/TestERC1271Wallet.sol";
+import { OptimistInviterHelper } from "test/mocks/OptimistInviterHelper.sol";
 import { OptimistConstants } from "src/periphery/op-nft/libraries/OptimistConstants.sol";
 
 contract OptimistInviter_Initializer is Test {

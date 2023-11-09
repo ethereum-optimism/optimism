@@ -64,24 +64,6 @@ func TestAbsolutePreStateCommitment(t *testing.T) {
 	})
 }
 
-func TestAbsolutePreState(t *testing.T) {
-	t.Run("ErrorBubblesUp", func(t *testing.T) {
-		mockOutputProvider := mockTraceProvider{absolutePreStateError: mockGetError}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
-		_, err := splitProvider.AbsolutePreState(context.Background())
-		require.ErrorIs(t, err, mockGetError)
-	})
-
-	t.Run("ReturnsCorrectPreimageData", func(t *testing.T) {
-		expectedPreimage := []byte{1, 2, 3, 4}
-		mockOutputProvider := mockTraceProvider{preImageData: expectedPreimage}
-		splitProvider := newSplitTraceProvider(t, nil, &mockOutputProvider, 40)
-		output, err := splitProvider.AbsolutePreState(context.Background())
-		require.NoError(t, err)
-		require.Equal(t, expectedPreimage, output)
-	})
-}
-
 func TestGetStepData(t *testing.T) {
 	t.Run("ErrorBubblesUp", func(t *testing.T) {
 		mockOutputProvider := mockTraceProvider{getStepDataError: mockGetError}

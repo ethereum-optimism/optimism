@@ -123,6 +123,7 @@ var (
 		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
 		EnvVars:  prefixEnvVars("L1_RETHDB"),
 		Required: false,
+		Hidden:   true,
 	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
@@ -279,11 +280,10 @@ var (
 		Value:    false,
 	}
 	BetaExtraNetworks = &cli.BoolFlag{
-		Name: "beta.extra-networks",
-		Usage: fmt.Sprintf("Beta feature: enable selection of a predefined-network from the superchain-registry. "+
-			"The superchain-registry is experimental, and the availability of configurations may change."+
-			"Available networks: %s", strings.Join(chaincfg.BetaAvailableNetworks(), ", ")),
+		Name:    "beta.extra-networks",
+		Usage:   "Legacy flag, ignored, all superchain-registry networks are enabled by default.",
 		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
+		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
 	}
 	RollupHalt = &cli.StringFlag{
 		Name:    "rollup.halt",

@@ -75,7 +75,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 
 func TestNetwork(t *testing.T) {
 	t.Run("Unknown", func(t *testing.T) {
-		verifyArgsInvalid(t, "unavailable network: \"bar\"", replaceRequiredArg("--network", "bar"))
+		verifyArgsInvalid(t, "invalid network: \"bar\"", replaceRequiredArg("--network", "bar"))
 	})
 
 	t.Run("Required", func(t *testing.T) {
