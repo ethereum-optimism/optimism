@@ -376,7 +376,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            STRICT_DEPLOYMENT=false pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
