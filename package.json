@@ -11,7 +11,7 @@
   "scripts": {
     "clean": "pnpm recursive run clean; rm -rf node_modules packages/*/node_modules && echo 'Finished cleaning. Run `pnpm install && pnpm build` from root of repo to rebuild the repo.'",
     "bindings": "nx bindings @eth-optimism/contracts-bedrock",
-    "build": "npx nx run-many --target=build",
+    "build": "npx nx run-many --parallel --target=build",
     "test": "npx nx run-many --target=test",
     "issues": "./ops/scripts/todo-checker.sh",
     "lint": "npx nx run-many --target=lint",
