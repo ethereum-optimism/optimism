@@ -7,6 +7,7 @@ import {
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
 import { BigNumber, ethers } from 'ethers'
+import Safe from '@eth-optimism/contracts-bedrock/forge-artifacts/IGnosisSafe.sol/IGnosisSafe.0.8.19.json'
 
 import { version } from '../../package.json'
 
@@ -76,9 +77,8 @@ export class BalanceMonService extends BaseServiceV2<
 
   protected async main(): Promise<void> {
     for (const account of this.state.accounts) {
-      let balance: ethers.BigNumber
       try {
-        balance = await this.options.rpc.getBalance(account.address)
+        const balance = await this.options.rpc.getBalance(account.address)
         this.logger.info(`got balance`, {
           address: account.address,
           nickname: account.nickname,
@@ -106,14 +106,13 @@ export class BalanceMonService extends BaseServiceV2<
 
       // Get the safe nonce to report
       if (account.safe) {
-        let safeNonce: ethers.BigNumber
         try {
-          safeNonce = BigNumber.from(
-            await this.options.rpc.call({
-              to: account.address,
-              data: '0xaffed0e0', // call the nonce() function in the safe contract
-            })
+          const safeContract = new ethers.Contract(
+            account.address,
+            Safe.abi,
+            this.options.rpc
           )
+          const safeNonce = BigNumber.from(await safeContract.nonce())
           this.logger.info(`got nonce`, {
             address: account.address,
             nickname: account.nickname,
