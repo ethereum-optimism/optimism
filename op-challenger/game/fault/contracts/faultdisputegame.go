@@ -20,6 +20,8 @@ const (
 	methodStatus           = "status"
 	methodClaimCount       = "claimDataLen"
 	methodClaim            = "claimData"
+	methodL1Head           = "l1Head"
+	methodProposals        = "proposals"
 	methodResolve          = "resolve"
 	methodResolveClaim     = "resolveClaim"
 	methodAttack           = "attack"
@@ -30,6 +32,12 @@ const (
 type FaultDisputeGameContract struct {
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+}
+
+type Proposal struct {
+	Index         *big.Int
+	L2BlockNumber *big.Int
+	OutputRoot    common.Hash
 }
 
 func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
@@ -66,6 +74,27 @@ func (f *FaultDisputeGameContract) GetAbsolutePrestateHash(ctx context.Context) 
 		return common.Hash{}, fmt.Errorf("failed to fetch absolute prestate hash: %w", err)
 	}
 	return result.GetHash(0), nil
+}
+
+func (f *FaultDisputeGameContract) GetL1Head(ctx context.Context) (common.Hash, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodL1Head))
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch L1 head: %w", err)
+	}
+	return result.GetHash(0), nil
+}
+
+// GetProposals returns the agreed and disputed proposals
+func (f *FaultDisputeGameContract) GetProposals(ctx context.Context) (Proposal, Proposal, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodProposals))
+	if err != nil {
+		return Proposal{}, Proposal{}, fmt.Errorf("failed to fetch proposals: %w", err)
+	}
+
+	var agreed, disputed Proposal
+	result.GetStruct(0, &agreed)
+	result.GetStruct(1, &disputed)
+	return agreed, disputed, nil
 }
 
 func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {

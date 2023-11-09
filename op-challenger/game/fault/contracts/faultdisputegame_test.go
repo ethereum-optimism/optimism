@@ -61,6 +61,13 @@ func TestSimpleGetters(t *testing.T) {
 			},
 		},
 		{
+			method: methodL1Head,
+			result: common.Hash{0xdd, 0xbb},
+			call: func(game *FaultDisputeGameContract) (any, error) {
+				return game.GetL1Head(context.Background())
+			},
+		},
+		{
 			method: methodResolve,
 			result: types.GameStatusInProgress,
 			call: func(game *FaultDisputeGameContract) (any, error) {
@@ -82,6 +89,33 @@ func TestSimpleGetters(t *testing.T) {
 			require.Equal(t, expected, status)
 		})
 	}
+}
+
+func TestGetProposals(t *testing.T) {
+	stubRpc, game := setup(t)
+	agreedIndex := big.NewInt(5)
+	agreedBlockNum := big.NewInt(6)
+	agreedRoot := common.Hash{0xaa}
+	disputedIndex := big.NewInt(7)
+	disputedBlockNum := big.NewInt(8)
+	disputedRoot := common.Hash{0xdd}
+	agreed := Proposal{
+		Index:         agreedIndex,
+		L2BlockNumber: agreedBlockNum,
+		OutputRoot:    agreedRoot,
+	}
+	disputed := Proposal{
+		Index:         disputedIndex,
+		L2BlockNumber: disputedBlockNum,
+		OutputRoot:    disputedRoot,
+	}
+	stubRpc.SetResponse(methodProposals, batching.BlockLatest, []interface{}{}, []interface{}{
+		agreed, disputed,
+	})
+	actualAgreed, actualDisputed, err := game.GetProposals(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, agreed, actualAgreed)
+	require.Equal(t, disputed, actualDisputed)
 }
 
 func TestGetClaim(t *testing.T) {

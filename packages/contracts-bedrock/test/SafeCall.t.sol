@@ -13,7 +13,7 @@ contract SafeCall_Test is Test {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
-        assumeNoPrecompiles(to, 1);
+        assumeNotPrecompile(to);
         // don't call the vm
         vm.assume(to != address(vm));
         vm.assume(from != address(vm));
@@ -47,7 +47,7 @@ contract SafeCall_Test is Test {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
-        assumeNoPrecompiles(to, 1);
+        assumeNotPrecompile(to);
         // don't call the vm
         vm.assume(to != address(vm));
         vm.assume(from != address(vm));
@@ -89,7 +89,7 @@ contract SafeCall_Test is Test {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
-        assumeNoPrecompiles(to, 1);
+        assumeNotPrecompile(to);
         // don't call the vm
         vm.assume(to != address(vm));
         vm.assume(from != address(vm));

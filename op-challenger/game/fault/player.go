@@ -34,7 +34,7 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
+type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -77,7 +77,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	provider, updater, err := creator(addr, gameDepth, dir)
+	provider, updater, err := creator(addr, loader, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
