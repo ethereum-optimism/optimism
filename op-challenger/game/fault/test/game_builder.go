@@ -29,10 +29,14 @@ type GameBuilderSeq struct {
 }
 
 func (g *GameBuilder) Seq() *GameBuilderSeq {
+	return g.SeqFrom(g.Game.Claims()[0])
+}
+
+func (g *GameBuilder) SeqFrom(claim types.Claim) *GameBuilderSeq {
 	return &GameBuilderSeq{
 		gameBuilder: g,
 		builder:     g.builder,
-		lastClaim:   g.Game.Claims()[0],
+		lastClaim:   claim,
 	}
 }
 

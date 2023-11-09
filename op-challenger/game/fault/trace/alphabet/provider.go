@@ -54,6 +54,9 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 
 // Get returns the claim value at the given index in the trace.
 func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (common.Hash, error) {
+	if uint64(i.Depth()) > ap.depth {
+		return common.Hash{}, ErrIndexTooLarge
+	}
 	// Step data returns the pre-state, so add 1 to get the state for index i
 	ti := i.TraceIndex(int(ap.depth))
 	postPosition := types.NewPosition(int(ap.depth), new(big.Int).Add(ti, big.NewInt(1)))
