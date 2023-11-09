@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -20,7 +21,36 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestBatcher(gt *testing.T) {
+// TestL2BatcherBatchType run each batcher-related test case in singular batch mode and span batch mode.
+func TestL2BatcherBatchType(t *testing.T) {
+	tests := []struct {
+		name string
+		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
+	}{
+		{"NormalBatcher", NormalBatcher},
+		{"L2Finalization", L2Finalization},
+		{"L2FinalizationWithSparseL1", L2FinalizationWithSparseL1},
+		{"GarbageBatch", GarbageBatch},
+		{"ExtendedTimeWithoutL1Batches", ExtendedTimeWithoutL1Batches},
+		{"BigL2Txs", BigL2Txs},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
+			test.f(t, nil)
+		})
+	}
+
+	spanBatchTimeOffset := hexutil.Uint64(0)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
+			test.f(t, &spanBatchTimeOffset)
+		})
+	}
+}
+
+func NormalBatcher(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
@@ -29,6 +59,7 @@ func TestBatcher(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
+	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -55,7 +86,7 @@ func TestBatcher(gt *testing.T) {
 		To:        &dp.Addresses.Bob,
 		Value:     e2eutils.Ether(2),
 	})
-	require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+	require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -97,9 +128,10 @@ func TestBatcher(gt *testing.T) {
 	require.NotNil(t, vTx)
 }
 
-func TestL2Finalization(gt *testing.T) {
+func L2Finalization(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -202,10 +234,11 @@ func TestL2Finalization(gt *testing.T) {
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
 }
 
-// TestL2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal
-func TestL2FinalizationWithSparseL1(gt *testing.T) {
+// L2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal
+func L2FinalizationWithSparseL1(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -258,13 +291,14 @@ func TestL2FinalizationWithSparseL1(gt *testing.T) {
 	require.Equal(t, finalStatus.FinalizedL2.Number, finalStatus.UnsafeL2.Number, "sequencer submitted its L2 block and it finalized")
 }
 
-// TestGarbageBatch tests the behavior of an invalid/malformed output channel frame containing
+// GarbageBatch tests the behavior of an invalid/malformed output channel frame containing
 // valid batches being submitted to the batch inbox. These batches should always be rejected
 // and the safe L2 head should remain unaltered.
-func TestGarbageBatch(gt *testing.T) {
+func GarbageBatch(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	p := defaultRollupTestParams
 	dp := e2eutils.MakeDeployParams(t, p)
+	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	for _, garbageKind := range GarbageKinds {
 		sd := e2eutils.Setup(t, dp, defaultAlloc)
 		log := testlog.Logger(t, log.LvlError)
@@ -340,7 +374,7 @@ func TestGarbageBatch(gt *testing.T) {
 	}
 }
 
-func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
+func ExtendedTimeWithoutL1Batches(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
@@ -349,6 +383,7 @@ func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
+	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -386,7 +421,7 @@ func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 	require.Equal(t, sequencer.L2Unsafe(), sequencer.L2Safe(), "same for sequencer")
 }
 
-// TestBigL2Txs tests a high-throughput case with constrained batcher:
+// BigL2Txs tests a high-throughput case with constrained batcher:
 //   - Fill 40 L2 blocks to near max-capacity, with txs of 120 KB each
 //   - Buffer the L2 blocks into channels together as much as possible, submit data-txs only when necessary
 //     (just before crossing the max RLP channel size)
@@ -398,7 +433,7 @@ func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 // The goal of this test is to quickly run through an otherwise very slow process of submitting and including lots of data.
 // This does not test the batcher code, but is really focused at testing the batcher utils
 // and channel-decoding verifier code in the derive package.
-func TestBigL2Txs(gt *testing.T) {
+func BigL2Txs(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
 		MaxSequencerDrift:   100,
@@ -407,6 +442,7 @@ func TestBigL2Txs(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
+	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
@@ -464,7 +500,7 @@ func TestBigL2Txs(gt *testing.T) {
 				Value:     big.NewInt(0),
 				Data:      data,
 			})
-			require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+			require.NoError(t, cl.SendTransaction(t.Ctx(), tx))
 			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 		}
 		sequencer.ActL2EndBlock(t)

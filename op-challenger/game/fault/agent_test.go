@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -112,10 +113,10 @@ func setupTestAgent(t *testing.T, agreeWithProposedOutput bool) (*Agent, *stubCl
 	logger := testlog.Logger(t, log.LvlInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := 4
-	trace := alphabet.NewTraceProvider("abcd", uint64(depth))
+	provider := alphabet.NewTraceProvider("abcd", uint64(depth))
 	responder := &stubResponder{}
 	updater := &stubUpdater{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace, responder, updater, agreeWithProposedOutput, logger)
+	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, updater, agreeWithProposedOutput, logger)
 	return agent, claimLoader, responder
 }
 

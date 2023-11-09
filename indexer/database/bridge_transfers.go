@@ -61,10 +61,12 @@ type L2BridgeWithdrawalWithTransactionHashes struct {
 
 type BridgeTransfersView interface {
 	L1BridgeDeposit(common.Hash) (*L1BridgeDeposit, error)
+	L1BridgeDepositSum() (float64, error)
 	L1BridgeDepositWithFilter(BridgeTransfer) (*L1BridgeDeposit, error)
 	L1BridgeDepositsByAddress(common.Address, string, int) (*L1BridgeDepositsResponse, error)
 
 	L2BridgeWithdrawal(common.Hash) (*L2BridgeWithdrawal, error)
+	L2BridgeWithdrawalSum() (float64, error)
 	L2BridgeWithdrawalWithFilter(BridgeTransfer) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalsByAddress(common.Address, string, int) (*L2BridgeWithdrawalsResponse, error)
 }
@@ -134,6 +136,17 @@ type L1BridgeDepositsResponse struct {
 	Deposits    []L1BridgeDepositWithTransactionHashes
 	Cursor      string
 	HasNextPage bool
+}
+
+// L1BridgeDepositSum ... returns the sum of all l1 bridge deposit mints in gwei
+func (db *bridgeTransfersDB) L1BridgeDepositSum() (float64, error) {
+	var sum float64
+	result := db.gorm.Model(&L1TransactionDeposit{}).Select("sum(amount)").Scan(&sum)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return sum, nil
 }
 
 // L1BridgeDepositsByAddress retrieves a list of deposits initiated by the specified address,
@@ -231,6 +244,16 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*
 	}
 
 	return &withdrawal, nil
+}
+
+func (db *bridgeTransfersDB) L2BridgeWithdrawalSum() (float64, error) {
+	var sum float64
+	result := db.gorm.Model(&L2TransactionWithdrawal{}).Select("sum(amount)").Scan(&sum)
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return sum, nil
 }
 
 // L2BridgeWithdrawalWithFilter queries for a bridge withdrawal with set fields in the `BridgeTransfer` filter

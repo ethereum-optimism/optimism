@@ -49,6 +49,11 @@ type WithdrawalResponse struct {
 	Items       []WithdrawalItem `json:"items"`
 }
 
+type BridgeSupplyView struct {
+	L1DepositSum    float64 `json:"l1DepositSum"`
+	L2WithdrawalSum float64 `json:"l2WithdrawalSum"`
+}
+
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
 // newWithdrawalResponse ... Converts a database.L2BridgeWithdrawalsResponse to an api.WithdrawalResponse
 func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) WithdrawalResponse {

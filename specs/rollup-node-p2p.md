@@ -291,6 +291,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the `block_hash` in the `payload` is not valid
 - `[REJECT]` if the block is on the V1 topic and has withdrawals
 - `[REJECT]` if the block is on the V2 topic and does not have withdrawals
+- `[REJECT]` if the block is on the V2 topic and has a non-zero amount of withdrawals
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
 - `[REJECT]` if the signature by the sequencer is not valid

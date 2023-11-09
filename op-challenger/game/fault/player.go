@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -33,7 +34,7 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
+type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -76,7 +77,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	provider, updater, err := creator(addr, gameDepth, dir)
+	provider, updater, err := creator(addr, loader, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace provider: %w", err)
 	}
@@ -90,8 +91,10 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
+	accessor := trace.NewSimpleTraceAccessor(provider)
+	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, updater, cfg.AgreeWithProposedOutput, logger)
 	return &GamePlayer{
-		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     agent.Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,

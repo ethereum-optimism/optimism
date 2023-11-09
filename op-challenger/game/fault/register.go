@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -36,8 +37,8 @@ func RegisterGameTypes(
 	client *ethclient.Client,
 ) {
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
-			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, client, dir, addr, gameDepth)
+		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
+			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, dir, gameDepth)
 			if err != nil {
 				return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 			}
@@ -53,7 +54,7 @@ func RegisterGameTypes(
 		registry.RegisterGameType(cannonGameType, playerCreator)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
-		resourceCreator := func(addr common.Address, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
+		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceProvider, faultTypes.OracleUpdater, error) {
 			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 			updater := alphabet.NewOracleUpdater(logger)
 			return provider, updater, nil
