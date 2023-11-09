@@ -354,12 +354,16 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - attach_workspace: { at: "." }
       # populate node modules from the cache
       - run:
           name: Install dependencies
@@ -373,7 +377,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            pnpm gas-snapshot:no-build --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -450,12 +454,11 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - attach_workspace: { at: "." }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      # populate node modules from the cache
+      - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile --prefer-offline
