@@ -89,7 +89,7 @@ export class MultisigMonService extends BaseServiceV2<
           parseInt(safeNonce.toString(), 10)
         )
       } catch (err) {
-        this.logger.info(`got unexpected RPC error`, {
+        this.logger.error(`got unexpected RPC error`, {
           section: 'safeNonce',
           name: 'getSafeNonce',
           err,
