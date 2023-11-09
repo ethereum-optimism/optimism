@@ -363,8 +363,17 @@ jobs:
           patterns: contracts-bedrock,op-node
       # populate node modules from the cache
       - run:
+          name: look for cached artifacts
+          command: |
+            ls artifacts
+            ls lib
+            ls forge-artifacts
+            ls cache
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: |
+            pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: lint
           command: |
