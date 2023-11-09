@@ -79,6 +79,8 @@ func New(file string) (*Config, error) {
 	if _, err := toml.DecodeFile(file, cfg); err != nil {
 		return nil, err
 	}
+
+	cfg = ImportOsConfig(cfg)
 	return cfg, nil
 }
 

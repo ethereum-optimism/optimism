@@ -303,7 +303,7 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 			return nil, errors.New("could not initialize signer client")
 		}
 
-		signedTx, err := client.SignTransaction(ctx, &p.walletConfig.ChainID, tx)
+		signedTx, err := client.SignTransaction(ctx, &p.walletConfig.ChainID, common.HexToAddress(p.walletConfig.Address), tx)
 		if err != nil {
 			return nil, err
 		}
