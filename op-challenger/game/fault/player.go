@@ -89,7 +89,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, addr)
+	responder, err := responder.NewFaultResponder(logger, txMgr, loader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
