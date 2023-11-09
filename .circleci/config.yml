@@ -497,7 +497,7 @@ jobs:
         type: string
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -526,7 +526,7 @@ jobs:
   contracts-ts-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -548,7 +548,7 @@ jobs:
   sdk-next-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
