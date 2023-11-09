@@ -353,6 +353,10 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      # Forge heavily relies on submodules
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -1287,9 +1291,9 @@ workflows:
             - pnpm-monorepo
       - contracts-bedrock-tests
       - contracts-bedrock-coverage
-      - contracts-bedrock-checks:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-checks # :#Disabled using the shared build from pnpm-monorepo b/c it's broken
+          # requires:
+          #   - pnpm-monorepo
       - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
