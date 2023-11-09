@@ -11,11 +11,6 @@ CONTRACTS_BASE=$(dirname $SCRIPT_DIR)
 MONOREPO_BASE=$(dirname $(dirname $CONTRACTS_BASE))
 
 for config in $CONTRACTS_BASE/deploy-config/*.json; do
-    if grep -q "getting-started" <<< "$config"; then
-      echo "Skipping getting-started.json"
-      continue
-    fi
-
     go run $MONOREPO_BASE/op-chain-ops/cmd/check-deploy-config/main.go --path $config
     [ $? -eq 0 ]  || code=$?
 done
