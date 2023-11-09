@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
 	"os"
 
 	"github.com/urfave/cli/v2"
@@ -13,6 +12,7 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
