@@ -6,7 +6,7 @@ import {
   validators,
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
-import { BigNumber, ethers } from 'ethers'
+import { ethers } from 'ethers'
 
 import Safe from '../abi/IGnosisSafe.0.8.19.json'
 import { version } from '../../package.json'
@@ -77,7 +77,7 @@ export class MultisigMonService extends BaseServiceV2<
           Safe.abi,
           this.options.rpc
         )
-        const safeNonce = BigNumber.from(await safeContract.nonce())
+        const safeNonce = await safeContract.nonce()
         this.logger.info(`got nonce`, {
           address: account.address,
           nickname: account.nickname,
