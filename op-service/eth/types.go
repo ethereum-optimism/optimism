@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
@@ -142,8 +144,7 @@ type ExecutionPayload struct {
 	ExtraData     BytesMax32      `json:"extraData"`
 	BaseFeePerGas Uint256Quantity `json:"baseFeePerGas"`
 	BlockHash     common.Hash     `json:"blockHash"`
-	// nil if not present, pre-shanghai
-	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	Withdrawals   *Withdrawals    `json:"withdrawals,omitempty"`
 	// Array of transaction objects, each object is a byte list (DATA) representing
 	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
 	Transactions []Data `json:"transactions"`
@@ -237,7 +238,7 @@ func BlockAsPayload(bl *types.Block, canyonForkTime *uint64) (*ExecutionPayload,
 	}
 
 	if canyonForkTime != nil && uint64(payload.Timestamp) >= *canyonForkTime {
-		payload.Withdrawals = &types.Withdrawals{}
+		payload.Withdrawals = &Withdrawals{}
 	}
 
 	return payload, nil
@@ -251,7 +252,7 @@ type PayloadAttributes struct {
 	// suggested value for the coinbase field of the new payload
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
 	// Withdrawals to include into the block -- should be nil or empty depending on Shanghai enablement
-	Withdrawals *types.Withdrawals `json:"withdrawals,omitempty"`
+	Withdrawals *Withdrawals `json:"withdrawals,omitempty"`
 	// Transactions to force into the block (always at the start of the transactions list).
 	Transactions []Data `json:"transactions,omitempty"`
 	// NoTxPool to disable adding any transactions from the transaction-pool.
@@ -316,4 +317,66 @@ type SystemConfig struct {
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
 	// More fields can be added for future SystemConfig versions.
+}
+
+// Withdrawal represents a validator withdrawal from the consensus layer.
+// https://github.com/ethereum/consensus-specs/blob/dev/specs/capella/beacon-chain.md#withdrawal
+type Withdrawal struct {
+	Index     uint64         `json:"index"`          // monotonically increasing identifier issued by consensus layer
+	Validator uint64         `json:"validatorIndex"` // index of validator associated with withdrawal
+	Address   common.Address `json:"address"`        // target address for withdrawn ether
+	Amount    uint64         `json:"amount"`         // value of withdrawal in Gwei
+}
+
+// Withdrawals implements DerivableList for withdrawals.
+type Withdrawals []Withdrawal
+
+// Len returns the length of s.
+func (s Withdrawals) Len() int { return len(s) }
+
+// EncodeIndex encodes the i'th withdrawal to w. Note that this does not check for errors
+// because we assume that *Withdrawal will only ever contain valid withdrawals that were either
+// constructed by decoding or via public API in this package.
+func (s Withdrawals) EncodeIndex(i int, w *bytes.Buffer) {
+	_ = rlp.Encode(w, s[i])
+}
+
+type Bytes48 [48]byte
+
+func (b *Bytes48) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes48) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+}
+
+func (b Bytes48) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes48) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes48) TerminalString() string {
+	return fmt.Sprintf("%x..%x", b[:3], b[45:])
+}
+
+type Uint64String uint64
+
+func (v Uint64String) MarshalText() (out []byte, err error) {
+	out = strconv.AppendUint(out, uint64(v), 10)
+	return
+}
+
+func (v *Uint64String) UnmarshalText(b []byte) error {
+	n, err := strconv.ParseUint(string(b), 0, 64)
+	if err != nil {
+		return err
+	}
+	*v = Uint64String(n)
+	return nil
 }
