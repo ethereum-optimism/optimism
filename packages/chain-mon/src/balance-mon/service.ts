@@ -7,8 +7,8 @@ import {
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
 import { BigNumber, ethers } from 'ethers'
-import Safe from '@eth-optimism/contracts-bedrock/forge-artifacts/IGnosisSafe.sol/IGnosisSafe.0.8.19.json'
 
+import Safe from '../abi/IGnosisSafe.0.8.19.json'
 import { version } from '../../package.json'
 
 type BalanceMonOptions = {
