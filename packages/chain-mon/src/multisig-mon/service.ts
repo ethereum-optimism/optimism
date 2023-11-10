@@ -6,32 +6,34 @@ import {
   validators,
 } from '@eth-optimism/common-ts'
 import { Provider } from '@ethersproject/abstract-provider'
+import { ethers } from 'ethers'
 
+import Safe from '../abi/IGnosisSafe.0.8.19.json'
 import { version } from '../../package.json'
 
-type BalanceMonOptions = {
+type MultisigMonOptions = {
   rpc: Provider
   accounts: string
 }
 
-type BalanceMonMetrics = {
-  balances: Gauge
+type MultisigMonMetrics = {
+  safeNonce: Gauge
   unexpectedRpcErrors: Counter
 }
 
-type BalanceMonState = {
+type MultisigMonState = {
   accounts: Array<{ address: string; nickname: string }>
 }
 
-export class BalanceMonService extends BaseServiceV2<
-  BalanceMonOptions,
-  BalanceMonMetrics,
-  BalanceMonState
+export class MultisigMonService extends BaseServiceV2<
+  MultisigMonOptions,
+  MultisigMonMetrics,
+  MultisigMonState
 > {
-  constructor(options?: Partial<BalanceMonOptions & StandardOptions>) {
+  constructor(options?: Partial<MultisigMonOptions & StandardOptions>) {
     super({
       version,
-      name: 'balance-mon',
+      name: 'multisig-mon',
       loop: true,
       options: {
         loopIntervalMs: 60_000,
@@ -49,9 +51,9 @@ export class BalanceMonService extends BaseServiceV2<
         },
       },
       metricsSpec: {
-        balances: {
+        safeNonce: {
           type: Gauge,
-          desc: 'Balances of addresses',
+          desc: 'Safe nonce',
           labels: ['address', 'nickname'],
         },
         unexpectedRpcErrors: {
@@ -70,29 +72,31 @@ export class BalanceMonService extends BaseServiceV2<
   protected async main(): Promise<void> {
     for (const account of this.state.accounts) {
       try {
-        const balance = await this.options.rpc.getBalance(account.address)
-        this.logger.info(`got balance`, {
+        const safeContract = new ethers.Contract(
+          account.address,
+          Safe.abi,
+          this.options.rpc
+        )
+        const safeNonce = await safeContract.nonce()
+        this.logger.info(`got nonce`, {
           address: account.address,
           nickname: account.nickname,
-          balance: balance.toString(),
+          nonce: safeNonce.toString(),
         })
 
-        // Parse the balance as an integer instead of via toNumber() to avoid ethers throwing an
-        // an error. We might get rounding errors but we don't need perfect precision here, just a
-        // generally accurate sense for what the current balance is.
-        this.metrics.balances.set(
+        this.metrics.safeNonce.set(
           { address: account.address, nickname: account.nickname },
-          parseInt(balance.toString(), 10)
+          parseInt(safeNonce.toString(), 10)
         )
       } catch (err) {
-        this.logger.info(`got unexpected RPC error`, {
-          section: 'balances',
-          name: 'getBalance',
+        this.logger.error(`got unexpected RPC error`, {
+          section: 'safeNonce',
+          name: 'getSafeNonce',
           err,
         })
         this.metrics.unexpectedRpcErrors.inc({
-          section: 'balances',
-          name: 'getBalance',
+          section: 'safeNonce',
+          name: 'getSafeNonce',
         })
       }
     }
@@ -100,6 +104,6 @@ export class BalanceMonService extends BaseServiceV2<
 }
 
 if (require.main === module) {
-  const service = new BalanceMonService()
+  const service = new MultisigMonService()
   service.run()
 }

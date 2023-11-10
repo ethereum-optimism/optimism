@@ -12,6 +12,7 @@ import (
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/networks"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -56,6 +57,10 @@ func main() {
 		{
 			Name:        "doc",
 			Subcommands: doc.NewSubcommands(metrics.NewMetrics("default")),
+		},
+		{
+			Name:        "networks",
+			Subcommands: networks.Subcommands,
 		},
 	}
 

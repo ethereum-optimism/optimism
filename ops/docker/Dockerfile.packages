@@ -86,10 +86,6 @@ WORKDIR /opt/optimism/packages/chain-mon
 
 # TODO keeping the rest of these here for now because they are being used
 # but we should really delete them we only need one image
-FROM base as replica-mon
-WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:replica-mon"]
-
 FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:balance-mon"]
@@ -98,14 +94,24 @@ FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:drippie-mon"]
 
-FROM base as wd-mon
+from base as fault-mon
 WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:wd-mon"]
+CMD ["start:fault-mon"]
+
+from base as multisig-mon
+WORKDIR /opt/optimism/packages/multisig-mon
+CMD ["start:multisig-mon"]
+
+FROM base as replica-mon
+WORKDIR /opt/optimism/packages/chain-mon
+CMD ["start:replica-mon"]
 
 FROM base as wallet-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:wallet-mon"]
 
-from base as fault-mon
+FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
-CMD ["start:fault-mon"]
+CMD ["start:wd-mon"]
+
+
