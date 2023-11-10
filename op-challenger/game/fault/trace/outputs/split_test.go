@@ -78,9 +78,6 @@ func TestTranslatePositionsForBottomProvider(t *testing.T) {
 			requireSameValue(t, provider, claimPos, asBottomTraceProvider(t, provider).AlphabetTraceProvider, localClaimPos)
 			requireSameValue(t, provider, claimPos.Attack(), asBottomTraceProvider(t, provider).AlphabetTraceProvider, localClaimPos.Attack())
 			requireSameValue(t, provider, claimPos.Attack().Defend(), asBottomTraceProvider(t, provider).AlphabetTraceProvider, localClaimPos.Attack().Defend())
-
-			// TODO: Work out how to handle the unusual case of defending the root claim of the bottom provider which is now possible.
-			//requireSameValue(t, provider, claimPos.Defend(), asBottomTraceProvider(t, provider).AlphabetTraceProvider, localClaimPos.Defend())
 		})
 	}
 }
