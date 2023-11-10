@@ -202,7 +202,7 @@ func (b *BridgeProcessor) processInitiatedL1Events() error {
 			}
 
 			legacyBridgeLog := l1BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL1Height, "to_block_number", legacyToL1Height)
-			legacyBridgeLog.Info("scanning for legacy initiated bridge events")
+			legacyBridgeLog.Info("scanning for initiated bridge events")
 			if err := bridge.LegacyL1ProcessInitiatedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
 				return err
 			} else if legacyToL1Height.Cmp(toL1Height) == 0 {
@@ -255,7 +255,7 @@ func (b *BridgeProcessor) processInitiatedL2Events() error {
 			}
 
 			legacyBridgeLog := l2BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL2Height, "to_block_number", legacyToL2Height)
-			legacyBridgeLog.Info("scanning for legacy initiated bridge events")
+			legacyBridgeLog.Info("scanning for initiated bridge events")
 			if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
 				return err
 			} else if legacyToL2Height.Cmp(toL2Height) == 0 {
@@ -311,7 +311,7 @@ func (b *BridgeProcessor) processFinalizedL1Events() error {
 			}
 
 			legacyBridgeLog := l1BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL1Height, "to_block_number", legacyToL1Height)
-			legacyBridgeLog.Info("scanning for legacy finalized bridge events")
+			legacyBridgeLog.Info("scanning for finalized bridge events")
 			if err := bridge.LegacyL1ProcessFinalizedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.l1Etl.EthClient, b.chainConfig.L1Contracts, legacyFromL1Height, legacyToL1Height); err != nil {
 				return err
 			} else if legacyToL1Height.Cmp(toL1Height) == 0 {
@@ -365,7 +365,7 @@ func (b *BridgeProcessor) processFinalizedL2Events() error {
 			}
 
 			legacyBridgeLog := l2BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL2Height, "to_block_number", legacyToL2Height)
-			legacyBridgeLog.Info("scanning for legacy finalized bridge events")
+			legacyBridgeLog.Info("scanning for finalized bridge events")
 			if err := bridge.LegacyL2ProcessFinalizedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
 				return err
 			} else if legacyToL2Height.Cmp(toL2Height) == 0 {
