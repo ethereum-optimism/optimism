@@ -57,8 +57,11 @@ func newSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bot
 			}
 		}
 		provider, err := bottomProviderCreator(ctx, pre, post)
-		// TODO: Translate the bottom provider
-		return provider, err
+		if err != nil {
+			return nil, err
+		}
+		// Translate such that the root of the bottom game is the level below the top game leaf
+		return trace.Translate(provider, uint64(topDepth)+1), nil
 	}
 }
 
