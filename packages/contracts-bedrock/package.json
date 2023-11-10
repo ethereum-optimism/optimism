@@ -19,6 +19,7 @@
     "autogen:invariant-docs": "npx tsx scripts/invariant-doc-gen.ts",
     "test": "pnpm build:go-ffi && forge test",
     "coverage": "pnpm build:go-ffi && forge coverage",
+    "install": "forge install",
     "coverage:lcov": "pnpm build:go-ffi && forge coverage --report lcov",
     "gas-snapshot:no-build": "forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",

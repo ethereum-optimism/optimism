@@ -164,7 +164,8 @@ jobs:
             - "packages/contracts-bedrock/forge-artifacts"
             - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
             - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
-            - "packages/contracts-bedrock/scripts/go-ffi/go-ffi"
+            - "packages/contracts-bedrock/lib"
+            - "packages/contracts-bedrock/scripts/go-ffi"
 
   docker-build:
     environment:
@@ -310,11 +311,23 @@ jobs:
   contracts-bedrock-coverage:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - attach_workspace: { at: "." }
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: print forge version
           command: forge --version
@@ -335,11 +348,23 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
       - check-changed:
           patterns: contracts-bedrock,op-node
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - attach_workspace: { at: "." }
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: print forge version
           command: forge --version
@@ -355,18 +380,18 @@ jobs:
   contracts-bedrock-checks:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - run:
           name: git submodules
           command: git submodule update --init --recursive
+      - check-changed:
+          patterns: contracts-bedrock,op-node
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock,op-node
       - attach_workspace: { at: "." }
       # populate node modules from the cache
       - run:
@@ -1291,8 +1316,12 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-tests
-      - contracts-bedrock-coverage
+      - contracts-bedrock-tests:
+          requires:
+            - pnpm-monorepo
+      - contracts-bedrock-coverage:
+          requires:
+            - pnpm-monorepo
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
