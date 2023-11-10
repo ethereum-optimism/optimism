@@ -1662,6 +1662,22 @@ workflows:
           requires:
             - hold
       - docker-build:
+          name: chain-mon-docker-release
+          filters:
+            tags:
+              only: /^chain-mon\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: chain-mon
+          docker_tags: <<pipeline.git.revision>>,latest
+          publish: true
+          release: true
+          resource_class: xlarge
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-build:
           name: ci-builder-docker-release
           filters:
             tags:
