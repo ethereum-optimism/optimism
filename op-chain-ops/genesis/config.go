@@ -217,6 +217,9 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+
+	// When Cancun activates. Relative to L1 genesis.
+	L1CancunTimeOffset *uint64 `json:"l1CancunTimeOffset,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
