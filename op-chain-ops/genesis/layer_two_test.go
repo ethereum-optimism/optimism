@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -48,14 +49,14 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 	require.NoError(t, err)
 
 	for name, predeploy := range predeploys.Predeploys {
-		addr := *predeploy
+		addr := predeploy.Address
 
 		account, ok := gen.Alloc[addr]
 		require.Equal(t, true, ok, name)
 		require.Greater(t, len(account.Code), 0)
 
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
-		isProxy := predeploys.IsProxied(addr) ||
+		isProxy := !predeploy.ProxyDisabled ||
 			(!config.EnableGovernance && addr == predeploys.GovernanceTokenAddr)
 		if isProxy {
 			require.Equal(t, true, ok, name)
@@ -73,9 +74,9 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 		require.Equal(t, common.Big1, gen.Alloc[addr].Balance)
 	}
 
-	create2Deployer := gen.Alloc[common.HexToAddress("0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2")]
+	create2Deployer := gen.Alloc[predeploys.Create2DeployerAddr]
 	codeHash := crypto.Keccak256Hash(create2Deployer.Code)
-	require.Equal(t, codeHash, common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2"))
+	require.Equal(t, codeHash, immutables.Create2DeployerCodeHash)
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")

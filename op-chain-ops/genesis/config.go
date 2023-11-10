@@ -433,6 +433,10 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	return nil
 }
 
+func (d *DeployConfig) GovernanceEnabled() bool {
+	return d.EnableGovernance
+}
+
 func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
 	if d.L2GenesisRegolithTimeOffset == nil {
 		return nil

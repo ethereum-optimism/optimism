@@ -89,8 +89,8 @@ func entrypoint(ctx *cli.Context) error {
 	log.Info("All predeploy proxies are set correctly")
 
 	// Check that all of the defined predeploys are set up correctly
-	for name, addr := range predeploys.Predeploys {
-		log.Info("Checking predeploy", "name", name, "address", addr.Hex())
+	for name, pre := range predeploys.Predeploys {
+		log.Info("Checking predeploy", "name", name, "address", pre.Address.Hex())
 		if err := checkPredeployConfig(clients.L2Client, name); err != nil {
 			return err
 		}
@@ -102,7 +102,7 @@ func entrypoint(ctx *cli.Context) error {
 func checkPredeploy(client *ethclient.Client, i uint64) error {
 	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
 	addr := common.BigToAddress(bigAddr)
-	if !predeploys.IsProxied(addr) {
+	if pre, ok := predeploys.PredeploysByAddress[addr]; ok && pre.ProxyDisabled {
 		return nil
 	}
 	admin, err := getEIP1967AdminAddress(client, addr)
@@ -121,10 +121,10 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 	if predeploy == nil {
 		return fmt.Errorf("unknown predeploy %s", name)
 	}
-	p := *predeploy
+	p := predeploy.Address
 
 	g := new(errgroup.Group)
-	if predeploys.IsProxied(p) {
+	if !predeploy.ProxyDisabled {
 		// Check that an implementation is set. If the implementation has been upgraded,
 		// it will be considered non-standard. Ensure that there is code set at the implementation.
 		g.Go(func() error {

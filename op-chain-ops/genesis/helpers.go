@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -19,13 +18,13 @@ var (
 	codeNamespace = common.HexToAddress("0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000")
 	// l2PredeployNamespace represents the namespace of L2 predeploys
 	l2PredeployNamespace = common.HexToAddress("0x4200000000000000000000000000000000000000")
-	// bigL2PredeployNamespace represents the predeploy namespace as a big.Int
+	// BigL2PredeployNamespace represents the predeploy namespace as a big.Int
 	BigL2PredeployNamespace = new(big.Int).SetBytes(l2PredeployNamespace.Bytes())
-	// bigCodeNamespace represents the predeploy namespace as a big.Int
+	// bigCodeNameSpace represents the predeploy namespace as a big.Int
 	bigCodeNameSpace = new(big.Int).SetBytes(codeNamespace.Bytes())
-	// implementationSlot represents the EIP 1967 implementation storage slot
+	// ImplementationSlot represents the EIP 1967 implementation storage slot
 	ImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
-	// implementationSlot represents the EIP 1967 admin storage slot
+	// AdminSlot represents the EIP 1967 admin storage slot
 	AdminSlot = common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103")
 )
 
@@ -107,14 +106,4 @@ func newHexBig(in uint64) *hexutil.Big {
 	b := new(big.Int).SetUint64(in)
 	hb := hexutil.Big(*b)
 	return &hb
-}
-
-// CreateAccountOnSetCode is a vm.StateDB wrapper that optimistically creates an account on SetCode
-type CreateAccountOnSetCode struct {
-	vm.StateDB
-}
-
-func (s *CreateAccountOnSetCode) SetCode(addr common.Address, code []byte) {
-	s.CreateAccount(addr)
-	s.StateDB.SetCode(addr, code)
 }
