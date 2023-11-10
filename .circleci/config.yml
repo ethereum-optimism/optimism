@@ -155,7 +155,11 @@ jobs:
           root: "."
           paths:
             - "packages/**/dist"
+            - "packages/contracts-bedrock/cache"
+            - "packages/contracts-bedrock/artifacts"
             - "packages/contracts-bedrock/forge-artifacts"
+            - "packages/contracts-bedrock/tsconfig.tsbuildinfo"
+            - "packages/contracts-bedrock/tsconfig.build.tsbuildinfo"
 
   docker-build:
     environment:
@@ -450,15 +454,14 @@ jobs:
   contracts-bedrock-validate-spaces:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
-      - attach_workspace: { at: "." }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      # populate node modules from the cache
+      - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile --prefer-offline
@@ -494,7 +497,7 @@ jobs:
         type: string
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -523,7 +526,7 @@ jobs:
   contracts-ts-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -545,7 +548,7 @@ jobs:
   sdk-next-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
