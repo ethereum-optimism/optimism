@@ -171,10 +171,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
 	n.l1HeadsSub = event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
+		if errors.Is(err, context.Canceled) {
+			return nil, err
+		}
 		if err != nil {
 			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(n.resourcesCtx, n.l1Source, n.OnNewL1Head)
+		return eth.WatchHeadChanges(ctx, n.l1Source, n.OnNewL1Head)
 	})
 	go func() {
 		err, ok := <-n.l1HeadsSub.Err()
