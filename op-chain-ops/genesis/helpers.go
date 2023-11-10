@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -106,4 +107,14 @@ func newHexBig(in uint64) *hexutil.Big {
 	b := new(big.Int).SetUint64(in)
 	hb := hexutil.Big(*b)
 	return &hb
+}
+
+// CreateAccountOnSetCode is a vm.StateDB wrapper that optimistically creates an account on SetCode
+type CreateAccountOnSetCode struct {
+	vm.StateDB
+}
+
+func (s *CreateAccountOnSetCode) SetCode(addr common.Address, code []byte) {
+	s.CreateAccount(addr)
+	s.StateDB.SetCode(addr, code)
 }

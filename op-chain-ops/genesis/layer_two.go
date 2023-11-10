@@ -3,6 +3,7 @@ package genesis
 import (
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -76,6 +77,8 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			return nil, fmt.Errorf("code not set for %s", name)
 		}
 	}
+
+	misc.EnsureCreate2Deployer(genspec.Config, 0, &CreateAccountOnSetCode{db})
 
 	return db.Genesis(), nil
 }

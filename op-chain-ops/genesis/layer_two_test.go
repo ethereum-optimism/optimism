@@ -73,6 +73,10 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 		require.Equal(t, common.Big1, gen.Alloc[addr].Balance)
 	}
 
+	create2Deployer := gen.Alloc[common.HexToAddress("0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2")]
+	codeHash := crypto.Keccak256Hash(create2Deployer.Code)
+	require.Equal(t, codeHash, common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2"))
+
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
 		_ = os.WriteFile("genesis.json", file, 0644)
@@ -86,7 +90,7 @@ func TestBuildL2MainnetGenesis(t *testing.T) {
 	config.EnableGovernance = true
 	config.FundDevAccounts = false
 	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2322, len(gen.Alloc))
+	require.Equal(t, 2323, len(gen.Alloc))
 }
 
 func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
@@ -95,5 +99,5 @@ func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
 	config.EnableGovernance = false
 	config.FundDevAccounts = false
 	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2322, len(gen.Alloc))
+	require.Equal(t, 2323, len(gen.Alloc))
 }
