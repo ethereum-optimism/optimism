@@ -156,6 +156,7 @@ func Start(config *Config) (*Server, func(), error) {
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		opts = append(opts, WithConsensusSkipPeerCountCheck(cfg.ConsensusSkipPeerCountCheck))
 		opts = append(opts, WithConsensusForcedCandidate(cfg.ConsensusForcedCandidate))
+		opts = append(opts, WithWeight(cfg.Weight))
 
 		receiptsTarget, err := ReadFromEnvOrConfig(cfg.ConsensusReceiptsTarget)
 		if err != nil {
@@ -186,11 +187,12 @@ func Start(config *Config) (*Server, func(), error) {
 			}
 			backends = append(backends, backendsByName[bName])
 		}
-		group := &BackendGroup{
-			Name:     bgName,
-			Backends: backends,
+
+		backendGroups[bgName] = &BackendGroup{
+			Name:            bgName,
+			Backends:        backends,
+			WeightedRouting: bg.WeightedRouting,
 		}
-		backendGroups[bgName] = group
 	}
 
 	var wsBackendGroup *BackendGroup
