@@ -139,6 +139,7 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
+	headers              map[string]string
 	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -167,6 +168,12 @@ func WithBasicAuth(username, password string) BackendOpt {
 	return func(b *Backend) {
 		b.authUsername = username
 		b.authPassword = password
+	}
+}
+
+func WithHeaders(headers map[string]string) BackendOpt {
+	return func(b *Backend) {
+		b.headers = headers
 	}
 }
 
@@ -534,6 +541,10 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	httpReq.Header.Set("content-type", "application/json")
 	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
+
+	for name, value := range b.headers {
+		httpReq.Header.Set(name, value)
+	}
 
 	start := time.Now()
 	httpRes, err := b.client.DoLimited(httpReq)

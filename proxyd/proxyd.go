@@ -130,6 +130,18 @@ func Start(config *Config) (*Server, func(), error) {
 			}
 			opts = append(opts, WithBasicAuth(cfg.Username, passwordVal))
 		}
+
+		headers := map[string]string{}
+		for headerName, headerValue := range cfg.Headers {
+			headerValue, err := ReadFromEnvOrConfig(headerValue)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			headers[headerName] = headerValue
+		}
+		opts = append(opts, WithHeaders(headers))
+
 		tlsConfig, err := configureBackendTLS(cfg)
 		if err != nil {
 			return nil, nil, err
