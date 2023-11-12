@@ -459,10 +459,9 @@ jobs:
   contracts-bedrock-validate-spaces:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
-      - attach_workspace: { at: "." }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -532,7 +531,7 @@ jobs:
   contracts-ts-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -554,7 +553,7 @@ jobs:
   sdk-next-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: large
+    resource_class: medium
     steps:
       - checkout
       - attach_workspace: { at: "." }
