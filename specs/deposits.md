@@ -213,8 +213,9 @@ The RLP-encoded consensus-enforced fields are:
 - `bloom` (standard): bloom filter of the transaction logs.
 - `logs` (standard): log events emitted by the EVM processing.
 - `depositNonce` (unique extension): Optional field. The deposit transaction persists the nonce used during execution.
-  - Before Regolith, this `depositNonce` field must always be omitted.
-  - With Regolith, this `depositNonce` field must always be included.
+- `depositNonceVersion` (unique extension): Optional field. The value must be 1 if the field is present
+  - Before Canyon, these `depositNonce` & `depositNonceVersion` fields must always be omitted.
+  - With Canyon, these `depositNonce` & `depositNonceVersion` fields must always be included.
 
 Starting with Regolith, the receipt API responses utilize the receipt changes for more accurate response data:
 

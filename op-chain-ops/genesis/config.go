@@ -352,6 +352,12 @@ func (d *DeployConfig) Check() error {
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
+	if d.RequiredProtocolVersion == (params.ProtocolVersion{}) {
+		log.Warn("RequiredProtocolVersion is empty")
+	}
+	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
+		log.Warn("RecommendedProtocolVersion is empty")
+	}
 	return nil
 }
 
@@ -388,41 +394,28 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
-// required for the L2 genesis creation. Legacy systems use the `Proxy__` prefix
-// while modern systems use the `Proxy` suffix. First check for the legacy
-// deployments so that this works with upgrading a system.
+// required for the L2 genesis creation.
 func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
-	var err error
-
 	if d.L1StandardBridgeProxy == (common.Address{}) {
-		var l1StandardBridgeProxyDeployment *hardhat.Deployment
-		l1StandardBridgeProxyDeployment, err = hh.GetDeployment("Proxy__OVM_L1StandardBridge")
-		if errors.Is(err, hardhat.ErrCannotFindDeployment) {
-			l1StandardBridgeProxyDeployment, err = hh.GetDeployment("L1StandardBridgeProxy")
-			if err != nil {
-				return err
-			}
+		l1StandardBridgeProxyDeployment, err := hh.GetDeployment("L1StandardBridgeProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
 		}
 		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
 	}
 
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		var l1CrossDomainMessengerProxyDeployment *hardhat.Deployment
-		l1CrossDomainMessengerProxyDeployment, err = hh.GetDeployment("Proxy__OVM_L1CrossDomainMessenger")
-		if errors.Is(err, hardhat.ErrCannotFindDeployment) {
-			l1CrossDomainMessengerProxyDeployment, err = hh.GetDeployment("L1CrossDomainMessengerProxy")
-			if err != nil {
-				return err
-			}
+		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %w", err)
 		}
 		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
 	}
 
 	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		// There is no legacy deployment of this contract
 		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %w", err)
 		}
 		d.L1ERC721BridgeProxy = l1ERC721BridgeProxyDeployment.Address
 	}
@@ -430,7 +423,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.SystemConfigProxy == (common.Address{}) {
 		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find SystemConfigProxy artifact: %w", err)
 		}
 		d.SystemConfigProxy = systemConfigProxyDeployment.Address
 	}
@@ -438,7 +431,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		optimismPortalProxyDeployment, err := hh.GetDeployment("OptimismPortalProxy")
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
 		}
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}

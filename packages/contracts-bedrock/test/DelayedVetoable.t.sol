@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "test/CommonTest.t.sol";
+import { CommonTest } from "test/setup/CommonTest.sol";
 import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 
 contract DelayedVetoable_Init is CommonTest {
@@ -146,7 +146,7 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
     /// @dev Only the initiator can initiate a call.
     function test_handleCall_unauthorizedInitiation_reverts() external {
         vm.expectRevert(abi.encodeWithSelector(Unauthorized.selector, initiator, address(this)));
-        (bool success,) = address(delayedVetoable).call(NON_ZERO_DATA);
+        (bool success,) = address(delayedVetoable).call(hex"00001234");
         assertTrue(success);
     }
 

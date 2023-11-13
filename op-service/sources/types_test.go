@@ -13,8 +13,9 @@ import (
 var blocksTestdata embed.FS
 
 type testMetadata struct {
-	Name string `json:"name"`
-	Fail bool   `json:"fail,omitempty"`
+	Name   string `json:"name"`
+	Fail   bool   `json:"fail,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 func readJsonTestdata(t *testing.T, name string, dest any) {
@@ -67,6 +68,7 @@ func TestBlockJSON(t *testing.T) {
 			err := block.verify()
 			if metadata.Fail {
 				require.NotNil(t, err, "expecting verification error")
+				require.ErrorContains(t, err, metadata.Reason, "validation failed for incorrect reason")
 			} else {
 				require.NoError(t, err, "verification should pass")
 			}

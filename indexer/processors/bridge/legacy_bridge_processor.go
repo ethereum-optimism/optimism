@@ -75,11 +75,9 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// extract the deposit hash from the previous TransactionDepositedEvent
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected TransactionEnqueued preceding SentMessage event", "tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("expected TransactionEnqueued preceding SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding SentMessage event. tx_hash = %s", sentMessage.Event.TransactionHash)
 		} else if ctcTxDeposit.Event.TransactionHash != sentMessage.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "deposit_tx_hash", ctcTxDeposit.Event.TransactionHash.String(), "message_tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. deposit_tx_hash = %s, message_tx_hash = %s", ctcTxDeposit.Event.TransactionHash, sentMessage.Event.TransactionHash)
 		}
 
 		bridgeMessages[i] = database.L1BridgeMessage{TransactionSourceHash: ctcTxDeposit.TxHash, BridgeMessage: sentMessage.BridgeMessage}
@@ -110,20 +108,16 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// 	- Event Flow: TransactionEnqueued -> SentMessage -> DepositInitiated
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected SentMessage preceding BridgeInitiated event", "tx_hash", sentMessage.Event.TransactionHash.String())
-			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected SentMessage preceding DepositInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. bridge_tx_hash = %s, message_tx_hash = %s", initiatedBridge.Event.TransactionHash, sentMessage.Event.TransactionHash)
 		}
 
 		ctcTxDeposit, ok := ctcTxDeposits[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 2}]
 		if !ok {
-			log.Error("expected TransactionEnqueued preceding BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("expected TransactionEnqueued preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash.String())
+			return fmt.Errorf("expected TransactionEnqueued preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		} else if ctcTxDeposit.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "deposit_tx_hash", ctcTxDeposit.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. bridge_tx_hash = %s, deposit_tx_hash = %s", initiatedBridge.Event.TransactionHash, ctcTxDeposit.Event.TransactionHash)
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
@@ -227,11 +221,9 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// 	- Event Flow: TransactionEnqueued -> SentMessage -> DepositInitiated
 		sentMessage, ok := sentMessages[logKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex - 1}]
 		if !ok {
-			log.Error("expected SentMessage preceding BridgeInitiated event", "tx_hash", initiatedBridge.Event.TransactionHash.String())
 			return fmt.Errorf("expected SentMessage preceding BridgeInitiated event. tx_hash = %s", initiatedBridge.Event.TransactionHash)
 		} else if sentMessage.Event.TransactionHash != initiatedBridge.Event.TransactionHash {
-			log.Error("correlated events tx hash mismatch", "message_tx_hash", sentMessage.Event.TransactionHash.String(), "bridge_tx_hash", initiatedBridge.Event.TransactionHash.String())
-			return fmt.Errorf("correlated events tx hash mismatch")
+			return fmt.Errorf("correlated events tx hash mismatch. bridge_tx_hash = %s, message_tx_hash = %s", initiatedBridge.Event.TransactionHash, sentMessage.Event.TransactionHash)
 		}
 
 		bridgedTokens[initiatedBridge.BridgeTransfer.TokenPair.LocalTokenAddress]++
@@ -282,18 +274,15 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			// for OP-Mainnet pre-regensis withdrawals that no longer exist on L2.
 			tx, err := l1Client.TxByHash(relayedMessage.Event.TransactionHash)
 			if err != nil {
-				log.Error("unable to query legacy relayed tx", "tx_hash", relayedMessage.Event.TransactionHash.String(), "err", err)
-				return fmt.Errorf("unable to query legacy relayed tx_hash = %s: %w", relayedMessage.Event.TransactionHash.String(), err)
+				return fmt.Errorf("unable to query legacy relayed. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 			} else if tx == nil {
-				log.Error("missing tx for relayed message", "tx_hash", relayedMessage.Event.TransactionHash.String())
-				return fmt.Errorf("missing tx for relayed message. tx_hash = %s", relayedMessage.Event.TransactionHash.String())
+				return fmt.Errorf("missing tx for relayed message! tx_hash = %s", relayedMessage.Event.TransactionHash)
 			}
 
 			relayMessageData := tx.Data()[4:]
 			inputs, err := contracts.CrossDomainMessengerLegacyRelayMessageEncoding.Inputs.Unpack(relayMessageData)
 			if err != nil || inputs == nil {
-				log.Error("failed to extract XDomainCallData from relayMessage transaction", "err", err, "tx_hash", relayedMessage.Event.TransactionHash.String())
-				return fmt.Errorf("unable to extract XDomainCallData from relayMessage transaction. err = %w. tx_hash = %s", err, relayedMessage.Event.TransactionHash.String())
+				return fmt.Errorf("unable to extract XDomainCallData from relayMessage transaction. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 			}
 
 			// NOTE: Since OP-Mainnet is the only network to go through a regensis we can simply harcode the
@@ -304,23 +293,19 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 				skippedPreRegenesisMessages++
 				continue
 			} else {
-				log.Error("missing indexed legacy L2CrossDomainMessenger message", "tx_hash", relayedMessage.Event.TransactionHash.String())
-				return fmt.Errorf("missing indexed L2CrossDomainMessager message. tx_hash %s", relayedMessage.Event.TransactionHash.String())
+				return fmt.Errorf("missing indexed L2CrossDomainMessenger message! tx_hash = %s", relayedMessage.Event.TransactionHash)
 			}
 		}
 
 		// Mark the associated tx withdrawal as proven/finalized with the same event. The message hash is also the transaction withdrawal hash
 		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
-			log.Error("failed to mark withdrawal as proven", "err", err)
-			return err
+			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 		}
 		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID, true); err != nil {
-			log.Error("failed to mark withdrawal as finalzed", "err", err)
-			return err
+			return fmt.Errorf("failed to mark withdrawal as finalized. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 		}
 		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
-			log.Error("failed to relay cross domain message", "err", err)
-			return err
+			return fmt.Errorf("failed to relay cross domain message. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 		}
 	}
 	if len(crossDomainRelayedMessages) > 0 {
@@ -364,13 +349,11 @@ func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err != nil {
 			return err
 		} else if message == nil {
-			log.Error("missing indexed legacy L1CrossDomainMessenger message", "tx_hash", relayedMessage.Event.TransactionHash.String())
-			return fmt.Errorf("missing indexed L1CrossDomainMessager message. tx_hash = %s", relayedMessage.Event.TransactionHash.String())
+			return fmt.Errorf("missing indexed L1CrossDomainMessager message! tx_hash = %s", relayedMessage.Event.TransactionHash)
 		}
 
 		if err := db.BridgeMessages.MarkRelayedL1BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
-			log.Error("failed to relay cross domain message", "err", err)
-			return err
+			return fmt.Errorf("failed to relay cross domain message: %w", err)
 		}
 	}
 	if len(crossDomainRelayedMessages) > 0 {

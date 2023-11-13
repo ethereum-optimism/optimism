@@ -25,6 +25,10 @@ type GameInfo interface {
 	GetClaimCount(context.Context) (uint64, error)
 }
 
+// gameValidator checks that the specific game instance is compatible with the configuration.
+// Typically, this is done by verifying the absolute prestate of the game matches the local absolute prestate.
+type gameValidator func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error
+
 type GamePlayer struct {
 	act                     actor
 	agreeWithProposedOutput bool
@@ -33,7 +37,7 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
+type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, types.OracleUpdater, gameValidator, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -76,22 +80,23 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	provider, updater, err := creator(addr, gameDepth, dir)
+	accessor, updater, validator, err := creator(addr, loader, gameDepth, dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create trace provider: %w", err)
+		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
 
-	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
+	if err := validator(ctx, loader); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, addr)
+	responder, err := responder.NewFaultResponder(logger, txMgr, loader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
+	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, updater, cfg.AgreeWithProposedOutput, logger)
 	return &GamePlayer{
-		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     agent.Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,

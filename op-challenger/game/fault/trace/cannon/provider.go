@@ -8,11 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -56,17 +55,13 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address, gameDepth uint64) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameContract *contracts.FaultDisputeGameContract, dir string, gameDepth uint64) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
 	}
 	defer l2Client.Close() // Not needed after fetching the inputs
-	gameCaller, err := bindings.NewFaultDisputeGameCaller(gameAddr, l1Client)
-	if err != nil {
-		return nil, fmt.Errorf("create caller for game %v: %w", gameAddr, err)
-	}
-	localInputs, err := fetchLocalInputs(ctx, gameAddr, gameCaller, l2Client)
+	localInputs, err := fetchLocalInputs(ctx, gameContract, l2Client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
@@ -129,7 +124,7 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	return value, data, oracleData, nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {
+func (p *CannonTraceProvider) absolutePreState() ([]byte, error) {
 	state, err := parseState(p.prestate)
 	if err != nil {
 		return nil, fmt.Errorf("cannot load absolute pre-state: %w", err)
@@ -137,8 +132,8 @@ func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, err
 	return state.EncodeWitness(), nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (common.Hash, error) {
-	state, err := p.AbsolutePreState(ctx)
+func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+	state, err := p.absolutePreState()
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}

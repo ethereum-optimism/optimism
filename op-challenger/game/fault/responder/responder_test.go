@@ -3,16 +3,13 @@ package responder
 import (
 	"context"
 	"errors"
-	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,44 +18,34 @@ import (
 )
 
 var (
-	mockFdgAddress = common.HexToAddress("0x1234")
-	mockSendError  = errors.New("mock send error")
-	mockCallError  = errors.New("mock call error")
+	mockSendError = errors.New("mock send error")
+	mockCallError = errors.New("mock call error")
 )
 
 // TestCallResolve tests the [Responder.CallResolve].
 func TestCallResolve(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		mockTxMgr.callFails = true
+		responder, _, contract := newTestFaultResponder(t)
+		contract.callFails = true
 		status, err := responder.CallResolve(context.Background())
 		require.ErrorIs(t, err, mockCallError)
 		require.Equal(t, gameTypes.GameStatusInProgress, status)
-		require.Equal(t, 0, mockTxMgr.calls)
-	})
-
-	t.Run("UnpackFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		mockTxMgr.callBytes = []byte{0x00, 0x01}
-		status, err := responder.CallResolve(context.Background())
-		require.Error(t, err)
-		require.Equal(t, gameTypes.GameStatusInProgress, status)
-		require.Equal(t, 1, mockTxMgr.calls)
+		require.Equal(t, 0, contract.calls)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, _, contract := newTestFaultResponder(t)
 		status, err := responder.CallResolve(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, gameTypes.GameStatusInProgress, status)
-		require.Equal(t, 1, mockTxMgr.calls)
+		require.Equal(t, 1, contract.calls)
 	})
 }
 
 // TestResolve tests the [Responder.Resolve] method.
 func TestResolve(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
 		err := responder.Resolve(context.Background())
 		require.ErrorIs(t, err, mockSendError)
@@ -66,7 +53,7 @@ func TestResolve(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _ := newTestFaultResponder(t)
 		err := responder.Resolve(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
@@ -75,24 +62,24 @@ func TestResolve(t *testing.T) {
 
 func TestCallResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
-		mockTxMgr.callFails = true
+		responder, _, contract := newTestFaultResponder(t)
+		contract.callFails = true
 		err := responder.CallResolveClaim(context.Background(), 0)
 		require.ErrorIs(t, err, mockCallError)
-		require.Equal(t, 0, mockTxMgr.calls)
+		require.Equal(t, 0, contract.calls)
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, _, contract := newTestFaultResponder(t)
 		err := responder.CallResolveClaim(context.Background(), 0)
 		require.NoError(t, err)
-		require.Equal(t, 1, mockTxMgr.calls)
+		require.Equal(t, 1, contract.calls)
 	})
 }
 
 func TestResolveClaim(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
 		err := responder.ResolveClaim(context.Background(), 0)
 		require.ErrorIs(t, err, mockSendError)
@@ -100,7 +87,7 @@ func TestResolveClaim(t *testing.T) {
 	})
 
 	t.Run("Success", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _ := newTestFaultResponder(t)
 		err := responder.ResolveClaim(context.Background(), 0)
 		require.NoError(t, err)
 		require.Equal(t, 1, mockTxMgr.sends)
@@ -110,7 +97,7 @@ func TestResolveClaim(t *testing.T) {
 // TestRespond tests the [Responder.Respond] method.
 func TestPerformAction(t *testing.T) {
 	t.Run("send fails", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _ := newTestFaultResponder(t)
 		mockTxMgr.sendFails = true
 		err := responder.PerformAction(context.Background(), types.Action{
 			Type:      types.ActionTypeMove,
@@ -123,7 +110,7 @@ func TestPerformAction(t *testing.T) {
 	})
 
 	t.Run("sends response", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, _ := newTestFaultResponder(t)
 		err := responder.PerformAction(context.Background(), types.Action{
 			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
@@ -135,7 +122,7 @@ func TestPerformAction(t *testing.T) {
 	})
 
 	t.Run("attack", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, contract := newTestFaultResponder(t)
 		action := types.Action{
 			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
@@ -145,18 +132,13 @@ func TestPerformAction(t *testing.T) {
 		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
-		// Pack the tx data manually.
-		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-		require.NoError(t, err)
-		expected, err := fdgAbi.Pack("attack", big.NewInt(int64(action.ParentIdx)), action.Value)
-		require.NoError(t, err)
-
 		require.Len(t, mockTxMgr.sent, 1)
-		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.EqualValues(t, []interface{}{uint64(action.ParentIdx), action.Value}, contract.attackArgs)
+		require.Equal(t, ([]byte)("attack"), mockTxMgr.sent[0].TxData)
 	})
 
 	t.Run("defend", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, contract := newTestFaultResponder(t)
 		action := types.Action{
 			Type:      types.ActionTypeMove,
 			ParentIdx: 123,
@@ -166,18 +148,13 @@ func TestPerformAction(t *testing.T) {
 		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
-		// Pack the tx data manually.
-		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-		require.NoError(t, err)
-		expected, err := fdgAbi.Pack("defend", big.NewInt(int64(action.ParentIdx)), action.Value)
-		require.NoError(t, err)
-
 		require.Len(t, mockTxMgr.sent, 1)
-		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.EqualValues(t, []interface{}{uint64(action.ParentIdx), action.Value}, contract.defendArgs)
+		require.Equal(t, ([]byte)("defend"), mockTxMgr.sent[0].TxData)
 	})
 
 	t.Run("step", func(t *testing.T) {
-		responder, mockTxMgr := newTestFaultResponder(t)
+		responder, mockTxMgr, contract := newTestFaultResponder(t)
 		action := types.Action{
 			Type:      types.ActionTypeStep,
 			ParentIdx: 123,
@@ -188,36 +165,29 @@ func TestPerformAction(t *testing.T) {
 		err := responder.PerformAction(context.Background(), action)
 		require.NoError(t, err)
 
-		// Pack the tx data manually.
-		fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-		require.NoError(t, err)
-		expected, err := fdgAbi.Pack("step", big.NewInt(int64(action.ParentIdx)), true, action.PreState, action.ProofData)
-		require.NoError(t, err)
-
 		require.Len(t, mockTxMgr.sent, 1)
-		require.Equal(t, expected, mockTxMgr.sent[0].TxData)
+		require.EqualValues(t, []interface{}{uint64(action.ParentIdx), action.IsAttack, action.PreState, action.ProofData}, contract.stepArgs)
+		require.Equal(t, ([]byte)("step"), mockTxMgr.sent[0].TxData)
 	})
 }
 
-func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager) {
+func newTestFaultResponder(t *testing.T) (*FaultResponder, *mockTxManager, *mockContract) {
 	log := testlog.Logger(t, log.LvlError)
 	mockTxMgr := &mockTxManager{}
-	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress)
+	contract := &mockContract{}
+	responder, err := NewFaultResponder(log, mockTxMgr, contract)
 	require.NoError(t, err)
-	return responder, mockTxMgr
+	return responder, mockTxMgr, contract
 }
 
 type mockTxManager struct {
 	from      common.Address
 	sends     int
 	sent      []txmgr.TxCandidate
-	calls     int
 	sendFails bool
-	callFails bool
-	callBytes []byte
 }
 
-func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*ethtypes.Receipt, error) {
+func (m *mockTxManager) Send(_ context.Context, candidate txmgr.TxCandidate) (*ethtypes.Receipt, error) {
 	if m.sendFails {
 		return nil, mockSendError
 	}
@@ -230,23 +200,57 @@ func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (
 	), nil
 }
 
-func (m *mockTxManager) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
-	if m.callFails {
-		return nil, mockCallError
-	}
-	m.calls++
-	if m.callBytes != nil {
-		return m.callBytes, nil
-	}
-	return common.Hex2Bytes(
-		"0000000000000000000000000000000000000000000000000000000000000000",
-	), nil
-}
-
-func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
+func (m *mockTxManager) BlockNumber(_ context.Context) (uint64, error) {
 	panic("not implemented")
 }
 
 func (m *mockTxManager) From() common.Address {
 	return m.from
+}
+
+type mockContract struct {
+	calls      int
+	callFails  bool
+	attackArgs []interface{}
+	defendArgs []interface{}
+	stepArgs   []interface{}
+}
+
+func (m *mockContract) CallResolve(_ context.Context) (gameTypes.GameStatus, error) {
+	if m.callFails {
+		return gameTypes.GameStatusInProgress, mockCallError
+	}
+	m.calls++
+	return gameTypes.GameStatusInProgress, nil
+}
+
+func (m *mockContract) ResolveTx() (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+
+func (m *mockContract) CallResolveClaim(_ context.Context, _ uint64) error {
+	if m.callFails {
+		return mockCallError
+	}
+	m.calls++
+	return nil
+}
+
+func (m *mockContract) ResolveClaimTx(_ uint64) (txmgr.TxCandidate, error) {
+	return txmgr.TxCandidate{}, nil
+}
+
+func (m *mockContract) AttackTx(parentClaimId uint64, claim common.Hash) (txmgr.TxCandidate, error) {
+	m.attackArgs = []interface{}{parentClaimId, claim}
+	return txmgr.TxCandidate{TxData: ([]byte)("attack")}, nil
+}
+
+func (m *mockContract) DefendTx(parentClaimId uint64, claim common.Hash) (txmgr.TxCandidate, error) {
+	m.defendArgs = []interface{}{parentClaimId, claim}
+	return txmgr.TxCandidate{TxData: ([]byte)("defend")}, nil
+}
+
+func (m *mockContract) StepTx(claimIdx uint64, isAttack bool, stateData []byte, proofData []byte) (txmgr.TxCandidate, error) {
+	m.stepArgs = []interface{}{claimIdx, isAttack, stateData, proofData}
+	return txmgr.TxCandidate{TxData: ([]byte)("step")}, nil
 }
