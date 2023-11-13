@@ -42,11 +42,12 @@ func RegisterGameTypes(
 
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
+			logger := logger.New("game", addr)
 			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, dir, gameDepth)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 			}
-			updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client, contract)
+			updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, client, contract)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 			}
@@ -66,6 +67,7 @@ func RegisterGameTypes(
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
 		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
+			logger := logger.New("game", addr)
 			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 			updater := alphabet.NewOracleUpdater(logger)
 			validator := func(ctx context.Context, contract *contracts.FaultDisputeGameContract) error {

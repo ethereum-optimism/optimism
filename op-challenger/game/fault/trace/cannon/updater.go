@@ -17,6 +17,7 @@ import (
 )
 
 type GameContract interface {
+	VMAddr(ctx context.Context) (common.Address, error)
 	AddLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error)
 }
 
@@ -37,18 +38,13 @@ func NewOracleUpdater(
 	ctx context.Context,
 	logger log.Logger,
 	txMgr txmgr.TxManager,
-	fdgAddr common.Address,
 	client bind.ContractCaller,
 	gameContract GameContract,
 ) (*cannonUpdater, error) {
-	gameCaller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
-	if err != nil {
-		return nil, fmt.Errorf("create caller for game %v: %w", fdgAddr, err)
-	}
 	opts := &bind.CallOpts{Context: ctx}
-	vm, err := gameCaller.VM(opts)
+	vm, err := gameContract.VMAddr(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load VM address from game %v: %w", fdgAddr, err)
+		return nil, fmt.Errorf("failed to load VM address: %w", err)
 	}
 	mipsCaller, err := bindings.NewMIPSCaller(vm, client)
 	if err != nil {
@@ -56,7 +52,7 @@ func NewOracleUpdater(
 	}
 	oracleAddr, err := mipsCaller.Oracle(opts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load pre-image oracle address from game %v: %w", fdgAddr, err)
+		return nil, fmt.Errorf("failed to load pre-image oracle address: %w", err)
 	}
 	return NewOracleUpdaterWithOracle(logger, txMgr, gameContract, oracleAddr)
 }

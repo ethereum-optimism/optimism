@@ -153,6 +153,10 @@ type mockGameContract struct {
 	err error
 }
 
-func (m *mockGameContract) AddLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (m *mockGameContract) VMAddr(_ context.Context) (common.Address, error) {
+	return common.Address{0xcc}, nil
+}
+
+func (m *mockGameContract) AddLocalDataTx(_ *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	return m.tx, m.err
 }

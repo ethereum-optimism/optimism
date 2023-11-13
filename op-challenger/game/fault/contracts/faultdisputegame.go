@@ -28,6 +28,7 @@ const (
 	methodDefend           = "defend"
 	methodStep             = "step"
 	methodAddLocalData     = "addLocalData"
+	methodVM               = "VM"
 )
 
 type FaultDisputeGameContract struct {
@@ -143,6 +144,14 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 		claims = append(claims, f.decodeClaim(result, idx))
 	}
 	return claims, nil
+}
+
+func (f *FaultDisputeGameContract) VMAddr(ctx context.Context) (common.Address, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodVM))
+	if err != nil {
+		return common.Address{}, fmt.Errorf("failed to fetch VM addr: %w", err)
+	}
+	return result.GetAddress(0), nil
 }
 
 func (f *FaultDisputeGameContract) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {

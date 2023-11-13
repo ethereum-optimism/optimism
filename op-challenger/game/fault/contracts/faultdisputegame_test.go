@@ -74,6 +74,13 @@ func TestSimpleGetters(t *testing.T) {
 				return game.CallResolve(context.Background())
 			},
 		},
+		{
+			method: methodVM,
+			result: common.Address{0xab, 0xbc},
+			call: func(game *FaultDisputeGameContract) (any, error) {
+				return game.VMAddr(context.Background())
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test
