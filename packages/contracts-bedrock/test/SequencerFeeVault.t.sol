@@ -15,10 +15,12 @@ import { FeeVault } from "src/universal/FeeVault.sol";
 // Target contract
 import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
+import { console } from "forge-std/console.sol";
+
 contract SequencerFeeVault_Test is CommonTest {
     address recipient;
-    /// @dev Sets up the test suite.
 
+    /// @dev Sets up the test suite.
     function setUp() public override {
         super.setUp();
         recipient = cfg.sequencerFeeVaultRecipient();
@@ -27,6 +29,14 @@ contract SequencerFeeVault_Test is CommonTest {
     /// @dev Tests that the minimum withdrawal amount is correct.
     function test_minWithdrawalAmount_succeeds() external {
         assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), cfg.sequencerFeeVaultMinimumWithdrawalAmount());
+    }
+
+    /// @dev temporary debug
+    function test_print() external {
+        console.log("L2StandardBridge: %s", address(Predeploys.L2_STANDARD_BRIDGE).code.length);
+        console.log("L2ToL1MessagePasser: %s", address(Predeploys.L2_TO_L1_MESSAGE_PASSER).code.length);
+        console.log("GovernanceToken: %s", address(Predeploys.GOVERNANCE_TOKEN).code.length);
+        console.log("EAS: %s", address(Predeploys.EAS).code.length);
     }
 
     /// @dev Tests that the l1 fee wallet is correct.

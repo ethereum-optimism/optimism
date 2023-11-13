@@ -28,6 +28,9 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+
+import { console } from "forge-std/console.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -108,64 +111,9 @@ contract Setup is Deploy {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2(DeployConfig cfg) public {
-        // Set up L2. There are currently no proxies set in the L2 initialization.
-        vm.etch(
-            address(l2CrossDomainMessenger), address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
-        );
-        l2CrossDomainMessenger.initialize();
-
-        vm.etch(address(l2ToL1MessagePasser), address(new L2ToL1MessagePasser()).code);
-
-        vm.etch(
-            address(l2StandardBridge), address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code
-        );
-        l2StandardBridge.initialize();
-
-        vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
-        l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
-
-        vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
-
-        vm.etch(address(l2ERC721Bridge), address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
-        l2ERC721Bridge.initialize();
-
-        vm.etch(
-            address(sequencerFeeVault),
-            address(
-                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
-            ).code
-        );
-        vm.etch(
-            address(baseFeeVault),
-            address(
-                new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
-            ).code
-        );
-        vm.etch(
-            address(l1FeeVault),
-            address(
-                new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
-            ).code
-        );
-
-        vm.etch(address(l1Block), address(new L1Block()).code);
-
-        vm.etch(address(gasPriceOracle), address(new GasPriceOracle()).code);
-
-        vm.etch(address(legacyMessagePasser), address(new LegacyMessagePasser()).code);
-
-        vm.etch(address(governanceToken), address(new GovernanceToken()).code);
-        // Set the ERC20 token name and symbol
-        vm.store(
-            address(governanceToken),
-            bytes32(uint256(3)),
-            bytes32(0x4f7074696d69736d000000000000000000000000000000000000000000000010)
-        );
-        vm.store(
-            address(governanceToken),
-            bytes32(uint256(4)),
-            bytes32(0x4f50000000000000000000000000000000000000000000000000000000000004)
-        );
+        string memory projectRoot = vm.projectRoot();
+        string memory allocsPath = string.concat(projectRoot, "/.testdata/genesis.json");
+        vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = cfg.finalSystemOwner();
@@ -185,5 +133,26 @@ contract Setup is Deploy {
         vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
         vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
         vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
+        vm.label(Predeploys.EAS, "EAS");
+        vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
+
+        vm.deal(address(this), 1 ether);
+        SafeCall.send(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, 50000, 1);
+        SafeCall.send(Predeploys.LEGACY_ERC20_ETH, 50000, 1);
+        SafeCall.send(Predeploys.L2_STANDARD_BRIDGE, 50000, 1);
+        SafeCall.send(Predeploys.L2_CROSS_DOMAIN_MESSENGER, 50000, 1);
+        SafeCall.send(Predeploys.L2_TO_L1_MESSAGE_PASSER, 50000, 1);
+        SafeCall.send(Predeploys.SEQUENCER_FEE_WALLET, 50000, 1);
+        SafeCall.send(Predeploys.L2_ERC721_BRIDGE, 50000, 1);
+        SafeCall.send(Predeploys.BASE_FEE_VAULT, 50000, 1);
+        SafeCall.send(Predeploys.L1_FEE_VAULT, 50000, 1);
+        SafeCall.send(Predeploys.L1_BLOCK_ATTRIBUTES, 50000, 1);
+        SafeCall.send(Predeploys.GAS_PRICE_ORACLE, 50000, 1);
+        SafeCall.send(Predeploys.LEGACY_MESSAGE_PASSER, 50000, 1);
+        SafeCall.send(Predeploys.GOVERNANCE_TOKEN, 50000, 1);
+        SafeCall.send(Predeploys.EAS, 50000, 1);
+        SafeCall.send(Predeploys.SCHEMA_REGISTRY, 50000, 1);
+
+        console.log("setup L2StandardBridge: %s", address(Predeploys.L2_STANDARD_BRIDGE).code.length);
     }
 }
