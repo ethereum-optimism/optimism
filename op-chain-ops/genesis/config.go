@@ -353,10 +353,10 @@ func (d *DeployConfig) Check() error {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
 	if d.RequiredProtocolVersion == (params.ProtocolVersion{}) {
-		return fmt.Errorf("%w: RequiredProtocolVersion cannot be empty", ErrInvalidDeployConfig)
+		log.Warn("RequiredProtocolVersion is empty")
 	}
 	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
-		return fmt.Errorf("%w: RecommendedProtocolVersion cannot be empty", ErrInvalidDeployConfig)
+		log.Warn("RecommendedProtocolVersion is empty")
 	}
 	return nil
 }
