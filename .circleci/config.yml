@@ -1522,7 +1522,7 @@ workflows:
       - cannon-build-test-vectors
       - check-values-match:
           pattern_file1: "uint8 internal constant INITIALIZER ="
-          pattern_file2: "const initializedValue ="
+          pattern_file2: "const InitializedValue ="
           file1_path: "packages/contracts-bedrock/src/libraries/Constants.sol"
           file2_path: "op-chain-ops/genesis/config.go"
   release:
