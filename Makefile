@@ -40,11 +40,7 @@ golang-docker:
 .PHONY: golang-docker
 
 submodules:
-	# CI will checkout submodules on its own (and fails on these commands)
-	if [ -z "$$GITHUB_ENV" ]; then \
-		git submodule init; \
-		git submodule update --recursive; \
-	fi
+	git submodule update --init --recursive
 .PHONY: submodules
 
 op-bindings:
