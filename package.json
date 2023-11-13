@@ -41,7 +41,7 @@
     "@babel/eslint-parser": "^7.18.2",
     "@changesets/changelog-github": "^0.4.8",
     "@types/chai": "^4.3.10",
-    "@types/chai-as-promised": "^7.1.4",
+    "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.4",
     "@types/node": "^20.9.0",
     "@typescript-eslint/eslint-plugin": "^6.10.0",
