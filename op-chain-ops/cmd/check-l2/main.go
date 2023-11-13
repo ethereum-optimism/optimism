@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -32,7 +33,7 @@ var (
 	errInvalidInitialized = errors.New("invalid initialized value")
 	// errAlreadyInitialized represents a revert from when a contract is already initialized.
 	// This error is used to assert with `eth_call` on contracts that are `Initializable`
-	errAlreadyInitialized = errors.New("execution reverted: Initializable: contract is already initialized")
+	errAlreadyInitialized = errors.New("Initializable: contract is already initialized")
 )
 
 // Default script for checking that L2 has been configured correctly. This should be extended in the future
@@ -452,11 +453,7 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 	if err != nil {
 		return err
 	}
-	msg := ethereum.CallMsg{
-		To:   &addr,
-		Data: calldata,
-	}
-	if _, err := client.CallContract(context.Background(), msg, nil); err.Error() != errAlreadyInitialized.Error() {
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
 		return err
 	}
 
@@ -608,11 +605,7 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 	if err != nil {
 		return err
 	}
-	msg := ethereum.CallMsg{
-		To:   &addr,
-		Data: calldata,
-	}
-	if _, err := client.CallContract(context.Background(), msg, nil); err.Error() != errAlreadyInitialized.Error() {
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
 		return err
 	}
 
@@ -708,11 +701,7 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if err != nil {
 		return err
 	}
-	msg := ethereum.CallMsg{
-		To:   &addr,
-		Data: calldata,
-	}
-	if _, err := client.CallContract(context.Background(), msg, nil); err.Error() != errAlreadyInitialized.Error() {
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
 		return err
 	}
 
@@ -846,11 +835,7 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 	if err != nil {
 		return err
 	}
-	msg := ethereum.CallMsg{
-		To:   &addr,
-		Data: calldata,
-	}
-	if _, err := client.CallContract(context.Background(), msg, nil); err.Error() != errAlreadyInitialized.Error() {
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
 		return err
 	}
 
@@ -1004,4 +989,17 @@ func getStorageValue(name, entryName string, addr common.Address, client *ethcli
 		slice[i], slice[j] = slice[j], slice[i]
 	}
 	return slice[entry.Offset : entry.Offset+typ.NumberOfBytes], nil
+}
+
+// checkAlreadyInitialized will check if a contract has already been initialized
+// based on error message string matching.
+func checkAlreadyInitialized(addr common.Address, calldata []byte, client *ethclient.Client) error {
+	msg := ethereum.CallMsg{
+		To:   &addr,
+		Data: calldata,
+	}
+	if _, err := client.CallContract(context.Background(), msg, nil); !strings.Contains(err.Error(), errAlreadyInitialized.Error()) {
+		return err
+	}
+	return nil
 }
