@@ -1,8 +1,20 @@
 package models
 
-import (
-	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum/go-ethereum/common"
+import "github.com/ethereum/go-ethereum/common"
+
+// Params ... Query params
+type Params struct {
+	Address common.Address
+	Limit   int
+	Cursor  string
+}
+
+type WithdrawFilter uint8
+
+const (
+	All WithdrawFilter = iota // Same as "initialized"
+	Proven
+	Finalized
 )
 
 // DepositItem ... Deposit item model for API responses
@@ -50,41 +62,8 @@ type WithdrawalResponse struct {
 }
 
 type BridgeSupplyView struct {
-	L1DepositSum    float64 `json:"l1DepositSum"`
-	L2WithdrawalSum float64 `json:"l2WithdrawalSum"`
-}
-
-// FIXME make a pure function that returns a struct instead of newWithdrawalResponse
-// newWithdrawalResponse ... Converts a database.L2BridgeWithdrawalsResponse to an api.WithdrawalResponse
-func CreateWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) WithdrawalResponse {
-	items := make([]WithdrawalItem, len(withdrawals.Withdrawals))
-	for i, withdrawal := range withdrawals.Withdrawals {
-
-		cdh := withdrawal.L2BridgeWithdrawal.CrossDomainMessageHash
-		if cdh == nil { // Zero value indicates that the withdrawal didn't have a cross domain message
-			cdh = &common.Hash{0}
-		}
-
-		item := WithdrawalItem{
-			Guid:                   withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
-			L2BlockHash:            withdrawal.L2BlockHash.String(),
-			Timestamp:              withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
-			From:                   withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
-			To:                     withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
-			TransactionHash:        withdrawal.L2TransactionHash.String(),
-			Amount:                 withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
-			CrossDomainMessageHash: cdh.String(),
-			L1ProvenTxHash:         withdrawal.ProvenL1TransactionHash.String(),
-			L1FinalizedTxHash:      withdrawal.FinalizedL1TransactionHash.String(),
-			L1TokenAddress:         withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
-			L2TokenAddress:         withdrawal.L2BridgeWithdrawal.TokenPair.LocalTokenAddress.String(),
-		}
-		items[i] = item
-	}
-
-	return WithdrawalResponse{
-		Cursor:      withdrawals.Cursor,
-		HasNextPage: withdrawals.HasNextPage,
-		Items:       items,
-	}
+	L1DepositSum         float64 `json:"l1DepositSum"`
+	InitWithdrawalSum    float64 `json:"l2WithdrawalSum"`
+	ProvenWithdrawSum    float64 `json:"provenSum"`
+	FinalizedWithdrawSum float64 `json:"finalizedSum"`
 }

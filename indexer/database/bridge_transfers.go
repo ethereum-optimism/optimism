@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/ethereum-optimism/optimism/indexer/api/models"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -66,7 +67,7 @@ type BridgeTransfersView interface {
 	L1BridgeDepositsByAddress(common.Address, string, int) (*L1BridgeDepositsResponse, error)
 
 	L2BridgeWithdrawal(common.Hash) (*L2BridgeWithdrawal, error)
-	L2BridgeWithdrawalSum() (float64, error)
+	L2BridgeWithdrawalSum(filter models.WithdrawFilter) (float64, error)
 	L2BridgeWithdrawalWithFilter(BridgeTransfer) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalsByAddress(common.Address, string, int) (*L2BridgeWithdrawalsResponse, error)
 }
@@ -246,9 +247,25 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*
 	return &withdrawal, nil
 }
 
-func (db *bridgeTransfersDB) L2BridgeWithdrawalSum() (float64, error) {
+func (db *bridgeTransfersDB) L2BridgeWithdrawalSum(filter models.WithdrawFilter) (float64, error) {
+	// Determine where filter
+	var clause string
+	switch filter {
+	case models.All:
+		clause = ""
+
+	case models.Finalized:
+		clause = "finalized_l1_transaction_hash IS NOT NULL"
+
+	case models.Proven:
+		clause = "proven_l1_transaction_hash IS NOT NULL"
+
+	default:
+		return 0, fmt.Errorf("unknown filter argument: %d", filter)
+	}
+
 	var sum float64
-	result := db.gorm.Model(&L2TransactionWithdrawal{}).Select("sum(amount)").Scan(&sum)
+	result := db.gorm.Model(&L2TransactionWithdrawal{}).Select("sum(amount)").Scan(&sum).Where(clause)
 	if result.Error != nil {
 		return 0, result.Error
 	}

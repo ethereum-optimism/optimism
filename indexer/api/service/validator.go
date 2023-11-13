@@ -1,4 +1,4 @@
-package routes
+package service
 
 import (
 	"strconv"
@@ -14,7 +14,7 @@ type Validator struct{}
 // ParseValidateLimit ... Validates and parses the limit query parameters
 func (v *Validator) ParseValidateLimit(limit string) (int, error) {
 	if limit == "" {
-		return defaultPageLimit, nil
+		return 100, nil
 	}
 
 	val, err := strconv.Atoi(limit)

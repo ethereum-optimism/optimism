@@ -463,30 +463,48 @@ func TestClientBridgeFunctions(t *testing.T) {
 	malAddr := testSuite.OpCfg.Secrets.Addresses().Mallory
 
 	type actor struct {
-		addr common.Address
-		priv *ecdsa.PrivateKey
+		addr    common.Address
+		priv    *ecdsa.PrivateKey
+		amt     *big.Int
+		receipt types.Receipt
 	}
 
 	mintSum := bigint.Zero
-	withdrawSum := bigint.Zero
 
 	actors := []actor{
 		{
 			addr: aliceAddr,
 			priv: testSuite.OpCfg.Secrets.Alice,
+			amt:  big.NewInt(0),
 		},
 		{
 			addr: bobAddr,
 			priv: testSuite.OpCfg.Secrets.Bob,
+			amt:  big.NewInt(0),
 		},
 		{
 			addr: malAddr,
 			priv: testSuite.OpCfg.Secrets.Mallory,
+			amt:  big.NewInt(0),
 		},
+	}
+
+	type supplies struct {
+		all       *big.Int
+		proven    *big.Int
+		finalized *big.Int
+	}
+
+	s := supplies{
+		all:       big.NewInt(0),
+		proven:    big.NewInt(0),
+		finalized: big.NewInt(0),
 	}
 
 	// (3) Iterate over each actor and deposit / withdraw
 	for _, actor := range actors {
+		t.Logf("simulating deposit/withdrawal flow for %s", actor.addr.String())
+
 		l2Opts, err := bind.NewKeyedTransactorWithChainID(actor.priv, testSuite.OpCfg.L2ChainIDBig())
 		require.NoError(t, err)
 		l2Opts.Value = big.NewInt(params.Ether)
@@ -517,7 +535,9 @@ func TestClientBridgeFunctions(t *testing.T) {
 			return seenL1 && seenL2, nil
 		}))
 
-		withdrawSum = new(big.Int).Add(withdrawSum, l2ToL1MessagePasserWithdrawTx.Value())
+		s.all = new(big.Int).Add(s.all, l2ToL1MessagePasserWithdrawTx.Value())
+		actor.receipt = *l2ToL1WithdrawReceipt
+		actor.amt = l2ToL1MessagePasserWithdrawTx.Value()
 
 		// (3.d) Ensure that withdrawal and deposit txs are retrievable via API
 		deposits, err := testSuite.Client.GetAllDepositsByAddress(actor.addr)
@@ -539,7 +559,27 @@ func TestClientBridgeFunctions(t *testing.T) {
 	mintFloat, _ := mintSum.Float64()
 	require.Equal(t, mintFloat, assessment.L1DepositSum)
 
-	withdrawFloat, _ := withdrawSum.Float64()
-	require.Equal(t, withdrawFloat, assessment.L2WithdrawalSum)
+	withdrawFloat, _ := s.all.Float64()
+	require.Equal(t, withdrawFloat, assessment.FinalizedWithdrawSum)
+
+	// (5) Prove withdrawal for two actors and verify supplies
+
+	for i := 0; i < 2; i++ {
+		_, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], actors[i].priv, &actors[i].receipt)
+		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
+			l1Header := testSuite.Indexer.BridgeProcessor.LastL1Header
+			seen := l1Header != nil && l1Header.Number.Uint64() >= proveReceipt.BlockNumber.Uint64()
+			return seen, nil
+		}))
+
+		s.proven = new(big.Int).Add(s.proven, actors[i].amt)
+	}
+
+	assessment, err = testSuite.Client.GetSupplyAssessment()
+	require.NoError(t, err)
+
+	provenFloat, _ := s.proven.Float64()
+	require.Equal(t, provenFloat, assessment.FinalizedWithdrawSum)
+	// (6) Finalize withdrawal for one actor and verify supplies
 
 }
