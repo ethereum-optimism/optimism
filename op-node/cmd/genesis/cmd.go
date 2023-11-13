@@ -196,7 +196,7 @@ var Subcommands = cli.Commands{
 			}
 
 			if l1RPC != "" {
-				client, err := ethclient.Dial(ctx.String("l1-rpc"))
+				client, err := ethclient.Dial(l1RPC)
 				if err != nil {
 					return fmt.Errorf("cannot dial %s: %w", l1RPC, err)
 				}
@@ -204,19 +204,19 @@ var Subcommands = cli.Commands{
 				if config.L1StartingBlockTag == nil {
 					l1StartBlock, err = client.BlockByNumber(context.Background(), nil)
 					if err != nil {
-						return fmt.Errorf("%w", err)
+						return fmt.Errorf("cannot fetch latest block: %w", err)
 					}
 					tag := rpc.BlockNumberOrHashWithHash(l1StartBlock.Hash(), true)
 					config.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&tag)
 				} else if config.L1StartingBlockTag.BlockHash != nil {
 					l1StartBlock, err = client.BlockByHash(context.Background(), *config.L1StartingBlockTag.BlockHash)
 					if err != nil {
-						return fmt.Errorf("%w", err)
+						return fmt.Errorf("cannot fetch block by hash: %w", err)
 					}
 				} else if config.L1StartingBlockTag.BlockNumber != nil {
 					l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
 					if err != nil {
-						return fmt.Errorf("%w", err)
+						return fmt.Errorf("cannot fetch block by number: %w", err)
 					}
 				}
 			}
