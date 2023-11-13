@@ -41,20 +41,16 @@ func RegisterGameTypes(
 	multiCaller := batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize)
 
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
+		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 			logger := logger.New("game", addr)
 			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, dir, gameDepth)
 			if err != nil {
-				return nil, nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
-			}
-			updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, client, contract)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
+				return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 			}
 			validator := func(ctx context.Context, contract *contracts.FaultDisputeGameContract) error {
 				return ValidateAbsolutePrestate(ctx, provider, contract)
 			}
-			return trace.NewSimpleTraceAccessor(provider), updater, validator, nil
+			return trace.NewSimpleTraceAccessor(provider), validator, nil
 		}
 		playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 			gameContract, err := contracts.NewFaultDisputeGameContract(game.Proxy, multiCaller)
@@ -66,14 +62,12 @@ func RegisterGameTypes(
 		registry.RegisterGameType(cannonGameType, playerCreator)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
-		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
-			logger := logger.New("game", addr)
+		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
-			updater := alphabet.NewOracleUpdater(logger)
 			validator := func(ctx context.Context, contract *contracts.FaultDisputeGameContract) error {
 				return ValidateAbsolutePrestate(ctx, provider, contract)
 			}
-			return trace.NewSimpleTraceAccessor(provider), updater, validator, nil
+			return trace.NewSimpleTraceAccessor(provider), validator, nil
 		}
 		playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 			gameContract, err := contracts.NewFaultDisputeGameContract(game.Proxy, multiCaller)

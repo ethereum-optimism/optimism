@@ -146,12 +146,13 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 	return claims, nil
 }
 
-func (f *FaultDisputeGameContract) VMAddr(ctx context.Context) (common.Address, error) {
+func (f *FaultDisputeGameContract) vm(ctx context.Context) (*VMContract, error) {
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodVM))
 	if err != nil {
-		return common.Address{}, fmt.Errorf("failed to fetch VM addr: %w", err)
+		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)
 	}
-	return result.GetAddress(0), nil
+	vmAddr := result.GetAddress(0)
+	return NewVMContract(vmAddr, f.multiCaller)
 }
 
 func (f *FaultDisputeGameContract) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
@@ -205,7 +206,14 @@ func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 	return f.contract.Call(methodResolve)
 }
 
-func (f *FaultDisputeGameContract) AddLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (f *FaultDisputeGameContract) UpdateOracleTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	if data.IsLocal {
+		return f.addLocalDataTx(data)
+	}
+	return f.addGlobalDataTx(ctx, data)
+}
+
+func (f *FaultDisputeGameContract) addLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	call := f.contract.Call(
 		methodAddLocalData,
 		data.GetIdent(),
@@ -213,6 +221,18 @@ func (f *FaultDisputeGameContract) AddLocalDataTx(data *types.PreimageOracleData
 		new(big.Int).SetUint64(uint64(data.OracleOffset)),
 	)
 	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	vm, err := f.vm(ctx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
+	oracle, err := vm.Oracle(ctx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
+	return oracle.AddGlobalDataTx(data)
 }
 
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {

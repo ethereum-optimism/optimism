@@ -35,7 +35,7 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, types.OracleUpdater, gameValidator, error)
+type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, gameValidator, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -74,7 +74,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	accessor, updater, validator, err := creator(addr, loader, gameDepth, dir)
+	accessor, validator, err := creator(addr, loader, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
@@ -88,7 +88,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, updater, cfg.AgreeWithProposedOutput, logger)
+	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, cfg.AgreeWithProposedOutput, logger)
 	return &GamePlayer{
 		act:                     agent.Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,

@@ -19,6 +19,7 @@ import (
 )
 
 type expectedCall struct {
+	to         common.Address
 	block      batching.Block
 	args       []interface{}
 	packedArgs []byte
@@ -26,38 +27,49 @@ type expectedCall struct {
 }
 
 func (e *expectedCall) String() string {
-	return fmt.Sprintf("{block: %v, args: %v, outputs: %v}", e.block, e.args, e.outputs)
+	return fmt.Sprintf("{to: %v, block: %v, args: %v, outputs: %v}", e.to, e.block, e.args, e.outputs)
 }
 
 type AbiBasedRpc struct {
 	t    *testing.T
-	abi  *abi.ABI
-	addr common.Address
+	abis map[common.Address]*abi.ABI
 
 	expectedCalls map[string][]*expectedCall
 }
 
-func NewAbiBasedRpc(t *testing.T, contractAbi *abi.ABI, addr common.Address) *AbiBasedRpc {
+func NewAbiBasedRpc(t *testing.T, to common.Address, contractAbi *abi.ABI) *AbiBasedRpc {
+	abis := make(map[common.Address]*abi.ABI)
+	abis[to] = contractAbi
 	return &AbiBasedRpc{
 		t:             t,
-		abi:           contractAbi,
-		addr:          addr,
+		abis:          abis,
 		expectedCalls: make(map[string][]*expectedCall),
 	}
 }
 
-func (l *AbiBasedRpc) SetResponse(method string, block batching.Block, expected []interface{}, output []interface{}) {
+func (l *AbiBasedRpc) AddContract(to common.Address, contractAbi *abi.ABI) {
+	l.abis[to] = contractAbi
+}
+
+func (l *AbiBasedRpc) abi(to common.Address) *abi.ABI {
+	abi, ok := l.abis[to]
+	require.Truef(l.t, ok, "Missing ABI for %v", to)
+	return abi
+}
+
+func (l *AbiBasedRpc) SetResponse(to common.Address, method string, block batching.Block, expected []interface{}, output []interface{}) {
 	if expected == nil {
 		expected = []interface{}{}
 	}
 	if output == nil {
 		output = []interface{}{}
 	}
-	abiMethod, ok := l.abi.Methods[method]
+	abiMethod, ok := l.abi(to).Methods[method]
 	require.Truef(l.t, ok, "No method: %v", method)
 	packedArgs, err := abiMethod.Inputs.Pack(expected...)
 	require.NoErrorf(l.t, err, "Invalid expected arguments for method %v: %v", method, expected)
 	l.expectedCalls[method] = append(l.expectedCalls[method], &expectedCall{
+		to:         to,
 		block:      block,
 		args:       expected,
 		packedArgs: packedArgs,
@@ -75,8 +87,8 @@ func (l *AbiBasedRpc) BatchCallContext(ctx context.Context, b []rpc.BatchElem) e
 }
 
 func (l *AbiBasedRpc) VerifyTxCandidate(candidate txmgr.TxCandidate) {
-	require.EqualValues(l.t, &l.addr, candidate.To, "Incorrect To address")
-	l.findExpectedCall(candidate.TxData, batching.BlockLatest.ArgValue())
+	require.NotNil(l.t, candidate.To)
+	l.findExpectedCall(*candidate.To, candidate.TxData, batching.BlockLatest.ArgValue())
 }
 
 func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method string, args ...interface{}) error {
@@ -85,11 +97,13 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 	actualBlockRef := args[1]
 	callOpts, ok := args[0].(map[string]any)
 	require.True(l.t, ok)
-	require.Equal(l.t, &l.addr, callOpts["to"])
+	to, ok := callOpts["to"].(*common.Address)
+	require.True(l.t, ok)
+	require.NotNil(l.t, to)
 	data, ok := callOpts["input"].(hexutil.Bytes)
 	require.True(l.t, ok)
 
-	call, abiMethod := l.findExpectedCall(data, actualBlockRef)
+	call, abiMethod := l.findExpectedCall(*to, data, actualBlockRef)
 
 	output, err := abiMethod.Outputs.Pack(call.outputs...)
 	require.NoErrorf(l.t, err, "Invalid outputs for method %v: %v", abiMethod.Name, call.outputs)
@@ -102,9 +116,9 @@ func (l *AbiBasedRpc) CallContext(_ context.Context, out interface{}, method str
 	return nil
 }
 
-func (l *AbiBasedRpc) findExpectedCall(data []byte, actualBlockRef interface{}) (*expectedCall, *abi.Method) {
+func (l *AbiBasedRpc) findExpectedCall(to common.Address, data []byte, actualBlockRef interface{}) (*expectedCall, *abi.Method) {
 
-	abiMethod, err := l.abi.MethodById(data[0:4])
+	abiMethod, err := l.abi(to).MethodById(data[0:4])
 	require.NoError(l.t, err)
 
 	argData := data[4:]
@@ -116,11 +130,14 @@ func (l *AbiBasedRpc) findExpectedCall(data []byte, actualBlockRef interface{}) 
 	require.Truef(l.t, ok, "Unexpected call to %v", abiMethod.Name)
 	var call *expectedCall
 	for _, candidate := range expectedCalls {
-		if slices.Equal(candidate.packedArgs, argData) && assert.ObjectsAreEqualValues(candidate.block.ArgValue(), actualBlockRef) {
+		if to == candidate.to &&
+			slices.Equal(candidate.packedArgs, argData) &&
+			assert.ObjectsAreEqualValues(candidate.block.ArgValue(), actualBlockRef) {
 			call = candidate
 			break
 		}
 	}
-	require.NotNilf(l.t, call, "No expected calls to %v at block %v with arguments: %v\nExpected calls: %v", abiMethod.Name, actualBlockRef, args, expectedCalls)
+	require.NotNilf(l.t, call, "No expected calls to %v at block %v with to: %v, arguments: %v\nExpected calls: %v",
+		to, abiMethod.Name, actualBlockRef, args, expectedCalls)
 	return call, abiMethod
 }

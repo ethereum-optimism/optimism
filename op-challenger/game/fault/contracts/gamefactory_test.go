@@ -13,6 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	factoryAddr = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
+)
+
 func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 	blockNum := uint64(23)
 	tests := []struct {
@@ -35,7 +39,7 @@ func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 		test := test
 		t.Run(test.method, func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t)
-			stubRpc.SetResponse(test.method, batching.BlockByNumber(blockNum), nil, []interface{}{test.result})
+			stubRpc.SetResponse(factoryAddr, test.method, batching.BlockByNumber(blockNum), nil, []interface{}{test.result})
 			status, err := test.call(factory)
 			require.NoError(t, err)
 			expected := test.expected
@@ -76,6 +80,7 @@ func TestLoadGame(t *testing.T) {
 
 func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockNum uint64, game types.GameMetadata) {
 	stubRpc.SetResponse(
+		factoryAddr,
 		methodGameAtIndex,
 		batching.BlockByNumber(blockNum),
 		[]interface{}{big.NewInt(int64(idx))},
@@ -89,11 +94,10 @@ func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockNum uint64, 
 func setupDisputeGameFactoryTest(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameFactoryContract) {
 	fdgAbi, err := bindings.DisputeGameFactoryMetaData.GetAbi()
 	require.NoError(t, err)
-	address := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 
-	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAbi, address)
+	stubRpc := batchingTest.NewAbiBasedRpc(t, factoryAddr, fdgAbi)
 	caller := batching.NewMultiCaller(stubRpc, 100)
-	factory, err := NewDisputeGameFactoryContract(address, caller)
+	factory, err := NewDisputeGameFactoryContract(factoryAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, factory
 }
