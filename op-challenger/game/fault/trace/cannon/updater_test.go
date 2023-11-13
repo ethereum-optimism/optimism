@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 
@@ -20,29 +19,29 @@ import (
 )
 
 var (
-	mockFdgAddress            = common.HexToAddress("0x1234")
 	mockPreimageOracleAddress = common.HexToAddress("0x12345")
 	mockSendError             = errors.New("mock send error")
 )
 
 type mockTxManager struct {
 	from        common.Address
-	sends       int
+	sent        []txmgr.TxCandidate
 	failedSends int
 	sendFails   bool
 }
 
 func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*ethtypes.Receipt, error) {
+	m.sent = append(m.sent, candidate)
 	if m.sendFails {
 		m.failedSends++
 		return nil, mockSendError
 	}
-	m.sends++
-	return ethtypes.NewReceipt(
-		[]byte{},
-		false,
-		0,
-	), nil
+	return &ethtypes.Receipt{
+		Type:              ethtypes.LegacyTxType,
+		PostState:         []byte{},
+		CumulativeGasUsed: 0,
+		Status:            ethtypes.ReceiptStatusSuccessful,
+	}, nil
 }
 
 func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
@@ -53,70 +52,80 @@ func (m *mockTxManager) From() common.Address {
 	return m.from
 }
 
-func newTestCannonUpdater(t *testing.T, sendFails bool) (*cannonUpdater, *mockTxManager) {
+func newTestCannonUpdater(t *testing.T, sendFails bool) (*cannonUpdater, *mockTxManager, *mockGameContract) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	txMgr := &mockTxManager{
-		from:      mockFdgAddress,
+		from:      common.HexToAddress("0x1234"),
 		sendFails: sendFails,
 	}
-	updater, err := NewOracleUpdaterWithOracle(logger, txMgr, mockFdgAddress, mockPreimageOracleAddress)
+	gameContract := &mockGameContract{}
+	updater, err := NewOracleUpdaterWithOracle(logger, txMgr, gameContract, mockPreimageOracleAddress)
 	require.NoError(t, err)
-	return updater, txMgr
+	return updater, txMgr, gameContract
 }
 
 // TestCannonUpdater_UpdateOracle tests the [cannonUpdater]
 // UpdateOracle function.
 func TestCannonUpdater_UpdateOracle(t *testing.T) {
-	t.Run("succeeds", func(t *testing.T) {
-		updater, mockTxMgr := newTestCannonUpdater(t, false)
+	t.Run("local_succeeds", func(t *testing.T) {
+		updater, mockTxMgr, gameContract := newTestCannonUpdater(t, false)
+		gameContract.tx = txmgr.TxCandidate{
+			TxData: []byte{5, 6, 7, 8},
+		}
 		require.NoError(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{
-			OracleKey:  common.Hash{0xaa}.Bytes(),
-			OracleData: common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+			IsLocal:      true,
+			LocalContext: 3,
+			OracleKey:    common.Hash{0xaa}.Bytes(),
+			OracleData:   common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 		}))
-		require.Equal(t, 1, mockTxMgr.sends)
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Equal(t, gameContract.tx, mockTxMgr.sent[0])
 	})
 
-	t.Run("send fails", func(t *testing.T) {
-		updater, mockTxMgr := newTestCannonUpdater(t, true)
+	t.Run("local_fails", func(t *testing.T) {
+		updater, mockTxMgr, gameContract := newTestCannonUpdater(t, true)
+		gameContract.tx = txmgr.TxCandidate{
+			TxData: []byte{5, 6, 7, 8},
+		}
 		require.Error(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{
-			OracleKey:  common.Hash{0xaa}.Bytes(),
-			OracleData: common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+			IsLocal:      true,
+			LocalContext: 3,
+			OracleKey:    common.Hash{0xaa}.Bytes(),
+			OracleData:   common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 		}))
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Equal(t, gameContract.tx, mockTxMgr.sent[0])
 		require.Equal(t, 1, mockTxMgr.failedSends)
 	})
-}
 
-// TestCannonUpdater_BuildLocalOracleData tests the [cannonUpdater]
-// builds a valid tx candidate for a local oracle update.
-func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
-	updater, _ := newTestCannonUpdater(t, false)
-	oracleData := &types.PreimageOracleData{
-		OracleKey:    common.Hex2Bytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-		OracleData:   common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
-		OracleOffset: 7,
-	}
+	t.Run("global_succeeds", func(t *testing.T) {
+		updater, mockTxMgr, _ := newTestCannonUpdater(t, false)
+		require.NoError(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{
+			IsLocal:    false,
+			OracleKey:  common.Hash{0xaa}.Bytes(),
+			OracleData: common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+		}))
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Equal(t, mockPreimageOracleAddress, *mockTxMgr.sent[0].To)
+	})
 
-	txData, err := updater.BuildLocalOracleData(oracleData)
-	require.NoError(t, err)
-
-	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
-	require.NoError(t, err)
-	addLocalDataBytes4 := fdgAbi.Methods["addLocalData"].ID[:4]
-
-	// Pack the tx data manually.
-	var expected []byte
-	expected = append(expected, addLocalDataBytes4...)
-	expected = append(expected, common.Hex2Bytes("00aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")...)
-	expected = append(expected, common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000000")...)
-	expected = append(expected, common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000007")...)
-
-	require.Equal(t, expected, txData)
+	t.Run("local_fails", func(t *testing.T) {
+		updater, mockTxMgr, _ := newTestCannonUpdater(t, true)
+		require.Error(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{
+			IsLocal:    false,
+			OracleKey:  common.Hash{0xaa}.Bytes(),
+			OracleData: common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
+		}))
+		require.Len(t, mockTxMgr.sent, 1)
+		require.Equal(t, mockPreimageOracleAddress, *mockTxMgr.sent[0].To)
+		require.Equal(t, 1, mockTxMgr.failedSends)
+	})
 }
 
 // TestCannonUpdater_BuildGlobalOracleData tests the [cannonUpdater]
 // builds a valid tx candidate for a global oracle update.
 func TestCannonUpdater_BuildGlobalOracleData(t *testing.T) {
-	updater, _ := newTestCannonUpdater(t, false)
+	updater, _, _ := newTestCannonUpdater(t, false)
 	oracleData := &types.PreimageOracleData{
 		OracleKey:    common.Hex2Bytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 		OracleData:   common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
@@ -137,4 +146,13 @@ func TestCannonUpdater_BuildGlobalOracleData(t *testing.T) {
 	expected = append(expected, common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccc0000000000000000")...)
 
 	require.Equal(t, expected, txData)
+}
+
+type mockGameContract struct {
+	tx  txmgr.TxCandidate
+	err error
+}
+
+func (m *mockGameContract) AddLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	return m.tx, m.err
 }

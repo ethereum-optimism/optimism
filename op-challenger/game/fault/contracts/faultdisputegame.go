@@ -27,6 +27,7 @@ const (
 	methodAttack           = "attack"
 	methodDefend           = "defend"
 	methodStep             = "step"
+	methodAddLocalData     = "addLocalData"
 )
 
 type FaultDisputeGameContract struct {
@@ -193,6 +194,16 @@ func (f *FaultDisputeGameContract) ResolveTx() (txmgr.TxCandidate, error) {
 
 func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 	return f.contract.Call(methodResolve)
+}
+
+func (f *FaultDisputeGameContract) AddLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(
+		methodAddLocalData,
+		data.GetIdent(),
+		new(big.Int).SetUint64(data.LocalContext),
+		new(big.Int).SetUint64(uint64(data.OracleOffset)),
+	)
+	return call.ToTxCandidate()
 }
 
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {

@@ -234,6 +234,25 @@ func TestStepTx(t *testing.T) {
 	stubRpc.VerifyTxCandidate(tx)
 }
 
+func TestAddLocalDataTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	data := &faultTypes.PreimageOracleData{
+		IsLocal:      true,
+		LocalContext: 2,
+		OracleKey:    common.Hash{0xbc}.Bytes(),
+		OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
+		OracleOffset: 16,
+	}
+	stubRpc.SetResponse(methodAddLocalData, batching.BlockLatest, []interface{}{
+		data.GetIdent(),
+		new(big.Int).SetUint64(data.LocalContext),
+		new(big.Int).SetUint64(uint64(data.OracleOffset)),
+	}, nil)
+	tx, err := game.AddLocalDataTx(data)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
 func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 	stubRpc.SetResponse(
 		methodClaim,

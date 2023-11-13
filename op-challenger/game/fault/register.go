@@ -43,7 +43,7 @@ func RegisterGameTypes(
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 			}
-			updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
+			updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client, contract)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 			}
