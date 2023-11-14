@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,6 +34,7 @@ import (
 
 const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
+const outputCannonGameType uint8 = 0 // TODO(client-pod#43): This should be a unique game type
 const alphabetGameDepth = 4
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
@@ -139,6 +141,45 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 		},
 		claimedAlphabet: claimedAlphabet,
 	}
+}
+
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoint string, rootClaim common.Hash) *OutputCannonGameHelper {
+	l2BlockNumber := h.waitForProposals(ctx)
+	l1Head := h.checkpointL1Block(ctx)
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	extraData := make([]byte, 64)
+	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
+	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
+	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return h.factory.Create(opts, outputCannonGameType, rootClaim, extraData)
+	})
+	h.require.NoError(err, "create fault dispute game")
+	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
+	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
+	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
+	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
+	h.require.NoError(err)
+	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
+	h.require.NoError(err)
+
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
+
+	return &OutputCannonGameHelper{
+		FaultGameHelper: FaultGameHelper{
+			t:           h.t,
+			require:     h.require,
+			client:      h.client,
+			opts:        h.opts,
+			game:        game,
+			factoryAddr: h.factoryAddr,
+			addr:        createdEvent.DisputeProxy,
+		},
+		rollupClient: rollupClient,
+	}
+
 }
 
 func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Hash) *CannonGameHelper {
