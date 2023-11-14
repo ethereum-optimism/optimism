@@ -1827,6 +1827,7 @@ workflows:
           name: chain-mon-docker-publish
           docker_name: chain-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          resource_class: xlarge
           publish: true
           context:
             - oplabs-gcr
