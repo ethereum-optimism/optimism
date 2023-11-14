@@ -72,6 +72,7 @@ func registerOutputCannon(
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
+		// TODO(client-pod#44): Validate absolute pre-state for split games
 		noopValidator := func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error {
 			return nil
 		}
