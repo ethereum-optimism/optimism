@@ -58,25 +58,22 @@ func registerOutputCannon(
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
 	client *ethclient.Client) {
-	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
+	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
+		logger := logger.New("game", addr)
 		// TODO(client-pod#43): Updated contracts should expose this as the pre and post state blocks
 		agreed, disputed, err := contract.GetProposals(ctx)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 		accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, cfg.RollupRpc, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
 		if err != nil {
-			return nil, nil, nil, err
-		}
-		updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
+			return nil, nil, err
 		}
 		// TODO(client-pod#44): Validate absolute pre-state for split games
 		noopValidator := func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error {
 			return nil
 		}
-		return accessor, updater, noopValidator, nil
+		return accessor, noopValidator, nil
 	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
@@ -92,19 +89,16 @@ func registerCannon(
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
 	client *ethclient.Client) {
-	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
+	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
+		logger := logger.New("game", addr)
 		provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, dir, gameDepth)
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
-		}
-		updater, err := cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to create the cannon updater: %w", err)
+			return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
 		validator := func(ctx context.Context, contract *contracts.FaultDisputeGameContract) error {
 			return ValidateAbsolutePrestate(ctx, provider, contract)
 		}
-		return trace.NewSimpleTraceAccessor(provider), updater, validator, nil
+		return trace.NewSimpleTraceAccessor(provider), validator, nil
 	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
@@ -120,13 +114,12 @@ func registerAlphabet(
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
 	client *ethclient.Client) {
-	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, faultTypes.OracleUpdater, gameValidator, error) {
+	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 		provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
-		updater := alphabet.NewOracleUpdater(logger)
 		validator := func(ctx context.Context, contract *contracts.FaultDisputeGameContract) error {
 			return ValidateAbsolutePrestate(ctx, provider, contract)
 		}
-		return trace.NewSimpleTraceAccessor(provider), updater, validator, nil
+		return trace.NewSimpleTraceAccessor(provider), validator, nil
 	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
 		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
