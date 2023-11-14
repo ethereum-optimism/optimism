@@ -112,8 +112,8 @@ importers:
         specifier: ^2.8.0
         version: 2.8.8
       prettier-plugin-solidity:
-        specifier: ^1.0.0-beta.13
-        version: 1.0.0-beta.18(prettier@2.8.8)
+        specifier: ^1.2.0
+        version: 1.2.0(prettier@2.8.8)
       rimraf:
         specifier: ^5.0.5
         version: 5.0.5
@@ -3409,8 +3409,8 @@ packages:
       - supports-color
       - utf-8-validate
 
-  /@solidity-parser/parser@0.13.2:
-    resolution: {integrity: sha512-RwHnpRnfrnD2MSPveYoPh8nhofEvX7fgjHk1Oq+NNvCcLx4r1js91CO9o+F/F3fBzOCyvm8kKRTriFICX/odWw==}
+  /@solidity-parser/parser@0.16.2:
+    resolution: {integrity: sha512-PI9NfoA3P8XK2VBkK5oIfRgKDsicwDZfkVq9ZTBCQYGOP1N2owgY2dyLGyU5/J/hQs8KRk55kdmvTLjy3Mu3vg==}
     dependencies:
       antlr4ts: 0.5.0-alpha.4
     dev: true
@@ -12099,19 +12099,16 @@ packages:
       fast-diff: 1.2.0
     dev: true
 
-  /prettier-plugin-solidity@1.0.0-beta.18(prettier@2.8.8):
-    resolution: {integrity: sha512-ezWdsG/jIeClmYBzg8V9Voy8jujt+VxWF8OS3Vld+C3c+3cPVib8D9l8ahTod7O5Df1anK9zo+WiiS5wb1mLmg==}
-    engines: {node: '>=12'}
+  /prettier-plugin-solidity@1.2.0(prettier@2.8.8):
+    resolution: {integrity: sha512-fgxcUZpVAP+LlRfy5JI5oaAkXGkmsje2VJ5krv/YMm+rcTZbIUwFguSw5f+WFuttMjpDm6wB4UL7WVkArEfiVA==}
+    engines: {node: '>=16'}
     peerDependencies:
-      prettier: ^2.3.0
+      prettier: '>=2.3.0'
     dependencies:
-      '@solidity-parser/parser': 0.13.2
-      emoji-regex: 9.2.2
-      escape-string-regexp: 4.0.0
+      '@solidity-parser/parser': 0.16.2
       prettier: 2.8.8
       semver: 7.5.4
       solidity-comments-extractor: 0.0.7
-      string-width: 4.2.3
     dev: true
 
   /prettier@2.8.8:
