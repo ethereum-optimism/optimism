@@ -29,7 +29,7 @@ import (
 // initialzedValue represents the `Initializable` contract value. It should be kept in
 // sync with the constant in `Constants.sol`.
 // https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/libraries/Constants.sol
-const initializedValue = 3
+const InitializedValue = 3
 
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
@@ -726,13 +726,13 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":     initializedValue,
+		"_initialized":     InitializedValue,
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
-		"_initialized":  initializedValue,
+		"_initialized":  InitializedValue,
 		"_initializing": false,
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
@@ -767,12 +767,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"_initialized":  initializedValue,
+		"_initialized":  InitializedValue,
 		"_initializing": false,
 	}
 	storage["OptimismMintableERC20Factory"] = state.StorageValues{
 		"bridge":        predeploys.L2StandardBridgeAddr,
-		"_initialized":  initializedValue,
+		"_initialized":  InitializedValue,
 		"_initializing": false,
 	}
 	return storage, nil
