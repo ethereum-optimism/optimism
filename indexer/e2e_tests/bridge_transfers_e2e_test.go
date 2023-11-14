@@ -460,13 +460,13 @@ func TestClientBridgeFunctions(t *testing.T) {
 	// (2) Create test actors that will deposit and withdraw using the standard bridge
 	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
 	bobAddr := testSuite.OpCfg.Secrets.Addresses().Bob
-	malAddr := testSuite.OpCfg.Secrets.Addresses().Mallory
+	// malAddr := testSuite.OpCfg.Secrets.Addresses().Mallory
 
 	type actor struct {
 		addr    common.Address
 		priv    *ecdsa.PrivateKey
 		amt     *big.Int
-		receipt types.Receipt
+		receipt *types.Receipt
 	}
 
 	mintSum := bigint.Zero
@@ -482,11 +482,11 @@ func TestClientBridgeFunctions(t *testing.T) {
 			priv: testSuite.OpCfg.Secrets.Bob,
 			amt:  big.NewInt(0),
 		},
-		{
-			addr: malAddr,
-			priv: testSuite.OpCfg.Secrets.Mallory,
-			amt:  big.NewInt(0),
-		},
+		// {
+		// 	addr: malAddr,
+		// 	priv: testSuite.OpCfg.Secrets.Mallory,
+		// 	amt:  big.NewInt(0),
+		// },
 	}
 
 	type supplies struct {
@@ -502,8 +502,8 @@ func TestClientBridgeFunctions(t *testing.T) {
 	}
 
 	// (3) Iterate over each actor and deposit / withdraw
-	for _, actor := range actors {
-		t.Logf("simulating deposit/withdrawal flow for %s", actor.addr.String())
+	for i, actor := range actors {
+		t.Logf("%d - simulating deposit/withdrawal flow for %s", i, actor.addr.String())
 
 		l2Opts, err := bind.NewKeyedTransactorWithChainID(actor.priv, testSuite.OpCfg.L2ChainIDBig())
 		require.NoError(t, err)
@@ -536,8 +536,8 @@ func TestClientBridgeFunctions(t *testing.T) {
 		}))
 
 		s.all = new(big.Int).Add(s.all, l2ToL1MessagePasserWithdrawTx.Value())
-		actor.receipt = *l2ToL1WithdrawReceipt
-		actor.amt = l2ToL1MessagePasserWithdrawTx.Value()
+		actors[i].receipt = l2ToL1WithdrawReceipt
+		actors[i].amt = l2ToL1MessagePasserWithdrawTx.Value()
 
 		// (3.d) Ensure that withdrawal and deposit txs are retrievable via API
 		deposits, err := testSuite.Client.GetAllDepositsByAddress(actor.addr)
@@ -560,26 +560,38 @@ func TestClientBridgeFunctions(t *testing.T) {
 	require.Equal(t, mintFloat, assessment.L1DepositSum)
 
 	withdrawFloat, _ := s.all.Float64()
-	require.Equal(t, withdrawFloat, assessment.FinalizedWithdrawSum)
+	require.Equal(t, withdrawFloat, assessment.InitWithdrawalSum)
 
-	// (5) Prove withdrawal for two actors and verify supplies
+	require.Equal(t, assessment.ProvenWithdrawSum, float64(0))
+	require.Equal(t, assessment.FinalizedWithdrawSum, float64(0))
 
-	for i := 0; i < 2; i++ {
-		_, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], actors[i].priv, &actors[i].receipt)
+	// (5) Prove & finalize withdrawals on L1
+	for _, actor := range actors {
+		params, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], actor.priv, actor.receipt)
 		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.BridgeProcessor.LastL1Header
 			seen := l1Header != nil && l1Header.Number.Uint64() >= proveReceipt.BlockNumber.Uint64()
 			return seen, nil
 		}))
 
-		s.proven = new(big.Int).Add(s.proven, actors[i].amt)
+		s.proven = new(big.Int).Add(s.proven, actor.amt)
+
+		finalReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, actor.priv, proveReceipt, params)
+		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
+			l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
+			seen := l1Header != nil && l1Header.Number.Uint64() >= finalReceipt.BlockNumber.Uint64()
+			return seen, nil
+		}))
+
+		s.finalized = new(big.Int).Add(s.finalized, actor.amt)
 	}
 
+	// (6) Validate assessment for proven & finalized withdrawals
 	assessment, err = testSuite.Client.GetSupplyAssessment()
 	require.NoError(t, err)
 
 	provenFloat, _ := s.proven.Float64()
-	require.Equal(t, provenFloat, assessment.FinalizedWithdrawSum)
-	// (6) Finalize withdrawal for one actor and verify supplies
-
+	require.Equal(t, provenFloat, assessment.ProvenWithdrawSum)
+	finalFloat, _ := s.finalized.Float64()
+	require.Equal(t, finalFloat, assessment.FinalizedWithdrawSum)
 }

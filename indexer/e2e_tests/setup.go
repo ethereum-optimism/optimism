@@ -106,7 +106,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// the system is running, mark this test for Parallel execution
 	t.Parallel()
 
-	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
+	indexerLog := testlog.Logger(t, log.LvlDebug).New("role", "indexer")
 	ix, err := indexer.NewIndexer(context.Background(), indexerLog, indexerCfg, func(cause error) {
 		if cause != nil {
 			t.Fatalf("indexer shut down with critical error: %v", cause)
@@ -120,7 +120,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		require.NoError(t, ix.Stop(context.Background()), "cleanly shut down indexer")
 	})
 
-	apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
+	apiLog := testlog.Logger(t, log.LvlDebug).New("role", "indexer_api")
 
 	apiCfg := &api.Config{
 		DB: &api.TestDBConnector{BridgeTransfers: ix.DB.BridgeTransfers}, // reuse the same DB

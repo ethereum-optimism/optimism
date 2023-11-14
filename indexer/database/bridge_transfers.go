@@ -3,6 +3,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -255,22 +256,28 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalSum(filter models.WithdrawFilter)
 		clause = ""
 
 	case models.Finalized:
-		clause = "finalized_l1_transaction_hash IS NOT NULL"
+		clause = "finalized_l1_event_guid IS NOT NULL"
 
 	case models.Proven:
-		clause = "proven_l1_transaction_hash IS NOT NULL"
+		clause = "proven_l1_event_guid IS NOT NULL"
 
 	default:
 		return 0, fmt.Errorf("unknown filter argument: %d", filter)
 	}
 
+	// NOTE - Scanning to float64 reduces precision versus scanning to big.Int since amount is a uint256
+	// This is ok though given all bridges will never exceed max float64 (10^308 || 1.7E+308) in wei value locked
+	// since that would require 10^308 / 10^18 = 10^290 ETH locked in the bridge
 	var sum float64
-	result := db.gorm.Model(&L2TransactionWithdrawal{}).Select("sum(amount)").Scan(&sum).Where(clause)
-	if result.Error != nil {
+	result := db.gorm.Model(&L2TransactionWithdrawal{}).Where(clause).Select("sum(amount)").Scan(&sum)
+	if result.Error != nil && strings.Contains(result.Error.Error(), "converting NULL to float64 is unsupported") {
+		// no rows found
+		return 0, nil
+	} else if result.Error != nil {
 		return 0, result.Error
+	} else {
+		return sum, nil
 	}
-
-	return sum, nil
 }
 
 // L2BridgeWithdrawalWithFilter queries for a bridge withdrawal with set fields in the `BridgeTransfer` filter
