@@ -44,6 +44,7 @@ func (g *OutputCannonGameHelper) WaitForCorrectOutputRoot(ctx context.Context, c
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
 	err, blockNum := g.blockNumForClaim(ctx, claim)
+	g.require.NoError(err)
 	output, err := g.rollupClient.OutputAtBlock(ctx, blockNum)
 	g.require.NoErrorf(err, "Failed to get output at block %v", blockNum)
 	g.require.EqualValuesf(output.OutputRoot, claim.Claim, "Incorrect output root at claim %v. Expected to be from block %v", claimIdx, blockNum)

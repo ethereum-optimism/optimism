@@ -166,6 +166,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoin
 	h.require.NoError(err)
 
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
+	h.require.NoError(err)
 
 	return &OutputCannonGameHelper{
 		FaultGameHelper: FaultGameHelper{
