@@ -51,12 +51,6 @@ type StepCallData struct {
 	Proof      []byte
 }
 
-// OracleUpdater is a generic interface for updating oracles.
-type OracleUpdater interface {
-	// UpdateOracle updates the oracle with the given data.
-	UpdateOracle(ctx context.Context, data *PreimageOracleData) error
-}
-
 // TraceAccessor defines an interface to request data from a TraceProvider with additional context for the game position.
 // This can be used to implement split games where lower layers of the game may have different values depending on claims
 // at higher levels in the game.
