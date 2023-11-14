@@ -44,7 +44,7 @@
     "@types/chai-as-promised": "^7.1.8",
     "@types/mocha": "^10.0.4",
     "@types/node": "^20.9.0",
-    "@typescript-eslint/eslint-plugin": "^6.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.11.0",
     "@typescript-eslint/parser": "^6.11.0",
     "chai": "^4.3.10",
     "depcheck": "^1.4.7",
