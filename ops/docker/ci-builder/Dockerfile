@@ -8,10 +8,10 @@ RUN apt-get update && \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
-  ./rustup.sh -y
+  sh rustup.sh -y
 
 # Install nightly toolchain
-RUN source $HOME/.profile && rustup update nightly
+RUN source $HOME/.profile && rustup update nightly && rustup default stable
 
 RUN source $HOME/.profile && cargo install just
 RUN source $HOME/.profile && cargo install svm-rs
