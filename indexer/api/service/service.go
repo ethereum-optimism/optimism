@@ -18,21 +18,21 @@ type Service interface {
 	QueryParams(a, l, c string) (*models.Params, error)
 }
 
-type ApiSvc struct {
+type HandlerSvc struct {
 	v      *Validator
 	db     database.BridgeTransfersView
 	logger log.Logger
 }
 
 func New(v *Validator, db database.BridgeTransfersView, l log.Logger) Service {
-	return &ApiSvc{
+	return &HandlerSvc{
 		logger: l,
 		v:      v,
 		db:     db,
 	}
 }
 
-func (svc *ApiSvc) QueryParams(a, c, l string) (*models.Params, error) {
+func (svc *HandlerSvc) QueryParams(a, c, l string) (*models.Params, error) {
 	address, err := svc.v.ParseValidateAddress(a)
 	if err != nil {
 		svc.logger.Error("invalid address param", "param", a, "err", err)
@@ -59,7 +59,7 @@ func (svc *ApiSvc) QueryParams(a, c, l string) (*models.Params, error) {
 
 }
 
-func (svc *ApiSvc) GetWithdrawals(params *models.Params) (*database.L2BridgeWithdrawalsResponse, error) {
+func (svc *HandlerSvc) GetWithdrawals(params *models.Params) (*database.L2BridgeWithdrawalsResponse, error) {
 	withdrawals, err := svc.db.L2BridgeWithdrawalsByAddress(params.Address, params.Cursor, params.Limit)
 	if err != nil {
 		svc.logger.Error("error getting withdrawals", "err", err.Error(), "address", params.Address.String())
@@ -70,7 +70,7 @@ func (svc *ApiSvc) GetWithdrawals(params *models.Params) (*database.L2BridgeWith
 	return withdrawals, nil
 }
 
-func (svc *ApiSvc) WithdrawResponse(withdrawals *database.L2BridgeWithdrawalsResponse) models.WithdrawalResponse {
+func (svc *HandlerSvc) WithdrawResponse(withdrawals *database.L2BridgeWithdrawalsResponse) models.WithdrawalResponse {
 	items := make([]models.WithdrawalItem, len(withdrawals.Withdrawals))
 	for i, withdrawal := range withdrawals.Withdrawals {
 
@@ -103,7 +103,7 @@ func (svc *ApiSvc) WithdrawResponse(withdrawals *database.L2BridgeWithdrawalsRes
 	}
 }
 
-func (svc *ApiSvc) GetDeposits(params *models.Params) (*database.L1BridgeDepositsResponse, error) {
+func (svc *HandlerSvc) GetDeposits(params *models.Params) (*database.L1BridgeDepositsResponse, error) {
 	deposits, err := svc.db.L1BridgeDepositsByAddress(params.Address, params.Cursor, params.Limit)
 	if err != nil {
 		svc.logger.Error("error getting deposits", "err", err.Error(), "address", params.Address.String())
@@ -115,7 +115,7 @@ func (svc *ApiSvc) GetDeposits(params *models.Params) (*database.L1BridgeDeposit
 }
 
 // DepositResponse ... Converts a database.L1BridgeDepositsResponse to an api.DepositResponse
-func (svc *ApiSvc) DepositResponse(deposits *database.L1BridgeDepositsResponse) models.DepositResponse {
+func (svc *HandlerSvc) DepositResponse(deposits *database.L1BridgeDepositsResponse) models.DepositResponse {
 	items := make([]models.DepositItem, len(deposits.Deposits))
 	for i, deposit := range deposits.Deposits {
 		item := models.DepositItem{
@@ -141,7 +141,7 @@ func (svc *ApiSvc) DepositResponse(deposits *database.L1BridgeDepositsResponse) 
 }
 
 // GetSupplyInfo ... Fetch native bridge supply info
-func (svc *ApiSvc) GetSupplyInfo() (*models.BridgeSupplyView, error) {
+func (svc *HandlerSvc) GetSupplyInfo() (*models.BridgeSupplyView, error) {
 	depositSum, err := svc.db.L1BridgeDepositSum()
 	if err != nil {
 		svc.logger.Error("error getting deposit sum", "err", err)
