@@ -95,7 +95,6 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		}),
 		latestHeight: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
-			Subsystem: "l1",
 			Name:      "height",
 			Help:      "the latest processed l1 block height",
 		}, []string{

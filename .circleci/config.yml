@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.27.0
 
 orbs:
   go: circleci/go@1.8.0
@@ -350,7 +350,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: pnpm test
+          command: STRICT_DEPLOYMENT=false pnpm test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -1827,6 +1827,7 @@ workflows:
           name: chain-mon-docker-publish
           docker_name: chain-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          resource_class: xlarge
           publish: true
           context:
             - oplabs-gcr
