@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // txData represents the data for a single transaction.
@@ -13,6 +14,10 @@ import (
 // different channels.
 type txData struct {
 	frame frameData
+}
+
+func (td *txData) Hash() []byte {
+	return crypto.Keccak256(td.Bytes())
 }
 
 // ID returns the id for this transaction data. It can be used as a map key.

@@ -5,13 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"google.golang.org/grpc"
 
+	dasv1 "github.com/alt-research/das/api/v1"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -93,6 +96,29 @@ type Config struct {
 
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
+
+	// DAS GRPC Endpoint
+	DASGRPCEndpoint string `json:"das_grpc_endpoint,omitempty"`
+}
+
+var (
+	once      sync.Once
+	dasClient dasv1.DataAvailabilityServiceClient
+)
+
+func (cfg *Config) DASClient() (dasv1.DataAvailabilityServiceClient, bool) {
+	if cfg.DASGRPCEndpoint == "" {
+		return nil, false
+	}
+	once.Do(func() {
+		// if DASGRPCEndpoint configured, das client must be initialized to make sure op-batcher can submit data to da
+		conn, err := grpc.Dial(cfg.DASGRPCEndpoint)
+		if err != nil {
+			panic(fmt.Sprintf("init das client error(%v)", err))
+		}
+		dasClient = dasv1.NewDataAvailabilityServiceClient(conn)
+	})
+	return dasClient, true
 }
 
 // ValidateL1Config checks L1 config variables for errors.
