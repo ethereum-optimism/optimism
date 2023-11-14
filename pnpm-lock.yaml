@@ -88,8 +88,8 @@ importers:
         specifier: 15.0.2
         version: 15.0.2
       markdownlint:
-        specifier: ^0.31.0
-        version: 0.31.1
+        specifier: ^0.32.0
+        version: 0.32.0
       markdownlint-cli2:
         specifier: 0.4.0
         version: 0.4.0
@@ -10457,8 +10457,8 @@ packages:
       uc.micro: 1.0.6
     dev: true
 
-  /markdown-it@13.0.1:
-    resolution: {integrity: sha512-lTlxriVoy2criHP0JKRhO2VDG9c2ypWCsT237eDiLqi09rmbKoUetyGHq2uOIRoRS//kfoJckS0eUzzkDR+k2Q==}
+  /markdown-it@13.0.2:
+    resolution: {integrity: sha512-FtwnEuuK+2yVU7goGn/MJ0WBZMM9ZPgU9spqlFs7/A/pDIUNSOQZhUgOqYCficIuR2QaFnrt8LHqBWsbTAoI5w==}
     hasBin: true
     dependencies:
       argparse: 2.0.1
@@ -10512,11 +10512,11 @@ packages:
       markdown-it: 12.3.2
     dev: true
 
-  /markdownlint@0.31.1:
-    resolution: {integrity: sha512-CKMR2hgcIBrYlIUccDCOvi966PZ0kJExDrUi1R+oF9PvqQmCrTqjOsgIvf2403OmJ+CWomuzDoylr6KbuMyvHA==}
-    engines: {node: '>=16'}
+  /markdownlint@0.32.0:
+    resolution: {integrity: sha512-DIA2LclWqWmyU1Z73mTYa9/oilWJGdCW+tiPpziwmut/O7LxmEI8xKeg3vhEezXOyMaTV76HSX3/HmypRC2/8w==}
+    engines: {node: '>=18'}
     dependencies:
-      markdown-it: 13.0.1
+      markdown-it: 13.0.2
       markdownlint-micromark: 0.1.7
     dev: true
 
