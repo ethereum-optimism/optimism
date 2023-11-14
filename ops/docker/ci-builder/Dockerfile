@@ -8,7 +8,7 @@ RUN apt-get update && \
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
   chmod +x ./rustup.sh && \
-  ./rustup.sh -y
+  sh rustup.sh -y
 
 # Install nightly toolchain
 RUN source $HOME/.profile && rustup update nightly
@@ -23,6 +23,10 @@ COPY ./ops/scripts/install-foundry.sh ./install-foundry.sh
 
 RUN curl -L https://foundry.paradigm.xyz | bash
 RUN source $HOME/.profile && ./install-foundry.sh
+
+RUN strip /root/.foundry/bin/forge && \
+  strip /root/.foundry/bin/cast && \
+  strip /root/.foundry/bin/anvil
 
 FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
