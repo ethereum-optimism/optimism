@@ -25,6 +25,9 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
 else
   echo "Nightly tag doesn't exist! Building from source..."
   foundryup -C $SHA
+  strip /opt/foundry/target/release/forge && \
+  strip /opt/foundry/target/release/cast && \
+  strip /opt/foundry/target/release/anvil
 fi
 
 # Remove the temporary foundry repo; Used just for checking the nightly tag's existence.
