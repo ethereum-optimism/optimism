@@ -4,8 +4,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// Params ... Query params
-type Params struct {
+type QueryParams struct {
 	Address common.Address
 	Limit   int
 	Cursor  string

@@ -9,13 +9,13 @@ import (
 )
 
 type Service interface {
-	GetDeposits(*models.Params) (*database.L1BridgeDepositsResponse, error)
+	GetDeposits(*models.QueryParams) (*database.L1BridgeDepositsResponse, error)
 	DepositResponse(*database.L1BridgeDepositsResponse) models.DepositResponse
-	GetWithdrawals(params *models.Params) (*database.L2BridgeWithdrawalsResponse, error)
+	GetWithdrawals(params *models.QueryParams) (*database.L2BridgeWithdrawalsResponse, error)
 	WithdrawResponse(*database.L2BridgeWithdrawalsResponse) models.WithdrawalResponse
 	GetSupplyInfo() (*models.BridgeSupplyView, error)
 
-	QueryParams(a, l, c string) (*models.Params, error)
+	QueryParams(a, l, c string) (*models.QueryParams, error)
 }
 
 type HandlerSvc struct {
@@ -32,7 +32,7 @@ func New(v *Validator, db database.BridgeTransfersView, l log.Logger) Service {
 	}
 }
 
-func (svc *HandlerSvc) QueryParams(a, c, l string) (*models.Params, error) {
+func (svc *HandlerSvc) QueryParams(a, c, l string) (*models.QueryParams, error) {
 	address, err := svc.v.ParseValidateAddress(a)
 	if err != nil {
 		svc.logger.Error("invalid address param", "param", a, "err", err)
@@ -51,7 +51,7 @@ func (svc *HandlerSvc) QueryParams(a, c, l string) (*models.Params, error) {
 		return nil, err
 	}
 
-	return &models.Params{
+	return &models.QueryParams{
 		Address: address,
 		Cursor:  c,
 		Limit:   limit,
@@ -59,7 +59,7 @@ func (svc *HandlerSvc) QueryParams(a, c, l string) (*models.Params, error) {
 
 }
 
-func (svc *HandlerSvc) GetWithdrawals(params *models.Params) (*database.L2BridgeWithdrawalsResponse, error) {
+func (svc *HandlerSvc) GetWithdrawals(params *models.QueryParams) (*database.L2BridgeWithdrawalsResponse, error) {
 	withdrawals, err := svc.db.L2BridgeWithdrawalsByAddress(params.Address, params.Cursor, params.Limit)
 	if err != nil {
 		svc.logger.Error("error getting withdrawals", "err", err.Error(), "address", params.Address.String())
@@ -103,7 +103,7 @@ func (svc *HandlerSvc) WithdrawResponse(withdrawals *database.L2BridgeWithdrawal
 	}
 }
 
-func (svc *HandlerSvc) GetDeposits(params *models.Params) (*database.L1BridgeDepositsResponse, error) {
+func (svc *HandlerSvc) GetDeposits(params *models.QueryParams) (*database.L1BridgeDepositsResponse, error) {
 	deposits, err := svc.db.L1BridgeDepositsByAddress(params.Address, params.Cursor, params.Limit)
 	if err != nil {
 		svc.logger.Error("error getting deposits", "err", err.Error(), "address", params.Address.String())
