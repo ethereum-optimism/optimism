@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "test/setup/CommonTest.sol";
+import { Test } from "forge-std/Test.sol";
 import { DelayedVetoable } from "src/L1/DelayedVetoable.sol";
 
-contract DelayedVetoable_Init is CommonTest {
+contract DelayedVetoable_Init is Test {
     error Unauthorized(address expected, address actual);
     error ForwardingEarly();
 
@@ -12,17 +12,22 @@ contract DelayedVetoable_Init is CommonTest {
     event Forwarded(bytes32 indexed callHash, bytes data);
     event Vetoed(bytes32 indexed callHash, bytes data);
 
-    address target = address(0xabba);
-    address initiator = alice;
-    address vetoer = bob;
+    address target;
+    address initiator;
+    address vetoer;
     uint256 operatingDelay = 14 days;
     DelayedVetoable delayedVetoable;
 
-    function setUp() public override {
-        super.setUp();
+    function setUp() public {
+        initiator = makeAddr("initiator");
+        vetoer = makeAddr("vetoer");
+        target = makeAddr("target");
+        vm.deal(initiator, 10000 ether);
+        vm.deal(vetoer, 10000 ether);
+
         delayedVetoable = new DelayedVetoable({
-            initiator_: alice,
-            vetoer_: bob,
+            initiator_: initiator,
+            vetoer_: vetoer,
             target_: address(target),
             operatingDelay_: operatingDelay
         });
