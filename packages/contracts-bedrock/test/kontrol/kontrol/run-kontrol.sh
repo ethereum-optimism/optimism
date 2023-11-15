@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-FOUNDRY_PROFILE=kontrol
+export FOUNDRY_PROFILE=kontrol
 
 # Create a log file to store standard out and standard error
 LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
