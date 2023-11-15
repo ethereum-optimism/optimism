@@ -127,6 +127,9 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
       - check-changed:
           patterns: op-chain-ops,packages/
       - restore_cache:
@@ -317,12 +320,16 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
       - check-changed:
           patterns: contracts-bedrock,op-node
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
           command: pnpm coverage:lcov
@@ -339,11 +346,23 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: print forge version
           command: forge --version
@@ -359,22 +378,33 @@ jobs:
   contracts-bedrock-checks:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
       # populate node modules from the cache
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile --prefer-offline
+      # Note: this step needs to come first because one of the later steps modifies the cache & forces a contracts rebuild
       - run:
-          name: build contracts
-          command: pnpm build
+          name: semver lock
+          command: |
+            pnpm semver-lock
+            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: check deploy configs
+          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
@@ -397,20 +427,10 @@ jobs:
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
-          name: semver lock
-          command: |
-            pnpm semver-lock
-            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
           name: invariant docs
           command: |
             pnpm autogen:invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: check deploy configs
-          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check statuses
@@ -446,7 +466,7 @@ jobs:
   contracts-bedrock-slither:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
@@ -1293,7 +1313,9 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-tests
+      - contracts-bedrock-tests:
+          requires:
+            - pnpm-monorepo
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
