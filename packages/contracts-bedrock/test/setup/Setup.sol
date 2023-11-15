@@ -28,7 +28,6 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
-import { SafeCall } from "src/libraries/SafeCall.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently

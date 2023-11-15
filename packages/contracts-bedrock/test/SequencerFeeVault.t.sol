@@ -39,7 +39,6 @@ contract SequencerFeeVault_Test is CommonTest {
     function test_receive_succeeds() external {
         uint256 balance = address(sequencerFeeVault).balance;
 
-        vm.deal(alice, 100);
         vm.prank(alice);
         (bool success,) = address(sequencerFeeVault).call{ value: 100 }(hex"");
 
