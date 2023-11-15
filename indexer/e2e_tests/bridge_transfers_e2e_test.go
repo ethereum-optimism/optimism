@@ -590,8 +590,11 @@ func TestClientBridgeFunctions(t *testing.T) {
 	assessment, err = testSuite.Client.GetSupplyAssessment()
 	require.NoError(t, err)
 
-	provenFloat, _ := s.proven.Float64()
-	require.Equal(t, provenFloat, assessment.ProvenWithdrawSum)
-	finalFloat, _ := s.finalized.Float64()
-	require.Equal(t, finalFloat, assessment.FinalizedWithdrawSum)
+	proven, acc := s.proven.Float64()
+	require.Zero(t, acc)
+	require.Equal(t, proven, assessment.ProvenWithdrawSum)
+
+	finalized, acc := s.finalized.Float64()
+	require.Zero(t, acc)
+	require.Equal(t, finalized, assessment.FinalizedWithdrawSum)
 }
