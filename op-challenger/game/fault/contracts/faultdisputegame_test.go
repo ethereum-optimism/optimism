@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	fdgAddr    = common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
+	vmAddr     = common.HexToAddress("0x33332842371dFC380576ebb09Ae16Cb6B6c3333")
+	oracleAddr = common.HexToAddress("0x44442842371dFC380576ebb09Ae16Cb6B6ca4444")
+)
+
 func TestSimpleGetters(t *testing.T) {
 	tests := []struct {
 		method   string
@@ -60,12 +66,26 @@ func TestSimpleGetters(t *testing.T) {
 				return game.GetClaimCount(context.Background())
 			},
 		},
+		{
+			method: methodL1Head,
+			result: common.Hash{0xdd, 0xbb},
+			call: func(game *FaultDisputeGameContract) (any, error) {
+				return game.GetL1Head(context.Background())
+			},
+		},
+		{
+			method: methodResolve,
+			result: types.GameStatusInProgress,
+			call: func(game *FaultDisputeGameContract) (any, error) {
+				return game.CallResolve(context.Background())
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.method, func(t *testing.T) {
 			stubRpc, game := setup(t)
-			stubRpc.SetResponse(test.method, batching.BlockLatest, nil, []interface{}{test.result})
+			stubRpc.SetResponse(fdgAddr, test.method, batching.BlockLatest, nil, []interface{}{test.result})
 			status, err := test.call(game)
 			require.NoError(t, err)
 			expected := test.expected
@@ -77,6 +97,33 @@ func TestSimpleGetters(t *testing.T) {
 	}
 }
 
+func TestGetProposals(t *testing.T) {
+	stubRpc, game := setup(t)
+	agreedIndex := big.NewInt(5)
+	agreedBlockNum := big.NewInt(6)
+	agreedRoot := common.Hash{0xaa}
+	disputedIndex := big.NewInt(7)
+	disputedBlockNum := big.NewInt(8)
+	disputedRoot := common.Hash{0xdd}
+	agreed := Proposal{
+		Index:         agreedIndex,
+		L2BlockNumber: agreedBlockNum,
+		OutputRoot:    agreedRoot,
+	}
+	disputed := Proposal{
+		Index:         disputedIndex,
+		L2BlockNumber: disputedBlockNum,
+		OutputRoot:    disputedRoot,
+	}
+	stubRpc.SetResponse(fdgAddr, methodProposals, batching.BlockLatest, []interface{}{}, []interface{}{
+		agreed, disputed,
+	})
+	actualAgreed, actualDisputed, err := game.GetProposals(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, agreed, actualAgreed)
+	require.Equal(t, disputed, actualDisputed)
+}
+
 func TestGetClaim(t *testing.T) {
 	stubRpc, game := setup(t)
 	idx := big.NewInt(2)
@@ -85,7 +132,7 @@ func TestGetClaim(t *testing.T) {
 	value := common.Hash{0xab}
 	position := big.NewInt(2)
 	clock := big.NewInt(1234)
-	stubRpc.SetResponse(methodClaim, batching.BlockLatest, []interface{}{idx}, []interface{}{parentIndex, countered, value, position, clock})
+	stubRpc.SetResponse(fdgAddr, methodClaim, batching.BlockLatest, []interface{}{idx}, []interface{}{parentIndex, countered, value, position, clock})
 	status, err := game.GetClaim(context.Background(), idx.Uint64())
 	require.NoError(t, err)
 	require.Equal(t, faultTypes.Claim{
@@ -133,7 +180,7 @@ func TestGetAllClaims(t *testing.T) {
 		ParentContractIndex: 1,
 	}
 	expectedClaims := []faultTypes.Claim{claim0, claim1, claim2}
-	stubRpc.SetResponse(methodClaimCount, batching.BlockLatest, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
+	stubRpc.SetResponse(fdgAddr, methodClaimCount, batching.BlockLatest, nil, []interface{}{big.NewInt(int64(len(expectedClaims)))})
 	for _, claim := range expectedClaims {
 		expectGetClaim(stubRpc, claim)
 	}
@@ -142,8 +189,100 @@ func TestGetAllClaims(t *testing.T) {
 	require.Equal(t, expectedClaims, claims)
 }
 
+func TestCallResolveClaim(t *testing.T) {
+	stubRpc, game := setup(t)
+	stubRpc.SetResponse(fdgAddr, methodResolveClaim, batching.BlockLatest, []interface{}{big.NewInt(123)}, nil)
+	err := game.CallResolveClaim(context.Background(), 123)
+	require.NoError(t, err)
+}
+
+func TestResolveClaimTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	stubRpc.SetResponse(fdgAddr, methodResolveClaim, batching.BlockLatest, []interface{}{big.NewInt(123)}, nil)
+	tx, err := game.ResolveClaimTx(123)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestResolveTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	stubRpc.SetResponse(fdgAddr, methodResolve, batching.BlockLatest, nil, nil)
+	tx, err := game.ResolveTx()
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestAttackTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	value := common.Hash{0xaa}
+	stubRpc.SetResponse(fdgAddr, methodAttack, batching.BlockLatest, []interface{}{big.NewInt(111), value}, nil)
+	tx, err := game.AttackTx(111, value)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestDefendTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	value := common.Hash{0xaa}
+	stubRpc.SetResponse(fdgAddr, methodDefend, batching.BlockLatest, []interface{}{big.NewInt(111), value}, nil)
+	tx, err := game.DefendTx(111, value)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestStepTx(t *testing.T) {
+	stubRpc, game := setup(t)
+	stateData := []byte{1, 2, 3}
+	proofData := []byte{4, 5, 6, 7, 8, 9}
+	stubRpc.SetResponse(fdgAddr, methodStep, batching.BlockLatest, []interface{}{big.NewInt(111), true, stateData, proofData}, nil)
+	tx, err := game.StepTx(111, true, stateData, proofData)
+	require.NoError(t, err)
+	stubRpc.VerifyTxCandidate(tx)
+}
+
+func TestUpdateOracleTx(t *testing.T) {
+	t.Run("Local", func(t *testing.T) {
+		stubRpc, game := setup(t)
+		data := &faultTypes.PreimageOracleData{
+			IsLocal:      true,
+			LocalContext: 2,
+			OracleKey:    common.Hash{0xbc}.Bytes(),
+			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
+			OracleOffset: 16,
+		}
+		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
+			data.GetIdent(),
+			new(big.Int).SetUint64(data.LocalContext),
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+		}, nil)
+		tx, err := game.UpdateOracleTx(context.Background(), data)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+
+	t.Run("Global", func(t *testing.T) {
+		stubRpc, game := setup(t)
+		data := &faultTypes.PreimageOracleData{
+			IsLocal:      false,
+			OracleKey:    common.Hash{0xbc}.Bytes(),
+			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15},
+			OracleOffset: 16,
+		}
+		stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
+		stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
+		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
+			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetPreimageWithoutSize(),
+		}, nil)
+		tx, err := game.UpdateOracleTx(context.Background(), data)
+		require.NoError(t, err)
+		stubRpc.VerifyTxCandidate(tx)
+	})
+}
+
 func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 	stubRpc.SetResponse(
+		fdgAddr,
 		methodClaim,
 		batching.BlockLatest,
 		[]interface{}{big.NewInt(int64(claim.ContractIndex))},
@@ -159,11 +298,17 @@ func expectGetClaim(stubRpc *batchingTest.AbiBasedRpc, claim faultTypes.Claim) {
 func setup(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
-	address := common.HexToAddress("0x24112842371dFC380576ebb09Ae16Cb6B6caD7CB")
 
-	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAbi, address)
-	caller := batching.NewMultiCaller(stubRpc, 100)
-	game, err := NewFaultDisputeGameContract(address, caller)
+	vmAbi, err := bindings.MIPSMetaData.GetAbi()
+	require.NoError(t, err)
+	oracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	require.NoError(t, err)
+
+	stubRpc := batchingTest.NewAbiBasedRpc(t, fdgAddr, fdgAbi)
+	stubRpc.AddContract(vmAddr, vmAbi)
+	stubRpc.AddContract(oracleAddr, oracleAbi)
+	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
+	game, err := NewFaultDisputeGameContract(fdgAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, game
 }

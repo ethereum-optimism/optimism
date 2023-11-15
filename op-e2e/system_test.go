@@ -45,6 +45,31 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
+// TestSystemBatchType run each system e2e test case in singular batch mode and span batch mode.
+// If the test case tests batch submission and advancing safe head, it should be tested in both singular and span batch mode.
+func TestSystemBatchType(t *testing.T) {
+	tests := []struct {
+		name string
+		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
+	}{
+		{"StopStartBatcher", StopStartBatcher},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SingularBatch", func(t *testing.T) {
+			test.f(t, nil)
+		})
+	}
+
+	spanBatchTimeOffset := hexutil.Uint64(0)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
+			test.f(t, &spanBatchTimeOffset)
+		})
+	}
+}
+
 func TestMain(m *testing.M) {
 	if config.ExternalL2Shim != "" {
 		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Shim)
@@ -1222,10 +1247,11 @@ func TestFees(t *testing.T) {
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
 
-func TestStopStartBatcher(t *testing.T) {
+func StopStartBatcher(t *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
+	cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()

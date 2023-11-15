@@ -35,6 +35,8 @@ const (
 	HealthPath      = "/healthz"
 	DepositsPath    = "/api/v0/deposits/"
 	WithdrawalsPath = "/api/v0/withdrawals/"
+
+	SupplyPath = "/api/v0/supply"
 )
 
 // Api ... Indexer API struct
@@ -140,15 +142,14 @@ func (a *APIService) initRouter(apiConfig config.ServerConfig) {
 
 	promRecorder := metrics.NewPromHTTPRecorder(a.metricsRegistry, MetricsNamespace)
 
-	// (2) Inject routing middleware
 	apiRouter.Use(chiMetricsMiddleware(promRecorder))
 	apiRouter.Use(middleware.Timeout(time.Duration(apiConfig.WriteTimeout) * time.Second))
 	apiRouter.Use(middleware.Recoverer)
 	apiRouter.Use(middleware.Heartbeat(HealthPath))
 
-	// (3) Set GET routes
 	apiRouter.Get(fmt.Sprintf(DepositsPath+addressParam, ethereumAddressRegex), h.L1DepositsHandler)
 	apiRouter.Get(fmt.Sprintf(WithdrawalsPath+addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
+	apiRouter.Get(SupplyPath, h.SupplyView)
 	a.router = apiRouter
 }
 

@@ -30,6 +30,22 @@ func TestContractCall_ToCallArgs(t *testing.T) {
 	require.NotContains(t, argMap, "gasPrice")
 }
 
+func TestContractCall_ToTxCandidate(t *testing.T) {
+	addr := common.Address{0xbd}
+	testAbi, err := bindings.ERC20MetaData.GetAbi()
+	require.NoError(t, err)
+	call := NewContractCall(testAbi, addr, "approve", common.Address{0xcc}, big.NewInt(1234444))
+	candidate, err := call.ToTxCandidate()
+	require.NoError(t, err)
+	require.Equal(t, candidate.To, &addr)
+	expectedData, err := call.Pack()
+	require.NoError(t, err)
+	require.Equal(t, candidate.TxData, expectedData)
+
+	require.Nil(t, candidate.Value)
+	require.Zero(t, candidate.GasLimit)
+}
+
 func TestContractCall_Pack(t *testing.T) {
 	addr := common.Address{0xbd}
 	testAbi, err := bindings.ERC20MetaData.GetAbi()
@@ -138,6 +154,24 @@ func TestCallResult_GetValues(t *testing.T) {
 				return result.GetBigInt(i)
 			},
 			expected: big.NewInt(2398423),
+		},
+		{
+			name: "GetStruct",
+			getter: func(result *CallResult, i int) interface{} {
+				out := struct {
+					a *big.Int
+					b common.Hash
+				}{}
+				result.GetStruct(i, &out)
+				return out
+			},
+			expected: struct {
+				a *big.Int
+				b common.Hash
+			}{
+				a: big.NewInt(6),
+				b: common.Hash{0xee},
+			},
 		},
 	}
 

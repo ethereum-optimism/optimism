@@ -51,3 +51,7 @@ export interface WithdrawalResponse {
   hasNextPage: boolean;
   items: WithdrawalItem[];
 }
+export interface BridgeSupplyView {
+  l1DepositSum: number /* float64 */;
+  l2WithdrawalSum: number /* float64 */;
+}

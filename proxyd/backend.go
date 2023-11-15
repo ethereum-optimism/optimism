@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/xaionaro-go/weightedshuffle"
 	"golang.org/x/sync/semaphore"
 
 	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
@@ -139,6 +140,7 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
+	headers              map[string]string
 	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -159,6 +161,8 @@ type Backend struct {
 	latencySlidingWindow         *sw.AvgSlidingWindow
 	networkRequestsSlidingWindow *sw.AvgSlidingWindow
 	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
+
+	weight int
 }
 
 type BackendOpt func(b *Backend)
@@ -167,6 +171,12 @@ func WithBasicAuth(username, password string) BackendOpt {
 	return func(b *Backend) {
 		b.authUsername = username
 		b.authPassword = password
+	}
+}
+
+func WithHeaders(headers map[string]string) BackendOpt {
+	return func(b *Backend) {
+		b.headers = headers
 	}
 }
 
@@ -236,6 +246,12 @@ func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
 	return func(b *Backend) {
 		b.forcedCandidate = forcedCandidate
+	}
+}
+
+func WithWeight(weight int) BackendOpt {
+	return func(b *Backend) {
+		b.weight = weight
 	}
 }
 
@@ -535,6 +551,10 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	httpReq.Header.Set("content-type", "application/json")
 	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
 
+	for name, value := range b.headers {
+		httpReq.Header.Set(name, value)
+	}
+
 	start := time.Now()
 	httpRes, err := b.client.DoLimited(httpReq)
 	if err != nil {
@@ -683,9 +703,10 @@ func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
 }
 
 type BackendGroup struct {
-	Name      string
-	Backends  []*Backend
-	Consensus *ConsensusPoller
+	Name            string
+	Backends        []*Backend
+	WeightedRouting bool
+	Consensus       *ConsensusPoller
 }
 
 func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, string, error) {
@@ -693,7 +714,7 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 		return nil, "", nil
 	}
 
-	backends := bg.Backends
+	backends := bg.orderedBackendsForRequest()
 
 	overriddenResponses := make([]*indexedReqRes, 0)
 	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
@@ -701,7 +722,6 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 	if bg.Consensus != nil {
 		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
 		// serving traffic from any backend that agrees in the consensus group
-		backends = bg.loadBalancedConsensusGroup()
 
 		// We also rewrite block tags to enforce compliance with consensus
 		rctx := RewriteContext{
@@ -845,6 +865,27 @@ func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn,
 	return nil, ErrNoBackends
 }
 
+func weightedShuffle(backends []*Backend) {
+	weight := func(i int) float64 {
+		return float64(backends[i].weight)
+	}
+
+	weightedshuffle.ShuffleInplace(backends, weight, nil)
+}
+
+func (bg *BackendGroup) orderedBackendsForRequest() []*Backend {
+	if bg.Consensus != nil {
+		return bg.loadBalancedConsensusGroup()
+	} else if bg.WeightedRouting {
+		result := make([]*Backend, len(bg.Backends))
+		copy(result, bg.Backends)
+		weightedShuffle(result)
+		return result
+	} else {
+		return bg.Backends
+	}
+}
+
 func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	cg := bg.Consensus.GetConsensusGroup()
 
@@ -871,6 +912,10 @@ func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	r.Shuffle(len(backendsDegraded), func(i, j int) {
 		backendsDegraded[i], backendsDegraded[j] = backendsDegraded[j], backendsDegraded[i]
 	})
+
+	if bg.WeightedRouting {
+		weightedShuffle(backendsHealthy)
+	}
 
 	// healthy are put into a priority position
 	// degraded backends are used as fallback

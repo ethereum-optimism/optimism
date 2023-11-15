@@ -43,6 +43,8 @@ import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
+import { ChainAssertions } from "scripts/ChainAssertions.sol";
+import { Types } from "scripts/Types.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -642,33 +644,7 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        require(config.owner() == cfg.finalSystemOwner());
-        require(config.overhead() == cfg.gasPriceOracleOverhead());
-        require(config.scalar() == cfg.gasPriceOracleScalar());
-        require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
-        require(config.batcherHash() == batcherHash);
-
-        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
-        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
-        require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
-        require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
-        require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
-        require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
-        require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
-
-        require(config.l1ERC721Bridge() == mustGetAddress("L1ERC721BridgeProxy"));
-        require(config.l1StandardBridge() == mustGetAddress("L1StandardBridgeProxy"));
-        require(config.l2OutputOracle() == mustGetAddress("L2OutputOracleProxy"));
-        require(config.optimismPortal() == mustGetAddress("OptimismPortalProxy"));
-        require(config.l1CrossDomainMessenger() == mustGetAddress("L1CrossDomainMessengerProxy"));
-
-        // A non zero start block is an override
-        if (startBlock != 0) {
-            require(config.startBlock() == startBlock);
-        } else {
-            require(config.startBlock() == block.number);
-        }
+        ChainAssertions.checkSystemConfig(_proxies(), cfg);
     }
 
     /// @notice Initialize the L1StandardBridge
@@ -698,11 +674,7 @@ contract Deploy is Deployer {
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        L1StandardBridge bridge = L1StandardBridge(payable(l1StandardBridgeProxy));
-        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
-        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
+        ChainAssertions.checkL1StandardBridge(_proxies(), vm);
     }
 
     /// @notice Initialize the L1ERC721Bridge
@@ -721,8 +693,7 @@ contract Deploy is Deployer {
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
-        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
-        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+        ChainAssertions.checkL1ERC721Bridge(_proxies());
     }
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
@@ -741,8 +712,7 @@ contract Deploy is Deployer {
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
-        require(factory.BRIDGE() == l1StandardBridgeProxy);
-        require(factory.bridge() == l1StandardBridgeProxy);
+        ChainAssertions.checkOptimismMintableERC20Factory(_proxies());
     }
 
     /// @notice initializeL1CrossDomainMessenger
@@ -786,10 +756,7 @@ contract Deploy is Deployer {
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
-        require(address(messenger.PORTAL()) == optimismPortalProxy);
-        require(address(messenger.portal()) == optimismPortalProxy);
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
+        ChainAssertions.checkL1CrossDomainMessenger(_proxies(), vm);
     }
 
     /// @notice Initialize the L2OutputOracle
@@ -815,18 +782,7 @@ contract Deploy is Deployer {
         string memory version = oracle.version();
         console.log("L2OutputOracle version: %s", version);
 
-        require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
-        require(oracle.l2BlockTime() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
-        require(oracle.proposer() == cfg.l2OutputOracleProposer());
-        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
-        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
-        require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
-        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
-        require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
-        require(oracle.startingTimestamp() == cfg.l2OutputOracleStartingTimestamp());
+        ChainAssertions.checkL2OutputOracle(_proxies(), cfg, cfg.l2OutputOracleStartingTimestamp());
     }
 
     /// @notice Initialize the OptimismPortal
@@ -854,10 +810,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
-        require(portal.GUARDIAN() == cfg.portalGuardian());
-        require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
-        require(portal.paused() == false);
+        ChainAssertions.checkOptimismPortal(_proxies(), cfg);
     }
 
     function initializeProtocolVersions() public broadcast {
@@ -885,9 +838,7 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        require(versions.owner() == finalSystemOwner);
-        require(ProtocolVersion.unwrap(versions.required()) == requiredProtocolVersion);
-        require(ProtocolVersion.unwrap(versions.recommended()) == recommendedProtocolVersion);
+        ChainAssertions.checkProtocolVersions(_proxies(), cfg);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
@@ -1007,5 +958,19 @@ contract Deploy is Deployer {
         string memory version = setter.version();
         console.log("StorageSetter version: %s", version);
         addr_ = address(setter);
+    }
+
+    /// @notice Returns the proxy addresses
+    function _proxies() private view returns (Types.ContractSet memory proxies_) {
+        proxies_ = Types.ContractSet({
+            L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+            L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+            L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+            OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+            OptimismPortal: mustGetAddress("OptimismPortalProxy"),
+            SystemConfig: mustGetAddress("SystemConfigProxy"),
+            L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
+        });
     }
 }

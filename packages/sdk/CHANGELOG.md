@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.1.5
+
+### Patch Changes
+
+- [#8155](https://github.com/ethereum-optimism/optimism/pull/8155) [`2534eabb5`](https://github.com/ethereum-optimism/optimism/commit/2534eabb50afe76f176407f83cc1f1c606e6de69) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Fixed bug with tokenBridge checks throwing
+
 ## 3.1.4
 
 ### Patch Changes
