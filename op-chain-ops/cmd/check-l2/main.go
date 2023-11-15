@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -24,7 +26,15 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var defaultCrossDomainMessageSender = common.HexToAddress("0x000000000000000000000000000000000000dead")
+var (
+	defaultCrossDomainMessageSender = common.HexToAddress("0x000000000000000000000000000000000000dead")
+	// errInvalidInitialized represents when the initialized value is not set to the expected value.
+	// This is an assertion on `_initialized`. We do not care about the value of `_initializing`.
+	errInvalidInitialized = errors.New("invalid initialized value")
+	// errAlreadyInitialized represents a revert from when a contract is already initialized.
+	// This error is used to assert with `eth_call` on contracts that are `Initializable`
+	errAlreadyInitialized = errors.New("Initializable: contract is already initialized")
+)
 
 // Default script for checking that L2 has been configured correctly. This should be extended in the future
 // to pull in L1 deploy artifacts and assert that the L2 state is consistent with the L1 state.
@@ -138,7 +148,7 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 				return err
 			}
 			if impl != standardImpl {
-				log.Warn("%s does not have the standard implementation", name)
+				log.Warn(name + " does not have the standard implementation")
 			}
 			implCode, err := client.CodeAt(context.Background(), impl, nil)
 			if err != nil {
@@ -151,6 +161,8 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 		})
 
 		// Ensure that the code is set to the proxy bytecode as expected
+		// This will not work against production networks where the bytecode
+		// has deviated from the current bytecode. We need a more reliable way to check for this.
 		g.Go(func() error {
 			proxyCode, err := client.CodeAt(context.Background(), p, nil)
 			if err != nil {
@@ -172,97 +184,97 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 		switch p {
 		case predeploys.LegacyMessagePasserAddr:
 			if err := checkLegacyMessagePasser(p, client); err != nil {
-				return err
+				return fmt.Errorf("LegacyMessagePasser: %w", err)
 			}
 
 		case predeploys.DeployerWhitelistAddr:
 			if err := checkDeployerWhitelist(p, client); err != nil {
-				return err
+				return fmt.Errorf("DeployerWhiteList: %w", err)
 			}
 
 		case predeploys.L2CrossDomainMessengerAddr:
 			if err := checkL2CrossDomainMessenger(p, client); err != nil {
-				return err
+				return fmt.Errorf("L2CrossDomainMessenger: %w", err)
 			}
 
 		case predeploys.GasPriceOracleAddr:
 			if err := checkGasPriceOracle(p, client); err != nil {
-				return err
+				return fmt.Errorf("GasPriceOracle: %w", err)
 			}
 
 		case predeploys.L2StandardBridgeAddr:
 			if err := checkL2StandardBridge(p, client); err != nil {
-				return err
+				return fmt.Errorf("L2StandardBridge: %w", err)
 			}
 
 		case predeploys.SequencerFeeVaultAddr:
 			if err := checkSequencerFeeVault(p, client); err != nil {
-				return err
+				return fmt.Errorf("SequencerFeeVault: %w", err)
 			}
 
 		case predeploys.OptimismMintableERC20FactoryAddr:
 			if err := checkOptimismMintableERC20Factory(p, client); err != nil {
-				return err
+				return fmt.Errorf("OptimismMintableERC20Factory: %w", err)
 			}
 
 		case predeploys.L1BlockNumberAddr:
 			if err := checkL1BlockNumber(p, client); err != nil {
-				return err
+				return fmt.Errorf("L1BlockNumber: %w", err)
 			}
 
 		case predeploys.L1BlockAddr:
 			if err := checkL1Block(p, client); err != nil {
-				return err
+				return fmt.Errorf("L1Block: %w", err)
 			}
 
 		case predeploys.WETH9Addr:
 			if err := checkWETH9(p, client); err != nil {
-				return err
+				return fmt.Errorf("WETH9: %w", err)
 			}
 
 		case predeploys.GovernanceTokenAddr:
 			if err := checkGovernanceToken(p, client); err != nil {
-				return err
+				return fmt.Errorf("GovernanceToken: %w", err)
 			}
 
 		case predeploys.L2ERC721BridgeAddr:
 			if err := checkL2ERC721Bridge(p, client); err != nil {
-				return err
+				return fmt.Errorf("L2ERC721Bridge: %w", err)
 			}
 
 		case predeploys.OptimismMintableERC721FactoryAddr:
 			if err := checkOptimismMintableERC721Factory(p, client); err != nil {
-				return err
+				return fmt.Errorf("OptimismMintableERC721Factory: %w", err)
 			}
 
 		case predeploys.ProxyAdminAddr:
 			if err := checkProxyAdmin(p, client); err != nil {
-				return err
+				return fmt.Errorf("ProxyAdmin: %w", err)
 			}
 
 		case predeploys.BaseFeeVaultAddr:
 			if err := checkBaseFeeVault(p, client); err != nil {
-				return err
+				return fmt.Errorf("BaseFeeVault: %w", err)
 			}
 
 		case predeploys.L1FeeVaultAddr:
 			if err := checkL1FeeVault(p, client); err != nil {
-				return err
+				return fmt.Errorf("L1FeeVault: %w", err)
 			}
 
 		case predeploys.L2ToL1MessagePasserAddr:
 			if err := checkL2ToL1MessagePasser(p, client); err != nil {
-				return err
+				return fmt.Errorf("L2ToL1MessagePasser: %w", err)
 			}
 
 		case predeploys.SchemaRegistryAddr:
 			if err := checkSchemaRegistry(p, client); err != nil {
-				return err
+				return fmt.Errorf("SchemaRegistry: %w", err)
 			}
 
 		case predeploys.EASAddr:
 			if err := checkEAS(p, client); err != nil {
-				return err
+				return fmt.Errorf("EAS: %w", err)
 			}
 		}
 		return nil
@@ -429,6 +441,21 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 		return err
 	}
 	log.Info("L2ERC721Bridge", "_initialized", initialized)
+	if initialized.Uint64() != genesis.InitializedValue {
+		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+	}
+
+	abi, err := bindings.L2ERC721BridgeMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize")
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
+	}
 
 	initializing, err := getInitializing("L2ERC721Bridge", addr, client)
 	if err != nil {
@@ -566,6 +593,21 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 		return err
 	}
 	log.Info("OptimismMintableERC20Factory", "_initialized", initialized)
+	if initialized.Uint64() != genesis.InitializedValue {
+		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+	}
+
+	abi, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize", common.Address{})
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
+	}
 
 	initializing, err := getInitializing("OptimismMintableERC20Factory", addr, client)
 	if err != nil {
@@ -647,6 +689,21 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 		return err
 	}
 	log.Info("L2StandardBridge", "_initialized", initialized)
+	if initialized.Uint64() != genesis.InitializedValue {
+		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+	}
+
+	abi, err := bindings.L2StandardBridgeMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize")
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
+	}
 
 	initializing, err := getInitializing("L2StandardBridge", addr, client)
 	if err != nil {
@@ -766,6 +823,21 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 		return err
 	}
 	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
+	if initialized.Uint64() != genesis.InitializedValue {
+		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
+	}
+
+	abi, err := bindings.L2CrossDomainMessengerMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+	calldata, err := abi.Pack("initialize")
+	if err != nil {
+		return err
+	}
+	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
+		return err
+	}
 
 	initializing, err := getInitializing("L2CrossDomainMessenger", addr, client)
 	if err != nil {
@@ -917,4 +989,17 @@ func getStorageValue(name, entryName string, addr common.Address, client *ethcli
 		slice[i], slice[j] = slice[j], slice[i]
 	}
 	return slice[entry.Offset : entry.Offset+typ.NumberOfBytes], nil
+}
+
+// checkAlreadyInitialized will check if a contract has already been initialized
+// based on error message string matching.
+func checkAlreadyInitialized(addr common.Address, calldata []byte, client *ethclient.Client) error {
+	msg := ethereum.CallMsg{
+		To:   &addr,
+		Data: calldata,
+	}
+	if _, err := client.CallContract(context.Background(), msg, nil); !strings.Contains(err.Error(), errAlreadyInitialized.Error()) {
+		return err
+	}
+	return nil
 }

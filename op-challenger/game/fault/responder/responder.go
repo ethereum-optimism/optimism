@@ -2,6 +2,7 @@ package responder
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -20,6 +21,7 @@ type GameContract interface {
 	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
+	UpdateOracleTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
 }
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
@@ -71,6 +73,16 @@ func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) erro
 }
 
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
+	if action.OracleData != nil {
+		r.log.Info("Updating oracle data", "key", action.OracleData.OracleKey)
+		candidate, err := r.contract.UpdateOracleTx(ctx, action.OracleData)
+		if err != nil {
+			return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
+		}
+		if err := r.sendTxAndWait(ctx, candidate); err != nil {
+			return fmt.Errorf("failed to populate pre-image oracle: %w", err)
+		}
+	}
 	var candidate txmgr.TxCandidate
 	var err error
 	switch action.Type {

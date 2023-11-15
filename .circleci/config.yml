@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.27.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.29.0
 
 orbs:
   go: circleci/go@1.8.0
@@ -1522,7 +1522,7 @@ workflows:
       - cannon-build-test-vectors
       - check-values-match:
           pattern_file1: "uint8 internal constant INITIALIZER ="
-          pattern_file2: "const initializedValue ="
+          pattern_file2: "const InitializedValue ="
           file1_path: "packages/contracts-bedrock/src/libraries/Constants.sol"
           file2_path: "op-chain-ops/genesis/config.go"
   release:

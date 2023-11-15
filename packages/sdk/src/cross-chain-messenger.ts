@@ -490,8 +490,17 @@ export class CrossChainMessenger {
   ): Promise<IBridgeAdapter> {
     const bridges: IBridgeAdapter[] = []
     for (const bridge of Object.values(this.bridges)) {
-      if (await bridge.supportsTokenPair(l1Token, l2Token)) {
-        bridges.push(bridge)
+      try {
+        if (await bridge.supportsTokenPair(l1Token, l2Token)) {
+          bridges.push(bridge)
+        }
+      } catch (err) {
+        if (
+          !err?.message?.toString().includes('CALL_EXCEPTION') &&
+          !err?.stack?.toString().includes('execution reverted')
+        ) {
+          console.error('Unexpected error when checking bridge', err)
+        }
       }
     }
 
