@@ -491,7 +491,7 @@ jobs:
       - run:
           name: slither
           command: |
-            slither --version && pnpm slither || echo "Slither failed"
+            pnpm slither:check || echo "Slither failed"
 
   contracts-bedrock-validate-spaces:
     docker:
