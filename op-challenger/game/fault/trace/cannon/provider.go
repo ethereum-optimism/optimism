@@ -23,6 +23,10 @@ import (
 const (
 	proofsDir      = "proofs"
 	diskStateCache = "state.json.gz"
+
+	// NoLocalContext is the LocalContext value used when the cannon trace provider is used alone instead of as part
+	// of a split game.
+	NoLocalContext = 0
 )
 
 type proofData struct {
@@ -44,18 +48,19 @@ type ProofGenerator interface {
 }
 
 type CannonTraceProvider struct {
-	logger    log.Logger
-	dir       string
-	prestate  string
-	generator ProofGenerator
-	gameDepth uint64
+	logger       log.Logger
+	dir          string
+	prestate     string
+	generator    ProofGenerator
+	gameDepth    uint64
+	localContext uint64
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
 	// Cached as an optimisation to avoid repeatedly attempting to execute beyond the end of the trace.
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameContract *contracts.FaultDisputeGameContract, dir string, gameDepth uint64) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameContract *contracts.FaultDisputeGameContract, localContext uint64, dir string, gameDepth uint64) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
@@ -65,16 +70,17 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, 
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
-	return NewTraceProviderFromInputs(logger, m, cfg, localInputs, dir, gameDepth), nil
+	return NewTraceProviderFromInputs(logger, m, cfg, localContext, localInputs, dir, gameDepth), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext uint64, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:    logger,
-		dir:       dir,
-		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, m, cfg, localInputs),
-		gameDepth: gameDepth,
+		logger:       logger,
+		dir:          dir,
+		prestate:     cfg.CannonAbsolutePreState,
+		generator:    NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:    gameDepth,
+		localContext: localContext,
 	}
 }
 
@@ -118,8 +124,7 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	}
 	var oracleData *types.PreimageOracleData
 	if len(proof.OracleKey) > 0 {
-		// TODO(client-pod#104): Replace the LocalContext `0` argument below with the correct local context.
-		oracleData = types.NewPreimageOracleData(0, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
+		oracleData = types.NewPreimageOracleData(p.localContext, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	}
 	return value, data, oracleData, nil
 }
