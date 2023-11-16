@@ -51,13 +51,13 @@ functions. Currently, the only exported functions pertain to reading fully hydra
  * as well as an error status that is compatible with FFI.
  *
  * # Safety
- * - When the `error` field is false, the `data` pointer is guaranteed to be valid.
- * - When the `error` field is true, the `data` pointer is guaranteed to be null.
+ * - When the `error` field is null, the `data` pointer is guaranteed to be valid.
+ * - When the `error` field is non-null, the `data` pointer is guaranteed to be null.
  */
 typedef struct ReceiptsResult {
   uint32_t *data;
   uintptr_t data_len;
-  bool error;
+  int8_t *error;
 } ReceiptsResult;
 
 /**
@@ -67,17 +67,41 @@ typedef struct ReceiptsResult {
  * - All possible nil pointer dereferences are checked, and the function will return a
  *   failing [ReceiptsResult] if any are found.
  */
-struct ReceiptsResult rdb_read_receipts(const uint8_t *block_hash,
-                                        uintptr_t block_hash_len,
-                                        const char *db_path);
+struct ReceiptsResult *rdb_read_receipts(const uint8_t *block_hash,
+                                         uintptr_t block_hash_len,
+                                         const char *db_path);
 
 /**
- * Free a string that was allocated in Rust and passed to C.
+ * Free a ReceiptsResult that was allocated in Rust and passed to C.
  *
  * # Safety
  * - All possible nil pointer dereferences are checked.
  */
-void rdb_free_string(char *string);
+void rdb_free_receipts(struct ReceiptsResult *res);
+
+/**
+ * Return the data from a ReceiptsResult.
+ *
+ * # Safety
+ * - All possible nil pointer dereferences are checked.
+ */
+const char *rdb_get_receipts_data(struct ReceiptsResult *res);
+
+/**
+ * Return the length of the data from a ReceiptsResult.
+ *
+ * # Safety
+ * - All possible nil pointer dereferences are checked.
+ */
+uintptr_t rdb_get_receipts_data_len(struct ReceiptsResult *res);
+
+/**
+ * Return the error string, if it exists, from a ReceiptsResult.
+ *
+ * # Safety
+ * - All possible nil pointer dereferences are checked.
+ */
+const char *rdb_get_receipts_error(struct ReceiptsResult *res);
 ```
 
 [rust-toolchain]: https://rustup.rs/

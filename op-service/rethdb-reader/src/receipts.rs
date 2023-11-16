@@ -12,19 +12,19 @@ use reth::{
     rpc::types::{Log, TransactionReceipt},
     utils::db::open_db_read_only,
 };
-use std::{ffi::c_char, path::Path};
+use std::{ffi::c_char, ffi::CString, path::Path};
 
 /// A [ReceiptsResult] is a wrapper around a JSON string containing serialized [TransactionReceipt]s
 /// as well as an error status that is compatible with FFI.
 ///
 /// # Safety
-/// - When the `error` field is false, the `data` pointer is guaranteed to be valid.
-/// - When the `error` field is true, the `data` pointer is guaranteed to be null.
+/// - When the `error` field is null, the `data` pointer is guaranteed to be valid.
+/// - When the `error` field is non-null, the `data` pointer is guaranteed to be null.
 #[repr(C)]
 pub struct ReceiptsResult {
-    data: *mut char,
-    data_len: usize,
-    error: bool,
+    pub data: *mut char,
+    pub data_len: usize,
+    pub error: *mut i8,
 }
 
 impl ReceiptsResult {
@@ -33,16 +33,18 @@ impl ReceiptsResult {
         Self {
             data,
             data_len,
-            error: false,
+            error: std::ptr::null_mut(),
         }
     }
 
     /// Constructs a failing [ReceiptsResult] with a null pointer to the data.
-    pub fn fail() -> Self {
+    pub fn fail(err: String) -> Self {
         Self {
             data: std::ptr::null_mut(),
             data_len: 0,
-            error: true,
+            error: CString::new(err)
+                .unwrap_or(CString::new("unknown receipts result error").unwrap())
+                .into_raw(),
         }
     }
 }
@@ -118,8 +120,7 @@ pub(crate) unsafe fn read_receipts_inner(
     // Create a ReceiptsResult with a pointer to the json-ified receipts
     let res = ReceiptsResult::success(receipts_json.as_mut_ptr() as *mut char, receipts_json.len());
 
-    // Forget the `receipts_json` string so that its memory isn't freed by the
-    // borrow checker at the end of this scope
+    // Forget the `receipts_json` string so that its memory isn't freed by the borrow checker at the end of this scope
     std::mem::forget(receipts_json); // Prevent Rust from freeing the memory
 
     Ok(res)
