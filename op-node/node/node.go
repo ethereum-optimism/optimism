@@ -158,6 +158,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 	// Set the RethDB path in the EthClientConfig, if there is one configured.
 	rpcCfg.EthClientConfig.RethDBPath = cfg.RethDBPath
+	rpcCfg.PrefetchingWindow = 256 // Future work: make this a flag
 
 	n.l1Source, err = sources.NewL1Client(
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache, rpcCfg)
