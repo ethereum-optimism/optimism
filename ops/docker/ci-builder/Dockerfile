@@ -30,6 +30,8 @@ RUN strip /root/.foundry/bin/forge && \
 
 FROM --platform=linux/amd64 ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
+FROM --platform=linux/amd64 ghcr.io/trailofbits/eth-security-toolbox:latest as slither
+
 FROM --platform=linux/amd64 debian:bullseye-slim as go-build
 
 RUN apt-get update && apt-get install -y curl ca-certificates
