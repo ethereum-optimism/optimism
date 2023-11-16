@@ -78,9 +78,9 @@ pub unsafe extern "C" fn rdb_get_receipts_data_len(res: *mut ReceiptsResult) -> 
 /// - All possible nil pointer dereferences are checked.
 #[no_mangle]
 pub unsafe extern "C" fn rdb_get_receipts_error(res: *mut ReceiptsResult) -> *const c_char {
-    if res.is_null() {
-        return std::ptr::null();
-    }
-    let res = &*res;
-    res.error as *const c_char
+    res.as_ref().map_or_else(std::ptr::null, |res| {
+        res.error
+            .as_ref()
+            .map_or_else(std::ptr::null, |e| e as *const c_char)
+    })
 }
