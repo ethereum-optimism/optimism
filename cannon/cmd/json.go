@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
+	"github.com/google/uuid"
 )
 
 func loadJSON[X any](inputPath string) (*X, error) {
@@ -33,10 +34,11 @@ func writeJSON[X any](outputPath string, value X) error {
 		return nil
 	}
 	var out io.Writer
+	var fileUUID = uuid.New()
 	finish := func() error { return nil }
 	if outputPath != "-" {
 		// Write to a tmp file but reserve the file extension if present
-		tmpPath := outputPath + "-tmp" + path.Ext(outputPath)
+		tmpPath := outputPath + "-tmp-" + fileUUID.String() + path.Ext(outputPath)
 		f, err := ioutil.OpenCompressed(tmpPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
 			return fmt.Errorf("failed to open output file: %w", err)
