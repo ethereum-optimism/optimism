@@ -17,7 +17,7 @@ func NewOutputCannonTraceAccessor(ctx context.Context, logger log.Logger, rollup
 	}
 
 	cannonCreator := func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
-		// TODO(client-pod#43): Implement this.
+		// TODO(client-pod#43): Actually create the cannon trace provider for the trace between the given claims.
 		return nil, errors.New("not implemented")
 	}
 
