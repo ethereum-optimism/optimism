@@ -225,6 +225,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
 		metrics.NoopMetrics,
 		cfg,
+		cannon.NoLocalContext,
 		inputs,
 		cfg.Datadir,
 		maxDepth.Uint64(),
