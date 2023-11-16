@@ -1535,6 +1535,9 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
+          publish: true
+          context:
+            - oplabs-gcr
       - docker-build:
           name: op-batcher-docker-build
           docker_name: op-batcher
