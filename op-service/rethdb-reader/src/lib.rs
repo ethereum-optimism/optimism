@@ -67,14 +67,9 @@ pub unsafe extern "C" fn rdb_get_receipts_data(res: *mut ReceiptsResult) -> *con
 /// - All possible nil pointer dereferences are checked.
 #[no_mangle]
 pub unsafe extern "C" fn rdb_get_receipts_data_len(res: *mut ReceiptsResult) -> usize {
-    if res.is_null() {
-        return 0;
-    }
-    let res = &*res;
-    if res.error.is_null() {
-        return 0;
-    }
-    res.data_len
+    res.as_ref().map_or(0, |res| {
+        res.error.is_null().then_some(0).unwrap_or(res.data_len)
+    })
 }
 
 /// Return the error string, if it exists, from a ReceiptsResult.
