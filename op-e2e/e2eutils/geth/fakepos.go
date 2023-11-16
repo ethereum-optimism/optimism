@@ -1,6 +1,8 @@
 package geth
 
 import (
+	"encoding/binary"
+	"math/big"
 	"math/rand"
 	"time"
 
@@ -8,14 +10,20 @@ import (
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	opeth "github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
+
+type Beacon interface {
+	StoreBlobsBundle(slot uint64, bundle *engine.BlobsBundleV1) error
+}
 
 // fakePoS is a testing-only utility to attach to Geth,
 // to build a fake proof-of-stake L1 chain with fixed block time and basic lagging safe/finalized blocks.
@@ -32,6 +40,14 @@ type fakePoS struct {
 
 	engineAPI *catalyst.ConsensusAPI
 	sub       ethereum.Subscription
+
+	beacon Beacon
+}
+
+func (f *fakePoS) FakeBeaconBlockRoot(time uint64) common.Hash {
+	var dat [8]byte
+	binary.LittleEndian.PutUint64(dat[:], time)
+	return crypto.Keccak256Hash(dat[:])
 }
 
 func (f *fakePoS) Start() error {
@@ -81,16 +97,29 @@ func (f *fakePoS) Start() error {
 						Amount: uint64(withdrawalsRNG.Intn(50_000_000_000) + 1),
 					}
 				}
-				res, err := f.engineAPI.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
-					HeadBlockHash:      head.Hash(),
-					SafeBlockHash:      safe.Hash(),
-					FinalizedBlockHash: finalized.Hash(),
-				}, &engine.PayloadAttributes{
+				attrs := &engine.PayloadAttributes{
 					Timestamp:             newBlockTime,
 					Random:                common.Hash{},
 					SuggestedFeeRecipient: head.Coinbase,
 					Withdrawals:           withdrawals,
-				})
+				}
+				parentBeaconBlockRoot := f.FakeBeaconBlockRoot(head.Time) // parent beacon block root
+				isCancun := f.eth.BlockChain().Config().IsCancun(new(big.Int).SetUint64(head.Number.Uint64()+1), newBlockTime)
+				if isCancun {
+					attrs.BeaconRoot = &parentBeaconBlockRoot
+				}
+				fcState := engine.ForkchoiceStateV1{
+					HeadBlockHash:      head.Hash(),
+					SafeBlockHash:      safe.Hash(),
+					FinalizedBlockHash: finalized.Hash(),
+				}
+				var err error
+				var res engine.ForkChoiceResponse
+				if isCancun {
+					res, err = f.engineAPI.ForkchoiceUpdatedV3(fcState, attrs)
+				} else {
+					res, err = f.engineAPI.ForkchoiceUpdatedV2(fcState, attrs)
+				}
 				if err != nil {
 					f.log.Error("failed to start building L1 block", "err", err)
 					continue
@@ -114,9 +143,40 @@ func (f *fakePoS) Start() error {
 					f.log.Error("failed to finish building L1 block", "err", err)
 					continue
 				}
-				if _, err := f.engineAPI.NewPayloadV2(*envelope.ExecutionPayload); err != nil {
-					f.log.Error("failed to insert built L1 block", "err", err)
+
+				blobHashes := make([]common.Hash, 0) // must be non-nil even when empty, due to geth engine API checks
+				for _, commitment := range envelope.BlobsBundle.Commitments {
+					if len(commitment) != 48 {
+						f.log.Error("got malformed kzg commitment from engine", "commitment", commitment)
+						break
+					}
+					blobHashes = append(blobHashes, opeth.KZGToVersionedHash(*(*[48]byte)(commitment)))
+				}
+				if len(blobHashes) != len(envelope.BlobsBundle.Commitments) {
+					f.log.Error("invalid or incomplete blob data", "collected", len(blobHashes), "engine", len(envelope.BlobsBundle.Commitments))
 					continue
+				}
+				if isCancun {
+					if _, err := f.engineAPI.NewPayloadV3(*envelope.ExecutionPayload, blobHashes, &parentBeaconBlockRoot); err != nil {
+						f.log.Error("failed to insert built L1 block", "err", err)
+						continue
+					}
+				} else {
+					if _, err := f.engineAPI.NewPayloadV2(*envelope.ExecutionPayload); err != nil {
+						f.log.Error("failed to insert built L1 block", "err", err)
+						continue
+					}
+				}
+				if envelope.BlobsBundle != nil {
+					slot := (envelope.ExecutionPayload.Timestamp - f.eth.BlockChain().Genesis().Time()) / f.blockTime
+					if f.beacon == nil {
+						f.log.Error("no blobs storage available")
+						continue
+					}
+					if err := f.beacon.StoreBlobsBundle(slot, envelope.BlobsBundle); err != nil {
+						f.log.Error("failed to persist blobs-bundle of block, not making block canonical now", "err", err)
+						continue
+					}
 				}
 				if _, err := f.engineAPI.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
 					HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
