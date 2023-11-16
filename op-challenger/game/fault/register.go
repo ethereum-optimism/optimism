@@ -41,7 +41,7 @@ func RegisterGameTypes(
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 			logger := logger.New("game", addr)
-			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, dir, gameDepth)
+			provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, cannon.NoLocalContext, dir, gameDepth)
 			if err != nil {
 				return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 			}
