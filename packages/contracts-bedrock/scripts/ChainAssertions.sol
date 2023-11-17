@@ -120,7 +120,9 @@ library ChainAssertions {
     function checkL1ERC721Bridge(Types.ContractSet memory proxies) internal view {
         L1ERC721Bridge bridge = L1ERC721Bridge(proxies.L1ERC721Bridge);
         require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
+        require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+        require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
