@@ -3,6 +3,8 @@ SHELL := /usr/bin/env bash
 pkg := bindings
 monorepo-base := $(shell dirname $(realpath .))
 contracts-dir := $(monorepo-base)/packages/contracts-bedrock
+contracts-list := ./artifacts.json
+log-level := info
 
 all: version mkdir bindings
 
@@ -15,16 +17,22 @@ compile:
 		forge clean && \
 		pnpm build
 
-bindings: compile bindings-build
+bindings: bindgen-local
 
-bindings-build:
-	go run ./gen/main.go \
-		-forge-artifacts $(contracts-dir)/forge-artifacts \
-		-out ./bindings \
-		-contracts ./artifacts.json \
-		-source-maps MIPS,PreimageOracle \
-		-package $(pkg) \
-		-monorepo-base $(monorepo-base)
+bindings-build: bindgen-generate-local
+
+bindgen-local: compile bindgen-generate-local
+
+bindgen-generate-local:
+	go run ./bindgen/ \
+		generate \
+		--metadata-out ./$(pkg) \
+		--bindings-package $(pkg) \
+		--contracts-list $(contracts-list) \
+		--log.level $(log-level) \
+		local \
+		--source-maps-list MIPS,PreimageOracle \
+		--forge-artifacts $(contracts-dir)/forge-artifacts
 
 mkdir:
 	mkdir -p $(pkg)
