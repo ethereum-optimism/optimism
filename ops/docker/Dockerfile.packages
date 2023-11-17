@@ -57,6 +57,10 @@ RUN apt-get update && apt-get install -y \
   libudev-dev \
   --no-install-recommends
 
+COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
+RUN chmod 644 /usr/local/share/ca-certificates/oplabs.crt \
+  && update-ca-certificates
+
 RUN npm install pnpm --global
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
@@ -114,4 +118,6 @@ FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:wd-mon"]
 
-
+FROM base as contracts-bedrock
+WORKDIR /opt/optimism/packages/contracts-bedrock
+CMD ["deploy"]
