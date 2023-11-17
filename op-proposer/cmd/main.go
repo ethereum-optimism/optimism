@@ -30,7 +30,7 @@ func main() {
 	app.Name = "op-proposer"
 	app.Usage = "L2Output Submitter"
 	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"
-	app.Action = curryMain(Version)
+	app.Action = cliapp.LifecycleCmd(proposer.Main(Version))
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
@@ -41,13 +41,5 @@ func main() {
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
-	}
-}
-
-// curryMain transforms the proposer.Main function into an app.Action
-// This is done to capture the Version of the proposer.
-func curryMain(version string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		return proposer.Main(version, ctx)
 	}
 }
