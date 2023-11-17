@@ -136,15 +136,13 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice High level getter for the unsafe block signer address.
     ///         Unsafe blocks can be propagated across the p2p network if they are signed by the
     ///         key corresponding to this address.
-    /// @return Address of the unsafe block signer.
+    /// @return unsafeBlockSigner_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address) {
-        address addr;
+    function unsafeBlockSigner() external view returns (address unsafeBlockSigner_) {
         bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
         assembly {
-            addr := sload(slot)
+            unsafeBlockSigner_ := sload(slot)
         }
-        return addr;
     }
 
     /// @notice Updates the unsafe block signer address.
