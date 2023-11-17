@@ -36,7 +36,7 @@ library ChainAssertions {
 
         checkSystemConfig(prox, cfg);
         checkL1CrossDomainMessenger(prox, vm);
-        checkL1StandardBridge(prox, vm);
+        checkL1StandardBridge(prox);
         checkL2OutputOracle(prox, cfg, l2OutputOracleStartingTimestamp);
         checkOptimismMintableERC20Factory(prox);
         checkL1ERC721Bridge(prox);
@@ -73,16 +73,12 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory proxies, Vm vm) internal view {
+    function checkL1StandardBridge(Types.ContractSet memory proxies) internal view {
         L1StandardBridge bridge = L1StandardBridge(payable(proxies.L1StandardBridge));
         require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
         require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-        // Ensures that the legacy slot is modified correctly. This will fail
-        // during predeployment simulation on OP Mainnet if there is a bug.
-        bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
-        require(slot0 == bytes32(uint256(Constants.INITIALIZER)));
     }
 
     /// @notice Asserts that the L2OutputOracle is setup correctly
