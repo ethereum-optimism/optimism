@@ -32,6 +32,10 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
+    /// @dev    NOTE: this value will be migrated to another storage slot in a future version.
+    ///         User input should not be placed in storage in this contract until this migration
+    ///         happens. It is unlikely that keccak second preimage resistance will be broken,
+    ///         but it is better to be safe than sorry.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
@@ -63,7 +67,9 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @custom:semver 1.11.0
     string public constant version = "1.11.0";
 
-    /// @notice Constructs the SystemConfig contract.
+    /// @notice Constructs the SystemConfig contract. Cannot set
+    ///         the owner to `address(0)` due to the Ownable contract's
+    ///         implementation, so set it to `address(0xdEaD)`
     /// @param _owner             Initial owner of the contract.
     /// @param _overhead          Initial overhead value.
     /// @param _scalar            Initial scalar value.
@@ -114,10 +120,11 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     {
         __Ownable_init();
         transferOwnership(_owner);
-        overhead = _overhead;
-        scalar = _scalar;
-        batcherHash = _batcherHash;
-        gasLimit = _gasLimit;
+
+        // These are set in ascending order of their UpdateTypes.
+        _setBatcherHash(_batcherHash);
+        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
+        _setGasLimit(_gasLimit);
         _setUnsafeBlockSigner(_unsafeBlockSigner);
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -136,37 +143,53 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
     /// @notice High level getter for the unsafe block signer address.
     ///         Unsafe blocks can be propagated across the p2p network if they are signed by the
     ///         key corresponding to this address.
-    /// @return unsafeBlockSigner_ Address of the unsafe block signer.
+    /// @return addr_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address unsafeBlockSigner_) {
-        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
-        assembly {
-            unsafeBlockSigner_ := sload(slot)
-        }
+    function unsafeBlockSigner() public view returns (address addr_) {
+        addr_ = Storage.getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
+    }
+
+    /// @notice Updates the unsafe block signer address. Can only be called by the owner.
+    /// @param _unsafeBlockSigner New unsafe block signer address.
+    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
     }
 
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
-    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
-        _setUnsafeBlockSigner(_unsafeBlockSigner);
+    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
+        Storage.setAddress(UNSAFE_BLOCK_SIGNER_SLOT, _unsafeBlockSigner);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
     }
 
-    /// @notice Updates the batcher hash.
+    /// @notice Updates the batcher hash. Can only be called by the owner.
     /// @param _batcherHash New batcher hash.
     function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
+        _setBatcherHash(_batcherHash);
+    }
+
+    /// @notice Internal function for updating the batcher hash.
+    /// @param _batcherHash New batcher hash.
+    function _setBatcherHash(bytes32 _batcherHash) internal {
         batcherHash = _batcherHash;
 
         bytes memory data = abi.encode(_batcherHash);
         emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
-    /// @notice Updates gas config.
+    /// @notice Updates gas config. Can only be called by the owner.
     /// @param _overhead New overhead value.
     /// @param _scalar   New scalar value.
     function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
+        _setGasConfig(_overhead, _scalar);
+    }
+
+    /// @notice Internal function for updating the gas config.
+    /// @param _overhead New overhead value.
+    /// @param _scalar   New scalar value.
+    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
         overhead = _overhead;
         scalar = _scalar;
 
@@ -174,25 +197,20 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
-    /// @notice Updates the L2 gas limit.
+    /// @notice Updates the L2 gas limit. Can only be called by the owner.
     /// @param _gasLimit New gas limit.
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
+        _setGasLimit(_gasLimit);
+    }
+
+    /// @notice Internal function for updating the L2 gas limit.
+    /// @param _gasLimit New gas limit.
+    function _setGasLimit(uint64 _gasLimit) internal {
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
-    }
-
-    /// @notice Low level setter for the unsafe block signer address.
-    ///         This function exists to deduplicate code around storing the unsafeBlockSigner
-    ///         address in storage.
-    /// @param _unsafeBlockSigner New unsafeBlockSigner value.
-    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
-        assembly {
-            sstore(slot, _unsafeBlockSigner)
-        }
     }
 
     /// @notice A getter for the resource config.

@@ -325,8 +325,6 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		gasPriceOracleScalar = new(big.Int).SetUint64(config.GasPriceOracleScalar)
 		batcherHash = common.BytesToHash(config.BatchSenderAddress.Bytes())
 		l2GenesisBlockGasLimit = uint64(config.L2GenesisBlockGasLimit)
-		startBlock = new(big.Int).SetUint64(config.SystemConfigStartBlock)
-		batchInboxAddress = config.BatchInboxAddress
 		p2pSequencerAddress = config.P2PSequencerAddress
 		finalSystemOwner = config.FinalSystemOwner
 	} else {
