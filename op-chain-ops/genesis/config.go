@@ -680,6 +680,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": config.L1StandardBridgeProxy,
+		"messenger":   predeploys.L2CrossDomainMessengerAddr,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,
@@ -707,7 +708,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
 		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
 	}
-
+	immutable["OptimismMintableERC20Factory"] = immutables.ImmutableValues{
+		"bridge": predeploys.L2StandardBridgeAddr,
+	}
 	return immutable, nil
 }
 
@@ -732,9 +735,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 	}
-	storage["L2StandardBridge"] = state.StorageValues{
-		"messenger": predeploys.L2CrossDomainMessengerAddr,
-	}
+	storage["L2StandardBridge"] = state.StorageValues{}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
 		"timestamp":      block.Time(),
@@ -763,14 +764,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
-	}
-	storage["L2ERC721Bridge"] = state.StorageValues{
-		"messenger": predeploys.L2CrossDomainMessengerAddr,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"bridge":        predeploys.L2StandardBridgeAddr,
-		"_initialized":  InitializedValue,
-		"_initializing": false,
 	}
 	return storage, nil
 }
