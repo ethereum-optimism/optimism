@@ -24,6 +24,7 @@ fi
 
 if [ ! -d "$TESTDATA_DIR" ]; then
   mkdir -p "$TESTDATA_DIR"
+  echo "Generating L2 genesis"
 
   go run $OP_NODE genesis l2 \
     --deploy-config "$CONTRACTS_DIR/deploy-config/hardhat.json" \

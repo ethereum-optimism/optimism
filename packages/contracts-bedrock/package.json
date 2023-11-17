@@ -17,7 +17,7 @@
     "build": "forge build",
     "build:go-ffi": "(cd scripts/go-ffi && go build)",
     "autogen:invariant-docs": "npx tsx scripts/invariant-doc-gen.ts",
-    "test": "pnpm build:go-ffi && forge test",
+    "test": "pnpm build:go-ffi && ./scripts/generate-l2-genesis.sh && forge test",
     "coverage": "pnpm build:go-ffi && forge coverage",
     "coverage:lcov": "pnpm build:go-ffi && forge coverage --report lcov",
     "deploy": "./scripts/deploy.sh",
