@@ -26,10 +26,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// initialzedValue represents the `Initializable` contract value. It should be kept in
-// sync with the constant in `Constants.sol`.
-// https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/libraries/Constants.sol
-const InitializedValue = 3
+// InitializedValue represents the `Initializable` contract value. It should always be 1.
+const InitializedValue = 1
 
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
