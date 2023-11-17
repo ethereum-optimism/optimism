@@ -88,7 +88,7 @@ contract L2OutputOracle is Initializable, ISemver {
         CHALLENGER = _challenger;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
-        initialize(_startingBlockNumber, _startingTimestamp);
+        initialize({ _startingBlockNumber: _startingBlockNumber, _startingTimestamp: _startingTimestamp });
     }
 
     /// @notice Initializer.
