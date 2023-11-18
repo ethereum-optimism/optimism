@@ -12,7 +12,8 @@ import (
 )
 
 type contractsList struct {
-	Local []string `json:"local"`
+	Local  []string         `json:"local"`
+	Remote []remoteContract `json:"remote"`
 }
 
 // readContractList reads a JSON file from the given `filePath` and unmarshals
