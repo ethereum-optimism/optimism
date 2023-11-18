@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -99,6 +100,37 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 			}
 		case err := <-headSub.Err():
 			return nil, fmt.Errorf("error in head subscription: %w", err)
+		case <-timeoutCh:
+			return nil, errTimeout
+		}
+	}
+}
+
+func WaitForBlockToBeFinalized(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+	return WaitForBlockTag(number, client, timeout, int64(rpc.FinalizedBlockNumber))
+}
+
+func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+	return WaitForBlockTag(number, client, timeout, int64(rpc.SafeBlockNumber))
+}
+
+// WaitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
+func WaitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag int64) (*types.Block, error) {
+	timeoutCh := time.After(timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Wait for it to be finalized. Poll every half second.
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			block, _ := client.BlockByNumber(ctx, big.NewInt(tag))
+			if block.NumberU64() >= number.Uint64() {
+				return client.BlockByNumber(ctx, number)
+			}
 		case <-timeoutCh:
 			return nil, errTimeout
 		}
