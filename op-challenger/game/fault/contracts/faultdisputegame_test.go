@@ -105,23 +105,31 @@ func TestGetProposals(t *testing.T) {
 	disputedIndex := big.NewInt(7)
 	disputedBlockNum := big.NewInt(8)
 	disputedRoot := common.Hash{0xdd}
-	agreed := Proposal{
+	agreed := contractProposal{
 		Index:         agreedIndex,
 		L2BlockNumber: agreedBlockNum,
 		OutputRoot:    agreedRoot,
 	}
-	disputed := Proposal{
+	disputed := contractProposal{
 		Index:         disputedIndex,
 		L2BlockNumber: disputedBlockNum,
 		OutputRoot:    disputedRoot,
+	}
+	expectedAgreed := Proposal{
+		L2BlockNumber: agreed.L2BlockNumber,
+		OutputRoot:    agreed.OutputRoot,
+	}
+	expectedDisputed := Proposal{
+		L2BlockNumber: disputed.L2BlockNumber,
+		OutputRoot:    disputed.OutputRoot,
 	}
 	stubRpc.SetResponse(fdgAddr, methodProposals, batching.BlockLatest, []interface{}{}, []interface{}{
 		agreed, disputed,
 	})
 	actualAgreed, actualDisputed, err := game.GetProposals(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, agreed, actualAgreed)
-	require.Equal(t, disputed, actualDisputed)
+	require.Equal(t, expectedAgreed, actualAgreed)
+	require.Equal(t, expectedDisputed, actualDisputed)
 }
 
 func TestGetClaim(t *testing.T) {
