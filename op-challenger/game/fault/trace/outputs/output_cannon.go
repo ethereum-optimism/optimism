@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -21,6 +22,6 @@ func NewOutputCannonTraceAccessor(ctx context.Context, logger log.Logger, rollup
 		return nil, errors.New("not implemented")
 	}
 
-	selector := newSplitProviderSelector(outputProvider, int(topDepth), cannonCreator)
+	selector := split.NewSplitProviderSelector(outputProvider, int(topDepth), cannonCreator)
 	return trace.NewAccessor(selector), nil
 }

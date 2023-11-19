@@ -1,4 +1,4 @@
-package outputs
+package split
 
 import (
 	"context"
@@ -311,7 +311,7 @@ func setupAlphabetSplitSelector(t *testing.T) (*alphabet.AlphabetTraceProvider, 
 			AlphabetTraceProvider: alphabet.NewTraceProvider(post.Value.Hex(), bottomDepth),
 		}, nil
 	}
-	selector := newSplitProviderSelector(top, topDepth, bottomCreator)
+	selector := NewSplitProviderSelector(top, topDepth, bottomCreator)
 
 	claimBuilder := test.NewAlphabetClaimBuilder(t, topDepth+bottomDepth)
 	gameBuilder := claimBuilder.GameBuilder(true, true)
