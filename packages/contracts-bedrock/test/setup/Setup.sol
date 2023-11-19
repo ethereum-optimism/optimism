@@ -185,5 +185,7 @@ contract Setup is Deploy {
         vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
         vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
         vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
+        vm.label(Predeploys.EAS, "EAS");
+        vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
     }
 }
