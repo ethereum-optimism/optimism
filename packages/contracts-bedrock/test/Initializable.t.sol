@@ -179,7 +179,7 @@ contract Initializer_Test is Bridge_Initializer {
             "'",
             " | ",
             Executables.jq,
-            " '.storage[] | select(.label == \"_initialized\")'"
+            " '.storage[] | select(.label == \"_initialized\" and .type == \"t_uint8\")'"
         );
         bytes memory rawSlot = vm.parseJson(string(vm.ffi(command)));
         slot_ = abi.decode(rawSlot, (StorageSlot));
@@ -214,7 +214,7 @@ contract Initializer_Test is Bridge_Initializer {
                 "'",
                 " | ",
                 Executables.jq,
-                " '.[] | select(.name == \"initialize\")'"
+                " '.[] | select(.name == \"initialize\" and .type == \"function\")'"
             );
             bytes memory res = vm.ffi(command);
 
