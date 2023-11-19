@@ -17,12 +17,10 @@ func TestFetchLocalInputs(t *testing.T) {
 	contract := &mockGameInputsSource{
 		l1Head: common.Hash{0xcc},
 		starting: contracts.Proposal{
-			Index:         big.NewInt(6),
 			L2BlockNumber: big.NewInt(2222),
 			OutputRoot:    common.Hash{0xdd},
 		},
 		disputed: contracts.Proposal{
-			Index:         big.NewInt(7),
 			L2BlockNumber: big.NewInt(3333),
 			OutputRoot:    common.Hash{0xee},
 		},
