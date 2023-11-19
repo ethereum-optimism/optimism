@@ -742,7 +742,7 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 		return err
 	}
 	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
-	if initialized.Uint64() != genesis.InitializedValue {
+	if initialized.Uint64() != 1 {
 		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
 	}
 

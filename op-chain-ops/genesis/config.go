@@ -26,9 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// InitializedValue represents the `Initializable` contract value. It should always be 1.
-const InitializedValue = 1
-
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
@@ -730,7 +727,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":     InitializedValue,
+		"_initialized":     1,
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
