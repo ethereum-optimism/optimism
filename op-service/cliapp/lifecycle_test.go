@@ -48,12 +48,14 @@ var _ Lifecycle = (*fakeLifecycle)(nil)
 
 func TestLifecycleCmd(t *testing.T) {
 
-	appSetup := func(t *testing.T, shareApp **fakeLifecycle) (signalCh chan struct{}, initCh, startCh, stopCh, resultCh chan error) {
+	appSetup := func(t *testing.T) (signalCh chan struct{}, initCh, startCh, stopCh, resultCh chan error, appCh chan *fakeLifecycle) {
 		signalCh = make(chan struct{})
 		initCh = make(chan error)
 		startCh = make(chan error)
 		stopCh = make(chan error)
 		resultCh = make(chan error)
+		// optional channel to retrieve the fakeLifecycle from, available some time after init, before start.
+		appCh = make(chan *fakeLifecycle, 1)
 
 		// mock an application that may fail at different stages of its lifecycle
 		mockAppFn := func(ctx *cli.Context, close context.CancelCauseFunc) (Lifecycle, error) {
@@ -72,9 +74,7 @@ func TestLifecycleCmd(t *testing.T) {
 				stopped:   false,
 				selfClose: close,
 			}
-			if shareApp != nil {
-				*shareApp = app
-			}
+			appCh <- app
 			return app, nil
 		}
 
@@ -115,19 +115,20 @@ func TestLifecycleCmd(t *testing.T) {
 			close(startCh)
 			close(stopCh)
 			close(resultCh)
+			close(appCh)
 		})
 		return
 	}
 
 	t.Run("interrupt int", func(t *testing.T) {
-		signalCh, _, _, _, resultCh := appSetup(t, nil)
+		signalCh, _, _, _, resultCh, _ := appSetup(t)
 		signalCh <- struct{}{}
 		res := <-resultCh
 		require.ErrorIs(t, res, interruptErr)
 		require.ErrorContains(t, res, "failed to setup")
 	})
 	t.Run("failed init", func(t *testing.T) {
-		_, initCh, _, _, resultCh := appSetup(t, nil)
+		_, initCh, _, _, resultCh, _ := appSetup(t)
 		v := errors.New("TEST INIT ERRROR")
 		initCh <- v
 		res := <-resultCh
@@ -135,9 +136,9 @@ func TestLifecycleCmd(t *testing.T) {
 		require.ErrorContains(t, res, "failed to setup")
 	})
 	t.Run("interrupt start", func(t *testing.T) {
-		var app *fakeLifecycle
-		signalCh, initCh, _, _, resultCh := appSetup(t, &app)
+		signalCh, initCh, _, _, resultCh, appCh := appSetup(t)
 		initCh <- nil
+		app := <-appCh
 		require.False(t, app.Stopped())
 		signalCh <- struct{}{}
 		res := <-resultCh
@@ -146,9 +147,9 @@ func TestLifecycleCmd(t *testing.T) {
 		require.True(t, app.Stopped())
 	})
 	t.Run("failed start", func(t *testing.T) {
-		var app *fakeLifecycle
-		_, initCh, startCh, _, resultCh := appSetup(t, &app)
+		_, initCh, startCh, _, resultCh, appCh := appSetup(t)
 		initCh <- nil
+		app := <-appCh
 		require.False(t, app.Stopped())
 		v := errors.New("TEST START ERROR")
 		startCh <- v
@@ -158,9 +159,9 @@ func TestLifecycleCmd(t *testing.T) {
 		require.True(t, app.Stopped())
 	})
 	t.Run("graceful shutdown", func(t *testing.T) {
-		var app *fakeLifecycle
-		signalCh, initCh, startCh, stopCh, resultCh := appSetup(t, &app)
+		signalCh, initCh, startCh, stopCh, resultCh, appCh := appSetup(t)
 		initCh <- nil
+		app := <-appCh
 		require.False(t, app.Stopped())
 		startCh <- nil
 		signalCh <- struct{}{} // interrupt, but at an expected time
@@ -169,9 +170,9 @@ func TestLifecycleCmd(t *testing.T) {
 		require.True(t, app.Stopped())
 	})
 	t.Run("interrupted shutdown", func(t *testing.T) {
-		var app *fakeLifecycle
-		signalCh, initCh, startCh, _, resultCh := appSetup(t, &app)
+		signalCh, initCh, startCh, _, resultCh, appCh := appSetup(t)
 		initCh <- nil
+		app := <-appCh
 		require.False(t, app.Stopped())
 		startCh <- nil
 		signalCh <- struct{}{} // start graceful shutdown
@@ -182,9 +183,9 @@ func TestLifecycleCmd(t *testing.T) {
 		require.True(t, app.Stopped()) // still fully closes, interrupts only accelerate shutdown where possible.
 	})
 	t.Run("failed shutdown", func(t *testing.T) {
-		var app *fakeLifecycle
-		signalCh, initCh, startCh, stopCh, resultCh := appSetup(t, &app)
+		signalCh, initCh, startCh, stopCh, resultCh, appCh := appSetup(t)
 		initCh <- nil
+		app := <-appCh
 		require.False(t, app.Stopped())
 		startCh <- nil
 		signalCh <- struct{}{} // start graceful shutdown
@@ -196,9 +197,9 @@ func TestLifecycleCmd(t *testing.T) {
 		require.True(t, app.Stopped())
 	})
 	t.Run("app self-close", func(t *testing.T) {
-		var app *fakeLifecycle
-		_, initCh, startCh, stopCh, resultCh := appSetup(t, &app)
+		_, initCh, startCh, stopCh, resultCh, appCh := appSetup(t)
 		initCh <- nil
+		app := <-appCh
 		require.False(t, app.Stopped())
 		startCh <- nil
 		v := errors.New("TEST SELF CLOSE ERROR")
