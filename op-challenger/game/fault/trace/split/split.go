@@ -1,4 +1,4 @@
-package outputs
+package split
 
 import (
 	"context"
@@ -16,7 +16,7 @@ var (
 
 type ProviderCreator func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error)
 
-func newSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
+func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
 	return func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error) {
 		if pos.Depth() <= topDepth {
 			return topProvider, nil
