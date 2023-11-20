@@ -84,7 +84,7 @@ func TestOutputRootSplitAdapter(t *testing.T) {
 
 			_, err := adapter(context.Background(), preClaim, postClaim)
 			require.ErrorIs(t, err, creatorError)
-			require.Equal(t, createLocalContext(preClaim, postClaim), creator.localContext)
+			require.Equal(t, types.NewLocalContextPreimage(preClaim, postClaim).Hash(), creator.localContext)
 			require.Equal(t, expectedAgreed, creator.agreed)
 			require.Equal(t, expectedClaimed, creator.claimed)
 		})
@@ -115,7 +115,7 @@ func TestOutputRootSplitAdapter_FromAbsolutePrestate(t *testing.T) {
 
 	_, err := adapter(context.Background(), types.Claim{}, postClaim)
 	require.ErrorIs(t, err, creatorError)
-	require.Equal(t, createLocalContext(types.Claim{}, postClaim), creator.localContext)
+	require.Equal(t, types.NewLocalContextPreimage(types.Claim{}, postClaim).Hash(), creator.localContext)
 	require.Equal(t, expectedAgreed, creator.agreed)
 	require.Equal(t, expectedClaimed, creator.claimed)
 }
@@ -199,9 +199,10 @@ func TestCreateLocalContext(t *testing.T) {
 					Position: test.postPosition,
 				},
 			}
-			actualPreimage := localContextPreimage(pre, post)
+			localContextPreimage := types.NewLocalContextPreimage(pre, post)
+			actualPreimage := localContextPreimage.Preimage()
 			require.Equal(t, test.expected, actualPreimage)
-			localContext := createLocalContext(pre, post)
+			localContext := localContextPreimage.Hash()
 			require.Equal(t, crypto.Keccak256Hash(test.expected), localContext)
 		})
 	}

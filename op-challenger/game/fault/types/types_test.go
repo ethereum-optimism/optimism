@@ -13,6 +13,56 @@ var (
 	eliteHash = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000001337")
 )
 
+func TestLocalContextPreimage_UsePrestateBlock(t *testing.T) {
+	tests := []struct {
+		name     string
+		pre      Claim
+		expected bool
+	}{
+		{name: "EmptyPreClaim", pre: Claim{}, expected: true},
+		{name: "WithPreClaim", pre: Claim{ContractIndex: 1}, expected: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			preimage := NewLocalContextPreimage(test.pre, Claim{})
+			require.Equal(t, test.expected, preimage.UsePrestateBlock())
+		})
+	}
+}
+
+func TestLocalContextPreimage_Preimage(t *testing.T) {
+	var zeroPreimage [63]byte
+	onePreimage := append(zeroPreimage[:], 1)
+	postImage := append(onePreimage[:], onePreimage[:]...)
+	tests := []struct {
+		name     string
+		pre      Claim
+		post     Claim
+		expected []byte
+	}{
+		{
+			name:     "EmptyPreClaim",
+			pre:      Claim{},
+			post:     Claim{ContractIndex: 1},
+			expected: onePreimage,
+		},
+		{
+			name:     "WithPreClaim",
+			pre:      Claim{ContractIndex: 1},
+			post:     Claim{ContractIndex: 2},
+			expected: postImage,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			preimage := NewLocalContextPreimage(test.pre, test.post)
+			require.Equal(t, test.expected, preimage.Preimage())
+		})
+	}
+}
+
 func TestNewPreimageOracleData(t *testing.T) {
 	t.Run("LocalData", func(t *testing.T) {
 		data := NewPreimageOracleData(common.Hash{0x01}, []byte{1, 2, 3}, []byte{4, 5, 6}, 7)

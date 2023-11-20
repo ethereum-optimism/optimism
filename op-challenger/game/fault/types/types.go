@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var (
@@ -15,6 +16,48 @@ var (
 	// of a split game.
 	NoLocalContext = common.Hash{}
 )
+
+// LocalContextPreimage type contains the pre and post claims for the
+// local context hash.
+type LocalContextPreimage struct {
+	Pre  Claim
+	Post Claim
+}
+
+// NewLocalContextPreimage creates a new [LocalContextPreimage] instance.
+func NewLocalContextPreimage(pre Claim, post Claim) *LocalContextPreimage {
+	return &LocalContextPreimage{
+		Pre:  pre,
+		Post: post,
+	}
+}
+
+// UsePrestateBlock returns true if the prestate block should be used based
+// on the pre claim.
+func (l *LocalContextPreimage) UsePrestateBlock() bool {
+	return l.Pre == (Claim{})
+}
+
+// Hash returns the Local Context using the preimage.
+func (l *LocalContextPreimage) Hash() common.Hash {
+	return crypto.Keccak256Hash(l.Preimage())
+}
+
+// Preimage returns the preimage for the local context.
+func (l *LocalContextPreimage) Preimage() []byte {
+	encodeClaim := func(c Claim) []byte {
+		data := make([]byte, 64)
+		copy(data[0:32], c.Value.Bytes())
+		c.Position.ToGIndex().FillBytes(data[32:])
+		return data
+	}
+	var data []byte
+	if !l.UsePrestateBlock() {
+		data = encodeClaim(l.Pre)
+	}
+	data = append(data, encodeClaim(l.Post)...)
+	return data
+}
 
 // PreimageOracleData encapsulates the preimage oracle data
 // to load into the onchain oracle.
