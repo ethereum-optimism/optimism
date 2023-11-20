@@ -232,8 +232,8 @@ func (f *FaultDisputeGameContract) addLocalDataTx(data *types.PreimageOracleData
 	call := f.contract.Call(
 		methodAddLocalData,
 		data.GetIdent(),
-		new(big.Int).SetBytes(data.LocalContext.Bytes()),
-		new(big.Int).SetUint64(uint64(data.OracleOffset)),
+		data.GetLocalContextBigInt(),
+		data.GetOracleOffsetBigInt(),
 	)
 	return call.ToTxCandidate()
 }

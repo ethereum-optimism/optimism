@@ -26,6 +26,16 @@ type PreimageOracleData struct {
 	OracleOffset uint32
 }
 
+// GetLocalContextBigInt returns the local context as a big int.
+func (p *PreimageOracleData) GetLocalContextBigInt() *big.Int {
+	return new(big.Int).SetBytes(p.LocalContext.Bytes())
+}
+
+// GetOracleOffsetBigInt returns the oracle offset as a big int.
+func (p *PreimageOracleData) GetOracleOffsetBigInt() *big.Int {
+	return new(big.Int).SetUint64(uint64(p.OracleOffset))
+}
+
 // GetIdent returns the ident for the preimage oracle data.
 func (p *PreimageOracleData) GetIdent() *big.Int {
 	return new(big.Int).SetBytes(p.OracleKey[1:])
