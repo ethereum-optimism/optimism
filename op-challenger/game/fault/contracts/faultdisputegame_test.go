@@ -260,8 +260,8 @@ func TestUpdateOracleTx(t *testing.T) {
 		}
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
-			new(big.Int).SetBytes(data.LocalContext.Bytes()),
-			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetLocalContextBigInt(),
+			data.GetOracleOffsetBigInt(),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), data)
 		require.NoError(t, err)
@@ -279,7 +279,7 @@ func TestUpdateOracleTx(t *testing.T) {
 		stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
 		stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
 		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
-			new(big.Int).SetUint64(uint64(data.OracleOffset)),
+			data.GetOracleOffsetBigInt(),
 			data.GetPreimageWithoutSize(),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), data)
