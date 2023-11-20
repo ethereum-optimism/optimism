@@ -9,7 +9,6 @@ import (
 )
 
 var (
-	emptyHash = common.Hash{}
 	oneHash   = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001")
 	eliteHash = common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000001337")
 )
@@ -41,7 +40,7 @@ func TestPreimageOracleData_GetLocalContextBigInt(t *testing.T) {
 		expected *big.Int
 	}{
 		{name: "LocalContext", context: oneHash, expected: new(big.Int).SetUint64(1)},
-		{name: "NoLocalContext", context: emptyHash, expected: new(big.Int).SetBytes(emptyHash.Bytes())},
+		{name: "NoLocalContext", context: NoLocalContext, expected: new(big.Int).SetBytes(NoLocalContext.Bytes())},
 		{name: "MultiBytesLocalContext", context: eliteHash, expected: big.NewInt(0x1337)},
 	}
 
