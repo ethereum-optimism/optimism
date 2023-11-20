@@ -253,14 +253,14 @@ func TestUpdateOracleTx(t *testing.T) {
 		stubRpc, game := setup(t)
 		data := &faultTypes.PreimageOracleData{
 			IsLocal:      true,
-			LocalContext: 2,
+			LocalContext: common.Hash{0x02},
 			OracleKey:    common.Hash{0xbc}.Bytes(),
 			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
 			OracleOffset: 16,
 		}
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
-			new(big.Int).SetUint64(data.LocalContext),
+			new(big.Int).SetBytes(data.LocalContext.Bytes()),
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), data)
