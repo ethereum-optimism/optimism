@@ -180,4 +180,10 @@ target "ci-builder" {
   tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/ci-builder:${tag}"]
 }
 
-
+target "contracts-bedrock" {
+  dockerfile = "./ops/docker/Dockerfile.packages"
+  context = "."
+  target = "contracts-bedrock"
+  platforms = split(",", PLATFORMS)
+  tags = [for tag in split(",", IMAGE_TAGS) : "${REGISTRY}/${REPOSITORY}/contracts-bedrock:${tag}"]
+}
