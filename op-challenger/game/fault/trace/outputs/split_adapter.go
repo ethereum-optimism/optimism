@@ -3,24 +3,21 @@ package outputs
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type ProposalTraceProviderCreator func(ctx context.Context, localContext uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error)
+type ProposalTraceProviderCreator func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error)
 
 func OutputRootSplitAdapter(topProvider *OutputTraceProvider, creator ProposalTraceProviderCreator) split.ProviderCreator {
 	return func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
+		localContext := createLocalContext(pre, post)
 		usePrestateBlock := pre == (types.Claim{})
-		preContractIndex := pre.ContractIndex
-		if usePrestateBlock {
-			preContractIndex = math.MaxUint32
-		}
-		localContext := uint64(preContractIndex)<<32 + uint64(post.ContractIndex)
 		var agreed contracts.Proposal
 		if usePrestateBlock {
 			prestateRoot, err := topProvider.AbsolutePreStateCommitment(ctx)
@@ -52,4 +49,23 @@ func OutputRootSplitAdapter(topProvider *OutputTraceProvider, creator ProposalTr
 
 		return creator(ctx, localContext, agreed, claimed)
 	}
+}
+
+func createLocalContext(pre types.Claim, post types.Claim) common.Hash {
+	return crypto.Keccak256Hash(localContextPreimage(pre, post))
+}
+
+func localContextPreimage(pre types.Claim, post types.Claim) []byte {
+	encodeClaim := func(c types.Claim) []byte {
+		data := make([]byte, 64)
+		copy(data[0:32], c.Value.Bytes())
+		c.Position.ToGIndex().FillBytes(data[32:])
+		return data
+	}
+	var data []byte
+	if pre != (types.Claim{}) {
+		data = encodeClaim(pre)
+	}
+	data = append(data, encodeClaim(post)...)
+	return data
 }

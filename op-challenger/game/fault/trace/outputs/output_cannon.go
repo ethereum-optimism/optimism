@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -18,7 +19,7 @@ func NewOutputCannonTraceAccessor(ctx context.Context, logger log.Logger, rollup
 		return nil, err
 	}
 
-	cannonCreator := func(ctx context.Context, localContext uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+	cannonCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		// TODO(client-pod#43): Actually create the cannon trace provider for the trace between the given claims.
 		return nil, errors.New("not implemented")
 	}
