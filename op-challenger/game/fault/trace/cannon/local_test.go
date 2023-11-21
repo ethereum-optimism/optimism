@@ -42,6 +42,36 @@ func TestFetchLocalInputs(t *testing.T) {
 	require.Equal(t, contract.disputed.L2BlockNumber, inputs.L2BlockNumber)
 }
 
+func TestFetchLocalInputsFromProposals(t *testing.T) {
+	ctx := context.Background()
+	agreed := contracts.Proposal{
+		L2BlockNumber: big.NewInt(2222),
+		OutputRoot:    common.Hash{0xdd},
+	}
+	claimed := contracts.Proposal{
+		L2BlockNumber: big.NewInt(3333),
+		OutputRoot:    common.Hash{0xee},
+	}
+	contract := &mockGameInputsSource{
+		l1Head: common.Hash{0xcc},
+	}
+	l2Client := &mockL2DataSource{
+		chainID: big.NewInt(88422),
+		header: ethtypes.Header{
+			Number: agreed.L2BlockNumber,
+		},
+	}
+
+	inputs, err := fetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
+	require.NoError(t, err)
+
+	require.Equal(t, contract.l1Head, inputs.L1Head)
+	require.Equal(t, l2Client.header.Hash(), inputs.L2Head)
+	require.EqualValues(t, agreed.OutputRoot, inputs.L2OutputRoot)
+	require.EqualValues(t, claimed.OutputRoot, inputs.L2Claim)
+	require.Equal(t, claimed.L2BlockNumber, inputs.L2BlockNumber)
+}
+
 type mockGameInputsSource struct {
 	l1Head   common.Hash
 	starting contracts.Proposal

@@ -2,10 +2,13 @@ package outputs
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
@@ -17,20 +20,29 @@ func NewOutputCannonTraceAccessor(
 	ctx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
-	rollupRpc string,
+	cfg *config.Config,
+	contract *contracts.FaultDisputeGameContract,
+	dir string,
 	gameDepth uint64,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
-	topDepth := gameDepth / 2 // TODO(client-pod#43): Load this from the contract
-	outputProvider, err := NewTraceProvider(ctx, logger, rollupRpc, topDepth, prestateBlock, poststateBlock)
+	// TODO(client-pod#43): Load depths from the contract
+	topDepth := gameDepth / 2
+	bottomDepth := gameDepth - topDepth
+	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, topDepth, prestateBlock, poststateBlock)
 	if err != nil {
 		return nil, err
 	}
 
 	cannonCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
-		// TODO(client-pod#43): Actually create the cannon trace provider for the trace between the given claims.
-		return nil, errors.New("not implemented")
+		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
+		subdir := filepath.Join(dir, localContext.Hex())
+		provider, err := cannon.NewTraceProviderFromProposals(ctx, logger, m, cfg, contract, localContext, agreed, claimed, subdir, bottomDepth)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create cannon trace provider: %w", err)
+		}
+		return provider, nil
 	}
 
 	cache := NewProviderCache(m, "output_cannon_provider", cannonCreator)

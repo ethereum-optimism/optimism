@@ -65,7 +65,7 @@ func registerOutputCannon(
 		if err != nil {
 			return nil, nil, err
 		}
-		accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg.RollupRpc, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
+		accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, contract, dir, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
 		if err != nil {
 			return nil, nil, err
 		}
