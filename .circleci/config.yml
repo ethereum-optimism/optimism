@@ -1269,6 +1269,48 @@ jobs:
           name: Verify Values Match
           command: |
             ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
+
+  test-proofs:
+    machine: true
+    steps:
+      - checkout
+      - run:
+          name: Checkout submodules
+          command: |
+            git submodule sync
+            git submodule update --init --recursive
+      - run:
+          name: "Start Docker Container"
+          command: |
+            export KONTROL_VERSION=$(cat deps/kontrol_release)
+            docker run --name optimism-ci \
+                    --rm \
+                    -v $(pwd)/kout/proofs:/home/user/workspace/packages/contracts-bedrock/kout/proofs/ \
+                    --interactive \
+                    --tty \
+                    --detach \
+                    --user root \
+                    --workdir /home/user/workspace \
+                    runtimeverificationinc/kontrol:ubuntu-jammy-${KONTROL_VERSION}
+            docker cp . optimism-ci:/home/user/workspace
+            docker exec optimism-ci chown -R user:user /home/user
+      - run:
+          name: 'Run Kontrol'
+          command: |
+            docker exec -u user optimism-ci bash -c 'cd packages/contracts-bedrock && ./test/kontrol/kontrol/run-kontrol.sh'
+      - run:
+          name: Create Results Tar
+          command: |
+            tar -czvf results.tar.gz kout/proofs
+      - store_artifacts:
+          path: results.tar.gz
+          destination: results
+          when: always
+    when:
+      changes:
+        paths:
+          - packages/contracts-bedrock/test/kontrol/**
+
 workflows:
   main:
     when:
