@@ -185,7 +185,7 @@ CREATE INDEX IF NOT EXISTS l2_bridge_messages_from_address ON l2_bridge_messages
  * chains (adding the message nonce to the RelayedMessage event) or continue to add columns to this table and migrate
  * unrelayed messages such that finalization logic can handle switching between the varying versioned message hashes
  */
-CREATE TABLE IF NOT EXISTS l2_bridge_messages_versioned_message_hashes(
+CREATE TABLE IF NOT EXISTS l2_bridge_message_versioned_message_hashes(
     message_hash     VARCHAR PRIMARY KEY NOT NULL UNIQUE REFERENCES l2_bridge_messages(message_hash),
 
     -- only filled in if `message_hash` is for a v0 message
