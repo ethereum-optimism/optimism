@@ -178,7 +178,9 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err != nil {
 			return fmt.Errorf("failed to compute versioned message hash: %w", err)
 		}
-		db.BridgeMessages.StoreL2BridgeMessageV1MessageHash(sentMessage.BridgeMessage.MessageHash, v1MessageHash)
+		if err := db.BridgeMessages.StoreL2BridgeMessageV1MessageHash(sentMessage.BridgeMessage.MessageHash, v1MessageHash); err != nil {
+			return err
+		}
 
 		withdrawalHash, err := legacyBridgeMessageWithdrawalHash(preset, &sentMessage.BridgeMessage)
 		if err != nil {
