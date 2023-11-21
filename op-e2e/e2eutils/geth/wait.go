@@ -99,6 +99,8 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 			}
 		case err := <-headSub.Err():
 			return nil, fmt.Errorf("error in head subscription: %w", err)
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }
@@ -122,14 +124,22 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 
 	tagBigInt := big.NewInt(tag.Int64())
 
-	// Use a loop to periodically check the block number.
 	for range ticker.C {
-		block, _ := client.BlockByNumber(ctx, tagBigInt)
-		if block != nil && block.NumberU64() >= number.Uint64() {
+		block, err := client.BlockByNumber(ctx, tagBigInt)
+		if err != nil {
+			return nil, err
+		}
+		if block.NumberU64() >= number.Uint64() {
 			return client.BlockByNumber(ctx, number)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			// Continue polling
 		}
 	}
 
-	// Context deadline exceeded or some other error.
-	return nil, ctx.Err()
+	return nil, ctx.Err() // In case the loop somehow exits without meeting the condition
 }
