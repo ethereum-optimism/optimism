@@ -41,10 +41,8 @@ type ForgeStorageLayoutEntry = {
   label: string
   offset: number
   slot: number
-  type: string
 }
 type AbiSpecStorageLayoutEntry = {
-  type: string
   slot: number
   offset: number
 }
@@ -80,7 +78,6 @@ const getStorageLayout = async (
   const forgeStorageLayout: ForgeStorageLayoutEntry[] = layout['storage']
   for (const entry of forgeStorageLayout) {
     storageLayout[entry.label] = {
-      type: entry.type,
       slot: entry.slot,
       offset: entry.offset,
     }
