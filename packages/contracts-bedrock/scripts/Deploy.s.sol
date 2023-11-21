@@ -197,13 +197,6 @@ contract Deploy is Deployer {
         transferDisputeGameFactoryOwnership();
     }
 
-    /// @notice The create2 salt used for deployment of the contract implementations.
-    ///         Using this helps to reduce config across networks as the implementation
-    ///         addresses will be the same across networks when deployed with create2.
-    function implSalt() internal returns (bytes32) {
-        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
-    }
-
     /// @notice Deploy all of the proxies
     function deployProxies() public {
         deployAddressManager();
@@ -287,6 +280,19 @@ contract Deploy is Deployer {
         console.log("ProxyAdmin deployed at %s", address(admin));
         addr_ = address(admin);
     }
+
+    /// @notice Deploy the StorageSetter contract, used for upgrades.
+    function deployStorageSetter() public broadcast returns (address addr_) {
+        StorageSetter setter = new StorageSetter{ salt: _implSalt() }();
+        console.log("StorageSetter deployed at: %s", address(setter));
+        string memory version = setter.version();
+        console.log("StorageSetter version: %s", version);
+        addr_ = address(setter);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                Proxy Deployment Functions                  //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the L1StandardBridgeProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
@@ -438,7 +444,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
         address portal = mustGetAddress("OptimismPortalProxy");
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: implSalt() }({
+        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: _implSalt() }({
             _portal: OptimismPortal(payable(portal))
         });
 
@@ -464,7 +470,7 @@ contract Deploy is Deployer {
         L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
-        OptimismPortal portal = new OptimismPortal{ salt: implSalt() }({
+        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
             _l2Oracle: l2OutputOracle,
             _guardian: guardian,
             _paused: true,
@@ -487,7 +493,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        L2OutputOracle oracle = new L2OutputOracle{ salt: implSalt() }({
+        L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
             _startingBlockNumber: 0,
@@ -520,7 +526,7 @@ contract Deploy is Deployer {
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
         address l1standardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         OptimismMintableERC20Factory factory =
-            new OptimismMintableERC20Factory{ salt: implSalt() }({_bridge: l1standardBridgeProxy});
+            new OptimismMintableERC20Factory{ salt: _implSalt() }({_bridge: l1standardBridgeProxy});
 
         require(factory.BRIDGE() == l1standardBridgeProxy);
         require(factory.bridge() == l1standardBridgeProxy);
@@ -533,7 +539,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
-        DisputeGameFactory factory = new DisputeGameFactory{ salt: implSalt() }();
+        DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
@@ -542,7 +548,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the BlockOracle
     function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
-        BlockOracle oracle = new BlockOracle{ salt: implSalt() }();
+        BlockOracle oracle = new BlockOracle{ salt: _implSalt() }();
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
 
@@ -551,7 +557,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
-        ProtocolVersions versions = new ProtocolVersions{ salt: implSalt() }();
+        ProtocolVersions versions = new ProtocolVersions{ salt: _implSalt() }();
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
 
@@ -560,7 +566,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
-        PreimageOracle preimageOracle = new PreimageOracle{ salt: implSalt() }();
+        PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }();
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
@@ -569,7 +575,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() public onlyDevnet broadcast returns (address addr_) {
-        MIPS mips = new MIPS{ salt: implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
+        MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
@@ -615,7 +621,7 @@ contract Deploy is Deployer {
     function deployL1StandardBridge() public broadcast returns (address addr_) {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        L1StandardBridge bridge = new L1StandardBridge{ salt: implSalt() }({
+        L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }({
             _messenger: payable(l1CrossDomainMessengerProxy)
         });
 
@@ -633,7 +639,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
-        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: implSalt() }({
+        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({
             _messenger: l1CrossDomainMessengerProxy,
             _otherBridge: Predeploys.L2_ERC721_BRIDGE
         });
@@ -991,28 +997,5 @@ contract Deploy is Deployer {
                 vm.toString(GameType.unwrap(_gameType))
             );
         }
-    }
-
-    /// @notice Deploy the StorageSetter contract, used for upgrades.
-    function deployStorageSetter() public broadcast returns (address addr_) {
-        StorageSetter setter = new StorageSetter{ salt: implSalt() }();
-        console.log("StorageSetter deployed at: %s", address(setter));
-        string memory version = setter.version();
-        console.log("StorageSetter version: %s", version);
-        addr_ = address(setter);
-    }
-
-    /// @notice Returns the proxy addresses
-    function _proxies() private view returns (Types.ContractSet memory proxies_) {
-        proxies_ = Types.ContractSet({
-            L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
-            L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-            L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
-            OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-            OptimismPortal: mustGetAddress("OptimismPortalProxy"),
-            SystemConfig: mustGetAddress("SystemConfigProxy"),
-            L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
-        });
     }
 }
