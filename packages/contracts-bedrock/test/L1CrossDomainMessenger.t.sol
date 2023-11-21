@@ -47,7 +47,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         );
 
         // TransactionDeposited event
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(optimismPortal));
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)),
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
@@ -59,11 +59,11 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         );
 
         // SentMessage event
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit SentMessage(recipient, alice, hex"ff", l1CrossDomainMessenger.messageNonce(), 100);
 
         // SentMessageExtension1 event
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit SentMessageExtension1(alice, 0);
 
         vm.prank(alice);
@@ -122,7 +122,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.store(address(optimismPortal), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(optimismPortal));
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, hex"1111"
@@ -229,7 +229,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(l1CrossDomainMessenger.successfulMessages(hash), false);
         assertEq(l1CrossDomainMessenger.failedMessages(hash), true);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
 
         emit RelayedMessage(hash);
 
@@ -275,7 +275,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(target, hex"1111");
 
         // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit RelayedMessage(hash);
 
         // Relay the message.
@@ -364,7 +364,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(target, hex"1111");
 
         // Expect FailedRelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit FailedRelayedMessage(hash);
 
         // Relay the message.
@@ -392,7 +392,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(target, hex"1111");
 
         // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit RelayedMessage(hash);
 
         // Retry the message.
@@ -437,7 +437,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(target, hex"1111");
 
         // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit RelayedMessage(hash);
 
         // Relay the message.
@@ -524,7 +524,7 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         vm.expectCall(target, hex"1111");
 
         // Expect RelayedMessage event to be emitted.
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(l1CrossDomainMessenger));
         emit RelayedMessage(hash);
 
         // Retry the message

@@ -53,7 +53,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         // Check that contract balance is 0 initially
         assertEq(address(assetReceiver).balance, 0);
 
-        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        vm.expectEmit(address(assetReceiver));
         emit ReceivedETH(alice, 100);
         // Send funds
         vm.prank(alice);
@@ -75,7 +75,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         assertEq(address(alice).balance, 1 ether);
 
-        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        vm.expectEmit(address(assetReceiver));
         emit WithdrewETH(alice, alice, 1 ether);
 
         // call withdrawETH
@@ -103,7 +103,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         assertEq(address(alice).balance, 1 ether);
 
-        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        vm.expectEmit(address(assetReceiver));
         emit WithdrewETH(alice, alice, 0.5 ether);
 
         // call withdrawETH
@@ -131,7 +131,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         assertEq(testERC20.balanceOf(address(assetReceiver)), 100_000);
         assertEq(testERC20.balanceOf(alice), 0);
 
-        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        vm.expectEmit(address(assetReceiver));
         emit WithdrewERC20(alice, alice, address(testERC20), 100_000);
 
         // call withdrawERC20
@@ -159,7 +159,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         assertEq(testERC20.balanceOf(address(assetReceiver)), 100_000);
         assertEq(testERC20.balanceOf(alice), 0);
 
-        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        vm.expectEmit(address(assetReceiver));
         emit WithdrewERC20(alice, alice, address(testERC20), 50_000);
 
         // call withdrawERC20
@@ -188,7 +188,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         testERC721.transferFrom(alice, address(assetReceiver), DEFAULT_TOKEN_ID);
         assertEq(testERC721.ownerOf(DEFAULT_TOKEN_ID), address(assetReceiver));
 
-        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        vm.expectEmit(address(assetReceiver));
         emit WithdrewERC721(alice, alice, address(testERC721), DEFAULT_TOKEN_ID);
 
         // Call withdrawERC721
