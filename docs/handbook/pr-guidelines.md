@@ -26,7 +26,7 @@ This is organized by current state of PR, so it can be easily be referenced freq
 
 ### Before Starting PRs
 
-- **Keep PRs Focused**: Each PR should be a single, narrow, well-defined concern.
+- **Keep PRs Focused**: Each PR should be a single, narrow, well-defined scope.
 
 ### Opening PRs
 
