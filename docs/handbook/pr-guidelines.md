@@ -45,5 +45,5 @@ This is organized by current state of PR, so it can be easily be referenced freq
 
 ### Merging PRs
 
-- **Resolve all Comments**: Comments can be resolved by (1) the PR author for nits/optionals, (2) the author or reviewer after discussions, or (3) extracting the comment into an issue to address in a future PR. For (3), ensure the new issue links to the specific comment thread. *Requiring no unresolved comments can be enabled as a merge requirement in GitHub settings.*
+- **Resolve all Comments**: Comments can be resolved by (1) the PR author for nits/optionals, (2) the author or reviewer after discussions, or (3) extracting the comment into an issue to address in a future PR. For (3), ensure the new issue links to the specific comment thread. This is currently enforced by GitHub's merge requirements.
 - **Other Standard Merge Requirements**: The PR must be approved by the appropriate reviewers, CI must passing, and other standard merge requirements apply.
