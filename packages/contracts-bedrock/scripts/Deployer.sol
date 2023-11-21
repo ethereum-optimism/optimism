@@ -30,6 +30,17 @@ struct Artifact {
     string userdoc;
 }
 
+/// @notice Contains information about a storage slot. Mirrors the layout of the storage
+///         slot object in Forge artifacts so that we can deserialize JSON into this struct.
+struct StorageSlot {
+    uint256 astId;
+    string _contract;
+    string label;
+    uint256 offset;
+    string slot;
+    string _type;
+}
+
 /// @title Deployer
 /// @author tynes
 /// @notice A contract that can make deploying and interacting with deployments easy.
@@ -425,6 +436,26 @@ abstract contract Deployer is Script {
         cmd[2] = string.concat(Executables.jq, " '.metadata | tostring' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
         return string(res);
+    }
+
+    /// @dev Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
+    function getInitializedSlot(string memory _contractName) internal returns (StorageSlot memory slot_) {
+        string memory storageLayout = getStorageLayout(_contractName);
+
+        string[] memory command = new string[](3);
+        command[0] = Executables.bash;
+        command[1] = "-c";
+        command[2] = string.concat(
+            Executables.echo,
+            " '",
+            storageLayout,
+            "'",
+            " | ",
+            Executables.jq,
+            " '.storage[] | select(.label == \"_initialized\" and .type == \"t_uint8\")'"
+        );
+        bytes memory rawSlot = vm.parseJson(string(vm.ffi(command)));
+        slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
     /// @notice Adds a deployment to the temp deployments file

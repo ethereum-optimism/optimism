@@ -9,6 +9,7 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import "src/L1/ProtocolVersions.sol";
+import "scripts/Deployer.sol";
 
 /// @title Initializer_Test
 /// @dev Ensures that the `initialize()` function on contracts cannot be called more than
@@ -21,17 +22,6 @@ contract Initializer_Test is Bridge_Initializer {
         address target;
         bytes initCalldata;
         StorageSlot initializedSlot;
-    }
-
-    /// @notice Contains information about a storage slot. Mirrors the layout of the storage
-    ///         slot object in Forge artifacts so that we can deserialize JSON into this struct.
-    struct StorageSlot {
-        uint256 astId;
-        string _contract;
-        string label;
-        uint256 offset;
-        string slot;
-        string _type;
     }
 
     /// @notice Contains the addresses of the contracts to test as well as the calldata
@@ -50,7 +40,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
                 initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, ()),
-                initializedSlot: _getInitializedSlot("L1CrossDomainMessenger")
+                initializedSlot: getInitializedSlot("L1CrossDomainMessenger")
             })
         );
         // L2OutputOracle
@@ -58,7 +48,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(l2OutputOracle),
                 initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0)),
-                initializedSlot: _getInitializedSlot("L2OutputOracle")
+                initializedSlot: getInitializedSlot("L2OutputOracle")
             })
         );
         // OptimismPortal
@@ -66,7 +56,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(optimismPortal),
                 initCalldata: abi.encodeCall(optimismPortal.initialize, (false)),
-                initializedSlot: _getInitializedSlot("OptimismPortal")
+                initializedSlot: getInitializedSlot("OptimismPortal")
             })
         );
         // SystemConfig
@@ -92,7 +82,7 @@ contract Initializer_Test is Bridge_Initializer {
                         })
                     )
                     ),
-                initializedSlot: _getInitializedSlot("SystemConfig")
+                initializedSlot: getInitializedSlot("SystemConfig")
             })
         );
         // ProtocolVersions
@@ -102,7 +92,7 @@ contract Initializer_Test is Bridge_Initializer {
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
                     ),
-                initializedSlot: _getInitializedSlot("ProtocolVersions")
+                initializedSlot: getInitializedSlot("ProtocolVersions")
             })
         );
     }
@@ -135,26 +125,6 @@ contract Initializer_Test is Bridge_Initializer {
             assertFalse(success);
             assertEq(_extractErrorString(returnData), "Initializable: contract is already initialized");
         }
-    }
-
-    /// @dev Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
-    function _getInitializedSlot(string memory _contractName) internal returns (StorageSlot memory slot_) {
-        string memory storageLayout = getStorageLayout(_contractName);
-
-        string[] memory command = new string[](3);
-        command[0] = Executables.bash;
-        command[1] = "-c";
-        command[2] = string.concat(
-            Executables.echo,
-            " '",
-            storageLayout,
-            "'",
-            " | ",
-            Executables.jq,
-            " '.storage[] | select(.label == \"_initialized\" and .type == \"t_uint8\")'"
-        );
-        bytes memory rawSlot = vm.parseJson(string(vm.ffi(command)));
-        slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
     /// @dev Returns the number of contracts that are `Initializable` in `src/L1`.
