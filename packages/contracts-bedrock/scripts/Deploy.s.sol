@@ -54,6 +54,10 @@ import { Types } from "scripts/Types.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
+    ////////////////////////////////////////////////////////////////
+    //                        Modifiers                           //
+    ////////////////////////////////////////////////////////////////
+
     /// @notice Modifier that wraps a function in broadcasting.
     modifier broadcast() {
         vm.startBroadcast();
@@ -81,7 +85,9 @@ contract Deploy is Deployer {
         }
     }
 
-    /* --- getter functions --- */
+    ////////////////////////////////////////////////////////////////
+    //                        Accessors                           //
+    ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
@@ -161,6 +167,21 @@ contract Deploy is Deployer {
         _callViaSafe({ _target: proxyAdmin, _data: data });
     }
 
+    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
+    function transferProxyAdminOwnership() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address owner = proxyAdmin.owner();
+        address safe = mustGetAddress("SystemOwnerSafe");
+        if (owner != safe) {
+            proxyAdmin.transferOwnership(safe);
+            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                    SetUp and Run                           //
+    ////////////////////////////////////////////////////////////////
+
     function setUp() public virtual override {
         super.setUp();
 
@@ -196,6 +217,10 @@ contract Deploy is Deployer {
 
         transferDisputeGameFactoryOwnership();
     }
+
+    ////////////////////////////////////////////////////////////////
+    //           High Level Deployment Functions                  //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy all of the proxies
     function deployProxies() public {
@@ -887,17 +912,6 @@ contract Deploy is Deployer {
         console.log("ProtocolVersions version: %s", version);
 
         ChainAssertions.checkProtocolVersions(_proxies(), cfg);
-    }
-
-    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-        address owner = proxyAdmin.owner();
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            proxyAdmin.transferOwnership(safe);
-            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
-        }
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
