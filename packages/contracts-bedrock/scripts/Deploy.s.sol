@@ -227,15 +227,15 @@ contract Deploy is Deployer {
         deployAddressManager();
         deployProxyAdmin();
 
-        deployOptimismPortalProxy();
-        deployL2OutputOracleProxy();
-        deploySystemConfigProxy();
+        deployERC1967Proxy("OptimismPortalProxy");
+        deployERC1967Proxy("L2OutputOracleProxy");
+        deployERC1967Proxy("SystemConfigProxy");
         deployL1StandardBridgeProxy();
         deployL1CrossDomainMessengerProxy();
-        deployOptimismMintableERC20FactoryProxy();
-        deployL1ERC721BridgeProxy();
-        deployDisputeGameFactoryProxy();
-        deployProtocolVersionsProxy();
+        deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
+        deployERC1967Proxy("L1ERC721BridgeProxy");
+        deployERC1967Proxy("DisputeGameFactoryProxy");
+        deployERC1967Proxy("ProtocolVersionsProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -319,7 +319,7 @@ contract Deploy is Deployer {
     //                Proxy Deployment Functions                  //
     ////////////////////////////////////////////////////////////////
 
-    /// @notice Deploy the L1StandardBridgeProxy
+    /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
@@ -332,22 +332,7 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Deploy the L2OutputOracleProxy
-    function deployL2OutputOracleProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("L2OutputOracleProxy", address(proxy));
-        console.log("L2OutputOracleProxy deployed at %s", address(proxy));
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the L1CrossDomainMessengerProxy
+    /// @notice Deploy the L1CrossDomainMessengerProxy using a ResolvedDelegateProxy
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         string memory contractName = "OVM_L1CrossDomainMessenger";
@@ -366,8 +351,7 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Deploy the OptimismPortalProxy
-    function deployOptimismPortalProxy() public broadcast returns (address addr_) {
+    function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -376,89 +360,8 @@ contract Deploy is Deployer {
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
 
-        save("OptimismPortalProxy", address(proxy));
-        console.log("OptimismPortalProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the OptimismMintableERC20FactoryProxy
-    function deployOptimismMintableERC20FactoryProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("OptimismMintableERC20FactoryProxy", address(proxy));
-        console.log("OptimismMintableERC20FactoryProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the L1ERC721BridgeProxy
-    function deployL1ERC721BridgeProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("L1ERC721BridgeProxy", address(proxy));
-        console.log("L1ERC721BridgeProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the SystemConfigProxy
-    function deploySystemConfigProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("SystemConfigProxy", address(proxy));
-        console.log("SystemConfigProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the DisputeGameFactoryProxy
-    function deployDisputeGameFactoryProxy() public onlyDevnet broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("DisputeGameFactoryProxy", address(proxy));
-        console.log("DisputeGameFactoryProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the ProtocolVersionsProxy
-    function deployProtocolVersionsProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("ProtocolVersionsProxy", address(proxy));
-        console.log("ProtocolVersionsProxy deployed at %s", address(proxy));
-
+        save(name, address(proxy));
+        console.log("%s deployed at %s", name, address(proxy));
         addr_ = address(proxy);
     }
 
