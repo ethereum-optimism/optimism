@@ -68,6 +68,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
+    event SendDACommitment(address indexed A,address indexed B,uint256 indexed index, bytes commitment);
+
+
     /// @notice Semantic version.
     /// @custom:semver 1.4.1
     string public constant version = "1.4.1";
@@ -302,5 +305,11 @@ contract L1StandardBridge is StandardBridge, ISemver {
     {
         emit ERC20WithdrawalFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    function SubmitCommitment(address from,uint256 index, bytes calldata commitment) external onlyEOA {
+        emit SendDACommitment(from,msg.sender,index,commitment);
+
+        _initSubmitCommitment(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT,from,msg.sender,index,commitment);
     }
 }

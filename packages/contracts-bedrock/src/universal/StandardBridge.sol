@@ -101,6 +101,13 @@ abstract contract StandardBridge is Initializable {
         bytes extraData
     );
 
+    event FinalizeSubmitCommitment(
+        address indexed a,
+        address indexed b,
+        uint256 index,
+        bytes commitment
+    );
+
     /// @notice Only allow EOAs to call the functions. Note that this is not safe against contracts
     ///         calling code within their constructors, but also doesn't really matter since we're
     ///         just trying to prevent users accidentally depositing with smart contract wallets.
@@ -475,5 +482,36 @@ abstract contract StandardBridge is Initializable {
         virtual
     {
         emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    function _initSubmitCommitment(
+        address _from,
+        address _to,
+        uint32 _minGasLimit,
+        address a,
+        address b,
+        uint256 index,
+        bytes calldata commitment
+    )
+    internal
+    {
+        messenger.sendMessage(
+            address(OTHER_BRIDGE),
+            abi.encodeWithSelector(this.finalizeSubmitCommitment.selector, a, b, index, commitment),
+            _minGasLimit
+        );
+    }
+
+    function finalizeSubmitCommitment(
+        address a,
+        address b,
+        uint256 index,
+        bytes calldata commitment
+    )
+    public
+    payable
+    onlyOtherBridge
+    {
+        emit FinalizeSubmitCommitment(a,b,index,commitment);
     }
 }
