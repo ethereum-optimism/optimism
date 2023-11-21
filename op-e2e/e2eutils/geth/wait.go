@@ -121,13 +121,15 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 	defer ticker.Stop()
 
 	tagBigInt := big.NewInt(tag.Int64())
-	for {
-		select {
-		case <-ticker.C:
-			block, _ := client.BlockByNumber(ctx, tagBigInt)
-			if block.NumberU64() >= number.Uint64() {
-				return client.BlockByNumber(ctx, number)
-			}
+
+	// Use a loop to periodically check the block number.
+	for range ticker.C {
+		block, _ := client.BlockByNumber(ctx, tagBigInt)
+		if block != nil && block.NumberU64() >= number.Uint64() {
+			return client.BlockByNumber(ctx, number)
 		}
 	}
+
+	// Context deadline exceeded or some other error.
+	return nil, ctx.Err()
 }
