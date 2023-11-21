@@ -124,22 +124,18 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 
 	tagBigInt := big.NewInt(tag.Int64())
 
-	for range ticker.C {
-		block, err := client.BlockByNumber(ctx, tagBigInt)
-		if err != nil {
-			return nil, err
-		}
-		if block.NumberU64() >= number.Uint64() {
-			return client.BlockByNumber(ctx, number)
-		}
-
+	for {
 		select {
+		case <-ticker.C:
+			block, err := client.BlockByNumber(ctx, tagBigInt)
+			if err != nil {
+				return nil, err
+			}
+			if block != nil && block.NumberU64() >= number.Uint64() {
+				return client.BlockByNumber(ctx, number)
+			}
 		case <-ctx.Done():
 			return nil, ctx.Err()
-		default:
-			// Continue polling
 		}
 	}
-
-	return nil, ctx.Err() // In case the loop somehow exits without meeting the condition
 }
