@@ -576,6 +576,41 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	return tip, head.BaseFee, nil
 }
 
+// SendDA does not need to wait for the transaction to be confirmed.
+func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+	m.metr.RecordPendingTx(m.pending.Add(1))
+	defer func() {
+		m.metr.RecordPendingTx(m.pending.Add(-1))
+	}()
+	if m.cfg.TxSendTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
+		defer cancel()
+	}
+	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
+		tx, err := m.craftTx(ctx, candidate)
+		if err != nil {
+			m.l.Warn("Failed to create a transaction, will retry", "err", err)
+		}
+		return tx, err
+	})
+	if err != nil {
+		m.resetNonce()
+		return nil, fmt.Errorf("failed to create the tx: %w", err)
+	}
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount, m.cfg.TxNotInMempoolTimeout)
+	tx, published := m.publishTx(ctx, tx, sendState, false)
+	if published {
+		return tx, err
+	}
+	return nil, fmt.Errorf("publishTx error")
+}
+
 // calcThresholdValue returns x * priceBumpPercent / 100
 func calcThresholdValue(x *big.Int) *big.Int {
 	threshold := new(big.Int).Mul(priceBumpPercent, x)
