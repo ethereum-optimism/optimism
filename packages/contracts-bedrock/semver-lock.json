@@ -22,7 +22,7 @@
   "src/Safe/LivenessModule.sol": "0x45621d74ea464c75064f9194261d29d47552cf4a9c4f4b3a733f5df5803fc0dd",
   "src/dispute/BlockOracle.sol": "0x7e724b1ee0116dfd744f556e6237af449c2f40c6426d6f1462ae2a47589283bb",
   "src/dispute/DisputeGameFactory.sol": "0xfdfa141408d7f8de7e230ff4bef088e30d0e4d569ca743d60d292abdd21ff270",
-  "src/dispute/FaultDisputeGame.sol": "0x0766707ab32338a6586c2340ddfbfd4e9023eeb9dfa3ef87e4b404fb0260479f",
+  "src/dispute/FaultDisputeGame.sol": "0x7ac7553a47d96a4481a6b95363458bed5f160112b647829c4defc134fa178d9a",
   "src/legacy/DeployerWhitelist.sol": "0x0a6840074734c9d167321d3299be18ef911a415e4c471fa92af7d6cfaa8336d4",
   "src/legacy/L1BlockNumber.sol": "0x20d83a636c5e2067fca8c0ed505b295174e6eddb25960d8705e6b6fea8e77fa6",
   "src/legacy/LegacyMessagePasser.sol": "0x80f355c9710af586f58cf6a86d1925e0073d1e504d0b3d814284af1bafe4dece",

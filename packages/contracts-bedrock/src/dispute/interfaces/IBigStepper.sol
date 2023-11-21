@@ -35,7 +35,7 @@ interface IBigStepper {
     function step(
         bytes calldata _stateData,
         bytes calldata _proof,
-        uint256 _localContext
+        bytes32 _localContext
     )
         external
         returns (bytes32 postState_);
