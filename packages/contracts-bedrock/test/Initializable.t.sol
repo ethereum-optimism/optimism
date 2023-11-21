@@ -49,23 +49,15 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (OptimismPortal(payable(address(0))))),
+                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, ()),
                 initializedSlot: _getInitializedSlot("L1CrossDomainMessenger")
-            })
-        );
-        // L1StandardBridge
-        contracts.push(
-            InitializeableContract({
-                target: address(l1StandardBridge),
-                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (CrossDomainMessenger(address(0)))),
-                initializedSlot: _getInitializedSlot("L1StandardBridge")
             })
         );
         // L2OutputOracle
         contracts.push(
             InitializeableContract({
                 target: address(l2OutputOracle),
-                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0, address(0), address(0))),
+                initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0)),
                 initializedSlot: _getInitializedSlot("L2OutputOracle")
             })
         );
@@ -73,9 +65,7 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(optimismPortal),
-                initCalldata: abi.encodeCall(
-                    optimismPortal.initialize, (L2OutputOracle(address(0)), address(0), SystemConfig(address(0)), false)
-                    ),
+                initCalldata: abi.encodeCall( optimismPortal.initialize, (false)),
                 initializedSlot: _getInitializedSlot("OptimismPortal")
             })
         );
@@ -99,28 +89,10 @@ contract Initializer_Test is Bridge_Initializer {
                             minimumBaseFee: 0,
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
-                        }),
-                        type(uint256).max,
-                        address(0),
-                        SystemConfig.Addresses({
-                            l1CrossDomainMessenger: address(0),
-                            l1ERC721Bridge: address(0),
-                            l1StandardBridge: address(0),
-                            l2OutputOracle: address(0),
-                            optimismPortal: address(0),
-                            optimismMintableERC20Factory: address(0)
                         })
                     )
                     ),
                 initializedSlot: _getInitializedSlot("SystemConfig")
-            })
-        );
-        // L1ERC721Bridge
-        contracts.push(
-            InitializeableContract({
-                target: address(l1ERC721Bridge),
-                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (CrossDomainMessenger(address(0)))),
-                initializedSlot: _getInitializedSlot("L1ERC721Bridge")
             })
         );
         // ProtocolVersions
@@ -137,7 +109,7 @@ contract Initializer_Test is Bridge_Initializer {
 
     /// @notice Tests that:
     ///         1. All `Initializable` contracts in `src/L1` are accounted for in the `contracts` array.
-    ///         2. The `_initialized` flag of each contract is properly set to `3`, signifying that the
+    ///         2. The `_initialized` flag of each contract is properly set to `1`, signifying that the
     ///            contracts are initialized.
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitializeL1_succeeds() public {
@@ -156,7 +128,7 @@ contract Initializer_Test is Bridge_Initializer {
             // relative to the least-significant bit and signifies the *byte offset*, so we need to shift the
             // value to the right by the offset * 8 and then mask out the low-order byte to retrieve the flag.
             uint8 init = uint8((uint256(initSlotVal) >> (initSlotOffset * 8)) & 0xFF);
-            assertEq(init, 3);
+            assertEq(init, 1);
 
             // Then, attempt to re-initialize the contract. This should fail.
             (bool success, bytes memory returnData) = _contract.target.call(_contract.initCalldata);

@@ -36,10 +36,25 @@ type FaultDisputeGameContract struct {
 	contract    *batching.BoundContract
 }
 
-type Proposal struct {
+// contractProposal matches the structure for output root proposals used by the contracts.
+// It must exactly match the contract structure. The exposed API uses Proposal to decouple the contract
+// and challenger representations of the proposal data.
+type contractProposal struct {
 	Index         *big.Int
 	L2BlockNumber *big.Int
 	OutputRoot    common.Hash
+}
+
+type Proposal struct {
+	L2BlockNumber *big.Int
+	OutputRoot    common.Hash
+}
+
+func asProposal(p contractProposal) Proposal {
+	return Proposal{
+		L2BlockNumber: p.L2BlockNumber,
+		OutputRoot:    p.OutputRoot,
+	}
 }
 
 func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
@@ -93,10 +108,10 @@ func (f *FaultDisputeGameContract) GetProposals(ctx context.Context) (Proposal, 
 		return Proposal{}, Proposal{}, fmt.Errorf("failed to fetch proposals: %w", err)
 	}
 
-	var agreed, disputed Proposal
+	var agreed, disputed contractProposal
 	result.GetStruct(0, &agreed)
 	result.GetStruct(1, &disputed)
-	return agreed, disputed, nil
+	return asProposal(agreed), asProposal(disputed), nil
 }
 
 func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
@@ -217,7 +232,7 @@ func (f *FaultDisputeGameContract) addLocalDataTx(data *types.PreimageOracleData
 	call := f.contract.Call(
 		methodAddLocalData,
 		data.GetIdent(),
-		new(big.Int).SetUint64(data.LocalContext),
+		new(big.Int).SetBytes(data.LocalContext.Bytes()),
 		new(big.Int).SetUint64(uint64(data.OracleOffset)),
 	)
 	return call.ToTxCandidate()

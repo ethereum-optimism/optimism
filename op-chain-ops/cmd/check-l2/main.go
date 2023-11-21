@@ -436,33 +436,6 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 		return errors.New("L2ERC721Bridge.OTHERBRIDGE is zero address")
 	}
 
-	initialized, err := getInitialized("L2ERC721Bridge", addr, client)
-	if err != nil {
-		return err
-	}
-	log.Info("L2ERC721Bridge", "_initialized", initialized)
-	if initialized.Uint64() != genesis.InitializedValue {
-		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
-	}
-
-	abi, err := bindings.L2ERC721BridgeMetaData.GetAbi()
-	if err != nil {
-		return err
-	}
-	calldata, err := abi.Pack("initialize")
-	if err != nil {
-		return err
-	}
-	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
-		return err
-	}
-
-	initializing, err := getInitializing("L2ERC721Bridge", addr, client)
-	if err != nil {
-		return err
-	}
-	log.Info("L2ERC721Bridge", "_initializing", initializing)
-
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
@@ -588,33 +561,6 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 	}
 	log.Info("OptimismMintableERC20Factory", "bridge", bridge.Hex())
 
-	initialized, err := getInitialized("OptimismMintableERC20Factory", addr, client)
-	if err != nil {
-		return err
-	}
-	log.Info("OptimismMintableERC20Factory", "_initialized", initialized)
-	if initialized.Uint64() != genesis.InitializedValue {
-		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
-	}
-
-	abi, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
-	if err != nil {
-		return err
-	}
-	calldata, err := abi.Pack("initialize", common.Address{})
-	if err != nil {
-		return err
-	}
-	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
-		return err
-	}
-
-	initializing, err := getInitializing("OptimismMintableERC20Factory", addr, client)
-	if err != nil {
-		return err
-	}
-	log.Info("OptimismMintableERC20Factory", "_initializing", initializing)
-
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
@@ -683,33 +629,6 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if err != nil {
 		return err
 	}
-
-	initialized, err := getInitialized("L2StandardBridge", addr, client)
-	if err != nil {
-		return err
-	}
-	log.Info("L2StandardBridge", "_initialized", initialized)
-	if initialized.Uint64() != genesis.InitializedValue {
-		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
-	}
-
-	abi, err := bindings.L2StandardBridgeMetaData.GetAbi()
-	if err != nil {
-		return err
-	}
-	calldata, err := abi.Pack("initialize")
-	if err != nil {
-		return err
-	}
-	if err := checkAlreadyInitialized(addr, calldata, client); err != nil {
-		return err
-	}
-
-	initializing, err := getInitializing("L2StandardBridge", addr, client)
-	if err != nil {
-		return err
-	}
-	log.Info("L2StandardBridge", "_initializing", initializing)
 
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
@@ -823,7 +742,7 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 		return err
 	}
 	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
-	if initialized.Uint64() != genesis.InitializedValue {
+	if initialized.Uint64() != 1 {
 		return fmt.Errorf("%w: %s", errInvalidInitialized, initialized)
 	}
 
@@ -998,7 +917,7 @@ func checkAlreadyInitialized(addr common.Address, calldata []byte, client *ethcl
 		To:   &addr,
 		Data: calldata,
 	}
-	if _, err := client.CallContract(context.Background(), msg, nil); !strings.Contains(err.Error(), errAlreadyInitialized.Error()) {
+	if _, err := client.CallContract(context.Background(), msg, nil); err != nil && !strings.Contains(err.Error(), errAlreadyInitialized.Error()) {
 		return err
 	}
 	return nil
