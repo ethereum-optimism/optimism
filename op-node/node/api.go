@@ -145,11 +145,10 @@ func (n *nodeAPI) SendDA(ctx context.Context, address common.Address, index hexu
 		return common.Hash{}, err
 	}
 	log.Info("L1SubmitTxData")
-	bridge := common.HexToAddress("0xD4C899Bf440B764fb5BAB774e160fc1b59dD7Ec3")
 
 	tx, err := n.txMgr.SendDA(ctx, txmgr.TxCandidate{
 		TxData:   data,
-		To:       &bridge,
+		To:       &n.config.SubmitContractAddress,
 		GasLimit: 0,
 	})
 	log.Info("Send")
