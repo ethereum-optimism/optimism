@@ -15,16 +15,10 @@ import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 contract Initializer_Test is Bridge_Initializer {
     function test_cannotReinitializeL1_succeeds() public {
         vm.expectRevert("Initializable: contract is already initialized");
-        l1CrossDomainMessenger.initialize(OptimismPortal(payable(address(0))));
+        l2OutputOracle.initialize(0, 0);
 
         vm.expectRevert("Initializable: contract is already initialized");
-        l1StandardBridge.initialize(CrossDomainMessenger(address(0)));
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        l2OutputOracle.initialize(0, 0, address(0), address(0));
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal.initialize(L2OutputOracle(address(0)), address(0), SystemConfig(address(0)), false);
+        optimismPortal.initialize(false);
 
         vm.expectRevert("Initializable: contract is already initialized");
         systemConfig.initialize({
@@ -41,20 +35,7 @@ contract Initializer_Test is Bridge_Initializer {
                 minimumBaseFee: 0,
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
-            }),
-            _startBlock: type(uint256).max,
-            _batchInbox: address(0),
-            _addresses: SystemConfig.Addresses({
-                l1CrossDomainMessenger: address(0),
-                l1ERC721Bridge: address(0),
-                l1StandardBridge: address(0),
-                l2OutputOracle: address(0),
-                optimismPortal: address(0),
-                optimismMintableERC20Factory: address(0)
             })
         });
-
-        vm.expectRevert("Initializable: contract is already initialized");
-        l1ERC721Bridge.initialize(CrossDomainMessenger(address(0)));
     }
 }

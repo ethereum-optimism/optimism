@@ -11,7 +11,6 @@ import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 // Libraries
 import { Types } from "src/libraries/Types.sol";
 import { Hashing } from "src/libraries/Hashing.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { Proxy } from "src/universal/Proxy.sol";
@@ -900,24 +899,14 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initialize_cannotInitProxy_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal.initialize({
-            _l2Oracle: L2OutputOracle(address(0)),
-            _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
-        });
+        optimismPortal.initialize({ _paused: false });
     }
 
     /// @dev Tests that the implementation cannot be initialized twice.
     function test_initialize_cannotInitImpl_reverts() external {
         address opImpl = mustGetAddress("OptimismPortal");
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(opImpl)).initialize({
-            _l2Oracle: L2OutputOracle(address(0)),
-            _systemConfig: SystemConfig(address(0)),
-            _guardian: address(0),
-            _paused: false
-        });
+        OptimismPortal(payable(opImpl)).initialize({ _paused: false });
     }
 
     /// @dev Tests that the proxy can be upgraded.
@@ -932,7 +921,7 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
         Proxy(payable(address(optimismPortal))).upgradeToAndCall(
-            address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, Constants.INITIALIZER + 1)
+            address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2)
         );
         assertEq(Proxy(payable(address(optimismPortal))).implementation(), address(nextImpl));
 
