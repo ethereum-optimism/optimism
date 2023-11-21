@@ -131,7 +131,7 @@ jobs:
           name: git submodules
           command: make submodules
       - check-changed:
-          patterns: op-chain-ops,packages/
+          patterns: op-chain-ops,packages/,op-node
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
