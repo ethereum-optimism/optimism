@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -46,7 +47,7 @@ func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rol
 	maxDepth := g.MaxDepth(ctx)
 	gameContract, err := contracts.NewFaultDisputeGameContract(g.addr, batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize))
 	g.require.NoError(err, "Create game contract bindings")
-	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, gameContract, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
+	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, gameContract, types.NoLocalContext, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
 	g.require.NoError(err, "create cannon trace provider")
 
 	return &HonestHelper{

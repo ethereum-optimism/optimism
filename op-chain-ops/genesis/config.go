@@ -26,11 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// initialzedValue represents the `Initializable` contract value. It should be kept in
-// sync with the constant in `Constants.sol`.
-// https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/libraries/Constants.sol
-const InitializedValue = 3
-
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
@@ -217,6 +212,9 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+
+	// When Cancun activates. Relative to L1 genesis.
+	L1CancunTimeOffset *uint64 `json:"l1CancunTimeOffset,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -679,6 +677,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": config.L1StandardBridgeProxy,
+		"messenger":   predeploys.L2CrossDomainMessengerAddr,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": config.L1CrossDomainMessengerProxy,
@@ -706,7 +705,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
 		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
 	}
-
+	immutable["OptimismMintableERC20Factory"] = immutables.ImmutableValues{
+		"bridge": predeploys.L2StandardBridgeAddr,
+	}
 	return immutable, nil
 }
 
@@ -726,16 +727,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":     InitializedValue,
+		"_initialized":     1,
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 	}
-	storage["L2StandardBridge"] = state.StorageValues{
-		"_initialized":  InitializedValue,
-		"_initializing": false,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-	}
+	storage["L2StandardBridge"] = state.StorageValues{}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
 		"timestamp":      block.Time(),
@@ -764,16 +761,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
-	}
-	storage["L2ERC721Bridge"] = state.StorageValues{
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"_initialized":  InitializedValue,
-		"_initializing": false,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"bridge":        predeploys.L2StandardBridgeAddr,
-		"_initialized":  InitializedValue,
-		"_initializing": false,
 	}
 	return storage, nil
 }

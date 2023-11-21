@@ -33,19 +33,17 @@ type Agent struct {
 	solver                  *solver.GameSolver
 	loader                  ClaimLoader
 	responder               Responder
-	updater                 types.OracleUpdater
 	maxDepth                int
 	agreeWithProposedOutput bool
 	log                     log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceAccessor, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth int, trace types.TraceAccessor, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		metrics:                 m,
 		solver:                  solver.NewGameSolver(maxDepth, trace),
 		loader:                  loader,
 		responder:               responder,
-		updater:                 updater,
 		maxDepth:                maxDepth,
 		agreeWithProposedOutput: agreeWithProposedOutput,
 		log:                     log,
@@ -75,13 +73,6 @@ func (a *Agent) Act(ctx context.Context) error {
 			log = log.New("prestate", common.Bytes2Hex(action.PreState), "proof", common.Bytes2Hex(action.ProofData))
 		} else {
 			log = log.New("value", action.Value)
-		}
-
-		if action.OracleData != nil {
-			a.log.Info("Updating oracle data", "oracleKey", action.OracleData.OracleKey, "oracleData", action.OracleData.OracleData)
-			if err := a.updater.UpdateOracle(ctx, action.OracleData); err != nil {
-				return fmt.Errorf("failed to load oracle data: %w", err)
-			}
 		}
 
 		switch action.Type {

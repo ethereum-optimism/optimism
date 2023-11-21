@@ -78,25 +78,48 @@ func WithCannon(
 	l2Endpoint string,
 ) Option {
 	return func(c *config.Config) {
-		require := require.New(t)
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeCannon)
-		c.CannonL2 = l2Endpoint
-		c.CannonBin = "../cannon/bin/cannon"
-		c.CannonServer = "../op-program/bin/op-program"
-		c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
-		c.CannonSnapshotFreq = 10_000_000
+		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
+	}
+}
 
-		genesisBytes, err := json.Marshal(l2Genesis)
-		require.NoError(err, "marshall l2 genesis config")
-		genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
-		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0644))
-		c.CannonL2GenesisPath = genesisFile
+func applyCannonConfig(
+	c *config.Config,
+	t *testing.T,
+	rollupCfg *rollup.Config,
+	l2Genesis *core.Genesis,
+	l2Endpoint string,
+) {
+	require := require.New(t)
+	c.CannonL2 = l2Endpoint
+	c.CannonBin = "../cannon/bin/cannon"
+	c.CannonServer = "../op-program/bin/op-program"
+	c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
+	c.CannonSnapshotFreq = 10_000_000
 
-		rollupBytes, err := json.Marshal(rollupCfg)
-		require.NoError(err, "marshall rollup config")
-		rollupFile := filepath.Join(c.Datadir, "rollup.json")
-		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0644))
-		c.CannonRollupConfigPath = rollupFile
+	genesisBytes, err := json.Marshal(l2Genesis)
+	require.NoError(err, "marshall l2 genesis config")
+	genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
+	require.NoError(os.WriteFile(genesisFile, genesisBytes, 0644))
+	c.CannonL2GenesisPath = genesisFile
+
+	rollupBytes, err := json.Marshal(rollupCfg)
+	require.NoError(err, "marshall rollup config")
+	rollupFile := filepath.Join(c.Datadir, "rollup.json")
+	require.NoError(os.WriteFile(rollupFile, rollupBytes, 0644))
+	c.CannonRollupConfigPath = rollupFile
+}
+
+func WithOutputCannon(
+	t *testing.T,
+	rollupCfg *rollup.Config,
+	l2Genesis *core.Genesis,
+	rollupEndpoint string,
+	l2Endpoint string) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeOutputCannon)
+		c.RollupRpc = rollupEndpoint
+		applyCannonConfig(c, t, rollupCfg, l2Genesis, l2Endpoint)
 	}
 }
 

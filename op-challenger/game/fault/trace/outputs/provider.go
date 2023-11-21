@@ -2,6 +2,7 @@ package outputs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -13,8 +14,8 @@ import (
 )
 
 var (
-	GetStepDataErr      = fmt.Errorf("GetStepData not supported")
-	AbsolutePreStateErr = fmt.Errorf("AbsolutePreState not supported")
+	ErrGetStepData = errors.New("GetStepData not supported")
+	ErrIndexTooBig = errors.New("trace index is greater than max uint64")
 )
 
 var _ types.TraceProvider = (*OutputTraceProvider)(nil)
@@ -51,39 +52,40 @@ func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClie
 	}
 }
 
-func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
+func (o *OutputTraceProvider) BlockNumber(pos types.Position) (uint64, error) {
 	traceIndex := pos.TraceIndex(int(o.gameDepth))
 	if !traceIndex.IsUint64() {
-		return common.Hash{}, fmt.Errorf("trace index %v is greater than max uint64", traceIndex)
+		return 0, fmt.Errorf("%w: %v", ErrIndexTooBig, traceIndex)
 	}
 	outputBlock := traceIndex.Uint64() + o.prestateBlock + 1
 	if outputBlock > o.poststateBlock {
 		outputBlock = o.poststateBlock
 	}
-	output, err := o.rollupClient.OutputAtBlock(ctx, outputBlock)
+	return outputBlock, nil
+}
+
+func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (common.Hash, error) {
+	outputBlock, err := o.BlockNumber(pos)
 	if err != nil {
-		o.logger.Error("Failed to fetch output", "blockNumber", outputBlock, "err", err)
 		return common.Hash{}, err
 	}
-	return common.Hash(output.OutputRoot), nil
+	return o.outputAtBlock(ctx, outputBlock)
 }
 
 // AbsolutePreStateCommitment returns the absolute prestate at the configured prestateBlock.
 func (o *OutputTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error) {
-	output, err := o.rollupClient.OutputAtBlock(ctx, o.prestateBlock)
-	if err != nil {
-		o.logger.Error("Failed to fetch output", "blockNumber", o.prestateBlock, "err", err)
-		return common.Hash{}, err
-	}
-	return common.Hash(output.OutputRoot), nil
-}
-
-// AbsolutePreState is not supported in the [OutputTraceProvider].
-func (o *OutputTraceProvider) AbsolutePreState(ctx context.Context) (preimage []byte, err error) {
-	return nil, AbsolutePreStateErr
+	return o.outputAtBlock(ctx, o.prestateBlock)
 }
 
 // GetStepData is not supported in the [OutputTraceProvider].
-func (o *OutputTraceProvider) GetStepData(ctx context.Context, pos types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
-	return nil, nil, nil, GetStepDataErr
+func (o *OutputTraceProvider) GetStepData(_ context.Context, _ types.Position) (prestate []byte, proofData []byte, preimageData *types.PreimageOracleData, err error) {
+	return nil, nil, nil, ErrGetStepData
+}
+
+func (o *OutputTraceProvider) outputAtBlock(ctx context.Context, block uint64) (common.Hash, error) {
+	output, err := o.rollupClient.OutputAtBlock(ctx, block)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch output at block %v: %w", o.prestateBlock, err)
+	}
+	return common.Hash(output.OutputRoot), nil
 }
