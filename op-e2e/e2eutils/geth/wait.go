@@ -115,7 +115,7 @@ func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout tim
 }
 
 // WaitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
-func WaitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag int64) (*types.Block, error) {
+func WaitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Block, error) {
 	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
