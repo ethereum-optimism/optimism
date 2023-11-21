@@ -73,7 +73,8 @@ contract SuperchainConfig is Initializable, ISemver {
         emit Unpaused();
     }
 
-    /// @notice Sets the guardian address.
+    /// @notice Sets the guardian address. This is only callable during initialization, so an upgrade
+    ///         will be required to change the guardian.
     /// @param _guardian The new guardian address.
     function _setGuardian(address _guardian) internal {
         Storage.setAddress(GUARDIAN_SLOT, _guardian);

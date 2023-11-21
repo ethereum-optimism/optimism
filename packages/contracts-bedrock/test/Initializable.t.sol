@@ -35,6 +35,14 @@ contract Initializer_Test is Bridge_Initializer {
         // Initialize the `contracts` array with the addresses of the contracts to test, the
         // calldata used to initialize them, and the storage slot of their `_initialized` flag.
 
+        // SuperchainConfig
+        contracts.push(
+            InitializeableContract({
+                target: address(superchainConfig),
+                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0))),
+                initializedSlotVal: loadInitializedSlot("SuperchainConfig", true)
+            })
+        );
         // L1CrossDomainMessenger
         contracts.push(
             InitializeableContract({
