@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"strings"
 	"time"
 
@@ -23,6 +24,11 @@ func prefixEnvVars(name string) []string {
 
 var (
 	/* Required Flags */
+	L1EthRpcFlag = &cli.StringFlag{
+		Name:    "l1-eth-rpc",
+		Usage:   "HTTP provider URL for L1",
+		EnvVars: prefixEnvVars("L1_ETH_RPC"),
+	}
 	L1NodeAddr = &cli.StringFlag{
 		Name:    "l1",
 		Usage:   "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
@@ -270,6 +276,7 @@ var (
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddr,
+	L1EthRpcFlag,
 }
 
 var optionalFlags = []cli.Flag{
@@ -319,6 +326,7 @@ var Flags []cli.Flag
 func init() {
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, txmgr.CLIFlagsWithDefaults(EnvVarPrefix, txmgr.DefaultChallengerFlagValues)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
