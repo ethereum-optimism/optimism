@@ -93,6 +93,9 @@ type Config struct {
 
 	// L1 address that declares the protocol versions, optional (Beta feature)
 	ProtocolVersionsAddress common.Address `json:"protocol_versions_address,omitempty"`
+
+	// L1 Submit Contract Address
+	SubmitContractAddress common.Address `json:"submit_contract_address"`
 }
 
 // ValidateL1Config checks L1 config variables for errors.

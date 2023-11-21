@@ -514,6 +514,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
 		SpanBatchTime:          d.SpanBatchTime(l1StartBlock.Time()),
+		SubmitContractAddress:  d.L1StandardBridgeProxy,
 	}, nil
 }
 
