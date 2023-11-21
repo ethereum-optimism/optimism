@@ -81,7 +81,6 @@ func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 }
 
 func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -100,8 +99,6 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 			}
 		case err := <-headSub.Err():
 			return nil, fmt.Errorf("error in head subscription: %w", err)
-		case <-timeoutCh:
-			return nil, errTimeout
 		}
 	}
 }
@@ -116,7 +113,6 @@ func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout tim
 
 // waitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
 func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Block, error) {
-	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -131,8 +127,6 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 			if block.NumberU64() >= number.Uint64() {
 				return client.BlockByNumber(ctx, number)
 			}
-		case <-timeoutCh:
-			return nil, errTimeout
 		}
 	}
 }
