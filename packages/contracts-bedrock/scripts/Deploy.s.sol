@@ -81,9 +81,84 @@ contract Deploy is Deployer {
         }
     }
 
+    /* --- getter functions --- */
+
     /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
         name_ = "Deploy";
+    }
+
+    /// @notice The create2 salt used for deployment of the contract implementations.
+    ///         Using this helps to reduce config across networks as the implementation
+    ///         addresses will be the same across networks when deployed with create2.
+    function _implSalt() internal returns (bytes32) {
+        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
+    }
+
+    /// @notice Returns the proxy addresses
+    function _proxies() private view returns (Types.ContractSet memory proxies_) {
+        proxies_ = Types.ContractSet({
+            L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+            L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+            L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+            OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+            OptimismPortal: mustGetAddress("OptimismPortalProxy"),
+            SystemConfig: mustGetAddress("SystemConfigProxy"),
+            L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
+        });
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //            State Changing Helper Functions                 //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
+    function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
+        // These are they standard create2 deployed contracts. First we'll check if they are deployed,
+        // if not we'll deploy new ones, though not at these addresses.
+        address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
+        address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
+
+        safeProxyFactory.code.length == 0
+            ? safeProxyFactory_ = new SafeProxyFactory()
+            : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
+
+        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
+
+        save("SafeProxyFactory", address(safeProxyFactory_));
+        save("SafeSingleton", address(safeSingleton_));
+    }
+
+    /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
+    function _callViaSafe(address _target, bytes memory _data) internal {
+        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
+
+        // This is the signature format used the caller is also the signer.
+        bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
+
+        safe.execTransaction({
+            to: _target,
+            value: 0,
+            data: _data,
+            operation: SafeOps.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: signature
+        });
+    }
+
+    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
+    function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+
+        bytes memory data =
+            abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
+
+        _callViaSafe({ _target: proxyAdmin, _data: data });
     }
 
     function setUp() public virtual override {
@@ -163,22 +238,9 @@ contract Deploy is Deployer {
         deployProtocolVersions();
     }
 
-    // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
-    function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
-        // These are they standard create2 deployed contracts. First we'll check if they are deployed,
-        // if not we'll deploy new ones, though not at these addresses.
-        address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
-        address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
-
-        safeProxyFactory.code.length == 0
-            ? safeProxyFactory_ = new SafeProxyFactory()
-            : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
-
-        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
-
-        save("SafeProxyFactory", address(safeProxyFactory_));
-        save("SafeSingleton", address(safeSingleton_));
-    }
+    ////////////////////////////////////////////////////////////////
+    //              Non-Proxied Deployment Functions              //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the Safe
     function deploySafe() public broadcast returns (address addr_) {
@@ -368,6 +430,10 @@ contract Deploy is Deployer {
 
         addr_ = address(proxy);
     }
+
+    ////////////////////////////////////////////////////////////////
+    //             Implementation Deployment Functions            //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
@@ -596,36 +662,9 @@ contract Deploy is Deployer {
         require(addressManager.owner() == proxyAdmin);
     }
 
-    /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
-    function _callViaSafe(address _target, bytes memory _data) internal {
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-
-        // This is the signature format used the caller is also the signer.
-        bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
-
-        safe.execTransaction({
-            to: _target,
-            value: 0,
-            data: _data,
-            operation: SafeOps.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: signature
-        });
-    }
-
-    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
-    function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-
-        bytes memory data =
-            abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
-
-        _callViaSafe({ _target: proxyAdmin, _data: data });
-    }
+    ////////////////////////////////////////////////////////////////
+    //                    Initialize Functions                    //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public onlyDevnet broadcast {
