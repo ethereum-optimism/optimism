@@ -12,6 +12,7 @@ import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { AbiSpec } from "scripts/AbiSpec.s.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
 import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
@@ -53,6 +54,7 @@ import { Types } from "scripts/Types.sol";
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
 contract Deploy is Deployer {
     DeployConfig cfg;
+    AbiSpec spec;
 
     /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
@@ -64,6 +66,8 @@ contract Deploy is Deployer {
 
         string memory path = string.concat(vm.projectRoot(), "/deploy-config/", deploymentContext, ".json");
         cfg = new DeployConfig(path);
+        string memory specPath = string.concat(vm.projectRoot(), "/.abi-spec.json");
+        spec = new AbiSpec(specPath);
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
@@ -670,7 +674,7 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        ChainAssertions.checkSystemConfig(_proxies(), cfg);
+        ChainAssertions.checkSystemConfig(spec, _proxies(), cfg);
     }
 
     /// @notice Initialize the L1StandardBridge
@@ -696,7 +700,7 @@ contract Deploy is Deployer {
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        ChainAssertions.checkL1StandardBridge(_proxies());
+        ChainAssertions.checkL1StandardBridge(spec, _proxies());
     }
 
     /// @notice Initialize the L1ERC721Bridge
@@ -714,7 +718,7 @@ contract Deploy is Deployer {
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
-        ChainAssertions.checkL1ERC721Bridge(_proxies());
+        ChainAssertions.checkL1ERC721Bridge(spec, _proxies());
     }
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
@@ -734,7 +738,7 @@ contract Deploy is Deployer {
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
-        ChainAssertions.checkOptimismMintableERC20Factory(_proxies());
+        ChainAssertions.checkOptimismMintableERC20Factory(spec, _proxies());
     }
 
     /// @notice initializeL1CrossDomainMessenger
@@ -775,7 +779,7 @@ contract Deploy is Deployer {
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
-        ChainAssertions.checkL1CrossDomainMessenger(_proxies(), vm);
+        ChainAssertions.checkL1CrossDomainMessenger(spec, vm, _proxies());
     }
 
     /// @notice Initialize the L2OutputOracle
@@ -795,7 +799,7 @@ contract Deploy is Deployer {
         string memory version = oracle.version();
         console.log("L2OutputOracle version: %s", version);
 
-        ChainAssertions.checkL2OutputOracle(_proxies(), cfg, cfg.l2OutputOracleStartingTimestamp());
+        ChainAssertions.checkL2OutputOracle(spec, vm, _proxies(), cfg, cfg.l2OutputOracleStartingTimestamp());
     }
 
     /// @notice Initialize the OptimismPortal
@@ -813,7 +817,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal(_proxies(), cfg);
+        ChainAssertions.checkOptimismPortal(spec, vm, _proxies(), cfg);
     }
 
     function initializeProtocolVersions() public broadcast {
@@ -841,7 +845,7 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        ChainAssertions.checkProtocolVersions(_proxies(), cfg);
+        ChainAssertions.checkProtocolVersions(spec, _proxies(), cfg);
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner

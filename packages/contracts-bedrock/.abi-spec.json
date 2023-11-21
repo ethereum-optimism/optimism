@@ -1,0 +1,1023 @@
+{
+  "BaseFeeVault": {
+    "methodIdentifiers": {
+      "0d9019e1": "RECIPIENT()",
+      "3ccfd60b": "withdraw()",
+      "54fd4d50": "version()",
+      "84411d65": "totalProcessed()",
+      "d0e12f90": "WITHDRAWAL_NETWORK()",
+      "d3e5792b": "MIN_WITHDRAWAL_AMOUNT()"
+    },
+    "storageLayout": {
+      "totalProcessed": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "DeployerWhitelist": {
+    "methodIdentifiers": {
+      "08fd6322": "setWhitelistedDeployer(address,bool)",
+      "13af4035": "setOwner(address)",
+      "54fd4d50": "version()",
+      "8da5cb5b": "owner()",
+      "9b19251a": "whitelist(address)",
+      "b1540a01": "isDeployerAllowed(address)",
+      "bdc7b54f": "enableArbitraryContractDeployment()"
+    },
+    "storageLayout": {
+      "owner": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      "whitelist": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_bool)"
+      }
+    }
+  },
+  "DisputeGameFactory": {
+    "methodIdentifiers": {
+      "26daafbe": "getGameUUID(uint8,bytes32,bytes)",
+      "3142e55e": "create(uint8,bytes32,bytes)",
+      "45583b7a": "setImplementation(uint8,address)",
+      "4d1975b4": "gameCount()",
+      "54fd4d50": "version()",
+      "715018a6": "renounceOwnership()",
+      "8da5cb5b": "owner()",
+      "bb8aa1fc": "gameAtIndex(uint256)",
+      "c49d5271": "games(uint8,bytes32,bytes)",
+      "c4d66de8": "initialize(address)",
+      "dfa162d3": "gameImpls(uint8)",
+      "f2fde38b": "transferOwnership(address)"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "_disputeGameList": {
+        "offset": 0,
+        "slot": "103",
+        "type": "t_array(t_userDefinedValueType(GameId)1573)dyn_storage"
+      },
+      "_disputeGames": {
+        "offset": 0,
+        "slot": "102",
+        "type": "t_mapping(t_userDefinedValueType(Hash)1561,t_userDefinedValueType(GameId)1573)"
+      },
+      "_initialized": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "_owner": {
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      "gameImpls": {
+        "offset": 0,
+        "slot": "101",
+        "type": "t_mapping(t_userDefinedValueType(GameType)1579,t_contract(IDisputeGame)1063)"
+      }
+    }
+  },
+  "L1Block": {
+    "methodIdentifiers": {
+      "015d8eb9": "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)",
+      "09bd5a60": "hash()",
+      "54fd4d50": "version()",
+      "5cf24969": "basefee()",
+      "64ca23ef": "sequenceNumber()",
+      "8381f58a": "number()",
+      "8b239f73": "l1FeeOverhead()",
+      "9e8c4966": "l1FeeScalar()",
+      "b80777ea": "timestamp()",
+      "e591b282": "DEPOSITOR_ACCOUNT()",
+      "e81b2c6d": "batcherHash()"
+    },
+    "storageLayout": {
+      "basefee": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      "batcherHash": {
+        "offset": 0,
+        "slot": "4",
+        "type": "t_bytes32"
+      },
+      "hash": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_bytes32"
+      },
+      "l1FeeOverhead": {
+        "offset": 0,
+        "slot": "5",
+        "type": "t_uint256"
+      },
+      "l1FeeScalar": {
+        "offset": 0,
+        "slot": "6",
+        "type": "t_uint256"
+      },
+      "number": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      "sequenceNumber": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_uint64"
+      },
+      "timestamp": {
+        "offset": 8,
+        "slot": "0",
+        "type": "t_uint64"
+      }
+    }
+  },
+  "L1BlockNumber": {
+    "methodIdentifiers": {
+      "54fd4d50": "version()",
+      "b9b3efe9": "getL1BlockNumber()"
+    },
+    "storageLayout": {}
+  },
+  "L1ChugSplashProxy": {
+    "methodIdentifiers": {
+      "13af4035": "setOwner(address)",
+      "6c5d4ad0": "setCode(bytes)",
+      "893d20e8": "getOwner()",
+      "9b0b0fda": "setStorage(bytes32,bytes32)",
+      "aaf10f42": "getImplementation()"
+    },
+    "storageLayout": {}
+  },
+  "L1CrossDomainMessenger": {
+    "methodIdentifiers": {
+      "028f85f7": "MIN_GAS_CALLDATA_OVERHEAD()",
+      "0c568498": "MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()",
+      "0ff754ea": "PORTAL()",
+      "2828d7e8": "MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()",
+      "3dbb202b": "sendMessage(address,bytes,uint32)",
+      "3f827a5a": "MESSAGE_VERSION()",
+      "4c1d6a69": "RELAY_CALL_OVERHEAD()",
+      "54fd4d50": "version()",
+      "5644cfdf": "RELAY_GAS_CHECK_BUFFER()",
+      "6425666b": "portal()",
+      "6e296e45": "xDomainMessageSender()",
+      "8129fc1c": "initialize()",
+      "83a74074": "RELAY_CONSTANT_OVERHEAD()",
+      "8cbeeef2": "RELAY_RESERVED_GAS()",
+      "9fce812c": "OTHER_MESSENGER()",
+      "a4e7f8bd": "failedMessages(bytes32)",
+      "b1b1b209": "successfulMessages(bytes32)",
+      "b28ade25": "baseGas(bytes,uint32)",
+      "d764ad0b": "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+      "ecc70428": "messageNonce()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "207",
+        "type": "t_array(t_uint256)42_storage"
+      },
+      "_initialized": {
+        "offset": 20,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 21,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "failedMessages": {
+        "offset": 0,
+        "slot": "206",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "msgNonce": {
+        "offset": 0,
+        "slot": "205",
+        "type": "t_uint240"
+      },
+      "spacer_0_0_20": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      "spacer_101_0_1": {
+        "offset": 0,
+        "slot": "101",
+        "type": "t_bool"
+      },
+      "spacer_102_0_1568": {
+        "offset": 0,
+        "slot": "102",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "spacer_151_0_32": {
+        "offset": 0,
+        "slot": "151",
+        "type": "t_uint256"
+      },
+      "spacer_152_0_1568": {
+        "offset": 0,
+        "slot": "152",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "spacer_1_0_1600": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_array(t_uint256)50_storage"
+      },
+      "spacer_201_0_32": {
+        "offset": 0,
+        "slot": "201",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "spacer_202_0_32": {
+        "offset": 0,
+        "slot": "202",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "spacer_51_0_20": {
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      "spacer_52_0_1568": {
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "successfulMessages": {
+        "offset": 0,
+        "slot": "203",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "xDomainMsgSender": {
+        "offset": 0,
+        "slot": "204",
+        "type": "t_address"
+      }
+    }
+  },
+  "L1ERC721Bridge": {
+    "methodIdentifiers": {
+      "3687011a": "bridgeERC721(address,address,uint256,uint32,bytes)",
+      "3cb747bf": "messenger()",
+      "54fd4d50": "version()",
+      "5d93a3fc": "deposits(address,address,uint256)",
+      "761f4493": "finalizeBridgeERC721(address,address,address,address,uint256,bytes)",
+      "7f46ddb2": "OTHER_BRIDGE()",
+      "927ede2d": "MESSENGER()",
+      "aa557452": "bridgeERC721To(address,address,address,uint256,uint32,bytes)",
+      "c89701a2": "otherBridge()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "deposits": {
+        "offset": 0,
+        "slot": "49",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_mapping(t_uint256,t_bool)))"
+      }
+    }
+  },
+  "L1FeeVault": {
+    "methodIdentifiers": {
+      "0d9019e1": "RECIPIENT()",
+      "3ccfd60b": "withdraw()",
+      "54fd4d50": "version()",
+      "84411d65": "totalProcessed()",
+      "d0e12f90": "WITHDRAWAL_NETWORK()",
+      "d3e5792b": "MIN_WITHDRAWAL_AMOUNT()"
+    },
+    "storageLayout": {
+      "totalProcessed": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "L1StandardBridge": {
+    "methodIdentifiers": {
+      "87087623": "bridgeERC20(address,address,uint256,uint32,bytes)",
+      "0166a07a": "finalizeBridgeERC20(address,address,address,address,uint256,bytes)",
+      "09fc8843": "bridgeETH(uint32,bytes)",
+      "1532ec34": "finalizeETHWithdrawal(address,address,uint256,bytes)",
+      "1635f5fd": "finalizeBridgeETH(address,address,uint256,bytes)",
+      "3cb747bf": "messenger()",
+      "540abf73": "bridgeERC20To(address,address,address,uint256,uint32,bytes)",
+      "54fd4d50": "version()",
+      "58a997f6": "depositERC20(address,address,uint256,uint32,bytes)",
+      "7f46ddb2": "OTHER_BRIDGE()",
+      "838b2520": "depositERC20To(address,address,address,uint256,uint32,bytes)",
+      "8f601f66": "deposits(address,address)",
+      "91c49bf8": "l2TokenBridge()",
+      "927ede2d": "MESSENGER()",
+      "9a2ac6d5": "depositETHTo(address,uint32,bytes)",
+      "a9f9e675": "finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)",
+      "b1a1a882": "depositETH(uint32,bytes)",
+      "c89701a2": "otherBridge()",
+      "e11013dd": "bridgeETHTo(address,uint32,bytes)"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_array(t_uint256)47_storage"
+      },
+      "deposits": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      "spacer_0_0_20": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      "spacer_1_0_20": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_address"
+      }
+    }
+  },
+  "L2CrossDomainMessenger": {
+    "methodIdentifiers": {
+      "028f85f7": "MIN_GAS_CALLDATA_OVERHEAD()",
+      "0c568498": "MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()",
+      "2828d7e8": "MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()",
+      "3dbb202b": "sendMessage(address,bytes,uint32)",
+      "3f827a5a": "MESSAGE_VERSION()",
+      "4c1d6a69": "RELAY_CALL_OVERHEAD()",
+      "54fd4d50": "version()",
+      "5644cfdf": "RELAY_GAS_CHECK_BUFFER()",
+      "6e296e45": "xDomainMessageSender()",
+      "8129fc1c": "initialize()",
+      "83a74074": "RELAY_CONSTANT_OVERHEAD()",
+      "8cbeeef2": "RELAY_RESERVED_GAS()",
+      "9fce812c": "OTHER_MESSENGER()",
+      "a4e7f8bd": "failedMessages(bytes32)",
+      "a7119869": "l1CrossDomainMessenger()",
+      "b1b1b209": "successfulMessages(bytes32)",
+      "b28ade25": "baseGas(bytes,uint32)",
+      "d764ad0b": "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+      "ecc70428": "messageNonce()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "207",
+        "type": "t_array(t_uint256)42_storage"
+      },
+      "_initialized": {
+        "offset": 20,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 21,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "failedMessages": {
+        "offset": 0,
+        "slot": "206",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "msgNonce": {
+        "offset": 0,
+        "slot": "205",
+        "type": "t_uint240"
+      },
+      "spacer_0_0_20": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      "spacer_101_0_1": {
+        "offset": 0,
+        "slot": "101",
+        "type": "t_bool"
+      },
+      "spacer_102_0_1568": {
+        "offset": 0,
+        "slot": "102",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "spacer_151_0_32": {
+        "offset": 0,
+        "slot": "151",
+        "type": "t_uint256"
+      },
+      "spacer_152_0_1568": {
+        "offset": 0,
+        "slot": "152",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "spacer_1_0_1600": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_array(t_uint256)50_storage"
+      },
+      "spacer_201_0_32": {
+        "offset": 0,
+        "slot": "201",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "spacer_202_0_32": {
+        "offset": 0,
+        "slot": "202",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "spacer_51_0_20": {
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      "spacer_52_0_1568": {
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "successfulMessages": {
+        "offset": 0,
+        "slot": "203",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "xDomainMsgSender": {
+        "offset": 0,
+        "slot": "204",
+        "type": "t_address"
+      }
+    }
+  },
+  "L2ERC721Bridge": {
+    "methodIdentifiers": {
+      "3687011a": "bridgeERC721(address,address,uint256,uint32,bytes)",
+      "3cb747bf": "messenger()",
+      "54fd4d50": "version()",
+      "761f4493": "finalizeBridgeERC721(address,address,address,address,uint256,bytes)",
+      "7f46ddb2": "OTHER_BRIDGE()",
+      "927ede2d": "MESSENGER()",
+      "aa557452": "bridgeERC721To(address,address,address,uint256,uint32,bytes)",
+      "c89701a2": "otherBridge()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_array(t_uint256)49_storage"
+      }
+    }
+  },
+  "L2OutputOracle": {
+    "methodIdentifiers": {
+      "88786272": "startingTimestamp()",
+      "002134cc": "L2_BLOCK_TIME()",
+      "4599c788": "latestBlockNumber()",
+      "529933df": "SUBMISSION_INTERVAL()",
+      "534db0e2": "challenger()",
+      "54fd4d50": "version()",
+      "69f16eec": "latestOutputIndex()",
+      "6abcf563": "nextOutputIndex()",
+      "6b4d98dd": "CHALLENGER()",
+      "70872aa5": "startingBlockNumber()",
+      "7f006420": "getL2OutputIndexAfter(uint256)",
+      "89c44cbb": "deleteL2Outputs(uint256)",
+      "93991af3": "l2BlockTime()",
+      "9aaab648": "proposeL2Output(bytes32,uint256,bytes32,uint256)",
+      "a25ae557": "getL2Output(uint256)",
+      "a8e4fb90": "proposer()",
+      "bffa7f0f": "PROPOSER()",
+      "ce5db8d6": "finalizationPeriodSeconds()",
+      "cf8e5cf0": "getL2OutputAfter(uint256)",
+      "d1de856c": "computeL2Timestamp(uint256)",
+      "dcec3348": "nextBlockNumber()",
+      "e1a41bcf": "submissionInterval()",
+      "e4a30116": "initialize(uint256,uint256)",
+      "f4daa291": "FINALIZATION_PERIOD_SECONDS()"
+    },
+    "storageLayout": {
+      "_initialized": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "l2Outputs": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_array(t_struct(OutputProposal)2677_storage)dyn_storage"
+      },
+      "startingBlockNumber": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      "startingTimestamp": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "L2StandardBridge": {
+    "methodIdentifiers": {
+      "87087623": "bridgeERC20(address,address,uint256,uint32,bytes)",
+      "0166a07a": "finalizeBridgeERC20(address,address,address,address,uint256,bytes)",
+      "09fc8843": "bridgeETH(uint32,bytes)",
+      "1635f5fd": "finalizeBridgeETH(address,address,uint256,bytes)",
+      "32b7006d": "withdraw(address,uint256,uint32,bytes)",
+      "36c717c1": "l1TokenBridge()",
+      "3cb747bf": "messenger()",
+      "540abf73": "bridgeERC20To(address,address,address,uint256,uint32,bytes)",
+      "54fd4d50": "version()",
+      "662a633a": "finalizeDeposit(address,address,address,address,uint256,bytes)",
+      "7f46ddb2": "OTHER_BRIDGE()",
+      "8f601f66": "deposits(address,address)",
+      "927ede2d": "MESSENGER()",
+      "a3a79548": "withdrawTo(address,address,uint256,uint32,bytes)",
+      "c89701a2": "otherBridge()",
+      "e11013dd": "bridgeETHTo(address,uint32,bytes)"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_array(t_uint256)47_storage"
+      },
+      "deposits": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      "spacer_0_0_20": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      "spacer_1_0_20": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_address"
+      }
+    }
+  },
+  "L2ToL1MessagePasser": {
+    "methodIdentifiers": {
+      "3f827a5a": "MESSAGE_VERSION()",
+      "44df8e70": "burn()",
+      "54fd4d50": "version()",
+      "82e3702d": "sentMessages(bytes32)",
+      "c2b3e5ac": "initiateWithdrawal(address,uint256,bytes)",
+      "ecc70428": "messageNonce()"
+    },
+    "storageLayout": {
+      "msgNonce": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint240"
+      },
+      "sentMessages": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      }
+    }
+  },
+  "LegacyERC20ETH": {
+    "methodIdentifiers": {
+      "39509351": "increaseAllowance(address,uint256)",
+      "01ffc9a7": "supportsInterface(bytes4)",
+      "033964be": "REMOTE_TOKEN()",
+      "06fdde03": "name()",
+      "095ea7b3": "approve(address,uint256)",
+      "18160ddd": "totalSupply()",
+      "23b872dd": "transferFrom(address,address,uint256)",
+      "313ce567": "decimals()",
+      "40c10f19": "mint(address,uint256)",
+      "54fd4d50": "version()",
+      "70a08231": "balanceOf(address)",
+      "95d89b41": "symbol()",
+      "9dc29fac": "burn(address,uint256)",
+      "a457c2d7": "decreaseAllowance(address,uint256)",
+      "a9059cbb": "transfer(address,uint256)",
+      "ae1f6aaf": "l2Bridge()",
+      "c01e1bd6": "l1Token()",
+      "d6c0b2c4": "remoteToken()",
+      "dd62ed3e": "allowance(address,address)",
+      "e78cea92": "bridge()",
+      "ee9a31a2": "BRIDGE()"
+    },
+    "storageLayout": {
+      "_allowances": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      "_balances": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_uint256)"
+      },
+      "_name": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_string_storage"
+      },
+      "_symbol": {
+        "offset": 0,
+        "slot": "4",
+        "type": "t_string_storage"
+      },
+      "_totalSupply": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "OptimismMintableERC20": {
+    "methodIdentifiers": {
+      "39509351": "increaseAllowance(address,uint256)",
+      "01ffc9a7": "supportsInterface(bytes4)",
+      "033964be": "REMOTE_TOKEN()",
+      "06fdde03": "name()",
+      "095ea7b3": "approve(address,uint256)",
+      "18160ddd": "totalSupply()",
+      "23b872dd": "transferFrom(address,address,uint256)",
+      "313ce567": "decimals()",
+      "40c10f19": "mint(address,uint256)",
+      "54fd4d50": "version()",
+      "70a08231": "balanceOf(address)",
+      "95d89b41": "symbol()",
+      "9dc29fac": "burn(address,uint256)",
+      "a457c2d7": "decreaseAllowance(address,uint256)",
+      "a9059cbb": "transfer(address,uint256)",
+      "ae1f6aaf": "l2Bridge()",
+      "c01e1bd6": "l1Token()",
+      "d6c0b2c4": "remoteToken()",
+      "dd62ed3e": "allowance(address,address)",
+      "e78cea92": "bridge()",
+      "ee9a31a2": "BRIDGE()"
+    },
+    "storageLayout": {
+      "_allowances": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      "_balances": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_uint256)"
+      },
+      "_name": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_string_storage"
+      },
+      "_symbol": {
+        "offset": 0,
+        "slot": "4",
+        "type": "t_string_storage"
+      },
+      "_totalSupply": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "OptimismMintableERC20Factory": {
+    "methodIdentifiers": {
+      "54fd4d50": "version()",
+      "896f93d1": "createStandardL2Token(address,string,string)",
+      "8cf0629c": "createOptimismMintableERC20WithDecimals(address,string,string,uint8)",
+      "ce5ac90f": "createOptimismMintableERC20(address,string,string)",
+      "e78cea92": "bridge()",
+      "ee9a31a2": "BRIDGE()"
+    },
+    "storageLayout": {}
+  },
+  "OptimismPortal": {
+    "methodIdentifiers": {
+      "001c2ff6": "L2_ORACLE()",
+      "33d7e2bd": "systemConfig()",
+      "3f4ba83a": "unpause()",
+      "452a9320": "guardian()",
+      "4870496f": "proveWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes),uint256,(bytes32,bytes32,bytes32,bytes32),bytes[])",
+      "54fd4d50": "version()",
+      "5c975abb": "paused()",
+      "6dbffb78": "isOutputFinalized(uint256)",
+      "724c184c": "GUARDIAN()",
+      "8456cb59": "pause()",
+      "8b4c40b0": "donateETH()",
+      "8c3152e9": "finalizeWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes))",
+      "9b5f694a": "l2Oracle()",
+      "9bf62d82": "l2Sender()",
+      "a14238e7": "finalizedWithdrawals(bytes32)",
+      "a35d99df": "minimumGasLimit(uint64)",
+      "cff0ab96": "params()",
+      "d53a822f": "initialize(bool)",
+      "e965084c": "provenWithdrawals(bytes32)",
+      "e9e05c42": "depositTransaction(address,uint256,uint64,bool,bytes)",
+      "f0498750": "SYSTEM_CONFIG()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_array(t_uint256)48_storage"
+      },
+      "_initialized": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "finalizedWithdrawals": {
+        "offset": 0,
+        "slot": "51",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      "l2Sender": {
+        "offset": 0,
+        "slot": "50",
+        "type": "t_address"
+      },
+      "params": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_struct(ResourceParams)3437_storage"
+      },
+      "paused": {
+        "offset": 0,
+        "slot": "53",
+        "type": "t_bool"
+      },
+      "provenWithdrawals": {
+        "offset": 0,
+        "slot": "52",
+        "type": "t_mapping(t_bytes32,t_struct(ProvenWithdrawal)2748_storage)"
+      }
+    }
+  },
+  "ProtocolVersions": {
+    "methodIdentifiers": {
+      "0457d6f2": "setRequired(uint256)",
+      "206a8300": "REQUIRED_SLOT()",
+      "54fd4d50": "version()",
+      "5fd579af": "setRecommended(uint256)",
+      "715018a6": "renounceOwnership()",
+      "7a1ac61e": "initialize(address,uint256,uint256)",
+      "8da5cb5b": "owner()",
+      "d798b1ac": "recommended()",
+      "dc8452cd": "required()",
+      "f2fde38b": "transferOwnership(address)",
+      "f7d12760": "RECOMMENDED_SLOT()",
+      "ffa1ad74": "VERSION()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "_initialized": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "_owner": {
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      }
+    }
+  },
+  "Proxy": {
+    "methodIdentifiers": {
+      "3659cfe6": "upgradeTo(address)",
+      "4f1ef286": "upgradeToAndCall(address,bytes)",
+      "5c60da1b": "implementation()",
+      "8f283970": "changeAdmin(address)",
+      "f851a440": "admin()"
+    },
+    "storageLayout": {}
+  },
+  "ProxyAdmin": {
+    "methodIdentifiers": {
+      "0652b57a": "setAddressManager(address)",
+      "07c8f7b0": "setUpgrading(bool)",
+      "204e1c7a": "getProxyImplementation(address)",
+      "238181ae": "implementationName(address)",
+      "3ab76e9f": "addressManager()",
+      "6bd9f516": "proxyType(address)",
+      "715018a6": "renounceOwnership()",
+      "7eff275e": "changeProxyAdmin(address,address)",
+      "860f7cda": "setImplementationName(address,string)",
+      "8d52d4a0": "setProxyType(address,uint8)",
+      "8da5cb5b": "owner()",
+      "9623609d": "upgradeAndCall(address,address,bytes)",
+      "99a88ec4": "upgrade(address,address)",
+      "9b2ea4bd": "setAddress(string,address)",
+      "b7947262": "isUpgrading()",
+      "f2fde38b": "transferOwnership(address)",
+      "f3b7dead": "getProxyAdmin(address)"
+    },
+    "storageLayout": {
+      "_owner": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      "addressManager": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_contract(AddressManager)2205"
+      },
+      "implementationName": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_mapping(t_address,t_string_storage)"
+      },
+      "proxyType": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_address,t_enum(ProxyType)2988)"
+      },
+      "upgrading": {
+        "offset": 20,
+        "slot": "3",
+        "type": "t_bool"
+      }
+    }
+  },
+  "SequencerFeeVault": {
+    "methodIdentifiers": {
+      "0d9019e1": "RECIPIENT()",
+      "3ccfd60b": "withdraw()",
+      "54fd4d50": "version()",
+      "84411d65": "totalProcessed()",
+      "d0e12f90": "WITHDRAWAL_NETWORK()",
+      "d3e5792b": "MIN_WITHDRAWAL_AMOUNT()",
+      "d4ff9218": "l1FeeWallet()"
+    },
+    "storageLayout": {
+      "totalProcessed": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "SystemConfig": {
+    "methodIdentifiers": {
+      "0c18c162": "overhead()",
+      "18d13918": "setUnsafeBlockSigner(address)",
+      "1fd19ee1": "unsafeBlockSigner()",
+      "4add321d": "minimumGasLimit()",
+      "4f16540b": "UNSAFE_BLOCK_SIGNER_SLOT()",
+      "54fd4d50": "version()",
+      "715018a6": "renounceOwnership()",
+      "8da5cb5b": "owner()",
+      "935f029e": "setGasConfig(uint256,uint256)",
+      "b40a817c": "setGasLimit(uint64)",
+      "c71973f6": "setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128))",
+      "c9b26f61": "setBatcherHash(bytes32)",
+      "cc731b02": "resourceConfig()",
+      "e81b2c6d": "batcherHash()",
+      "f2fde38b": "transferOwnership(address)",
+      "f45e65d8": "scalar()",
+      "f68016b7": "gasLimit()",
+      "f975e925": "initialize(address,uint256,uint256,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128))",
+      "ffa1ad74": "VERSION()"
+    },
+    "storageLayout": {
+      "__gap": {
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      "_initialized": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      "_initializing": {
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      "_owner": {
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      "_resourceConfig": {
+        "offset": 0,
+        "slot": "105",
+        "type": "t_struct(ResourceConfig)2234_storage"
+      },
+      "batcherHash": {
+        "offset": 0,
+        "slot": "103",
+        "type": "t_bytes32"
+      },
+      "gasLimit": {
+        "offset": 0,
+        "slot": "104",
+        "type": "t_uint64"
+      },
+      "overhead": {
+        "offset": 0,
+        "slot": "101",
+        "type": "t_uint256"
+      },
+      "scalar": {
+        "offset": 0,
+        "slot": "102",
+        "type": "t_uint256"
+      }
+    }
+  },
+  "WETH9": {
+    "methodIdentifiers": {
+      "06fdde03": "name()",
+      "095ea7b3": "approve(address,uint256)",
+      "18160ddd": "totalSupply()",
+      "23b872dd": "transferFrom(address,address,uint256)",
+      "2e1a7d4d": "withdraw(uint256)",
+      "313ce567": "decimals()",
+      "70a08231": "balanceOf(address)",
+      "95d89b41": "symbol()",
+      "a9059cbb": "transfer(address,uint256)",
+      "d0e30db0": "deposit()",
+      "dd62ed3e": "allowance(address,address)"
+    },
+    "storageLayout": {
+      "allowance": {
+        "offset": 0,
+        "slot": "4",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+      },
+      "balanceOf": {
+        "offset": 0,
+        "slot": "3",
+        "type": "t_mapping(t_address,t_uint256)"
+      },
+      "decimals": {
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint8"
+      },
+      "name": {
+        "offset": 0,
+        "slot": "0",
+        "type": "t_string_storage"
+      },
+      "symbol": {
+        "offset": 0,
+        "slot": "1",
+        "type": "t_string_storage"
+      }
+    }
+  }
+}
