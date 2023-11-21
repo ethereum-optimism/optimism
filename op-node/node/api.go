@@ -2,8 +2,10 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
-
+	"github.com/ethereum-optimism/optimism/op-node/submit"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -74,15 +76,17 @@ type nodeAPI struct {
 	dr     driverClient
 	log    log.Logger
 	m      metrics.RPCMetricer
+	txMgr  *txmgr.SimpleTxManager
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer, txmgr *txmgr.SimpleTxManager) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
 		dr:     dr,
 		log:    log,
 		m:      m,
+		txMgr:  txmgr,
 	}
 }
 
@@ -125,4 +129,40 @@ func (n *nodeAPI) Version(ctx context.Context) (string, error) {
 	recordDur := n.m.RecordRPCServerRequest("optimism_version")
 	defer recordDur()
 	return version.Version + "-" + version.Meta, nil
+}
+
+func (n *nodeAPI) Broadcaster(ctx context.Context) (common.Address, error) {
+	return n.txMgr.From(), nil
+}
+
+func (n *nodeAPI) SendDA(ctx context.Context, address common.Address, index hexutil.Uint64, data, commitment, sign hexutil.Bytes) (common.Hash, error) {
+	log.Info("SendDA", "address", address, "index", index, "data", data, "commitment", commitment, "sign", sign)
+	if !verifySignature(address, index, data, commitment, sign) {
+		return common.Hash{}, errors.New("invalid public key")
+	}
+	data, err := submit.L1SubmitTxData(address, uint64(index), commitment, sign)
+	if err != nil {
+		return common.Hash{}, err
+	}
+	log.Info("L1SubmitTxData")
+	bridge := common.HexToAddress("0xD4C899Bf440B764fb5BAB774e160fc1b59dD7Ec3")
+
+	tx, err := n.txMgr.SendDA(ctx, txmgr.TxCandidate{
+		TxData:   data,
+		To:       &bridge,
+		GasLimit: 0,
+	})
+	log.Info("Send")
+
+	if err != nil {
+		return common.Hash{}, err
+	}
+	log.Info("L1Submit tx successfully published",
+		"tx_hash", tx.Hash().Hex())
+
+	return tx.Hash(), nil
+}
+
+func verifySignature(address common.Address, index hexutil.Uint64, data, commitment, sign hexutil.Bytes) bool {
+	return true
 }
