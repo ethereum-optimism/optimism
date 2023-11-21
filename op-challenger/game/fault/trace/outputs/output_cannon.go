@@ -8,11 +8,20 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func NewOutputCannonTraceAccessor(ctx context.Context, logger log.Logger, rollupRpc string, gameDepth uint64, prestateBlock uint64, poststateBlock uint64) (*trace.Accessor, error) {
+func NewOutputCannonTraceAccessor(
+	ctx context.Context,
+	logger log.Logger,
+	m metrics.Metricer,
+	rollupRpc string,
+	gameDepth uint64,
+	prestateBlock uint64,
+	poststateBlock uint64,
+) (*trace.Accessor, error) {
 	topDepth := gameDepth / 2 // TODO(client-pod#43): Load this from the contract
 	outputProvider, err := NewTraceProvider(ctx, logger, rollupRpc, topDepth, prestateBlock, poststateBlock)
 	if err != nil {
@@ -24,6 +33,7 @@ func NewOutputCannonTraceAccessor(ctx context.Context, logger log.Logger, rollup
 		return nil, errors.New("not implemented")
 	}
 
-	selector := split.NewSplitProviderSelector(outputProvider, int(topDepth), OutputRootSplitAdapter(outputProvider, cannonCreator))
+	cache := NewProviderCache(m, "output_cannon_provider", cannonCreator)
+	selector := split.NewSplitProviderSelector(outputProvider, int(topDepth), OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
 	return trace.NewAccessor(selector), nil
 }
