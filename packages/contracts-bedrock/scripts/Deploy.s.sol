@@ -54,6 +54,33 @@ import { Types } from "scripts/Types.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
+    /// @notice Modifier that wraps a function in broadcasting.
+    modifier broadcast() {
+        vm.startBroadcast();
+        _;
+        vm.stopBroadcast();
+    }
+
+    /// @notice Modifier that will only allow a function to be called on devnet.
+    modifier onlyDevnet() {
+        uint256 chainid = block.chainid;
+        if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
+            _;
+        }
+    }
+
+    /// @notice Modifier that will only allow a function to be called on a public
+    ///         testnet or devnet.
+    modifier onlyTestnetOrDevnet() {
+        uint256 chainid = block.chainid;
+        if (
+            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
+                || chainid == Chains.GethDevnet
+        ) {
+            _;
+        }
+    }
+
     /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
         name_ = "Deploy";
@@ -100,33 +127,6 @@ contract Deploy is Deployer {
     ///         addresses will be the same across networks when deployed with create2.
     function implSalt() internal returns (bytes32) {
         return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
-    }
-
-    /// @notice Modifier that wraps a function in broadcasting.
-    modifier broadcast() {
-        vm.startBroadcast();
-        _;
-        vm.stopBroadcast();
-    }
-
-    /// @notice Modifier that will only allow a function to be called on devnet.
-    modifier onlyDevnet() {
-        uint256 chainid = block.chainid;
-        if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
-            _;
-        }
-    }
-
-    /// @notice Modifier that will only allow a function to be called on a public
-    ///         testnet or devnet.
-    modifier onlyTestnetOrDevnet() {
-        uint256 chainid = block.chainid;
-        if (
-            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
-                || chainid == Chains.GethDevnet
-        ) {
-            _;
-        }
     }
 
     /// @notice Deploy all of the proxies
