@@ -104,11 +104,11 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 }
 
 func WaitForBlockToBeFinalized(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	return waitForBlockTag(number, client, timeout, int64(rpc.FinalizedBlockNumber))
+	return waitForBlockTag(number, client, timeout, rpc.FinalizedBlockNumber)
 }
 
 func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	return waitForBlockTag(number, client, timeout, int64(rpc.SafeBlockNumber))
+	return waitForBlockTag(number, client, timeout, rpc.SafeBlockNumber)
 }
 
 // waitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
@@ -120,10 +120,11 @@ func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Dur
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
+	tagBigInt := big.NewInt(tag.Int64())
 	for {
 		select {
 		case <-ticker.C:
-			block, _ := client.BlockByNumber(ctx, big.NewInt(tag))
+			block, _ := client.BlockByNumber(ctx, tagBigInt)
 			if block.NumberU64() >= number.Uint64() {
 				return client.BlockByNumber(ctx, number)
 			}
