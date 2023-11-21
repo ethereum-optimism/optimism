@@ -16,14 +16,14 @@ TESTDATA_DIR="$CONTRACTS_DIR/.testdata"
 
 OUTFILE_L2="$TESTDATA_DIR/genesis.json"
 OUTFILE_ROLLUP="$TESTDATA_DIR/rollup.json"
-OUTFILE_ALLOC="$TESTDATA_DIR/alloc.json"
 
 if [ ! -f "$DEPLOY_ARTIFACT" ]; then
-  forge script $CONTRACTS_DIR/scripts/Deploy.s.sol:Deploy 2>&1 /dev/null
+  forge script $CONTRACTS_DIR/scripts/Deploy.s.sol:Deploy
 fi
 
-if [ ! -d "$TESTDATA_DIR" ]; then
-  mkdir -p "$TESTDATA_DIR"
+mkdir -p "$TESTDATA_DIR"
+
+if [ ! -f "$OUTFILE_L2" ]; then
   echo "Generating L2 genesis"
 
   go run $OP_NODE genesis l2 \
@@ -31,5 +31,5 @@ if [ ! -d "$TESTDATA_DIR" ]; then
     --l1-deployments "$DEPLOY_ARTIFACT" \
     --l1-starting-block "$L1_STARTING_BLOCK_PATH" \
     --outfile.l2 "$OUTFILE_L2" \
-    --outfile.rollup "$OUTFILE_ROLLUP" >/dev/null 2>&1
+    --outfile.rollup "$OUTFILE_ROLLUP"
 fi
