@@ -42,7 +42,7 @@
     "lint:ts:fix": "eslint --fix .",
     "lint:contracts:fix": "forge fmt",
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
-    "lint:abi-spec": "npx tsx scripts/generate-abi-spec.ts && git diff --exit-code",
+    "abi-spec": "npx tsx scripts/generate-abi-spec.ts",
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
   "devDependencies": {

@@ -534,7 +534,7 @@
       "l2Outputs": {
         "offset": 0,
         "slot": "3",
-        "type": "t_array(t_struct(OutputProposal)2677_storage)dyn_storage"
+        "type": "t_array(t_struct(OutputProposal)5185_storage)dyn_storage"
       },
       "startingBlockNumber": {
         "offset": 0,
@@ -954,7 +954,7 @@
       "_resourceConfig": {
         "offset": 0,
         "slot": "105",
-        "type": "t_struct(ResourceConfig)2234_storage"
+        "type": "t_struct(ResourceConfig)3450_storage"
       },
       "batcherHash": {
         "offset": 0,
