@@ -107,15 +107,15 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 }
 
 func WaitForBlockToBeFinalized(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	return WaitForBlockTag(number, client, timeout, int64(rpc.FinalizedBlockNumber))
+	return waitForBlockTag(number, client, timeout, int64(rpc.FinalizedBlockNumber))
 }
 
 func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	return WaitForBlockTag(number, client, timeout, int64(rpc.SafeBlockNumber))
+	return waitForBlockTag(number, client, timeout, int64(rpc.SafeBlockNumber))
 }
 
-// WaitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
-func WaitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Block, error) {
+// waitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
+func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Block, error) {
 	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
