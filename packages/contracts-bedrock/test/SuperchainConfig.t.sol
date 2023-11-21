@@ -54,7 +54,7 @@ contract SuperchainConfig_Pause_Test is CommonTest {
 contract SuperchainConfig_Unpause_TestFail is CommonTest {
     /// @dev Tests that `unpause` reverts when called by a non-guardian.
     function test_unpause_notGuardian_reverts() external {
-        vm.prank(deploy.cfg().portalGuardian());
+        vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
         assertEq(superchainConfig.paused(), true);
 
@@ -71,13 +71,12 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
     /// @dev Tests that `unpause` successfully unpauses
     ///      when called by the guardian.
     function test_unpause_succeeds() external {
-        vm.prank(deploy.cfg().portalGuardian());
+        vm.startPrank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
         assertEq(superchainConfig.paused(), true);
 
         vm.expectEmit(address(superchainConfig));
         emit Unpaused();
-        vm.prank(deploy.cfg().portalGuardian());
         superchainConfig.unpause();
 
         assertFalse(superchainConfig.paused());
