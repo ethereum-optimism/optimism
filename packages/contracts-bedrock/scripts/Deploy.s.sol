@@ -352,6 +352,7 @@ contract Deploy is Deployer {
     }
 
     function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
+        console.log(string.concat("Deploying ", _name));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -360,8 +361,8 @@ contract Deploy is Deployer {
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
 
-        save(name, address(proxy));
-        console.log("%s deployed at %s", name, address(proxy));
+        save(_name, address(proxy));
+        console.log("   at %s", address(proxy));
         addr_ = address(proxy);
     }
 
