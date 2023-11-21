@@ -39,7 +39,7 @@ type L2BridgeMessage struct {
 	TransactionWithdrawalHash common.Hash `gorm:"serializer:bytes"`
 }
 
-type versionedMessageHash struct {
+type L2BridgeMessageVersionedMessageHash struct {
 	MessageHash   common.Hash `gorm:"primaryKey;serializer:bytes"`
 	V1MessageHash common.Hash `gorm:"serializer:bytes"`
 }
@@ -147,7 +147,7 @@ func (db bridgeMessagesDB) StoreL2BridgeMessageV1MessageHash(msgHash, v1MsgHash 
 	}
 
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
-	result := deduped.Create(&versionedMessageHash{MessageHash: msgHash, V1MessageHash: v1MsgHash})
+	result := deduped.Create(&L2BridgeMessageVersionedMessageHash{MessageHash: msgHash, V1MessageHash: v1MsgHash})
 	if result.Error == nil && int(result.RowsAffected) < 1 {
 		db.log.Warn("ignored L2 bridge v1 message hash duplicates")
 	}
@@ -162,7 +162,7 @@ func (db bridgeMessagesDB) L2BridgeMessage(msgHash common.Hash) (*L2BridgeMessag
 	}
 
 	// check if this is a v1 hash of an older message
-	versioned := versionedMessageHash{V1MessageHash: msgHash}
+	versioned := L2BridgeMessageVersionedMessageHash{V1MessageHash: msgHash}
 	result := db.gorm.Where(&versioned).Take(&versioned)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
