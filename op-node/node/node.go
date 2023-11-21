@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -326,7 +327,11 @@ func (n *OpNode) initRPCSync(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
+	txMgr, err := txmgr.NewSimpleTxManagerFromConfig("submit", n.log, n.metrics, cfg.TxMgr)
+	if err != nil {
+		return err
+	}
+	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics, txMgr)
 	if err != nil {
 		return err
 	}

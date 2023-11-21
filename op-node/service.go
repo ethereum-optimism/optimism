@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"io"
 	"os"
 	"strings"
@@ -71,6 +72,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		haltOption = ""
 	}
 
+	txmgr, err := NewTxManagerConfig(ctx, log)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
@@ -105,6 +111,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		Sync:              *syncConfig,
 		RollupHalt:        haltOption,
 		RethDBPath:        ctx.String(flags.L1RethDBPath.Name),
+		TxMgr:             txmgr,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -115,6 +122,15 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewTxManagerConfig(ctx *cli.Context, log log.Logger) (txmgr.Config, error) {
+	subcfg := txmgr.ReadCLIConfig(ctx)
+	conf, err := txmgr.NewConfig(subcfg, log)
+	if err != nil {
+		return txmgr.Config{}, err
+	}
+	return conf, nil
 }
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {

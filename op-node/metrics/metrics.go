@@ -3,6 +3,7 @@ package metrics
 
 import (
 	"context"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"net"
 	"strconv"
 	"time"
@@ -79,6 +80,9 @@ type Metricer interface {
 type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
+
+	// Record Tx metrics
+	txmetrics.TxMetrics
 
 	metrics.RPCMetrics
 
@@ -176,6 +180,7 @@ func NewMetrics(procName string) *Metrics {
 		}),
 
 		RPCMetrics: metrics.MakeRPCMetrics(ns, factory),
+		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
 
 		L1SourceCache: metrics.NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
 		L2SourceCache: metrics.NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),

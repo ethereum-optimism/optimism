@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"math"
 	"time"
 
@@ -63,6 +64,8 @@ type Config struct {
 
 	// [OPTIONAL] The reth DB path to read receipts from
 	RethDBPath string
+
+	TxMgr txmgr.Config
 }
 
 type RPCConfig struct {
@@ -141,6 +144,9 @@ func (cfg *Config) Check() error {
 	}
 	if !(cfg.RollupHalt == "" || cfg.RollupHalt == "major" || cfg.RollupHalt == "minor" || cfg.RollupHalt == "patch") {
 		return fmt.Errorf("invalid rollup halting option: %q", cfg.RollupHalt)
+	}
+	if err := cfg.TxMgr.Check(); err != nil {
+		return fmt.Errorf("TxMgr config error: %w", err)
 	}
 	return nil
 }
