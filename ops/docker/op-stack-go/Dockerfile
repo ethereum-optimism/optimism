@@ -42,69 +42,69 @@ ARG GIT_DATE
 # Build the Go services, utilizing caches and share the many common packages.
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
-FROM builder as cannon-builder
+FROM --platform=$BUILDPLATFORM builder as cannon-builder
 ARG CANNON_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 
-FROM builder as op-program-builder
+FROM --platform=$BUILDPLATFORM builder as op-program-builder
 ARG OP_PROGRAM_VERSION=v0.0.0
 # note: we only build the host, that's all the user needs. No Go MIPS cross-build in docker
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 
-FROM builder as op-heartbeat-builder
+FROM --platform=$BUILDPLATFORM builder as op-heartbeat-builder
 ARG OP_HEARTBEAT_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-heartbeat && make op-heartbeat  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_HEARTBEAT_VERSION"
 
-FROM builder as op-wheel-builder
+FROM --platform=$BUILDPLATFORM builder as op-wheel-builder
 ARG OP_WHEEL_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-wheel && make op-wheel  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_WHEEL_VERSION"
 
-FROM builder as op-node-builder
+FROM --platform=$BUILDPLATFORM builder as op-node-builder
 ARG OP_NODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-node && make op-node  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_NODE_VERSION"
 
-FROM builder as op-challenger-builder
+FROM --platform=$BUILDPLATFORM builder as op-challenger-builder
 ARG OP_CHALLENGER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-challenger && make op-challenger  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CHALLENGER_VERSION"
 
-FROM builder as op-batcher-builder
+FROM --platform=$BUILDPLATFORM builder as op-batcher-builder
 ARG OP_BATCHER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-batcher  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_BATCHER_VERSION"
 
-FROM builder as op-proposer-builder
+FROM --platform=$BUILDPLATFORM builder as op-proposer-builder
 ARG OP_PROPOSER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION"
 
 
-FROM $TARGET_BASE_IMAGE as cannon-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as cannon-target
 COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 CMD ["cannon"]
 
-FROM $TARGET_BASE_IMAGE as op-program-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-program-target
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
 CMD ["op-program"]
 
-FROM $TARGET_BASE_IMAGE as op-heartbeat-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-heartbeat-target
 COPY --from=op-heartbeat-builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin/
 CMD ["op-heartbeat"]
 
-FROM $TARGET_BASE_IMAGE as op-wheel-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-wheel-target
 COPY --from=op-wheel-builder /app/op-wheel/bin/op-wheel /usr/local/bin/
 CMD ["op-wheel"]
 
-FROM $TARGET_BASE_IMAGE as op-node-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-node-target
 COPY --from=op-node-builder /app/op-node/bin/op-node /usr/local/bin/
 CMD ["op-node"]
 
-FROM $TARGET_BASE_IMAGE as op-challenger-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-challenger-target
 COPY --from=op-challenger-builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 # Make the bundled op-program the default cannon server
 COPY --from=op-program-builder /app/op-program/bin/op-program /usr/local/bin/
@@ -114,11 +114,11 @@ COPY --from=cannon-builder /app/cannon/bin/cannon /usr/local/bin/
 ENV OP_CHALLENGER_CANNON_BIN /usr/local/bin/cannon
 CMD ["op-challenger"]
 
-FROM $TARGET_BASE_IMAGE as op-batcher-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-batcher-target
 COPY --from=op-batcher-builder /app/op-batcher/bin/op-batcher /usr/local/bin/
 CMD ["op-batcher"]
 
-FROM $TARGET_BASE_IMAGE as op-proposer-target
+FROM --platform=$TARGETPLATFORM $TARGET_BASE_IMAGE as op-proposer-target
 COPY --from=op-proposer-builder /app/op-proposer/bin/op-proposer /usr/local/bin/
 CMD ["op-proposer"]
 
