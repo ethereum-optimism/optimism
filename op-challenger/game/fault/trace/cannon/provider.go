@@ -69,6 +69,30 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, 
 	return NewTraceProviderFromInputs(logger, m, cfg, localContext, localInputs, dir, gameDepth), nil
 }
 
+func NewTraceProviderFromProposals(
+	ctx context.Context,
+	logger log.Logger,
+	m CannonMetricer,
+	cfg *config.Config,
+	gameContract *contracts.FaultDisputeGameContract,
+	localContext common.Hash,
+	agreed contracts.Proposal,
+	claimed contracts.Proposal,
+	dir string,
+	gameDepth uint64,
+) (*CannonTraceProvider, error) {
+	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	if err != nil {
+		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
+	}
+	defer l2Client.Close() // Not needed after fetching the inputs
+	localInputs, err := fetchLocalInputsFromProposals(ctx, gameContract, l2Client, agreed, claimed)
+	if err != nil {
+		return nil, fmt.Errorf("fetch local game inputs: %w", err)
+	}
+	return NewTraceProviderFromInputs(logger, m, cfg, localContext, localInputs, dir, gameDepth), nil
+}
+
 func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:       logger,
