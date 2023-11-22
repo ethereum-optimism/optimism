@@ -1,0 +1,74 @@
+[
+  {
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_uint8"
+  },
+  {
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "t_bool"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_array(t_uint256)50_storage"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "51",
+    "type": "t_array(t_uint256)50_storage"
+  },
+  {
+    "label": "_name",
+    "offset": 0,
+    "slot": "101",
+    "type": "t_string_storage"
+  },
+  {
+    "label": "_symbol",
+    "offset": 0,
+    "slot": "102",
+    "type": "t_string_storage"
+  },
+  {
+    "label": "_owners",
+    "offset": 0,
+    "slot": "103",
+    "type": "t_mapping(t_uint256,t_address)"
+  },
+  {
+    "label": "_balances",
+    "offset": 0,
+    "slot": "104",
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "_tokenApprovals",
+    "offset": 0,
+    "slot": "105",
+    "type": "t_mapping(t_uint256,t_address)"
+  },
+  {
+    "label": "_operatorApprovals",
+    "offset": 0,
+    "slot": "106",
+    "type": "t_mapping(t_address,t_mapping(t_address,t_bool))"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "107",
+    "type": "t_array(t_uint256)44_storage"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "151",
+    "type": "t_array(t_uint256)50_storage"
+  }
+]

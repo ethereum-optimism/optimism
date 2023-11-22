@@ -1,0 +1,62 @@
+[
+  {
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_uint8"
+  },
+  {
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "t_bool"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_array(t_uint256)50_storage"
+  },
+  {
+    "label": "_owner",
+    "offset": 0,
+    "slot": "51",
+    "type": "t_address"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "52",
+    "type": "t_array(t_uint256)49_storage"
+  },
+  {
+    "label": "overhead",
+    "offset": 0,
+    "slot": "101",
+    "type": "t_uint256"
+  },
+  {
+    "label": "scalar",
+    "offset": 0,
+    "slot": "102",
+    "type": "t_uint256"
+  },
+  {
+    "label": "batcherHash",
+    "offset": 0,
+    "slot": "103",
+    "type": "t_bytes32"
+  },
+  {
+    "label": "gasLimit",
+    "offset": 0,
+    "slot": "104",
+    "type": "t_uint64"
+  },
+  {
+    "label": "_resourceConfig",
+    "offset": 0,
+    "slot": "105",
+    "type": "t_struct(ResourceConfig)75608_storage"
+  }
+]

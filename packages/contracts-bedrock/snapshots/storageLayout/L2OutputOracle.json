@@ -1,0 +1,32 @@
+[
+  {
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_uint8"
+  },
+  {
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "t_bool"
+  },
+  {
+    "label": "startingBlockNumber",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_uint256"
+  },
+  {
+    "label": "startingTimestamp",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_uint256"
+  },
+  {
+    "label": "l2Outputs",
+    "offset": 0,
+    "slot": "3",
+    "type": "t_array(t_struct(OutputProposal)86496_storage)dyn_storage"
+  }
+]

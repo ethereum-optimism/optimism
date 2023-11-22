@@ -1,0 +1,20 @@
+[
+  {
+    "label": "preimageLengths",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_mapping(t_bytes32,t_uint256)"
+  },
+  {
+    "label": "preimageParts",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_mapping(t_bytes32,t_mapping(t_uint256,t_bytes32))"
+  },
+  {
+    "label": "preimagePartOk",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_mapping(t_bytes32,t_mapping(t_uint256,t_bool))"
+  }
+]

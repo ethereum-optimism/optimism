@@ -1,0 +1,20 @@
+[
+  {
+    "label": "modules",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_mapping(t_contract(IFaucetAuthModule)89603,t_struct(ModuleConfig)89280_storage)"
+  },
+  {
+    "label": "timeouts",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_mapping(t_contract(IFaucetAuthModule)89603,t_mapping(t_bytes32,t_uint256))"
+  },
+  {
+    "label": "nonces",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_mapping(t_bytes32,t_mapping(t_bytes32,t_bool))"
+  }
+]

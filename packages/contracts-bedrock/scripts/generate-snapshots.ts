@@ -33,17 +33,11 @@ const getAllContracts = (): Array<string> => {
 }
 
 type AbiSpecStorageLayoutEntry = {
+  label: string
   slot: number
   offset: number
+  type: string
 }
-type AbiSpecMethodIdentifiers = { [key: string]: string }
-type AbiSpecStorageLayout = { [key: string]: AbiSpecStorageLayoutEntry }
-type AbiSpecEntry = {
-  methodIdentifiers: AbiSpecMethodIdentifiers
-  storageLayout: AbiSpecStorageLayout
-  abi: any
-}
-
 const sortKeys = (obj: any) => {
   if (typeof obj !== 'object' || obj === null) {
     return obj
@@ -61,7 +55,11 @@ const sortKeys = (obj: any) => {
 
 const main = async () => {
   console.log(`writing abi spec to ${outdir}`)
-  fs.mkdirSync(outdir, { recursive: true })
+
+  const storageLayoutDir = path.join(outdir, 'storageLayout')
+  const abiDir = path.join(outdir, 'abi')
+  fs.mkdirSync(storageLayoutDir, { recursive: true })
+  fs.mkdirSync(abiDir, { recursive: true })
 
   const contracts = getAllContracts()
 
@@ -69,8 +67,6 @@ const main = async () => {
     const toks = contract.split(':')
     const contractFile = contract.split(':')[0]
     const contractName = toks[1]
-
-    const storageLayout: AbiSpecStorageLayout = {}
 
     let artifactFile = path.join(
       forgeArtifactsDir,
@@ -94,39 +90,36 @@ const main = async () => {
     }
 
     // HACK: This is a hack to ignore libraries. Not robust against changes to solc's internal ast repr
-    const isContract = artifact.ast.nodes.find((node: any) => {
-      if (
+    const isContract = artifact.ast.nodes.some((node: any) => {
+      return (
         node.nodeType === 'ContractDefinition' &&
         node.name === contractName &&
-        node.kind === 'contract'
-      ) {
-        return node
-      }
+        node.contractKind === 'contract'
+      )
     })
     if (!isContract) {
       console.log(`ignoring library/interface ${contractName}`)
       continue
     }
 
+    const storageLayout: AbiSpecStorageLayoutEntry[] = []
     for (const storageEntry of artifact.storageLayout.storage) {
-      storageLayout[storageEntry.label] = {
-        slot: storageEntry.slot,
+      storageLayout.push({
+        label: storageEntry.label,
         offset: storageEntry.offset,
-      }
-    }
-    const ids: AbiSpecMethodIdentifiers = {}
-    for (const [key, value] of Object.entries(artifact.methodIdentifiers)) {
-      ids[value as string] = key
+        slot: storageEntry.slot,
+        type: storageEntry.type,
+      })
     }
 
-    const entry: AbiSpecEntry = {
-      methodIdentifiers: ids,
-      storageLayout,
-      abi: artifact.abi,
-    }
+    // Sort snapshots for easier manual inspection
     fs.writeFileSync(
-      `${outdir}/${contractName}.json`,
-      JSON.stringify(sortKeys(entry), null, 2)
+      `${abiDir}/${contractName}.json`,
+      JSON.stringify(sortKeys(artifact.abi), null, 2)
+    )
+    fs.writeFileSync(
+      `${storageLayoutDir}/${contractName}.json`,
+      JSON.stringify(sortKeys(storageLayout), null, 2)
     )
   }
 }

@@ -1,0 +1,14 @@
+[
+  {
+    "label": "_owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_address"
+  },
+  {
+    "label": "mintPermittedAfter",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_uint256"
+  }
+]

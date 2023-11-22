@@ -1,0 +1,14 @@
+[
+  {
+    "label": "sentMessages",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_mapping(t_bytes32,t_bool)"
+  },
+  {
+    "label": "msgNonce",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_uint240"
+  }
+]

@@ -1,0 +1,8 @@
+[
+  {
+    "label": "owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_address"
+  }
+]

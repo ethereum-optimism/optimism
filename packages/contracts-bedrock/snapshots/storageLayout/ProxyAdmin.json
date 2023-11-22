@@ -1,0 +1,32 @@
+[
+  {
+    "label": "_owner",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_address"
+  },
+  {
+    "label": "proxyType",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_mapping(t_address,t_enum(ProxyType)92592)"
+  },
+  {
+    "label": "implementationName",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_mapping(t_address,t_string_storage)"
+  },
+  {
+    "label": "addressManager",
+    "offset": 0,
+    "slot": "3",
+    "type": "t_contract(AddressManager)84130"
+  },
+  {
+    "label": "upgrading",
+    "offset": 20,
+    "slot": "3",
+    "type": "t_bool"
+  }
+]

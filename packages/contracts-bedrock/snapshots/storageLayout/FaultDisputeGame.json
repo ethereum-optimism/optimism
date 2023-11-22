@@ -1,0 +1,56 @@
+[
+  {
+    "label": "createdAt",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_userDefinedValueType(Timestamp)85631"
+  },
+  {
+    "label": "status",
+    "offset": 8,
+    "slot": "0",
+    "type": "t_enum(GameStatus)85647"
+  },
+  {
+    "label": "bondManager",
+    "offset": 9,
+    "slot": "0",
+    "type": "t_contract(IBondManager)83238"
+  },
+  {
+    "label": "l1Head",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_userDefinedValueType(Hash)85623"
+  },
+  {
+    "label": "claimData",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_array(t_struct(ClaimData)83452_storage)dyn_storage"
+  },
+  {
+    "label": "proposals",
+    "offset": 0,
+    "slot": "3",
+    "type": "t_struct(OutputProposals)83467_storage"
+  },
+  {
+    "label": "claims",
+    "offset": 0,
+    "slot": "7",
+    "type": "t_mapping(t_userDefinedValueType(ClaimHash)85627,t_bool)"
+  },
+  {
+    "label": "subgames",
+    "offset": 0,
+    "slot": "8",
+    "type": "t_mapping(t_uint256,t_array(t_uint256)dyn_storage)"
+  },
+  {
+    "label": "subgameAtRootResolved",
+    "offset": 0,
+    "slot": "9",
+    "type": "t_bool"
+  }
+]

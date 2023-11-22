@@ -1,0 +1,38 @@
+[
+  {
+    "label": "_nonces",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_array(t_uint256)49_storage"
+  },
+  {
+    "label": "_db",
+    "offset": 0,
+    "slot": "50",
+    "type": "t_mapping(t_bytes32,t_struct(Attestation)43501_storage)"
+  },
+  {
+    "label": "_timestamps",
+    "offset": 0,
+    "slot": "51",
+    "type": "t_mapping(t_bytes32,t_uint64)"
+  },
+  {
+    "label": "_revocationsOffchain",
+    "offset": 0,
+    "slot": "52",
+    "type": "t_mapping(t_address,t_mapping(t_bytes32,t_uint64))"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "53",
+    "type": "t_array(t_uint256)47_storage"
+  }
+]

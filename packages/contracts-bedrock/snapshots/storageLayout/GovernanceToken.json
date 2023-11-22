@@ -1,0 +1,68 @@
+[
+  {
+    "label": "_balances",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "_allowances",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+  },
+  {
+    "label": "_totalSupply",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_uint256"
+  },
+  {
+    "label": "_name",
+    "offset": 0,
+    "slot": "3",
+    "type": "t_string_storage"
+  },
+  {
+    "label": "_symbol",
+    "offset": 0,
+    "slot": "4",
+    "type": "t_string_storage"
+  },
+  {
+    "label": "_nonces",
+    "offset": 0,
+    "slot": "5",
+    "type": "t_mapping(t_address,t_struct(Counter)49915_storage)"
+  },
+  {
+    "label": "_PERMIT_TYPEHASH_DEPRECATED_SLOT",
+    "offset": 0,
+    "slot": "6",
+    "type": "t_bytes32"
+  },
+  {
+    "label": "_delegates",
+    "offset": 0,
+    "slot": "7",
+    "type": "t_mapping(t_address,t_address)"
+  },
+  {
+    "label": "_checkpoints",
+    "offset": 0,
+    "slot": "8",
+    "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)47061_storage)dyn_storage)"
+  },
+  {
+    "label": "_totalSupplyCheckpoints",
+    "offset": 0,
+    "slot": "9",
+    "type": "t_array(t_struct(Checkpoint)47061_storage)dyn_storage"
+  },
+  {
+    "label": "_owner",
+    "offset": 0,
+    "slot": "10",
+    "type": "t_address"
+  }
+]

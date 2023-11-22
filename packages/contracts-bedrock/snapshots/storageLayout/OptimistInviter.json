@@ -1,0 +1,50 @@
+[
+  {
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_uint8"
+  },
+  {
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "t_bool"
+  },
+  {
+    "label": "_HASHED_NAME",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_bytes32"
+  },
+  {
+    "label": "_HASHED_VERSION",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_bytes32"
+  },
+  {
+    "label": "__gap",
+    "offset": 0,
+    "slot": "3",
+    "type": "t_array(t_uint256)50_storage"
+  },
+  {
+    "label": "commitmentTimestamps",
+    "offset": 0,
+    "slot": "53",
+    "type": "t_mapping(t_bytes32,t_uint256)"
+  },
+  {
+    "label": "usedNonces",
+    "offset": 0,
+    "slot": "54",
+    "type": "t_mapping(t_address,t_mapping(t_bytes32,t_bool))"
+  },
+  {
+    "label": "inviteCounts",
+    "offset": 0,
+    "slot": "55",
+    "type": "t_mapping(t_address,t_uint256)"
+  }
+]

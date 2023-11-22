@@ -1,0 +1,32 @@
+[
+  {
+    "label": "name",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_string_storage"
+  },
+  {
+    "label": "symbol",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_string_storage"
+  },
+  {
+    "label": "decimals",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_uint8"
+  },
+  {
+    "label": "balanceOf",
+    "offset": 0,
+    "slot": "3",
+    "type": "t_mapping(t_address,t_uint256)"
+  },
+  {
+    "label": "allowance",
+    "offset": 0,
+    "slot": "4",
+    "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
+  }
+]
