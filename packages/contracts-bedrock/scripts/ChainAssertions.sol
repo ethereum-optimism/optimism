@@ -22,36 +22,36 @@ import { console2 as console } from "forge-std/console2.sol";
 library ChainAssertions {
     /// @notice Asserts the correctness of an L1 deployment
     function postDeployAssertions(
-        Types.ContractSet memory prox,
-        DeployConfig cfg,
-        uint256 l2OutputOracleStartingTimestamp,
-        Vm vm
+        Types.ContractSet memory _prox,
+        DeployConfig _cfg,
+        uint256 _l2OutputOracleStartingTimestamp,
+        Vm _vm
     )
         internal
         view
     {
-        ResourceMetering.ResourceConfig memory rcfg = SystemConfig(prox.SystemConfig).resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = SystemConfig(_prox.SystemConfig).resourceConfig();
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
-        checkSystemConfig(prox, cfg);
-        checkL1CrossDomainMessenger(prox, vm);
-        checkL1StandardBridge(prox);
-        checkL2OutputOracle(prox, cfg, l2OutputOracleStartingTimestamp);
-        checkOptimismMintableERC20Factory(prox);
-        checkL1ERC721Bridge(prox);
-        checkOptimismPortal(prox, cfg);
-        checkProtocolVersions(prox, cfg);
+        checkSystemConfig(_prox, _cfg);
+        checkL1CrossDomainMessenger(_prox, _vm);
+        checkL1StandardBridge(_prox);
+        checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp);
+        checkOptimismMintableERC20Factory(_prox);
+        checkL1ERC721Bridge(_prox);
+        checkOptimismPortal(_prox, _cfg);
+        checkProtocolVersions(_prox, _cfg);
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
-    function checkSystemConfig(Types.ContractSet memory proxies, DeployConfig cfg) internal view {
-        ISystemConfigV0 config = ISystemConfigV0(proxies.SystemConfig);
-        require(config.owner() == cfg.finalSystemOwner());
-        require(config.overhead() == cfg.gasPriceOracleOverhead());
-        require(config.scalar() == cfg.gasPriceOracleScalar());
-        require(config.batcherHash() == bytes32(uint256(uint160(cfg.batchSenderAddress()))));
-        require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
+    function checkSystemConfig(Types.ContractSet memory _proxies, DeployConfig _cfg) internal view {
+        ISystemConfigV0 config = ISystemConfigV0(_proxies.SystemConfig);
+        require(config.owner() == _cfg.finalSystemOwner());
+        require(config.overhead() == _cfg.gasPriceOracleOverhead());
+        require(config.scalar() == _cfg.gasPriceOracleScalar());
+        require(config.batcherHash() == bytes32(uint256(uint160(_cfg.batchSenderAddress()))));
+        require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
 
         ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
@@ -64,86 +64,86 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory proxies, Vm vm) internal view {
-        L1CrossDomainMessenger messenger = L1CrossDomainMessenger(proxies.L1CrossDomainMessenger);
-        require(address(messenger.portal()) == proxies.OptimismPortal);
-        require(address(messenger.PORTAL()) == proxies.OptimismPortal);
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
+    function checkL1CrossDomainMessenger(Types.ContractSet memory _proxies, Vm _vm) internal view {
+        L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_proxies.L1CrossDomainMessenger);
+        require(address(messenger.portal()) == _proxies.OptimismPortal);
+        require(address(messenger.PORTAL()) == _proxies.OptimismPortal);
+        bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory proxies) internal view {
-        L1StandardBridge bridge = L1StandardBridge(payable(proxies.L1StandardBridge));
-        require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
-        require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
+    function checkL1StandardBridge(Types.ContractSet memory _proxies) internal view {
+        L1StandardBridge bridge = L1StandardBridge(payable(_proxies.L1StandardBridge));
+        require(address(bridge.MESSENGER()) == _proxies.L1CrossDomainMessenger);
+        require(address(bridge.messenger()) == _proxies.L1CrossDomainMessenger);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
     }
 
     /// @notice Asserts that the L2OutputOracle is setup correctly
     function checkL2OutputOracle(
-        Types.ContractSet memory proxies,
-        DeployConfig cfg,
-        uint256 l2OutputOracleStartingTimestamp
+        Types.ContractSet memory _proxies,
+        DeployConfig _cfg,
+        uint256 _l2OutputOracleStartingTimestamp
     )
         internal
         view
     {
-        L2OutputOracle oracle = L2OutputOracle(proxies.L2OutputOracle);
-        require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
-        require(oracle.l2BlockTime() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
-        require(oracle.proposer() == cfg.l2OutputOracleProposer());
-        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
-        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
-        require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
-        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
-        require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
-        require(oracle.startingTimestamp() == l2OutputOracleStartingTimestamp);
+        L2OutputOracle oracle = L2OutputOracle(_proxies.L2OutputOracle);
+        require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.submissionInterval() == _cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.L2_BLOCK_TIME() == _cfg.l2BlockTime());
+        require(oracle.l2BlockTime() == _cfg.l2BlockTime());
+        require(oracle.PROPOSER() == _cfg.l2OutputOracleProposer());
+        require(oracle.proposer() == _cfg.l2OutputOracleProposer());
+        require(oracle.CHALLENGER() == _cfg.l2OutputOracleChallenger());
+        require(oracle.challenger() == _cfg.l2OutputOracleChallenger());
+        require(oracle.FINALIZATION_PERIOD_SECONDS() == _cfg.finalizationPeriodSeconds());
+        require(oracle.finalizationPeriodSeconds() == _cfg.finalizationPeriodSeconds());
+        require(oracle.startingBlockNumber() == _cfg.l2OutputOracleStartingBlockNumber());
+        require(oracle.startingTimestamp() == _l2OutputOracleStartingTimestamp);
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
-    function checkOptimismMintableERC20Factory(Types.ContractSet memory proxies) internal view {
-        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(proxies.OptimismMintableERC20Factory);
-        require(factory.BRIDGE() == proxies.L1StandardBridge);
-        require(factory.bridge() == proxies.L1StandardBridge);
+    function checkOptimismMintableERC20Factory(Types.ContractSet memory _proxies) internal view {
+        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_proxies.OptimismMintableERC20Factory);
+        require(factory.BRIDGE() == _proxies.L1StandardBridge);
+        require(factory.bridge() == _proxies.L1StandardBridge);
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
-    function checkL1ERC721Bridge(Types.ContractSet memory proxies) internal view {
-        L1ERC721Bridge bridge = L1ERC721Bridge(proxies.L1ERC721Bridge);
-        require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
-        require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
+    function checkL1ERC721Bridge(Types.ContractSet memory _proxies) internal view {
+        L1ERC721Bridge bridge = L1ERC721Bridge(_proxies.L1ERC721Bridge);
+        require(address(bridge.MESSENGER()) == _proxies.L1CrossDomainMessenger);
+        require(address(bridge.messenger()) == _proxies.L1CrossDomainMessenger);
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
         require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
-    function checkOptimismPortal(Types.ContractSet memory proxies, DeployConfig cfg) internal view {
-        OptimismPortal portal = OptimismPortal(payable(proxies.OptimismPortal));
+    function checkOptimismPortal(Types.ContractSet memory _proxies, DeployConfig _cfg) internal view {
+        OptimismPortal portal = OptimismPortal(payable(_proxies.OptimismPortal));
 
-        address guardian = cfg.portalGuardian();
+        address guardian = _cfg.portalGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
         }
 
-        require(address(portal.L2_ORACLE()) == proxies.L2OutputOracle);
-        require(address(portal.l2Oracle()) == proxies.L2OutputOracle);
-        require(portal.GUARDIAN() == cfg.portalGuardian());
-        require(portal.guardian() == cfg.portalGuardian());
-        require(address(portal.SYSTEM_CONFIG()) == proxies.SystemConfig);
-        require(address(portal.systemConfig()) == proxies.SystemConfig);
+        require(address(portal.L2_ORACLE()) == _proxies.L2OutputOracle);
+        require(address(portal.l2Oracle()) == _proxies.L2OutputOracle);
+        require(portal.GUARDIAN() == _cfg.portalGuardian());
+        require(portal.guardian() == _cfg.portalGuardian());
+        require(address(portal.SYSTEM_CONFIG()) == _proxies.SystemConfig);
+        require(address(portal.systemConfig()) == _proxies.SystemConfig);
         require(portal.paused() == false);
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
-    function checkProtocolVersions(Types.ContractSet memory proxies, DeployConfig cfg) internal view {
-        ProtocolVersions versions = ProtocolVersions(proxies.ProtocolVersions);
-        require(versions.owner() == cfg.finalSystemOwner());
-        require(ProtocolVersion.unwrap(versions.required()) == cfg.requiredProtocolVersion());
-        require(ProtocolVersion.unwrap(versions.recommended()) == cfg.recommendedProtocolVersion());
+    function checkProtocolVersions(Types.ContractSet memory _proxies, DeployConfig _cfg) internal view {
+        ProtocolVersions versions = ProtocolVersions(_proxies.ProtocolVersions);
+        require(versions.owner() == _cfg.finalSystemOwner());
+        require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
+        require(ProtocolVersion.unwrap(versions.recommended()) == _cfg.recommendedProtocolVersion());
     }
 }
