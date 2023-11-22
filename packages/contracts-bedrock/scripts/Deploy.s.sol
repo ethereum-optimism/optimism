@@ -395,6 +395,9 @@ contract Deploy is Deployer {
         save("L1CrossDomainMessenger", address(messenger));
         console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
 
+        // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
+        // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1CrossDomainMessenger = address(messenger);
         ChainAssertions.checkL1CrossDomainMessenger(contracts, vm);
@@ -424,13 +427,12 @@ contract Deploy is Deployer {
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
 
+        // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
+        // to check the `OptimismPortal` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({
-            _contracts: contracts,
-            _cfg: cfg,
-            _isPaused: true
-        });
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: true });
 
         require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
@@ -452,6 +454,9 @@ contract Deploy is Deployer {
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
 
+        // Override the `L2OutputOracle` contract to the deployed implementation. This is necessary
+        // to check the `L2OutputOracle` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L2OutputOracle = address(oracle);
         ChainAssertions.checkL2OutputOracle(contracts, cfg, 0, 0);
@@ -470,6 +475,9 @@ contract Deploy is Deployer {
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
 
+        // Override the `OptimismMintableERC20Factory` contract to the deployed implementation. This is necessary
+        // to check the `OptimismMintableERC20Factory` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismMintableERC20Factory = address(factory);
         ChainAssertions.checkOptimismMintableERC20Factory(contracts);
@@ -501,13 +509,12 @@ contract Deploy is Deployer {
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
 
+        // Override the `ProtocolVersions` contract to the deployed implementation. This is necessary
+        // to check the `ProtocolVersions` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.ProtocolVersions = address(versions);
-        ChainAssertions.checkProtocolVersions({
-            _contracts: contracts,
-            _cfg: cfg,
-            _isProxy: false
-        });
+        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         require(loadInitializedSlot("ProtocolVersions", false) == 1, "ProtocolVersions is not initialized");
 
@@ -549,13 +556,12 @@ contract Deploy is Deployer {
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
 
+        // Override the `SystemConfig` contract to the deployed implementation. This is necessary
+        // to check the `SystemConfig` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfig = address(config);
-        ChainAssertions.checkSystemConfig({
-            _contracts: contracts,
-            _cfg: cfg,
-            _isProxy: false
-        });
+        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         require(loadInitializedSlot("SystemConfig", false) == 1, "SystemConfig is not initialized");
 
@@ -573,6 +579,9 @@ contract Deploy is Deployer {
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
 
+        // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
+        // to check the `L1StandardBridge` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1StandardBridge = address(bridge);
         ChainAssertions.checkL1StandardBridge(contracts);
@@ -591,6 +600,9 @@ contract Deploy is Deployer {
         save("L1ERC721Bridge", address(bridge));
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
 
+        // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
+        // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
+        // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1ERC721Bridge = address(bridge);
         ChainAssertions.checkL1ERC721Bridge(contracts);
@@ -658,11 +670,7 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        ChainAssertions.checkSystemConfig({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true
-        });
+        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("SystemConfig", true) == 1, "SystemConfigProxy is not initialized");
     }
@@ -815,11 +823,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isPaused: false
-        });
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isPaused: false });
 
         require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }
@@ -849,11 +853,7 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        ChainAssertions.checkProtocolVersions({
-            _contracts: _proxies(),
-            _cfg: cfg,
-            _isProxy: true
-        });
+        ChainAssertions.checkProtocolVersions({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("ProtocolVersions", true) == 1, "ProtocolVersionsProxy is not initialized");
     }

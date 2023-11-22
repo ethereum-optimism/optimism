@@ -36,26 +36,14 @@ library ChainAssertions {
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
-        checkSystemConfig({
-            _contracts: _prox,
-            _cfg: _cfg,
-            _isProxy: true
-        });
+        checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkL1CrossDomainMessenger(_prox, _vm);
         checkL1StandardBridge(_prox);
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
         checkL1ERC721Bridge(_prox);
-        checkOptimismPortal({
-            _contracts: _prox,
-            _cfg: _cfg,
-            _isPaused: false
-        });
-        checkProtocolVersions({
-            _contracts: _prox,
-            _cfg: _cfg,
-            _isProxy: true
-        });
+        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isPaused: false });
+        checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
@@ -171,7 +159,14 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
-    function checkProtocolVersions(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
+    function checkProtocolVersions(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isProxy
+    )
+        internal
+        view
+    {
         ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
         if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
