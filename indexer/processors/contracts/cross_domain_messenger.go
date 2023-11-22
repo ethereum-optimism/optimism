@@ -86,35 +86,33 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 			return nil, err
 		}
 
-		versionBig, _ := crossdomain.DecodeVersionedNonce(sentMessage.MessageNonce)
+		_, versionBig := crossdomain.DecodeVersionedNonce(sentMessage.MessageNonce)
 		version := uint16(versionBig.Uint64())
 		if i < numVersionZeroMessages && version != 0 {
 			return nil, fmt.Errorf("expected version zero nonce: nonce %d, tx_hash %s", sentMessage.MessageNonce, sentMessage.Raw.TxHash)
 		}
 
-		// In version zero, to value is bridged through the cross domain messenger.
-		value := bigint.Zero
-		if version > 0 {
-			sentMessageExtension := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageExtensionEvents[i].RLPLog}
-			err = UnpackLog(&sentMessageExtension, sentMessageExtensionEvents[i].RLPLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerAbi)
-			if err != nil {
-				return nil, err
-			}
-			value = sentMessageExtension.Value
-		}
-
-		var messageHash common.Hash
+		value, messageHash := bigint.Zero, common.Hash{}
 		switch version {
 		case 0:
 			messageHash, err = crossdomain.HashCrossDomainMessageV0(sentMessage.Target, sentMessage.Sender, sentMessage.Message, sentMessage.MessageNonce)
 			if err != nil {
 				return nil, err
 			}
+
 		case 1:
+			sentMessageExtension := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageExtensionEvents[i].RLPLog}
+			err = UnpackLog(&sentMessageExtension, sentMessageExtensionEvents[i].RLPLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerAbi)
+			if err != nil {
+				return nil, err
+			}
+
+			value = sentMessageExtension.Value
 			messageHash, err = crossdomain.HashCrossDomainMessageV1(sentMessage.MessageNonce, sentMessage.Sender, sentMessage.Target, value, sentMessage.GasLimit, sentMessage.Message)
 			if err != nil {
 				return nil, err
 			}
+
 		default:
 			// NOTE: We explicitly fail here since the presence of a new version means finalization
 			// logic needs to be updated to ensure L1 finalization can run from genesis and handle
