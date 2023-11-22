@@ -1,0 +1,20 @@
+{
+  "methodIdentifiers": {
+    "3f827a5a": "MESSAGE_VERSION()",
+    "44df8e70": "burn()",
+    "54fd4d50": "version()",
+    "82e3702d": "sentMessages(bytes32)",
+    "c2b3e5ac": "initiateWithdrawal(address,uint256,bytes)",
+    "ecc70428": "messageNonce()"
+  },
+  "storageLayout": {
+    "msgNonce": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "sentMessages": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "methodIdentifiers": {
+    "715018a6": "renounceOwnership()",
+    "8da5cb5b": "owner()",
+    "9b2ea4bd": "setAddress(string,address)",
+    "bf40fac1": "getAddress(string)",
+    "f2fde38b": "transferOwnership(address)"
+  },
+  "storageLayout": {
+    "_owner": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "addresses": {
+      "offset": 0,
+      "slot": "1"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "methodIdentifiers": {
+    "87087623": "bridgeERC20(address,address,uint256,uint32,bytes)",
+    "0166a07a": "finalizeBridgeERC20(address,address,address,address,uint256,bytes)",
+    "09fc8843": "bridgeETH(uint32,bytes)",
+    "1532ec34": "finalizeETHWithdrawal(address,address,uint256,bytes)",
+    "1635f5fd": "finalizeBridgeETH(address,address,uint256,bytes)",
+    "3cb747bf": "messenger()",
+    "540abf73": "bridgeERC20To(address,address,address,uint256,uint32,bytes)",
+    "54fd4d50": "version()",
+    "58a997f6": "depositERC20(address,address,uint256,uint32,bytes)",
+    "7f46ddb2": "OTHER_BRIDGE()",
+    "838b2520": "depositERC20To(address,address,address,uint256,uint32,bytes)",
+    "8f601f66": "deposits(address,address)",
+    "91c49bf8": "l2TokenBridge()",
+    "927ede2d": "MESSENGER()",
+    "9a2ac6d5": "depositETHTo(address,uint32,bytes)",
+    "a9f9e675": "finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)",
+    "b1a1a882": "depositETH(uint32,bytes)",
+    "c89701a2": "otherBridge()",
+    "e11013dd": "bridgeETHTo(address,uint32,bytes)"
+  },
+  "storageLayout": {
+    "__gap": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "deposits": {
+      "offset": 0,
+      "slot": "2"
+    },
+    "spacer_0_0_20": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "spacer_1_0_20": {
+      "offset": 0,
+      "slot": "1"
+    }
+  }
+}

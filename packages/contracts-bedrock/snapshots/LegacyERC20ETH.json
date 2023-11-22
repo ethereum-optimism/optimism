@@ -1,0 +1,47 @@
+{
+  "methodIdentifiers": {
+    "39509351": "increaseAllowance(address,uint256)",
+    "01ffc9a7": "supportsInterface(bytes4)",
+    "033964be": "REMOTE_TOKEN()",
+    "06fdde03": "name()",
+    "095ea7b3": "approve(address,uint256)",
+    "18160ddd": "totalSupply()",
+    "23b872dd": "transferFrom(address,address,uint256)",
+    "313ce567": "decimals()",
+    "40c10f19": "mint(address,uint256)",
+    "54fd4d50": "version()",
+    "70a08231": "balanceOf(address)",
+    "95d89b41": "symbol()",
+    "9dc29fac": "burn(address,uint256)",
+    "a457c2d7": "decreaseAllowance(address,uint256)",
+    "a9059cbb": "transfer(address,uint256)",
+    "ae1f6aaf": "l2Bridge()",
+    "c01e1bd6": "l1Token()",
+    "d6c0b2c4": "remoteToken()",
+    "dd62ed3e": "allowance(address,address)",
+    "e78cea92": "bridge()",
+    "ee9a31a2": "BRIDGE()"
+  },
+  "storageLayout": {
+    "_allowances": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "_balances": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_name": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "_symbol": {
+      "offset": 0,
+      "slot": "4"
+    },
+    "_totalSupply": {
+      "offset": 0,
+      "slot": "2"
+    }
+  }
+}

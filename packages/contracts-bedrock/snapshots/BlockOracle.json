@@ -1,0 +1,13 @@
+{
+  "methodIdentifiers": {
+    "54fd4d50": "version()",
+    "99d548aa": "load(uint256)",
+    "c2c4c5c1": "checkpoint()"
+  },
+  "storageLayout": {
+    "blocks": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

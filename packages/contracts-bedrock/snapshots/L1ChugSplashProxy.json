@@ -1,0 +1,10 @@
+{
+  "methodIdentifiers": {
+    "13af4035": "setOwner(address)",
+    "6c5d4ad0": "setCode(bytes)",
+    "893d20e8": "getOwner()",
+    "9b0b0fda": "setStorage(bytes32,bytes32)",
+    "aaf10f42": "getImplementation()"
+  },
+  "storageLayout": {}
+}

@@ -1,0 +1,15 @@
+{
+  "methodIdentifiers": {
+    "54fd4d50": "version()",
+    "5572acae": "isOptimismMintableERC721(address)",
+    "7d1d0c5b": "REMOTE_CHAIN_ID()",
+    "d97df652": "createOptimismMintableERC721(address,string,string)",
+    "ee9a31a2": "BRIDGE()"
+  },
+  "storageLayout": {
+    "isOptimismMintableERC721": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

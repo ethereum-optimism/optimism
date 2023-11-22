@@ -1,0 +1,76 @@
+{
+  "methodIdentifiers": {
+    "01ffc9a7": "supportsInterface(bytes4)",
+    "033964be": "REMOTE_TOKEN()",
+    "06fdde03": "name()",
+    "081812fc": "getApproved(uint256)",
+    "095ea7b3": "approve(address,uint256)",
+    "18160ddd": "totalSupply()",
+    "23b872dd": "transferFrom(address,address,uint256)",
+    "2f745c59": "tokenOfOwnerByIndex(address,uint256)",
+    "42842e0e": "safeTransferFrom(address,address,uint256)",
+    "4f6ccce7": "tokenByIndex(uint256)",
+    "54fd4d50": "version()",
+    "6352211e": "ownerOf(uint256)",
+    "70a08231": "balanceOf(address)",
+    "7d1d0c5b": "REMOTE_CHAIN_ID()",
+    "95d89b41": "symbol()",
+    "9dc29fac": "burn(address,uint256)",
+    "a1448194": "safeMint(address,uint256)",
+    "a22cb465": "setApprovalForAll(address,bool)",
+    "b88d4fde": "safeTransferFrom(address,address,uint256,bytes)",
+    "c87b56dd": "tokenURI(uint256)",
+    "d547cfb7": "baseTokenURI()",
+    "d6c0b2c4": "remoteToken()",
+    "e78cea92": "bridge()",
+    "e9518196": "remoteChainId()",
+    "e985e9c5": "isApprovedForAll(address,address)",
+    "ee9a31a2": "BRIDGE()"
+  },
+  "storageLayout": {
+    "_allTokens": {
+      "offset": 0,
+      "slot": "8"
+    },
+    "_allTokensIndex": {
+      "offset": 0,
+      "slot": "9"
+    },
+    "_balances": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "_name": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_operatorApprovals": {
+      "offset": 0,
+      "slot": "5"
+    },
+    "_ownedTokens": {
+      "offset": 0,
+      "slot": "6"
+    },
+    "_ownedTokensIndex": {
+      "offset": 0,
+      "slot": "7"
+    },
+    "_owners": {
+      "offset": 0,
+      "slot": "2"
+    },
+    "_symbol": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "_tokenApprovals": {
+      "offset": 0,
+      "slot": "4"
+    },
+    "baseTokenURI": {
+      "offset": 0,
+      "slot": "10"
+    }
+  }
+}

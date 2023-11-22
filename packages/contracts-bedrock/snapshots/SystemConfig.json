@@ -1,0 +1,61 @@
+{
+  "methodIdentifiers": {
+    "0c18c162": "overhead()",
+    "18d13918": "setUnsafeBlockSigner(address)",
+    "1fd19ee1": "unsafeBlockSigner()",
+    "4add321d": "minimumGasLimit()",
+    "4f16540b": "UNSAFE_BLOCK_SIGNER_SLOT()",
+    "54fd4d50": "version()",
+    "715018a6": "renounceOwnership()",
+    "8da5cb5b": "owner()",
+    "935f029e": "setGasConfig(uint256,uint256)",
+    "b40a817c": "setGasLimit(uint64)",
+    "c71973f6": "setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128))",
+    "c9b26f61": "setBatcherHash(bytes32)",
+    "cc731b02": "resourceConfig()",
+    "e81b2c6d": "batcherHash()",
+    "f2fde38b": "transferOwnership(address)",
+    "f45e65d8": "scalar()",
+    "f68016b7": "gasLimit()",
+    "f975e925": "initialize(address,uint256,uint256,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128))",
+    "ffa1ad74": "VERSION()"
+  },
+  "storageLayout": {
+    "__gap": {
+      "offset": 0,
+      "slot": "52"
+    },
+    "_initialized": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_initializing": {
+      "offset": 1,
+      "slot": "0"
+    },
+    "_owner": {
+      "offset": 0,
+      "slot": "51"
+    },
+    "_resourceConfig": {
+      "offset": 0,
+      "slot": "105"
+    },
+    "batcherHash": {
+      "offset": 0,
+      "slot": "103"
+    },
+    "gasLimit": {
+      "offset": 0,
+      "slot": "104"
+    },
+    "overhead": {
+      "offset": 0,
+      "slot": "101"
+    },
+    "scalar": {
+      "offset": 0,
+      "slot": "102"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "methodIdentifiers": {
+    "54fd4d50": "version()",
+    "82e3702d": "sentMessages(bytes32)",
+    "cafa81dc": "passMessageToL1(bytes)"
+  },
+  "storageLayout": {
+    "sentMessages": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

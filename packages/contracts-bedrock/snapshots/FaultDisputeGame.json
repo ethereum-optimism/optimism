@@ -1,0 +1,70 @@
+{
+  "methodIdentifiers": {
+    "92931298": "VM()",
+    "200d2ed2": "status()",
+    "266198f9": "ABSOLUTE_PRESTATE()",
+    "2810e1d6": "resolve()",
+    "298c9005": "l1BlockNumber()",
+    "35fef567": "defend(uint256,bytes32)",
+    "363cc427": "bondManager()",
+    "4778efe8": "MAX_GAME_DEPTH()",
+    "529184c9": "BLOCK_ORACLE()",
+    "54fd4d50": "version()",
+    "55ef20e6": "proposals()",
+    "609d3334": "extraData()",
+    "632247ea": "move(uint256,bytes32,bool)",
+    "6361506d": "l1Head()",
+    "8129fc1c": "initialize()",
+    "8980e0cc": "claimDataLen()",
+    "8b85902b": "l2BlockNumber()",
+    "bbdc02db": "gameType()",
+    "bcef3b55": "rootClaim()",
+    "c0c3a092": "L2_OUTPUT_ORACLE()",
+    "c31b29ce": "GAME_DURATION()",
+    "c55cd0c7": "attack(uint256,bytes32)",
+    "c6f0308c": "claimData(uint256)",
+    "cf09e0d0": "createdAt()",
+    "d8cc1a3c": "step(uint256,bool,bytes,bytes)",
+    "f8f43ff6": "addLocalData(uint256,uint256,uint256)",
+    "fa24f743": "gameData()",
+    "fdffbb28": "resolveClaim(uint256)"
+  },
+  "storageLayout": {
+    "bondManager": {
+      "offset": 9,
+      "slot": "0"
+    },
+    "claimData": {
+      "offset": 0,
+      "slot": "2"
+    },
+    "claims": {
+      "offset": 0,
+      "slot": "7"
+    },
+    "createdAt": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "l1Head": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "proposals": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "status": {
+      "offset": 8,
+      "slot": "0"
+    },
+    "subgameAtRootResolved": {
+      "offset": 0,
+      "slot": "9"
+    },
+    "subgames": {
+      "offset": 0,
+      "slot": "8"
+    }
+  }
+}

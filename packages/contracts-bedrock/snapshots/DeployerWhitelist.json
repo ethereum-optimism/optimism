@@ -1,0 +1,21 @@
+{
+  "methodIdentifiers": {
+    "08fd6322": "setWhitelistedDeployer(address,bool)",
+    "13af4035": "setOwner(address)",
+    "54fd4d50": "version()",
+    "8da5cb5b": "owner()",
+    "9b19251a": "whitelist(address)",
+    "b1540a01": "isDeployerAllowed(address)",
+    "bdc7b54f": "enableArbitraryContractDeployment()"
+  },
+  "storageLayout": {
+    "owner": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "whitelist": {
+      "offset": 0,
+      "slot": "1"
+    }
+  }
+}

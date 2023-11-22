@@ -1,0 +1,13 @@
+{
+  "methodIdentifiers": {},
+  "storageLayout": {
+    "addressManager": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "implementationName": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

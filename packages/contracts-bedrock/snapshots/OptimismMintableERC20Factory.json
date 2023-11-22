@@ -1,0 +1,11 @@
+{
+  "methodIdentifiers": {
+    "54fd4d50": "version()",
+    "896f93d1": "createStandardL2Token(address,string,string)",
+    "8cf0629c": "createOptimismMintableERC20WithDecimals(address,string,string,uint8)",
+    "ce5ac90f": "createOptimismMintableERC20(address,string,string)",
+    "e78cea92": "bridge()",
+    "ee9a31a2": "BRIDGE()"
+  },
+  "storageLayout": {}
+}

@@ -1,0 +1,37 @@
+{
+  "methodIdentifiers": {
+    "06fdde03": "name()",
+    "095ea7b3": "approve(address,uint256)",
+    "18160ddd": "totalSupply()",
+    "23b872dd": "transferFrom(address,address,uint256)",
+    "2e1a7d4d": "withdraw(uint256)",
+    "313ce567": "decimals()",
+    "70a08231": "balanceOf(address)",
+    "95d89b41": "symbol()",
+    "a9059cbb": "transfer(address,uint256)",
+    "d0e30db0": "deposit()",
+    "dd62ed3e": "allowance(address,address)"
+  },
+  "storageLayout": {
+    "allowance": {
+      "offset": 0,
+      "slot": "4"
+    },
+    "balanceOf": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "decimals": {
+      "offset": 0,
+      "slot": "2"
+    },
+    "name": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "symbol": {
+      "offset": 0,
+      "slot": "1"
+    }
+  }
+}

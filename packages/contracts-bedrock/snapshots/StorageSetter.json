@@ -1,0 +1,13 @@
+{
+  "methodIdentifiers": {
+    "0528afe2": "setBytes32((bytes32,bytes32)[])",
+    "21f8a721": "getAddress(bytes32)",
+    "4e91db08": "setBytes32(bytes32,bytes32)",
+    "54fd4d50": "version()",
+    "a6ed563e": "getBytes32(bytes32)",
+    "bd02d0f5": "getUint(bytes32)",
+    "ca446dd9": "setAddress(bytes32,address)",
+    "e2a4853a": "setUint(bytes32,uint256)"
+  },
+  "storageLayout": {}
+}

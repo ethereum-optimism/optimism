@@ -1,0 +1,10 @@
+{
+  "methodIdentifiers": {
+    "3659cfe6": "upgradeTo(address)",
+    "4f1ef286": "upgradeToAndCall(address,bytes)",
+    "5c60da1b": "implementation()",
+    "8f283970": "changeAdmin(address)",
+    "f851a440": "admin()"
+  },
+  "storageLayout": {}
+}

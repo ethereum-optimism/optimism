@@ -1,0 +1,15 @@
+{
+  "methodIdentifiers": {
+    "0c18c162": "overhead()",
+    "2e0f2625": "DECIMALS()",
+    "313ce567": "decimals()",
+    "49948e0e": "getL1Fee(bytes)",
+    "519b4bd3": "l1BaseFee()",
+    "54fd4d50": "version()",
+    "6ef25c3a": "baseFee()",
+    "de26c4a1": "getL1GasUsed(bytes)",
+    "f45e65d8": "scalar()",
+    "fe173b97": "gasPrice()"
+  },
+  "storageLayout": {}
+}

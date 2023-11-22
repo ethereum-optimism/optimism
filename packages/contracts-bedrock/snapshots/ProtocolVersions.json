@@ -1,0 +1,34 @@
+{
+  "methodIdentifiers": {
+    "0457d6f2": "setRequired(uint256)",
+    "206a8300": "REQUIRED_SLOT()",
+    "54fd4d50": "version()",
+    "5fd579af": "setRecommended(uint256)",
+    "715018a6": "renounceOwnership()",
+    "7a1ac61e": "initialize(address,uint256,uint256)",
+    "8da5cb5b": "owner()",
+    "d798b1ac": "recommended()",
+    "dc8452cd": "required()",
+    "f2fde38b": "transferOwnership(address)",
+    "f7d12760": "RECOMMENDED_SLOT()",
+    "ffa1ad74": "VERSION()"
+  },
+  "storageLayout": {
+    "__gap": {
+      "offset": 0,
+      "slot": "52"
+    },
+    "_initialized": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_initializing": {
+      "offset": 1,
+      "slot": "0"
+    },
+    "_owner": {
+      "offset": 0,
+      "slot": "51"
+    }
+  }
+}

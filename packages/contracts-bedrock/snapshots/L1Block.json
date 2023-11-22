@@ -1,0 +1,49 @@
+{
+  "methodIdentifiers": {
+    "015d8eb9": "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)",
+    "09bd5a60": "hash()",
+    "54fd4d50": "version()",
+    "5cf24969": "basefee()",
+    "64ca23ef": "sequenceNumber()",
+    "8381f58a": "number()",
+    "8b239f73": "l1FeeOverhead()",
+    "9e8c4966": "l1FeeScalar()",
+    "b80777ea": "timestamp()",
+    "e591b282": "DEPOSITOR_ACCOUNT()",
+    "e81b2c6d": "batcherHash()"
+  },
+  "storageLayout": {
+    "basefee": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "batcherHash": {
+      "offset": 0,
+      "slot": "4"
+    },
+    "hash": {
+      "offset": 0,
+      "slot": "2"
+    },
+    "l1FeeOverhead": {
+      "offset": 0,
+      "slot": "5"
+    },
+    "l1FeeScalar": {
+      "offset": 0,
+      "slot": "6"
+    },
+    "number": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "sequenceNumber": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "timestamp": {
+      "offset": 8,
+      "slot": "0"
+    }
+  }
+}

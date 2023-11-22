@@ -1,0 +1,20 @@
+{
+  "methodIdentifiers": {
+    "54fd4d50": "version()",
+    "5c39fcc1": "initiator()",
+    "6a42b8f8": "delay()",
+    "b912de5d": "queuedAt(bytes32)",
+    "d4b83992": "target()",
+    "d8bff440": "vetoer()"
+  },
+  "storageLayout": {
+    "_delay": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_queuedAt": {
+      "offset": 0,
+      "slot": "1"
+    }
+  }
+}

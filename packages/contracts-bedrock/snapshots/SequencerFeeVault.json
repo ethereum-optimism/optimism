@@ -1,0 +1,17 @@
+{
+  "methodIdentifiers": {
+    "0d9019e1": "RECIPIENT()",
+    "3ccfd60b": "withdraw()",
+    "54fd4d50": "version()",
+    "84411d65": "totalProcessed()",
+    "d0e12f90": "WITHDRAWAL_NETWORK()",
+    "d3e5792b": "MIN_WITHDRAWAL_AMOUNT()",
+    "d4ff9218": "l1FeeWallet()"
+  },
+  "storageLayout": {
+    "totalProcessed": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

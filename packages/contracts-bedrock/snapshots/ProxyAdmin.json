@@ -1,0 +1,43 @@
+{
+  "methodIdentifiers": {
+    "0652b57a": "setAddressManager(address)",
+    "07c8f7b0": "setUpgrading(bool)",
+    "204e1c7a": "getProxyImplementation(address)",
+    "238181ae": "implementationName(address)",
+    "3ab76e9f": "addressManager()",
+    "6bd9f516": "proxyType(address)",
+    "715018a6": "renounceOwnership()",
+    "7eff275e": "changeProxyAdmin(address,address)",
+    "860f7cda": "setImplementationName(address,string)",
+    "8d52d4a0": "setProxyType(address,uint8)",
+    "8da5cb5b": "owner()",
+    "9623609d": "upgradeAndCall(address,address,bytes)",
+    "99a88ec4": "upgrade(address,address)",
+    "9b2ea4bd": "setAddress(string,address)",
+    "b7947262": "isUpgrading()",
+    "f2fde38b": "transferOwnership(address)",
+    "f3b7dead": "getProxyAdmin(address)"
+  },
+  "storageLayout": {
+    "_owner": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "addressManager": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "implementationName": {
+      "offset": 0,
+      "slot": "2"
+    },
+    "proxyType": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "upgrading": {
+      "offset": 20,
+      "slot": "3"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "methodIdentifiers": {
+    "54fd4d50": "version()",
+    "b9b3efe9": "getL1BlockNumber()"
+  },
+  "storageLayout": {}
+}

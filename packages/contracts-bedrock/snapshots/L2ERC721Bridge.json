@@ -1,0 +1,18 @@
+{
+  "methodIdentifiers": {
+    "3687011a": "bridgeERC721(address,address,uint256,uint32,bytes)",
+    "3cb747bf": "messenger()",
+    "54fd4d50": "version()",
+    "761f4493": "finalizeBridgeERC721(address,address,address,address,uint256,bytes)",
+    "7f46ddb2": "OTHER_BRIDGE()",
+    "927ede2d": "MESSENGER()",
+    "aa557452": "bridgeERC721To(address,address,address,uint256,uint32,bytes)",
+    "c89701a2": "otherBridge()"
+  },
+  "storageLayout": {
+    "__gap": {
+      "offset": 0,
+      "slot": "0"
+    }
+  }
+}

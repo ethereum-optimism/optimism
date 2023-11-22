@@ -1,0 +1,50 @@
+{
+  "methodIdentifiers": {
+    "88786272": "startingTimestamp()",
+    "002134cc": "L2_BLOCK_TIME()",
+    "4599c788": "latestBlockNumber()",
+    "529933df": "SUBMISSION_INTERVAL()",
+    "534db0e2": "challenger()",
+    "54fd4d50": "version()",
+    "69f16eec": "latestOutputIndex()",
+    "6abcf563": "nextOutputIndex()",
+    "6b4d98dd": "CHALLENGER()",
+    "70872aa5": "startingBlockNumber()",
+    "7f006420": "getL2OutputIndexAfter(uint256)",
+    "89c44cbb": "deleteL2Outputs(uint256)",
+    "93991af3": "l2BlockTime()",
+    "9aaab648": "proposeL2Output(bytes32,uint256,bytes32,uint256)",
+    "a25ae557": "getL2Output(uint256)",
+    "a8e4fb90": "proposer()",
+    "bffa7f0f": "PROPOSER()",
+    "ce5db8d6": "finalizationPeriodSeconds()",
+    "cf8e5cf0": "getL2OutputAfter(uint256)",
+    "d1de856c": "computeL2Timestamp(uint256)",
+    "dcec3348": "nextBlockNumber()",
+    "e1a41bcf": "submissionInterval()",
+    "e4a30116": "initialize(uint256,uint256)",
+    "f4daa291": "FINALIZATION_PERIOD_SECONDS()"
+  },
+  "storageLayout": {
+    "_initialized": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_initializing": {
+      "offset": 1,
+      "slot": "0"
+    },
+    "l2Outputs": {
+      "offset": 0,
+      "slot": "3"
+    },
+    "startingBlockNumber": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "startingTimestamp": {
+      "offset": 0,
+      "slot": "2"
+    }
+  }
+}

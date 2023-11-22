@@ -1,0 +1,46 @@
+{
+  "methodIdentifiers": {
+    "26daafbe": "getGameUUID(uint8,bytes32,bytes)",
+    "3142e55e": "create(uint8,bytes32,bytes)",
+    "45583b7a": "setImplementation(uint8,address)",
+    "4d1975b4": "gameCount()",
+    "54fd4d50": "version()",
+    "715018a6": "renounceOwnership()",
+    "8da5cb5b": "owner()",
+    "bb8aa1fc": "gameAtIndex(uint256)",
+    "c49d5271": "games(uint8,bytes32,bytes)",
+    "c4d66de8": "initialize(address)",
+    "dfa162d3": "gameImpls(uint8)",
+    "f2fde38b": "transferOwnership(address)"
+  },
+  "storageLayout": {
+    "__gap": {
+      "offset": 0,
+      "slot": "52"
+    },
+    "_disputeGameList": {
+      "offset": 0,
+      "slot": "103"
+    },
+    "_disputeGames": {
+      "offset": 0,
+      "slot": "102"
+    },
+    "_initialized": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "_initializing": {
+      "offset": 1,
+      "slot": "0"
+    },
+    "_owner": {
+      "offset": 0,
+      "slot": "51"
+    },
+    "gameImpls": {
+      "offset": 0,
+      "slot": "101"
+    }
+  }
+}

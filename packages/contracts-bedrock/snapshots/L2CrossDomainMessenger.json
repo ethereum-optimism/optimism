@@ -1,0 +1,93 @@
+{
+  "methodIdentifiers": {
+    "028f85f7": "MIN_GAS_CALLDATA_OVERHEAD()",
+    "0c568498": "MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()",
+    "2828d7e8": "MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()",
+    "3dbb202b": "sendMessage(address,bytes,uint32)",
+    "3f827a5a": "MESSAGE_VERSION()",
+    "4c1d6a69": "RELAY_CALL_OVERHEAD()",
+    "54fd4d50": "version()",
+    "5644cfdf": "RELAY_GAS_CHECK_BUFFER()",
+    "6e296e45": "xDomainMessageSender()",
+    "8129fc1c": "initialize()",
+    "83a74074": "RELAY_CONSTANT_OVERHEAD()",
+    "8cbeeef2": "RELAY_RESERVED_GAS()",
+    "9fce812c": "OTHER_MESSENGER()",
+    "a4e7f8bd": "failedMessages(bytes32)",
+    "a7119869": "l1CrossDomainMessenger()",
+    "b1b1b209": "successfulMessages(bytes32)",
+    "b28ade25": "baseGas(bytes,uint32)",
+    "d764ad0b": "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+    "ecc70428": "messageNonce()"
+  },
+  "storageLayout": {
+    "__gap": {
+      "offset": 0,
+      "slot": "207"
+    },
+    "_initialized": {
+      "offset": 20,
+      "slot": "0"
+    },
+    "_initializing": {
+      "offset": 21,
+      "slot": "0"
+    },
+    "failedMessages": {
+      "offset": 0,
+      "slot": "206"
+    },
+    "msgNonce": {
+      "offset": 0,
+      "slot": "205"
+    },
+    "spacer_0_0_20": {
+      "offset": 0,
+      "slot": "0"
+    },
+    "spacer_101_0_1": {
+      "offset": 0,
+      "slot": "101"
+    },
+    "spacer_102_0_1568": {
+      "offset": 0,
+      "slot": "102"
+    },
+    "spacer_151_0_32": {
+      "offset": 0,
+      "slot": "151"
+    },
+    "spacer_152_0_1568": {
+      "offset": 0,
+      "slot": "152"
+    },
+    "spacer_1_0_1600": {
+      "offset": 0,
+      "slot": "1"
+    },
+    "spacer_201_0_32": {
+      "offset": 0,
+      "slot": "201"
+    },
+    "spacer_202_0_32": {
+      "offset": 0,
+      "slot": "202"
+    },
+    "spacer_51_0_20": {
+      "offset": 0,
+      "slot": "51"
+    },
+    "spacer_52_0_1568": {
+      "offset": 0,
+      "slot": "52"
+    },
+    "successfulMessages": {
+      "offset": 0,
+      "slot": "203"
+    },
+    "xDomainMsgSender": {
+      "offset": 0,
+      "slot": "204"
+    }
+  }
+}
