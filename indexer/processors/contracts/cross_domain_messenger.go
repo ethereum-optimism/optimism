@@ -92,7 +92,8 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 			return nil, fmt.Errorf("expected version zero nonce: nonce %d, tx_hash %s", sentMessage.MessageNonce, sentMessage.Raw.TxHash)
 		}
 
-		value, messageHash := bigint.Zero, common.Hash{}
+		value := bigint.Zero
+		var messageHash common.Hash
 		switch version {
 		case 0:
 			messageHash, err = crossdomain.HashCrossDomainMessageV0(sentMessage.Target, sentMessage.Sender, sentMessage.Message, sentMessage.MessageNonce)
