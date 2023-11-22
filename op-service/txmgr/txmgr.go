@@ -49,6 +49,9 @@ type TxManager interface {
 
 	// BlockNumber returns the most recent block number from the underlying network.
 	BlockNumber(ctx context.Context) (uint64, error)
+
+	// Close the underlying connection
+	Close()
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -80,6 +83,8 @@ type ETHBackend interface {
 	// EstimateGas returns an estimate of the amount of gas needed to execute the given
 	// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	// Close the underlying eth connection
+	Close()
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -129,6 +134,10 @@ func (m *SimpleTxManager) From() common.Address {
 
 func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return m.backend.BlockNumber(ctx)
+}
+
+func (m *SimpleTxManager) Close() {
+	m.backend.Close()
 }
 
 // TxCandidate is a transaction candidate that can be submitted to ask the

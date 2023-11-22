@@ -19,19 +19,13 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.1
-    string public constant version = "1.4.1";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
-    /// @notice Constructs the contract.
-    constructor() ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
-    }
-
-    /// @notice Initializes the contract.
+    /// @notice Constructs the L1ERC721Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
-        __ERC721Bridge_init({ _messenger: _messenger });
-    }
+    /// @param _otherBridge Address of the ERC721 bridge on the other network.
+    constructor(address _messenger, address _otherBridge) ERC721Bridge(_messenger, _otherBridge) { }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
@@ -99,7 +93,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
 
         // Send calldata into L2
-        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }

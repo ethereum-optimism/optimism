@@ -1,8 +1,6 @@
 import fs from 'fs'
 import path from 'path'
 
-import layoutLock from '../layout-lock.json'
-
 /**
  * Directory path to the artifacts.
  * Can be configured as the first argument to the script or
@@ -20,15 +18,6 @@ const directoryPath =
  */
 const skipped = (contractName: string): boolean => {
   return contractName.includes('CrossDomainMessengerLegacySpacer')
-}
-
-/**
- * Parses the fully qualified name of a contract into the name of the contract.
- * For example `contracts/Foo.sol:Foo` becomes `Foo`.
- */
-const parseFqn = (name: string): string => {
-  const parts = name.split(':')
-  return parts[parts.length - 1]
 }
 
 /**
@@ -89,7 +78,6 @@ const parseVariableInfo = (
 /**
  * Main logic of the script
  * - Ensures that all of the spacer variables are named correctly
- * - Ensures that storage slots in the layout lock file do not change
  */
 const main = async () => {
   const paths = []
@@ -126,24 +114,6 @@ const main = async () => {
         // Skip some abstract contracts
         if (skipped(fqn)) {
           continue
-        }
-
-        const contractName = parseFqn(fqn)
-
-        // Check that the layout lock has not changed
-        const lock = layoutLock[contractName] || {}
-        if (lock[variable.label]) {
-          const variableInfo = parseVariableInfo(variable)
-          const expectedInfo = lock[variable.label]
-          if (variableInfo.slot !== expectedInfo.slot) {
-            throw new Error(`${fqn}.${variable.label} slot has changed`)
-          }
-          if (variableInfo.offset !== expectedInfo.offset) {
-            throw new Error(`${fqn}.${variable.label} offset has changed`)
-          }
-          if (variableInfo.length !== expectedInfo.length) {
-            throw new Error(`${fqn}.${variable.label} length has changed`)
-          }
         }
 
         // Check that the spacers are all named correctly

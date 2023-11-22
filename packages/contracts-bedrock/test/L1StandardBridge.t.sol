@@ -35,8 +35,6 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
-        bytes32 slot0 = vm.load(address(l1StandardBridge), bytes32(uint256(0)));
-        assertEq(slot0, bytes32(uint256(Constants.INITIALIZER)));
     }
 }
 
