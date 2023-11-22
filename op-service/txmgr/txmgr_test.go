@@ -261,6 +261,9 @@ func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash
 	}, nil
 }
 
+func (b *mockBackend) Close() {
+}
+
 // TestTxMgrConfirmAtMinGasPrice asserts that Send returns the min gas price tx
 // if the tx is mined instantly.
 func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
@@ -753,6 +756,9 @@ func (b *failingBackend) PendingNonceAt(_ context.Context, _ common.Address) (ui
 
 func (b *failingBackend) ChainID(ctx context.Context) (*big.Int, error) {
 	return nil, errors.New("unimplemented")
+}
+
+func (b *failingBackend) Close() {
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to

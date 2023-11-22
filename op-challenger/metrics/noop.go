@@ -1,11 +1,21 @@
 package metrics
 
 import (
+	"io"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 type NoopMetricsImpl struct {
 	txmetrics.NoopTxMetrics
+}
+
+func (i *NoopMetricsImpl) StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer {
+	return nil
 }
 
 var NoopMetrics Metricer = new(NoopMetricsImpl)

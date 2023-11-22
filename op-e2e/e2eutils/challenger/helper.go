@@ -11,16 +11,19 @@ import (
 	"testing"
 	"time"
 
-	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
+
+	challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 type Helper struct {
@@ -28,8 +31,7 @@ type Helper struct {
 	t       *testing.T
 	require *require.Assertions
 	dir     string
-	cancel  func()
-	errors  chan error
+	chl     cliapp.Lifecycle
 }
 
 type Option func(config2 *config.Config)
@@ -127,20 +129,16 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 	log := testlog.Logger(t, log.LvlDebug).New("role", name)
 	log.Info("Creating challenger", "l1", l1Endpoint)
 	cfg := NewChallengerConfig(t, l1Endpoint, options...)
+	chl, err := challenger.Main(ctx, log, cfg)
+	require.NoError(t, err, "must init challenger")
+	require.NoError(t, chl.Start(ctx), "must start challenger")
 
-	errCh := make(chan error, 1)
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		defer close(errCh)
-		errCh <- op_challenger.Main(ctx, log, cfg)
-	}()
 	return &Helper{
 		log:     log,
 		t:       t,
 		require: require.New(t),
 		dir:     cfg.Datadir,
-		cancel:  cancel,
-		errors:  errCh,
+		chl:     chl,
 	}
 }
 
@@ -179,16 +177,9 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 }
 
 func (h *Helper) Close() error {
-	h.cancel()
-	select {
-	case <-time.After(1 * time.Minute):
-		return errors.New("timed out while stopping challenger")
-	case err := <-h.errors:
-		if !errors.Is(err, context.Canceled) {
-			return err
-		}
-		return nil
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	return h.chl.Stop(ctx)
 }
 
 type GameAddr interface {
