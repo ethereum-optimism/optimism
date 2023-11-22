@@ -251,19 +251,11 @@ contract Deploy is Deployer {
     function setupOpChain() public {
         console.log("Deploying OP Chain");
 
-        if (getAddress("SuperchainConfigProxy") == address(0)) {
-            deployERC1967Proxy("SuperchainConfigProxy");
-        }
-        if (getAddress("SystemOwnerSafe") == address(0)) {
-            deploySafe();
-        }
-        if (getAddress("AddressManager") == address(0)) {
-            deployAddressManager();
-        }
-        if (getAddress("ProxyAdmin") == address(0)) {
-            deployProxyAdmin();
-            transferProxyAdminOwnership();
-        }
+        // Ensure that the requisite contracts are deployed
+        mustGetAddress("SuperchainConfigProxy");
+        mustGetAddress("SystemOwnerSafe");
+        mustGetAddress("AddressManager");
+        mustGetAddress("ProxyAdmin");
 
         deployProxies();
         deployImplementations();
