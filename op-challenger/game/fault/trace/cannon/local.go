@@ -40,7 +40,7 @@ func fetchLocalInputs(ctx context.Context, caller GameInputsSource, l2Client L2D
 	return fetchLocalInputsFromProposals(ctx, caller, l2Client, agreedOutput, claimedOutput)
 }
 
-func fetchLocalInputsFromProposals(ctx context.Context, caller GameInputsSource, l2Client L2DataSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
+func fetchLocalInputsFromProposals(ctx context.Context, caller L1HeadSource, l2Client L2DataSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
 	l1Head, err := caller.GetL1Head(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L1 head: %w", err)
