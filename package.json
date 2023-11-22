@@ -53,7 +53,7 @@
     "eslint-config-prettier": "^8.3.0",
     "eslint-config-standard": "^16.0.3",
     "eslint-plugin-import": "^2.29.0",
-    "eslint-plugin-jsdoc": "^35.1.2",
+    "eslint-plugin-jsdoc": "^46.9.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prefer-arrow": "^1.2.3",
     "eslint-plugin-prettier": "^4.0.0",
