@@ -174,7 +174,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		if err != nil {
 			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
 		}
-		return eth.WatchHeadChanges(n.resourcesCtx, n.l1Source, n.OnNewL1Head)
+		return eth.WatchHeadChanges(ctx, n.l1Source, n.OnNewL1Head)
 	})
 	go func() {
 		err, ok := <-n.l1HeadsSub.Err()
@@ -186,9 +186,9 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 	// Poll for the safe L1 block and finalized block,
 	// which only change once per epoch at most and may be delayed.
-	n.l1SafeSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
+	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
 		cfg.L1EpochPollInterval, time.Second*10)
-	n.l1FinalizedSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
+	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
 		cfg.L1EpochPollInterval, time.Second*10)
 	return nil
 }
@@ -581,6 +581,14 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	// stop L1 heads feed
 	if n.l1HeadsSub != nil {
 		n.l1HeadsSub.Unsubscribe()
+	}
+	// stop polling for L1 safe-head changes
+	if n.l1SafeSub != nil {
+		n.l1SafeSub.Unsubscribe()
+	}
+	// stop polling for L1 finalized-head changes
+	if n.l1FinalizedSub != nil {
+		n.l1FinalizedSub.Unsubscribe()
 	}
 
 	// close L2 driver

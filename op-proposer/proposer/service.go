@@ -279,6 +279,11 @@ func (ps *ProposerService) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to close balance metricer: %w", err))
 		}
 	}
+
+	if ps.TxManager != nil {
+		ps.TxManager.Close()
+	}
+
 	if ps.metricsSrv != nil {
 		if err := ps.metricsSrv.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop metrics server: %w", err))

@@ -232,6 +232,9 @@ func (m *mockTxManager) From() common.Address {
 	return m.from
 }
 
+func (m *mockTxManager) Close() {
+}
+
 type mockContract struct {
 	calls            int
 	callFails        bool
