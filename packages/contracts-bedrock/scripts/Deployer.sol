@@ -458,6 +458,16 @@ abstract contract Deployer is Script {
         slot_ = abi.decode(rawSlot, (StorageSlot));
     }
 
+    /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
+    function loadInitializedSlot(string memory _contractName, bool _proxy) internal returns (uint8 initialized_) {
+        StorageSlot memory slot = getInitializedSlot(_contractName);
+        if (_proxy) {
+            _contractName = string.concat(_contractName, "Proxy");
+        }
+        bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
+    }
+
     /// @notice Adds a deployment to the temp deployments file
     function _writeTemp(string memory _name, address _deployed) internal {
         vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: tempDeploymentsPath });

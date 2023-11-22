@@ -21,7 +21,7 @@ contract Initializer_Test is Bridge_Initializer {
     struct InitializeableContract {
         address target;
         bytes initCalldata;
-        StorageSlot initializedSlot;
+        uint8 initializedSlotVal;
     }
 
     /// @notice Contains the addresses of the contracts to test as well as the calldata
@@ -40,7 +40,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
                 initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, ()),
-                initializedSlot: getInitializedSlot("L1CrossDomainMessenger")
+                initializedSlotVal: loadInitializedSlot("L1CrossDomainMessenger", true)
             })
         );
         // L2OutputOracle
@@ -48,7 +48,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(l2OutputOracle),
                 initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0)),
-                initializedSlot: getInitializedSlot("L2OutputOracle")
+                initializedSlotVal: loadInitializedSlot("L2OutputOracle", true)
             })
         );
         // OptimismPortal
@@ -56,7 +56,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(optimismPortal),
                 initCalldata: abi.encodeCall(optimismPortal.initialize, (false)),
-                initializedSlot: getInitializedSlot("OptimismPortal")
+                initializedSlotVal: loadInitializedSlot("OptimismPortal", true)
             })
         );
         // SystemConfig
@@ -82,7 +82,7 @@ contract Initializer_Test is Bridge_Initializer {
                         })
                     )
                     ),
-                initializedSlot: getInitializedSlot("SystemConfig")
+                initializedSlotVal: loadInitializedSlot("SystemConfig", true)
             })
         );
         // ProtocolVersions
@@ -92,7 +92,7 @@ contract Initializer_Test is Bridge_Initializer {
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
                     ),
-                initializedSlot: getInitializedSlot("ProtocolVersions")
+                initializedSlotVal: loadInitializedSlot("ProtocolVersions", true)
             })
         );
     }
@@ -110,15 +110,8 @@ contract Initializer_Test is Bridge_Initializer {
         for (uint256 i; i < contracts.length; i++) {
             InitializeableContract memory _contract = contracts[i];
 
-            // Load the `_initialized` slot from the storage of the target contract.
-            uint256 initSlotOffset = _contract.initializedSlot.offset;
-            bytes32 initSlotVal = vm.load(_contract.target, bytes32(vm.parseUint(_contract.initializedSlot.slot)));
-
-            // Pull out the 8-bit `_initialized` flag from the storage slot. The offset in forge artifacts is
-            // relative to the least-significant bit and signifies the *byte offset*, so we need to shift the
-            // value to the right by the offset * 8 and then mask out the low-order byte to retrieve the flag.
-            uint8 init = uint8((uint256(initSlotVal) >> (initSlotOffset * 8)) & 0xFF);
-            assertEq(init, 1);
+            // Assert that the contract is already initialized.
+            assertEq(_contract.initializedSlotVal, 1);
 
             // Then, attempt to re-initialize the contract. This should fail.
             (bool success, bytes memory returnData) = _contract.target.call(_contract.initCalldata);

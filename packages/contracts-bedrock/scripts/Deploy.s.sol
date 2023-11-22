@@ -11,6 +11,7 @@ import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
+import "scripts/Deployer.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
@@ -383,6 +384,8 @@ contract Deploy is Deployer {
         contracts.L1CrossDomainMessenger = address(messenger);
         ChainAssertions.checkL1CrossDomainMessenger(contracts, vm);
 
+        require(loadInitializedSlot("L1CrossDomainMessenger", false) == 1, "L1CrossDomainMessenger is not initialized");
+
         addr_ = address(messenger);
     }
 
@@ -410,6 +413,8 @@ contract Deploy is Deployer {
         contracts.OptimismPortal = address(portal);
         ChainAssertions.checkOptimismPortal(contracts, cfg, true);
 
+        require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
+
         addr_ = address(portal);
     }
 
@@ -431,6 +436,8 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L2OutputOracle = address(oracle);
         ChainAssertions.checkL2OutputOracle(contracts, cfg, 0, 0);
+
+        require(loadInitializedSlot("L2OutputOracle", false) == 1, "L2OutputOracle is not initialized");
 
         addr_ = address(oracle);
     }
@@ -479,6 +486,8 @@ contract Deploy is Deployer {
         contracts.ProtocolVersions = address(versions);
         ChainAssertions.checkProtocolVersions(contracts, cfg, false);
 
+        require(loadInitializedSlot("ProtocolVersions", false) == 1, "ProtocolVersions is not initialized");
+
         addr_ = address(versions);
     }
 
@@ -520,6 +529,8 @@ contract Deploy is Deployer {
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfig = address(config);
         ChainAssertions.checkSystemConfig(contracts, cfg, false);
+
+        require(loadInitializedSlot("SystemConfig", false) == 1, "SystemConfig is not initialized");
 
         addr_ = address(config);
     }
@@ -648,6 +659,8 @@ contract Deploy is Deployer {
         console.log("SystemConfig version: %s", version);
 
         ChainAssertions.checkSystemConfig(_proxies(), cfg, true);
+
+        require(loadInitializedSlot("SystemConfig", true) == 1, "SystemConfigProxy is not initialized");
     }
 
     /// @notice Initialize the L1StandardBridge
@@ -753,6 +766,10 @@ contract Deploy is Deployer {
         console.log("L1CrossDomainMessenger version: %s", version);
 
         ChainAssertions.checkL1CrossDomainMessenger(_proxies(), vm);
+
+        require(
+            loadInitializedSlot("L1CrossDomainMessenger", true) == 1, "L1CrossDomainMessengerProxy is not initialized"
+        );
     }
 
     /// @notice Initialize the L2OutputOracle
@@ -775,6 +792,8 @@ contract Deploy is Deployer {
         ChainAssertions.checkL2OutputOracle(
             _proxies(), cfg, cfg.l2OutputOracleStartingTimestamp(), cfg.l2OutputOracleStartingBlockNumber()
         );
+
+        require(loadInitializedSlot("L2OutputOracle", true) == 1, "L2OutputOracleProxy is not initialized");
     }
 
     /// @notice Initialize the OptimismPortal
@@ -793,6 +812,8 @@ contract Deploy is Deployer {
         console.log("OptimismPortal version: %s", version);
 
         ChainAssertions.checkOptimismPortal(_proxies(), cfg, false);
+
+        require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }
 
     function initializeProtocolVersions() public broadcast {
@@ -821,6 +842,8 @@ contract Deploy is Deployer {
         console.log("ProtocolVersions version: %s", version);
 
         ChainAssertions.checkProtocolVersions(_proxies(), cfg, true);
+
+        require(loadInitializedSlot("ProtocolVersions", true) == 1, "ProtocolVersionsProxy is not initialized");
     }
 
     /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
