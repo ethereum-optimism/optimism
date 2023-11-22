@@ -26,6 +26,7 @@ import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
@@ -102,7 +103,7 @@ contract Deploy is Deployer {
         return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
     }
 
-    /// @notice Returns the proxy addresses
+    /// @notice Returns the proxy addresses. If a proxy is not found, it will have address(0).
     function _proxies() private view returns (Types.ContractSet memory proxies_) {
         proxies_ = Types.ContractSet({
             L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
@@ -112,7 +113,8 @@ contract Deploy is Deployer {
             OptimismPortal: mustGetAddress("OptimismPortalProxy"),
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
+            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy"),
+            SuperchainConfig: mustGetAddress("SuperchainConfigProxy")
         });
     }
 
@@ -126,7 +128,8 @@ contract Deploy is Deployer {
             OptimismPortal: getAddress("OptimismPortalProxy"),
             SystemConfig: getAddress("SystemConfigProxy"),
             L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
-            ProtocolVersions: getAddress("ProtocolVersionsProxy")
+            ProtocolVersions: getAddress("ProtocolVersionsProxy"),
+            SuperchainConfig: getAddress("SuperchainConfigProxy")
         });
     }
 
@@ -207,25 +210,64 @@ contract Deploy is Deployer {
         console.log("Deployment context: %s", deploymentContext);
     }
 
-    /// @notice Deploy all of the L1 contracts
+    /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
-        console.log("Deploying L1 system");
+        console.log("Deploying a fresh OP Stack including SuperchainConfig");
+
+        deploySafe();
+        setupSuperchain();
+        setupOpChain();
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //           High Level Deployment Functions                  //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Deploy a full system with a new SuperchainConfig
+    ///         The Superchain system has 3 singleton contracts which lie outside of an OP Chain:
+    ///         1. The SuperchainConfig contract
+    ///         2. The ProtocolVersions contract
+    function setupSuperchain() public {
+        console.log("Setting up Superchain");
+
+        // Deploy a new ProxyAdmin and AddressManager
+        // This proxy will be used on the SuperchainConfig and ProtocolVersions contracts, as well as the contracts
+        // in the OP Chain system.
+        deployAddressManager();
+        deployProxyAdmin();
+        transferProxyAdminOwnership();
+
+        // Deploy the SuperchainConfigProxy
+        deployERC1967Proxy("SuperchainConfigProxy");
+        deploySuperchainConfig();
+        initializeSuperchainConfig();
+
+        deployERC1967Proxy("ProtocolVersionsProxy");
+        deployProtocolVersions();
+        initializeProtocolVersions();
+    }
+
+    /// @notice Deploy a new OP Chain, with an existing SuperchainConfig provided
+    function setupOpChain() public {
+        console.log("Deploying OP Chain");
+
+        if (getAddress("SuperchainConfigProxy") == address(0)) {
+            deployERC1967Proxy("SuperchainConfigProxy");
+        }
+        if (getAddress("SystemOwnerSafe") == address(0)) {
+            deploySafe();
+        }
+        if (getAddress("AddressManager") == address(0)) {
+            deployAddressManager();
+        }
+        if (getAddress("ProxyAdmin") == address(0)) {
+            deployProxyAdmin();
+            transferProxyAdminOwnership();
+        }
 
         deployProxies();
         deployImplementations();
-
-        deploySafe();
-        transferProxyAdminOwnership(); // to the Safe
-
-        initializeDisputeGameFactory();
-        initializeSystemConfig();
-        initializeL1StandardBridge();
-        initializeL1ERC721Bridge();
-        initializeOptimismMintableERC20Factory();
-        initializeL1CrossDomainMessenger();
-        initializeL2OutputOracle();
-        initializeOptimismPortal();
-        initializeProtocolVersions();
+        initializeImplementations();
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
@@ -233,14 +275,9 @@ contract Deploy is Deployer {
         transferDisputeGameFactoryOwnership();
     }
 
-    ////////////////////////////////////////////////////////////////
-    //           High Level Deployment Functions                  //
-    ////////////////////////////////////////////////////////////////
-
     /// @notice Deploy all of the proxies
     function deployProxies() public {
-        deployAddressManager();
-        deployProxyAdmin();
+        console.log("Deploying proxies");
 
         deployERC1967Proxy("OptimismPortalProxy");
         deployERC1967Proxy("L2OutputOracleProxy");
@@ -250,13 +287,13 @@ contract Deploy is Deployer {
         deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
         deployERC1967Proxy("L1ERC721BridgeProxy");
         deployERC1967Proxy("DisputeGameFactoryProxy");
-        deployERC1967Proxy("ProtocolVersionsProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
 
     /// @notice Deploy all of the implementations
     function deployImplementations() public {
+        console.log("Deploying implementations");
         deployOptimismPortal();
         deployL1CrossDomainMessenger();
         deployL2OutputOracle();
@@ -268,7 +305,19 @@ contract Deploy is Deployer {
         deployBlockOracle();
         deployPreimageOracle();
         deployMips();
-        deployProtocolVersions();
+    }
+
+    /// @notice Initialize all of the implementations
+    function initializeImplementations() public {
+        console.log("Initializing implementations");
+        initializeDisputeGameFactory();
+        initializeSystemConfig();
+        initializeL1StandardBridge();
+        initializeL1ERC721Bridge();
+        initializeOptimismMintableERC20Factory();
+        initializeL1CrossDomainMessenger();
+        initializeL2OutputOracle();
+        initializeOptimismPortal();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -390,6 +439,18 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
     //             Implementation Deployment Functions            //
     ////////////////////////////////////////////////////////////////
+
+    /// @notice Deploy the SuperchainConfig contract
+    function deploySuperchainConfig() public broadcast {
+        SuperchainConfig superchainConfig = new SuperchainConfig{ salt: _implSalt() }();
+
+        require(superchainConfig.guardian() == address(0));
+        bytes32 initialized = vm.load(address(superchainConfig), bytes32(0));
+        require(initialized != 0);
+
+        save("SuperchainConfig", address(superchainConfig));
+        console.log("SuperchainConfig deployed at %s", address(superchainConfig));
+    }
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
@@ -646,6 +707,23 @@ contract Deploy is Deployer {
     //                    Initialize Functions                    //
     ////////////////////////////////////////////////////////////////
 
+    /// @notice Initialize the SuperchainConfig
+    function initializeSuperchainConfig() public broadcast {
+        address payable superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
+        address payable superchainConfig = mustGetAddress("SuperchainConfig");
+        _upgradeAndCallViaSafe({
+            _proxy: superchainConfigProxy,
+            _implementation: superchainConfig,
+            _innerCallData: abi.encodeCall( // reverts in call to initialize
+                    // SuperchainConfig.initialize, (mustGetAddress("SystemOwner"), cfg.superchainConfigGuardian(),)
+                    SuperchainConfig.initialize,
+                    (cfg.portalGuardian())
+                )
+        });
+
+        ChainAssertions.checkSuperchainConfig(_proxiesUnstrict(), cfg);
+    }
+
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public onlyDevnet broadcast {
         console.log("Upgrading and initializing DisputeGameFactory proxy");
@@ -884,7 +962,7 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        ChainAssertions.checkProtocolVersions({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+        ChainAssertions.checkProtocolVersions({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("ProtocolVersions", true) == 1, "ProtocolVersionsProxy is not initialized");
     }
