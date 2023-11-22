@@ -426,7 +426,11 @@ contract Deploy is Deployer {
 
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal(contracts, cfg, true);
+        ChainAssertions.checkOptimismPortal({
+            _contracts: contracts,
+            _cfg: cfg,
+            _isPaused: true
+        });
 
         require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
@@ -499,7 +503,11 @@ contract Deploy is Deployer {
 
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.ProtocolVersions = address(versions);
-        ChainAssertions.checkProtocolVersions(contracts, cfg, false);
+        ChainAssertions.checkProtocolVersions({
+            _contracts: contracts,
+            _cfg: cfg,
+            _isProxy: false
+        });
 
         require(loadInitializedSlot("ProtocolVersions", false) == 1, "ProtocolVersions is not initialized");
 
@@ -543,7 +551,11 @@ contract Deploy is Deployer {
 
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.SystemConfig = address(config);
-        ChainAssertions.checkSystemConfig(contracts, cfg, false);
+        ChainAssertions.checkSystemConfig({
+            _contracts: contracts,
+            _cfg: cfg,
+            _isProxy: false
+        });
 
         require(loadInitializedSlot("SystemConfig", false) == 1, "SystemConfig is not initialized");
 
@@ -646,7 +658,11 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        ChainAssertions.checkSystemConfig(_proxies(), cfg, true);
+        ChainAssertions.checkSystemConfig({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _isProxy: true
+        });
 
         require(loadInitializedSlot("SystemConfig", true) == 1, "SystemConfigProxy is not initialized");
     }
@@ -799,7 +815,11 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal(_proxies(), cfg, false);
+        ChainAssertions.checkOptimismPortal({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _isPaused: false
+        });
 
         require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }
@@ -829,7 +849,11 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        ChainAssertions.checkProtocolVersions(_proxies(), cfg, true);
+        ChainAssertions.checkProtocolVersions({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _isProxy: true
+        });
 
         require(loadInitializedSlot("ProtocolVersions", true) == 1, "ProtocolVersionsProxy is not initialized");
     }

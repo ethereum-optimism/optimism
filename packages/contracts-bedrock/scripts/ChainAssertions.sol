@@ -36,21 +36,33 @@ library ChainAssertions {
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
-        checkSystemConfig(_prox, _cfg, true);
+        checkSystemConfig({
+            _contracts: _prox,
+            _cfg: _cfg,
+            _isProxy: true
+        });
         checkL1CrossDomainMessenger(_prox, _vm);
         checkL1StandardBridge(_prox);
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
         checkL1ERC721Bridge(_prox);
-        checkOptimismPortal(_prox, _cfg, false);
-        checkProtocolVersions(_prox, _cfg, true);
+        checkOptimismPortal({
+            _contracts: _prox,
+            _cfg: _cfg,
+            _isPaused: false
+        });
+        checkProtocolVersions({
+            _contracts: _prox,
+            _cfg: _cfg,
+            _isProxy: true
+        });
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
-    function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _proxy) internal view {
+    function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         ISystemConfigV0 config = ISystemConfigV0(_contracts.SystemConfig);
 
-        if (_proxy) {
+        if (_isProxy) {
             require(config.owner() == _cfg.finalSystemOwner());
             require(config.overhead() == _cfg.gasPriceOracleOverhead());
             require(config.scalar() == _cfg.gasPriceOracleScalar());
@@ -159,9 +171,9 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
-    function checkProtocolVersions(Types.ContractSet memory _proxies, DeployConfig _cfg, bool _proxy) internal view {
-        ProtocolVersions versions = ProtocolVersions(_proxies.ProtocolVersions);
-        if (_proxy) {
+    function checkProtocolVersions(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
+        ProtocolVersions versions = ProtocolVersions(_contracts.ProtocolVersions);
+        if (_isProxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
             require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
             require(ProtocolVersion.unwrap(versions.recommended()) == _cfg.recommendedProtocolVersion());

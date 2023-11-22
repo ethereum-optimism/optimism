@@ -459,9 +459,9 @@ abstract contract Deployer is Script {
     }
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
-    function loadInitializedSlot(string memory _contractName, bool _proxy) internal returns (uint8 initialized_) {
+    function loadInitializedSlot(string memory _contractName, bool _isProxy) internal returns (uint8 initialized_) {
         StorageSlot memory slot = getInitializedSlot(_contractName);
-        if (_proxy) {
+        if (_isProxy) {
             _contractName = string.concat(_contractName, "Proxy");
         }
         bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
