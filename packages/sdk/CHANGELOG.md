@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 3.1.6
+
+### Patch Changes
+
+- [#8212](https://github.com/ethereum-optimism/optimism/pull/8212) [`dd0e46986`](https://github.com/ethereum-optimism/optimism/commit/dd0e46986f19dcceb304fc48f2bd410685ecd179) Thanks [@smartcontracts](https://github.com/smartcontracts)! - Simplifies getMessageStatus to use an O(1) lookup instead of an event query
+
 ## 3.1.5
 
 ### Patch Changes

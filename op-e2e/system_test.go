@@ -368,17 +368,8 @@ func TestFinalize(t *testing.T) {
 
 	l2Seq := sys.Clients["sequencer"]
 
-	// as configured in the extra geth lifecycle in testing setup
-	const finalizedDistance = 8
-	// Wait enough time for L1 to finalize and L2 to confirm its data in finalized L1 blocks
-	time.Sleep(time.Duration((finalizedDistance+6)*cfg.DeployConfig.L1BlockTime) * time.Second)
-
-	// fetch the finalizes head of geth
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	l2Finalized, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
-	require.NoError(t, err)
-
+	l2Finalized, err := geth.WaitForBlockToBeFinalized(big.NewInt(12), l2Seq, 1*time.Minute)
+	require.NoError(t, err, "must be able to fetch a finalized L2 block")
 	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
 }
 

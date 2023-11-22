@@ -39,6 +39,11 @@ type L2BridgeMessage struct {
 	TransactionWithdrawalHash common.Hash `gorm:"serializer:bytes"`
 }
 
+type L2BridgeMessageVersionedMessageHash struct {
+	MessageHash   common.Hash `gorm:"primaryKey;serializer:bytes"`
+	V1MessageHash common.Hash `gorm:"serializer:bytes"`
+}
+
 type BridgeMessagesView interface {
 	L1BridgeMessage(common.Hash) (*L1BridgeMessage, error)
 	L1BridgeMessageWithFilter(BridgeMessage) (*L1BridgeMessage, error)
@@ -55,6 +60,8 @@ type BridgeMessagesDB interface {
 
 	StoreL2BridgeMessages([]L2BridgeMessage) error
 	MarkRelayedL2BridgeMessage(common.Hash, uuid.UUID) error
+
+	StoreL2BridgeMessageV1MessageHash(common.Hash, common.Hash) error
 }
 
 /**
@@ -134,8 +141,37 @@ func (db bridgeMessagesDB) StoreL2BridgeMessages(messages []L2BridgeMessage) err
 	return result.Error
 }
 
+func (db bridgeMessagesDB) StoreL2BridgeMessageV1MessageHash(msgHash, v1MsgHash common.Hash) error {
+	if msgHash == v1MsgHash {
+		return fmt.Errorf("message hash is equal to the v1 message: %s", msgHash)
+	}
+
+	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
+	result := deduped.Create(&L2BridgeMessageVersionedMessageHash{MessageHash: msgHash, V1MessageHash: v1MsgHash})
+	if result.Error == nil && int(result.RowsAffected) < 1 {
+		db.log.Warn("ignored L2 bridge v1 message hash duplicates")
+	}
+
+	return result.Error
+}
+
 func (db bridgeMessagesDB) L2BridgeMessage(msgHash common.Hash) (*L2BridgeMessage, error) {
-	return db.L2BridgeMessageWithFilter(BridgeMessage{MessageHash: msgHash})
+	message, err := db.L2BridgeMessageWithFilter(BridgeMessage{MessageHash: msgHash})
+	if message != nil || err != nil {
+		return message, err
+	}
+
+	// check if this is a v1 hash of an older message
+	versioned := L2BridgeMessageVersionedMessageHash{V1MessageHash: msgHash}
+	result := db.gorm.Where(&versioned).Take(&versioned)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return db.L2BridgeMessageWithFilter(BridgeMessage{MessageHash: versioned.MessageHash})
 }
 
 func (db bridgeMessagesDB) L2BridgeMessageWithFilter(filter BridgeMessage) (*L2BridgeMessage, error) {
