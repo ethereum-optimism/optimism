@@ -242,6 +242,7 @@ contract Deploy is Deployer {
         deploySuperchainConfig();
         initializeSuperchainConfig();
 
+        // Deploy the ProtocolVersionsProxy
         deployERC1967Proxy("ProtocolVersionsProxy");
         deployProtocolVersions();
         initializeProtocolVersions();
@@ -706,11 +707,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall( // reverts in call to initialize
-                    // SuperchainConfig.initialize, (mustGetAddress("SystemOwner"), cfg.superchainConfigGuardian(),)
-                    SuperchainConfig.initialize,
-                    (cfg.portalGuardian())
-                )
+            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.portalGuardian()))
         });
 
         ChainAssertions.checkSuperchainConfig(_proxiesUnstrict(), cfg);
