@@ -232,7 +232,7 @@ func (f *FaultDisputeGameContract) addLocalDataTx(data *types.PreimageOracleData
 	call := f.contract.Call(
 		methodAddLocalData,
 		data.GetIdent(),
-		new(big.Int).SetBytes(data.LocalContext.Bytes()),
+		data.LocalContext,
 		new(big.Int).SetUint64(uint64(data.OracleOffset)),
 	)
 	return call.ToTxCandidate()

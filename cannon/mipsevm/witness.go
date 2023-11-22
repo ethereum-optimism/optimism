@@ -1,6 +1,8 @@
 package mipsevm
 
-type LocalContext uint64
+import "github.com/ethereum/go-ethereum/common"
+
+type LocalContext common.Hash
 
 type StepWitness struct {
 	// encoded state witness
