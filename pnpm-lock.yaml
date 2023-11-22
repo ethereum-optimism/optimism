@@ -16,8 +16,8 @@ importers:
         version: 0.1.12(typescript@5.2.2)
     devDependencies:
       '@babel/eslint-parser':
-        specifier: ^7.18.2
-        version: 7.22.15(@babel/core@7.22.10)(eslint@8.54.0)
+        specifier: ^7.23.3
+        version: 7.23.3(@babel/core@7.22.10)(eslint@8.54.0)
       '@changesets/changelog-github':
         specifier: ^0.4.8
         version: 0.4.8
@@ -635,8 +635,8 @@ packages:
       - supports-color
     dev: true
 
-  /@babel/eslint-parser@7.22.15(@babel/core@7.22.10)(eslint@8.54.0):
-    resolution: {integrity: sha512-yc8OOBIQk1EcRrpizuARSQS0TWAcOMpEJ1aafhNznaeYkeL+OhqnDObGFylB8ka8VFF/sZc+S4RzHyO+3LjQxg==}
+  /@babel/eslint-parser@7.23.3(@babel/core@7.22.10)(eslint@8.54.0):
+    resolution: {integrity: sha512-9bTuNlyx7oSstodm1cR1bECj4fkiknsDa1YniISkJemMY3DGhJNYBECbe6QD/q54mp2J8VO66jW3/7uP//iFCw==}
     engines: {node: ^10.13.0 || ^12.13.0 || >=14.0.0}
     peerDependencies:
       '@babel/core': ^7.11.0
