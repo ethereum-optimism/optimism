@@ -4,24 +4,32 @@ import path from 'path'
 const outdir = process.argv[2] || path.join(__dirname, '..', 'snapshots')
 const forgeArtifactsDir = path.join(__dirname, '..', 'forge-artifacts')
 
-// Assumes there is a single contract per file
-const getContracts = (dir: string): Array<string> => {
-  return fs
-    .readdirSync(path.join(__dirname, '..', 'src', dir))
-    .filter((x) => x.endsWith('.sol'))
-    .map((x) => `${x}:${x.replace('.sol', '')}`)
-    .sort()
-}
-
 const getAllContracts = (): Array<string> => {
-  return [].concat(
-    getContracts('L1'),
-    getContracts('L2'),
-    getContracts('legacy'),
-    getContracts('dispute'),
-    getContracts('universal'),
-    getContracts('vendor')
-  )
+  const paths = []
+  const readFilesRecursively = (dir: string) => {
+    const files = fs.readdirSync(dir)
+
+    for (const file of files) {
+      const filePath = path.join(dir, file)
+      const fileStat = fs.statSync(filePath)
+
+      if (fileStat.isDirectory()) {
+        readFilesRecursively(filePath)
+      } else {
+        paths.push(filePath)
+      }
+    }
+  }
+  readFilesRecursively(path.join(__dirname, '..', 'src'))
+
+  // Assumes there is a single contract per file
+  return paths
+    .filter((x) => x.endsWith('.sol'))
+    .map((p: string) => {
+      const b = path.basename(p)
+      return `${b}:${b.replace('.sol', '')}`
+    })
+    .sort()
 }
 
 type AbiSpecStorageLayoutEntry = {
@@ -33,6 +41,7 @@ type AbiSpecStorageLayout = { [key: string]: AbiSpecStorageLayoutEntry }
 type AbiSpecEntry = {
   methodIdentifiers: AbiSpecMethodIdentifiers
   storageLayout: AbiSpecStorageLayout
+  abi: any
 }
 
 const sortKeys = (obj: any) => {
@@ -84,6 +93,21 @@ const main = async () => {
       continue
     }
 
+    // HACK: This is a hack to ignore libraries. Not robust against changes to solc's internal ast repr
+    const isContract = artifact.ast.nodes.find((node: any) => {
+      if (
+        node.nodeType === 'ContractDefinition' &&
+        node.name === contractName &&
+        node.kind === 'contract'
+      ) {
+        return node
+      }
+    })
+    if (!isContract) {
+      console.log(`ignoring library/interface ${contractName}`)
+      continue
+    }
+
     for (const storageEntry of artifact.storageLayout.storage) {
       storageLayout[storageEntry.label] = {
         slot: storageEntry.slot,
@@ -98,6 +122,7 @@ const main = async () => {
     const entry: AbiSpecEntry = {
       methodIdentifiers: ids,
       storageLayout,
+      abi: artifact.abi,
     }
     fs.writeFileSync(
       `${outdir}/${contractName}.json`,

@@ -1,4 +1,26 @@
 {
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract AddressManager",
+          "name": "_addressManager",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_implementationName",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "fallback"
+    }
+  ],
   "methodIdentifiers": {},
   "storageLayout": {
     "addressManager": {
