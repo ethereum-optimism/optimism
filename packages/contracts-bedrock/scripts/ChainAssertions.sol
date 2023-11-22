@@ -23,33 +23,32 @@ library ChainAssertions {
     /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
     ///         within the `prox` ContractSet are proxies that have been setup and initialized.
     function postDeployAssertions(
-        Types.ContractSet memory prox,
-        DeployConfig cfg,
-        uint256 l2OutputOracleStartingBlockNumber,
-        uint256 l2OutputOracleStartingTimestamp,
-        Vm vm
+        Types.ContractSet memory _prox,
+        DeployConfig _cfg,
+        uint256 _l2OutputOracleStartingBlockNumber,
+        uint256 _l2OutputOracleStartingTimestamp,
+        Vm _vm
     )
         internal
         view
     {
-        ResourceMetering.ResourceConfig memory rcfg = SystemConfig(prox.SystemConfig).resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = SystemConfig(_prox.SystemConfig).resourceConfig();
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
-        checkSystemConfig(prox, cfg, true);
-        checkL1CrossDomainMessenger(prox, vm);
-        checkL1StandardBridge(prox);
-        checkL2OutputOracle(prox, cfg, l2OutputOracleStartingTimestamp, l2OutputOracleStartingBlockNumber);
-        checkOptimismMintableERC20Factory(prox);
-        checkL1ERC721Bridge(prox);
-        checkOptimismPortal(prox, cfg, false);
-        checkProtocolVersions(prox, cfg, true);
+        checkSystemConfig(_prox, _cfg, true);
+        checkL1CrossDomainMessenger(_prox, _vm);
+        checkL1StandardBridge(_prox);
+        checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
+        checkOptimismMintableERC20Factory(_prox);
+        checkL1ERC721Bridge(_prox);
+        checkOptimismPortal(_prox, _cfg, false);
+        checkProtocolVersions(_prox, _cfg, true);
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _proxy) internal view {
         ISystemConfigV0 config = ISystemConfigV0(_contracts.SystemConfig);
-        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
 
         if (_proxy) {
             require(config.owner() == _cfg.finalSystemOwner());
@@ -65,6 +64,7 @@ library ChainAssertions {
             require(config.unsafeBlockSigner() == address(0));
         }
 
+        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
         require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
         require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
