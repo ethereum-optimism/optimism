@@ -4,38 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-)
-
-var (
-	// Standard ABI types copied from golang ABI tests
-	addressType, _ = abi.NewType("address", "", nil)
-	bytesType, _   = abi.NewType("bytes", "", nil)
-	uint256Type, _ = abi.NewType("uint256", "", nil)
-
-	CrossDomainMessengerLegacyRelayMessageEncoding = abi.NewMethod(
-		"relayMessage",
-		"relayMessage",
-		abi.Function,
-		"external", // mutability
-		false,      // isConst
-		true,       // payable
-		abi.Arguments{ // inputs
-			{Name: "target", Type: addressType},
-			{Name: "sender", Type: addressType},
-			{Name: "data", Type: bytesType},
-			{Name: "nonce", Type: uint256Type},
-			// The actual transaction on the legacy L1CrossDomainMessenger has a trailing
-			// proof argument but is ignored for the `XDomainCallData` encoding
-		},
-		abi.Arguments{}, // outputs
-	)
 )
 
 type CrossDomainMessengerSentMessageEvent struct {

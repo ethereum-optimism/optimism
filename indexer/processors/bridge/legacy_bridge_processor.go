@@ -288,31 +288,7 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		if err != nil {
 			return err
 		} else if message == nil {
-			// Before surfacing an error about a missing withdrawal, we need to handle an edge case
-			// for OP-Mainnet pre-regensis withdrawals that no longer exist on L2.
-			tx, err := l1Client.TxByHash(relayedMessage.Event.TransactionHash)
-			if err != nil {
-				return fmt.Errorf("unable to query legacy relayed. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
-			} else if tx == nil {
-				return fmt.Errorf("missing tx for relayed message! tx_hash = %s", relayedMessage.Event.TransactionHash)
-			}
-
-			relayMessageData := tx.Data()[4:]
-			inputs, err := contracts.CrossDomainMessengerLegacyRelayMessageEncoding.Inputs.Unpack(relayMessageData)
-			if err != nil || inputs == nil {
-				return fmt.Errorf("unable to extract XDomainCallData from relayMessage transaction. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
-			}
-
-			// NOTE: Since OP-Mainnet is the only network to go through a regensis we can simply harcode the
-			// the starting message nonce at genesis (100k). Any relayed withdrawal on L1 with a lesser nonce
-			// is a clear indicator of a pre-regenesis withdrawal.
-			if inputs[3].(*big.Int).Int64() < 100_000 {
-				// skip pre-regenesis withdrawals
-				skippedPreRegenesisMessages++
-				continue
-			} else {
-				return fmt.Errorf("missing indexed L2CrossDomainMessenger message! tx_hash = %s", relayedMessage.Event.TransactionHash)
-			}
+			return fmt.Errorf("missing indexed L2CrossDomainMessenger message! tx_hash = %s", relayedMessage.Event.TransactionHash)
 		}
 
 		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
