@@ -484,7 +484,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
-    function testFuzz_addLocalData_oob_reverts(uint256 _ident, uint256 _localContext) public {
+    function testFuzz_addLocalData_oob_reverts(uint256 _ident, bytes32 _localContext) public {
         // [1, 5] are valid local data identifiers.
         if (_ident <= 5) _ident = 0;
 
@@ -529,7 +529,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
-    function _getKey(uint256 _ident, uint256 _localContext) internal view returns (bytes32) {
+    function _getKey(uint256 _ident, bytes32 _localContext) internal view returns (bytes32) {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }

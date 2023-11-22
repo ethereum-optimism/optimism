@@ -260,7 +260,7 @@ func TestUpdateOracleTx(t *testing.T) {
 		}
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
-			new(big.Int).SetBytes(data.LocalContext.Bytes()),
+			data.LocalContext,
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), data)

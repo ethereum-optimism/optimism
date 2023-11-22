@@ -34,7 +34,7 @@ contract PreimageOracle is IPreimageOracle {
     /// @inheritdoc IPreimageOracle
     function loadLocalData(
         uint256 _ident,
-        uint256 _localContext,
+        bytes32 _localContext,
         bytes32 _word,
         uint256 _size,
         uint256 _partOffset
