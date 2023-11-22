@@ -156,6 +156,7 @@ library ChainAssertions {
         require(portal.guardian() == _cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
         require(address(portal.systemConfig()) == _contracts.SystemConfig);
+        require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
         require(portal.paused() == _isPaused);
     }
 
@@ -181,16 +182,16 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the SuperchainConfig is setup correctly
-    function checkSuperchainConfig(Types.ContractSet memory _contracts, DeployConfig _cfg) internal view {
-        SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
-        require(superchainConfig.guardian() == _cfg.portalGuardian());
-        require(superchainConfig.paused() == false);
-    }
-
-    /// @notice Asserts that the SuperchainConfig is setup correctly
-    function checkSuperchainConfig(Types.ContractSet memory _proxies, DeployConfig _cfg) internal view {
+    function checkSuperchainConfig(
+        Types.ContractSet memory _proxies,
+        DeployConfig _cfg,
+        bool _isPaused
+    )
+        internal
+        view
+    {
         SuperchainConfig superchainConfig = SuperchainConfig(_proxies.SuperchainConfig);
         require(superchainConfig.guardian() == _cfg.portalGuardian());
-        require(superchainConfig.paused() == false);
+        require(superchainConfig.paused() == _isPaused);
     }
 }

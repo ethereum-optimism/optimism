@@ -504,12 +504,14 @@ contract Deploy is Deployer {
 
         L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
             _l2Oracle: l2OutputOracle,
             _guardian: guardian,
             _paused: true,
-            _systemConfig: systemConfig
+            _systemConfig: systemConfig,
+            _superchainConfig: superchainConfig
         });
 
         save("OptimismPortal", address(portal));
@@ -520,7 +522,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: true });
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: false });
 
         require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
@@ -736,7 +738,7 @@ contract Deploy is Deployer {
             _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.portalGuardian()))
         });
 
-        ChainAssertions.checkSuperchainConfig(_proxiesUnstrict(), cfg);
+        ChainAssertions.checkSuperchainConfig({ _proxies: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
     }
 
     /// @notice Initialize the DisputeGameFactory
@@ -939,7 +941,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (false))
+            _innerCallData: abi.encodeCall(OptimismPortal.initialize, ())
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
