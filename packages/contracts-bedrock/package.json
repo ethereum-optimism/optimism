@@ -21,7 +21,7 @@
     "coverage": "pnpm build:go-ffi && forge coverage",
     "coverage:lcov": "pnpm build:go-ffi && forge coverage --report lcov",
     "deploy": "./scripts/deploy.sh",
-    "gas-snapshot:no-build": "forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
+    "gas-snapshot:no-build": "forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact' --no-match-contract 'Initializer_Test'",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "semver-lock": "forge script scripts/SemverLock.s.sol",
@@ -45,9 +45,9 @@
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
     "@typescript-eslint/parser": "^6.11.0",
-    "tsx": "^4.1.1",
+    "tsx": "^4.2.0",
     "typescript": "^5.2.2"
   }
 }

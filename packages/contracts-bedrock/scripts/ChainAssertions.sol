@@ -17,6 +17,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Types } from "scripts/Types.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
+import { console2 as console } from "forge-std/console2.sol";
 
 library ChainAssertions {
     /// @notice Asserts the correctness of an L1 deployment
@@ -35,7 +36,7 @@ library ChainAssertions {
 
         checkSystemConfig(prox, cfg);
         checkL1CrossDomainMessenger(prox, vm);
-        checkL1StandardBridge(prox, vm);
+        checkL1StandardBridge(prox);
         checkL2OutputOracle(prox, cfg, l2OutputOracleStartingTimestamp);
         checkOptimismMintableERC20Factory(prox);
         checkL1ERC721Bridge(prox);
@@ -72,16 +73,12 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory proxies, Vm vm) internal view {
+    function checkL1StandardBridge(Types.ContractSet memory proxies) internal view {
         L1StandardBridge bridge = L1StandardBridge(payable(proxies.L1StandardBridge));
         require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
         require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-        // Ensures that the legacy slot is modified correctly. This will fail
-        // during predeployment simulation on OP Mainnet if there is a bug.
-        bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
-        require(slot0 == bytes32(uint256(Constants.INITIALIZER)));
     }
 
     /// @notice Asserts that the L2OutputOracle is setup correctly
@@ -119,15 +116,26 @@ library ChainAssertions {
     function checkL1ERC721Bridge(Types.ContractSet memory proxies) internal view {
         L1ERC721Bridge bridge = L1ERC721Bridge(proxies.L1ERC721Bridge);
         require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
+        require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+        require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
     function checkOptimismPortal(Types.ContractSet memory proxies, DeployConfig cfg) internal view {
         OptimismPortal portal = OptimismPortal(payable(proxies.OptimismPortal));
+
+        address guardian = cfg.portalGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Portal guardian has no code: %s", guardian);
+        }
+
         require(address(portal.L2_ORACLE()) == proxies.L2OutputOracle);
+        require(address(portal.l2Oracle()) == proxies.L2OutputOracle);
         require(portal.GUARDIAN() == cfg.portalGuardian());
+        require(portal.guardian() == cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == proxies.SystemConfig);
+        require(address(portal.systemConfig()) == proxies.SystemConfig);
         require(portal.paused() == false);
     }
 

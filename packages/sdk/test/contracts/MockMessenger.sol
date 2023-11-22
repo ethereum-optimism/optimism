@@ -8,6 +8,8 @@ contract MockMessenger is ICrossDomainMessenger {
     }
 
     uint256 public nonce;
+    mapping (bytes32 => bool) public successfulMessages;
+    mapping (bytes32 => bool) public failedMessages;
 
     // Empty function to satisfy the interface.
     function sendMessage(
@@ -81,6 +83,7 @@ contract MockMessenger is ICrossDomainMessenger {
     ) public {
         for (uint256 i = 0; i < _params.length; i++) {
             emit RelayedMessage(_params[i]);
+            successfulMessages[_params[i]] = true;
         }
     }
 
@@ -89,6 +92,7 @@ contract MockMessenger is ICrossDomainMessenger {
     ) public {
         for (uint256 i = 0; i < _params.length; i++) {
             emit FailedRelayedMessage(_params[i]);
+            failedMessages[_params[i]] = true;
         }
     }
 }

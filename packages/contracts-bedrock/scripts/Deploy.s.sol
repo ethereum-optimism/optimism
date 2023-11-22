@@ -54,10 +54,133 @@ import { Types } from "scripts/Types.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
+    ////////////////////////////////////////////////////////////////
+    //                        Modifiers                           //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Modifier that wraps a function in broadcasting.
+    modifier broadcast() {
+        vm.startBroadcast();
+        _;
+        vm.stopBroadcast();
+    }
+
+    /// @notice Modifier that will only allow a function to be called on devnet.
+    modifier onlyDevnet() {
+        uint256 chainid = block.chainid;
+        if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
+            _;
+        }
+    }
+
+    /// @notice Modifier that will only allow a function to be called on a public
+    ///         testnet or devnet.
+    modifier onlyTestnetOrDevnet() {
+        uint256 chainid = block.chainid;
+        if (
+            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
+                || chainid == Chains.GethDevnet
+        ) {
+            _;
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                        Accessors                           //
+    ////////////////////////////////////////////////////////////////
+
     /// @inheritdoc Deployer
     function name() public pure override returns (string memory name_) {
         name_ = "Deploy";
     }
+
+    /// @notice The create2 salt used for deployment of the contract implementations.
+    ///         Using this helps to reduce config across networks as the implementation
+    ///         addresses will be the same across networks when deployed with create2.
+    function _implSalt() internal returns (bytes32) {
+        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
+    }
+
+    /// @notice Returns the proxy addresses
+    function _proxies() private view returns (Types.ContractSet memory proxies_) {
+        proxies_ = Types.ContractSet({
+            L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+            L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+            L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+            OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
+            OptimismPortal: mustGetAddress("OptimismPortalProxy"),
+            SystemConfig: mustGetAddress("SystemConfigProxy"),
+            L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
+        });
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //            State Changing Helper Functions                 //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
+    function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
+        // These are they standard create2 deployed contracts. First we'll check if they are deployed,
+        // if not we'll deploy new ones, though not at these addresses.
+        address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
+        address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
+
+        safeProxyFactory.code.length == 0
+            ? safeProxyFactory_ = new SafeProxyFactory()
+            : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
+
+        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
+
+        save("SafeProxyFactory", address(safeProxyFactory_));
+        save("SafeSingleton", address(safeSingleton_));
+    }
+
+    /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
+    function _callViaSafe(address _target, bytes memory _data) internal {
+        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
+
+        // This is the signature format used the caller is also the signer.
+        bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
+
+        safe.execTransaction({
+            to: _target,
+            value: 0,
+            data: _data,
+            operation: SafeOps.Operation.Call,
+            safeTxGas: 0,
+            baseGas: 0,
+            gasPrice: 0,
+            gasToken: address(0),
+            refundReceiver: payable(address(0)),
+            signatures: signature
+        });
+    }
+
+    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
+    function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+
+        bytes memory data =
+            abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
+
+        _callViaSafe({ _target: proxyAdmin, _data: data });
+    }
+
+    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
+    function transferProxyAdminOwnership() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address owner = proxyAdmin.owner();
+        address safe = mustGetAddress("SystemOwnerSafe");
+        if (owner != safe) {
+            proxyAdmin.transferOwnership(safe);
+            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                    SetUp and Run                           //
+    ////////////////////////////////////////////////////////////////
 
     function setUp() public virtual override {
         super.setUp();
@@ -95,54 +218,24 @@ contract Deploy is Deployer {
         transferDisputeGameFactoryOwnership();
     }
 
-    /// @notice The create2 salt used for deployment of the contract implementations.
-    ///         Using this helps to reduce config across networks as the implementation
-    ///         addresses will be the same across networks when deployed with create2.
-    function implSalt() internal returns (bytes32) {
-        return keccak256(bytes(vm.envOr("IMPL_SALT", string("ethers phoenix"))));
-    }
-
-    /// @notice Modifier that wraps a function in broadcasting.
-    modifier broadcast() {
-        vm.startBroadcast();
-        _;
-        vm.stopBroadcast();
-    }
-
-    /// @notice Modifier that will only allow a function to be called on devnet.
-    modifier onlyDevnet() {
-        uint256 chainid = block.chainid;
-        if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
-            _;
-        }
-    }
-
-    /// @notice Modifier that will only allow a function to be called on a public
-    ///         testnet or devnet.
-    modifier onlyTestnetOrDevnet() {
-        uint256 chainid = block.chainid;
-        if (
-            chainid == Chains.Goerli || chainid == Chains.Sepolia || chainid == Chains.LocalDevnet
-                || chainid == Chains.GethDevnet
-        ) {
-            _;
-        }
-    }
+    ////////////////////////////////////////////////////////////////
+    //           High Level Deployment Functions                  //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy all of the proxies
     function deployProxies() public {
         deployAddressManager();
         deployProxyAdmin();
 
-        deployOptimismPortalProxy();
-        deployL2OutputOracleProxy();
-        deploySystemConfigProxy();
+        deployERC1967Proxy("OptimismPortalProxy");
+        deployERC1967Proxy("L2OutputOracleProxy");
+        deployERC1967Proxy("SystemConfigProxy");
         deployL1StandardBridgeProxy();
         deployL1CrossDomainMessengerProxy();
-        deployOptimismMintableERC20FactoryProxy();
-        deployL1ERC721BridgeProxy();
-        deployDisputeGameFactoryProxy();
-        deployProtocolVersionsProxy();
+        deployERC1967Proxy("OptimismMintableERC20FactoryProxy");
+        deployERC1967Proxy("L1ERC721BridgeProxy");
+        deployERC1967Proxy("DisputeGameFactoryProxy");
+        deployERC1967Proxy("ProtocolVersionsProxy");
 
         transferAddressManagerOwnership(); // to the ProxyAdmin
     }
@@ -163,22 +256,9 @@ contract Deploy is Deployer {
         deployProtocolVersions();
     }
 
-    // @notice Gets the address of the SafeProxyFactory and Safe singleton for use in deploying a new GnosisSafe.
-    function _getSafeFactory() internal returns (SafeProxyFactory safeProxyFactory_, Safe safeSingleton_) {
-        // These are they standard create2 deployed contracts. First we'll check if they are deployed,
-        // if not we'll deploy new ones, though not at these addresses.
-        address safeProxyFactory = 0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2;
-        address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
-
-        safeProxyFactory.code.length == 0
-            ? safeProxyFactory_ = new SafeProxyFactory()
-            : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
-
-        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
-
-        save("SafeProxyFactory", address(safeProxyFactory_));
-        save("SafeSingleton", address(safeSingleton_));
-    }
+    ////////////////////////////////////////////////////////////////
+    //              Non-Proxied Deployment Functions              //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the Safe
     function deploySafe() public broadcast returns (address addr_) {
@@ -226,7 +306,20 @@ contract Deploy is Deployer {
         addr_ = address(admin);
     }
 
-    /// @notice Deploy the L1StandardBridgeProxy
+    /// @notice Deploy the StorageSetter contract, used for upgrades.
+    function deployStorageSetter() public broadcast returns (address addr_) {
+        StorageSetter setter = new StorageSetter{ salt: _implSalt() }();
+        console.log("StorageSetter deployed at: %s", address(setter));
+        string memory version = setter.version();
+        console.log("StorageSetter version: %s", version);
+        addr_ = address(setter);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                Proxy Deployment Functions                  //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
@@ -239,22 +332,7 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Deploy the L2OutputOracleProxy
-    function deployL2OutputOracleProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("L2OutputOracleProxy", address(proxy));
-        console.log("L2OutputOracleProxy deployed at %s", address(proxy));
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the L1CrossDomainMessengerProxy
+    /// @notice Deploy the L1CrossDomainMessengerProxy using a ResolvedDelegateProxy
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         string memory contractName = "OVM_L1CrossDomainMessenger";
@@ -273,8 +351,8 @@ contract Deploy is Deployer {
         addr_ = address(proxy);
     }
 
-    /// @notice Deploy the OptimismPortalProxy
-    function deployOptimismPortalProxy() public broadcast returns (address addr_) {
+    function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
+        console.log(string.concat("Deploying ", _name));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -283,98 +361,24 @@ contract Deploy is Deployer {
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
 
-        save("OptimismPortalProxy", address(proxy));
-        console.log("OptimismPortalProxy deployed at %s", address(proxy));
-
+        save(_name, address(proxy));
+        console.log("   at %s", address(proxy));
         addr_ = address(proxy);
     }
 
-    /// @notice Deploy the OptimismMintableERC20FactoryProxy
-    function deployOptimismMintableERC20FactoryProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("OptimismMintableERC20FactoryProxy", address(proxy));
-        console.log("OptimismMintableERC20FactoryProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the L1ERC721BridgeProxy
-    function deployL1ERC721BridgeProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("L1ERC721BridgeProxy", address(proxy));
-        console.log("L1ERC721BridgeProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the SystemConfigProxy
-    function deploySystemConfigProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("SystemConfigProxy", address(proxy));
-        console.log("SystemConfigProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the DisputeGameFactoryProxy
-    function deployDisputeGameFactoryProxy() public onlyDevnet broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("DisputeGameFactoryProxy", address(proxy));
-        console.log("DisputeGameFactoryProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
-
-    /// @notice Deploy the ProtocolVersionsProxy
-    function deployProtocolVersionsProxy() public broadcast returns (address addr_) {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
-
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
-
-        save("ProtocolVersionsProxy", address(proxy));
-        console.log("ProtocolVersionsProxy deployed at %s", address(proxy));
-
-        addr_ = address(proxy);
-    }
+    ////////////////////////////////////////////////////////////////
+    //             Implementation Deployment Functions            //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: implSalt() }();
+        address portal = mustGetAddress("OptimismPortalProxy");
+        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: _implSalt() }({
+            _portal: OptimismPortal(payable(portal))
+        });
 
-        require(address(messenger.PORTAL()) == address(0));
-        require(address(messenger.portal()) == address(0));
+        require(address(messenger.PORTAL()) == portal);
+        require(address(messenger.portal()) == portal);
 
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
@@ -387,11 +391,27 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
-        OptimismPortal portal = new OptimismPortal{ salt: implSalt() }();
+        address guardian = cfg.portalGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Portal guardian has no code: %s", guardian);
+        }
 
-        require(address(portal.L2_ORACLE()) == address(0));
-        require(portal.GUARDIAN() == address(0));
-        require(address(portal.SYSTEM_CONFIG()) == address(0));
+        L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
+        SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
+
+        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
+            _l2Oracle: l2OutputOracle,
+            _guardian: guardian,
+            _paused: true,
+            _systemConfig: systemConfig
+        });
+
+        require(address(portal.L2_ORACLE()) == address(l2OutputOracle));
+        require(address(portal.l2Oracle()) == address(l2OutputOracle));
+        require(portal.GUARDIAN() == guardian);
+        require(portal.guardian() == guardian);
+        require(address(portal.SYSTEM_CONFIG()) == address(systemConfig));
+        require(address(portal.systemConfig()) == address(systemConfig));
         require(portal.paused() == true);
 
         save("OptimismPortal", address(portal));
@@ -402,9 +422,13 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        L2OutputOracle oracle = new L2OutputOracle{ salt: implSalt() }({
+        L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
+            _startingBlockNumber: 0,
+            _startingTimestamp: 0,
+            _proposer: cfg.l2OutputOracleProposer(),
+            _challenger: cfg.l2OutputOracleChallenger(),
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
         });
 
@@ -412,10 +436,10 @@ contract Deploy is Deployer {
         require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
         require(oracle.l2BlockTime() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == address(0));
-        require(oracle.proposer() == address(0));
-        require(oracle.CHALLENGER() == address(0));
-        require(oracle.challenger() == address(0));
+        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
+        require(oracle.proposer() == cfg.l2OutputOracleProposer());
+        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
+        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
         require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
         require(oracle.startingBlockNumber() == 0);
@@ -429,10 +453,12 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory{ salt: implSalt() }();
+        address l1standardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
+        OptimismMintableERC20Factory factory =
+            new OptimismMintableERC20Factory{ salt: _implSalt() }({_bridge: l1standardBridgeProxy});
 
-        require(factory.BRIDGE() == address(0));
-        require(factory.bridge() == address(0));
+        require(factory.BRIDGE() == l1standardBridgeProxy);
+        require(factory.bridge() == l1standardBridgeProxy);
 
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
@@ -442,7 +468,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
-        DisputeGameFactory factory = new DisputeGameFactory{ salt: implSalt() }();
+        DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
@@ -451,7 +477,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the BlockOracle
     function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
-        BlockOracle oracle = new BlockOracle{ salt: implSalt() }();
+        BlockOracle oracle = new BlockOracle{ salt: _implSalt() }();
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
 
@@ -460,7 +486,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
-        ProtocolVersions versions = new ProtocolVersions{ salt: implSalt() }();
+        ProtocolVersions versions = new ProtocolVersions{ salt: _implSalt() }();
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
 
@@ -469,7 +495,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
-        PreimageOracle preimageOracle = new PreimageOracle{ salt: implSalt() }();
+        PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }();
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
@@ -478,7 +504,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() public onlyDevnet broadcast returns (address addr_) {
-        MIPS mips = new MIPS{ salt: implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
+        MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
@@ -487,30 +513,32 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
-        SystemConfig config = new SystemConfig{ salt: implSalt() }();
+        ResourceMetering.ResourceConfig memory defaultConfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        uint64 minimumGasLimit = uint64(defaultConfig.maxResourceLimit) + uint64(defaultConfig.systemTxMaxGas);
+        SystemConfig config = new SystemConfig({
+            _owner: address(0xdEaD),
+            _overhead: 0,
+            _scalar: 0,
+            _batcherHash: bytes32(0),
+            _gasLimit: minimumGasLimit,
+            _unsafeBlockSigner: address(0),
+            _config: defaultConfig
+        });
 
         require(config.owner() == address(0xdEaD));
         require(config.overhead() == 0);
         require(config.scalar() == 0);
         require(config.unsafeBlockSigner() == address(0));
         require(config.batcherHash() == bytes32(0));
-        require(config.gasLimit() == 1);
+        require(config.gasLimit() == minimumGasLimit);
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == 1);
-        require(resourceConfig.elasticityMultiplier == 1);
-        require(resourceConfig.baseFeeMaxChangeDenominator == 2);
-        require(resourceConfig.systemTxMaxGas == 0);
-        require(resourceConfig.minimumBaseFee == 0);
-        require(resourceConfig.maximumBaseFee == 0);
-
-        require(config.l1ERC721Bridge() == address(0));
-        require(config.l1StandardBridge() == address(0));
-        require(config.l2OutputOracle() == address(0));
-        require(config.optimismPortal() == address(0));
-        require(config.l1CrossDomainMessenger() == address(0));
-        require(config.optimismMintableERC20Factory() == address(0));
-        require(config.startBlock() == type(uint256).max);
+        require(resourceConfig.maxResourceLimit == defaultConfig.maxResourceLimit);
+        require(resourceConfig.elasticityMultiplier == defaultConfig.elasticityMultiplier);
+        require(resourceConfig.baseFeeMaxChangeDenominator == defaultConfig.baseFeeMaxChangeDenominator);
+        require(resourceConfig.systemTxMaxGas == defaultConfig.systemTxMaxGas);
+        require(resourceConfig.minimumBaseFee == defaultConfig.minimumBaseFee);
+        require(resourceConfig.maximumBaseFee == defaultConfig.maximumBaseFee);
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
@@ -520,10 +548,14 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
-        L1StandardBridge bridge = new L1StandardBridge{ salt: implSalt() }();
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        require(address(bridge.MESSENGER()) == address(0));
-        require(address(bridge.messenger()) == address(0));
+        L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }({
+            _messenger: payable(l1CrossDomainMessengerProxy)
+        });
+
+        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
+        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
 
@@ -535,10 +567,16 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
-        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: implSalt() }();
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({
+            _messenger: l1CrossDomainMessengerProxy,
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE
+        });
 
-        require(address(bridge.MESSENGER()) == address(0));
+        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
+        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+        require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
 
         save("L1ERC721Bridge", address(bridge));
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
@@ -559,36 +597,9 @@ contract Deploy is Deployer {
         require(addressManager.owner() == proxyAdmin);
     }
 
-    /// @notice Make a call from the Safe contract to an arbitrary address with arbitrary data
-    function _callViaSafe(address _target, bytes memory _data) internal {
-        Safe safe = Safe(mustGetAddress("SystemOwnerSafe"));
-
-        // This is the signature format used the caller is also the signer.
-        bytes memory signature = abi.encodePacked(uint256(uint160(msg.sender)), bytes32(0), uint8(1));
-
-        safe.execTransaction({
-            to: _target,
-            value: 0,
-            data: _data,
-            operation: SafeOps.Operation.Call,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: payable(address(0)),
-            signatures: signature
-        });
-    }
-
-    /// @notice Call from the Safe contract to the Proxy Admin's upgrade and call method
-    function _upgradeAndCallViaSafe(address _proxy, address _implementation, bytes memory _innerCallData) internal {
-        address proxyAdmin = mustGetAddress("ProxyAdmin");
-
-        bytes memory data =
-            abi.encodeCall(ProxyAdmin.upgradeAndCall, (payable(_proxy), _implementation, _innerCallData));
-
-        _callViaSafe({ _target: proxyAdmin, _data: data });
-    }
+    ////////////////////////////////////////////////////////////////
+    //                    Initialize Functions                    //
+    ////////////////////////////////////////////////////////////////
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public onlyDevnet broadcast {
@@ -611,7 +622,6 @@ contract Deploy is Deployer {
         address systemConfig = mustGetAddress("SystemConfig");
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-        uint256 startBlock = cfg.systemConfigStartBlock();
 
         _upgradeAndCallViaSafe({
             _proxy: payable(systemConfigProxy),
@@ -625,17 +635,7 @@ contract Deploy is Deployer {
                     batcherHash,
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),
-                    Constants.DEFAULT_RESOURCE_CONFIG(),
-                    startBlock,
-                    cfg.batchInboxAddress(),
-                    SystemConfig.Addresses({
-                        l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
-                        l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-                        l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-                        l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
-                        optimismPortal: mustGetAddress("OptimismPortalProxy"),
-                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
-                    })
+                    Constants.DEFAULT_RESOURCE_CONFIG()
                 )
                 )
         });
@@ -652,7 +652,6 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
-        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
@@ -663,30 +662,26 @@ contract Deploy is Deployer {
         }
         require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
 
-        _upgradeAndCallViaSafe({
-            _proxy: payable(l1StandardBridgeProxy),
-            _implementation: l1StandardBridge,
-            _innerCallData: abi.encodeCall(
-                L1StandardBridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy))
-                )
+        _callViaSafe({
+            _target: address(proxyAdmin),
+            _data: abi.encodeCall(ProxyAdmin.upgrade, (payable(l1StandardBridgeProxy), l1StandardBridge))
         });
 
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        ChainAssertions.checkL1StandardBridge(_proxies(), vm);
+        ChainAssertions.checkL1StandardBridge(_proxies());
     }
 
     /// @notice Initialize the L1ERC721Bridge
     function initializeL1ERC721Bridge() public broadcast {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
-        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        _upgradeAndCallViaSafe({
-            _proxy: payable(l1ERC721BridgeProxy),
-            _implementation: l1ERC721Bridge,
-            _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (L1CrossDomainMessenger(l1CrossDomainMessengerProxy)))
+        _callViaSafe({
+            _target: address(proxyAdmin),
+            _data: abi.encodeCall(ProxyAdmin.upgrade, (payable(l1ERC721BridgeProxy), l1ERC721Bridge))
         });
 
         L1ERC721Bridge bridge = L1ERC721Bridge(l1ERC721BridgeProxy);
@@ -698,14 +693,15 @@ contract Deploy is Deployer {
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
         address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
-        address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
-        _upgradeAndCallViaSafe({
-            _proxy: payable(optimismMintableERC20FactoryProxy),
-            _implementation: optimismMintableERC20Factory,
-            _innerCallData: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
+        _callViaSafe({
+            _target: proxyAdmin,
+            _data: abi.encodeCall(
+                ProxyAdmin.upgrade, (payable(optimismMintableERC20FactoryProxy), optimismMintableERC20Factory)
+                )
         });
 
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
@@ -720,7 +716,6 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
-        address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
@@ -747,9 +742,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
-            _innerCallData: abi.encodeCall(
-                L1CrossDomainMessenger.initialize, (OptimismPortal(payable(optimismPortalProxy)))
-                )
+            _innerCallData: abi.encodeCall(L1CrossDomainMessenger.initialize, ())
         });
 
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxy);
@@ -768,13 +761,7 @@ contract Deploy is Deployer {
             _proxy: payable(l2OutputOracleProxy),
             _implementation: l2OutputOracle,
             _innerCallData: abi.encodeCall(
-                L2OutputOracle.initialize,
-                (
-                    cfg.l2OutputOracleStartingBlockNumber(),
-                    cfg.l2OutputOracleStartingTimestamp(),
-                    cfg.l2OutputOracleProposer(),
-                    cfg.l2OutputOracleChallenger()
-                )
+                L2OutputOracle.initialize, (cfg.l2OutputOracleStartingBlockNumber(), cfg.l2OutputOracleStartingTimestamp())
                 )
         });
 
@@ -789,21 +776,11 @@ contract Deploy is Deployer {
     function initializeOptimismPortal() public broadcast {
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
-        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
-
-        address guardian = cfg.portalGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
-        }
 
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(
-                OptimismPortal.initialize,
-                (L2OutputOracle(l2OutputOracleProxy), guardian, SystemConfig(systemConfigProxy), false)
-                )
+            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (false))
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
@@ -839,17 +816,6 @@ contract Deploy is Deployer {
         console.log("ProtocolVersions version: %s", version);
 
         ChainAssertions.checkProtocolVersions(_proxies(), cfg);
-    }
-
-    /// @notice Transfer ownership of the ProxyAdmin contract to the final system owner
-    function transferProxyAdminOwnership() public broadcast {
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-        address owner = proxyAdmin.owner();
-        address safe = mustGetAddress("SystemOwnerSafe");
-        if (owner != safe) {
-            proxyAdmin.transferOwnership(safe);
-            console.log("ProxyAdmin ownership transferred to Safe at: %s", safe);
-        }
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
@@ -949,28 +915,5 @@ contract Deploy is Deployer {
                 vm.toString(GameType.unwrap(_gameType))
             );
         }
-    }
-
-    /// @notice Deploy the StorageSetter contract, used for upgrades.
-    function deployStorageSetter() public broadcast returns (address addr_) {
-        StorageSetter setter = new StorageSetter{ salt: implSalt() }();
-        console.log("StorageSetter deployed at: %s", address(setter));
-        string memory version = setter.version();
-        console.log("StorageSetter version: %s", version);
-        addr_ = address(setter);
-    }
-
-    /// @notice Returns the proxy addresses
-    function _proxies() private view returns (Types.ContractSet memory proxies_) {
-        proxies_ = Types.ContractSet({
-            L1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
-            L1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
-            L2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
-            OptimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy"),
-            OptimismPortal: mustGetAddress("OptimismPortalProxy"),
-            SystemConfig: mustGetAddress("SystemConfigProxy"),
-            L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
-            ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
-        });
     }
 }

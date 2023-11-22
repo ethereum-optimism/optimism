@@ -70,9 +70,9 @@ contract SequencerFeeVault_Test is CommonTest {
         // No ether has been withdrawn yet
         assertEq(sequencerFeeVault.totalProcessed(), 0);
 
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(
             address(sequencerFeeVault).balance,
             sequencerFeeVault.RECIPIENT(),
@@ -115,9 +115,9 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         // No ether has been withdrawn yet
         assertEq(sequencerFeeVault.totalProcessed(), 0);
 
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(
             address(sequencerFeeVault).balance,
             sequencerFeeVault.RECIPIENT(),

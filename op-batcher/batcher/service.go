@@ -312,6 +312,10 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to close balance metricer: %w", err))
 		}
 	}
+	if bs.TxManager != nil {
+		bs.TxManager.Close()
+	}
+
 	if bs.metricsSrv != nil {
 		if err := bs.metricsSrv.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop metrics server: %w", err))
