@@ -47,18 +47,11 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the SystemConfig is setup correctly
-    function checkSystemConfig(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _initialized
-    )
-        internal
-        view
-    {
+    function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _proxy) internal view {
         ISystemConfigV0 config = ISystemConfigV0(_contracts.SystemConfig);
         ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
 
-        if (_initialized) {
+        if (_proxy) {
             require(config.owner() == _cfg.finalSystemOwner());
             require(config.overhead() == _cfg.gasPriceOracleOverhead());
             require(config.scalar() == _cfg.gasPriceOracleScalar());
@@ -166,16 +159,9 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
-    function checkProtocolVersions(
-        Types.ContractSet memory _proxies,
-        DeployConfig _cfg,
-        bool _initialized
-    )
-        internal
-        view
-    {
+    function checkProtocolVersions(Types.ContractSet memory _proxies, DeployConfig _cfg, bool _proxy) internal view {
         ProtocolVersions versions = ProtocolVersions(_proxies.ProtocolVersions);
-        if (_initialized) {
+        if (_proxy) {
             require(versions.owner() == _cfg.finalSystemOwner());
             require(ProtocolVersion.unwrap(versions.required()) == _cfg.requiredProtocolVersion());
             require(ProtocolVersion.unwrap(versions.recommended()) == _cfg.recommendedProtocolVersion());
