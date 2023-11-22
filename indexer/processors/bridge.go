@@ -256,7 +256,7 @@ func (b *BridgeProcessor) processInitiatedL2Events() error {
 
 			legacyBridgeLog := l2BridgeLog.New("mode", "legacy", "from_block_number", legacyFromL2Height, "to_block_number", legacyToL2Height)
 			legacyBridgeLog.Info("scanning for initiated bridge events")
-			if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
+			if err := bridge.LegacyL2ProcessInitiatedBridgeEvents(legacyBridgeLog, tx, b.metrics, b.chainConfig.Preset, b.chainConfig.L2Contracts, legacyFromL2Height, legacyToL2Height); err != nil {
 				return err
 			} else if legacyToL2Height.Cmp(toL2Height) == 0 {
 				return nil // a-ok! Entire range was legacy blocks
