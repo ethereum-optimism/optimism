@@ -186,4 +186,11 @@ library ChainAssertions {
         require(superchainConfig.guardian() == _cfg.portalGuardian());
         require(superchainConfig.paused() == false);
     }
+
+    /// @notice Asserts that the SuperchainConfig is setup correctly
+    function checkSuperchainConfig(Types.ContractSet memory _proxies, DeployConfig _cfg) internal view {
+        SuperchainConfig superchainConfig = SuperchainConfig(_proxies.SuperchainConfig);
+        require(superchainConfig.guardian() == _cfg.portalGuardian());
+        require(superchainConfig.paused() == false);
+    }
 }
