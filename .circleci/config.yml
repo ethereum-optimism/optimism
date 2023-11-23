@@ -436,8 +436,8 @@ jobs:
           name: abi snapshot
           command: |
             pnpm abi-snapshot
-            if [ $(git diff --exit-code snapshots) ]; then
-              [ -z git ls-files --others --exclude-standard ] || echo "export ABI_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            if [ "$(git diff --exit-code snapshots)" ]; then
+              [ -z "$(git ls-files --others --exclude-standard snapshots)" ] || echo "export ABI_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
             else
               echo "export ABI_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
             fi
