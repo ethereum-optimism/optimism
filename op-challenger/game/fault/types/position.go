@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	ErrPositionDepthTooSmall = errors.New("Position depth is too small")
+	ErrPositionDepthTooSmall = errors.New("position depth is too small")
 )
 
 // Position is a golang wrapper around the dispute game Position type.
@@ -30,6 +30,10 @@ func NewPositionFromGIndex(x *big.Int) Position {
 	withoutMSB := new(big.Int).Not(new(big.Int).Lsh(big.NewInt(1), uint(depth)))
 	indexAtDepth := new(big.Int).And(x, withoutMSB)
 	return NewPosition(depth, indexAtDepth)
+}
+
+func (p Position) String() string {
+	return fmt.Sprintf("Position(depth: %v, indexAtDepth: %v)", p.depth, p.indexAtDepth)
 }
 
 func (p Position) MoveRight() Position {

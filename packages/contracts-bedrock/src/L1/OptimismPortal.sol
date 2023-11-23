@@ -36,6 +36,21 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
+    /// @notice Address of the L2OutputOracle contract. This will be removed in the
+    ///         future, use `l2Oracle` instead.
+    /// @custom:legacy
+    L2OutputOracle public immutable L2_ORACLE;
+
+    /// @notice Address of the SystemConfig contract. This will be removed in the
+    ///         future, use `systemConfig` instead.
+    /// @custom:legacy
+    SystemConfig public immutable SYSTEM_CONFIG;
+
+    /// @notice Address that has the ability to pause and unpause withdrawals. This will be removed in the
+    ///         future, use `guardian` instead.
+    /// @custom:legacy
+    address public immutable GUARDIAN;
+
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to finalizeWithdrawalTransaction.
@@ -51,18 +66,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     ///         When set to true, withdrawals are paused.
     ///         This may be removed in the future.
     bool public paused;
-
-    /// @notice Address of the L2OutputOracle contract.
-    /// @custom:network-specific
-    L2OutputOracle public l2Oracle;
-
-    /// @notice Address of the SystemConfig contract.
-    /// @custom:network-specific
-    SystemConfig public systemConfig;
-
-    /// @notice Address that has the ability to pause and unpause withdrawals.
-    /// @custom:network-specific
-    address public guardian;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -99,69 +102,56 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.10.0
-    string public constant version = "1.10.0";
+    /// @custom:semver 1.11.0
+    string public constant version = "1.11.0";
 
     /// @notice Constructs the OptimismPortal contract.
-    constructor() {
-        initialize({
-            _l2Oracle: L2OutputOracle(address(0)),
-            _guardian: address(0),
-            _systemConfig: SystemConfig(address(0)),
-            _paused: true
-        });
-    }
-
-    /// @notice Initializer.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
     /// @param _guardian Address that can pause withdrawals.
     /// @param _paused Sets the contract's pausability state.
     /// @param _systemConfig Address of the SystemConfig contract.
-    function initialize(
-        L2OutputOracle _l2Oracle,
-        address _guardian,
-        SystemConfig _systemConfig,
-        bool _paused
-    )
-        public
-        reinitializer(Constants.INITIALIZER)
-    {
+    constructor(L2OutputOracle _l2Oracle, address _guardian, bool _paused, SystemConfig _systemConfig) {
+        L2_ORACLE = _l2Oracle;
+        GUARDIAN = _guardian;
+        SYSTEM_CONFIG = _systemConfig;
+        initialize(_paused);
+    }
+
+    /// @notice Initializer.
+    function initialize(bool _paused) public initializer {
         l2Sender = Constants.DEFAULT_L2_SENDER;
-        l2Oracle = _l2Oracle;
-        systemConfig = _systemConfig;
-        guardian = _guardian;
         paused = _paused;
         __ResourceMetering_init();
     }
 
-    /// @notice Getter for the L2OutputOracle
-    /// @custom:legacy
-    function L2_ORACLE() external view returns (L2OutputOracle) {
-        return l2Oracle;
+    /// @notice Getter function for the address of the L2OutputOracle on this chain.
+    /// @notice Address of the L2OutputOracle on this chain.
+    function l2Oracle() public view returns (L2OutputOracle) {
+        return L2_ORACLE;
     }
 
-    /// @notice Getter for the SystemConfig
-    /// @custom:legacy
-    function SYSTEM_CONFIG() external view returns (SystemConfig) {
-        return systemConfig;
+    /// @notice Getter function for the address of the SystemConfig on this chain.
+    /// @notice Address of the SystemConfig on this chain.
+    function systemConfig() public view returns (SystemConfig) {
+        return SYSTEM_CONFIG;
     }
 
-    /// @notice Getter for the Guardian
-    /// @custom:legacy
-    function GUARDIAN() external view returns (address) {
-        return guardian;
+    /// @notice Getter function for the address of the L2OutputOracle on this chain.
+    /// @notice Address of the L2OutputOracle on this chain.
+    function guardian() public view returns (address) {
+        return GUARDIAN;
     }
 
     /// @notice Pauses withdrawals.
     function pause() external {
-        require(msg.sender == guardian, "OptimismPortal: only guardian can pause");
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
         paused = true;
         emit Paused(msg.sender);
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
-        require(msg.sender == guardian, "OptimismPortal: only guardian can unpause");
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
         paused = false;
         emit Unpaused(msg.sender);
     }
@@ -198,7 +188,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     ///         The SystemConfig is the source of truth for the resource config.
     /// @return ResourceMetering ResourceConfig
     function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
-        return systemConfig.resourceConfig();
+        return SYSTEM_CONFIG.resourceConfig();
     }
 
     /// @notice Proves a withdrawal transaction.
@@ -222,7 +212,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // revert if there is no output root for the given block number.
-        bytes32 outputRoot = l2Oracle.getL2Output(_l2OutputIndex).outputRoot;
+        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2OutputIndex).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
@@ -241,7 +231,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // output index has been updated.
         require(
             provenWithdrawal.timestamp == 0
-                || l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot != provenWithdrawal.outputRoot,
+                || L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot != provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
@@ -302,7 +292,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         // starting timestamp inside the L2OutputOracle. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
-            provenWithdrawal.timestamp >= l2Oracle.startingTimestamp(),
+            provenWithdrawal.timestamp >= L2_ORACLE.startingTimestamp(),
             "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
         );
 
@@ -317,7 +307,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
-        Types.OutputProposal memory proposal = l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex);
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex);
 
         // Check that the output root that was used to prove the withdrawal is the same as the
         // current output root for the given output index. An output root may change if it is
@@ -424,7 +414,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _l2OutputIndex Index of the L2 output to check.
     /// @return Whether or not the output is finalized.
     function isOutputFinalized(uint256 _l2OutputIndex) external view returns (bool) {
-        return _isFinalizationPeriodElapsed(l2Oracle.getL2Output(_l2OutputIndex).timestamp);
+        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2OutputIndex).timestamp);
     }
 
     /// @notice Determines whether the finalization period has elapsed with respect to
@@ -432,6 +422,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param _timestamp Timestamp to check.
     /// @return Whether or not the finalization period has elapsed.
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
-        return block.timestamp > _timestamp + l2Oracle.FINALIZATION_PERIOD_SECONDS();
+        return block.timestamp > _timestamp + L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
     }
 }

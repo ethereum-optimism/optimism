@@ -25,7 +25,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @notice Initializer.
-    function initialize() public reinitializer(Constants.INITIALIZER) {
+    function initialize() public initializer {
         __CrossDomainMessenger_init();
     }
 

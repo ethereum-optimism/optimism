@@ -5,24 +5,29 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type actor func(ctx context.Context) error
 
 type GameInfo interface {
-	GetGameStatus(context.Context) (gameTypes.GameStatus, error)
+	GetStatus(context.Context) (gameTypes.GameStatus, error)
 	GetClaimCount(context.Context) (uint64, error)
 }
+
+// gameValidator checks that the specific game instance is compatible with the configuration.
+// Typically, this is done by verifying the absolute prestate of the game matches the local absolute prestate.
+type gameValidator func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error
 
 type GamePlayer struct {
 	act                     actor
@@ -32,7 +37,7 @@ type GamePlayer struct {
 	status                  gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, gameDepth uint64, dir string) (types.TraceProvider, types.OracleUpdater, error)
+type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, gameValidator, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -42,18 +47,17 @@ func NewGamePlayer(
 	dir string,
 	addr common.Address,
 	txMgr txmgr.TxManager,
-	client bind.ContractCaller,
+	client *ethclient.Client,
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
-	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
+
+	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
+		return nil, fmt.Errorf("failed to create fault dispute game contract wrapper: %w", err)
 	}
 
-	loader := NewLoader(contract)
-
-	status, err := loader.GetGameStatus(ctx)
+	status, err := loader.GetStatus(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch game status: %w", err)
 	}
@@ -72,27 +76,28 @@ func NewGamePlayer(
 		}, nil
 	}
 
-	gameDepth, err := loader.FetchGameDepth(ctx)
+	gameDepth, err := loader.GetMaxGameDepth(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	provider, updater, err := creator(addr, gameDepth, dir)
+	accessor, validator, err := creator(addr, loader, gameDepth, dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create trace provider: %w", err)
+		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
 
-	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
+	if err := validator(ctx, loader); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	responder, err := responder.NewFaultResponder(logger, txMgr, addr)
+	responder, err := responder.NewFaultResponder(logger, txMgr, loader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
+	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, cfg.AgreeWithProposedOutput, logger)
 	return &GamePlayer{
-		act:                     NewAgent(m, loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger).Act,
+		act:                     agent.Act,
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		loader:                  loader,
 		logger:                  logger,
@@ -114,7 +119,7 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) gameTypes.GameStatus {
 	if err := g.act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
 	}
-	status, err := g.loader.GetGameStatus(ctx)
+	status, err := g.loader.GetStatus(ctx)
 	if err != nil {
 		g.logger.Warn("Unable to retrieve game status", "err", err)
 		return gameTypes.GameStatusInProgress
@@ -148,7 +153,7 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameSta
 }
 
 type PrestateLoader interface {
-	FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
+	GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
 }
 
 // ValidateAbsolutePrestate validates the absolute prestate of the fault game.
@@ -157,7 +162,7 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 	if err != nil {
 		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
 	}
-	onchainPrestate, err := loader.FetchAbsolutePrestateHash(ctx)
+	onchainPrestate, err := loader.GetAbsolutePrestateHash(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/urfave/cli/v2"
 
@@ -30,21 +29,22 @@ type Lifecycle interface {
 // a shutdown when the Stop context is not expired.
 type LifecycleAction func(ctx *cli.Context, close context.CancelCauseFunc) (Lifecycle, error)
 
+var interruptErr = errors.New("interrupt signal")
+
 // LifecycleCmd turns a LifecycleAction into an CLI action,
 // by instrumenting it with CLI context and signal based termination.
+// The signals are caught with the opio.BlockFn attached to the context, if any.
+// If no block function is provided, it adds default interrupt handling.
 // The app may continue to run post-processing until fully shutting down.
 // The user can force an early shut-down during post-processing by sending a second interruption signal.
 func LifecycleCmd(fn LifecycleAction) cli.ActionFunc {
-	return lifecycleCmd(fn, opio.BlockOnInterruptsContext)
-}
-
-type waitSignalFn func(ctx context.Context, signals ...os.Signal)
-
-var interruptErr = errors.New("interrupt signal")
-
-func lifecycleCmd(fn LifecycleAction, blockOnInterrupt waitSignalFn) cli.ActionFunc {
 	return func(ctx *cli.Context) error {
 		hostCtx := ctx.Context
+		blockOnInterrupt := opio.BlockerFromContext(hostCtx)
+		if blockOnInterrupt == nil { // add default interrupt blocker to context if none is set.
+			hostCtx = opio.WithInterruptBlocker(hostCtx)
+			blockOnInterrupt = opio.BlockerFromContext(hostCtx)
+		}
 		appCtx, appCancel := context.WithCancelCause(hostCtx)
 		ctx.Context = appCtx
 

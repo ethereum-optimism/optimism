@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -70,21 +69,6 @@ func (tx *spanBatchTx) MarshalBinary() ([]byte, error) {
 	return buf.Bytes(), err
 }
 
-// EncodeRLP implements rlp.Encoder
-func (tx *spanBatchTx) EncodeRLP(w io.Writer) error {
-	if tx.Type() == types.LegacyTxType {
-		return rlp.Encode(w, tx.inner)
-	}
-	// It's an EIP-2718 typed TX envelope.
-	buf := encodeBufferPool.Get().(*bytes.Buffer)
-	defer encodeBufferPool.Put(buf)
-	buf.Reset()
-	if err := tx.encodeTyped(buf); err != nil {
-		return err
-	}
-	return rlp.Encode(w, buf.Bytes())
-}
-
 // setDecoded sets the inner transaction after decoding.
 func (tx *spanBatchTx) setDecoded(inner spanBatchTxData, size uint64) {
 	tx.inner = inner
@@ -112,36 +96,6 @@ func (tx *spanBatchTx) decodeTyped(b []byte) (spanBatchTxData, error) {
 		return &inner, nil
 	default:
 		return nil, types.ErrTxTypeNotSupported
-	}
-}
-
-// DecodeRLP implements rlp.Decoder
-func (tx *spanBatchTx) DecodeRLP(s *rlp.Stream) error {
-	kind, size, err := s.Kind()
-	switch {
-	case err != nil:
-		return err
-	case kind == rlp.List:
-		// It's a legacy transaction.
-		var inner spanBatchLegacyTxData
-		err = s.Decode(&inner)
-		if err != nil {
-			return fmt.Errorf("failed to decode spanBatchLegacyTxData: %w", err)
-		}
-		tx.setDecoded(&inner, rlp.ListSize(size))
-		return nil
-	default:
-		// It's an EIP-2718 typed TX envelope.
-		var b []byte
-		if b, err = s.Bytes(); err != nil {
-			return err
-		}
-		inner, err := tx.decodeTyped(b)
-		if err != nil {
-			return err
-		}
-		tx.setDecoded(inner, uint64(len(b)))
-		return nil
 	}
 }
 

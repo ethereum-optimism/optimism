@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	faulttest "github.com/ethereum-optimism/optimism/op-challenger/game/fault/test"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -161,7 +162,7 @@ func TestAttemptStep(t *testing.T) {
 		t.Run(tableTest.name, func(t *testing.T) {
 			builder := claimBuilder.GameBuilder(tableTest.agreeWithOutputRoot, !tableTest.agreeWithOutputRoot)
 			tableTest.setupGame(builder)
-			alphabetSolver := newClaimSolver(maxDepth, claimBuilder.CorrectTraceProvider())
+			alphabetSolver := newClaimSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))
 			game := builder.Game
 			claims := game.Claims()
 			lastClaim := claims[len(claims)-1]

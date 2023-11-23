@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -112,10 +113,9 @@ func setupTestAgent(t *testing.T, agreeWithProposedOutput bool) (*Agent, *stubCl
 	logger := testlog.Logger(t, log.LvlInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := 4
-	trace := alphabet.NewTraceProvider("abcd", uint64(depth))
+	provider := alphabet.NewTraceProvider("abcd", uint64(depth))
 	responder := &stubResponder{}
-	updater := &stubUpdater{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace, responder, updater, agreeWithProposedOutput, logger)
+	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, agreeWithProposedOutput, logger)
 	return agent, claimLoader, responder
 }
 
@@ -124,7 +124,7 @@ type stubClaimLoader struct {
 	claims    []types.Claim
 }
 
-func (s *stubClaimLoader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
+func (s *stubClaimLoader) GetAllClaims(ctx context.Context) ([]types.Claim, error) {
 	s.callCount++
 	return s.claims, nil
 }
@@ -164,11 +164,4 @@ func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error
 
 func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
 	return nil
-}
-
-type stubUpdater struct {
-}
-
-func (s *stubUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOracleData) error {
-	panic("Not implemented")
 }

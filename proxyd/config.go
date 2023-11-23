@@ -22,9 +22,9 @@ type ServerConfig struct {
 
 	MaxUpstreamBatchSize int `toml:"max_upstream_batch_size"`
 
-	EnableRequestLog     bool `toml:"enable_request_log"`
-	MaxRequestBodyLogLen int  `toml:"max_request_body_log_len"`
-	EnablePprof          bool `toml:"enable_pprof"`
+	EnableRequestLog      bool `toml:"enable_request_log"`
+	MaxRequestBodyLogLen  int  `toml:"max_request_body_log_len"`
+	EnablePprof           bool `toml:"enable_pprof"`
 	EnableXServedByHeader bool `toml:"enable_served_by_header"`
 }
 
@@ -51,6 +51,7 @@ type RateLimitConfig struct {
 	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
 	ErrorMessage     string                              `toml:"error_message"`
 	MethodOverrides  map[string]*RateLimitMethodOverride `toml:"method_overrides"`
+	IPHeaderOverride string                              `toml:"ip_header_override"`
 }
 
 type RateLimitMethodOverride struct {
@@ -82,17 +83,20 @@ type BackendOptions struct {
 }
 
 type BackendConfig struct {
-	Username         string `toml:"username"`
-	Password         string `toml:"password"`
-	RPCURL           string `toml:"rpc_url"`
-	WSURL            string `toml:"ws_url"`
-	WSPort           int    `toml:"ws_port"`
-	MaxRPS           int    `toml:"max_rps"`
-	MaxWSConns       int    `toml:"max_ws_conns"`
-	CAFile           string `toml:"ca_file"`
-	ClientCertFile   string `toml:"client_cert_file"`
-	ClientKeyFile    string `toml:"client_key_file"`
-	StripTrailingXFF bool   `toml:"strip_trailing_xff"`
+	Username         string            `toml:"username"`
+	Password         string            `toml:"password"`
+	RPCURL           string            `toml:"rpc_url"`
+	WSURL            string            `toml:"ws_url"`
+	WSPort           int               `toml:"ws_port"`
+	MaxRPS           int               `toml:"max_rps"`
+	MaxWSConns       int               `toml:"max_ws_conns"`
+	CAFile           string            `toml:"ca_file"`
+	ClientCertFile   string            `toml:"client_cert_file"`
+	ClientKeyFile    string            `toml:"client_key_file"`
+	StripTrailingXFF bool              `toml:"strip_trailing_xff"`
+	Headers          map[string]string `toml:"headers"`
+
+	Weight int `toml:"weight"`
 
 	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
 	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
@@ -103,6 +107,8 @@ type BackendsConfig map[string]*BackendConfig
 
 type BackendGroupConfig struct {
 	Backends []string `toml:"backends"`
+
+	WeightedRouting bool `toml:"weighted_routing"`
 
 	ConsensusAware        bool   `toml:"consensus_aware"`
 	ConsensusAsyncHandler string `toml:"consensus_handler"`

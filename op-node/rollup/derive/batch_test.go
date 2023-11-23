@@ -6,15 +6,16 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
@@ -52,8 +53,8 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 		spanBatchPrefix: spanBatchPrefix{
 			relTimestamp:  uint64(rng.Uint32()),
 			l1OriginNum:   rng.Uint64(),
-			parentCheck:   testutils.RandomData(rng, 20),
-			l1OriginCheck: testutils.RandomData(rng, 20),
+			parentCheck:   [20]byte(testutils.RandomData(rng, 20)),
+			l1OriginCheck: [20]byte(testutils.RandomData(rng, 20)),
 		},
 		spanBatchPayload: spanBatchPayload{
 			blockCount:    blockCount,
@@ -141,40 +142,42 @@ func TestBatchRoundTrip(t *testing.T) {
 	chainID := new(big.Int).SetUint64(rng.Uint64())
 
 	batches := []*BatchData{
-		{
-			SingularBatch: SingularBatch{
+		NewBatchData(
+			&SingularBatch{
 				ParentHash:   common.Hash{},
 				EpochNum:     0,
 				Timestamp:    0,
 				Transactions: []hexutil.Bytes{},
 			},
-		},
-		{
-			SingularBatch: SingularBatch{
+		),
+		NewBatchData(
+			&SingularBatch{
 				ParentHash:   common.Hash{31: 0x42},
 				EpochNum:     1,
 				Timestamp:    1647026951,
 				Transactions: []hexutil.Bytes{[]byte{0, 0, 0}, []byte{0x76, 0xfd, 0x7c}},
 			},
-		},
-		NewSingularBatchData(*RandomSingularBatch(rng, 5, chainID)),
-		NewSingularBatchData(*RandomSingularBatch(rng, 7, chainID)),
-		NewSpanBatchData(*RandomRawSpanBatch(rng, chainID)),
-		NewSpanBatchData(*RandomRawSpanBatch(rng, chainID)),
-		NewSpanBatchData(*RandomRawSpanBatch(rng, chainID)),
+		),
+		NewBatchData(RandomSingularBatch(rng, 5, chainID)),
+		NewBatchData(RandomSingularBatch(rng, 7, chainID)),
+		NewBatchData(RandomRawSpanBatch(rng, chainID)),
+		NewBatchData(RandomRawSpanBatch(rng, chainID)),
+		NewBatchData(RandomRawSpanBatch(rng, chainID)),
 	}
 
 	for i, batch := range batches {
 		enc, err := batch.MarshalBinary()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		var dec BatchData
 		err = dec.UnmarshalBinary(enc)
-		assert.NoError(t, err)
-		if dec.BatchType == SpanBatchType {
-			_, err := dec.RawSpanBatch.derive(blockTime, genesisTimestamp, chainID)
-			assert.NoError(t, err)
+		require.NoError(t, err)
+		if dec.GetBatchType() == SpanBatchType {
+			rawSpanBatch, ok := dec.inner.(*RawSpanBatch)
+			require.True(t, ok)
+			_, err := rawSpanBatch.derive(blockTime, genesisTimestamp, chainID)
+			require.NoError(t, err)
 		}
-		assert.Equal(t, batch, &dec, "Batch not equal test case %v", i)
+		require.Equal(t, batch, &dec, "Batch not equal test case %v", i)
 	}
 }
 
@@ -185,43 +188,45 @@ func TestBatchRoundTripRLP(t *testing.T) {
 	chainID := new(big.Int).SetUint64(rng.Uint64())
 
 	batches := []*BatchData{
-		{
-			SingularBatch: SingularBatch{
+		NewBatchData(
+			&SingularBatch{
 				ParentHash:   common.Hash{},
 				EpochNum:     0,
 				Timestamp:    0,
 				Transactions: []hexutil.Bytes{},
 			},
-		},
-		{
-			SingularBatch: SingularBatch{
+		),
+		NewBatchData(
+			&SingularBatch{
 				ParentHash:   common.Hash{31: 0x42},
 				EpochNum:     1,
 				Timestamp:    1647026951,
 				Transactions: []hexutil.Bytes{[]byte{0, 0, 0}, []byte{0x76, 0xfd, 0x7c}},
 			},
-		},
-		NewSingularBatchData(*RandomSingularBatch(rng, 5, chainID)),
-		NewSingularBatchData(*RandomSingularBatch(rng, 7, chainID)),
-		NewSpanBatchData(*RandomRawSpanBatch(rng, chainID)),
-		NewSpanBatchData(*RandomRawSpanBatch(rng, chainID)),
-		NewSpanBatchData(*RandomRawSpanBatch(rng, chainID)),
+		),
+		NewBatchData(RandomSingularBatch(rng, 5, chainID)),
+		NewBatchData(RandomSingularBatch(rng, 7, chainID)),
+		NewBatchData(RandomRawSpanBatch(rng, chainID)),
+		NewBatchData(RandomRawSpanBatch(rng, chainID)),
+		NewBatchData(RandomRawSpanBatch(rng, chainID)),
 	}
 
 	for i, batch := range batches {
 		var buf bytes.Buffer
 		err := batch.EncodeRLP(&buf)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		result := buf.Bytes()
 		var dec BatchData
 		r := bytes.NewReader(result)
 		s := rlp.NewStream(r, 0)
 		err = dec.DecodeRLP(s)
-		assert.NoError(t, err)
-		if dec.BatchType == SpanBatchType {
-			_, err := dec.RawSpanBatch.derive(blockTime, genesisTimestamp, chainID)
-			assert.NoError(t, err)
+		require.NoError(t, err)
+		if dec.GetBatchType() == SpanBatchType {
+			rawSpanBatch, ok := dec.inner.(*RawSpanBatch)
+			require.True(t, ok)
+			_, err := rawSpanBatch.derive(blockTime, genesisTimestamp, chainID)
+			require.NoError(t, err)
 		}
-		assert.Equal(t, batch, &dec, "Batch not equal test case %v", i)
+		require.Equal(t, batch, &dec, "Batch not equal test case %v", i)
 	}
 }

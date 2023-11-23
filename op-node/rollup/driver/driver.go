@@ -60,6 +60,7 @@ type DerivationPipeline interface {
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
+	PendingSafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	EngineReady() bool
 	EngineSyncTarget() eth.L2BlockRef

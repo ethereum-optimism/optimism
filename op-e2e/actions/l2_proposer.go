@@ -48,29 +48,32 @@ type fakeTxMgr struct {
 func (f fakeTxMgr) From() common.Address {
 	return f.from
 }
-func (f fakeTxMgr) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
-	panic("unimplemented")
-}
 func (f fakeTxMgr) BlockNumber(_ context.Context) (uint64, error) {
 	panic("unimplemented")
 }
 func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt, error) {
 	panic("unimplemented")
 }
+func (f fakeTxMgr) Close() {
+}
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
-	proposerCfg := proposer.Config{
-		L2OutputOracleAddr: cfg.OutputOracleAddr,
+	proposerConfig := proposer.ProposerConfig{
 		PollInterval:       time.Second,
 		NetworkTimeout:     time.Second,
-		L1Client:           l1,
-		RollupClient:       rollupCl,
+		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
-		// We use custom signing here instead of using the transaction manager.
-		TxManager: fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)},
+	}
+	driverSetup := proposer.DriverSetup{
+		Log:          log,
+		Metr:         metrics.NoopMetrics,
+		Cfg:          proposerConfig,
+		Txmgr:        fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)},
+		L1Client:     l1,
+		RollupClient: rollupCl,
 	}
 
-	dr, err := proposer.NewL2OutputSubmitter(proposerCfg, log, metrics.NoopMetrics)
+	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
 	require.NoError(t, err)
 	contract, err := bindings.NewL2OutputOracleCaller(cfg.OutputOracleAddr, l1)
 	require.NoError(t, err)

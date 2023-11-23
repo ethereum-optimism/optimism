@@ -32,6 +32,7 @@ chains following the same Superchain Target upgrade synchronously.
 - [OP-Stack Protocol versions](#op-stack-protocol-versions)
 - [Post-Bedrock Network upgrades](#post-bedrock-network-upgrades)
   - [Regolith](#regolith)
+- [Canyon](#canyon)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -199,7 +200,10 @@ and are then retrieved from the superchain target configuration.
 
 ### L2 Block-number based activation (deprecated)
 
-Activation rule: `x != null && x >= upgradeNumber`
+Activation rule: `upgradeNumber != null && block.number >= upgradeNumber`
+
+Starting at, and including, the L2 `block` with `block.number >= upgradeNumber`, the upgrade rules apply.
+If the upgrade block-number `upgradeNumber` is not specified in the configuration, the upgrade is ignored.
 
 This block number based method has commonly been used in L1 up until the Bellatrix/Paris upgrade, a.k.a. The Merge,
 which was upgraded through special rules.
@@ -207,21 +211,18 @@ which was upgraded through special rules.
 This method is not superchain-compatible, as the activation-parameter is chain-specific
 (different chains may have different block-heights at the same moment in time).
 
-Starting at, and including, the L2 `block` with `block.number == x`, the upgrade rules apply.
-If the upgrade block-number `x` is not specified in the configuration, the upgrade is ignored.
-
 This applies to the L2 block number, not to the L1-origin block number.
 This means that an L2 upgrade may be inactive, and then active, without changing the L1-origin.
 
 ### L2 Block-timestamp based activation
 
-Activation rule: `x != null && x >= upgradeTime`
+Activation rule: `upgradeTime != null && block.timestamp >= upgradeTime`
+
+Starting at, and including, the L2 `block` with `block.timestamp >= upgradeTime`, the upgrade rules apply.
+If the upgrade block-timestamp `upgradeTime` is not specified in the configuration, the upgrade is ignored.
 
 This is the preferred superchain upgrade activation-parameter type:
 it is synchronous between all L2 chains and compatible with post-Merge timestamp-based chain upgrades in L1.
-
-Starting at, and including, the L2 `block` with `block.timestamp == x`, the upgrade rules apply.
-If the upgrade block-timestamp `x` is not specified in the configuration, the upgrade is ignored.
 
 This applies to the L2 block timestamp, not to the L1-origin block timestamp.
 This means that an L2 upgrade may be inactive, and then active, without changing the L1-origin.
@@ -245,6 +246,7 @@ but the matching L1-origin information may not be present at the time of activat
   ([announcement](https://optimism.mirror.xyz/gQWKlrDqHzdKPsB1iUnI-cVN3v0NvsWnazK7ajlt1fI)).
 - `v3.0.0-1`: 2023 Jan 13th - Bedrock pre-release, deployed on OP-Goerli, and later Base-Goerli.
 - `v3.0.0`: 2023 Jun 6th - Bedrock, including the Regolith hardfork improvements, first deployed on OP-Mainnet.
+- `v4.0.0`: TBD - Canyon
 
 ## Post-Bedrock Network upgrades
 
@@ -273,3 +275,24 @@ The [execution engine specification](./exec-engine.md) specifies the L1 cost fun
 
 The Regolith upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
 rollup-node (`regolith_time`) and execution engine (`config.regolithTime`).
+
+## Canyon
+
+The Canyon upgrade contains the Shapella upgrade from L1 and some minor protocol fixes.
+
+- Shapella Upgrade
+  - [EIP-3651: Warm COINBASE](https://eips.ethereum.org/EIPS/eip-3651)
+  - [EIP-3855: PUSH0 instruction](https://eips.ethereum.org/EIPS/eip-3855)
+  - [EIP-3860: Limit and meter initcode](https://eips.ethereum.org/EIPS/eip-3860)
+  - [EIP-4895: Beacon chain push withdrawals as operations](https://eips.ethereum.org/EIPS/eip-4895)
+    - [Withdrawlas are prohibited in P2P Blocks](./rollup-node-p2p.md#block-validation)
+    - [Withdrawals should be set to the empty array with Canyon](./derivation.md#building-individual-payload-attributes)
+  - [EIP-6049: Deprecate SELFDESTRUCT](https://eips.ethereum.org/EIPS/eip-6049)
+- [Modifies the EIP-1559 Denominator](./exec-engine.md#1559-parameters)
+- [Channel Ordering Fix](./derivation.md#reading)
+- [Adds the deposit nonce & deposit nonce version to the deposit receipt hash](./deposits.md#deposit-receipt)
+- [Deploys the create2Deployer to `0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2`](./predeploys.md#create2deployer)
+
+The Canyon upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
+rollup-node (`canyon_time`) and execution engine (`config.canyonTime`). Shanghai time in the
+execution engine should be set to the same time as the Canyon time.

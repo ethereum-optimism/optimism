@@ -125,7 +125,7 @@ func TestGetStepData(t *testing.T) {
 
 		require.EqualValues(t, generator.proof.StateData, preimage)
 		require.EqualValues(t, generator.proof.ProofData, proof)
-		expectedData := types.NewPreimageOracleData(0, generator.proof.OracleKey, generator.proof.OracleValue, generator.proof.OracleOffset)
+		expectedData := types.NewPreimageOracleData(common.Hash{}, generator.proof.OracleKey, generator.proof.OracleValue, generator.proof.OracleOffset)
 		require.EqualValues(t, expectedData, data)
 	})
 
@@ -217,28 +217,28 @@ func TestGetStepData(t *testing.T) {
 	})
 }
 
-func TestAbsolutePreState(t *testing.T) {
+func TestAbsolutePreStateCommitment(t *testing.T) {
 	dataDir := t.TempDir()
 
 	prestate := "state.bin"
 
 	t.Run("StateUnavailable", func(t *testing.T) {
 		provider, _ := setupWithTestData(t, "/dir/does/not/exist", prestate)
-		_, err := provider.AbsolutePreState(context.Background())
+		_, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	t.Run("InvalidStateFile", func(t *testing.T) {
 		setupPreState(t, dataDir, "invalid.bin")
 		provider, _ := setupWithTestData(t, dataDir, prestate)
-		_, err := provider.AbsolutePreState(context.Background())
+		_, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.ErrorContains(t, err, "invalid mipsevm state")
 	})
 
 	t.Run("ExpectedAbsolutePreState", func(t *testing.T) {
 		setupPreState(t, dataDir, "state.bin")
 		provider, _ := setupWithTestData(t, dataDir, prestate)
-		preState, err := provider.AbsolutePreState(context.Background())
+		actual, err := provider.AbsolutePreStateCommitment(context.Background())
 		require.NoError(t, err)
 		state := &mipsevm.State{
 			Memory:         mipsevm.NewMemory(),
@@ -263,7 +263,9 @@ func TestAbsolutePreState(t *testing.T) {
 			},
 			LastHint: nil,
 		}
-		require.Equal(t, []byte(state.EncodeWitness()), preState)
+		expected, err := state.EncodeWitness().StateHash()
+		require.NoError(t, err)
+		require.Equal(t, expected, actual)
 	})
 }
 

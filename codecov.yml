@@ -3,14 +3,16 @@ codecov:
 comment:
   layout: "diff, flags, files"
   behavior: default
-  require_changes: false
+  require_changes: true
   flags:
     - contracts-bedrock-tests
 
 ignore:
   - "op-e2e"
-  - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "**/*.t.sol"
+  - "packages/contracts-bedrock/test/**/*.sol"
+  - "packages/contracts-bedrock/scripts/**/*.sol"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
   - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
 coverage:
@@ -31,7 +33,7 @@ flag_management:
   individual_flags:
     - name: contracts-bedrock-tests
       paths:
-        - packages/contracts-bedrock
+        - packages/contracts-bedrock/src
       statuses:
         - type: patch
           target: 100%

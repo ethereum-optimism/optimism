@@ -34,12 +34,12 @@ export interface WithdrawalItem {
   from: string;
   to: string;
   transactionHash: string;
-  messageHash: string;
+  crossDomainMessageHash: string;
   timestamp: number /* uint64 */;
   l2BlockHash: string;
   amount: string;
-  proofTransactionHash: string;
-  claimTransactionHash: string;
+  l1ProvenTxHash: string;
+  l1FinalizedTxHash: string;
   l1TokenAddress: string;
   l2TokenAddress: string;
 }
@@ -50,4 +50,8 @@ export interface WithdrawalResponse {
   cursor: string;
   hasNextPage: boolean;
   items: WithdrawalItem[];
+}
+export interface BridgeSupplyView {
+  l1DepositSum: number /* float64 */;
+  l2WithdrawalSum: number /* float64 */;
 }

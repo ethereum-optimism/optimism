@@ -43,16 +43,15 @@ type TxManager interface {
 	// NOTE: Send can be called concurrently, the nonce will be managed internally.
 	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 
-	// Call is used to call a contract.
-	// Internally, it uses the [ethclient.Client.CallContract] method.
-	Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
-
 	// From returns the sending address associated with the instance of the transaction manager.
 	// It is static for a single instance of a TxManager.
 	From() common.Address
 
 	// BlockNumber returns the most recent block number from the underlying network.
 	BlockNumber(ctx context.Context) (uint64, error)
+
+	// Close the underlying connection
+	Close()
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -84,6 +83,8 @@ type ETHBackend interface {
 	// EstimateGas returns an estimate of the amount of gas needed to execute the given
 	// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	// Close the underlying eth connection
+	Close()
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -135,6 +136,10 @@ func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return m.backend.BlockNumber(ctx)
 }
 
+func (m *SimpleTxManager) Close() {
+	m.backend.Close()
+}
+
 // TxCandidate is a transaction candidate that can be submitted to ask the
 // [TxManager] to construct a transaction with gas price bounds.
 type TxCandidate struct {
@@ -167,12 +172,6 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 		m.resetNonce()
 	}
 	return receipt, err
-}
-
-// Call is used to call a contract.
-// Internally, it uses the [ethclient.Client.CallContract] method.
-func (m *SimpleTxManager) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	return m.backend.CallContract(ctx, msg, blockNumber)
 }
 
 // send performs the actual transaction creation and sending.

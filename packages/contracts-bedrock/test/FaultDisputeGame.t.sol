@@ -17,6 +17,7 @@ import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibClock.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
+import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
@@ -36,9 +37,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         vm.warp(1690906994);
 
         // Propose 2 mock outputs
-        vm.startPrank(oracle.PROPOSER());
+        vm.startPrank(l2OutputOracle.PROPOSER());
         for (uint256 i; i < 2; i++) {
-            oracle.proposeL2Output(bytes32(i + 1), oracle.nextBlockNumber(), blockhash(i), i);
+            l2OutputOracle.proposeL2Output(bytes32(i + 1), l2OutputOracle.nextBlockNumber(), blockhash(i), i);
 
             // Advance 1 block
             vm.roll(block.number + 1);
@@ -51,7 +52,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         blockOracle.checkpoint();
 
         // Set the extra data for the game creation
-        extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, block.number - 1);
+        extraData = abi.encode(l2OutputOracle.SUBMISSION_INTERVAL() * 2, block.number - 1);
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
@@ -60,7 +61,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             4,
             Duration.wrap(7 days),
             new AlphabetVM(absolutePrestate),
-            oracle,
+            l2OutputOracle,
             blockOracle
         );
         // Register the game implementation with the factory.
@@ -126,7 +127,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_initialize_l1HeadTooOld_reverts() public {
         // Store a mock block hash for the genesis block. The timestamp will default to 0.
         vm.store(address(gameImpl.BLOCK_ORACLE()), keccak256(abi.encode(0, 0)), bytes32(uint256(1)));
-        bytes memory _extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, 0);
+        bytes memory _extraData = abi.encode(l2OutputOracle.SUBMISSION_INTERVAL() * 2, 0);
 
         vm.expectRevert(L1HeadTooOld.selector);
         factory.create(GAME_TYPE, ROOT_CLAIM, _extraData);
@@ -138,8 +139,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     ///               For now, it is critical that the first proposed output root of an OP stack
     ///               chain is done so by an honest party.
     function test_initialize_firstOutput_reverts() public {
+        uint256 submissionInterval = l2OutputOracle.SUBMISSION_INTERVAL();
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
-        factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(1800, block.number - 1));
+        factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(submissionInterval, block.number - 1));
     }
 
     /// @dev Tests that the `create` function reverts when the rootClaim does not disagree with the outcome.
@@ -158,12 +160,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Starting
         (FaultDisputeGame.OutputProposal memory startingProp, FaultDisputeGame.OutputProposal memory disputedProp) =
             gameProxy.proposals();
-        Types.OutputProposal memory starting = oracle.getL2Output(startingProp.index);
+        Types.OutputProposal memory starting = l2OutputOracle.getL2Output(startingProp.index);
         assertEq(startingProp.index, 0);
         assertEq(startingProp.l2BlockNumber, starting.l2BlockNumber);
         assertEq(Hash.unwrap(startingProp.outputRoot), starting.outputRoot);
         // Disputed
-        Types.OutputProposal memory disputed = oracle.getL2Output(disputedProp.index);
+        Types.OutputProposal memory disputed = l2OutputOracle.getL2Output(disputedProp.index);
         assertEq(disputedProp.index, 1);
         assertEq(disputedProp.l2BlockNumber, disputed.l2BlockNumber);
         assertEq(Hash.unwrap(disputedProp.outputRoot), disputed.outputRoot);
@@ -482,7 +484,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
-    function testFuzz_addLocalData_oob_reverts(uint256 _ident, uint256 _localContext) public {
+    function testFuzz_addLocalData_oob_reverts(uint256 _ident, bytes32 _localContext) public {
         // [1, 5] are valid local data identifiers.
         if (_ident <= 5) _ident = 0;
 
@@ -527,7 +529,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
-    function _getKey(uint256 _ident, uint256 _localContext) internal view returns (bytes32) {
+    function _getKey(uint256 _ident, bytes32 _localContext) internal view returns (bytes32) {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }
@@ -1091,39 +1093,5 @@ contract VariableDivergentPlayer is GamePlayer {
             _trace[i] = i >= _divergeAt ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = _trace;
-    }
-}
-
-////////////////////////////////////////////////////////////////
-//                          MOCK VMS                          //
-////////////////////////////////////////////////////////////////
-
-contract AlphabetVM is IBigStepper {
-    Claim internal immutable ABSOLUTE_PRESTATE;
-    IPreimageOracle public oracle;
-
-    constructor(Claim _absolutePrestate) {
-        ABSOLUTE_PRESTATE = _absolutePrestate;
-        oracle = new PreimageOracle();
-    }
-
-    /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata, uint256) external view returns (bytes32 postState_) {
-        uint256 traceIndex;
-        uint256 claim;
-        if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
-            // If the state data is empty, then the absolute prestate is the claim.
-            traceIndex = 0;
-            (claim) = abi.decode(_stateData, (uint256));
-        } else {
-            // Otherwise, decode the state data.
-            (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
-            traceIndex++;
-        }
-        // STF: n -> n + 1
-        postState_ = keccak256(abi.encode(traceIndex, claim + 1));
-        assembly {
-            postState_ := or(and(postState_, not(shl(248, 0xFF))), shl(248, 1))
-        }
     }
 }

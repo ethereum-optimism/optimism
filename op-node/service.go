@@ -188,16 +188,15 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(flags.Network.Name)
 	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+	if ctx.Bool(flags.BetaExtraNetworks.Name) {
+		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
+	}
 	if network != "" {
 		if rollupConfigPath != "" {
 			log.Error(`Cannot configure network and rollup-config at the same time.
 Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
 `, "network", network, "rollup_config", rollupConfigPath)
-		}
-		// check that the network is available
-		if !chaincfg.IsAvailableNetwork(network, ctx.Bool(flags.BetaExtraNetworks.Name)) {
-			return nil, fmt.Errorf("unavailable network: %q", network)
 		}
 		config, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
