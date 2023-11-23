@@ -26,6 +26,7 @@ const (
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+	CrossL2Inbox                  = "0x4200000000000000000000000000000000000022"
 )
 
 var (
@@ -49,6 +50,7 @@ var (
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
+	CrossL2InboxAddr                  = common.HexToAddress(CrossL2Inbox)
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
@@ -86,6 +88,14 @@ func init() {
 		Enabled: func(config DeployConfig) bool {
 			canyonTime := config.CanyonTime(0)
 			return canyonTime != nil && *canyonTime == 0
+		},
+	}
+
+	Predeploys["CrossL2Inbox"] = &Predeploy{
+		Address: CrossL2InboxAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
 		},
 	}
 

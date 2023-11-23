@@ -68,6 +68,9 @@ type PredeploysImmutableConfig struct {
 		Name string
 	}
 	Create2Deployer struct{}
+	CrossL2Inbox    *struct { // optional, only there in interop
+		SuperchainPostie common.Address
+	}
 }
 
 // Check will ensure that the required fields are set on the config.
@@ -76,6 +79,12 @@ type PredeploysImmutableConfig struct {
 func (c *PredeploysImmutableConfig) Check() error {
 	return c.ForEach(func(name string, values any) error {
 		val := reflect.ValueOf(values)
+		if val.Kind() == reflect.Ptr { // skip missing optional entries
+			if val.IsNil() {
+				return nil
+			}
+			val = val.Elem()
+		}
 		if val.NumField() == 0 {
 			return nil
 		}
@@ -134,6 +143,12 @@ func Deploy(config *PredeploysImmutableConfig) (DeploymentResults, error) {
 
 	for i := 0; i < val.NumField(); i++ {
 		field := val.Field(i)
+		if field.Kind() == reflect.Ptr {
+			if field.IsNil() {
+				continue
+			}
+			field = field.Elem()
+		}
 		if reflect.ValueOf(field.Interface()).IsZero() {
 			continue
 		}
@@ -251,6 +266,12 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "CrossL2Inbox":
+		superchainPostie, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for superchain postie address")
+		}
+		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend, superchainPostie)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
