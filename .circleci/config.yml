@@ -972,7 +972,7 @@ jobs:
           key: cannon-prestate-{{ checksum "./cannon/bin/cannon" }}-{{ checksum "op-program/bin/op-program-client.elf" }}
           name: Save Cannon prestate to cache
           paths:
-            - "op-program/bin/prestate.json"
+            - "op-program/bin/prestate.bin.gz"
             - "op-program/bin/meta.json"
             - "op-program/bin/prestate-proof.json"
       - persist_to_workspace:
@@ -1065,7 +1065,7 @@ jobs:
           name: Load cannon pre-state
           command: |
             mkdir -p op-program/bin
-            cp /tmp/workspace/op-program/bin/prestate.json op-program/bin/prestate.json
+            cp /tmp/workspace/op-program/bin/prestate.bin.gz op-program/bin/prestate.bin.gz
             cp /tmp/workspace/op-program/bin/meta.json op-program/bin/meta.json
             cp /tmp/workspace/op-program/bin/prestate-proof.json op-program/bin/prestate-proof.json
       - run:
