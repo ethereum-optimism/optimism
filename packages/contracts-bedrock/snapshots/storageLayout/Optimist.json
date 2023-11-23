@@ -1,72 +1,84 @@
 [
   {
-    "label": "_initialized",
+    "bytes": "1",
+    "label": "uint8",
     "offset": 0,
     "slot": "0",
     "type": "t_uint8"
   },
   {
-    "label": "_initializing",
+    "bytes": "1",
+    "label": "bool",
     "offset": 1,
     "slot": "0",
     "type": "t_bool"
   },
   {
-    "label": "__gap",
+    "bytes": "1600",
+    "label": "uint256[50]",
     "offset": 0,
     "slot": "1",
     "type": "t_array(t_uint256)50_storage"
   },
   {
-    "label": "__gap",
+    "bytes": "1600",
+    "label": "uint256[50]",
     "offset": 0,
     "slot": "51",
     "type": "t_array(t_uint256)50_storage"
   },
   {
-    "label": "_name",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "101",
     "type": "t_string_storage"
   },
   {
-    "label": "_symbol",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "102",
     "type": "t_string_storage"
   },
   {
-    "label": "_owners",
+    "bytes": "32",
+    "label": "mapping(uint256 => address)",
     "offset": 0,
     "slot": "103",
     "type": "t_mapping(t_uint256,t_address)"
   },
   {
-    "label": "_balances",
+    "bytes": "32",
+    "label": "mapping(address => uint256)",
     "offset": 0,
     "slot": "104",
     "type": "t_mapping(t_address,t_uint256)"
   },
   {
-    "label": "_tokenApprovals",
+    "bytes": "32",
+    "label": "mapping(uint256 => address)",
     "offset": 0,
     "slot": "105",
     "type": "t_mapping(t_uint256,t_address)"
   },
   {
-    "label": "_operatorApprovals",
+    "bytes": "32",
+    "label": "mapping(address => mapping(address => bool))",
     "offset": 0,
     "slot": "106",
     "type": "t_mapping(t_address,t_mapping(t_address,t_bool))"
   },
   {
-    "label": "__gap",
+    "bytes": "1408",
+    "label": "uint256[44]",
     "offset": 0,
     "slot": "107",
     "type": "t_array(t_uint256)44_storage"
   },
   {
-    "label": "__gap",
+    "bytes": "1600",
+    "label": "uint256[50]",
     "offset": 0,
     "slot": "151",
     "type": "t_array(t_uint256)50_storage"

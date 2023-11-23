@@ -1,48 +1,56 @@
 [
   {
-    "label": "number",
+    "bytes": "8",
+    "label": "uint64",
     "offset": 0,
     "slot": "0",
     "type": "t_uint64"
   },
   {
-    "label": "timestamp",
+    "bytes": "8",
+    "label": "uint64",
     "offset": 8,
     "slot": "0",
     "type": "t_uint64"
   },
   {
-    "label": "basefee",
+    "bytes": "32",
+    "label": "uint256",
     "offset": 0,
     "slot": "1",
     "type": "t_uint256"
   },
   {
-    "label": "hash",
+    "bytes": "32",
+    "label": "bytes32",
     "offset": 0,
     "slot": "2",
     "type": "t_bytes32"
   },
   {
-    "label": "sequenceNumber",
+    "bytes": "8",
+    "label": "uint64",
     "offset": 0,
     "slot": "3",
     "type": "t_uint64"
   },
   {
-    "label": "batcherHash",
+    "bytes": "32",
+    "label": "bytes32",
     "offset": 0,
     "slot": "4",
     "type": "t_bytes32"
   },
   {
-    "label": "l1FeeOverhead",
+    "bytes": "32",
+    "label": "uint256",
     "offset": 0,
     "slot": "5",
     "type": "t_uint256"
   },
   {
-    "label": "l1FeeScalar",
+    "bytes": "32",
+    "label": "uint256",
     "offset": 0,
     "slot": "6",
     "type": "t_uint256"

@@ -1,66 +1,77 @@
 [
   {
-    "label": "_name",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "0",
     "type": "t_string_storage"
   },
   {
-    "label": "_symbol",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "1",
     "type": "t_string_storage"
   },
   {
-    "label": "_owners",
+    "bytes": "32",
+    "label": "mapping(uint256 => address)",
     "offset": 0,
     "slot": "2",
     "type": "t_mapping(t_uint256,t_address)"
   },
   {
-    "label": "_balances",
+    "bytes": "32",
+    "label": "mapping(address => uint256)",
     "offset": 0,
     "slot": "3",
     "type": "t_mapping(t_address,t_uint256)"
   },
   {
-    "label": "_tokenApprovals",
+    "bytes": "32",
+    "label": "mapping(uint256 => address)",
     "offset": 0,
     "slot": "4",
     "type": "t_mapping(t_uint256,t_address)"
   },
   {
-    "label": "_operatorApprovals",
+    "bytes": "32",
+    "label": "mapping(address => mapping(address => bool))",
     "offset": 0,
     "slot": "5",
     "type": "t_mapping(t_address,t_mapping(t_address,t_bool))"
   },
   {
-    "label": "_ownedTokens",
+    "bytes": "32",
+    "label": "mapping(address => mapping(uint256 => uint256))",
     "offset": 0,
     "slot": "6",
     "type": "t_mapping(t_address,t_mapping(t_uint256,t_uint256))"
   },
   {
-    "label": "_ownedTokensIndex",
+    "bytes": "32",
+    "label": "mapping(uint256 => uint256)",
     "offset": 0,
     "slot": "7",
     "type": "t_mapping(t_uint256,t_uint256)"
   },
   {
-    "label": "_allTokens",
+    "bytes": "32",
+    "label": "uint256[]",
     "offset": 0,
     "slot": "8",
     "type": "t_array(t_uint256)dyn_storage"
   },
   {
-    "label": "_allTokensIndex",
+    "bytes": "32",
+    "label": "mapping(uint256 => uint256)",
     "offset": 0,
     "slot": "9",
     "type": "t_mapping(t_uint256,t_uint256)"
   },
   {
-    "label": "baseTokenURI",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "10",
     "type": "t_string_storage"

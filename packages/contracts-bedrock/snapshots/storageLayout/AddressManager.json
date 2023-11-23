@@ -1,12 +1,14 @@
 [
   {
-    "label": "_owner",
+    "bytes": "20",
+    "label": "address",
     "offset": 0,
     "slot": "0",
     "type": "t_address"
   },
   {
-    "label": "addresses",
+    "bytes": "32",
+    "label": "mapping(bytes32 => address)",
     "offset": 0,
     "slot": "1",
     "type": "t_mapping(t_bytes32,t_address)"

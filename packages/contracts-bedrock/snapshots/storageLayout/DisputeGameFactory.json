@@ -1,50 +1,58 @@
 [
   {
-    "label": "_initialized",
+    "bytes": "1",
+    "label": "uint8",
     "offset": 0,
     "slot": "0",
     "type": "t_uint8"
   },
   {
-    "label": "_initializing",
+    "bytes": "1",
+    "label": "bool",
     "offset": 1,
     "slot": "0",
     "type": "t_bool"
   },
   {
-    "label": "__gap",
+    "bytes": "1600",
+    "label": "uint256[50]",
     "offset": 0,
     "slot": "1",
     "type": "t_array(t_uint256)50_storage"
   },
   {
-    "label": "_owner",
+    "bytes": "20",
+    "label": "address",
     "offset": 0,
     "slot": "51",
     "type": "t_address"
   },
   {
-    "label": "__gap",
+    "bytes": "1568",
+    "label": "uint256[49]",
     "offset": 0,
     "slot": "52",
     "type": "t_array(t_uint256)49_storage"
   },
   {
-    "label": "gameImpls",
+    "bytes": "32",
+    "label": "mapping(GameType => contract IDisputeGame)",
     "offset": 0,
     "slot": "101",
-    "type": "t_mapping(t_userDefinedValueType(GameType)85641,t_contract(IDisputeGame)83315)"
+    "type": "t_mapping(t_userDefinedValueType(GameType)86039,t_contract(IDisputeGame)83713)"
   },
   {
-    "label": "_disputeGames",
+    "bytes": "32",
+    "label": "mapping(Hash => GameId)",
     "offset": 0,
     "slot": "102",
-    "type": "t_mapping(t_userDefinedValueType(Hash)85623,t_userDefinedValueType(GameId)85635)"
+    "type": "t_mapping(t_userDefinedValueType(Hash)86021,t_userDefinedValueType(GameId)86033)"
   },
   {
-    "label": "_disputeGameList",
+    "bytes": "32",
+    "label": "GameId[]",
     "offset": 0,
     "slot": "103",
-    "type": "t_array(t_userDefinedValueType(GameId)85635)dyn_storage"
+    "type": "t_array(t_userDefinedValueType(GameId)86033)dyn_storage"
   }
 ]

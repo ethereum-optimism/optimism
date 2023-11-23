@@ -1,14 +1,16 @@
 [
   {
-    "label": "lastLive",
+    "bytes": "32",
+    "label": "mapping(address => uint256)",
     "offset": 0,
     "slot": "0",
     "type": "t_mapping(t_address,t_uint256)"
   },
   {
-    "label": "ownersBefore",
+    "bytes": "64",
+    "label": "struct EnumerableSet.AddressSet",
     "offset": 0,
     "slot": "1",
-    "type": "t_struct(AddressSet)53836_storage"
+    "type": "t_struct(AddressSet)55016_storage"
   }
 ]

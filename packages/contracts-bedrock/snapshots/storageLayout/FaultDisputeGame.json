@@ -1,54 +1,63 @@
 [
   {
-    "label": "createdAt",
+    "bytes": "8",
+    "label": "Timestamp",
     "offset": 0,
     "slot": "0",
-    "type": "t_userDefinedValueType(Timestamp)85631"
+    "type": "t_userDefinedValueType(Timestamp)86029"
   },
   {
-    "label": "status",
+    "bytes": "1",
+    "label": "enum GameStatus",
     "offset": 8,
     "slot": "0",
-    "type": "t_enum(GameStatus)85647"
+    "type": "t_enum(GameStatus)86045"
   },
   {
-    "label": "bondManager",
+    "bytes": "20",
+    "label": "contract IBondManager",
     "offset": 9,
     "slot": "0",
-    "type": "t_contract(IBondManager)83238"
+    "type": "t_contract(IBondManager)83636"
   },
   {
-    "label": "l1Head",
+    "bytes": "32",
+    "label": "Hash",
     "offset": 0,
     "slot": "1",
-    "type": "t_userDefinedValueType(Hash)85623"
+    "type": "t_userDefinedValueType(Hash)86021"
   },
   {
-    "label": "claimData",
+    "bytes": "32",
+    "label": "struct IFaultDisputeGame.ClaimData[]",
     "offset": 0,
     "slot": "2",
-    "type": "t_array(t_struct(ClaimData)83452_storage)dyn_storage"
+    "type": "t_array(t_struct(ClaimData)83850_storage)dyn_storage"
   },
   {
-    "label": "proposals",
+    "bytes": "128",
+    "label": "struct IFaultDisputeGame.OutputProposals",
     "offset": 0,
     "slot": "3",
-    "type": "t_struct(OutputProposals)83467_storage"
+    "type": "t_struct(OutputProposals)83865_storage"
   },
   {
-    "label": "claims",
+    "bytes": "32",
+    "label": "mapping(ClaimHash => bool)",
     "offset": 0,
     "slot": "7",
-    "type": "t_mapping(t_userDefinedValueType(ClaimHash)85627,t_bool)"
+    "type": "t_mapping(t_userDefinedValueType(ClaimHash)86025,t_bool)"
   },
   {
-    "label": "subgames",
+    "bytes": "32",
+    "label": "mapping(uint256 => uint256[])",
     "offset": 0,
     "slot": "8",
     "type": "t_mapping(t_uint256,t_array(t_uint256)dyn_storage)"
   },
   {
-    "label": "subgameAtRootResolved",
+    "bytes": "1",
+    "label": "bool",
     "offset": 0,
     "slot": "9",
     "type": "t_bool"

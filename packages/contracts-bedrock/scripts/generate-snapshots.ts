@@ -37,6 +37,7 @@ type AbiSpecStorageLayoutEntry = {
   slot: number
   offset: number
   type: string
+  bytes: number
 }
 const sortKeys = (obj: any) => {
   if (typeof obj !== 'object' || obj === null) {
@@ -104,8 +105,14 @@ const main = async () => {
 
     const storageLayout: AbiSpecStorageLayoutEntry[] = []
     for (const storageEntry of artifact.storageLayout.storage) {
+      // convert ast-based type to solidity type
+      const typ = artifact.storageLayout.types[storageEntry.type]
+      if (typ === undefined) {
+        throw new Error(`undefined type for ${contractName}:${storageEntry.label}`)
+      }
       storageLayout.push({
-        label: storageEntry.label,
+        label: typ.label,
+        bytes: typ.numberOfBytes,
         offset: storageEntry.offset,
         slot: storageEntry.slot,
         type: storageEntry.type,

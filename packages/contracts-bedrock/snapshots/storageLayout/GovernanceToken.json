@@ -1,66 +1,77 @@
 [
   {
-    "label": "_balances",
+    "bytes": "32",
+    "label": "mapping(address => uint256)",
     "offset": 0,
     "slot": "0",
     "type": "t_mapping(t_address,t_uint256)"
   },
   {
-    "label": "_allowances",
+    "bytes": "32",
+    "label": "mapping(address => mapping(address => uint256))",
     "offset": 0,
     "slot": "1",
     "type": "t_mapping(t_address,t_mapping(t_address,t_uint256))"
   },
   {
-    "label": "_totalSupply",
+    "bytes": "32",
+    "label": "uint256",
     "offset": 0,
     "slot": "2",
     "type": "t_uint256"
   },
   {
-    "label": "_name",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "3",
     "type": "t_string_storage"
   },
   {
-    "label": "_symbol",
+    "bytes": "32",
+    "label": "string",
     "offset": 0,
     "slot": "4",
     "type": "t_string_storage"
   },
   {
-    "label": "_nonces",
+    "bytes": "32",
+    "label": "mapping(address => struct Counters.Counter)",
     "offset": 0,
     "slot": "5",
-    "type": "t_mapping(t_address,t_struct(Counter)49915_storage)"
+    "type": "t_mapping(t_address,t_struct(Counter)51095_storage)"
   },
   {
-    "label": "_PERMIT_TYPEHASH_DEPRECATED_SLOT",
+    "bytes": "32",
+    "label": "bytes32",
     "offset": 0,
     "slot": "6",
     "type": "t_bytes32"
   },
   {
-    "label": "_delegates",
+    "bytes": "32",
+    "label": "mapping(address => address)",
     "offset": 0,
     "slot": "7",
     "type": "t_mapping(t_address,t_address)"
   },
   {
-    "label": "_checkpoints",
+    "bytes": "32",
+    "label": "mapping(address => struct ERC20Votes.Checkpoint[])",
     "offset": 0,
     "slot": "8",
-    "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)47061_storage)dyn_storage)"
+    "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)48241_storage)dyn_storage)"
   },
   {
-    "label": "_totalSupplyCheckpoints",
+    "bytes": "32",
+    "label": "struct ERC20Votes.Checkpoint[]",
     "offset": 0,
     "slot": "9",
-    "type": "t_array(t_struct(Checkpoint)47061_storage)dyn_storage"
+    "type": "t_array(t_struct(Checkpoint)48241_storage)dyn_storage"
   },
   {
-    "label": "_owner",
+    "bytes": "20",
+    "label": "address",
     "offset": 0,
     "slot": "10",
     "type": "t_address"
