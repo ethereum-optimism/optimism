@@ -42,26 +42,19 @@ func RegisterGameTypes(
 	client *ethclient.Client,
 ) (CloseFunc, error) {
 	var closer CloseFunc
-	createL2Client := func() (cannon.L2HeaderSource, error) {
-		l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	var l2Client *ethclient.Client
+	if cfg.TraceTypeEnabled(config.TraceTypeCannon) || cfg.TraceTypeEnabled(config.TraceTypeOutputCannon) {
+		l2, err := ethclient.DialContext(ctx, cfg.CannonL2)
 		if err != nil {
 			return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
 		}
+		l2Client = l2
 		closer = l2Client.Close
-		return l2Client, nil
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeOutputCannon) {
-		l2Client, err := createL2Client()
-		if err != nil {
-			return nil, err
-		}
 		registerOutputCannon(registry, ctx, logger, m, cfg, txMgr, client, l2Client)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		l2Client, err := createL2Client()
-		if err != nil {
-			return nil, err
-		}
 		registerCannon(registry, ctx, logger, m, cfg, txMgr, client, l2Client)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
@@ -113,10 +106,11 @@ func registerCannon(
 	l2Client cannon.L2HeaderSource) {
 	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 		logger := logger.New("game", addr)
-		provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, l2Client, contract, faultTypes.NoLocalContext, dir, gameDepth)
+		localInputs, err := cannon.FetchLocalInputs(ctx, contract, l2Client)
 		if err != nil {
-			return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
+			return nil, nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
+		provider := cannon.NewTraceProvider(logger, m, cfg, faultTypes.NoLocalContext, localInputs, dir, gameDepth)
 		validator := func(ctx context.Context, contract *contracts.FaultDisputeGameContract) error {
 			return ValidateAbsolutePrestate(ctx, provider, contract)
 		}

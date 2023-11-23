@@ -50,8 +50,9 @@ func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rol
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	g.require.NoErrorf(err, "dial l2 client %v", cfg.CannonL2)
 	defer l2Client.Close() // Not needed after fetching the inputs
-	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, l2Client, gameContract, types.NoLocalContext, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
-	g.require.NoError(err, "create cannon trace provider")
+	localInputs, err := cannon.FetchLocalInputs(ctx, gameContract, l2Client)
+	g.require.NoError(err, "fetch cannon local inputs")
+	provider := cannon.NewTraceProvider(logger, metrics.NoopMetrics, cfg, types.NoLocalContext, localInputs, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
 
 	return &HonestHelper{
 		t:            g.t,
