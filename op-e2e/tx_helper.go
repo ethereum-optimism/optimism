@@ -47,7 +47,9 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(l1Receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	l2Receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	// Use a long wait because the l2Client may not be configured to receive gossip from the sequencer
+	// so has to wait for the batcher to submit and then import those blocks from L1.
+	l2Receipt, err := geth.WaitForTransaction(tx.Hash(), l2Client, 60*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, l2Opts.ExpectedStatus, l2Receipt.Status, "l2 transaction status")
 	return l2Receipt

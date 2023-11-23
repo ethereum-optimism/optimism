@@ -54,6 +54,8 @@ func (f fakeTxMgr) BlockNumber(_ context.Context) (uint64, error) {
 func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt, error) {
 	panic("unimplemented")
 }
+func (f fakeTxMgr) Close() {
+}
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{

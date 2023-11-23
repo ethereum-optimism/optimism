@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 )
 
 // Legacy Bridge Initiation
@@ -145,7 +147,7 @@ func LegacyL1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 //  1. L2CrossDomainMessenger - The LegacyMessagePasser contract cannot be used as entrypoint to bridge transactions from L2. The protocol
 //     only allows the L2CrossDomainMessenger as the sole sender when relaying a bridged message.
 //  2. L2StandardBridge
-func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2Metricer, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
+func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metrics L2Metricer, preset int, l2Contracts config.L2Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L2CrossDomainMessenger
 	crossDomainSentMessages, err := contracts.CrossDomainMessengerSentMessageEvents("l2", l2Contracts.L2CrossDomainMessenger, db, fromHeight, toHeight)
 	if err != nil {
@@ -168,22 +170,38 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		sentMessage := crossDomainSentMessages[i]
 		withdrawnWEI = new(big.Int).Add(withdrawnWEI, sentMessage.BridgeMessage.Tx.Amount)
 
-		// We re-use the L2CrossDomainMessenger message hash as the withdrawal hash to remain consistent in the schema.
+		// Since these message can be relayed in bedrock, we utilize the migrated withdrawal hash
+		// and also store the v1 version of the message hash such that the bedrock l1 finalization
+		// processor works as expected
+
+		v1MessageHash, err := legacyBridgeMessageV1MessageHash(&sentMessage.BridgeMessage)
+		if err != nil {
+			return fmt.Errorf("failed to compute versioned message hash: %w", err)
+		}
+		if err := db.BridgeMessages.StoreL2BridgeMessageV1MessageHash(sentMessage.BridgeMessage.MessageHash, v1MessageHash); err != nil {
+			return err
+		}
+
+		withdrawalHash, err := legacyBridgeMessageWithdrawalHash(preset, &sentMessage.BridgeMessage)
+		if err != nil {
+			return fmt.Errorf("failed to construct migrated withdrawal hash: %w", err)
+		}
+
 		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
-			WithdrawalHash:       sentMessage.BridgeMessage.MessageHash,
+			WithdrawalHash:       withdrawalHash,
 			InitiatedL2EventGUID: sentMessage.Event.GUID,
 			Nonce:                sentMessage.BridgeMessage.Nonce,
 			GasLimit:             sentMessage.BridgeMessage.GasLimit,
 			Tx: database.Transaction{
 				FromAddress: sentMessage.BridgeMessage.Tx.FromAddress,
 				ToAddress:   sentMessage.BridgeMessage.Tx.ToAddress,
-				Amount:      big.NewInt(0),
+				Amount:      bigint.Zero,
 				Data:        sentMessage.BridgeMessage.Tx.Data,
 				Timestamp:   sentMessage.Event.Timestamp,
 			},
 		}
 
-		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, sentMessage.BridgeMessage.MessageHash}
+		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
 		bridgeMessages[i] = database.L2BridgeMessage{
 			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
 			BridgeMessage:             sentMessage.BridgeMessage,
@@ -297,15 +315,16 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 			}
 		}
 
-		// Mark the associated tx withdrawal as proven/finalized with the same event. The message hash is also the transaction withdrawal hash
-		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
-			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
-		}
-		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(relayedMessage.MessageHash, relayedMessage.Event.GUID, true); err != nil {
-			return fmt.Errorf("failed to mark withdrawal as finalized. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
-		}
 		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
 			return fmt.Errorf("failed to relay cross domain message. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
+		}
+
+		// Mark the associated tx withdrawal as proven/finalized with the same event.
+		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(message.TransactionWithdrawalHash, relayedMessage.Event.GUID); err != nil {
+			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
+		}
+		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(message.TransactionWithdrawalHash, relayedMessage.Event.GUID, true); err != nil {
+			return fmt.Errorf("failed to mark withdrawal as finalized. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 		}
 	}
 	if len(crossDomainRelayedMessages) > 0 {
@@ -369,4 +388,28 @@ func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 
 	// a-ok!
 	return nil
+}
+
+// Utils
+
+func legacyBridgeMessageWithdrawalHash(preset int, msg *database.BridgeMessage) (common.Hash, error) {
+	l1Cdm := config.Presets[preset].ChainConfig.L1Contracts.L1CrossDomainMessengerProxy
+	legacyWithdrawal := crossdomain.NewLegacyWithdrawal(predeploys.L2CrossDomainMessengerAddr, msg.Tx.ToAddress, msg.Tx.FromAddress, msg.Tx.Data, msg.Nonce)
+	migratedWithdrawal, err := crossdomain.MigrateWithdrawal(legacyWithdrawal, &l1Cdm, big.NewInt(int64(preset)))
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return migratedWithdrawal.Hash()
+}
+
+func legacyBridgeMessageV1MessageHash(msg *database.BridgeMessage) (common.Hash, error) {
+	legacyWithdrawal := crossdomain.NewLegacyWithdrawal(predeploys.L2CrossDomainMessengerAddr, msg.Tx.ToAddress, msg.Tx.FromAddress, msg.Tx.Data, msg.Nonce)
+	value, err := legacyWithdrawal.Value()
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to extract ETH value from legacy bridge message: %w", err)
+	}
+
+	// Note: GasLimit is always zero. Only the GasLimit for the withdrawal transaction was migrated
+	return crossdomain.HashCrossDomainMessageV1(msg.Nonce, msg.Tx.FromAddress, msg.Tx.ToAddress, value, new(big.Int), msg.Tx.Data)
 }

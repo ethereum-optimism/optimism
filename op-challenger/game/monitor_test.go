@@ -84,8 +84,9 @@ func TestMonitorGames(t *testing.T) {
 			cancel()
 		}()
 
-		err := monitor.MonitorGames(ctx)
-		require.NoError(t, err)
+		monitor.StartMonitoring()
+		<-ctx.Done()
+		monitor.StopMonitoring()
 		require.Len(t, sched.scheduled, 1)
 		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
 	})
@@ -129,8 +130,9 @@ func TestMonitorGames(t *testing.T) {
 			cancel()
 		}()
 
-		err := monitor.MonitorGames(ctx)
-		require.NoError(t, err)
+		monitor.StartMonitoring()
+		<-ctx.Done()
+		monitor.StopMonitoring()
 		require.NotEmpty(t, sched.scheduled) // We might get more than one update scheduled.
 		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
 	})

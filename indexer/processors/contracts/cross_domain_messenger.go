@@ -6,17 +6,18 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 )
 
 var (
 	// Standard ABI types copied from golang ABI tests
-	uint256Type, _ = abi.NewType("uint256", "", nil)
-	bytesType, _   = abi.NewType("bytes", "", nil)
 	addressType, _ = abi.NewType("address", "", nil)
+	bytesType, _   = abi.NewType("bytes", "", nil)
+	uint256Type, _ = abi.NewType("uint256", "", nil)
 
 	CrossDomainMessengerLegacyRelayMessageEncoding = abi.NewMethod(
 		"relayMessage",
@@ -38,9 +39,9 @@ var (
 )
 
 type CrossDomainMessengerSentMessageEvent struct {
-	Event           *database.ContractEvent
-	MessageCalldata []byte
-	BridgeMessage   database.BridgeMessage
+	Event         *database.ContractEvent
+	BridgeMessage database.BridgeMessage
+	Version       uint16
 }
 
 type CrossDomainMessengerRelayedMessageEvent struct {
@@ -85,32 +86,46 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 			return nil, err
 		}
 
-		version, _ := DecodeVersionedNonce(sentMessage.MessageNonce)
+		_, versionBig := crossdomain.DecodeVersionedNonce(sentMessage.MessageNonce)
+		version := uint16(versionBig.Uint64())
 		if i < numVersionZeroMessages && version != 0 {
-			return nil, fmt.Errorf("expected version zero nonce. nonce %d tx_hash %s", sentMessage.MessageNonce, sentMessage.Raw.TxHash)
+			return nil, fmt.Errorf("expected version zero nonce: nonce %d, tx_hash %s", sentMessage.MessageNonce, sentMessage.Raw.TxHash)
 		}
 
-		// In version zero, to value is bridged through the cross domain messenger.
-		value := big.NewInt(0)
-		if version > 0 {
+		value := bigint.Zero
+		var messageHash common.Hash
+		switch version {
+		case 0:
+			messageHash, err = crossdomain.HashCrossDomainMessageV0(sentMessage.Target, sentMessage.Sender, sentMessage.Message, sentMessage.MessageNonce)
+			if err != nil {
+				return nil, err
+			}
+
+		case 1:
 			sentMessageExtension := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageExtensionEvents[i].RLPLog}
 			err = UnpackLog(&sentMessageExtension, sentMessageExtensionEvents[i].RLPLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerAbi)
 			if err != nil {
 				return nil, err
 			}
-			value = sentMessageExtension.Value
-		}
 
-		messageCalldata, err := CrossDomainMessageCalldata(crossDomainMessengerAbi, &sentMessage, value)
-		if err != nil {
-			return nil, err
+			value = sentMessageExtension.Value
+			messageHash, err = crossdomain.HashCrossDomainMessageV1(sentMessage.MessageNonce, sentMessage.Sender, sentMessage.Target, value, sentMessage.GasLimit, sentMessage.Message)
+			if err != nil {
+				return nil, err
+			}
+
+		default:
+			// NOTE: We explicitly fail here since the presence of a new version means finalization
+			// logic needs to be updated to ensure L1 finalization can run from genesis and handle
+			// the changing version formats. This is meant to be a serving indicator of this.
+			return nil, fmt.Errorf("expected cross domain version 0 or version 1: %d", version)
 		}
 
 		crossDomainSentMessages[i] = CrossDomainMessengerSentMessageEvent{
-			Event:           &sentMessageEvents[i],
-			MessageCalldata: messageCalldata,
+			Event:   &sentMessageEvents[i],
+			Version: version,
 			BridgeMessage: database.BridgeMessage{
-				MessageHash:          crypto.Keccak256Hash(messageCalldata),
+				MessageHash:          messageHash,
 				Nonce:                sentMessage.MessageNonce,
 				SentMessageEventGUID: sentMessageEvents[i].GUID,
 				GasLimit:             sentMessage.GasLimit,
@@ -156,27 +171,4 @@ func CrossDomainMessengerRelayedMessageEvents(chainSelector string, contractAddr
 	}
 
 	return crossDomainRelayedMessages, nil
-}
-
-// Replica of `Encoding.sol#encodeCrossDomainMessage` solidity implementation
-func CrossDomainMessageCalldata(abi *abi.ABI, sentMsg *bindings.CrossDomainMessengerSentMessage, value *big.Int) ([]byte, error) {
-	version, _ := DecodeVersionedNonce(sentMsg.MessageNonce)
-	switch version {
-	case 0:
-		// Legacy Message
-		inputBytes, err := CrossDomainMessengerLegacyRelayMessageEncoding.Inputs.Pack(sentMsg.Target, sentMsg.Sender, sentMsg.Message, sentMsg.MessageNonce)
-		if err != nil {
-			return nil, err
-		}
-		return append(CrossDomainMessengerLegacyRelayMessageEncoding.ID, inputBytes...), nil
-	case 1:
-		// Current Message
-		msgBytes, err := abi.Pack("relayMessage", sentMsg.MessageNonce, sentMsg.Sender, sentMsg.Target, value, sentMsg.GasLimit, sentMsg.Message)
-		if err != nil {
-			return nil, err
-		}
-		return msgBytes, nil
-	}
-
-	return nil, fmt.Errorf("unsupported cross domain messenger version: %d", version)
 }

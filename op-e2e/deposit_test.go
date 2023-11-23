@@ -16,13 +16,13 @@ import (
 func TestMintOnRevertedDeposit(t *testing.T) {
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-
+	delete(cfg.Nodes, "verifier")
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
 	l1Client := sys.Clients["l1"]
-	l2Verif := sys.Clients["verifier"]
+	l2Verif := sys.Clients["sequencer"]
 
 	// create signer
 	aliceKey := cfg.Secrets.Alice
