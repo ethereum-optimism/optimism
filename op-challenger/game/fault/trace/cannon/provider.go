@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -56,12 +55,7 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameContract *contracts.FaultDisputeGameContract, localContext common.Hash, dir string, gameDepth uint64) (*CannonTraceProvider, error) {
-	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
-	if err != nil {
-		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
-	}
-	defer l2Client.Close() // Not needed after fetching the inputs
+func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, l2Client L2HeaderSource, gameContract *contracts.FaultDisputeGameContract, localContext common.Hash, dir string, gameDepth uint64) (*CannonTraceProvider, error) {
 	localInputs, err := fetchLocalInputs(ctx, gameContract, l2Client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
@@ -74,6 +68,7 @@ func NewTraceProviderFromProposals(
 	logger log.Logger,
 	m CannonMetricer,
 	cfg *config.Config,
+	l2Client L2HeaderSource,
 	gameContract *contracts.FaultDisputeGameContract,
 	localContext common.Hash,
 	agreed contracts.Proposal,
@@ -81,11 +76,6 @@ func NewTraceProviderFromProposals(
 	dir string,
 	gameDepth uint64,
 ) (*CannonTraceProvider, error) {
-	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
-	if err != nil {
-		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
-	}
-	defer l2Client.Close() // Not needed after fetching the inputs
 	localInputs, err := fetchLocalInputsFromProposals(ctx, gameContract, l2Client, agreed, claimed)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)

@@ -26,6 +26,8 @@ var (
 	alphabetGameType     = uint8(255)
 )
 
+type CloseFunc func()
+
 type Registry interface {
 	RegisterGameType(gameType uint8, creator scheduler.PlayerCreator)
 }
@@ -38,16 +40,34 @@ func RegisterGameTypes(
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
 	client *ethclient.Client,
-) {
+) (CloseFunc, error) {
+	var closer CloseFunc
+	createL2Client := func() (cannon.L2HeaderSource, error) {
+		l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+		if err != nil {
+			return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
+		}
+		closer = l2Client.Close
+		return l2Client, nil
+	}
 	if cfg.TraceTypeEnabled(config.TraceTypeOutputCannon) {
-		registerOutputCannon(registry, ctx, logger, m, cfg, txMgr, client)
+		l2Client, err := createL2Client()
+		if err != nil {
+			return nil, err
+		}
+		registerOutputCannon(registry, ctx, logger, m, cfg, txMgr, client, l2Client)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
-		registerCannon(registry, ctx, logger, m, cfg, txMgr, client)
+		l2Client, err := createL2Client()
+		if err != nil {
+			return nil, err
+		}
+		registerCannon(registry, ctx, logger, m, cfg, txMgr, client, l2Client)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
 		registerAlphabet(registry, ctx, logger, m, cfg, txMgr, client)
 	}
+	return closer, nil
 }
 
 func registerOutputCannon(
@@ -57,7 +77,8 @@ func registerOutputCannon(
 	m metrics.Metricer,
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
-	client *ethclient.Client) {
+	client *ethclient.Client,
+	l2Client cannon.L2HeaderSource) {
 	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 		logger := logger.New("game", addr)
 		// TODO(client-pod#43): Updated contracts should expose this as the pre and post state blocks
@@ -65,7 +86,7 @@ func registerOutputCannon(
 		if err != nil {
 			return nil, nil, err
 		}
-		accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, contract, dir, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
+		accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -88,10 +109,11 @@ func registerCannon(
 	m metrics.Metricer,
 	cfg *config.Config,
 	txMgr txmgr.TxManager,
-	client *ethclient.Client) {
+	client *ethclient.Client,
+	l2Client cannon.L2HeaderSource) {
 	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
 		logger := logger.New("game", addr)
-		provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, contract, faultTypes.NoLocalContext, dir, gameDepth)
+		provider, err := cannon.NewTraceProvider(ctx, logger, m, cfg, l2Client, contract, faultTypes.NoLocalContext, dir, gameDepth)
 		if err != nil {
 			return nil, nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}

@@ -34,6 +34,8 @@ type Service struct {
 	monitor *gameMonitor
 	sched   *scheduler.Scheduler
 
+	faultGamesCloser fault.CloseFunc
+
 	txMgr *txmgr.SimpleTxManager
 
 	loader *loader.GameLoader
@@ -83,8 +85,10 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 	if err := s.initGameLoader(cfg); err != nil {
 		return err
 	}
+	if err := s.initScheduler(ctx, cfg); err != nil {
+		return err
+	}
 
-	s.initScheduler(ctx, cfg)
 	s.initMonitor(cfg)
 
 	s.metrics.RecordInfo(version.SimpleWithMeta)
@@ -162,12 +166,17 @@ func (s *Service) initGameLoader(cfg *config.Config) error {
 	return nil
 }
 
-func (s *Service) initScheduler(ctx context.Context, cfg *config.Config) {
+func (s *Service) initScheduler(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
-	fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.txMgr, s.l1Client)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.txMgr, s.l1Client)
+	if err != nil {
+		return err
+	}
+	s.faultGamesCloser = closer
 
 	disk := newDiskManager(cfg.Datadir)
 	s.sched = scheduler.NewScheduler(s.logger, s.metrics, disk, cfg.MaxConcurrency, gameTypeRegistry.CreatePlayer)
+	return nil
 }
 
 func (s *Service) initMonitor(cfg *config.Config) {
@@ -199,6 +208,9 @@ func (s *Service) Stop(ctx context.Context) error {
 	}
 	if s.monitor != nil {
 		s.monitor.StopMonitoring()
+	}
+	if s.faultGamesCloser != nil {
+		s.faultGamesCloser()
 	}
 	if s.pprofSrv != nil {
 		if err := s.pprofSrv.Stop(ctx); err != nil {

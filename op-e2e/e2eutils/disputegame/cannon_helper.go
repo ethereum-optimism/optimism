@@ -47,7 +47,10 @@ func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rol
 	maxDepth := g.MaxDepth(ctx)
 	gameContract, err := contracts.NewFaultDisputeGameContract(g.addr, batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize))
 	g.require.NoError(err, "Create game contract bindings")
-	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, gameContract, types.NoLocalContext, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
+	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	g.require.NoErrorf(err, "dial l2 client %v", cfg.CannonL2)
+	defer l2Client.Close() // Not needed after fetching the inputs
+	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, l2Client, gameContract, types.NoLocalContext, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
 	g.require.NoError(err, "create cannon trace provider")
 
 	return &HonestHelper{
