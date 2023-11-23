@@ -44,5 +44,8 @@
   "DelayedVetoable",
   "ISemver",
   "StorageSetter",
-  "SuperchainConfig"
+  "SuperchainConfig",
+  "CrossL2Inbox",
+  "CrossL2Outbox",
+  "InteropL2CrossDomainMessenger"
 ]

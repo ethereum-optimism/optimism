@@ -67,4 +67,15 @@ library Types {
         uint256 gasLimit;
         bytes data;
     }
+
+    struct SuperchainMessage {
+        uint256 nonce;
+        bytes32 sourceChain;
+        bytes32 targetChain;
+        address from;
+        address to;
+        uint256 value;
+        uint256 gasLimit;
+        bytes data;
+    }
 }

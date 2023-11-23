@@ -7,6 +7,7 @@ import (
 type DeployConfig interface {
 	GovernanceEnabled() bool
 	CanyonTime(genesisTime uint64) *uint64
+	InteropTime(genesisTime uint64) *uint64
 }
 
 type Predeploy struct {
