@@ -108,7 +108,9 @@ const main = async () => {
       // convert ast-based type to solidity type
       const typ = artifact.storageLayout.types[storageEntry.type]
       if (typ === undefined) {
-        throw new Error(`undefined type for ${contractName}:${storageEntry.label}`)
+        throw new Error(
+          `undefined type for ${contractName}:${storageEntry.label}`
+        )
       }
       storageLayout.push({
         label: typ.label,
