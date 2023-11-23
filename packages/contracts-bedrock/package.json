@@ -21,7 +21,7 @@
     "coverage": "pnpm build:go-ffi && forge coverage",
     "coverage:lcov": "pnpm build:go-ffi && forge coverage --report lcov",
     "deploy": "./scripts/deploy.sh",
-    "gas-snapshot:no-build": "forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact' --no-match-contract 'Initializer_Test'",
+    "gas-snapshot:no-build": "forge snapshot --match-contract GasBenchMark",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "semver-lock": "forge script scripts/SemverLock.s.sol",
