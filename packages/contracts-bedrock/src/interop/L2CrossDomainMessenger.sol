@@ -36,7 +36,8 @@ contract InteropEnabledL2CrossDomainMessenger {
 
     function sendMessage(bytes32 _destination, address _target, bytes calldata _message, uint32 _minGasLimit) external payable {
         if (_destination == ETH_MAINNET_ID) {
-            // Required as we are leaving the CrossDomainMessenger untouched
+            // Required as we are leaving the CrossDomainMessenger untouched. L2->L2 messages will still be using
+            // the old message format (Version 1).
             L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(_target, _message, _minGasLimit);
             return;
         }
