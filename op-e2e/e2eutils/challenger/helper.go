@@ -94,9 +94,9 @@ func applyCannonConfig(
 ) {
 	require := require.New(t)
 	c.CannonL2 = l2Endpoint
-	c.CannonBin = "../cannon/bin/cannon"
-	c.CannonServer = "../op-program/bin/op-program"
-	c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
+	c.CannonBin = "../../cannon/bin/cannon"
+	c.CannonServer = "../../op-program/bin/op-program"
+	c.CannonAbsolutePreState = "../../op-program/bin/prestate.json"
 	c.CannonSnapshotFreq = 10_000_000
 
 	genesisBytes, err := json.Marshal(l2Genesis)
