@@ -830,6 +830,14 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 	}
 	log.Info("EAS", "registry", registry)
 
+	name, err := contract.GetName(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if name != "EAS" {
+		return fmt.Errorf("Incorrect name %s", name)
+	}
+
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
