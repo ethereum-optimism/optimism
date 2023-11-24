@@ -53,13 +53,13 @@ func TestBuildOptimism(t *testing.T) {
 			Bridge        common.Address
 			RemoteChainId *big.Int
 		}{
-			Bridge:        common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			Bridge:        predeploys.L2StandardBridgeAddr,
 			RemoteChainId: big.NewInt(1),
 		},
 		OptimismMintableERC20Factory: struct {
 			Bridge common.Address
 		}{
-			Bridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			Bridge: predeploys.L2StandardBridgeAddr,
 		},
 		ProxyAdmin: struct{}{},
 		BaseFeeVault: struct {

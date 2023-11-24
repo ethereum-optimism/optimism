@@ -837,6 +837,7 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 	if name != "EAS" {
 		return fmt.Errorf("Incorrect name %s", name)
 	}
+	log.Info("EAS", "name", name)
 
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {

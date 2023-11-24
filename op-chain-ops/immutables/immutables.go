@@ -184,7 +184,7 @@ func BuildOptimism(config *PredeploysImmutableConfig) (DeploymentResults, error)
 // inserted into the state via state surgery.
 func BuildL2(constructors []deployer.Constructor, superchainPredeploys []deployer.SuperchainPredeploy) (DeploymentResults, error) {
 	log.Info("Creating L2 state")
-	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
+	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2ImmutableDeployer)
 	if err != nil {
 		return nil, err
 	}
@@ -202,18 +202,21 @@ func BuildL2(constructors []deployer.Constructor, superchainPredeploys []deploye
 	return results, nil
 }
 
-func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
+// l2ImmutableDeployer will deploy L2 predeploys that contain immutables to the simulated backend.
+// It only needs to care about the predeploys that have immutables so that the deployed bytecode
+// has the dynamic value set at the correct location in the bytecode.
+func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
 	var tx *types.Transaction
 	var recipient common.Address
 	var minimumWithdrawalAmount *big.Int
 	var withdrawalNetwork uint8
 	var err error
+
+	if _, err := bindings.GetImmutableReferences(deployment.Name); err != nil {
+		return nil, fmt.Errorf("%s does not have immutables: %w", deployment.Name, err)
+	}
+
 	switch deployment.Name {
-	case "GasPriceOracle":
-		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
-	case "L1Block":
-		// No arguments required for the L1Block contract
-		_, tx, _, err = bindings.DeployL1Block(opts, backend)
 	case "L2CrossDomainMessenger":
 		otherMessenger, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -226,9 +229,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for otherBridge")
 		}
 		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
-	case "L2ToL1MessagePasser":
-		// No arguments required for L2ToL1MessagePasser
-		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "SequencerFeeVault":
 		recipient, minimumWithdrawalAmount, withdrawalNetwork, err = prepareFeeVaultArguments(deployment)
 		if err != nil {
@@ -248,13 +248,15 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		}
 		_, tx, _, err = bindings.DeployL1FeeVault(opts, backend, recipient, minimumWithdrawalAmount, withdrawalNetwork)
 	case "OptimismMintableERC20Factory":
-		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
-	case "DeployerWhitelist":
-		_, tx, _, err = bindings.DeployDeployerWhitelist(opts, backend)
-	case "LegacyMessagePasser":
-		_, tx, _, err = bindings.DeployLegacyMessagePasser(opts, backend)
-	case "L1BlockNumber":
-		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
+		bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for bridge")
+		}
+		// Sanity check that the argument is correct
+		if bridge != predeploys.L2StandardBridgeAddr {
+			return nil, fmt.Errorf("invalid bridge address")
+		}
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, bridge)
 	case "L2ERC721Bridge":
 		messenger, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -275,12 +277,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for remoteChainId")
 		}
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
-	case "LegacyERC20ETH":
-		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
-	case "SchemaRegistry":
-		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
