@@ -1310,6 +1310,7 @@ jobs:
       changes:
         paths:
           - packages/contracts-bedrock/test/kontrol/**
+          - packages/contracts-bedrock/src/L1/OptimismPortal.sol
 
 workflows:
   main:
