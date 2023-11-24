@@ -11,7 +11,6 @@ contract CounterTest {
 
     function setUp() public {
         counter = new Counter();
-        optimismPortal = new OptimismPortal();
     }
 
     function test_SetNumber(uint256 x) public {
