@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 /* import {Test} from "forge-std/Test.sol"; */
 import {Counter} from "src/L1/Counter.sol";
-import {OptimismPortal} from "src/L1/OptimismPortal.sol";
 
 contract CounterTest {
 
