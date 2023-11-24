@@ -7,7 +7,6 @@ import {Counter} from "src/L1/Counter.sol";
 contract CounterTest {
 
     Counter counter;
-    OptimismPortal optimismPortal;
 
 
     function setUp() public {
