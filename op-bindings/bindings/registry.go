@@ -15,6 +15,10 @@ var layouts = make(map[string]*solc.StorageLayout)
 // in an init function.
 var deployedBytecodes = make(map[string]string)
 
+// immutableReferences represents the set of immutable references. It is populated
+// in an init function.
+var immutableReferences = make(map[string]string)
+
 // GetStorageLayout returns the storage layout of a contract by name.
 func GetStorageLayout(name string) (*solc.StorageLayout, error) {
 	layout := layouts[name]
@@ -36,6 +40,15 @@ func GetDeployedBytecode(name string) ([]byte, error) {
 	}
 
 	return common.FromHex(bc), nil
+}
+
+// GetImmutableReferences returns the immutable references of a contract by name.
+func GetImmutableReferences(name string) (string, error) {
+	ref := immutableReferences[name]
+	if ref == "" {
+		return "", fmt.Errorf("%s: immutable reference not found", name)
+	}
+	return ref, nil
 }
 
 // isHexCharacter returns bool of c being a valid hexadecimal.
