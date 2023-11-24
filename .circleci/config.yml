@@ -978,7 +978,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - "op-program/bin/prestate.json"
+            - "op-program/bin/prestate.bin.gz"
             - "op-program/bin/meta.json"
             - "op-program/bin/prestate-proof.json"
 
