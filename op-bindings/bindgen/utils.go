@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -119,13 +120,35 @@ func genContractBindings(logger log.Logger, abiFilePath, bytecodeFilePath, goPac
 	}
 
 	outFilePath := path.Join(cwd, goPackageName, strings.ToLower(contractName)+".go")
-	logger.Debug("Generating contract bindings", "contractName", contractName, "outFilePath", outFilePath)
 
+	var existingOutput []byte
+	if _, err := os.Stat(outFilePath); err == nil {
+		existingOutput, err = os.ReadFile(outFilePath)
+		if err != nil {
+			return fmt.Errorf("error reading existing bindings output file, outFilePath: %s err: %w", outFilePath, err)
+		}
+	}
+
+	logger.Debug("Generating contract bindings", "contractName", contractName, "outFilePath", outFilePath)
 	cmd := exec.Command("abigen", "--abi", abiFilePath, "--bin", bytecodeFilePath, "--pkg", goPackageName, "--type", contractName, "--out", outFilePath)
 	cmd.Stdout = os.Stdout
-
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("error running abigen for %s: %w", contractName, err)
+	}
+
+	if len(existingOutput) != 0 {
+		newOutput, err := os.ReadFile(outFilePath)
+		if err != nil {
+			return fmt.Errorf("error reading new file: %w", err)
+		}
+
+		if bytes.Equal(existingOutput, newOutput) {
+			logger.Debug("No changes detected in the contract bindings", "contractName", contractName)
+		} else {
+			logger.Warn("Changes detected in the contract bindings, old bindings have been overwritten", "contractName", contractName)
+		}
+	} else {
+		logger.Debug("No existing contract bindings found, skipping comparison", "contractName", contractName)
 	}
 
 	return nil
