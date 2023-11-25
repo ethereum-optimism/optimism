@@ -30,7 +30,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
-        address guardian = deploy.cfg().portalGuardian();
+        address guardian = deploy.cfg().superchainConfigGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
         assertEq(optimismPortal.GUARDIAN(), guardian);

@@ -497,7 +497,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
-        address guardian = cfg.portalGuardian();
+        address guardian = cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
         }
@@ -508,8 +508,6 @@ contract Deploy is Deployer {
 
         OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
             _l2Oracle: l2OutputOracle,
-            _guardian: guardian,
-            _paused: true,
             _systemConfig: systemConfig,
             _superchainConfig: superchainConfig
         });
@@ -735,10 +733,10 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.portalGuardian()))
+            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.superchainConfigGuardian()))
         });
 
-        ChainAssertions.checkSuperchainConfig({ _proxies: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
+        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
     }
 
     /// @notice Initialize the DisputeGameFactory

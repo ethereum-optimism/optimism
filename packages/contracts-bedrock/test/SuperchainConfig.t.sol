@@ -17,7 +17,7 @@ contract SuperchainConfig_Init_Test is CommonTest {
     /// @dev Tests that initialization sets the correct values. These are defined in CommonTest.sol.
     function test_initialize_values_succeeds() external {
         assertFalse(superchainConfig.paused());
-        assertEq(superchainConfig.guardian(), deploy.cfg().portalGuardian());
+        assertEq(superchainConfig.guardian(), deploy.cfg().superchainConfigGuardian());
     }
 }
 

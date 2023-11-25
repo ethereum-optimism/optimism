@@ -145,15 +145,15 @@ library ChainAssertions {
     {
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
-        address guardian = _cfg.portalGuardian();
+        address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
         }
 
         require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
         require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
-        require(portal.GUARDIAN() == _cfg.portalGuardian());
-        require(portal.guardian() == _cfg.portalGuardian());
+        require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
+        require(portal.guardian() == _cfg.superchainConfigGuardian());
         require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
         require(address(portal.systemConfig()) == _contracts.SystemConfig);
         require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
@@ -183,15 +183,15 @@ library ChainAssertions {
 
     /// @notice Asserts that the SuperchainConfig is setup correctly
     function checkSuperchainConfig(
-        Types.ContractSet memory _proxies,
+        Types.ContractSet memory _contracts,
         DeployConfig _cfg,
         bool _isPaused
     )
         internal
         view
     {
-        SuperchainConfig superchainConfig = SuperchainConfig(_proxies.SuperchainConfig);
-        require(superchainConfig.guardian() == _cfg.portalGuardian());
+        SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
+        require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
         require(superchainConfig.paused() == _isPaused);
     }
 }
