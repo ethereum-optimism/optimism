@@ -164,7 +164,6 @@ def devnet_l1_genesis(paths):
     log.info('Generating L1 genesis state')
     init_devnet_l1_deploy_config(paths)
 
-    
     anvil = subprocess.Popen([
         'anvil', '-a', '1', '--port', '8545', '--chain-id', '1337',
         
@@ -179,19 +178,23 @@ def devnet_l1_genesis(paths):
             raise Exception(f"Exception occurred in child process: {err}")
 
         
-        res = subprocess.check_output([
-            'cast', 'rpc', 'anvil_dumpState', '--rpc-url', 'http://localhost:8545',
-            '|', 'jq', '-r', '|', 'xxd', '-r', '-p', '|', 'gzip', '-d'
-        ], shell=True)
+        command = "cast rpc anvil_dumpState --rpc-url http://localhost:8545 | jq -r | xxd -r -p | gzip -d"
+        
+        
+        res = subprocess.check_output(command, shell=True)
         response = json.loads(res)
         allocs = response['accounts']  
 
         
-        
-
         write_json(paths.allocs_path, allocs)
+    except subprocess.CalledProcessError as e:
+        log.error(f"Command failed: {e.cmd}")
+        log.error(f"Return code: {e.returncode}")
+        log.error(f"Output: {e.output}")
+        raise
     finally:
         anvil.terminate()
+
 
 
 
