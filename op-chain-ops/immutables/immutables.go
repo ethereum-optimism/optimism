@@ -1,7 +1,6 @@
 package immutables
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -75,47 +74,32 @@ type PredeploysImmutableConfig struct {
 var Create2DeployerCodeHash = common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
 
 // Check will ensure that the required fields are set on the config.
+// An error returned by `GetImmutableReferences` means that the solc compiler
+// output for the contract has no immutables in it.
 func (c *PredeploysImmutableConfig) Check() error {
-	if c.L2CrossDomainMessenger.OtherMessenger == (common.Address{}) {
-		return errors.New("L2CrossDomainMessenger otherMessenger not set")
-	}
-	if c.L2StandardBridge.OtherBridge == (common.Address{}) {
-		return errors.New("L2StandardBridge otherBridge not set")
-	}
-	if c.SequencerFeeVault.Recipient == (common.Address{}) {
-		return errors.New("SequencerFeeVault recipient not set")
-	}
-	if c.SequencerFeeVault.MinWithdrawalAmount == nil || c.SequencerFeeVault.MinWithdrawalAmount.Cmp(big.NewInt(0)) == 0 {
-		return errors.New("SequencerFeeVault minWithdrawalAmount not set")
-	}
-	if c.OptimismMintableERC20Factory.Bridge == (common.Address{}) {
-		return errors.New("OptimismMintableERC20Factory bridge not set")
-	}
-	if c.L2ERC721Bridge.Messenger == (common.Address{}) {
-		return errors.New("L2ERC721Bridge messenger not set")
-	}
-	if c.L2ERC721Bridge.OtherBridge == (common.Address{}) {
-		return errors.New("L2ERC721Bridge otherBridge not set")
-	}
-	if c.OptimismMintableERC721Factory.Bridge == (common.Address{}) {
-		return errors.New("OptimismMintableERC721Factory bridge not set")
-	}
-	if c.OptimismMintableERC721Factory.RemoteChainId == nil || c.OptimismMintableERC721Factory.RemoteChainId.Cmp(big.NewInt(0)) == 0 {
-		return errors.New("OptimismMintableERC721Factory remoteChainId not set")
-	}
-	if c.BaseFeeVault.Recipient == (common.Address{}) {
-		return errors.New("BaseFeeVault recipient not set")
-	}
-	if c.BaseFeeVault.MinWithdrawalAmount == nil || c.BaseFeeVault.MinWithdrawalAmount.Cmp(big.NewInt(0)) == 0 {
-		return errors.New("BaseFeeVault minWithdrawalAmount not set")
-	}
-	if c.L1FeeVault.Recipient == (common.Address{}) {
-		return errors.New("L1FeeVault recipient not set")
-	}
-	if c.L1FeeVault.MinWithdrawalAmount == nil || c.L1FeeVault.MinWithdrawalAmount.Cmp(big.NewInt(0)) == 0 {
-		return errors.New("L1FeeVault minWithdrawalAmount not set")
-	}
-	return nil
+	return c.ForEach(func(name string, values any) error {
+		val := reflect.ValueOf(values)
+		if val.NumField() == 0 {
+			return nil
+		}
+
+		_, err := bindings.GetImmutableReferences(name)
+		exists := err == nil
+		isZero := val.IsZero()
+
+		// There are immutables defined in the solc output and
+		// the config is not empty.
+		if exists && !isZero {
+			return nil
+		}
+		// There are no immutables defined in the solc output and
+		// the config is empty
+		if !exists && isZero {
+			return nil
+		}
+
+		return fmt.Errorf("invalid immutables config: field %s: %w", name, err)
+	})
 }
 
 // ForEach will iterate over each of the fields in the config and call the callback
