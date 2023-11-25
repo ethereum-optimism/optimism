@@ -164,10 +164,10 @@ def devnet_l1_genesis(paths):
     log.info('Generating L1 genesis state')
     init_devnet_l1_deploy_config(paths)
 
-    geth = subprocess.Popen([
-        'geth', '--dev', '--http', '--http.api', 'eth,debug',
-        '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000',
-        '--rpc.allow-unprotected-txs'
+    
+    anvil = subprocess.Popen([
+        'anvil', '-a', '1', '--port', '8545', '--chain-id', '1337',
+        
     ])
 
     try:
@@ -178,13 +178,21 @@ def devnet_l1_genesis(paths):
         if err:
             raise Exception(f"Exception occurred in child process: {err}")
 
-        res = debug_dumpBlock('127.0.0.1:8545')
+        
+        res = subprocess.check_output([
+            'cast', 'rpc', 'anvil_dumpState', '--rpc-url', 'http://localhost:8545',
+            '|', 'jq', '-r', '|', 'xxd', '-r', '-p', '|', 'gzip', '-d'
+        ], shell=True)
         response = json.loads(res)
-        allocs = response['result']
+        allocs = response['accounts']  
+
+        
+        
 
         write_json(paths.allocs_path, allocs)
     finally:
-        geth.terminate()
+        anvil.terminate()
+
 
 
 # Bring up the devnet where the contracts are deployed to L1
