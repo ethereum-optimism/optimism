@@ -58,6 +58,13 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			log.Warn("Interop is not active, skipping CrossL2Inbox predeploy.")
 			continue
 		}
+		if predeploy.Address == predeploys.CrossL2OutboxAddr && !genspec.Config.IsInterop(l1StartBlock.Time()) {
+			log.Warn("Interop is not active, skipping CrossL2Outbox predeploy.")
+			continue
+		}
+		if predeploy.Address == predeploys.CrossL2OutboxAddr {
+			fmt.Println("todo")
+		}
 		codeAddr := predeploy.Address
 		if !predeploy.ProxyDisabled {
 			codeAddr, err = AddressToCodeNamespace(predeploy.Address)

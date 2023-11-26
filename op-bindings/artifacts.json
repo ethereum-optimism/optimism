@@ -44,5 +44,6 @@
   "ISemver",
   "StorageSetter",
   "SuperchainConfig",
-  "CrossL2Inbox"
+  "CrossL2Inbox",
+  "CrossL2Outbox"
 ]

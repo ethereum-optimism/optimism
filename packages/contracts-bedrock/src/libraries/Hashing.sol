@@ -121,4 +121,24 @@ library Hashing {
             )
         );
     }
+
+    /// @notice Derives the message root of the given superchain message.
+    /// The derivation is structured, to enable more efficient proving of individual components.
+    /// The first byte of the output root
+    function superchainMessageRoot(Types.SuperchainMessage memory _msg) internal pure returns (bytes32) {
+        // Hash the data, so metadata of a message can be proven without providing the full calldata.
+        bytes32 dataHash = keccak256(_msg.data);
+        // Mix in the length, so we can tell how large the data is without revealing it all.
+        bytes32 dataNode = keccak256(abi.encode(dataHash, bytes32(uint256(_msg.data.length))));
+        // The general tx metadata.
+        bytes32 txMeta = keccak256(abi.encode(_msg.from, _msg.to, _msg.value, _msg.gasLimit));
+        // The full tx.
+        bytes32 txNode = keccak256(abi.encode(txMeta, dataNode));
+        // Combine the source and target chains.
+        bytes32 direction = keccak256(abi.encode(_msg.sourceChain, _msg.targetChain));
+        // And finally with the message direction.
+        bytes32 out = keccak256(abi.encode(direction, txNode));
+        // Mask out the first byte for a version byte, and set it to 1.
+        return bytes32((uint256(out) & ~(uint256(0xff << 248))) | uint256(1 << 248));
+    }
 }
