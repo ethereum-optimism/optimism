@@ -488,6 +488,8 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		addRequiredCannonArgs(args)
 	case config.TraceTypeOutputCannon:
 		addRequiredOutputCannonArgs(args)
+	case config.TraceTypeOutputAlphabet:
+		addRequiredOutputAlphabetArgs(args)
 	}
 	return args
 }
@@ -496,8 +498,16 @@ func addRequiredAlphabetArgs(args map[string]string) {
 	args["--alphabet"] = alphabetTrace
 }
 
+func addRequiredOutputAlphabetArgs(args map[string]string) {
+	addRequiredOutputArgs(args)
+}
+
 func addRequiredOutputCannonArgs(args map[string]string) {
 	addRequiredCannonArgs(args)
+	addRequiredOutputArgs(args)
+}
+
+func addRequiredOutputArgs(args map[string]string) {
 	args["--rollup-rpc"] = rollupRpc
 }
 

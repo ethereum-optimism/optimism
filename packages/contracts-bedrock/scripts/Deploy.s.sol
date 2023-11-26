@@ -214,6 +214,7 @@ contract Deploy is Deployer {
 
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
+        setOutputAlphabetFaultGameImplementation();
 
         transferDisputeGameFactoryOwnership();
     }
@@ -876,6 +877,21 @@ contract Deploy is Deployer {
             alphabetAbsolutePrestate,
             IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
             4 // The max game depth of the alphabet game is always 4.
+        );
+    }
+
+    /// @notice Sets the implementation for the output root -> alphabet game type in the `DisputeGameFactory`
+    function setOutputAlphabetFaultGameImplementation() public onlyDevnet broadcast {
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        // Set the Alphabet FaultDisputeGame implementation in the factory.
+        Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation(
+            factory,
+            GameType.wrap(254),
+            alphabetAbsolutePrestate,
+            IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
+            8 // The max game depth is always 4 for top half, 4 for alphabet half.
         );
     }
 

@@ -9,7 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
+	outputalpha "github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/alphabet"
+	outputcannon "github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs/cannon"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -21,9 +22,10 @@ import (
 )
 
 var (
-	cannonGameType       = uint8(0)
-	outputCannonGameType = uint8(0) // TODO(client-pod#43): This should be a unique game type
-	alphabetGameType     = uint8(255)
+	cannonGameType         = uint8(0)
+	outputCannonGameType   = uint8(0)   // TODO(client-pod#43): This should be a unique game type
+	outputAlphabetGameType = uint8(254) // TODO(client-pod#43): This should be a unique game type
+	alphabetGameType       = uint8(255)
 )
 
 type CloseFunc func()
@@ -54,6 +56,9 @@ func RegisterGameTypes(
 	if cfg.TraceTypeEnabled(config.TraceTypeOutputCannon) {
 		registerOutputCannon(registry, ctx, logger, m, cfg, txMgr, client, l2Client)
 	}
+	if cfg.TraceTypeEnabled(config.TraceTypeOutputAlphabet) {
+		registerOutputAlphabet(registry, ctx, logger, m, cfg, txMgr, client)
+	}
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		registerCannon(registry, ctx, logger, m, cfg, txMgr, client, l2Client)
 	}
@@ -79,7 +84,7 @@ func registerOutputCannon(
 		if err != nil {
 			return nil, nil, err
 		}
-		accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
+		accessor, err := outputcannon.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -93,6 +98,37 @@ func registerOutputCannon(
 		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
 	}
 	registry.RegisterGameType(outputCannonGameType, playerCreator)
+}
+
+func registerOutputAlphabet(
+	registry Registry,
+	ctx context.Context,
+	logger log.Logger,
+	m metrics.Metricer,
+	cfg *config.Config,
+	txMgr txmgr.TxManager,
+	client *ethclient.Client) {
+	resourceCreator := func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (faultTypes.TraceAccessor, gameValidator, error) {
+		logger := logger.New("game", addr)
+		// TODO(client-pod#43): Updated contracts should expose this as the pre and post state blocks
+		agreed, disputed, err := contract.GetProposals(ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		accessor, err := outputalpha.NewOutputAlphabetTraceAccessor(ctx, logger, m, cfg, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
+		if err != nil {
+			return nil, nil, err
+		}
+		// TODO(client-pod#44): Validate absolute pre-state for split games
+		noopValidator := func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error {
+			return nil
+		}
+		return accessor, noopValidator, nil
+	}
+	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
+	}
+	registry.RegisterGameType(outputAlphabetGameType, playerCreator)
 }
 
 func registerCannon(
