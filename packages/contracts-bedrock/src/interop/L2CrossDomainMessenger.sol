@@ -57,7 +57,7 @@ contract L2CrossDomainMessenger {
         payable
     {
         // L2->L1 Support: Required as we are leaving the CrossDomainMessenger untouched
-        bytes32 ETH_MAINNET_ID = bytes32(hex"01");
+        bytes32 ETH_MAINNET_ID = bytes32(uint256(1));
         if (_destination == ETH_MAINNET_ID) {
             LegacyL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(
                 _target, _message, _minGasLimit
