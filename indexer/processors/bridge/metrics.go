@@ -59,8 +59,10 @@ type bridgeMetrics struct {
 	intervalDuration *prometheus.HistogramVec
 	intervalFailures *prometheus.CounterVec
 
-	txDeposits    prometheus.Counter
-	txWithdrawals *prometheus.CounterVec
+	txDeposits           prometheus.Counter
+	txWithdrawals        prometheus.Counter
+	provenWithdrawals    prometheus.Counter
+	finalizedWithdrawals prometheus.Counter
 
 	txMintedETH    prometheus.Counter
 	txWithdrawnETH prometheus.Counter
@@ -117,17 +119,25 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 			Name:      "tx_minted_eth",
 			Help:      "amount of eth bridged from l1",
 		}),
-		txWithdrawals: factory.NewCounterVec(prometheus.CounterOpts{
+		txWithdrawals: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "tx_withdrawals",
-			Help:      "number of processed transactions withdrawals (initiated|proven|finalized)",
-		}, []string{
-			"stage",
+			Help:      "number of initiated transaction withdrawals from l2",
 		}),
 		txWithdrawnETH: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "tx_withdrawn_eth",
 			Help:      "amount of eth withdrawn from l2",
+		}),
+		provenWithdrawals: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "proven_withdrawals",
+			Help:      "number of proven tx withdrawals on l1",
+		}),
+		finalizedWithdrawals: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "finalized_withdrawals",
+			Help:      "number of finalized tx withdrawals on l1",
 		}),
 		sentMessages: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
@@ -201,11 +211,11 @@ func (m *bridgeMetrics) RecordL1TransactionDeposits(size int, mintedETH float64)
 }
 
 func (m *bridgeMetrics) RecordL1ProvenWithdrawals(size int) {
-	m.txWithdrawals.WithLabelValues("stage", "proven").Add(float64(size))
+	m.provenWithdrawals.Add(float64(size))
 }
 
 func (m *bridgeMetrics) RecordL1FinalizedWithdrawals(size int) {
-	m.txWithdrawals.WithLabelValues("stage", "finalized").Add(float64(size))
+	m.finalizedWithdrawals.Add(float64(size))
 }
 
 func (m *bridgeMetrics) RecordL1CrossDomainSentMessages(size int) {
@@ -258,7 +268,7 @@ func (m *bridgeMetrics) RecordL2LatestFinalizedHeight(height *big.Int) {
 }
 
 func (m *bridgeMetrics) RecordL2TransactionWithdrawals(size int, withdrawnETH float64) {
-	m.txWithdrawals.WithLabelValues("stage", "initiated").Add(float64(size))
+	m.txWithdrawals.Add(float64(size))
 	m.txWithdrawnETH.Add(withdrawnETH)
 }
 
