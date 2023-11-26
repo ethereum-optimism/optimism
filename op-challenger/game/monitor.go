@@ -23,7 +23,7 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber uint64) ([]types.GameMetadata, error)
+	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockHash common.Hash) ([]types.GameMetadata, error)
 }
 
 type gameScheduler interface {
@@ -101,8 +101,8 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 	return 0
 }
 
-func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error {
-	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockNum)
+func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash) error {
+	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockHash)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
@@ -123,7 +123,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
-	if err := m.progressGames(ctx, sig.Number); err != nil {
+	if err := m.progressGames(ctx, sig.Hash); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}
 }
