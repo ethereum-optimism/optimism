@@ -120,8 +120,9 @@ contract L2CrossDomainMessenger {
         // **CrossDomainMessenger Checks**. min gas, unsafe target, etc.
 
         // (2) Relay Message
+        uint64 RELAY_RESERVED_GAS = 40_000;
         xDomainMsgSender = _sender;
-        bool success = SafeCall.call(_target, gasleft(), _value, _message);
+        bool success = SafeCall.call({_target: _target, _gas: gasleft() - RELAY_RESERVED_GAS, _value: _value, _calldata: _message});
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         if (success) {
             successfulMessages[messageHash] = true;
