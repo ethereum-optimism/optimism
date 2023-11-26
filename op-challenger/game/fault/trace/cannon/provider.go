@@ -9,12 +9,10 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/ioutil"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
@@ -56,44 +54,7 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, m CannonMetricer, cfg *config.Config, gameContract *contracts.FaultDisputeGameContract, localContext common.Hash, dir string, gameDepth uint64) (*CannonTraceProvider, error) {
-	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
-	if err != nil {
-		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
-	}
-	defer l2Client.Close() // Not needed after fetching the inputs
-	localInputs, err := fetchLocalInputs(ctx, gameContract, l2Client)
-	if err != nil {
-		return nil, fmt.Errorf("fetch local game inputs: %w", err)
-	}
-	return NewTraceProviderFromInputs(logger, m, cfg, localContext, localInputs, dir, gameDepth), nil
-}
-
-func NewTraceProviderFromProposals(
-	ctx context.Context,
-	logger log.Logger,
-	m CannonMetricer,
-	cfg *config.Config,
-	gameContract *contracts.FaultDisputeGameContract,
-	localContext common.Hash,
-	agreed contracts.Proposal,
-	claimed contracts.Proposal,
-	dir string,
-	gameDepth uint64,
-) (*CannonTraceProvider, error) {
-	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
-	if err != nil {
-		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
-	}
-	defer l2Client.Close() // Not needed after fetching the inputs
-	localInputs, err := fetchLocalInputsFromProposals(ctx, gameContract, l2Client, agreed, claimed)
-	if err != nil {
-		return nil, fmt.Errorf("fetch local game inputs: %w", err)
-	}
-	return NewTraceProviderFromInputs(logger, m, cfg, localContext, localInputs, dir, gameDepth), nil
-}
-
-func NewTraceProviderFromInputs(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:       logger,
 		dir:          dir,
