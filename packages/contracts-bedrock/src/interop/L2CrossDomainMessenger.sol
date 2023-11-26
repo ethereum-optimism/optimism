@@ -8,11 +8,12 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
 /// @title L2CrossDomainMessenger
-/// @notice L2CrossDomainMessenger is an extended version of the existing predeploy that supports
-///         interopability between many chains (L2-L2). Since we are keeping the existing messaging
-///         contracts the same while iterating on the L2-L2 implementation, changes to the interface
-///         and messaging format that would reside in the CrossDomainMessenger are scoped internally
-///         in this contract. The L2-L1 flow remains unchanged.
+/// @notice L2CrossDomainMessenger is an extended version of the existing predeploy
+///         that supports interopability between many chains (L2-L2). Since we are
+///         keeping the existing messaging contracts the same while iterating on the
+////        L2-L2 implementation, changes to the interface and messaging format that
+///         would reside in the CrossDomainMessenger are scoped internally in this
+///         contract. The L2-L1 flow remains unchanged.
 contract L2CrossDomainMessenger {
     // CrossDomainMessenger: some copied internals & updated dispatch/message spec
 
@@ -41,13 +42,11 @@ contract L2CrossDomainMessenger {
     /// @notice Mapping of delivered messages in a failed state
     mapping(bytes32 => bool) public failedMessages;
 
-    /// @notice Sends a message to the specified destination chain. If the destination chain is ETH Mainnet (0x1), then
-    /// this
-    ///         message follows the legacy message flow and formates by forwarding to the existing
-    /// L2CrossDomainMessenger
-    ///         predeploy. When this implementation is ready as a replacement, L2ToL2 and L2ToL1 is natively handled by
-    /// the
-    ///         respective internal message passer contracts.
+    /// @notice Sends a message to the specified destination chain. If the destination
+    ///         chain is ETH Mainnet (0x1), then this message follows the legacy
+    ///         message flow by forwarding to the existing L2CrossDomainMessenger
+    ///         predeploy. When this implementation is ready as a replacement, L2ToL2
+    ///         and L2ToL1 is natively handled by the internal message passers.
     function sendMessage(
         bytes32 _destination,
         address _target,
@@ -57,9 +56,7 @@ contract L2CrossDomainMessenger {
         external
         payable
     {
-        // L2->L1 Support: Required as we are leaving the CrossDomainMessenger untouched; All L2->L1 messages will still
-        // be using
-        // the old message format (Version 1), hence forwarding to the "legacy" contract.
+        // L2->L1 Support: Required as we are leaving the CrossDomainMessenger untouched
         bytes32 ETH_MAINNET_ID = bytes32(hex"01");
         if (_destination == ETH_MAINNET_ID) {
             LegacyL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(
@@ -76,12 +73,11 @@ contract L2CrossDomainMessenger {
         );
 
         // (1) Send to the CrossL2Inbox.
-        // With an updated CrossDomainMessenger message format, this contract will replace existing
-        // L2CrossDomainmMessenger
-        // predeploy and switch between L2ToL1MessagePasser/CrossL2Inbox based on the provided `_destination`.
+        // With an updated CrossDomainMessenger message format, this contract will
+        // replace existing L2CrossDomainmMessenger predeploy and switch between
+        // L2ToL1MessagePasser/CrossL2Inbox based on the provided `_destination`.
         //
-        // i.e: CrossL2Inbox.sendMessage(source, destination, _minGasLimit, msg.value, data) // ensure _minGaslimit
-        // covers the base
+        // i.e: CrossL2Inbox.sendMessage(source, destination, _minGasLimit, msg.value, data)
 
         // (2) Emit Events
 
@@ -90,9 +86,9 @@ contract L2CrossDomainMessenger {
         }
     }
 
-    /// @notice Relays a message that was sent from a different chain. Since L1-L2 messages utilize the V1 message
-    /// format, this
-    ///         entrypoint only supports relaying L2-L2 messages.
+    /// @notice Relays a message that was sent from a different chain. Since L1-L2
+    ///         messages utilize the V1 message format, this entrypoint only
+    ///         supports relaying L2-L2 messages.
     function relayMessage(
         uint256 _nonce,
         bytes32 _source,
@@ -124,7 +120,6 @@ contract L2CrossDomainMessenger {
         // **CrossDomainMessenger Checks**. min gas, unsafe target, etc.
 
         // (2) Relay Message
-        // -- Ignoring the reserved gas subtracted from gasleft() & xDomainMsgSender update
         xDomainMsgSender = _sender;
         bool success = SafeCall.call(_target, gasleft(), _value, _message);
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
@@ -137,7 +132,7 @@ contract L2CrossDomainMessenger {
         }
     }
 
-    // ------------------------------------------------------------------------------------------------------------
+    // -----------------------------------------------------------------------------
 
     // Encoding.sol: v2 support
 
