@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "1568",
+    "label": "uint256[49]",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_array(t_uint256)49_storage"
+  },
+  {
+    "bytes": "32",
+    "label": "mapping(address => mapping(address => mapping(uint256 => bool)))",
+    "offset": 0,
+    "slot": "49",
+    "type": "t_mapping(t_address,t_mapping(t_address,t_mapping(t_uint256,t_bool)))"
+  }
+]

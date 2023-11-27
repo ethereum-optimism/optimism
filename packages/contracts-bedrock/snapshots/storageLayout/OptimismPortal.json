@@ -1,0 +1,58 @@
+[
+  {
+    "bytes": "1",
+    "label": "uint8",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "bool",
+    "offset": 1,
+    "slot": "0",
+    "type": "t_bool"
+  },
+  {
+    "bytes": "32",
+    "label": "struct ResourceMetering.ResourceParams",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_struct(ResourceParams)75993_storage"
+  },
+  {
+    "bytes": "1536",
+    "label": "uint256[48]",
+    "offset": 0,
+    "slot": "2",
+    "type": "t_array(t_uint256)48_storage"
+  },
+  {
+    "bytes": "20",
+    "label": "address",
+    "offset": 0,
+    "slot": "50",
+    "type": "t_address"
+  },
+  {
+    "bytes": "32",
+    "label": "mapping(bytes32 => bool)",
+    "offset": 0,
+    "slot": "51",
+    "type": "t_mapping(t_bytes32,t_bool)"
+  },
+  {
+    "bytes": "32",
+    "label": "mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal)",
+    "offset": 0,
+    "slot": "52",
+    "type": "t_mapping(t_bytes32,t_struct(ProvenWithdrawal)75053_storage)"
+  },
+  {
+    "bytes": "1",
+    "label": "bool",
+    "offset": 0,
+    "slot": "53",
+    "type": "t_bool"
+  }
+]
