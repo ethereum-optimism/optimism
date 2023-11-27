@@ -63,8 +63,8 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(optimismPortal),
-                initCalldata: abi.encodeCall(optimismPortal.initialize, ()),
-                initializedSlotVal: loadInitializedSlot("OptimismPortal", true)
+                initCalldata: abi.encodeCall(optimismPortal.initialize, (superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal", true)
             })
         );
         // SystemConfig
