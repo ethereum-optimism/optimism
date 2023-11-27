@@ -1225,19 +1225,6 @@ jobs:
           name: Restore Go modules cache
           key: gomod-{{ checksum "go.sum" }}
       - run:
-          name: Install Rust toolchain
-          command: |
-            curl https://sh.rustup.rs -sSf | bash -s -- -y
-            echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $BASH_ENV
-            echo 'source $HOME/.cargo/env' >> $HOME/.bashrc
-            source $HOME/.bashrc
-            rustup update nightly
-      - run:
-          name: Install deps
-          command: |
-            apt-get update
-            apt-get install -y pkg-config libssl-dev clang libclang-dev
-      - run:
           name: Cargo fmt + clippy
           command: |
             cargo +nightly fmt -- --check
