@@ -29,10 +29,7 @@ import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { Executables } from "scripts/Executables.sol";
-<<<<<<< HEAD
 import { Vm } from "forge-std/Vm.sol";
-=======
->>>>>>> 98cae7091 (contracts-bedrock: Update tests for minimal Superchain)
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title Setup
@@ -109,15 +106,9 @@ contract Setup {
         addressManager = AddressManager(deploy.mustGetAddress("AddressManager"));
         l1ERC721Bridge = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory =
-<<<<<<< HEAD
             OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
         protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
         superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
-=======
-            OptimismMintableERC20Factory(mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        protocolVersions = ProtocolVersions(mustGetAddress("ProtocolVersionsProxy"));
-        superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
->>>>>>> 98cae7091 (contracts-bedrock: Update tests for minimal Superchain)
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
         vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
