@@ -7,14 +7,14 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 
-/// @title L2CrossDomainMessenger
-/// @notice L2CrossDomainMessenger is an extended version of the existing predeploy
+/// @title NewL2CrossDomainMessenger
+/// @notice NewL2CrossDomainMessenger is an extended version of the existing predeploy
 ///         that supports interopability between many chains (L2-L2). Since we are
 ///         keeping the existing messaging contracts the same while iterating on the
 ////        L2-L2 implementation, changes to the interface and messaging format that
 ///         would reside in the CrossDomainMessenger are scoped internally in this
 ///         contract. The L2-L1 flow remains unchanged.
-contract L2CrossDomainMessenger {
+contract NewL2CrossDomainMessenger {
     // CrossDomainMessenger: some copied internals & updated dispatch/message spec
 
     /// @notice Latest message version identifier (interop-enabled)
@@ -65,7 +65,7 @@ contract L2CrossDomainMessenger {
             return;
         }
 
-        require(_destination != CHAIN_ID, "L2CrossDomainMessenger: message cant be sent to self");
+        require(_destination != CHAIN_ID, "NewL2CrossDomainMessenger: message cant be sent to self");
 
         uint256 nonce = Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
         bytes memory data = abi.encodeWithSelector(
@@ -102,11 +102,11 @@ contract L2CrossDomainMessenger {
         payable
     {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-        require(version == MESSAGE_VERSION, "L2CrossDomainMessenger: incorrect message version");
+        require(version == MESSAGE_VERSION, "NewL2CrossDomainMessenger: incorrect message version");
 
         bytes32 messageHash =
             hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
-        require(successfulMessages[messageHash] == false, "L2CrossDomainMessenger: message already processed");
+        require(successfulMessages[messageHash] == false, "NewL2CrossDomainMessenger: message already processed");
 
         // (1) Allow for replay
         if (_sender == address(this)) {
@@ -114,7 +114,7 @@ contract L2CrossDomainMessenger {
             assert(failedMessages[messageHash] == false);
         } else {
             require(msg.value == 0, "cannot replay with more funds");
-            require(failedMessages[messageHash], "L2CrossDomainMessengeR: message cannot be replayed");
+            require(failedMessages[messageHash], "NewL2CrossDomainMessenger: message cannot be replayed");
         }
 
         // **CrossDomainMessenger Checks**. min gas, unsafe target, etc.
@@ -122,7 +122,12 @@ contract L2CrossDomainMessenger {
         // (2) Relay Message
         uint64 RELAY_RESERVED_GAS = 40_000;
         xDomainMsgSender = _sender;
-        bool success = SafeCall.call({_target: _target, _gas: gasleft() - RELAY_RESERVED_GAS, _value: _value, _calldata: _message});
+        bool success = SafeCall.call({
+            _target: _target,
+            _gas: gasleft() - RELAY_RESERVED_GAS,
+            _value: _value,
+            _calldata: _message
+        });
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         if (success) {
             successfulMessages[messageHash] = true;
