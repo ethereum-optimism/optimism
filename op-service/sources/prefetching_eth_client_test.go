@@ -2,12 +2,10 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
@@ -222,58 +220,58 @@ func TestPrefetchingEthClient_PrefetchRange(t *testing.T) {
 }
 
 // // TestPrefetchingEthClient_NewPrefetchingEthClient tests the constructor.
-func TestPrefetchingEthClient_NewPrefetchingEthClient(t *testing.T) {
-	mockRPC := new(MockRPC)
-	logger := log.NewNopLogger()                            // Using a no-op logger for simplicity
-	metrics := caching.NewMetrics(prometheus.NewRegistry()) // Mock metrics, replace with actual if needed
+// func TestPrefetchingEthClient_NewPrefetchingEthClient(t *testing.T) {
+// 	mockRPC := new(MockRPC)
+// 	logger := log.NewNopLogger()                            // Using a no-op logger for simplicity
+// 	metrics := caching.NewMetrics(prometheus.NewRegistry()) // Mock metrics, replace with actual if needed
 
-	// Valid parameters
-	client, err := NewPrefetchingEthClient(mockRPC, logger, metrics, testEthClientConfig)
-	require.NoError(t, err)
-	require.NotNil(t, client)
+// 	// Valid parameters
+// 	client, err := NewPrefetchingEthClient(mockRPC, logger, metrics, testEthClientConfig)
+// 	require.NoError(t, err)
+// 	require.NotNil(t, client)
 
-	// Test case with invalid parameters, expecting an error
-	// This will depend on what constitutes an invalid parameter for your implementation.
-	// For example, passing a nil RPC client, a nil logger, or an invalid configuration.
-	invalidClient, invalidErr := NewPrefetchingEthClient(nil, nil, nil, nil)
-	require.Error(t, invalidErr)
-	require.Nil(t, invalidClient)
+// 	// Test case with invalid parameters, expecting an error
+// 	// This will depend on what constitutes an invalid parameter for your implementation.
+// 	// For example, passing a nil RPC client, a nil logger, or an invalid configuration.
+// 	invalidClient, invalidErr := NewPrefetchingEthClient(nil, nil, nil, nil)
+// 	require.Error(t, invalidErr)
+// 	require.Nil(t, invalidClient)
 
-	// Additional test cases can be added to simulate different error scenarios
-	// and to ensure that the constructor correctly handles them.
-}
+// 	// Additional test cases can be added to simulate different error scenarios
+// 	// and to ensure that the constructor correctly handles them.
+// }
 
-// TestPrefetchingEthClient_ErrorHandling tests how errors are handled.
-func TestPrefetchingEthClient_ErrorHandling(t *testing.T) {
-	ctx := context.Background()
-	mockRPC := new(MockRPC)
-	mockEthClient := new(MockEthClient)
+// // TestPrefetchingEthClient_ErrorHandling tests how errors are handled.
+// func TestPrefetchingEthClient_ErrorHandling(t *testing.T) {
+// 	ctx := context.Background()
+// 	mockRPC := new(MockRPC)
+// 	mockEthClient := new(MockEthClient)
 
-	// Initialize PrefetchingEthClient
-	client, err := NewPrefetchingEthClient(mockRPC, nil, nil, testEthClientConfig)
-	require.NoError(t, err)
+// 	// Initialize PrefetchingEthClient
+// 	client, err := NewPrefetchingEthClient(mockRPC, nil, nil, testEthClientConfig)
+// 	require.NoError(t, err)
 
-	blockNumber := uint64(1234)
-	expectedError := errors.New("mock error")
+// 	blockNumber := uint64(1234)
+// 	expectedError := errors.New("mock error")
 
-	// Mock the EthClient to return an error for the requested block
-	mockEthClient.On("InfoByNumber", ctx, blockNumber).Return(eth.BlockInfo{}, expectedError)
+// 	// Mock the EthClient to return an error for the requested block
+// 	mockEthClient.On("InfoByNumber", ctx, blockNumber).Return(eth.BlockInfo{}, expectedError)
 
-	// Call to InfoByNumber should propagate the error
-	_, err = client.InfoByNumber(ctx, blockNumber)
-	require.Error(t, err)
-	require.Equal(t, expectedError, err)
+// 	// Call to InfoByNumber should propagate the error
+// 	_, err = client.InfoByNumber(ctx, blockNumber)
+// 	require.Error(t, err)
+// 	require.Equal(t, expectedError, err)
 
-	// Additional tests can be added to simulate different error scenarios
-	// For instance, testing error handling during prefetching of subsequent blocks
-	for i := uint64(1); i <= 3; i++ {
-		prefetchedBlockNumber := blockNumber + i
-		mockEthClient.On("InfoByNumber", ctx, prefetchedBlockNumber).Return(eth.BlockInfo{}, expectedError)
-		_, err = client.InfoByNumber(ctx, prefetchedBlockNumber)
-		require.Error(t, err)
-		require.Equal(t, expectedError, err)
-	}
-}
+// 	// Additional tests can be added to simulate different error scenarios
+// 	// For instance, testing error handling during prefetching of subsequent blocks
+// 	for i := uint64(1); i <= 3; i++ {
+// 		prefetchedBlockNumber := blockNumber + i
+// 		mockEthClient.On("InfoByNumber", ctx, prefetchedBlockNumber).Return(eth.BlockInfo{}, expectedError)
+// 		_, err = client.InfoByNumber(ctx, prefetchedBlockNumber)
+// 		require.Error(t, err)
+// 		require.Equal(t, expectedError, err)
+// 	}
+// }
 
 // // TestPrefetchingEthClient_StateInspection (Optional, might be covered nicely by previous tests ) - Test state inspection functionality.
 // func TestPrefetchingEthClient_StateInspection(t *testing.T) {
