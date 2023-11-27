@@ -1216,7 +1216,6 @@ jobs:
   op-service-rethdb-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
@@ -1520,6 +1519,7 @@ workflows:
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
             - op-e2e-ext-geth-tests
+            - op-service-rethdb-tests
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
