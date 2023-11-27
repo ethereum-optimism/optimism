@@ -378,7 +378,7 @@ jobs:
   contracts-bedrock-checks:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
+    resource_class: xlarge
     steps:
       - checkout
       - run:
