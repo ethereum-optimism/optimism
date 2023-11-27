@@ -1232,7 +1232,7 @@ jobs:
           working_directory: op-service/rethdb-reader
       - run:
           name: Generate testdata db
-          command: cargo test
+          command: cargo +nightly test
           working_directory: op-service/rethdb-reader
       - run:
           name: Build dylib
