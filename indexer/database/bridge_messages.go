@@ -145,7 +145,7 @@ func (db bridgeMessagesDB) StoreL2BridgeMessageV1MessageHashes(versionedHashes [
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
 	result := deduped.Create(&versionedHashes)
 	if result.Error == nil && int(result.RowsAffected) < len(versionedHashes) {
-		db.log.Warn("ignored L2 bridge v1 message hash duplicates")
+		db.log.Warn("ignored L2 bridge v1 message hash duplicates", "duplicates", len(versionedHashes)-int(result.RowsAffected))
 	}
 
 	return result.Error
