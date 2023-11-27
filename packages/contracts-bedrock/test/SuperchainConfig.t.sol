@@ -17,7 +17,7 @@ contract SuperchainConfig_Init_Test is CommonTest {
     /// @dev Tests that initialization sets the correct values. These are defined in CommonTest.sol.
     function test_initialize_values_succeeds() external {
         assertFalse(superchainConfig.paused());
-        assertEq(superchainConfig.guardian(), cfg.portalGuardian());
+        assertEq(superchainConfig.guardian(), deploy.cfg().portalGuardian());
     }
 }
 
@@ -54,7 +54,7 @@ contract SuperchainConfig_Pause_Test is CommonTest {
 contract SuperchainConfig_Unpause_TestFail is CommonTest {
     /// @dev Tests that `unpause` reverts when called by a non-guardian.
     function test_unpause_notGuardian_reverts() external {
-        vm.prank(cfg.portalGuardian());
+        vm.prank(deploy.cfg().portalGuardian());
         superchainConfig.pause("identifier");
         assertEq(superchainConfig.paused(), true);
 
@@ -71,13 +71,13 @@ contract SuperchainConfig_Unpause_Test is CommonTest {
     /// @dev Tests that `unpause` successfully unpauses
     ///      when called by the guardian.
     function test_unpause_succeeds() external {
-        vm.prank(cfg.portalGuardian());
+        vm.prank(deploy.cfg().portalGuardian());
         superchainConfig.pause("identifier");
         assertEq(superchainConfig.paused(), true);
 
         vm.expectEmit(address(superchainConfig));
         emit Unpaused();
-        vm.prank(cfg.portalGuardian());
+        vm.prank(deploy.cfg().portalGuardian());
         superchainConfig.unpause();
 
         assertFalse(superchainConfig.paused());
