@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/processors/bridge/ovm1"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -155,21 +156,30 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected proven withdrawals", "size", len(provenWithdrawals))
 	}
 
+	skippedOVM1ProvenWithdrawals := 0
 	for i := range provenWithdrawals {
-		proven := provenWithdrawals[i]
-		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(proven.WithdrawalHash)
+		provenWithdrawal := provenWithdrawals[i]
+		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(provenWithdrawal.WithdrawalHash)
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
-			return fmt.Errorf("missing indexed withdrawal! tx_hash = %s", proven.Event.TransactionHash)
+			if _, ok := ovm1.PortalWithdrawalTransactions[provenWithdrawal.WithdrawalHash]; ok {
+				skippedOVM1ProvenWithdrawals++
+				continue
+			}
+			return fmt.Errorf("missing indexed withdrawal! tx_hash = %s", provenWithdrawal.Event.TransactionHash)
 		}
 
-		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(proven.WithdrawalHash, provenWithdrawals[i].Event.GUID); err != nil {
-			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", proven.Event.TransactionHash, err)
+		if err := db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(provenWithdrawal.WithdrawalHash, provenWithdrawals[i].Event.GUID); err != nil {
+			return fmt.Errorf("failed to mark withdrawal as proven. tx_hash = %s: %w", provenWithdrawal.Event.TransactionHash, err)
 		}
 	}
 	if len(provenWithdrawals) > 0 {
 		metrics.RecordL1ProvenWithdrawals(len(provenWithdrawals))
+		if skippedOVM1ProvenWithdrawals > 0 {
+			metrics.RecordL1SkippedOVM1ProvenWithdrawals(skippedOVM1ProvenWithdrawals)
+			log.Info("skipped OVM 1.0 proven withdrawals", "size", skippedOVM1ProvenWithdrawals)
+		}
 	}
 
 	// (2) OptimismPortal (finalized withdrawals)
@@ -181,12 +191,17 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected finalized withdrawals", "size", len(finalizedWithdrawals))
 	}
 
+	skippedOVM1FinalizedWithdrawals := 0
 	for i := range finalizedWithdrawals {
 		finalizedWithdrawal := finalizedWithdrawals[i]
 		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(finalizedWithdrawal.WithdrawalHash)
 		if err != nil {
 			return err
 		} else if withdrawal == nil {
+			if _, ok := ovm1.PortalWithdrawalTransactions[finalizedWithdrawal.WithdrawalHash]; ok {
+				skippedOVM1FinalizedWithdrawals++
+				continue
+			}
 			return fmt.Errorf("missing indexed withdrawal on finalization! tx_hash = %s", finalizedWithdrawal.Event.TransactionHash.String())
 		}
 
@@ -196,6 +211,10 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 	}
 	if len(finalizedWithdrawals) > 0 {
 		metrics.RecordL1FinalizedWithdrawals(len(finalizedWithdrawals))
+		if skippedOVM1ProvenWithdrawals > 0 {
+			metrics.RecordL1SkippedOVM1FinalizedWithdrawals(skippedOVM1FinalizedWithdrawals)
+			log.Info("skipped OVM 1.0 finalized withdrawals", "size", skippedOVM1FinalizedWithdrawals)
+		}
 	}
 
 	// (3) L1CrossDomainMessenger
@@ -207,21 +226,30 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 		log.Info("detected relayed messages", "size", len(crossDomainRelayedMessages))
 	}
 
+	skippedOVM1Messages := 0
 	for i := range crossDomainRelayedMessages {
-		relayed := crossDomainRelayedMessages[i]
-		message, err := db.BridgeMessages.L2BridgeMessage(relayed.MessageHash)
+		relayedMessage := crossDomainRelayedMessages[i]
+		message, err := db.BridgeMessages.L2BridgeMessage(relayedMessage.MessageHash)
 		if err != nil {
 			return err
 		} else if message == nil {
-			return fmt.Errorf("missing indexed L2CrossDomainMessager message! tx_hash = %s", relayed.Event.TransactionHash.String())
+			if _, ok := ovm1.L1RelayedMessages[relayedMessage.MessageHash]; ok {
+				skippedOVM1Messages++
+				continue
+			}
+			return fmt.Errorf("missing indexed L2CrossDomainMessager message! tx_hash = %s", relayedMessage.Event.TransactionHash.String())
 		}
 
-		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayed.MessageHash, relayed.Event.GUID); err != nil {
-			return fmt.Errorf("failed to relay cross domain message. tx_hash = %s: %w", relayed.Event.TransactionHash, err)
+		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
+			return fmt.Errorf("failed to relay cross domain message. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
 		}
 	}
 	if len(crossDomainRelayedMessages) > 0 {
 		metrics.RecordL1CrossDomainRelayedMessages(len(crossDomainRelayedMessages))
+		if skippedOVM1Messages > 0 { // Logged as a warning just for visibility
+			metrics.RecordL1SkippedOVM1CrossDomainRelayedMessages(skippedOVM1Messages)
+			log.Info("skipped OVM 1.0 relayed L2CrossDomainMessenger withdrawals", "size", skippedOVM1Messages)
+		}
 	}
 
 	// (4) L1StandardBridge
