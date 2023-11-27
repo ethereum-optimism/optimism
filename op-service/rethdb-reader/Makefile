@@ -1,5 +1,5 @@
 .PHONY: testdata
-tetstdata:
+testdata:
 	mkdir -p testdata
 	@echo "Fetching block RLP and receipts for block #18,663,292 from ethereum mainnet"
 	cast rpc debug_getRawBlock 0x11CC77C | jq -r | xxd -r -p > testdata/block.rlp
