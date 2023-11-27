@@ -801,9 +801,12 @@ contract Deploy is Deployer {
         string memory version = oracle.version();
         console.log("L2OutputOracle version: %s", version);
 
-        ChainAssertions.checkL2OutputOracle(
-            _proxies(), cfg, cfg.l2OutputOracleStartingTimestamp(), cfg.l2OutputOracleStartingBlockNumber()
-        );
+        ChainAssertions.checkL2OutputOracle({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _l2OutputOracleStartingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
+            _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp()
+        });
 
         require(loadInitializedSlot("L2OutputOracle", true) == 1, "L2OutputOracleProxy is not initialized");
     }
