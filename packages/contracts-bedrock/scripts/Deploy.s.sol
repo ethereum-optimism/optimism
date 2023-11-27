@@ -45,6 +45,7 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
+import { New } from "scripts/New.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -127,10 +128,10 @@ contract Deploy is Deployer {
         address safeSingleton = 0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552;
 
         safeProxyFactory.code.length == 0
-            ? safeProxyFactory_ = new SafeProxyFactory()
+            ? safeProxyFactory_ = SafeProxyFactory(New.safeProxyFactory())
             : safeProxyFactory_ = SafeProxyFactory(safeProxyFactory);
 
-        safeSingleton.code.length == 0 ? safeSingleton_ = new Safe() : safeSingleton_ = Safe(payable(safeSingleton));
+        safeSingleton.code.length == 0 ? safeSingleton_ = Safe(payable(New.safe())) : safeSingleton_ = Safe(payable(safeSingleton));
 
         save("SafeProxyFactory", address(safeProxyFactory_));
         save("SafeSingleton", address(safeSingleton_));
@@ -279,7 +280,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the AddressManager
     function deployAddressManager() public broadcast returns (address addr_) {
-        AddressManager manager = new AddressManager();
+        AddressManager manager = AddressManager(New.addressManager());
         require(manager.owner() == msg.sender);
 
         save("AddressManager", address(manager));
@@ -289,9 +290,9 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
-        ProxyAdmin admin = new ProxyAdmin({
+        ProxyAdmin admin = ProxyAdmin(New.proxyAdmin({
             _owner: msg.sender
-        });
+        }));
         require(admin.owner() == msg.sender);
 
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
@@ -308,7 +309,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the StorageSetter contract, used for upgrades.
     function deployStorageSetter() public broadcast returns (address addr_) {
-        StorageSetter setter = new StorageSetter{ salt: _implSalt() }();
+        StorageSetter setter = StorageSetter(New.storageSetter({ _salt: _implSalt() }));
         console.log("StorageSetter deployed at: %s", address(setter));
         string memory version = setter.version();
         console.log("StorageSetter version: %s", version);
@@ -322,7 +323,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
+        L1ChugSplashProxy proxy = L1ChugSplashProxy(payable(New.l1ChugSplashProxy({ _owner: proxyAdmin })));
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -336,7 +337,10 @@ contract Deploy is Deployer {
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         string memory contractName = "OVM_L1CrossDomainMessenger";
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
+        ResolvedDelegateProxy proxy = ResolvedDelegateProxy(payable(New.resolvedDelegateProxy({
+            _addressManager: address(addressManager),
+            _implementationName: contractName
+        })));
 
         save("L1CrossDomainMessengerProxy", address(proxy));
         console.log("L1CrossDomainMessengerProxy deployed at %s", address(proxy));
@@ -354,9 +358,9 @@ contract Deploy is Deployer {
     function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
         console.log(string.concat("Deploying ", _name));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
+        Proxy proxy = Proxy(payable(New.proxy({
             _admin: proxyAdmin
-        });
+        })));
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
@@ -373,9 +377,10 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
         address portal = mustGetAddress("OptimismPortalProxy");
-        L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: _implSalt() }({
-            _portal: OptimismPortal(payable(portal))
-        });
+        L1CrossDomainMessenger messenger = L1CrossDomainMessenger(New.l1CrossDomainMessenger({
+            _optimismPortal: portal,
+            _salt: _implSalt()
+        }));
 
         require(address(messenger.PORTAL()) == portal);
         require(address(messenger.portal()) == portal);
@@ -399,12 +404,13 @@ contract Deploy is Deployer {
         L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
-        OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
-            _l2Oracle: l2OutputOracle,
+        OptimismPortal portal = OptimismPortal(payable(New.optimismPortal({
+            _l2Oracle: address(l2OutputOracle),
             _guardian: guardian,
             _paused: true,
-            _systemConfig: systemConfig
-        });
+            _systemConfig: address(systemConfig),
+            _salt: _implSalt()
+        })));
 
         require(address(portal.L2_ORACLE()) == address(l2OutputOracle));
         require(address(portal.l2Oracle()) == address(l2OutputOracle));
@@ -422,15 +428,16 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
-        L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }({
+        L2OutputOracle oracle = L2OutputOracle(New.l2OutputOracle({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
             _startingBlockNumber: 0,
             _startingTimestamp: 0,
             _proposer: cfg.l2OutputOracleProposer(),
             _challenger: cfg.l2OutputOracleChallenger(),
-            _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
-        });
+            _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds(),
+            _salt: _implSalt()
+        }));
 
         require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
@@ -454,8 +461,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
         address l1standardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
-        OptimismMintableERC20Factory factory =
-            new OptimismMintableERC20Factory{ salt: _implSalt() }({_bridge: l1standardBridgeProxy});
+        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(New.optimismMintableERC20Factory({_bridge: l1standardBridgeProxy, _salt: _implSalt()}));
 
         require(factory.BRIDGE() == l1standardBridgeProxy);
         require(factory.bridge() == l1standardBridgeProxy);
@@ -468,7 +474,9 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
-        DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
+        DisputeGameFactory factory = DisputeGameFactory(New.disputeGameFactory({
+            _salt: _implSalt()
+        }));
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
@@ -477,7 +485,9 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the BlockOracle
     function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
-        BlockOracle oracle = new BlockOracle{ salt: _implSalt() }();
+        BlockOracle oracle = BlockOracle(New.blockOracle({
+            _salt: _implSalt()
+        }));
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
 
@@ -486,7 +496,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
-        ProtocolVersions versions = new ProtocolVersions{ salt: _implSalt() }();
+        ProtocolVersions versions = ProtocolVersions(New.protocolVersions({ _salt: _implSalt() }));
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
 
@@ -495,7 +505,9 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
-        PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }();
+        PreimageOracle preimageOracle = PreimageOracle(New.preimageOracle({
+            _salt: _implSalt()
+        }));
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
@@ -504,7 +516,10 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() public onlyDevnet broadcast returns (address addr_) {
-        MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
+        MIPS mips = MIPS(New.mips({
+            _preimageOracle: mustGetAddress("PreimageOracle"),
+            _salt: _implSalt()
+        }));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
@@ -515,15 +530,16 @@ contract Deploy is Deployer {
     function deploySystemConfig() public broadcast returns (address addr_) {
         ResourceMetering.ResourceConfig memory defaultConfig = Constants.DEFAULT_RESOURCE_CONFIG();
         uint64 minimumGasLimit = uint64(defaultConfig.maxResourceLimit) + uint64(defaultConfig.systemTxMaxGas);
-        SystemConfig config = new SystemConfig({
+        SystemConfig config = SystemConfig(New.systemConfig({
             _owner: address(0xdEaD),
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(0),
             _gasLimit: minimumGasLimit,
             _unsafeBlockSigner: address(0),
-            _config: defaultConfig
-        });
+            _config: defaultConfig,
+            _salt: _implSalt()
+        }));
 
         require(config.owner() == address(0xdEaD));
         require(config.overhead() == 0);
@@ -550,9 +566,10 @@ contract Deploy is Deployer {
     function deployL1StandardBridge() public broadcast returns (address addr_) {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }({
-            _messenger: payable(l1CrossDomainMessengerProxy)
-        });
+        L1StandardBridge bridge = L1StandardBridge(payable(New.l1StandardBridge({
+            _messenger: payable(l1CrossDomainMessengerProxy),
+            _salt: _implSalt()
+        })));
 
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
         require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
@@ -568,10 +585,11 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
-        L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({
+        L1ERC721Bridge bridge = L1ERC721Bridge(New.l1ERC721Bridge({
             _messenger: l1CrossDomainMessengerProxy,
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE
-        });
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
+            _salt: _implSalt()
+        }));
 
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
         require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
@@ -874,7 +892,7 @@ contract Deploy is Deployer {
             factory,
             GameType.wrap(255),
             alphabetAbsolutePrestate,
-            IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
+            IBigStepper(New.alphabetVM({ _absolutePrestate: alphabetAbsolutePrestate })),
             4 // The max game depth of the alphabet game is always 4.
         );
     }
@@ -892,15 +910,15 @@ contract Deploy is Deployer {
         if (address(_factory.gameImpls(_gameType)) == address(0)) {
             _factory.setImplementation(
                 _gameType,
-                new FaultDisputeGame({
+                FaultDisputeGame(New.faultDisputeGame({
                     _gameType: _gameType,
                     _absolutePrestate: _absolutePrestate,
                     _maxGameDepth: _maxGameDepth,
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: _faultVm,
-                    _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
-                    _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
-                })
+                    _vm: address(_faultVm),
+                    _l2oo: mustGetAddress("L2OutputOracleProxy"),
+                    _blockOracle: mustGetAddress("BlockOracle")
+                }))
             );
 
             uint8 rawGameType = GameType.unwrap(_gameType);
