@@ -203,7 +203,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		}
 
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
-		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash, BridgeMessage: sentMessage.BridgeMessage}
+		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: withdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
 		versionedMessageHashes[i] = database.L2BridgeMessageVersionedMessageHash{MessageHash: sentMessage.BridgeMessage.MessageHash, V1MessageHash: v1MessageHash}
 	}
 	if len(bridgeMessages) > 0 {
