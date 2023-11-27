@@ -211,13 +211,39 @@ fn build_transaction_receipt_with_block_receipts(
 #[cfg(test)]
 mod test {
     use super::*;
+    use alloy_rlp::Decodable;
     use reth_db::database::Database;
     use reth_primitives::{
-        address, b256, bloom, Block, Bytes, Log, Receipts, SealedBlockWithSenders, TxType, U8,
+        address, b256, bloom, hex, Address, Block, Bytes, ReceiptWithBloom, Receipts,
+        SealedBlockWithSenders, U8,
     };
     use reth_provider::{BlockWriter, BundleStateWithReceipts, DatabaseProvider};
     use reth_revm::revm::db::BundleState;
     use std::{ffi::CString, fs::File, path::Path};
+
+    #[inline]
+    fn dummy_block_with_receipts() -> Result<(Block, Vec<Receipt>)> {
+        // To generate testdata (block 18,663,292 on Ethereum Mainnet):
+        // 1. BLOCK RLP: `cast rpc debug_getRawBlock 0x11CC77C | jq -r | xxd -r -p > testdata/block.rlp`
+        // 2. RECEIPTS RLP: `cast rpc debug_getRawReceipts 0x11CC77C | jq -r > testdata/receipts.json`
+        let block_rlp = include_bytes!("../testdata/block.rlp");
+        let block = Block::decode(&mut block_rlp.as_ref())?;
+
+        let receipt_rlp: Vec<Vec<u8>> = serde_json::from_str(include_str!(
+            "../testdata/receipts.json"
+        ))
+        .map(|v: Vec<String>| {
+            v.into_iter()
+                .map(|s| hex::decode(s))
+                .collect::<Result<Vec<Vec<u8>>, _>>()
+        })??;
+        let receipts = receipt_rlp
+            .iter()
+            .map(|r| ReceiptWithBloom::decode(&mut r.as_slice()).map(|r| r.receipt))
+            .collect::<Result<Vec<Receipt>, _>>()?;
+
+        Ok((block, receipts))
+    }
 
     #[inline]
     fn open_receipts_testdata_db() {
@@ -225,45 +251,40 @@ mod test {
             return;
         }
 
+        // Open a RW handle to the MDBX database
         let db = reth_db::init_db(Path::new("testdata/db"), None).unwrap();
         let pr = DatabaseProvider::new_rw(db.tx_mut().unwrap(), MAINNET.clone());
-        let block: Block = serde_json::from_str(include_str!("../testdata/dummy_block.json"))
-            .expect("failed to parse dummy block");
-        let block_number = block.header.number;
-        let tx_sender = block.body[0]
-            .recover_signer()
-            .expect("failed to recover signer");
 
+        // Grab the dummy block and receipts
+        let (mut block, receipts) = dummy_block_with_receipts().unwrap();
+
+        // Patch: The block's current state root expects the rest of the chain history to be in the DB;
+        // manually override it. Otherwise, the DatabaseProvider will fail to commit the block.
+        block.header.state_root = reth_primitives::constants::EMPTY_ROOT_HASH;
+
+        // Fetch the block number and tx senders for bundle state creation.
+        let block_number = block.header.number;
+        let senders = block
+            .body
+            .iter()
+            .map(|tx| tx.recover_signer())
+            .collect::<Option<Vec<Address>>>()
+            .unwrap();
+
+        // Commit the bundle state to the database
         pr.append_blocks_with_bundle_state(
             vec![SealedBlockWithSenders {
                 block: block.seal_slow(),
-                senders: vec![tx_sender],
+                senders,
             }],
             BundleStateWithReceipts::new(
                 BundleState::default(),
-                Receipts::from_block_receipt(vec![Receipt {
-                    tx_type: TxType::EIP1559,
-                    success: true,
-                    cumulative_gas_used: 0x3aefc,
-                    logs: vec![Log {
-                        address: address!("4ce63f351597214ef0b9a319124eea9e0f9668bb"),
-                        topics: vec![
-                            b256!(
-                                "0cdbd8bd7813095001c5fe7917bd69d834dc01db7c1dfcf52ca135bd20384413"
-                            ),
-                            b256!(
-                                "00000000000000000000000000000000000000000000000000000000000000c2"
-                            ),
-                        ],
-                        data: Bytes::default(),
-                    }],
-                }]),
+                Receipts::from_block_receipt(receipts),
                 block_number,
             ),
             None,
         )
         .expect("failed to append block and receipt to database");
-
         pr.commit()
             .expect("failed to commit block and receipt to database");
     }
@@ -274,7 +295,7 @@ mod test {
 
         unsafe {
             let mut block_hash =
-                b256!("bcc3fb97b87bb4b14bacde74255cbfcf52675c0ad5e06fa264c0e5d6c0afd96e");
+                b256!("6a229123d607c2232a8b0bdd36f90745945d05181018e64e60ff2b93ab6b52e5");
             let receipts_res = super::read_receipts_inner(
                 block_hash.as_mut_ptr(),
                 32,
@@ -290,39 +311,46 @@ mod test {
                 receipts.remove(0)
             };
 
+            // Check the first receipt in the block for validity
             assert_eq!(receipt.transaction_type, U8::from(2));
             assert_eq!(receipt.status_code, Some(U64::from(1)));
-            assert_eq!(receipt.cumulative_gas_used, U256::from(241_404));
-            assert_eq!(receipt.logs_bloom, bloom!("00000000000000000000000000000000000000000100008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000004000000000000000010020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000040000000000000000000000800000000000000000000000000000000000000000000000000000000"));
+            assert_eq!(receipt.cumulative_gas_used, U256::from(115_316));
+            assert_eq!(receipt.logs_bloom, bloom!("00200000000000000000000080001000000000000000000000000000000000000000000000000000000000000000100002000100080000000000000000000000000000000000000000000008000000200000000400000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000400000000000001000000000000000100000000080000004000000000000000000000000000000000000002000000000000000000000000000000000000000006000000000000000000000000000000000000001000000000000000000000200000000000000100000000020000000000000000000000000000000010"));
             assert_eq!(
                 receipt.logs[0].address,
-                address!("4ce63f351597214ef0b9a319124eea9e0f9668bb")
+                address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2")
             );
             assert_eq!(
                 receipt.logs[0].topics[0],
-                b256!("0cdbd8bd7813095001c5fe7917bd69d834dc01db7c1dfcf52ca135bd20384413")
+                b256!("ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef")
             );
             assert_eq!(
                 receipt.logs[0].topics[1],
-                b256!("00000000000000000000000000000000000000000000000000000000000000c2")
+                b256!("00000000000000000000000000000000003b3cc22af3ae1eac0440bcee416b40")
             );
-            assert_eq!(receipt.logs[0].data, Bytes::default());
+            assert_eq!(
+                receipt.logs[0].data,
+                Bytes::from_static(
+                    hex!("00000000000000000000000000000000000000000000000008a30cd230000000")
+                        .as_slice()
+                )
+            );
             assert_eq!(
                 receipt.from,
-                address!("a24efab96523efa6abb2de9b2c16205cfa3c1dc8")
+                address!("41d3ab85aafed2ef9e644cb7d3bbca2fc4d8cac8")
             );
             assert_eq!(
                 receipt.to,
-                Some(address!("4ce63f351597214ef0b9a319124eea9e0f9668bb"))
+                Some(address!("00000000003b3cc22af3ae1eac0440bcee416b40"))
             );
             assert_eq!(
                 receipt.transaction_hash,
                 Some(b256!(
-                    "12c0074a4a7916fe6f39de8417fe93f1fa77bcadfd5fc31a317fb6c344f66602"
+                    "88b2d153a4e893ba91ac235325c44b1aa0c802fcb42657701e1a73e1c675f7ca"
                 ))
             );
 
-            assert_eq!(receipt.block_number, Some(U256::from(9_942_861)));
+            assert_eq!(receipt.block_number, Some(U256::from(18_663_292)));
             assert_eq!(receipt.block_hash, Some(block_hash));
             assert_eq!(receipt.transaction_index, U64::from(0));
 

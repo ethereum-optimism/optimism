@@ -3737,6 +3737,7 @@ dependencies = [
 name = "rethdb-reader"
 version = "0.1.0"
 dependencies = [
+ "alloy-rlp",
  "anyhow",
  "reth-blockchain-tree",
  "reth-db",
