@@ -935,11 +935,12 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(OptimismPortal.initialize, ())
+            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (superchainConfigProxy))
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));

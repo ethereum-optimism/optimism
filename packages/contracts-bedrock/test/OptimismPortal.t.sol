@@ -18,6 +18,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 
 contract OptimismPortal_Test is CommonTest {
@@ -895,15 +896,17 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
 
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initialize_cannotInitProxy_reverts() external {
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfig"));
         vm.expectRevert("Initializable: contract is already initialized");
-        optimismPortal.initialize();
+        optimismPortal.initialize(superchainConfig);
     }
 
     /// @dev Tests that the implementation cannot be initialized twice.
     function test_initialize_cannotInitImpl_reverts() external {
         address opImpl = deploy.mustGetAddress("OptimismPortal");
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfig"));
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(opImpl)).initialize();
+        OptimismPortal(payable(opImpl)).initialize(superchainConfig);
     }
 
     /// @dev Tests that the proxy can be upgraded.

@@ -47,14 +47,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:legacy
     SystemConfig public immutable SYSTEM_CONFIG;
 
-    /// @notice Address that has the ability to pause and unpause withdrawals. This will be removed in the
-    ///         future, use `guardian` instead.
-    /// @custom:legacy
-    address public immutable GUARDIAN;
-
-    /// @notice The address of the Superchain Config contract.
-    SuperchainConfig internal immutable SUPERCHAIN_CONFIG;
-
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to finalizeWithdrawalTransaction.
@@ -119,14 +111,14 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     constructor(L2OutputOracle _l2Oracle, SystemConfig _systemConfig, SuperchainConfig _superchainConfig) {
         L2_ORACLE = _l2Oracle;
         SYSTEM_CONFIG = _systemConfig;
-        SUPERCHAIN_CONFIG = _superchainConfig;
-        GUARDIAN = _superchainConfig.guardian();
-        initialize();
+        initialize(_superchainConfig);
     }
 
     /// @notice Initializer.
-    function initialize() public initializer {
+    /// @param _superchainConfig Address of the SuperchainConfig contract.
+    function initialize(SuperchainConfig _superchainConfig) public initializer {
         l2Sender = Constants.DEFAULT_L2_SENDER;
+        superchainConfig = _superchainConfig;
         __ResourceMetering_init();
     }
 
@@ -142,23 +134,25 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         return SYSTEM_CONFIG;
     }
 
-    /// @notice Getter function for the address of the L2OutputOracle on this chain. This will be removed in the
-    ///         future, use `SuperchainConfig.guardian()` instead.
-    /// @notice Address of the L2OutputOracle on this chain.
+    /// @notice Getter function for the address of the guardian. This will be removed in the future, use
+    /// `SuperchainConfig.guardian()` instead.
+    /// @notice Address of the guardian.
     /// @custom:legacy
-    function guardian() public view returns (address) {
-        return SUPERCHAIN_CONFIG.guardian();
+    function GUARDIAN() external view returns (address) {
+        return guardian();
     }
 
-    /// @notice Getter function for the address of the SuperchainConfig on this chain.
-    /// @return SuperchainConfig Address of the SuperchainConfig on this chain.
-    function superchainConfig() public view returns (SuperchainConfig) {
-        return SUPERCHAIN_CONFIG;
+    /// @notice Getter function for the address of the guardian. This will be removed in the future, use
+    /// `SuperchainConfig.guardian()` instead.
+    /// @notice Address of the guardian.
+    /// @custom:legacy
+    function guardian() public view returns (address) {
+        return superchainConfig.guardian();
     }
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool paused_) {
-        paused_ = SUPERCHAIN_CONFIG.paused();
+        paused_ = superchainConfig.paused();
     }
 
     /// @notice Computes the minimum gas limit for a deposit.
