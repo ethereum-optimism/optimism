@@ -10,9 +10,24 @@ import (
 )
 
 var (
-	emptyBlob          = kzg4844.Blob{}
-	emptyBlobCommit, _ = kzg4844.BlobToCommitment(emptyBlob)
-	emptyBlobProof, _  = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
+var (
+	emptyBlob          kzg4844.Blob
+	emptyBlobCommit    kzg4844.Commitment
+	emptyBlobProof     kzg4844.Proof
+)
+
+func init() {
+	var err error
+	emptyBlob = kzg4844.Blob{}
+	emptyBlobCommit, err = kzg4844.BlobToCommitment(emptyBlob)
+	if err != nil {
+		panic("failed to create empty blob commitment: " + err.Error())
+	}
+	emptyBlobProof, err = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
+	if err != nil {
+		panic("failed to create empty blob proof: " + err.Error())
+	}
+}
 )
 
 // with thanks to fjl
