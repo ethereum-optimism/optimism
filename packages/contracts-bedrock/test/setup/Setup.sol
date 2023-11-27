@@ -28,6 +28,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { Executables } from "scripts/Executables.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -108,6 +109,12 @@ contract Setup is Deploy {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2(DeployConfig cfg) public {
+        string[] memory args = new string[](3);
+        args[0] = Executables.bash;
+        args[1] = "-c";
+        args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
+        vm.ffi(args);
+
         string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
         vm.loadAllocs(allocsPath);
 
