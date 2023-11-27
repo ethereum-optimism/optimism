@@ -28,28 +28,20 @@ pub struct ReceiptsResult {
 impl ReceiptsResult {
     /// Constructs a successful [ReceiptsResult] from a JSON string.
     pub fn success(data: *mut char, data_len: usize) -> Self {
-        Self {
-            data,
-            data_len,
-            error: false,
-        }
+        Self { data, data_len, error: false }
     }
 
     /// Constructs a failing [ReceiptsResult] with a null pointer to the data.
     pub fn fail() -> Self {
-        Self {
-            data: std::ptr::null_mut(),
-            data_len: 0,
-            error: true,
-        }
+        Self { data: std::ptr::null_mut(), data_len: 0, error: true }
     }
 }
 
 /// Read the receipts for a blockhash from the RETH database directly.
 ///
 /// # Safety
-/// - All possible nil pointer dereferences are checked, and the function will return a
-///   failing [ReceiptsResult] if any are found.
+/// - All possible nil pointer dereferences are checked, and the function will return a failing
+///   [ReceiptsResult] if any are found.
 #[inline(always)]
 pub(crate) unsafe fn read_receipts_inner(
     block_hash: *const u8,
@@ -81,9 +73,8 @@ pub(crate) unsafe fn read_receipts_inner(
     let provider = BlockchainProvider::new(factory, NoopBlockchainTree::default())?;
 
     // Fetch the block and the receipts within it
-    let block = provider
-        .block_by_hash(block_hash.into())?
-        .ok_or(anyhow!("Failed to fetch block"))?;
+    let block =
+        provider.block_by_hash(block_hash.into())?.ok_or(anyhow!("Failed to fetch block"))?;
     let receipts = provider
         .receipts_by_block(BlockHashOrNumber::Hash(block_hash.into()))?
         .ok_or(anyhow!("Failed to fetch block receipts"))?;
@@ -163,11 +154,7 @@ fn build_transaction_receipt_with_block_receipts(
         // TODO pre-byzantium receipts have a post-transaction state root
         state_root: None,
         logs_bloom: receipt.bloom_slow(),
-        status_code: if receipt.success {
-            Some(U64::from(1))
-        } else {
-            Some(U64::from(0))
-        },
+        status_code: if receipt.success { Some(U64::from(1)) } else { Some(U64::from(0)) },
 
         // EIP-4844 fields
         blob_gas_price: None,
@@ -224,8 +211,10 @@ mod test {
     #[inline]
     fn dummy_block_with_receipts() -> Result<(Block, Vec<Receipt>)> {
         // To generate testdata (block 18,663,292 on Ethereum Mainnet):
-        // 1. BLOCK RLP: `cast rpc debug_getRawBlock 0x11CC77C | jq -r | xxd -r -p > testdata/block.rlp`
-        // 2. RECEIPTS RLP: `cast rpc debug_getRawReceipts 0x11CC77C | jq -r > testdata/receipts.json`
+        // 1. BLOCK RLP: `cast rpc debug_getRawBlock 0x11CC77C | jq -r | xxd -r -p >
+        //    testdata/block.rlp`
+        // 2. RECEIPTS RLP: `cast rpc debug_getRawReceipts 0x11CC77C | jq -r >
+        //    testdata/receipts.json`
         let block_rlp = include_bytes!("../testdata/block.rlp");
         let block = Block::decode(&mut block_rlp.as_ref())?;
 
@@ -233,9 +222,7 @@ mod test {
             "../testdata/receipts.json"
         ))
         .map(|v: Vec<String>| {
-            v.into_iter()
-                .map(|s| hex::decode(s))
-                .collect::<Result<Vec<Vec<u8>>, _>>()
+            v.into_iter().map(|s| hex::decode(s)).collect::<Result<Vec<Vec<u8>>, _>>()
         })??;
         let receipts = receipt_rlp
             .iter()
@@ -246,20 +233,21 @@ mod test {
     }
 
     #[inline]
-    fn open_receipts_testdata_db() {
+    fn open_receipts_testdata_db() -> Result<()> {
         if File::open("testdata/db").is_ok() {
-            return;
+            return Ok(())
         }
 
         // Open a RW handle to the MDBX database
-        let db = reth_db::init_db(Path::new("testdata/db"), None).unwrap();
-        let pr = DatabaseProvider::new_rw(db.tx_mut().unwrap(), MAINNET.clone());
+        let db = reth_db::init_db(Path::new("testdata/db"), None).map_err(|e| anyhow!(e))?;
+        let pr = DatabaseProvider::new_rw(db.tx_mut()?, MAINNET.clone());
 
         // Grab the dummy block and receipts
-        let (mut block, receipts) = dummy_block_with_receipts().unwrap();
+        let (mut block, receipts) = dummy_block_with_receipts()?;
 
-        // Patch: The block's current state root expects the rest of the chain history to be in the DB;
-        // manually override it. Otherwise, the DatabaseProvider will fail to commit the block.
+        // Patch: The block's current state root expects the rest of the chain history to be in the
+        // DB; manually override it. Otherwise, the DatabaseProvider will fail to commit the
+        // block.
         block.header.state_root = reth_primitives::constants::EMPTY_ROOT_HASH;
 
         // Fetch the block number and tx senders for bundle state creation.
@@ -269,29 +257,26 @@ mod test {
             .iter()
             .map(|tx| tx.recover_signer())
             .collect::<Option<Vec<Address>>>()
-            .unwrap();
+            .ok_or(anyhow!("Failed to recover signers"))?;
 
         // Commit the bundle state to the database
         pr.append_blocks_with_bundle_state(
-            vec![SealedBlockWithSenders {
-                block: block.seal_slow(),
-                senders,
-            }],
+            vec![SealedBlockWithSenders { block: block.seal_slow(), senders }],
             BundleStateWithReceipts::new(
                 BundleState::default(),
                 Receipts::from_block_receipt(receipts),
                 block_number,
             ),
             None,
-        )
-        .expect("failed to append block and receipt to database");
-        pr.commit()
-            .expect("failed to commit block and receipt to database");
+        )?;
+        pr.commit()?;
+
+        Ok(())
     }
 
     #[test]
     fn fetch_receipts() {
-        open_receipts_testdata_db();
+        open_receipts_testdata_db().unwrap();
 
         unsafe {
             let mut block_hash =
@@ -335,19 +320,11 @@ mod test {
                         .as_slice()
                 )
             );
-            assert_eq!(
-                receipt.from,
-                address!("41d3ab85aafed2ef9e644cb7d3bbca2fc4d8cac8")
-            );
-            assert_eq!(
-                receipt.to,
-                Some(address!("00000000003b3cc22af3ae1eac0440bcee416b40"))
-            );
+            assert_eq!(receipt.from, address!("41d3ab85aafed2ef9e644cb7d3bbca2fc4d8cac8"));
+            assert_eq!(receipt.to, Some(address!("00000000003b3cc22af3ae1eac0440bcee416b40")));
             assert_eq!(
                 receipt.transaction_hash,
-                Some(b256!(
-                    "88b2d153a4e893ba91ac235325c44b1aa0c802fcb42657701e1a73e1c675f7ca"
-                ))
+                Some(b256!("88b2d153a4e893ba91ac235325c44b1aa0c802fcb42657701e1a73e1c675f7ca"))
             );
 
             assert_eq!(receipt.block_number, Some(U256::from(18_663_292)));
