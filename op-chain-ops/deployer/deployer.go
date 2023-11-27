@@ -32,6 +32,11 @@ type Constructor struct {
 	Args []interface{}
 }
 
+type SuperchainPredeploy struct {
+	Name     string
+	CodeHash common.Hash
+}
+
 type Deployment struct {
 	Name     string
 	Bytecode hexutil.Bytes
