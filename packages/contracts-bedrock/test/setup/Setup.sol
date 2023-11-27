@@ -28,6 +28,7 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { Executables } from "scripts/Executables.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
@@ -108,65 +109,14 @@ contract Setup is Deploy {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2(DeployConfig cfg) public {
-        // Set up L2. There are currently no proxies set in the L2 initialization.
-        vm.etch(
-            address(l2CrossDomainMessenger), address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
-        );
-        l2CrossDomainMessenger.initialize();
+        string[] memory args = new string[](3);
+        args[0] = Executables.bash;
+        args[1] = "-c";
+        args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
+        vm.ffi(args);
 
-        vm.etch(address(l2ToL1MessagePasser), address(new L2ToL1MessagePasser()).code);
-
-        vm.etch(address(l2StandardBridge), address(new L2StandardBridge(payable(l1StandardBridge))).code);
-
-        vm.etch(
-            address(l2OptimismMintableERC20Factory),
-            address(new OptimismMintableERC20Factory(address(l2StandardBridge))).code
-        );
-
-        vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
-
-        vm.etch(
-            address(l2ERC721Bridge),
-            address(new L2ERC721Bridge(address(l2CrossDomainMessenger), address(l1ERC721Bridge))).code
-        );
-
-        vm.etch(
-            address(sequencerFeeVault),
-            address(
-                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
-            ).code
-        );
-        vm.etch(
-            address(baseFeeVault),
-            address(
-                new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
-            ).code
-        );
-        vm.etch(
-            address(l1FeeVault),
-            address(
-                new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
-            ).code
-        );
-
-        vm.etch(address(l1Block), address(new L1Block()).code);
-
-        vm.etch(address(gasPriceOracle), address(new GasPriceOracle()).code);
-
-        vm.etch(address(legacyMessagePasser), address(new LegacyMessagePasser()).code);
-
-        vm.etch(address(governanceToken), address(new GovernanceToken()).code);
-        // Set the ERC20 token name and symbol
-        vm.store(
-            address(governanceToken),
-            bytes32(uint256(3)),
-            bytes32(0x4f7074696d69736d000000000000000000000000000000000000000000000010)
-        );
-        vm.store(
-            address(governanceToken),
-            bytes32(uint256(4)),
-            bytes32(0x4f50000000000000000000000000000000000000000000000000000000000004)
-        );
+        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
+        vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = cfg.finalSystemOwner();
