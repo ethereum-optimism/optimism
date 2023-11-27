@@ -166,6 +166,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 	withdrawnWEI := bigint.Zero
 	sentMessages := make(map[logKey]sentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
+	versionedMessageHashes := make([]database.L2BridgeMessageVersionedMessageHash, len(sentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
@@ -173,14 +174,13 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 
 		// Since these message can be relayed in bedrock, we utilize the migrated withdrawal hash
 		// and also store the v1 version of the message hash such that the bedrock l1 finalization
-		// processor works as expected
+		// processor works as expected. There will be some entries relayed pre-bedrock that will not
+		// require the entry but we'll store it anyways as a large % of these withdrawals are not relayed
+		// pre-bedrock.
 
 		v1MessageHash, err := legacyBridgeMessageV1MessageHash(&sentMessage.BridgeMessage)
 		if err != nil {
 			return fmt.Errorf("failed to compute versioned message hash: %w", err)
-		}
-		if err := db.BridgeMessages.StoreL2BridgeMessageV1MessageHash(sentMessage.BridgeMessage.MessageHash, v1MessageHash); err != nil {
-			return err
 		}
 
 		withdrawalHash, err := legacyBridgeMessageWithdrawalHash(preset, &sentMessage.BridgeMessage)
@@ -203,16 +203,17 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		}
 
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
-		bridgeMessages[i] = database.L2BridgeMessage{
-			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
-			BridgeMessage:             sentMessage.BridgeMessage,
-		}
+		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash, BridgeMessage: sentMessage.BridgeMessage}
+		versionedMessageHashes[i] = database.L2BridgeMessageVersionedMessageHash{MessageHash: sentMessage.BridgeMessage.MessageHash, V1MessageHash: v1MessageHash}
 	}
 	if len(bridgeMessages) > 0 {
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
 		}
 		if err := db.BridgeMessages.StoreL2BridgeMessages(bridgeMessages); err != nil {
+			return err
+		}
+		if err := db.BridgeMessages.StoreL2BridgeMessageV1MessageHashes(versionedMessageHashes); err != nil {
 			return err
 		}
 
