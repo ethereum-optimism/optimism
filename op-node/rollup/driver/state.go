@@ -169,6 +169,7 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
+	defer s.log.Info("State loop returned")
 
 	defer s.driverCancel()
 
