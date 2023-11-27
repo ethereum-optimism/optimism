@@ -1274,6 +1274,8 @@ jobs:
     machine: true
     steps:
       - checkout
+      - check-changed:
+          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
       - run:
           name: Checkout submodules
           command: |
@@ -1306,11 +1308,6 @@ jobs:
           path: results.tar.gz
           destination: results
           when: always
-    when:
-      changes:
-        paths:
-          - packages/contracts-bedrock/test/kontrol/**
-          - packages/contracts-bedrock/src/L1/OptimismPortal.sol
 
 workflows:
   main:
