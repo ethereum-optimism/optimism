@@ -47,7 +47,7 @@
     "@types/node": "^20.9.5",
     "chai-as-promised": "^7.1.1",
     "ethereum-waffle": "^4.0.10",
-    "ethers": "^5.7.2",
+    "ethers": "^6.9.0",
     "hardhat": "^2.19.1",
     "hardhat-deploy": "^0.11.44",
     "isomorphic-fetch": "^3.0.0",
