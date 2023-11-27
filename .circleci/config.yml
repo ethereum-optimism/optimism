@@ -1244,8 +1244,14 @@ jobs:
       - run:
           name: Run op-service RethDB tests
           command: |
-            gotestsum --format=standard-verbose -- -run TestRethDB -tags rethdb -v
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/op-service.xml \
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out \
+            -run TestRethDB -tags rethdb -v
           working_directory: op-service/sources
+      # TODO(CLI-148): Fix codecov
+      #- run:
+          #name: upload coverage
+          #command: codecov --verbose --clean --flags bedrock-rethdb-go-tests
 
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
