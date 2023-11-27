@@ -27,7 +27,7 @@ func (o *OracleClient) Get(key Key) []byte {
 
 	var length uint64
 	if err := binary.Read(o.rw, binary.BigEndian, &length); err != nil {
-		panic(fmt.Errorf("failed to read pre-image length of key %s (%T) from pre-image oracle: %w", key, key, err))
+		panic(fmt.Errorf("failed to read pre-image length of key %x (%T) from pre-image oracle: %w", h, key, err))
 	}
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(o.rw, payload); err != nil {

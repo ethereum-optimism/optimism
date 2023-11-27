@@ -1,4 +1,4 @@
-package kvstore
+package local
 
 import (
 	"encoding/binary"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-preimage/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -41,7 +42,7 @@ func TestLocalPreimageSource(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			result, err := source.Get(test.key)
 			if test.expected == nil {
-				require.ErrorIs(t, err, ErrNotFound)
+				require.ErrorIs(t, err, kvstore.ErrNotFound)
 			} else {
 				require.NoError(t, err)
 			}

@@ -161,15 +161,31 @@ func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common
 	onlineCfg.L1RPCKind = sources.RPCProviderKind(l1RpcKind)
 
 	fmt.Println("Running in online mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, logger), &onlineCfg)
+	err = runMain(oplog.NewLogger(os.Stderr, logger), &onlineCfg)
 	if err != nil {
 		return fmt.Errorf("online mode failed: %w", err)
 	}
 
 	fmt.Println("Running in offline mode")
-	err = host.Main(oplog.NewLogger(os.Stderr, logger), &offlineCfg)
+	err = runMain(oplog.NewLogger(os.Stderr, logger), &offlineCfg)
 	if err != nil {
 		return fmt.Errorf("offline mode failed: %w", err)
 	}
 	return nil
+}
+
+func runMain(logger log.Logger, cfg *config.Config) error {
+	ctx, cancel := context.WithCancelCause(context.Background())
+	// The host runs a program, and the program decides when it's done.
+	// When it's done, it cancels (with error cause, or nil if successfully completed).
+	app, err := host.Main(logger, cfg, cancel)
+	if err != nil {
+		return fmt.Errorf("failed to create host: %w", err)
+	}
+	if err := app.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start host: %w", err)
+	}
+	<-ctx.Done()
+	_ = app.Stop(ctx) // stop service, since lifecycle signalled completion.
+	return context.Cause(ctx)
 }

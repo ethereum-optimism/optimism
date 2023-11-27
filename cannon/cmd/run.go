@@ -201,10 +201,9 @@ func (p *ProcessPreimageOracle) Close() error {
 }
 
 func (p *ProcessPreimageOracle) wait() {
-	err := p.cmd.Wait()
-	var waitErr error
-	if err, ok := err.(*exec.ExitError); !ok || !err.Success() {
-		waitErr = err
+	waitErr := p.cmd.Wait()
+	if exitErr, ok := waitErr.(*exec.ExitError); ok && exitErr.Success() {
+		waitErr = nil
 	}
 	p.cancelIO(fmt.Errorf("%w: pre-image server has exited", waitErr))
 	p.waitErr <- waitErr

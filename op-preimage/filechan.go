@@ -3,6 +3,8 @@ package preimage
 import (
 	"io"
 	"os"
+
+	oppio "github.com/ethereum-optimism/optimism/op-program/io"
 )
 
 // FileChannel is a unidirectional channel for file I/O
@@ -61,20 +63,22 @@ func CreateBidirectionalChannel() (FileChannel, FileChannel, error) {
 }
 
 const (
-	HClientRFd = 3
-	HClientWFd = 4
-	PClientRFd = 5
-	PClientWFd = 6
+	// 0,1,2 used for stdin,stdout,stderr
+	HClientRFd = iota + 3
+	HClientWFd
+	PClientRFd
+	PClientWFd
+	MaxFd
 )
 
-func ClientHinterChannel() *ReadWritePair {
+func CreateHinterChannel() oppio.FileChannel {
 	r := os.NewFile(HClientRFd, "preimage-hint-read")
 	w := os.NewFile(HClientWFd, "preimage-hint-write")
 	return NewReadWritePair(r, w)
 }
 
-// ClientPreimageChannel returns a FileChannel for the preimage oracle in a detached context
-func ClientPreimageChannel() *ReadWritePair {
+// CreatePreimageChannel returns a FileChannel for the preimage oracle in a detached context
+func CreatePreimageChannel() oppio.FileChannel {
 	r := os.NewFile(PClientRFd, "preimage-oracle-read")
 	w := os.NewFile(PClientWFd, "preimage-oracle-write")
 	return NewReadWritePair(r, w)

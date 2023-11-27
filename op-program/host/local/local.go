@@ -1,9 +1,10 @@
-package kvstore
+package local
 
 import (
 	"encoding/binary"
 	"encoding/json"
 
+	"github.com/ethereum-optimism/optimism/op-preimage/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/common"
@@ -52,6 +53,6 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 	case rollupKey:
 		return json.Marshal(s.config.Rollup)
 	default:
-		return nil, ErrNotFound
+		return nil, kvstore.ErrNotFound
 	}
 }
