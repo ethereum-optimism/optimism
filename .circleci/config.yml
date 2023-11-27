@@ -424,21 +424,15 @@ jobs:
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
       - run:
-          name: storage snapshot
-          command: |
-            pnpm storage-snapshot
-            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
           name: invariant docs
           command: |
             pnpm autogen:invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
-          name: abi snapshot
+          name: snapshots
           command: |
-            pnpm abi-snapshot
+            pnpm snapshots
             if [ "$(git diff --exit-code snapshots)" ]; then
               [ -z "$(git ls-files --others --exclude-standard snapshots)" ] || echo "export ABI_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
             else
