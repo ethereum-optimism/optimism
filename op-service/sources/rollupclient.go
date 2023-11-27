@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -22,20 +23,37 @@ func NewRollupClient(rpc client.RPC) *RollupClient {
 
 func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
 	var output *eth.OutputResponse
+	// If you provide `nil` to rpc.CallContext, it will return `nil` so we have to check the returned value
+	// (even though we know it is not nil) to satisfy nilaway
 	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
-	return output, err
+	if err != nil {
+		return nil, err
+	} else if output == nil {
+		return nil, errors.New("nil result from RPC call")
+	}
+	return output, nil
 }
 
 func (r *RollupClient) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	var output *eth.SyncStatus
 	err := r.rpc.CallContext(ctx, &output, "optimism_syncStatus")
-	return output, err
+	if err != nil {
+		return nil, err
+	} else if output == nil {
+		return nil, errors.New("nil result from RPC call")
+	}
+	return output, nil
 }
 
 func (r *RollupClient) RollupConfig(ctx context.Context) (*rollup.Config, error) {
 	var output *rollup.Config
 	err := r.rpc.CallContext(ctx, &output, "optimism_rollupConfig")
-	return output, err
+	if err != nil {
+		return nil, err
+	} else if output == nil {
+		return nil, errors.New("nil result from RPC call")
+	}
+	return output, nil
 }
 
 func (r *RollupClient) Version(ctx context.Context) (string, error) {

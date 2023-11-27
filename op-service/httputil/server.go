@@ -41,7 +41,9 @@ func StartHTTPServer(addr string, handler http.Handler, opts ...HTTPOption) (*HT
 	for _, opt := range opts {
 		if err := opt(out); err != nil {
 			srvCancel()
-			return nil, errors.Join(fmt.Errorf("failed to apply HTTP option: %w", err), listener.Close())
+			return nil, fmt.Errorf("failed to apply HTTP option: %w", err)
+			// TODO: nilaway cannot handle errors.Join for some reason.
+			// return nil, errors.Join(fmt.Errorf("failed to apply HTTP option: %w", err), listener.Close())
 		}
 	}
 	go func() {
