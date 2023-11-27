@@ -211,7 +211,7 @@ func L1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1M
 	}
 	if len(finalizedWithdrawals) > 0 {
 		metrics.RecordL1FinalizedWithdrawals(len(finalizedWithdrawals))
-		if skippedOVM1ProvenWithdrawals > 0 { // Logged as a warning for visibility
+		if skippedOVM1ProvenWithdrawals > 0 {
 			metrics.RecordL1SkippedOVM1FinalizedWithdrawals(skippedOVM1FinalizedWithdrawals)
 			log.Info("skipped OVM 1.0 finalized withdrawals", "size", skippedOVM1FinalizedWithdrawals)
 		}
