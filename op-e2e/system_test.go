@@ -198,25 +198,19 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	err = l1Client.SendTransaction(sendCtx, tx)
 	require.NoError(t, err, "Sending L1 empty blob tx")
 	// Wait for transaction on L1
-	_, err = geth.WaitForTransaction(tx.Hash(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	blockContainsBlob, err := geth.WaitForTransaction(tx.Hash(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for blob tx on L1")
 	// end sending blob-contraining txns on l1
-
-	l2Seq := sys.Clients["sequencer"]
-	head, err := l1Client.BlockByNumber(context.Background(), big.NewInt(0))
-	require.Nil(t, err, "Getting current head on L1")
-
-	// Wait enough time for L1 to finalize and L2 to confirm its data in finalized L1 blocks: about 14 blocks
-	const finalizedDistance = 14
-	finalizedBlockNumber := head.NumberU64() + finalizedDistance
-	finalizedBlockBigInt := new(big.Int).SetUint64(finalizedBlockNumber)
+	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(blockContainsBlob.BlockNumber.Uint64(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
-	_, err = gethutils.WaitForBlockToBeFinalized(finalizedBlockBigInt, l1Client, finalizationTimeout)
-	require.Nil(t, err, "Waiting for finalized L1 block")
+	_, err = gethutils.WaitForBlockToBeFinalized(finalizedBlock.Header().Number, l1Client, finalizationTimeout)
+	require.Nil(t, err, "Waiting for blob block to be finalized on L1")
 
 	// fetch the finalized head of geth
 	finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer finalizeCancel()
+	l2Seq := sys.Clients["sequencer"]
 	l2Finalized, err := l2Seq.BlockByNumber(finalizeCtx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
 	require.NoError(t, err)
 
