@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { Storage } from "src/libraries/Storage.sol";
-import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:audit none This contracts is not yet audited.
 /// @title SuperchainConfig

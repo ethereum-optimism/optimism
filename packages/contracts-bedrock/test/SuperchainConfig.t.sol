@@ -44,7 +44,7 @@ contract SuperchainConfig_Pause_Test is CommonTest {
         vm.expectEmit(address(superchainConfig));
         emit Paused("identifier");
 
-        vm.prank(cfg.portalGuardian());
+        vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
 
         assertTrue(superchainConfig.paused());

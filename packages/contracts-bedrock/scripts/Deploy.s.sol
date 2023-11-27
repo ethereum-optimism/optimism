@@ -224,7 +224,7 @@ contract Deploy is Deployer {
     ////////////////////////////////////////////////////////////////
 
     /// @notice Deploy a full system with a new SuperchainConfig
-    ///         The Superchain system has 3 singleton contracts which lie outside of an OP Chain:
+    ///         The Superchain system has 2 singleton contracts which lie outside of an OP Chain:
     ///         1. The SuperchainConfig contract
     ///         2. The ProtocolVersions contract
     function setupSuperchain() public {
