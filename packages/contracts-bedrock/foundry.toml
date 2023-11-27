@@ -69,11 +69,3 @@ src = 'src/L1'
 out = 'kout'
 test = 'test/kontrol'
 script = 'scripts-kontrol'
-remappings = [
-  '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
-  '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
-  '@rari-capital/solmate/=lib/solmate',
-  '@cwia/=lib/clones-with-immutable-args/src',
-  'forge-std/=lib/forge-std/src',
-  'ds-test/=lib/forge-std/lib/ds-test/src'
-]
