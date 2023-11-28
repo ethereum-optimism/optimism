@@ -137,35 +137,39 @@ func (p *PrefetchingEthClient) PayloadByHash(ctx context.Context, hash common.Ha
 }
 
 func (p *PrefetchingEthClient) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayload, error) {
+	// Fetch the payload for the requested number
 	payload, err := p.inner.PayloadByNumber(ctx, number)
 	if err != nil {
 		return payload, err
 	}
 
+	// Prefetch the next n blocks and their receipts
 	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
 
 	return payload, nil
 }
 
 func (p *PrefetchingEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
+	// Fetch the payload for the requested label
 	payload, err := p.inner.PayloadByLabel(ctx, label)
 	if err != nil {
 		return payload, err
 	}
 
+	// Prefetch the next n blocks and their receipts
 	go p.FetchWindow(ctx, uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.prefetchingRange)
 
 	return payload, nil
 }
 
 func (p *PrefetchingEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	// First, fetch the requested block's receipts
+	// Fetch the block info and receipts for the requested hash
 	blockInfo, receipts, err := p.inner.FetchReceipts(ctx, blockHash)
 	if err != nil {
 		return blockInfo, receipts, err
 	}
 
-	// Now prefetch the next n blocks and their receipts
+	// Prefetch the next n blocks and their receipts
 	go p.FetchWindow(ctx, blockInfo.NumberU64(), blockInfo.NumberU64()+p.prefetchingRange)
 
 	return blockInfo, receipts, nil
