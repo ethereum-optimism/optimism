@@ -33,7 +33,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
-        address guardian = cfg.portalGuardian();
+        address guardian = deploy.cfg().portalGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
         assertEq(optimismPortal.GUARDIAN(), guardian);
@@ -270,7 +270,7 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that `isOutputFinalized` succeeds for an EOA depositing a tx with ETH and data.
     function test_simple_isOutputFinalized_succeeds() external {
-        uint256 startingBlockNumber = cfg.l2OutputOracleStartingBlockNumber();
+        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
 
         uint256 ts = block.timestamp;
         vm.mockCall(
@@ -904,7 +904,7 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
 
     /// @dev Tests that the implementation cannot be initialized twice.
     function test_initialize_cannotInitImpl_reverts() external {
-        address opImpl = mustGetAddress("OptimismPortal");
+        address opImpl = deploy.mustGetAddress("OptimismPortal");
         vm.expectRevert("Initializable: contract is already initialized");
         OptimismPortal(payable(opImpl)).initialize({ _paused: false });
     }

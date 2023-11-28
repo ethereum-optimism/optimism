@@ -409,7 +409,7 @@ abstract contract Deployer is Script {
     }
 
     /// @notice Returns the abi for a deployed contract.
-    function getAbi(string memory _name) internal returns (string memory) {
+    function getAbi(string memory _name) public returns (string memory) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -459,7 +459,7 @@ abstract contract Deployer is Script {
     }
 
     /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
-    function loadInitializedSlot(string memory _contractName, bool _isProxy) internal returns (uint8 initialized_) {
+    function loadInitializedSlot(string memory _contractName, bool _isProxy) public returns (uint8 initialized_) {
         StorageSlot memory slot = getInitializedSlot(_contractName);
         if (_isProxy) {
             _contractName = string.concat(_contractName, "Proxy");

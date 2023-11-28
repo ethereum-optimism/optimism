@@ -22,12 +22,12 @@ contract SequencerFeeVault_Test is CommonTest {
     /// @dev Sets up the test suite.
     function setUp() public override {
         super.setUp();
-        recipient = cfg.sequencerFeeVaultRecipient();
+        recipient = deploy.cfg().sequencerFeeVaultRecipient();
     }
 
     /// @dev Tests that the minimum withdrawal amount is correct.
     function test_minWithdrawalAmount_succeeds() external {
-        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), cfg.sequencerFeeVaultMinimumWithdrawalAmount());
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
     }
 
     /// @dev Tests that the l1 fee wallet is correct.
@@ -103,11 +103,11 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         vm.etch(
             EIP1967Helper.getImplementation(Predeploys.SEQUENCER_FEE_WALLET),
             address(
-                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
+                new SequencerFeeVault(deploy.cfg().sequencerFeeVaultRecipient(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
             ).code
         );
 
-        recipient = cfg.sequencerFeeVaultRecipient();
+        recipient = deploy.cfg().sequencerFeeVaultRecipient();
     }
 
     /// @dev Tests that `withdraw` successfully initiates a withdrawal to L2.
