@@ -4,6 +4,9 @@ parameters:
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.30.0
+  base_image:
+    type: string
+    default: ubuntu-2204:2022.07.1
 
 orbs:
   go: circleci/go@1.8.0
@@ -209,7 +212,7 @@ jobs:
         type: string
         default: medium
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true  # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
@@ -640,7 +643,7 @@ jobs:
 
   todo-issues:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - run:
@@ -653,7 +656,7 @@ jobs:
 
   bedrock-markdown:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - check-changed:
@@ -674,7 +677,7 @@ jobs:
 
   bedrock-markdown-links:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - run:
@@ -1023,7 +1026,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2204:2022.10.2
+      image: <<pipeline.parameters.base_image>>
     environment:
       DOCKER_BUILDKIT: 1
       DEVNET_NO_BUILD: 'true'
