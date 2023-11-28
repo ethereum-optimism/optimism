@@ -166,7 +166,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 	withdrawnWEI := bigint.Zero
 	sentMessages := make(map[logKey]sentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
-	versionedMessageHashes := make([]database.L2BridgeMessageVersionedMessageHash, len(sentMessages))
+	versionedMessageHashes := make([]database.L2BridgeMessageVersionedMessageHash, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
