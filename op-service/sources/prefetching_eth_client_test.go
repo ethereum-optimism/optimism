@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -35,7 +36,7 @@ var testCases = []struct {
 		name: "InfoByHash",
 		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			hash := common.Hash{}
-			block := &types.Block{} // Fill in necessary fields for the block
+			block := &types.Block{}
 			blockInfo := eth.BlockToInfo(block)
 			mockRPC.On("InfoByHash", ctx, hash).Return(blockInfo, nil).Once()
 			_, err := client.InfoByHash(ctx, hash)
@@ -43,7 +44,89 @@ var testCases = []struct {
 		},
 		prefetchingRanges: []uint64{0, 1, 5},
 	},
-	// Additional test cases for each method...
+	{
+		name: "InfoByLabel",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			label := eth.BlockLabel(eth.Unsafe)
+			block := &types.Block{} // Fill in necessary fields for the block
+			blockInfo := eth.BlockToInfo(block)
+			mockRPC.On("InfoByLabel", ctx, label).Return(blockInfo, nil).Once()
+			_, err := client.InfoByLabel(ctx, label)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
+	{
+		name: "InfoAndTxsByHash",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			hash := common.Hash{}
+			block := &types.Block{}
+			blockInfo := eth.BlockToInfo(block)
+			txs := types.Transactions{}
+			mockRPC.On("InfoAndTxsByHash", ctx, hash).Return(blockInfo, txs, nil).Once()
+			_, _, err := client.InfoAndTxsByHash(ctx, hash)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
+	{
+		name: "InfoAndTxsByNumber",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			number := uint64(1234)
+			block := &types.Block{}
+			blockInfo := eth.BlockToInfo(block)
+			txs := types.Transactions{}
+			mockRPC.On("InfoAndTxsByNumber", ctx, number).Return(blockInfo, txs, nil).Once()
+			_, _, err := client.InfoAndTxsByNumber(ctx, number)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
+	{
+		name: "PayloadByHash",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			hash := common.Hash{}
+			payload := &eth.ExecutionPayload{}
+			mockRPC.On("PayloadByHash", ctx, hash).Return(payload, nil).Once()
+			_, err := client.PayloadByHash(ctx, hash)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
+	{
+		name: "PayloadByNumber",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			number := uint64(1234)
+			payload := &eth.ExecutionPayload{}
+			mockRPC.On("PayloadByNumber", ctx, number).Return(payload, nil).Once()
+			_, err := client.PayloadByNumber(ctx, number)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
+	{
+		name: "PayloadByLabel",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			label := eth.BlockLabel(eth.Unsafe)
+			payload := &eth.ExecutionPayload{}
+			mockRPC.On("PayloadByLabel", ctx, label).Return(payload, nil).Once()
+			_, err := client.PayloadByLabel(ctx, label)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
+	{
+		name: "FetchReceipts",
+		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			blockHash := common.Hash{}
+			blockInfo := eth.BlockToInfo(&types.Block{})
+			receipts := types.Receipts{}
+			mockRPC.On("FetchReceipts", ctx, blockHash).Return(blockInfo, receipts, nil).Once()
+			_, _, err := client.FetchReceipts(ctx, blockHash)
+			return err
+		},
+		prefetchingRanges: []uint64{0, 1, 5},
+	},
 }
 
 // runTest runs a given test function with a specific prefetching range.
@@ -65,7 +148,7 @@ func runTest(t *testing.T, name string, testFunc testFunction, prefetchingRange 
 func TestPrefetchingEthClient(t *testing.T) {
 	for _, tc := range testCases {
 		for _, prefetchingRange := range tc.prefetchingRanges {
-			t.Run(tc.name+string(prefetchingRange), func(t *testing.T) {
+			t.Run(tc.name+"_with_prefetching_range_"+strconv.Itoa(int(prefetchingRange)), func(t *testing.T) {
 				runTest(t, tc.name, tc.testFunc, prefetchingRange)
 			})
 		}
