@@ -504,8 +504,7 @@ contract Deploy is Deployer {
 
         OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
             _l2Oracle: l2OutputOracle,
-            _systemConfig: systemConfig,
-            _superchainConfig: superchainConfig
+            _systemConfig: systemConfig
         });
 
         save("OptimismPortal", address(portal));
@@ -516,7 +515,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: false });
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
@@ -943,7 +942,7 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isPaused: false });
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }

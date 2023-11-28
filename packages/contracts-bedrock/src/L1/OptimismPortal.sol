@@ -107,11 +107,10 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
     /// @param _systemConfig Address of the SystemConfig contract.
-    /// @param _superchainConfig Address of the SuperchainConfig contract.
-    constructor(L2OutputOracle _l2Oracle, SystemConfig _systemConfig, SuperchainConfig _superchainConfig) {
+    constructor(L2OutputOracle _l2Oracle, SystemConfig _systemConfig) {
         L2_ORACLE = _l2Oracle;
         SYSTEM_CONFIG = _systemConfig;
-        initialize(_superchainConfig);
+        initialize(SuperchainConfig(address(0)));
     }
 
     /// @notice Initializer.
