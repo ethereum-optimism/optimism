@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	emptyBlob          kzg4844.Blob
-	emptyBlobCommit    kzg4844.Commitment
-	emptyBlobProof     kzg4844.Proof
+	emptyBlob       kzg4844.Blob
+	emptyBlobCommit kzg4844.Commitment
+	emptyBlobProof  kzg4844.Proof
 )
 
 func init() {
@@ -27,7 +27,6 @@ func init() {
 		panic("failed to create empty blob proof: " + err.Error())
 	}
 }
-)
 
 // with thanks to fjl
 // https://github.com/ethereum/go-ethereum/commit/2a6beb6a39d7cb3c5906dd4465d65da6efcc73cd
