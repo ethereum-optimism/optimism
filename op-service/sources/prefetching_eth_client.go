@@ -2,7 +2,6 @@ package sources
 
 import (
 	"context"
-	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -13,22 +12,34 @@ import (
 
 type PrefetchingEthClient struct {
 	inner            EthClient
-	prefetchingRange int
+	prefetchingRange uint64
 	// other state fields for managing prefetching
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
 // and a prefetching range.
-func NewPrefetchingEthClient(inner EthClient, prefetchingRange int) (*PrefetchingEthClient, error) {
-	// You might want to add some validation here, e.g., checking if prefetchingWindow is a positive number.
-	if prefetchingRange <= 0 {
-		return nil, fmt.Errorf("prefetchingWindow must be a positive integer")
-	}
-
+func NewPrefetchingEthClient(inner EthClient, prefetchingRange uint64) (*PrefetchingEthClient, error) {
 	return &PrefetchingEthClient{
 		inner:            inner,
 		prefetchingRange: prefetchingRange,
 	}, nil
+}
+
+func (p *PrefetchingEthClient) FetchWindow(ctx context.Context, start, end uint64) {
+	for i := start; i <= end; i++ {
+		// Ignoring the error and result as this is just prefetching
+		// The actual fetching and error handling will be done when the data is requested
+		go p.FetchBlockAndReceipts(ctx, i)
+	}
+}
+
+func (p *PrefetchingEthClient) FetchBlockAndReceipts(ctx context.Context, number uint64) {
+	// Ignoring the error as this is just prefetching
+	// The actual fetching and error handling will be done when the data is requested
+	blockInfo, _ := p.inner.InfoByNumber(ctx, number)
+	// Now that we have the block, fetch its receipts
+	// Again, ignore error and result as this is just prefetching
+	p.inner.FetchReceipts(ctx, blockInfo.Hash())
 }
 
 func (p *PrefetchingEthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
@@ -44,6 +55,10 @@ func (p *PrefetchingEthClient) InfoByHash(ctx context.Context, hash common.Hash)
 }
 
 func (p *PrefetchingEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
+	// Trigger prefetching in the background
+	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
+
+	// Fetch the requested block
 	return p.inner.InfoByNumber(ctx, number)
 }
 
