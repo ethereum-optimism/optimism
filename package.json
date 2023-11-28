@@ -75,7 +75,7 @@
     "nx-cloud": "latest"
   },
   "dependencies": {
-    "@changesets/cli": "^2.26.0",
+    "@changesets/cli": "^2.27.1",
     "@codechecks/client": "^0.1.11"
   }
 }
