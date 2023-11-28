@@ -497,10 +497,6 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
-        address guardian = cfg.superchainConfigGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
-        }
 
         L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
