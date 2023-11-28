@@ -69,7 +69,10 @@ contract Setup {
 
     /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
     ///      of this contract by fetching the bytecode dynamically using `vm.getCode()`.
-    ///      Without this, it greatly increases the compile time.
+    ///      If the Deploy bytecode is included in this contract, then it will double
+    ///      the compile time and bloat all of the test contract artifacts since they
+    ///      will also need to include the bytecode for the Deploy contract.
+    ///      This is a hack as we are pushing solidity to the edge.
     function setUp() public virtual {
         deploy = Deploy(_create(vm.getCode("Deploy.s.sol:Deploy")));
         deploy.setUp();
