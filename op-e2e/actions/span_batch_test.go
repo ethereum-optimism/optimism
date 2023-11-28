@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestDropSpanBatchBeforeHardfork tests behavior of op-node before SpanBatch hardfork.
-// op-node must drop SpanBatch before SpanBatch hardfork.
+// TestDropSpanBatchBeforeHardfork tests behavior of op-node before Delta hardfork.
+// op-node must drop SpanBatch before Delta hardfork.
 func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
@@ -34,8 +34,8 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
-	// do not activate SpanBatch hardfork for verifier
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = nil
+	// do not activate Delta hardfork for verifier
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -44,8 +44,8 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	rollupSeqCl := sequencer.RollupClient()
 	dp2 := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
-	// activate SpanBatch hardfork for batcher. so batcher will submit SpanBatches to L1.
-	dp2.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// activate Delta hardfork for batcher. so batcher will submit SpanBatches to L1.
+	dp2.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
 	batcher := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
@@ -114,8 +114,8 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
-// TestAcceptSingularBatchAfterHardfork tests behavior of op-node after SpanBatch hardfork.
-// op-node must accept SingularBatch after SpanBatch hardfork.
+// TestAcceptSingularBatchAfterHardfork tests behavior of op-node after Delta hardfork.
+// op-node must accept SingularBatch after Delta hardfork.
 func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
@@ -127,8 +127,8 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	minTs := hexutil.Uint64(0)
 	dp := e2eutils.MakeDeployParams(t, p)
 
-	// activate SpanBatch hardfork for verifier.
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// activate Delta hardfork for verifier.
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -137,8 +137,8 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	rollupSeqCl := sequencer.RollupClient()
 	dp2 := e2eutils.MakeDeployParams(t, p)
 
-	// not activate SpanBatch hardfork for batcher
-	dp2.DeployConfig.L2GenesisSpanBatchTimeOffset = nil
+	// not activate Delta hardfork for batcher
+	dp2.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
 	batcher := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
@@ -213,8 +213,8 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
-	// Activate SpanBatch hardfork
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// Activate Delta hardfork
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
@@ -270,8 +270,8 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
-	// Activate SpanBatch hardfork
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// Activate Delta hardfork
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)

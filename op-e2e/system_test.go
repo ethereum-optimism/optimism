@@ -50,7 +50,7 @@ import (
 func TestSystemBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
+		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
 	}{
 		{"StopStartBatcher", StopStartBatcher},
 	}
@@ -61,11 +61,11 @@ func TestSystemBatchType(t *testing.T) {
 		})
 	}
 
-	spanBatchTimeOffset := hexutil.Uint64(0)
+	deltaTimeOffset := hexutil.Uint64(0)
 	for _, test := range tests {
 		test := test
 		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &spanBatchTimeOffset)
+			test.f(t, &deltaTimeOffset)
 		})
 	}
 }
@@ -1256,11 +1256,11 @@ func TestFees(t *testing.T) {
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
 
-func StopStartBatcher(t *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	cfg.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
