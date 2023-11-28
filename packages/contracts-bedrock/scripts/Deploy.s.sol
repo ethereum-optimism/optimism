@@ -424,18 +424,10 @@ contract Deploy is Deployer {
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
         console.log("Deploying proxy for L1CrossDomainMessenger");
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        string memory contractName = "OVM_L1CrossDomainMessenger";
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
+        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, "OVM_L1CrossDomainMessenger");
 
         save("L1CrossDomainMessengerProxy", address(proxy));
         console.log("L1CrossDomainMessengerProxy deployed at %s", address(proxy));
-
-        address contractAddr = addressManager.getAddress(contractName);
-        if (contractAddr != address(proxy)) {
-            addressManager.setAddress(contractName, address(proxy));
-        }
-
-        require(addressManager.getAddress(contractName) == address(proxy));
 
         addr_ = address(proxy);
     }
