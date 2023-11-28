@@ -4,47 +4,30 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type PrefetchingEthClient struct {
-	inner *EthClient
-	// state that manages pre-fetching, like in-flight fetching jobs
+	inner            EthClient
+	prefetchingRange int
+	// other state fields for managing prefetching
 }
 
-// NewPrefetchingEthClient returns a [PrefetchingEthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
-// metric tracking, and caching. The [PrefetchingEthClient] uses concurrent RPC requests to keep a cache of data ready for callers.
-func NewPrefetchingEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *EthClientConfig) (*PrefetchingEthClient, error) {
-	if err := config.Check(); err != nil {
-		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
+// NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
+// and a prefetching range.
+func NewPrefetchingEthClient(inner EthClient, prefetchingRange int) (*PrefetchingEthClient, error) {
+	// You might want to add some validation here, e.g., checking if prefetchingWindow is a positive number.
+	if prefetchingRange <= 0 {
+		return nil, fmt.Errorf("prefetchingWindow must be a positive integer")
 	}
-	client = LimitRPC(client, config.MaxConcurrentRequests)
-	inner := &EthClient{
-		client:                  client,
-		maxBatchSize:            config.MaxRequestsPerBatch,
-		trustRPC:                config.TrustRPC,
-		mustBePostMerge:         config.MustBePostMerge,
-		provKind:                config.RPCProviderKind,
-		log:                     log,
-		receiptsCache:           caching.NewLRUCache[common.Hash, *receiptsFetchingJob](metrics, "receipts", config.ReceiptsCacheSize),
-		transactionsCache:       caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", config.TransactionsCacheSize),
-		headersCache:            caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", config.HeadersCacheSize),
-		payloadsCache:           caching.NewLRUCache[common.Hash, *eth.ExecutionPayload](metrics, "payloads", config.PayloadsCacheSize),
-		availableReceiptMethods: AvailableReceiptsFetchingMethods(config.RPCProviderKind),
-		lastMethodsReset:        time.Now(),
-		methodResetDuration:     config.MethodResetDuration,
-		rethDbPath:              config.RethDBPath,
-	}
+
 	return &PrefetchingEthClient{
-		inner: inner,
+		inner:            inner,
+		prefetchingRange: prefetchingRange,
 	}, nil
 }
 
