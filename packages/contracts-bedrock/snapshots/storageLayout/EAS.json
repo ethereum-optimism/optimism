@@ -18,7 +18,7 @@
     "label": "mapping(bytes32 => struct Attestation)",
     "offset": 0,
     "slot": "50",
-    "type": "t_mapping(t_bytes32,t_struct(Attestation)55326_storage)"
+    "type": "t_mapping(t_bytes32,t_struct(Attestation)55340_storage)"
   },
   {
     "bytes": "32",

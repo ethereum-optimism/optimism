@@ -4,6 +4,6 @@
     "label": "mapping(uint256 => struct BlockOracle.BlockInfo)",
     "offset": 0,
     "slot": "0",
-    "type": "t_mapping(t_uint256,t_struct(BlockInfo)71413_storage)"
+    "type": "t_mapping(t_uint256,t_struct(BlockInfo)82480_storage)"
   }
 ]

@@ -7,16 +7,6 @@
         "type": "address"
       },
       {
-        "internalType": "address",
-        "name": "_guardian",
-        "type": "address"
-      },
-      {
-        "internalType": "bool",
-        "name": "_paused",
-        "type": "bool"
-      },
-      {
         "internalType": "contract SystemConfig",
         "name": "_systemConfig",
         "type": "address"
@@ -298,9 +288,9 @@
   {
     "inputs": [
       {
-        "internalType": "bool",
-        "name": "_paused",
-        "type": "bool"
+        "internalType": "contract SuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -397,18 +387,11 @@
   },
   {
     "inputs": [],
-    "name": "pause",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
     "name": "paused",
     "outputs": [
       {
         "internalType": "bool",
-        "name": "",
+        "name": "paused_",
         "type": "bool"
       }
     ],
@@ -528,10 +511,23 @@
   },
   {
     "inputs": [],
-    "name": "systemConfig",
+    "name": "spacer_53_0_1",
     "outputs": [
       {
-        "internalType": "contract SystemConfig",
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
+    "outputs": [
+      {
+        "internalType": "contract SuperchainConfig",
         "name": "",
         "type": "address"
       }
@@ -541,9 +537,15 @@
   },
   {
     "inputs": [],
-    "name": "unpause",
-    "outputs": [],
-    "stateMutability": "nonpayable",
+    "name": "systemConfig",
+    "outputs": [
+      {
+        "internalType": "contract SystemConfig",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

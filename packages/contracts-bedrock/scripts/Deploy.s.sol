@@ -497,18 +497,13 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
-        address guardian = cfg.portalGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
-        }
 
         L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
+        SuperchainConfig superchainConfig = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
             _l2Oracle: l2OutputOracle,
-            _guardian: guardian,
-            _paused: true,
             _systemConfig: systemConfig
         });
 
@@ -520,7 +515,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: true });
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
@@ -733,10 +728,10 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.portalGuardian()))
+            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.superchainConfigGuardian()))
         });
 
-        ChainAssertions.checkSuperchainConfig(_proxiesUnstrict(), cfg);
+        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
     }
 
     /// @notice Initialize the DisputeGameFactory
@@ -935,18 +930,19 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (false))
+            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (superchainConfigProxy))
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isPaused: false });
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }

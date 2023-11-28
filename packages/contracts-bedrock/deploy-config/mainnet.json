@@ -1,6 +1,6 @@
 {
   "finalSystemOwner": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
-  "portalGuardian": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
+  "superchainConfigGuardian": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
   "l1StartingBlockTag": "0x438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108",
   "l1ChainID": 1,
   "l2ChainID": 10,
