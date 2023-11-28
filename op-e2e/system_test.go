@@ -201,7 +201,8 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	blockContainsBlob, err := geth.WaitForTransaction(tx.Hash(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for blob tx on L1")
 	// end sending blob-contraining txns on l1
-	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(blockContainsBlob.BlockNumber.Uint64(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	l2Client := sys.Clients["sequencer"]
+	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = gethutils.WaitForBlockToBeFinalized(finalizedBlock.Header().Number, l1Client, finalizationTimeout)
