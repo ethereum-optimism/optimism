@@ -10,14 +10,6 @@ type QueryParams struct {
 	Cursor  string
 }
 
-type WithdrawFilter uint8
-
-const (
-	All WithdrawFilter = iota // Same as "initialized"
-	Proven
-	Finalized
-)
-
 // DepositItem ... Deposit item model for API responses
 type DepositItem struct {
 	Guid           string `json:"guid"`

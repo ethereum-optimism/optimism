@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
-	"github.com/ethereum-optimism/optimism/indexer/api/models"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -68,7 +67,7 @@ type BridgeTransfersView interface {
 	L1BridgeDepositsByAddress(common.Address, string, int) (*L1BridgeDepositsResponse, error)
 
 	L2BridgeWithdrawal(common.Hash) (*L2BridgeWithdrawal, error)
-	L2BridgeWithdrawalSum(filter models.WithdrawFilter) (float64, error)
+	L2BridgeWithdrawalSum(filter WithdrawFilter) (float64, error)
 	L2BridgeWithdrawalWithFilter(BridgeTransfer) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalsByAddress(common.Address, string, int) (*L2BridgeWithdrawalsResponse, error)
 }
@@ -143,7 +142,7 @@ type L1BridgeDepositsResponse struct {
 // L1BridgeDepositSum ... returns the sum of all l1 bridge deposit mints in gwei
 func (db *bridgeTransfersDB) L1BridgeDepositSum() (float64, error) {
 	var sum float64
-	result := db.gorm.Model(&L1TransactionDeposit{}).Select("sum(amount)").Scan(&sum)
+	result := db.gorm.Model(&L1TransactionDeposit{}).Select("SUM(amount)").Scan(&sum)
 	if result.Error != nil {
 		return 0, result.Error
 	}
@@ -248,17 +247,25 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*
 	return &withdrawal, nil
 }
 
-func (db *bridgeTransfersDB) L2BridgeWithdrawalSum(filter models.WithdrawFilter) (float64, error) {
+type WithdrawFilter uint8
+
+const (
+	All WithdrawFilter = iota // Same as "initialized"
+	Proven
+	Finalized
+)
+
+func (db *bridgeTransfersDB) L2BridgeWithdrawalSum(filter WithdrawFilter) (float64, error) {
 	// Determine where filter
 	var clause string
 	switch filter {
-	case models.All:
+	case All:
 		clause = ""
 
-	case models.Finalized:
+	case Finalized:
 		clause = "finalized_l1_event_guid IS NOT NULL"
 
-	case models.Proven:
+	case Proven:
 		clause = "proven_l1_event_guid IS NOT NULL"
 
 	default:
@@ -269,7 +276,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalSum(filter models.WithdrawFilter)
 	// This is ok though given all bridges will never exceed max float64 (10^308 || 1.7E+308) in wei value locked
 	// since that would require 10^308 / 10^18 = 10^290 ETH locked in the bridge
 	var sum float64
-	result := db.gorm.Model(&L2TransactionWithdrawal{}).Where(clause).Select("sum(amount)").Scan(&sum)
+	result := db.gorm.Model(&L2TransactionWithdrawal{}).Where(clause).Select("SUM(amount)").Scan(&sum)
 	if result.Error != nil && strings.Contains(result.Error.Error(), "converting NULL to float64 is unsupported") {
 		// no rows found
 		return 0, nil

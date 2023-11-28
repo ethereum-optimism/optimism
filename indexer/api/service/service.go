@@ -15,7 +15,7 @@ type Service interface {
 	WithdrawResponse(*database.L2BridgeWithdrawalsResponse) models.WithdrawalResponse
 	GetSupplyInfo() (*models.BridgeSupplyView, error)
 
-	QueryParams(a, l, c string) (*models.QueryParams, error)
+	QueryParams(address, cursor, limit string) (*models.QueryParams, error)
 }
 
 type HandlerSvc struct {
@@ -148,19 +148,19 @@ func (svc *HandlerSvc) GetSupplyInfo() (*models.BridgeSupplyView, error) {
 		return nil, err
 	}
 
-	initSum, err := svc.db.L2BridgeWithdrawalSum(models.All)
+	initSum, err := svc.db.L2BridgeWithdrawalSum(database.All)
 	if err != nil {
 		svc.logger.Error("error getting init sum", "err", err)
 		return nil, err
 	}
 
-	provenSum, err := svc.db.L2BridgeWithdrawalSum(models.Proven)
+	provenSum, err := svc.db.L2BridgeWithdrawalSum(database.Proven)
 	if err != nil {
 		svc.logger.Error("error getting proven sum", "err", err)
 		return nil, err
 	}
 
-	finalizedSum, err := svc.db.L2BridgeWithdrawalSum(models.Finalized)
+	finalizedSum, err := svc.db.L2BridgeWithdrawalSum(database.Finalized)
 	if err != nil {
 		svc.logger.Error("error getting finalized sum", "err", err)
 		return nil, err
