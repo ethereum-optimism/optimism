@@ -18,8 +18,7 @@ type LocalGameInputs struct {
 	L2BlockNumber *big.Int
 }
 
-type L2DataSource interface {
-	ChainID(context.Context) (*big.Int, error)
+type L2HeaderSource interface {
 	HeaderByNumber(context.Context, *big.Int) (*ethtypes.Header, error)
 }
 
@@ -32,15 +31,15 @@ type GameInputsSource interface {
 	GetProposals(ctx context.Context) (agreed contracts.Proposal, disputed contracts.Proposal, err error)
 }
 
-func fetchLocalInputs(ctx context.Context, caller GameInputsSource, l2Client L2DataSource) (LocalGameInputs, error) {
+func FetchLocalInputs(ctx context.Context, caller GameInputsSource, l2Client L2HeaderSource) (LocalGameInputs, error) {
 	agreedOutput, claimedOutput, err := caller.GetProposals(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch proposals: %w", err)
 	}
-	return fetchLocalInputsFromProposals(ctx, caller, l2Client, agreedOutput, claimedOutput)
+	return FetchLocalInputsFromProposals(ctx, caller, l2Client, agreedOutput, claimedOutput)
 }
 
-func fetchLocalInputsFromProposals(ctx context.Context, caller L1HeadSource, l2Client L2DataSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
+func FetchLocalInputsFromProposals(ctx context.Context, caller L1HeadSource, l2Client L2HeaderSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
 	l1Head, err := caller.GetL1Head(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L1 head: %w", err)

@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "1568",
+    "label": "uint256[49]",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_array(t_uint256)49_storage"
+  }
+]

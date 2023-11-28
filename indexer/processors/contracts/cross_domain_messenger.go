@@ -4,38 +4,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-)
-
-var (
-	// Standard ABI types copied from golang ABI tests
-	addressType, _ = abi.NewType("address", "", nil)
-	bytesType, _   = abi.NewType("bytes", "", nil)
-	uint256Type, _ = abi.NewType("uint256", "", nil)
-
-	CrossDomainMessengerLegacyRelayMessageEncoding = abi.NewMethod(
-		"relayMessage",
-		"relayMessage",
-		abi.Function,
-		"external", // mutability
-		false,      // isConst
-		true,       // payable
-		abi.Arguments{ // inputs
-			{Name: "target", Type: addressType},
-			{Name: "sender", Type: addressType},
-			{Name: "data", Type: bytesType},
-			{Name: "nonce", Type: uint256Type},
-			// The actual transaction on the legacy L1CrossDomainMessenger has a trailing
-			// proof argument but is ignored for the `XDomainCallData` encoding
-		},
-		abi.Arguments{}, // outputs
-	)
 )
 
 type CrossDomainMessengerSentMessageEvent struct {
@@ -117,7 +91,8 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 		default:
 			// NOTE: We explicitly fail here since the presence of a new version means finalization
 			// logic needs to be updated to ensure L1 finalization can run from genesis and handle
-			// the changing version formats. This is meant to be a serving indicator of this.
+			// the changing version formats. Any unrelayed OVM1 messages that have been harcoded with
+			// the v1 hash format also need to be updated. This failure is a serving indicator
 			return nil, fmt.Errorf("expected cross domain version 0 or version 1: %d", version)
 		}
 

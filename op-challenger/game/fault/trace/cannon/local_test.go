@@ -32,7 +32,7 @@ func TestFetchLocalInputs(t *testing.T) {
 		},
 	}
 
-	inputs, err := fetchLocalInputs(ctx, contract, l2Client)
+	inputs, err := FetchLocalInputs(ctx, contract, l2Client)
 	require.NoError(t, err)
 
 	require.Equal(t, contract.l1Head, inputs.L1Head)
@@ -62,7 +62,7 @@ func TestFetchLocalInputsFromProposals(t *testing.T) {
 		},
 	}
 
-	inputs, err := fetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
+	inputs, err := FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
 	require.NoError(t, err)
 
 	require.Equal(t, contract.l1Head, inputs.L1Head)
@@ -91,11 +91,11 @@ type mockL2DataSource struct {
 	header  ethtypes.Header
 }
 
-func (s *mockL2DataSource) ChainID(ctx context.Context) (*big.Int, error) {
+func (s *mockL2DataSource) ChainID(_ context.Context) (*big.Int, error) {
 	return s.chainID, nil
 }
 
-func (s *mockL2DataSource) HeaderByNumber(ctx context.Context, num *big.Int) (*ethtypes.Header, error) {
+func (s *mockL2DataSource) HeaderByNumber(_ context.Context, num *big.Int) (*ethtypes.Header, error) {
 	if s.header.Number.Cmp(num) == 0 {
 		return &s.header, nil
 	}

@@ -10,8 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/bigint"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/indexer/processors/bridge/ovm1"
 	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 )
@@ -165,6 +166,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 	withdrawnWEI := bigint.Zero
 	sentMessages := make(map[logKey]sentMessageEvent, len(crossDomainSentMessages))
 	bridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
+	versionedMessageHashes := make([]database.L2BridgeMessageVersionedMessageHash, len(crossDomainSentMessages))
 	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
@@ -172,14 +174,13 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 
 		// Since these message can be relayed in bedrock, we utilize the migrated withdrawal hash
 		// and also store the v1 version of the message hash such that the bedrock l1 finalization
-		// processor works as expected
+		// processor works as expected. There will be some entries relayed pre-bedrock that will not
+		// require the entry but we'll store it anyways as a large % of these withdrawals are not relayed
+		// pre-bedrock.
 
 		v1MessageHash, err := legacyBridgeMessageV1MessageHash(&sentMessage.BridgeMessage)
 		if err != nil {
 			return fmt.Errorf("failed to compute versioned message hash: %w", err)
-		}
-		if err := db.BridgeMessages.StoreL2BridgeMessageV1MessageHash(sentMessage.BridgeMessage.MessageHash, v1MessageHash); err != nil {
-			return err
 		}
 
 		withdrawalHash, err := legacyBridgeMessageWithdrawalHash(preset, &sentMessage.BridgeMessage)
@@ -202,16 +203,17 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		}
 
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = sentMessageEvent{&sentMessage, withdrawalHash}
-		bridgeMessages[i] = database.L2BridgeMessage{
-			TransactionWithdrawalHash: sentMessage.BridgeMessage.MessageHash,
-			BridgeMessage:             sentMessage.BridgeMessage,
-		}
+		bridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: withdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
+		versionedMessageHashes[i] = database.L2BridgeMessageVersionedMessageHash{MessageHash: sentMessage.BridgeMessage.MessageHash, V1MessageHash: v1MessageHash}
 	}
 	if len(bridgeMessages) > 0 {
 		if err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals); err != nil {
 			return err
 		}
 		if err := db.BridgeMessages.StoreL2BridgeMessages(bridgeMessages); err != nil {
+			return err
+		}
+		if err := db.BridgeMessages.StoreL2BridgeMessageV1MessageHashes(versionedMessageHashes); err != nil {
 			return err
 		}
 
@@ -270,7 +272,7 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 // according to the pre-bedrock protocol. This follows:
 //  1. L1CrossDomainMessenger
 //  2. L1StandardBridge
-func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1Metricer, l1Client node.EthClient, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
+func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metrics L1Metricer, l1Contracts config.L1Contracts, fromHeight, toHeight *big.Int) error {
 	// (1) L1CrossDomainMessenger -> This is the root-most contract from which bridge events are finalized since withdrawals must be initiated from the
 	// L2CrossDomainMessenger. Since there's no two-step withdrawal process, we mark the transaction as proven/finalized in the same step
 	crossDomainRelayedMessages, err := contracts.CrossDomainMessengerRelayedMessageEvents("l1", l1Contracts.L1CrossDomainMessengerProxy, db, fromHeight, toHeight)
@@ -281,38 +283,19 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		log.Info("detected relayed messages", "size", len(crossDomainRelayedMessages))
 	}
 
-	skippedPreRegenesisMessages := 0
+	skippedOVM1Messages := 0
 	for i := range crossDomainRelayedMessages {
 		relayedMessage := crossDomainRelayedMessages[i]
 		message, err := db.BridgeMessages.L2BridgeMessage(relayedMessage.MessageHash)
 		if err != nil {
 			return err
 		} else if message == nil {
-			// Before surfacing an error about a missing withdrawal, we need to handle an edge case
-			// for OP-Mainnet pre-regensis withdrawals that no longer exist on L2.
-			tx, err := l1Client.TxByHash(relayedMessage.Event.TransactionHash)
-			if err != nil {
-				return fmt.Errorf("unable to query legacy relayed. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
-			} else if tx == nil {
-				return fmt.Errorf("missing tx for relayed message! tx_hash = %s", relayedMessage.Event.TransactionHash)
-			}
-
-			relayMessageData := tx.Data()[4:]
-			inputs, err := contracts.CrossDomainMessengerLegacyRelayMessageEncoding.Inputs.Unpack(relayMessageData)
-			if err != nil || inputs == nil {
-				return fmt.Errorf("unable to extract XDomainCallData from relayMessage transaction. tx_hash = %s: %w", relayedMessage.Event.TransactionHash, err)
-			}
-
-			// NOTE: Since OP-Mainnet is the only network to go through a regensis we can simply harcode the
-			// the starting message nonce at genesis (100k). Any relayed withdrawal on L1 with a lesser nonce
-			// is a clear indicator of a pre-regenesis withdrawal.
-			if inputs[3].(*big.Int).Int64() < 100_000 {
-				// skip pre-regenesis withdrawals
-				skippedPreRegenesisMessages++
+			if _, ok := ovm1.L1RelayedMessages[relayedMessage.MessageHash]; ok {
+				skippedOVM1Messages++
 				continue
-			} else {
-				return fmt.Errorf("missing indexed L2CrossDomainMessenger message! tx_hash = %s", relayedMessage.Event.TransactionHash)
 			}
+
+			return fmt.Errorf("missing indexed L2CrossDomainMessenger message! tx_hash %s", relayedMessage.Event.TransactionHash.String())
 		}
 
 		if err := db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MessageHash, relayedMessage.Event.GUID); err != nil {
@@ -328,13 +311,11 @@ func LegacyL1ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 		}
 	}
 	if len(crossDomainRelayedMessages) > 0 {
-		metrics.RecordL1ProvenWithdrawals(len(crossDomainRelayedMessages))
-		metrics.RecordL1FinalizedWithdrawals(len(crossDomainRelayedMessages))
 		metrics.RecordL1CrossDomainRelayedMessages(len(crossDomainRelayedMessages))
-	}
-	if skippedPreRegenesisMessages > 0 {
-		// Logged as a warning just for visibility
-		log.Warn("skipped pre-regensis relayed L2CrossDomainMessenger withdrawals", "size", skippedPreRegenesisMessages)
+		if skippedOVM1Messages > 0 { // Logged as a warning just for visibility
+			metrics.RecordL1SkippedOVM1CrossDomainRelayedMessages(skippedOVM1Messages)
+			log.Info("skipped OVM 1.0 relayed L2CrossDomainMessenger withdrawals", "size", skippedOVM1Messages)
+		}
 	}
 
 	// (2) L1StandardBridge

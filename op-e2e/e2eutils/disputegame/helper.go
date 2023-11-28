@@ -221,7 +221,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 	maxDepth, err := gameImpl.MAXGAMEDEPTH(opts)
 	h.require.NoError(err, "fetch max game depth")
 
-	provider := cannon.NewTraceProviderFromInputs(
+	provider := cannon.NewTraceProvider(
 		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
 		metrics.NoopMetrics,
 		cfg,

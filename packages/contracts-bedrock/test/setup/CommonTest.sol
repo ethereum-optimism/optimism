@@ -9,20 +9,14 @@ import { FFIInterface } from "test/setup/FFIInterface.sol";
 /// @title CommonTest
 /// @dev An extenstion to `Test` that sets up the optimism smart contracts.
 contract CommonTest is Setup, Test, Events {
-    address alice = address(128);
-    address bob = address(256);
+    address alice;
+    address bob;
 
     bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
 
     FFIInterface ffi;
 
     function setUp() public virtual override {
-        vm.deal(alice, type(uint64).max);
-        vm.deal(bob, type(uint64).max);
-
-        vm.label(alice, "alice");
-        vm.label(bob, "bob");
-
         Setup.setUp();
         ffi = new FFIInterface();
 
@@ -32,6 +26,11 @@ contract CommonTest is Setup, Test, Events {
         // Set sane initialize block numbers
         vm.warp(cfg.l2OutputOracleStartingTimestamp() + 1);
         vm.roll(cfg.l2OutputOracleStartingBlockNumber() + 1);
+
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        vm.deal(alice, 10000 ether);
+        vm.deal(bob, 10000 ether);
 
         // Deploy L1
         Setup.L1();

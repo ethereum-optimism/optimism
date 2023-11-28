@@ -21,6 +21,7 @@ func NewOutputCannonTraceAccessor(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
+	l2Client cannon.L2HeaderSource,
 	contract *contracts.FaultDisputeGameContract,
 	dir string,
 	gameDepth uint64,
@@ -38,10 +39,11 @@ func NewOutputCannonTraceAccessor(
 	cannonCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
-		provider, err := cannon.NewTraceProviderFromProposals(ctx, logger, m, cfg, contract, localContext, agreed, claimed, subdir, bottomDepth)
+		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
 		if err != nil {
-			return nil, fmt.Errorf("failed to create cannon trace provider: %w", err)
+			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
+		provider := cannon.NewTraceProvider(logger, m, cfg, localContext, localInputs, subdir, bottomDepth)
 		return provider, nil
 	}
 

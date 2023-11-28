@@ -11,6 +11,7 @@ import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
+import "scripts/Deployer.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 
 import { Safe } from "safe-contracts/Safe.sol";
@@ -112,6 +113,20 @@ contract Deploy is Deployer {
             SystemConfig: mustGetAddress("SystemConfigProxy"),
             L1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
             ProtocolVersions: mustGetAddress("ProtocolVersionsProxy")
+        });
+    }
+
+    /// @notice Returns the proxy addresses, not reverting if any are unset.
+    function _proxiesUnstrict() private view returns (Types.ContractSet memory proxies_) {
+        proxies_ = Types.ContractSet({
+            L1CrossDomainMessenger: getAddress("L1CrossDomainMessengerProxy"),
+            L1StandardBridge: getAddress("L1StandardBridgeProxy"),
+            L2OutputOracle: getAddress("L2OutputOracleProxy"),
+            OptimismMintableERC20Factory: getAddress("OptimismMintableERC20FactoryProxy"),
+            OptimismPortal: getAddress("OptimismPortalProxy"),
+            SystemConfig: getAddress("SystemConfigProxy"),
+            L1ERC721Bridge: getAddress("L1ERC721BridgeProxy"),
+            ProtocolVersions: getAddress("ProtocolVersionsProxy")
         });
     }
 
@@ -262,6 +277,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the Safe
     function deploySafe() public broadcast returns (address addr_) {
+        console.log("Deploying Safe");
         (SafeProxyFactory safeProxyFactory, Safe safeSingleton) = _getSafeFactory();
 
         address[] memory signers = new address[](1);
@@ -279,6 +295,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the AddressManager
     function deployAddressManager() public broadcast returns (address addr_) {
+        console.log("Deploying AddressManager");
         AddressManager manager = new AddressManager();
         require(manager.owner() == msg.sender);
 
@@ -289,6 +306,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProxyAdmin
     function deployProxyAdmin() public broadcast returns (address addr_) {
+        console.log("Deploying ProxyAdmin");
         ProxyAdmin admin = new ProxyAdmin({
             _owner: msg.sender
         });
@@ -308,6 +326,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the StorageSetter contract, used for upgrades.
     function deployStorageSetter() public broadcast returns (address addr_) {
+        console.log("Deploying StorageSetter");
         StorageSetter setter = new StorageSetter{ salt: _implSalt() }();
         console.log("StorageSetter deployed at: %s", address(setter));
         string memory version = setter.version();
@@ -321,6 +340,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridgeProxy using a ChugSplashProxy
     function deployL1StandardBridgeProxy() public broadcast returns (address addr_) {
+        console.log("Deploying proxy for L1StandardBridge");
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
 
@@ -334,6 +354,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1CrossDomainMessengerProxy using a ResolvedDelegateProxy
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
+        console.log("Deploying proxy for L1CrossDomainMessenger");
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         string memory contractName = "OVM_L1CrossDomainMessenger";
         ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
@@ -352,7 +373,7 @@ contract Deploy is Deployer {
     }
 
     function deployERC1967Proxy(string memory _name) public broadcast returns (address addr_) {
-        console.log(string.concat("Deploying ", _name));
+        console.log(string.concat("Deploying ERC1967 proxy for", _name, ""));
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -372,25 +393,30 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1CrossDomainMessenger
     function deployL1CrossDomainMessenger() public broadcast returns (address addr_) {
+        console.log("Deploying L1CrossDomainMessenger implementation");
         address portal = mustGetAddress("OptimismPortalProxy");
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: _implSalt() }({
             _portal: OptimismPortal(payable(portal))
         });
 
-        require(address(messenger.PORTAL()) == portal);
-        require(address(messenger.portal()) == portal);
-
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
-
         save("L1CrossDomainMessenger", address(messenger));
         console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
+
+        // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
+        // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L1CrossDomainMessenger = address(messenger);
+        ChainAssertions.checkL1CrossDomainMessenger(contracts, vm);
+
+        require(loadInitializedSlot("L1CrossDomainMessenger", false) == 1, "L1CrossDomainMessenger is not initialized");
 
         addr_ = address(messenger);
     }
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
+        console.log("Deploying OptimismPortal implementation");
         address guardian = cfg.portalGuardian();
         if (guardian.code.length == 0) {
             console.log("Portal guardian has no code: %s", guardian);
@@ -406,22 +432,24 @@ contract Deploy is Deployer {
             _systemConfig: systemConfig
         });
 
-        require(address(portal.L2_ORACLE()) == address(l2OutputOracle));
-        require(address(portal.l2Oracle()) == address(l2OutputOracle));
-        require(portal.GUARDIAN() == guardian);
-        require(portal.guardian() == guardian);
-        require(address(portal.SYSTEM_CONFIG()) == address(systemConfig));
-        require(address(portal.systemConfig()) == address(systemConfig));
-        require(portal.paused() == true);
-
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
+
+        // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
+        // to check the `OptimismPortal` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.OptimismPortal = address(portal);
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: true });
+
+        require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
         addr_ = address(portal);
     }
 
     /// @notice Deploy the L2OutputOracle
     function deployL2OutputOracle() public broadcast returns (address addr_) {
+        console.log("Deploying L2OutputOracle implementation");
         L2OutputOracle oracle = new L2OutputOracle{ salt: _implSalt() }({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
@@ -432,42 +460,44 @@ contract Deploy is Deployer {
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
         });
 
-        require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
-        require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
-        require(oracle.l2BlockTime() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
-        require(oracle.proposer() == cfg.l2OutputOracleProposer());
-        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
-        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
-        require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
-        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
-        require(oracle.startingBlockNumber() == 0);
-        require(oracle.startingTimestamp() == 0);
-
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
+
+        // Override the `L2OutputOracle` contract to the deployed implementation. This is necessary
+        // to check the `L2OutputOracle` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L2OutputOracle = address(oracle);
+        ChainAssertions.checkL2OutputOracle(contracts, cfg, 0, 0);
+
+        require(loadInitializedSlot("L2OutputOracle", false) == 1, "L2OutputOracle is not initialized");
 
         addr_ = address(oracle);
     }
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
+        console.log("Deploying OptimismMintableERC20Factory implementation");
         address l1standardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         OptimismMintableERC20Factory factory =
             new OptimismMintableERC20Factory{ salt: _implSalt() }({_bridge: l1standardBridgeProxy});
 
-        require(factory.BRIDGE() == l1standardBridgeProxy);
-        require(factory.bridge() == l1standardBridgeProxy);
-
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
+
+        // Override the `OptimismMintableERC20Factory` contract to the deployed implementation. This is necessary
+        // to check the `OptimismMintableERC20Factory` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.OptimismMintableERC20Factory = address(factory);
+        ChainAssertions.checkOptimismMintableERC20Factory(contracts);
 
         addr_ = address(factory);
     }
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() public onlyDevnet broadcast returns (address addr_) {
+        console.log("Deploying DisputeGameFactory implementation");
         DisputeGameFactory factory = new DisputeGameFactory{ salt: _implSalt() }();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
@@ -477,6 +507,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the BlockOracle
     function deployBlockOracle() public onlyDevnet broadcast returns (address addr_) {
+        console.log("Deploying BlockOracle implementation");
         BlockOracle oracle = new BlockOracle{ salt: _implSalt() }();
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
@@ -486,15 +517,26 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the ProtocolVersions
     function deployProtocolVersions() public broadcast returns (address addr_) {
+        console.log("Deploying ProtocolVersions implementation");
         ProtocolVersions versions = new ProtocolVersions{ salt: _implSalt() }();
         save("ProtocolVersions", address(versions));
         console.log("ProtocolVersions deployed at %s", address(versions));
+
+        // Override the `ProtocolVersions` contract to the deployed implementation. This is necessary
+        // to check the `ProtocolVersions` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.ProtocolVersions = address(versions);
+        ChainAssertions.checkProtocolVersions({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        require(loadInitializedSlot("ProtocolVersions", false) == 1, "ProtocolVersions is not initialized");
 
         addr_ = address(versions);
     }
 
     /// @notice Deploy the PreimageOracle
     function deployPreimageOracle() public onlyDevnet broadcast returns (address addr_) {
+        console.log("Deploying PreimageOracle implementation");
         PreimageOracle preimageOracle = new PreimageOracle{ salt: _implSalt() }();
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
@@ -504,6 +546,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() public onlyDevnet broadcast returns (address addr_) {
+        console.log("Deploying Mips implementation");
         MIPS mips = new MIPS{ salt: _implSalt() }(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
@@ -513,6 +556,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
+        console.log("Deploying SystemConfig implementation");
         ResourceMetering.ResourceConfig memory defaultConfig = Constants.DEFAULT_RESOURCE_CONFIG();
         uint64 minimumGasLimit = uint64(defaultConfig.maxResourceLimit) + uint64(defaultConfig.systemTxMaxGas);
         SystemConfig config = new SystemConfig({
@@ -525,67 +569,68 @@ contract Deploy is Deployer {
             _config: defaultConfig
         });
 
-        require(config.owner() == address(0xdEaD));
-        require(config.overhead() == 0);
-        require(config.scalar() == 0);
-        require(config.unsafeBlockSigner() == address(0));
-        require(config.batcherHash() == bytes32(0));
-        require(config.gasLimit() == minimumGasLimit);
-
-        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == defaultConfig.maxResourceLimit);
-        require(resourceConfig.elasticityMultiplier == defaultConfig.elasticityMultiplier);
-        require(resourceConfig.baseFeeMaxChangeDenominator == defaultConfig.baseFeeMaxChangeDenominator);
-        require(resourceConfig.systemTxMaxGas == defaultConfig.systemTxMaxGas);
-        require(resourceConfig.minimumBaseFee == defaultConfig.minimumBaseFee);
-        require(resourceConfig.maximumBaseFee == defaultConfig.maximumBaseFee);
-
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
+
+        // Override the `SystemConfig` contract to the deployed implementation. This is necessary
+        // to check the `SystemConfig` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.SystemConfig = address(config);
+        ChainAssertions.checkSystemConfig({ _contracts: contracts, _cfg: cfg, _isProxy: false });
+
+        require(loadInitializedSlot("SystemConfig", false) == 1, "SystemConfig is not initialized");
 
         addr_ = address(config);
     }
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
+        console.log("Deploying L1StandardBridge implementation");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
         L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }({
             _messenger: payable(l1CrossDomainMessengerProxy)
         });
 
-        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
-        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
+
+        // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
+        // to check the `L1StandardBridge` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L1StandardBridge = address(bridge);
+        ChainAssertions.checkL1StandardBridge(contracts);
 
         addr_ = address(bridge);
     }
 
     /// @notice Deploy the L1ERC721Bridge
     function deployL1ERC721Bridge() public broadcast returns (address addr_) {
+        console.log("Deploying L1ERC721Bridge implementation");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({
             _messenger: l1CrossDomainMessengerProxy,
             _otherBridge: Predeploys.L2_ERC721_BRIDGE
         });
 
-        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
-        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
-        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
-        require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
-
         save("L1ERC721Bridge", address(bridge));
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
+
+        // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
+        // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L1ERC721Bridge = address(bridge);
+        ChainAssertions.checkL1ERC721Bridge(contracts);
 
         addr_ = address(bridge);
     }
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
     function transferAddressManagerOwnership() public broadcast {
+        console.log("Transferring AddressManager ownership to ProxyAdmin");
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         address owner = addressManager.owner();
         address proxyAdmin = mustGetAddress("ProxyAdmin");
@@ -603,6 +648,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() public onlyDevnet broadcast {
+        console.log("Upgrading and initializing DisputeGameFactory proxy");
         address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
         address disputeGameFactory = mustGetAddress("DisputeGameFactory");
 
@@ -618,6 +664,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the SystemConfig
     function initializeSystemConfig() public broadcast {
+        console.log("Upgrading and initializing SystemConfig proxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
 
@@ -644,11 +691,14 @@ contract Deploy is Deployer {
         string memory version = config.version();
         console.log("SystemConfig version: %s", version);
 
-        ChainAssertions.checkSystemConfig(_proxies(), cfg);
+        ChainAssertions.checkSystemConfig({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+
+        require(loadInitializedSlot("SystemConfig", true) == 1, "SystemConfigProxy is not initialized");
     }
 
     /// @notice Initialize the L1StandardBridge
     function initializeL1StandardBridge() public broadcast {
+        console.log("Upgrading and initializing L1StandardBridge proxy");
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
@@ -675,6 +725,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the L1ERC721Bridge
     function initializeL1ERC721Bridge() public broadcast {
+        console.log("Upgrading and initializing L1ERC721Bridge proxy");
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
@@ -693,6 +744,7 @@ contract Deploy is Deployer {
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
     function initializeOptimismMintableERC20Factory() public broadcast {
+        console.log("Upgrading and initializing OptimismMintableERC20Factory proxy");
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         address optimismMintableERC20FactoryProxy = mustGetAddress("OptimismMintableERC20FactoryProxy");
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
@@ -713,6 +765,7 @@ contract Deploy is Deployer {
 
     /// @notice initializeL1CrossDomainMessenger
     function initializeL1CrossDomainMessenger() public broadcast {
+        console.log("Upgrading and initializing L1CrossDomainMessenger proxy");
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
@@ -750,10 +803,15 @@ contract Deploy is Deployer {
         console.log("L1CrossDomainMessenger version: %s", version);
 
         ChainAssertions.checkL1CrossDomainMessenger(_proxies(), vm);
+
+        require(
+            loadInitializedSlot("L1CrossDomainMessenger", true) == 1, "L1CrossDomainMessengerProxy is not initialized"
+        );
     }
 
     /// @notice Initialize the L2OutputOracle
     function initializeL2OutputOracle() public broadcast {
+        console.log("Upgrading and initializing L2OutputOracle proxy");
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address l2OutputOracle = mustGetAddress("L2OutputOracle");
 
@@ -769,11 +827,19 @@ contract Deploy is Deployer {
         string memory version = oracle.version();
         console.log("L2OutputOracle version: %s", version);
 
-        ChainAssertions.checkL2OutputOracle(_proxies(), cfg, cfg.l2OutputOracleStartingTimestamp());
+        ChainAssertions.checkL2OutputOracle({
+            _contracts: _proxies(),
+            _cfg: cfg,
+            _l2OutputOracleStartingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
+            _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp()
+        });
+
+        require(loadInitializedSlot("L2OutputOracle", true) == 1, "L2OutputOracleProxy is not initialized");
     }
 
     /// @notice Initialize the OptimismPortal
     function initializeOptimismPortal() public broadcast {
+        console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
 
@@ -787,10 +853,13 @@ contract Deploy is Deployer {
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal(_proxies(), cfg);
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isPaused: false });
+
+        require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }
 
     function initializeProtocolVersions() public broadcast {
+        console.log("Upgrading and initializing ProtocolVersions proxy");
         address protocolVersionsProxy = mustGetAddress("ProtocolVersionsProxy");
         address protocolVersions = mustGetAddress("ProtocolVersions");
 
@@ -815,11 +884,14 @@ contract Deploy is Deployer {
         string memory version = versions.version();
         console.log("ProtocolVersions version: %s", version);
 
-        ChainAssertions.checkProtocolVersions(_proxies(), cfg);
+        ChainAssertions.checkProtocolVersions({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
+
+        require(loadInitializedSlot("ProtocolVersions", true) == 1, "ProtocolVersionsProxy is not initialized");
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
     function transferDisputeGameFactoryOwnership() public onlyDevnet broadcast {
+        console.log("Transferring DisputeGameFactory ownership to Safe");
         DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
         address owner = disputeGameFactory.owner();
 
@@ -832,6 +904,7 @@ contract Deploy is Deployer {
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
     function setCannonFaultGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Cannon FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         Claim mipsAbsolutePrestate;
@@ -866,6 +939,7 @@ contract Deploy is Deployer {
 
     /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
     function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         // Set the Alphabet FaultDisputeGame implementation in the factory.

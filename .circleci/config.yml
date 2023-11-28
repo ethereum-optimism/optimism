@@ -346,7 +346,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
+    resource_class: xlarge
     steps:
       - checkout
       - run:
@@ -378,7 +378,7 @@ jobs:
   contracts-bedrock-checks:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
+    resource_class: xlarge
     steps:
       - checkout
       - run:
@@ -433,6 +433,16 @@ jobs:
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: abi snapshot
+          command: |
+            pnpm abi-snapshot
+            if [ "$(git diff --exit-code snapshots)" ]; then
+              [ -z "$(git ls-files --others --exclude-standard snapshots)" ] || echo "export ABI_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            else
+              echo "export ABI_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            fi
+          working_directory: packages/contracts-bedrock
+      - run:
           name: check statuses
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
@@ -457,6 +467,10 @@ jobs:
             fi
             if [[ "$DEPLOY_CONFIGS_STATUS" -ne 0 ]]; then
               echo "Deploy config check failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$ABI_SNAPSHOT_STATUS" -ne 0 ]]; then
+              echo "ABI snapshot check failed, see job output for details."
               FAILED=1
             fi
             if [[ "$FAILED" -ne 0 ]]; then

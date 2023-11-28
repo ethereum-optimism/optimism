@@ -13,7 +13,7 @@ contract FeeVault_Test is Bridge_Initializer {
     function test_constructor_l1FeeVault_succeeds() external {
         assertEq(l1FeeVault.RECIPIENT(), cfg.l1FeeVaultRecipient());
         assertEq(l1FeeVault.MIN_WITHDRAWAL_AMOUNT(), cfg.l1FeeVaultMinimumWithdrawalAmount());
-        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(FeeVault.WithdrawalNetwork.L2));
+        assertEq(uint8(l1FeeVault.WITHDRAWAL_NETWORK()), uint8(FeeVault.WithdrawalNetwork.L1));
     }
 
     /// @dev Tests that the constructor sets the correct values.

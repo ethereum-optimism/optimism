@@ -61,7 +61,7 @@ type BridgeMessagesDB interface {
 	StoreL2BridgeMessages([]L2BridgeMessage) error
 	MarkRelayedL2BridgeMessage(common.Hash, uuid.UUID) error
 
-	StoreL2BridgeMessageV1MessageHash(common.Hash, common.Hash) error
+	StoreL2BridgeMessageV1MessageHashes([]L2BridgeMessageVersionedMessageHash) error
 }
 
 /**
@@ -141,15 +141,11 @@ func (db bridgeMessagesDB) StoreL2BridgeMessages(messages []L2BridgeMessage) err
 	return result.Error
 }
 
-func (db bridgeMessagesDB) StoreL2BridgeMessageV1MessageHash(msgHash, v1MsgHash common.Hash) error {
-	if msgHash == v1MsgHash {
-		return fmt.Errorf("message hash is equal to the v1 message: %s", msgHash)
-	}
-
+func (db bridgeMessagesDB) StoreL2BridgeMessageV1MessageHashes(versionedHashes []L2BridgeMessageVersionedMessageHash) error {
 	deduped := db.gorm.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "message_hash"}}, DoNothing: true})
-	result := deduped.Create(&L2BridgeMessageVersionedMessageHash{MessageHash: msgHash, V1MessageHash: v1MsgHash})
-	if result.Error == nil && int(result.RowsAffected) < 1 {
-		db.log.Warn("ignored L2 bridge v1 message hash duplicates")
+	result := deduped.Create(&versionedHashes)
+	if result.Error == nil && int(result.RowsAffected) < len(versionedHashes) {
+		db.log.Warn("ignored L2 bridge v1 message hash duplicates", "duplicates", len(versionedHashes)-int(result.RowsAffected))
 	}
 
 	return result.Error
