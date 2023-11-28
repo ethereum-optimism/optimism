@@ -67,6 +67,6 @@
     "label": "struct ResourceMetering.ResourceConfig",
     "offset": 0,
     "slot": "105",
-    "type": "t_struct(ResourceConfig)66236_storage"
+    "type": "t_struct(ResourceConfig)76300_storage"
   }
 ]
