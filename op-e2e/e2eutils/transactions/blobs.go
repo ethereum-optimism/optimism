@@ -10,7 +10,6 @@ import (
 )
 
 var (
-var (
 	emptyBlob          kzg4844.Blob
 	emptyBlobCommit    kzg4844.Commitment
 	emptyBlobProof     kzg4844.Proof
