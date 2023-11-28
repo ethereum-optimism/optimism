@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -76,7 +75,7 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 
 	create2Deployer := gen.Alloc[predeploys.Create2DeployerAddr]
 	codeHash := crypto.Keccak256Hash(create2Deployer.Code)
-	require.Equal(t, codeHash, immutables.Create2DeployerCodeHash)
+	require.Equal(t, codeHash, bindings.Create2DeployerCodeHash)
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")

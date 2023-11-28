@@ -749,6 +749,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		}{
 			Name: "EAS",
 		},
+		Create2Deployer: struct{}{},
 	}
 
 	if err := cfg.Check(); err != nil {

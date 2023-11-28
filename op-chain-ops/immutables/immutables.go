@@ -5,13 +5,11 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum-optimism/superchain-registry/superchain"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -69,9 +67,8 @@ type PredeploysImmutableConfig struct {
 	EAS            struct {
 		Name string
 	}
+	Create2Deployer struct{}
 }
-
-var Create2DeployerCodeHash = common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
 
 // Check will ensure that the required fields are set on the config.
 // An error returned by `GetImmutableReferences` means that the solc compiler
@@ -122,11 +119,11 @@ func (c *PredeploysImmutableConfig) ForEach(cb func(string, any) error) error {
 // contracts so that the immutables can be set properly in the bytecode.
 type DeploymentResults map[string]hexutil.Bytes
 
-// BuildOptimism will deploy L2 predeploys that include immutables. This is to prevent the need
+// Deploy will deploy L2 predeploys that include immutables. This is to prevent the need
 // for parsing the solc output to find the correct immutable offsets and splicing in the values.
 // Skip any predeploys that do not have immutables as their bytecode will be directly inserted
 // into the state. This does not currently support recursive structs.
-func BuildOptimism(config *PredeploysImmutableConfig) (DeploymentResults, error) {
+func Deploy(config *PredeploysImmutableConfig) (DeploymentResults, error) {
 	if err := config.Check(); err != nil {
 		return DeploymentResults{}, err
 	}
@@ -154,20 +151,18 @@ func BuildOptimism(config *PredeploysImmutableConfig) (DeploymentResults, error)
 
 		deployments = append(deployments, deployment)
 	}
-	superchainPredeploys := []deployer.SuperchainPredeploy{
-		{
-			Name:     "Create2Deployer",
-			CodeHash: Create2DeployerCodeHash,
-		},
+
+	results, err := deployContractsWithImmutables(deployments)
+	if err != nil {
+		return nil, fmt.Errorf("cannot deploy contracts with immutables: %w", err)
 	}
-	return BuildL2(deployments, superchainPredeploys)
+	return results, nil
 }
 
-// BuildL2 will deploy contracts to a simulated backend so that their immutables
+// deployContractsWithImmutables will deploy contracts to a simulated backend so that their immutables
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
-func BuildL2(constructors []deployer.Constructor, superchainPredeploys []deployer.SuperchainPredeploy) (DeploymentResults, error) {
-	log.Info("Creating L2 state")
+func deployContractsWithImmutables(constructors []deployer.Constructor) (DeploymentResults, error) {
 	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2ImmutableDeployer)
 	if err != nil {
 		return nil, err
@@ -175,13 +170,6 @@ func BuildL2(constructors []deployer.Constructor, superchainPredeploys []deploye
 	results := make(DeploymentResults)
 	for _, dep := range deployments {
 		results[dep.Name] = dep.Bytecode
-	}
-	for _, dep := range superchainPredeploys {
-		code, err := superchain.LoadContractBytecode(superchain.Hash(dep.CodeHash))
-		if err != nil {
-			return nil, err
-		}
-		results[dep.Name] = code
 	}
 	return results, nil
 }
@@ -270,6 +258,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 	return tx, err
 }
 
+// prepareFeeVaultArguments is a helper function that parses the arguments for the fee vault contracts.
 func prepareFeeVaultArguments(deployment deployer.Constructor) (common.Address, *big.Int, uint8, error) {
 	recipient, ok := deployment.Args[0].(common.Address)
 	if !ok {

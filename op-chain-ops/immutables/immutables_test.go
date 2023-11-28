@@ -84,10 +84,11 @@ func TestBuildOptimism(t *testing.T) {
 		EAS: struct{ Name string }{
 			Name: "EAS",
 		},
+		Create2Deployer: struct{}{},
 	}
 
 	require.NoError(t, cfg.Check())
-	results, err := immutables.BuildOptimism(&cfg)
+	results, err := immutables.Deploy(&cfg)
 	require.NoError(t, err)
 	require.NotNil(t, results)
 
@@ -112,7 +113,7 @@ func TestBuildOptimism(t *testing.T) {
 
 	// Ensure that the PredeploysImmutableConfig is kept up to date
 	for name := range predeploys.Predeploys {
-		require.True(t, all[name])
+		require.Truef(t, all[name], "predeploy %s not in set of predeploys", name)
 
 		ref, err := bindings.GetImmutableReferences(name)
 		// If there is predeploy config, there should be an immutable reference
