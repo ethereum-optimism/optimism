@@ -40,7 +40,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
                 initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, ()),
-                initializedSlotVal: loadInitializedSlot("L1CrossDomainMessenger", true)
+                initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessenger", true)
             })
         );
         // L2OutputOracle
@@ -48,7 +48,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(l2OutputOracle),
                 initCalldata: abi.encodeCall(l2OutputOracle.initialize, (0, 0)),
-                initializedSlotVal: loadInitializedSlot("L2OutputOracle", true)
+                initializedSlotVal: deploy.loadInitializedSlot("L2OutputOracle", true)
             })
         );
         // OptimismPortal
@@ -56,7 +56,7 @@ contract Initializer_Test is Bridge_Initializer {
             InitializeableContract({
                 target: address(optimismPortal),
                 initCalldata: abi.encodeCall(optimismPortal.initialize, (false)),
-                initializedSlotVal: loadInitializedSlot("OptimismPortal", true)
+                initializedSlotVal: deploy.loadInitializedSlot("OptimismPortal", true)
             })
         );
         // SystemConfig
@@ -82,7 +82,7 @@ contract Initializer_Test is Bridge_Initializer {
                         })
                     )
                     ),
-                initializedSlotVal: loadInitializedSlot("SystemConfig", true)
+                initializedSlotVal: deploy.loadInitializedSlot("SystemConfig", true)
             })
         );
         // ProtocolVersions
@@ -92,7 +92,7 @@ contract Initializer_Test is Bridge_Initializer {
                 initCalldata: abi.encodeCall(
                     protocolVersions.initialize, (address(0), ProtocolVersion.wrap(1), ProtocolVersion.wrap(2))
                     ),
-                initializedSlotVal: loadInitializedSlot("ProtocolVersions", true)
+                initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions", true)
             })
         );
     }
@@ -139,7 +139,7 @@ contract Initializer_Test is Bridge_Initializer {
 
         for (uint256 i; i < contractNames.length; i++) {
             string memory contractName = contractNames[i];
-            string memory contractAbi = getAbi(contractName);
+            string memory contractAbi = deploy.getAbi(contractName);
 
             // Query the contract's ABI for an `initialize()` function.
             command[2] = string.concat(
