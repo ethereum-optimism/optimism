@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 # Create a L2 genesis.json suitable for the solidity tests to
 # ingest using `vm.loadAllocs(string)`.
 # This script depends on the relative path to the op-node from
@@ -30,3 +32,16 @@ if [ ! -f "$OUTFILE_L2" ]; then
     --outfile.l2 "$OUTFILE_L2" \
     --outfile.rollup "$OUTFILE_ROLLUP" > /dev/null 2>&1
 fi
+
+# Wait for the L2 outfile to be over 8M for up to 2 seconds
+# This is a hack to ensure that the outfile is fully written
+# before the solidity tests try to read it
+for i in {1..8}; do
+  if [ $(du -m "$OUTFILE_L2" | cut -f1) -ge 8 ]; then
+    exit 0
+  fi
+  sleep 0.25
+done
+
+echo "L2 genesis file not generated in time. Exiting."
+exit 1
