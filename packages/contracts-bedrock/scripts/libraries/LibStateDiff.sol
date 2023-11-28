@@ -8,10 +8,6 @@ import { VmSafe } from "forge-std/Vm.sol";
 /// @author refcell
 /// @notice Library to write StateDiff output to json.
 library LibStateDiff {
-    VmSafe private constant vm = VmSafe(address(uint160(uint256(keccak256("hevm cheat code")))));
-
-    using stdJson for string;
-
     /// @notice Accepts an array of AccountAccess structs from the Vm and encodes them as a json string.
     /// @param _accountAccesses Array of AccountAccess structs.
     /// @return serialized_ string
@@ -23,8 +19,7 @@ library LibStateDiff {
         for (uint256 i = 0; i < _accountAccesses.length; i++) {
             accountAccesses[i] = serializeAccountAccess(_accountAccesses[i]);
         }
-        serialized_ = "";
-        serialized_.serialize("accountAccesses", accountAccesses);
+        serialized_ = stdJson.serialize("accountAccessElem", "accountAccesses", accountAccesses);
     }
 
     /// @notice Turns an AccountAccess into a json serialized string
@@ -34,26 +29,21 @@ library LibStateDiff {
         internal
         returns (string memory serialized_)
     {
-        string memory json = "access";
-
-        json.serialize("account", _accountAccess.account);
-        json.serialize("accessor", _accountAccess.accessor);
-        json.serialize("initialized", _accountAccess.initialized);
-        json.serialize("oldBalance", _accountAccess.oldBalance);
-        json.serialize("newBalance", _accountAccess.newBalance);
-        json.serialize("deployedCode", _accountAccess.deployedCode);
-        json.serialize("value", _accountAccess.value);
-        json.serialize("data", _accountAccess.data);
-        json.serialize("reverted", _accountAccess.reverted);
-
-        string memory chainInfo = serializeChainInfo(_accountAccess.chainInfo);
-        string memory accountAccessKind = serializeAccountAccessKind(_accountAccess.kind);
-        string memory storageAccesses = serializeStorageAccesses(_accountAccess.storageAccesses);
-
-        json = vm.serializeString(json, "chainInfo", chainInfo);
-        json = vm.serializeString(json, "kind", accountAccessKind);
-
-        json = vm.serializeString(json, "storageAccesses", storageAccesses);
+        string memory json = "";
+        json = stdJson.serialize("accountAccess", "chainInfo", serializeChainInfo(_accountAccess.chainInfo));
+        json = stdJson.serialize("accountAccess", "kind", serializeAccountAccessKind(_accountAccess.kind));
+        json = stdJson.serialize("accountAccess", "account", _accountAccess.account);
+        json = stdJson.serialize("accountAccess", "accessor", _accountAccess.accessor);
+        json = stdJson.serialize("accountAccess", "initialized", _accountAccess.initialized);
+        json = stdJson.serialize("accountAccess", "oldBalance", _accountAccess.oldBalance);
+        json = stdJson.serialize("accountAccess", "newBalance", _accountAccess.newBalance);
+        json = stdJson.serialize("accountAccess", "deployedCode", _accountAccess.deployedCode);
+        json = stdJson.serialize("accountAccess", "value", _accountAccess.value);
+        json = stdJson.serialize("accountAccess", "data", _accountAccess.data);
+        json = stdJson.serialize("accountAccess", "reverted", _accountAccess.reverted);
+        json = stdJson.serialize(
+            "accountAccess", "storageAccesses", serializeStorageAccesses(_accountAccess.storageAccesses)
+        );
         serialized_ = json;
     }
 
@@ -61,9 +51,9 @@ library LibStateDiff {
     /// @param _chainInfo The ChainInfo struct to serialize
     /// @return serialized_ string
     function serializeChainInfo(VmSafe.ChainInfo memory _chainInfo) internal returns (string memory serialized_) {
-        string memory json = "chainInfo";
-        json.serialize("forkId", _chainInfo.forkId);
-        json.serialize("chainId", _chainInfo.chainId);
+        string memory json = "";
+        json = stdJson.serialize("chainInfo", "forkId", _chainInfo.forkId);
+        json = stdJson.serialize("chainInfo", "chainId", _chainInfo.chainId);
         serialized_ = json;
     }
 
@@ -94,17 +84,15 @@ library LibStateDiff {
 
     /// @notice Accepts an array of StorageAccess structs from the Vm and encodes each as a json string.
     /// @param _storageAccesses Array of StorageAccess structs.
-    /// @return serialized_ json serialized StorageAccess structs.
+    /// @return serialized_ The list of json serialized StorageAccess structs.
     function serializeStorageAccesses(VmSafe.StorageAccess[] memory _storageAccesses)
         internal
-        returns (string memory serialized_)
+        returns (string[] memory serialized_)
     {
-        string[] memory storageAccesses = new string[](_storageAccesses.length);
+        serialized_ = new string[](_storageAccesses.length);
         for (uint256 i = 0; i < _storageAccesses.length; i++) {
-            storageAccesses[i] = serializeStorageAccess(_storageAccesses[i]);
+            serialized_[i] = serializeStorageAccess(_storageAccesses[i]);
         }
-        serialized_ = "storageAccesses";
-        serialized_.serialize("storageAccesses", storageAccesses);
     }
 
     /// @notice Turns a StorageAccess into a json serialized string
@@ -114,13 +102,13 @@ library LibStateDiff {
         internal
         returns (string memory serialized_)
     {
-        string memory json = "storageAccess";
-        json.serialize("account", _storageAccess.account);
-        json.serialize("slot", _storageAccess.slot);
-        json.serialize("isWrite", _storageAccess.isWrite);
-        json.serialize("previousValue", _storageAccess.previousValue);
-        json.serialize("newValue", _storageAccess.newValue);
-        json.serialize("reverted", _storageAccess.reverted);
+        string memory json = "";
+        json = stdJson.serialize("storageAccess", "account", _storageAccess.account);
+        json = stdJson.serialize("storageAccess", "slot", _storageAccess.slot);
+        json = stdJson.serialize("storageAccess", "isWrite", _storageAccess.isWrite);
+        json = stdJson.serialize("storageAccess", "previousValue", _storageAccess.previousValue);
+        json = stdJson.serialize("storageAccess", "newValue", _storageAccess.newValue);
+        json = stdJson.serialize("storageAccess", "reverted", _storageAccess.reverted);
         serialized_ = json;
     }
 }
