@@ -1356,7 +1356,7 @@ jobs:
       - run:
           name: "Start Docker Container"
           command: |
-            export KONTROL_VERSION=$(cat deps/kontrol_release)
+            export KONTROL_VERSION=$(cat ../../.kontrolrc)
             docker run --name optimism-ci \
                     --rm \
                     -v $(pwd)/kout/proofs:/home/user/workspace/packages/contracts-bedrock/kout/proofs/ \
