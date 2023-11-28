@@ -5,6 +5,7 @@ cache
 broadcast
 typechain
 kout
+test/kontrol/kontrol/logs
 
 # Metrics
 coverage.out

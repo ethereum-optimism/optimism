@@ -5,8 +5,12 @@ set -euxo pipefail
 export FOUNDRY_PROFILE=kontrol
 
 # Create a log file to store standard out and standard error
+LOG_DIRECTORY="test/kontrol/kontrol/logs"
+if [ ! -d $LOG_DIRECTORY ] ; then
+  mkdir $LOG_DIRECTORY
+fi
 LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-exec > >(tee -i $LOG_FILE)
+exec > >(tee -i $LOG_DIRECTORY/$LOG_FILE)
 exec 2>&1
 
 kontrol_build() {
