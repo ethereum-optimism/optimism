@@ -4,6 +4,7 @@ forge-artifacts
 cache
 broadcast
 typechain
+kout
 
 # Metrics
 coverage.out
