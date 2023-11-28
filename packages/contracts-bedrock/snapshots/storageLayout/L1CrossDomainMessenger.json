@@ -117,5 +117,12 @@
     "offset": 0,
     "slot": "207",
     "type": "t_array(t_uint256)42_storage"
+  },
+  {
+    "bytes": "20",
+    "label": "contract SuperchainConfig",
+    "offset": 0,
+    "slot": "249",
+    "type": "t_contract(SuperchainConfig)67320"
   }
 ]
