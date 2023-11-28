@@ -69,18 +69,12 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.4.1
-    string public constant version = "1.4.1";
+    /// @custom:semver 1.5.0
+    string public constant version = "1.5.0";
 
     /// @notice Constructs the L1StandardBridge contract.
-    constructor() StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))) {
-        initialize({ _messenger: CrossDomainMessenger(address(0)) });
-    }
-
-    /// @notice Initializer
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(Constants.INITIALIZER) {
-        __StandardBridge_init({ _messenger: _messenger });
-    }
+    /// @param _messenger Address of the L1CrossDomainMessenger.
+    constructor(address payable _messenger) StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE)) { }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {

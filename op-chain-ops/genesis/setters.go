@@ -55,8 +55,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 }
 
 // SetPrecompileBalances will set a single wei at each precompile address.
-// This is an optimization to make calling them cheaper. This should only
-// be used for devnets.
+// This is an optimization to make calling them cheaper.
 func SetPrecompileBalances(db vm.StateDB) {
 	for i := 0; i < PrecompileCount; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})

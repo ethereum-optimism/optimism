@@ -290,7 +290,8 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	t.Log("Shutting down network")
 	// Shutdown the nodes from the actual chain. Should now be able to run using only the pre-fetched data.
 	require.NoError(t, sys.BatchSubmitter.Kill())
-	sys.L2OutputSubmitter.Stop()
+	err = sys.L2OutputSubmitter.Driver().StopL2OutputSubmitting()
+	require.NoError(t, err)
 	sys.L2OutputSubmitter = nil
 	for _, node := range sys.EthInstances {
 		node.Close()

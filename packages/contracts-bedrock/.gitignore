@@ -3,13 +3,15 @@ artifacts
 forge-artifacts
 cache
 broadcast
-typechain
 kout
 test/kontrol/kontrol/logs
 
 # Metrics
 coverage.out
 .resource-metering.csv
+
+# Testing State
+.testdata
 
 # Scripts
 scripts/go-ffi/go-ffi

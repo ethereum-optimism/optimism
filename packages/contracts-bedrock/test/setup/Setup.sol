@@ -28,13 +28,20 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
+import { Executables } from "scripts/Executables.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title Setup
 /// @dev This contact is responsible for setting up the contracts in state. It currently
 ///      sets the L2 contracts directly at the predeploy addresses instead of setting them
 ///      up behind proxies. In the future we will migrate to importing the genesis JSON
 ///      file that is created to set up the L2 contracts instead of setting them up manually.
-contract Setup is Deploy {
+contract Setup {
+    Vm private constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
+
+    Deploy internal deploy;
+
     OptimismPortal optimismPortal;
     L2OutputOracle l2OutputOracle;
     SystemConfig systemConfig;
@@ -44,6 +51,7 @@ contract Setup is Deploy {
     L1ERC721Bridge l1ERC721Bridge;
     OptimismMintableERC20Factory l1OptimismMintableERC20Factory;
     ProtocolVersions protocolVersions;
+    SuperchainConfig superchainConfig;
 
     L2CrossDomainMessenger l2CrossDomainMessenger =
         L2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
@@ -61,8 +69,23 @@ contract Setup is Deploy {
     GovernanceToken governanceToken = GovernanceToken(Predeploys.GOVERNANCE_TOKEN);
     LegacyERC20ETH legacyERC20ETH = LegacyERC20ETH(Predeploys.LEGACY_ERC20_ETH);
 
-    function setUp() public virtual override {
-        Deploy.setUp();
+    /// @dev Deploys the Deploy contract without including its bytecode in the bytecode
+    ///      of this contract by fetching the bytecode dynamically using `vm.getCode()`.
+    ///      If the Deploy bytecode is included in this contract, then it will double
+    ///      the compile time and bloat all of the test contract artifacts since they
+    ///      will also need to include the bytecode for the Deploy contract.
+    ///      This is a hack as we are pushing solidity to the edge.
+    function setUp() public virtual {
+        deploy = Deploy(_create(vm.getCode("Deploy.s.sol:Deploy")));
+        deploy.setUp();
+    }
+
+    /// @dev Simple wrapper around the `create` opcode
+    function _create(bytes memory _code) internal returns (address addr_) {
+        assembly {
+            addr_ := create(0, add(_code, 0x20), mload(_code))
+        }
+        require(addr_ != address(0), "Setup: cannot create");
     }
 
     /// @dev Sets up the L1 contracts.
@@ -73,99 +96,52 @@ contract Setup is Deploy {
             hex"7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe03601600081602082378035828234f58015156039578182fd5b8082525050506014600cf3"
         );
 
-        Deploy.run();
+        deploy.run();
 
-        optimismPortal = OptimismPortal(mustGetAddress("OptimismPortalProxy"));
-        l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
-        systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
-        l1StandardBridge = L1StandardBridge(mustGetAddress("L1StandardBridgeProxy"));
-        l1CrossDomainMessenger = L1CrossDomainMessenger(mustGetAddress("L1CrossDomainMessengerProxy"));
-        addressManager = AddressManager(mustGetAddress("AddressManager"));
-        l1ERC721Bridge = L1ERC721Bridge(mustGetAddress("L1ERC721BridgeProxy"));
+        optimismPortal = OptimismPortal(deploy.mustGetAddress("OptimismPortalProxy"));
+        l2OutputOracle = L2OutputOracle(deploy.mustGetAddress("L2OutputOracleProxy"));
+        systemConfig = SystemConfig(deploy.mustGetAddress("SystemConfigProxy"));
+        l1StandardBridge = L1StandardBridge(deploy.mustGetAddress("L1StandardBridgeProxy"));
+        l1CrossDomainMessenger = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessengerProxy"));
+        addressManager = AddressManager(deploy.mustGetAddress("AddressManager"));
+        l1ERC721Bridge = L1ERC721Bridge(deploy.mustGetAddress("L1ERC721BridgeProxy"));
         l1OptimismMintableERC20Factory =
-            OptimismMintableERC20Factory(mustGetAddress("OptimismMintableERC20FactoryProxy"));
-        protocolVersions = ProtocolVersions(mustGetAddress("ProtocolVersionsProxy"));
+            OptimismMintableERC20Factory(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"));
+        protocolVersions = ProtocolVersions(deploy.mustGetAddress("ProtocolVersionsProxy"));
+        superchainConfig = SuperchainConfig(deploy.mustGetAddress("SuperchainConfigProxy"));
 
         vm.label(address(l2OutputOracle), "L2OutputOracle");
-        vm.label(mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
+        vm.label(deploy.mustGetAddress("L2OutputOracleProxy"), "L2OutputOracleProxy");
         vm.label(address(optimismPortal), "OptimismPortal");
-        vm.label(mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
+        vm.label(deploy.mustGetAddress("OptimismPortalProxy"), "OptimismPortalProxy");
         vm.label(address(systemConfig), "SystemConfig");
-        vm.label(mustGetAddress("SystemConfigProxy"), "SystemConfigProxy");
+        vm.label(deploy.mustGetAddress("SystemConfigProxy"), "SystemConfigProxy");
         vm.label(address(l1StandardBridge), "L1StandardBridge");
-        vm.label(mustGetAddress("L1StandardBridgeProxy"), "L1StandardBridgeProxy");
+        vm.label(deploy.mustGetAddress("L1StandardBridgeProxy"), "L1StandardBridgeProxy");
         vm.label(address(l1CrossDomainMessenger), "L1CrossDomainMessenger");
-        vm.label(mustGetAddress("L1CrossDomainMessengerProxy"), "L1CrossDomainMessengerProxy");
+        vm.label(deploy.mustGetAddress("L1CrossDomainMessengerProxy"), "L1CrossDomainMessengerProxy");
         vm.label(address(addressManager), "AddressManager");
         vm.label(address(l1ERC721Bridge), "L1ERC721Bridge");
-        vm.label(mustGetAddress("L1ERC721BridgeProxy"), "L1ERC721BridgeProxy");
+        vm.label(deploy.mustGetAddress("L1ERC721BridgeProxy"), "L1ERC721BridgeProxy");
         vm.label(address(l1OptimismMintableERC20Factory), "OptimismMintableERC20Factory");
-        vm.label(mustGetAddress("OptimismMintableERC20FactoryProxy"), "OptimismMintableERC20FactoryProxy");
+        vm.label(deploy.mustGetAddress("OptimismMintableERC20FactoryProxy"), "OptimismMintableERC20FactoryProxy");
         vm.label(address(protocolVersions), "ProtocolVersions");
-        vm.label(mustGetAddress("ProtocolVersionsProxy"), "ProtocolVersionsProxy");
+        vm.label(deploy.mustGetAddress("ProtocolVersionsProxy"), "ProtocolVersionsProxy");
+        vm.label(address(superchainConfig), "SuperchainConfig");
+        vm.label(deploy.mustGetAddress("SuperchainConfigProxy"), "SuperchainConfigProxy");
         vm.label(AddressAliasHelper.applyL1ToL2Alias(address(l1CrossDomainMessenger)), "L1CrossDomainMessenger_aliased");
     }
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2(DeployConfig cfg) public {
-        // Set up L2. There are currently no proxies set in the L2 initialization.
-        vm.etch(
-            address(l2CrossDomainMessenger), address(new L2CrossDomainMessenger(address(l1CrossDomainMessenger))).code
-        );
-        l2CrossDomainMessenger.initialize();
+        string[] memory args = new string[](3);
+        args[0] = Executables.bash;
+        args[1] = "-c";
+        args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
+        vm.ffi(args);
 
-        vm.etch(address(l2ToL1MessagePasser), address(new L2ToL1MessagePasser()).code);
-
-        vm.etch(
-            address(l2StandardBridge), address(new L2StandardBridge(StandardBridge(payable(l1StandardBridge)))).code
-        );
-        l2StandardBridge.initialize();
-
-        vm.etch(address(l2OptimismMintableERC20Factory), address(new OptimismMintableERC20Factory()).code);
-        l2OptimismMintableERC20Factory.initialize(address(l2StandardBridge));
-
-        vm.etch(address(legacyERC20ETH), address(new LegacyERC20ETH()).code);
-
-        vm.etch(address(l2ERC721Bridge), address(new L2ERC721Bridge(address(l1ERC721Bridge))).code);
-        l2ERC721Bridge.initialize();
-
-        vm.etch(
-            address(sequencerFeeVault),
-            address(
-                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
-            ).code
-        );
-        vm.etch(
-            address(baseFeeVault),
-            address(
-                new BaseFeeVault(cfg.baseFeeVaultRecipient(), cfg.baseFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
-            ).code
-        );
-        vm.etch(
-            address(l1FeeVault),
-            address(
-                new L1FeeVault(cfg.l1FeeVaultRecipient(), cfg.l1FeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
-            ).code
-        );
-
-        vm.etch(address(l1Block), address(new L1Block()).code);
-
-        vm.etch(address(gasPriceOracle), address(new GasPriceOracle()).code);
-
-        vm.etch(address(legacyMessagePasser), address(new LegacyMessagePasser()).code);
-
-        vm.etch(address(governanceToken), address(new GovernanceToken()).code);
-        // Set the ERC20 token name and symbol
-        vm.store(
-            address(governanceToken),
-            bytes32(uint256(3)),
-            bytes32(0x4f7074696d69736d000000000000000000000000000000000000000000000010)
-        );
-        vm.store(
-            address(governanceToken),
-            bytes32(uint256(4)),
-            bytes32(0x4f50000000000000000000000000000000000000000000000000000000000004)
-        );
+        string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
+        vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner
         address finalSystemOwner = cfg.finalSystemOwner();
@@ -185,5 +161,7 @@ contract Setup is Deploy {
         vm.label(Predeploys.GAS_PRICE_ORACLE, "GasPriceOracle");
         vm.label(Predeploys.LEGACY_MESSAGE_PASSER, "LegacyMessagePasser");
         vm.label(Predeploys.GOVERNANCE_TOKEN, "GovernanceToken");
+        vm.label(Predeploys.EAS, "EAS");
+        vm.label(Predeploys.SCHEMA_REGISTRY, "SchemaRegistry");
     }
 }

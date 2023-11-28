@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "20",
+    "label": "address",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_address"
+  },
+  {
+    "bytes": "32",
+    "label": "mapping(string => struct Drippie.DripState)",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_mapping(t_string_memory_ptr,t_struct(DripState)89118_storage)"
+  }
+]

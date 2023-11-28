@@ -115,8 +115,7 @@ func setupTestAgent(t *testing.T, agreeWithProposedOutput bool) (*Agent, *stubCl
 	depth := 4
 	provider := alphabet.NewTraceProvider("abcd", uint64(depth))
 	responder := &stubResponder{}
-	updater := &stubUpdater{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, updater, agreeWithProposedOutput, logger)
+	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, agreeWithProposedOutput, logger)
 	return agent, claimLoader, responder
 }
 
@@ -165,11 +164,4 @@ func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error
 
 func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
 	return nil
-}
-
-type stubUpdater struct {
-}
-
-func (s *stubUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOracleData) error {
-	panic("Not implemented")
 }

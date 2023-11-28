@@ -5,6 +5,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "test/setup/CommonTest.sol";
 import { Reverter } from "test/mocks/Callers.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { EIP1967Helper } from "test/mocks/EIP1967Helper.sol";
 
 // Libraries
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -17,16 +18,16 @@ import { SequencerFeeVault } from "src/L2/SequencerFeeVault.sol";
 
 contract SequencerFeeVault_Test is CommonTest {
     address recipient;
-    /// @dev Sets up the test suite.
 
+    /// @dev Sets up the test suite.
     function setUp() public override {
         super.setUp();
-        recipient = cfg.sequencerFeeVaultRecipient();
+        recipient = deploy.cfg().sequencerFeeVaultRecipient();
     }
 
     /// @dev Tests that the minimum withdrawal amount is correct.
     function test_minWithdrawalAmount_succeeds() external {
-        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), cfg.sequencerFeeVaultMinimumWithdrawalAmount());
+        assertEq(sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount());
     }
 
     /// @dev Tests that the l1 fee wallet is correct.
@@ -56,23 +57,15 @@ contract SequencerFeeVault_Test is CommonTest {
 
     /// @dev Tests that `withdraw` successfully initiates a withdrawal to L1.
     function test_withdraw_toL1_succeeds() external {
-        // Set the code with the withdrawal network set to L1
-        vm.etch(
-            Predeploys.SEQUENCER_FEE_WALLET,
-            address(
-                new SequencerFeeVault(cfg.sequencerFeeVaultRecipient(), cfg.sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L1)
-            ).code
-        );
-
         uint256 amount = sequencerFeeVault.MIN_WITHDRAWAL_AMOUNT() + 1;
         vm.deal(address(sequencerFeeVault), amount);
 
         // No ether has been withdrawn yet
         assertEq(sequencerFeeVault.totalProcessed(), 0);
 
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(
             address(sequencerFeeVault).balance,
             sequencerFeeVault.RECIPIENT(),
@@ -99,12 +92,22 @@ contract SequencerFeeVault_Test is CommonTest {
 }
 
 contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
+    /// @dev a cache for the config fee recipient
     address recipient;
-    /// @dev Sets up the test suite.
 
+    /// @dev Sets up the test suite.
     function setUp() public override {
         super.setUp();
-        recipient = cfg.sequencerFeeVaultRecipient();
+
+        // Alter the deployment to use WithdrawalNetwork.L2
+        vm.etch(
+            EIP1967Helper.getImplementation(Predeploys.SEQUENCER_FEE_WALLET),
+            address(
+                new SequencerFeeVault(deploy.cfg().sequencerFeeVaultRecipient(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
+            ).code
+        );
+
+        recipient = deploy.cfg().sequencerFeeVaultRecipient();
     }
 
     /// @dev Tests that `withdraw` successfully initiates a withdrawal to L2.
@@ -115,9 +118,9 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         // No ether has been withdrawn yet
         assertEq(sequencerFeeVault.totalProcessed(), 0);
 
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(sequencerFeeVault).balance, sequencerFeeVault.RECIPIENT(), address(this));
-        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
+        vm.expectEmit(address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(
             address(sequencerFeeVault).balance,
             sequencerFeeVault.RECIPIENT(),

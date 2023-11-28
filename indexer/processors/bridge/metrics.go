@@ -25,6 +25,10 @@ type L1Metricer interface {
 	RecordL1CrossDomainSentMessages(size int)
 	RecordL1CrossDomainRelayedMessages(size int)
 
+	RecordL1SkippedOVM1ProvenWithdrawals(size int)
+	RecordL1SkippedOVM1FinalizedWithdrawals(size int)
+	RecordL1SkippedOVM1CrossDomainRelayedMessages(size int)
+
 	RecordL1InitiatedBridgeTransfers(token common.Address, size int)
 	RecordL1FinalizedBridgeTransfers(token common.Address, size int)
 }
@@ -56,14 +60,18 @@ type bridgeMetrics struct {
 	intervalFailures *prometheus.CounterVec
 
 	txDeposits           prometheus.Counter
-	txMintedETH          prometheus.Counter
 	txWithdrawals        prometheus.Counter
-	txWithdrawnETH       prometheus.Counter
 	provenWithdrawals    prometheus.Counter
 	finalizedWithdrawals prometheus.Counter
 
+	txMintedETH    prometheus.Counter
+	txWithdrawnETH prometheus.Counter
+
 	sentMessages    *prometheus.CounterVec
 	relayedMessages *prometheus.CounterVec
+
+	skippedOVM1Withdrawals     *prometheus.CounterVec
+	skippedOVM1RelayedMessages prometheus.Counter
 
 	initiatedBridgeTransfers *prometheus.CounterVec
 	finalizedBridgeTransfers *prometheus.CounterVec
@@ -95,7 +103,6 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		}),
 		latestHeight: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
-			Subsystem: "l1",
 			Name:      "height",
 			Help:      "the latest processed l1 block height",
 		}, []string{
@@ -115,7 +122,7 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		txWithdrawals: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "tx_withdrawals",
-			Help:      "number of processed transactions withdrawn from l2",
+			Help:      "number of initiated transaction withdrawals from l2",
 		}),
 		txWithdrawnETH: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
@@ -145,6 +152,18 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 			Help:      "number of relayed messages between l1 and l2",
 		}, []string{
 			"chain",
+		}),
+		skippedOVM1Withdrawals: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "skipped_ovm1_withdrawals",
+			Help:      "number of skipped ovm 1.0 withdrawals on l1 (proven|finalized)",
+		}, []string{
+			"stage",
+		}),
+		skippedOVM1RelayedMessages: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "skipped_ovm1_relayed_messages",
+			Help:      "number of skipped ovm 1.0 relayed messages on l1",
 		}),
 		initiatedBridgeTransfers: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
@@ -205,6 +224,18 @@ func (m *bridgeMetrics) RecordL1CrossDomainSentMessages(size int) {
 
 func (m *bridgeMetrics) RecordL1CrossDomainRelayedMessages(size int) {
 	m.relayedMessages.WithLabelValues("l1").Add(float64(size))
+}
+
+func (m *bridgeMetrics) RecordL1SkippedOVM1ProvenWithdrawals(size int) {
+	m.skippedOVM1Withdrawals.WithLabelValues("stage", "proven").Add(float64(size))
+}
+
+func (m *bridgeMetrics) RecordL1SkippedOVM1FinalizedWithdrawals(size int) {
+	m.skippedOVM1Withdrawals.WithLabelValues("stage", "finalized").Add(float64(size))
+}
+
+func (m *bridgeMetrics) RecordL1SkippedOVM1CrossDomainRelayedMessages(size int) {
+	m.skippedOVM1RelayedMessages.Add(float64(size))
 }
 
 func (m *bridgeMetrics) RecordL1InitiatedBridgeTransfers(tokenAddr common.Address, size int) {

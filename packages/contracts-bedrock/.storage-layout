@@ -25,7 +25,6 @@
 | msgNonce           | uint240                  | 205  | 0      | 30    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | failedMessages     | mapping(bytes32 => bool) | 206  | 0      | 32    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | __gap              | uint256[42]              | 207  | 0      | 1344  | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| PORTAL             | contract OptimismPortal  | 249  | 0      | 20    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 
 =======================
 ➡ src/L1/L1StandardBridge.sol:L1StandardBridge
@@ -33,13 +32,10 @@
 
 | Name          | Type                                            | Slot | Offset | Bytes | Contract                                     |
 |---------------|-------------------------------------------------|------|--------|-------|----------------------------------------------|
-| _initialized  | uint8                                           | 0    | 0      | 1     | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| _initializing | bool                                            | 0    | 1      | 1     | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| spacer_0_0_20 | address                                         | 0    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| messenger     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| __gap         | uint256[46]                                     | 4    | 0      | 1472  | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| __gap         | uint256[47]                                     | 3    | 0      | 1504  | src/L1/L1StandardBridge.sol:L1StandardBridge |
 
 =======================
 ➡ src/L1/L2OutputOracle.sol:L2OutputOracle
@@ -52,8 +48,6 @@
 | startingBlockNumber | uint256                       | 1    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 | startingTimestamp   | uint256                       | 2    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 | l2Outputs           | struct Types.OutputProposal[] | 3    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
-| challenger          | address                       | 4    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
-| proposer            | address                       | 5    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 
 =======================
 ➡ src/L1/OptimismPortal.sol:OptimismPortal
@@ -69,9 +63,6 @@
 | finalizedWithdrawals | mapping(bytes32 => bool)                                   | 51   | 0      | 32    | src/L1/OptimismPortal.sol:OptimismPortal |
 | provenWithdrawals    | mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal) | 52   | 0      | 32    | src/L1/OptimismPortal.sol:OptimismPortal |
 | paused               | bool                                                       | 53   | 0      | 1     | src/L1/OptimismPortal.sol:OptimismPortal |
-| l2Oracle             | contract L2OutputOracle                                    | 53   | 1      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
-| systemConfig         | contract SystemConfig                                      | 54   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
-| guardian             | address                                                    | 55   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 
 =======================
 ➡ src/L1/SystemConfig.sol:SystemConfig
@@ -89,19 +80,15 @@
 | batcherHash     | bytes32                                | 103  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 | gasLimit        | uint64                                 | 104  | 0      | 8     | src/L1/SystemConfig.sol:SystemConfig |
 | _resourceConfig | struct ResourceMetering.ResourceConfig | 105  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
-| startBlock      | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 
 =======================
 ➡ src/L1/L1ERC721Bridge.sol:L1ERC721Bridge
 =======================
 
-| Name          | Type                                                             | Slot | Offset | Bytes | Contract                                 |
-|---------------|------------------------------------------------------------------|------|--------|-------|------------------------------------------|
-| _initialized  | uint8                                                            | 0    | 0      | 1     | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
-| _initializing | bool                                                             | 0    | 1      | 1     | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
-| messenger     | contract CrossDomainMessenger                                    | 0    | 2      | 20    | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
-| __gap         | uint256[48]                                                      | 1    | 0      | 1536  | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
-| deposits      | mapping(address => mapping(address => mapping(uint256 => bool))) | 49   | 0      | 32    | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+| Name     | Type                                                             | Slot | Offset | Bytes | Contract                                 |
+|----------|------------------------------------------------------------------|------|--------|-------|------------------------------------------|
+| __gap    | uint256[49]                                                      | 0    | 0      | 1568  | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
+| deposits | mapping(address => mapping(address => mapping(uint256 => bool))) | 49   | 0      | 32    | src/L1/L1ERC721Bridge.sol:L1ERC721Bridge |
 
 =======================
 ➡ src/legacy/DeployerWhitelist.sol:DeployerWhitelist
@@ -164,13 +151,10 @@
 
 | Name          | Type                                            | Slot | Offset | Bytes | Contract                                     |
 |---------------|-------------------------------------------------|------|--------|-------|----------------------------------------------|
-| _initialized  | uint8                                           | 0    | 0      | 1     | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| _initializing | bool                                            | 0    | 1      | 1     | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| spacer_0_0_20 | address                                         | 0    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| messenger     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| __gap         | uint256[46]                                     | 4    | 0      | 1472  | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| __gap         | uint256[47]                                     | 3    | 0      | 1504  | src/L2/L2StandardBridge.sol:L2StandardBridge |
 
 =======================
 ➡ src/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser
@@ -221,12 +205,9 @@
 ➡ src/L2/L2ERC721Bridge.sol:L2ERC721Bridge
 =======================
 
-| Name          | Type                          | Slot | Offset | Bytes | Contract                                 |
-|---------------|-------------------------------|------|--------|-------|------------------------------------------|
-| _initialized  | uint8                         | 0    | 0      | 1     | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
-| _initializing | bool                          | 0    | 1      | 1     | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
-| messenger     | contract CrossDomainMessenger | 0    | 2      | 20    | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
-| __gap         | uint256[48]                   | 1    | 0      | 1536  | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
+| Name  | Type        | Slot | Offset | Bytes | Contract                                 |
+|-------|-------------|------|--------|-------|------------------------------------------|
+| __gap | uint256[49] | 0    | 0      | 1568  | src/L2/L2ERC721Bridge.sol:L2ERC721Bridge |
 
 =======================
 ➡ src/vendor/WETH9.sol:WETH9
@@ -282,11 +263,8 @@
 ➡ src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory
 =======================
 
-| Name          | Type    | Slot | Offset | Bytes | Contract                                                                    |
-|---------------|---------|------|--------|-------|-----------------------------------------------------------------------------|
-| _initialized  | uint8   | 0    | 0      | 1     | src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory |
-| _initializing | bool    | 0    | 1      | 1     | src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory |
-| bridge        | address | 0    | 2      | 20    | src/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory |
+| Name | Type | Slot | Offset | Bytes | Contract |
+|------|------|------|--------|-------|----------|
 
 =======================
 ➡ src/dispute/DisputeGameFactory.sol:DisputeGameFactory

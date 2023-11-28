@@ -1,8 +1,9 @@
 package metrics
 
 import (
-	"context"
+	"io"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,8 +20,13 @@ type Metricer interface {
 	RecordInfo(version string)
 	RecordUp()
 
+	StartBalanceMetrics(l log.Logger, client *ethclient.Client, account common.Address) io.Closer
+
 	// Record Tx metrics
 	txmetrics.TxMetricer
+
+	// Record cache metrics
+	caching.Metrics
 
 	RecordGameStep()
 	RecordGameMove()
@@ -43,6 +49,8 @@ type Metrics struct {
 	factory  opmetrics.Factory
 
 	txmetrics.TxMetrics
+
+	*opmetrics.CacheMetrics
 
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
@@ -70,6 +78,8 @@ func NewMetrics() *Metrics {
 		factory:  factory,
 
 		TxMetrics: txmetrics.MakeTxMetrics(Namespace, factory),
+
+		CacheMetrics: opmetrics.NewCacheMetrics(factory, Namespace, "provider_cache", "Provider cache"),
 
 		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: Namespace,
@@ -128,17 +138,11 @@ func (m *Metrics) Start(host string, port int) (*httputil.HTTPServer, error) {
 }
 
 func (m *Metrics) StartBalanceMetrics(
-	ctx context.Context,
 	l log.Logger,
 	client *ethclient.Client,
 	account common.Address,
-) {
-	// TODO(7684): util was refactored to close, but ctx is still being used by caller for shutdown
-	balanceMetric := opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
-	go func() {
-		<-ctx.Done()
-		_ = balanceMetric.Close()
-	}()
+) io.Closer {
+	return opmetrics.LaunchBalanceMetrics(l, m.registry, m.ns, client, account)
 }
 
 // RecordInfo sets a pseudo-metric that contains versioning and

@@ -27,6 +27,8 @@ const (
 	methodAttack           = "attack"
 	methodDefend           = "defend"
 	methodStep             = "step"
+	methodAddLocalData     = "addLocalData"
+	methodVM               = "VM"
 )
 
 type FaultDisputeGameContract struct {
@@ -34,10 +36,25 @@ type FaultDisputeGameContract struct {
 	contract    *batching.BoundContract
 }
 
-type Proposal struct {
+// contractProposal matches the structure for output root proposals used by the contracts.
+// It must exactly match the contract structure. The exposed API uses Proposal to decouple the contract
+// and challenger representations of the proposal data.
+type contractProposal struct {
 	Index         *big.Int
 	L2BlockNumber *big.Int
 	OutputRoot    common.Hash
+}
+
+type Proposal struct {
+	L2BlockNumber *big.Int
+	OutputRoot    common.Hash
+}
+
+func asProposal(p contractProposal) Proposal {
+	return Proposal{
+		L2BlockNumber: p.L2BlockNumber,
+		OutputRoot:    p.OutputRoot,
+	}
 }
 
 func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
@@ -91,10 +108,10 @@ func (f *FaultDisputeGameContract) GetProposals(ctx context.Context) (Proposal, 
 		return Proposal{}, Proposal{}, fmt.Errorf("failed to fetch proposals: %w", err)
 	}
 
-	var agreed, disputed Proposal
+	var agreed, disputed contractProposal
 	result.GetStruct(0, &agreed)
 	result.GetStruct(1, &disputed)
-	return agreed, disputed, nil
+	return asProposal(agreed), asProposal(disputed), nil
 }
 
 func (f *FaultDisputeGameContract) GetStatus(ctx context.Context) (gameTypes.GameStatus, error) {
@@ -142,6 +159,15 @@ func (f *FaultDisputeGameContract) GetAllClaims(ctx context.Context) ([]types.Cl
 		claims = append(claims, f.decodeClaim(result, idx))
 	}
 	return claims, nil
+}
+
+func (f *FaultDisputeGameContract) vm(ctx context.Context) (*VMContract, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodVM))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)
+	}
+	vmAddr := result.GetAddress(0)
+	return NewVMContract(vmAddr, f.multiCaller)
 }
 
 func (f *FaultDisputeGameContract) AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error) {
@@ -193,6 +219,35 @@ func (f *FaultDisputeGameContract) ResolveTx() (txmgr.TxCandidate, error) {
 
 func (f *FaultDisputeGameContract) resolveCall() *batching.ContractCall {
 	return f.contract.Call(methodResolve)
+}
+
+func (f *FaultDisputeGameContract) UpdateOracleTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	if data.IsLocal {
+		return f.addLocalDataTx(data)
+	}
+	return f.addGlobalDataTx(ctx, data)
+}
+
+func (f *FaultDisputeGameContract) addLocalDataTx(data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	call := f.contract.Call(
+		methodAddLocalData,
+		data.GetIdent(),
+		data.LocalContext,
+		new(big.Int).SetUint64(uint64(data.OracleOffset)),
+	)
+	return call.ToTxCandidate()
+}
+
+func (f *FaultDisputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+	vm, err := f.vm(ctx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
+	oracle, err := vm.Oracle(ctx)
+	if err != nil {
+		return txmgr.TxCandidate{}, err
+	}
+	return oracle.AddGlobalDataTx(data)
 }
 
 func (f *FaultDisputeGameContract) decodeClaim(result *batching.CallResult, contractIndex int) types.Claim {

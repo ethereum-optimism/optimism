@@ -84,8 +84,9 @@ func TestMonitorGames(t *testing.T) {
 			cancel()
 		}()
 
-		err := monitor.MonitorGames(ctx)
-		require.NoError(t, err)
+		monitor.StartMonitoring()
+		<-ctx.Done()
+		monitor.StopMonitoring()
 		require.Len(t, sched.scheduled, 1)
 		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
 	})
@@ -129,8 +130,9 @@ func TestMonitorGames(t *testing.T) {
 			cancel()
 		}()
 
-		err := monitor.MonitorGames(ctx)
-		require.NoError(t, err)
+		monitor.StartMonitoring()
+		<-ctx.Done()
+		monitor.StopMonitoring()
 		require.NotEmpty(t, sched.scheduled) // We might get more than one update scheduled.
 		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
 	})
@@ -143,7 +145,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	addr2 := common.Address{0xbb}
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}))
 
 	require.Len(t, sched.scheduled, 1)
 	require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
@@ -155,7 +157,7 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}))
 
 	require.Len(t, sched.scheduled, 1)
 	require.Equal(t, []common.Address{addr2}, sched.scheduled[0])
@@ -230,7 +232,7 @@ type stubGameSource struct {
 func (s *stubGameSource) FetchAllGamesAtBlock(
 	ctx context.Context,
 	earliest uint64,
-	blockNumber uint64,
+	blockHash common.Hash,
 ) ([]types.GameMetadata, error) {
 	return s.games, nil
 }

@@ -92,6 +92,14 @@ func TestGet_IndexTooLarge(t *testing.T) {
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 
+func TestGet_DepthTooLarge(t *testing.T) {
+	depth := 2
+	ap := NewTraceProvider("abc", uint64(depth))
+	pos := types.NewPosition(depth+1, big.NewInt(0))
+	_, err := ap.Get(context.Background(), pos)
+	require.ErrorIs(t, err, ErrIndexTooLarge)
+}
+
 // TestGet_Extends tests the Get function with an index that is larger
 // than the trace, but smaller than the maximum depth.
 func TestGet_Extends(t *testing.T) {

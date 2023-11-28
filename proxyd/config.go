@@ -83,17 +83,20 @@ type BackendOptions struct {
 }
 
 type BackendConfig struct {
-	Username         string `toml:"username"`
-	Password         string `toml:"password"`
-	RPCURL           string `toml:"rpc_url"`
-	WSURL            string `toml:"ws_url"`
-	WSPort           int    `toml:"ws_port"`
-	MaxRPS           int    `toml:"max_rps"`
-	MaxWSConns       int    `toml:"max_ws_conns"`
-	CAFile           string `toml:"ca_file"`
-	ClientCertFile   string `toml:"client_cert_file"`
-	ClientKeyFile    string `toml:"client_key_file"`
-	StripTrailingXFF bool   `toml:"strip_trailing_xff"`
+	Username         string            `toml:"username"`
+	Password         string            `toml:"password"`
+	RPCURL           string            `toml:"rpc_url"`
+	WSURL            string            `toml:"ws_url"`
+	WSPort           int               `toml:"ws_port"`
+	MaxRPS           int               `toml:"max_rps"`
+	MaxWSConns       int               `toml:"max_ws_conns"`
+	CAFile           string            `toml:"ca_file"`
+	ClientCertFile   string            `toml:"client_cert_file"`
+	ClientKeyFile    string            `toml:"client_key_file"`
+	StripTrailingXFF bool              `toml:"strip_trailing_xff"`
+	Headers          map[string]string `toml:"headers"`
+
+	Weight int `toml:"weight"`
 
 	ConsensusSkipPeerCountCheck bool   `toml:"consensus_skip_peer_count"`
 	ConsensusForcedCandidate    bool   `toml:"consensus_forced_candidate"`
@@ -104,6 +107,8 @@ type BackendsConfig map[string]*BackendConfig
 
 type BackendGroupConfig struct {
 	Backends []string `toml:"backends"`
+
+	WeightedRouting bool `toml:"weighted_routing"`
 
 	ConsensusAware        bool   `toml:"consensus_aware"`
 	ConsensusAsyncHandler string `toml:"consensus_handler"`
