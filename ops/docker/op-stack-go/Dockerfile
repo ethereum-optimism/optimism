@@ -7,7 +7,7 @@ ARG TARGETARCH
 ARG TARGET_BASE_IMAGE=alpine:3.18
 
 # We may be cross-building for another platform. Specify which platform we need as builder.
-FROM --platform=$BUILDPLATFORM golang:1.21.3-alpine3.18 as builder
+FROM --platform=$TARGETPLATFORM golang:1.21.3-alpine3.18 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
@@ -42,43 +42,43 @@ ARG GIT_DATE
 # Build the Go services, utilizing caches and share the many common packages.
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
-FROM --platform=$BUILDPLATFORM builder as cannon-builder
+FROM --platform=$TARGETPLATFORM builder as cannon-builder
 ARG CANNON_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd cannon && make cannon  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$CANNON_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-program-builder
+FROM --platform=$TARGETPLATFORM builder as op-program-builder
 ARG OP_PROGRAM_VERSION=v0.0.0
 # note: we only build the host, that's all the user needs. No Go MIPS cross-build in docker
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-program && make op-program-host  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_PROGRAM_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-heartbeat-builder
+FROM --platform=$TARGETPLATFORM builder as op-heartbeat-builder
 ARG OP_HEARTBEAT_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-heartbeat && make op-heartbeat  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_HEARTBEAT_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-wheel-builder
+FROM --platform=$TARGETPLATFORM builder as op-wheel-builder
 ARG OP_WHEEL_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-wheel && make op-wheel  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_WHEEL_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-node-builder
+FROM --platform=$TARGETPLATFORM builder as op-node-builder
 ARG OP_NODE_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-node && make op-node  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_NODE_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-challenger-builder
+FROM --platform=$TARGETPLATFORM builder as op-challenger-builder
 ARG OP_CHALLENGER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-challenger && make op-challenger  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CHALLENGER_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-batcher-builder
+FROM --platform=$TARGETPLATFORM builder as op-batcher-builder
 ARG OP_BATCHER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-batcher  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_BATCHER_VERSION"
 
-FROM --platform=$BUILDPLATFORM builder as op-proposer-builder
+FROM --platform=$TARGETPLATFORM builder as op-proposer-builder
 ARG OP_PROPOSER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION"
