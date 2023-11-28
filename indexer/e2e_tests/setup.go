@@ -13,8 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/client"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/prometheus/client_golang/prometheus"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,7 +32,8 @@ import (
 */
 
 type E2ETestSuite struct {
-	t *testing.T
+	t               *testing.T
+	MetricsRegistry *prometheus.Registry
 
 	// API
 	Client *client.Client
@@ -152,14 +155,15 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	require.NoError(t, err, "must open indexer API client")
 
 	return E2ETestSuite{
-		t:        t,
-		Client:   client,
-		DB:       ix.DB,
-		Indexer:  ix,
-		OpCfg:    &opCfg,
-		OpSys:    opSys,
-		L1Client: opSys.Clients["l1"],
-		L2Client: opSys.Clients["sequencer"],
+		t:               t,
+		MetricsRegistry: metrics.NewRegistry(),
+		Client:          client,
+		DB:              ix.DB,
+		Indexer:         ix,
+		OpCfg:           &opCfg,
+		OpSys:           opSys,
+		L1Client:        opSys.Clients["l1"],
+		L2Client:        opSys.Clients["sequencer"],
 	}
 }
 

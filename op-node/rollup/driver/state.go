@@ -86,9 +86,11 @@ type Driver struct {
 	metrics     Metrics
 	log         log.Logger
 	snapshotLog log.Logger
-	done        chan struct{}
 
 	wg gosync.WaitGroup
+
+	driverCtx    context.Context
+	driverCancel context.CancelFunc
 }
 
 // Start starts up the state loop.
@@ -118,7 +120,7 @@ func (s *Driver) Start() error {
 }
 
 func (s *Driver) Close() error {
-	s.done <- struct{}{}
+	s.driverCancel()
 	s.wg.Wait()
 	return nil
 }
@@ -167,9 +169,9 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("State loop started")
+	defer s.log.Info("State loop returned")
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer s.driverCancel()
 
 	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
 	stepReqCh := make(chan struct{}, 1)
@@ -230,6 +232,10 @@ func (s *Driver) eventLoop() {
 	lastUnsafeL2 := s.derivation.UnsafeL2Head()
 
 	for {
+		if s.driverCtx.Err() != nil { // don't try to schedule/handle more work when we are closing.
+			return
+		}
+
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 		// This may adjust at any time based on fork-choice changes or previous errors.
 		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
@@ -266,7 +272,7 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			payload, err := s.sequencer.RunNextSequencerAction(ctx)
+			payload, err := s.sequencer.RunNextSequencerAction(s.driverCtx)
 			if err != nil {
 				s.log.Error("Sequencer critical error", "err", err)
 				return
@@ -274,7 +280,7 @@ func (s *Driver) eventLoop() {
 			if s.network != nil && payload != nil {
 				// Publishing of unsafe data via p2p is optional.
 				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
-				if err := s.network.PublishL2Payload(ctx, payload); err != nil {
+				if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
 					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
 					s.metrics.RecordPublishingError()
 				}
@@ -282,7 +288,7 @@ func (s *Driver) eventLoop() {
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case <-altSyncTicker.C:
 			// Check if there is a gap in the current unsafe payload queue.
-			ctx, cancel := context.WithTimeout(ctx, time.Second*2)
+			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
 			err := s.checkForGapInUnsafeQueue(ctx)
 			cancel()
 			if err != nil {
@@ -311,7 +317,7 @@ func (s *Driver) eventLoop() {
 		case <-stepReqCh:
 			s.metrics.SetDerivationIdle(false)
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
-			err := s.derivation.Step(context.Background())
+			err := s.derivation.Step(s.driverCtx)
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin(), "err", err)
@@ -383,12 +389,12 @@ func (s *Driver) eventLoop() {
 				s.driverConfig.SequencerStopped = true
 				// Cancel any inflight block building. If we don't cancel this, we can resume sequencing an old block
 				// even if we've received new unsafe heads in the interim, causing us to introduce a re-org.
-				s.sequencer.CancelBuildingBlock(ctx)
+				s.sequencer.CancelBuildingBlock(s.driverCtx)
 				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}
 			}
 		case respCh := <-s.sequencerActive:
 			respCh <- !s.driverConfig.SequencerStopped
-		case <-s.done:
+		case <-s.driverCtx.Done():
 			return
 		}
 	}

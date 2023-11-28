@@ -82,8 +82,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.11
-    string public constant version = "0.0.11";
+    /// @custom:semver 0.0.12
+    string public constant version = "0.0.12";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -281,7 +281,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function addLocalData(uint256 _ident, uint256 _l2BlockNumber, uint256 _partOffset) external {
+    function addLocalData(uint256 _ident, bytes32 _localContext, uint256 _partOffset) external {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -293,7 +293,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // Store the `_ident` argument
             mstore(0x20, _ident)
             // Store the `_localContext` argument
-            mstore(0x40, _l2BlockNumber)
+            mstore(0x40, _localContext)
             // Store the data to load
             let data
             switch _ident

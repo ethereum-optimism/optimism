@@ -33,7 +33,7 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "tsup": "^7.2.0",
+    "tsup": "^8.0.1",
     "vitest": "^0.34.4"
   }
 }

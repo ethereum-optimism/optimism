@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "mapping(bytes32 => bool)",
+    "offset": 0,
+    "slot": "0",
+    "type": "t_mapping(t_bytes32,t_bool)"
+  },
+  {
+    "bytes": "30",
+    "label": "uint240",
+    "offset": 0,
+    "slot": "1",
+    "type": "t_uint240"
+  }
+]

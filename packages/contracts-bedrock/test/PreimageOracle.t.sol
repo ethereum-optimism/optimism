@@ -60,7 +60,7 @@ contract PreimageOracle_Test is Test {
         for (uint256 i; i < words.length; i++) {
             // Load the local data into the preimage oracle under the test contract's context
             // and the given local context.
-            bytes32 contextKey = oracle.loadLocalData(ident, i, words[i], size, partOffset);
+            bytes32 contextKey = oracle.loadLocalData(ident, bytes32(i), words[i], size, partOffset);
 
             // Validate that the pre-image part is set
             bool ok = oracle.preimagePartOk(contextKey, partOffset);
@@ -79,7 +79,7 @@ contract PreimageOracle_Test is Test {
     /// @notice Tests that context-specific data [0, 32] bytes in length can be loaded correctly.
     function testFuzz_loadLocalData_varyingLength_succeeds(
         uint256 ident,
-        uint256 localContext,
+        bytes32 localContext,
         bytes32 word,
         uint256 size,
         uint256 partOffset

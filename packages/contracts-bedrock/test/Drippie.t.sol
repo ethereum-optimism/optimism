@@ -116,7 +116,7 @@ contract Drippie_Test is Test {
     /// @notice Creates a drip and asserts that it was configured as expected.
     function test_create_succeeds() external {
         Drippie.DripConfig memory cfg = _defaultConfig();
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(drippie));
         emit DripCreated(dripName, dripName, cfg);
 
         if (cfg.reentrant) {
@@ -170,7 +170,7 @@ contract Drippie_Test is Test {
 
     /// @notice The owner should be able to set the status of the drip.
     function test_set_status_succeeds() external {
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(drippie));
         emit DripCreated(dripName, dripName, _defaultConfig());
         _createDefaultDrip(dripName);
 
@@ -183,7 +183,7 @@ contract Drippie_Test is Test {
 
         vm.prank(owner);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(drippie));
         emit DripStatusUpdated({ nameref: dripName, name: dripName, status: Drippie.DripStatus.ACTIVE });
 
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
@@ -195,7 +195,7 @@ contract Drippie_Test is Test {
 
         vm.prank(owner);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(drippie));
         emit DripStatusUpdated({ nameref: dripName, name: dripName, status: Drippie.DripStatus.PAUSED });
 
         drippie.status(dripName, Drippie.DripStatus.PAUSED);
@@ -238,7 +238,7 @@ contract Drippie_Test is Test {
 
         vm.prank(owner);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(drippie));
         emit DripStatusUpdated({ nameref: dripName, name: dripName, status: Drippie.DripStatus.ARCHIVED });
 
         drippie.status(dripName, Drippie.DripStatus.ARCHIVED);
@@ -321,7 +321,7 @@ contract Drippie_Test is Test {
 
         _warpToExecutable(dripName);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(address(drippie));
         emit DripExecuted({ nameref: dripName, name: dripName, executor: address(this), timestamp: block.timestamp });
 
         Drippie.DripAction[] memory actions = drippie.dripConfigActions(dripName);
@@ -358,7 +358,7 @@ contract Drippie_Test is Test {
 
         vm.expectCall(address(simpleStorage), 0, abi.encodeWithSelector(SimpleStorage.set.selector, key, value));
 
-        vm.expectEmit(true, true, true, true, address(drippie));
+        vm.expectEmit(address(drippie));
         emit DripExecuted(dripName, dripName, address(this), block.timestamp);
         drippie.drip(dripName);
 
@@ -402,7 +402,7 @@ contract Drippie_Test is Test {
 
         vm.expectCall(address(simpleStorage), 0, abi.encodeWithSelector(SimpleStorage.set.selector, keyTwo, valueTwo));
 
-        vm.expectEmit(true, true, true, true, address(drippie));
+        vm.expectEmit(address(drippie));
         emit DripExecuted(dripName, dripName, address(this), block.timestamp);
         drippie.drip(dripName);
 
@@ -434,7 +434,7 @@ contract Drippie_Test is Test {
 
         _warpToExecutable(dripName);
 
-        vm.expectEmit(true, true, true, true, address(drippie));
+        vm.expectEmit(address(drippie));
         emit DripExecuted({ nameref: dripName, name: dripName, executor: address(this), timestamp: block.timestamp });
 
         drippie.drip(dripName);
@@ -472,7 +472,7 @@ contract Drippie_Test is Test {
         cfg.interval = 0;
 
         vm.prank(owner);
-        vm.expectEmit(true, true, true, true, address(drippie));
+        vm.expectEmit(address(drippie));
         emit DripCreated(dripName, dripName, cfg);
         drippie.create(dripName, cfg);
 
