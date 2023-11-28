@@ -11,13 +11,13 @@ import (
 )
 
 type PrefetchingEthClient struct {
-	inner            EthClient
+	inner            *EthClient
 	prefetchingRange uint64
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
 // and a prefetching range.
-func NewPrefetchingEthClient(inner EthClient, prefetchingRange uint64) (*PrefetchingEthClient, error) {
+func NewPrefetchingEthClient(inner *EthClient, prefetchingRange uint64) (*PrefetchingEthClient, error) {
 	return &PrefetchingEthClient{
 		inner:            inner,
 		prefetchingRange: prefetchingRange,
