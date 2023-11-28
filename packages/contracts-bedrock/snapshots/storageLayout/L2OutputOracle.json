@@ -32,6 +32,6 @@
     "label": "struct Types.OutputProposal[]",
     "offset": 0,
     "slot": "3",
-    "type": "t_array(t_struct(OutputProposal)86894_storage)dyn_storage"
+    "type": "t_array(t_struct(OutputProposal)76122_storage)dyn_storage"
   }
 ]

@@ -94,4 +94,8 @@ contract Events {
         uint256 amount,
         bytes data
     );
+
+    event Paused(string identifier);
+
+    event Unpaused();
 }

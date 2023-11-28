@@ -49,9 +49,9 @@
         "type": "bytes"
       },
       {
-        "internalType": "uint256",
+        "internalType": "bytes32",
         "name": "_localContext",
-        "type": "uint256"
+        "type": "bytes32"
       }
     ],
     "name": "step",

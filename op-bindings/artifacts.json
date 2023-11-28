@@ -41,5 +41,6 @@
   "SafeProxyFactory",
   "DelayedVetoable",
   "ISemver",
-  "StorageSetter"
+  "StorageSetter",
+  "SuperchainConfig"
 ]

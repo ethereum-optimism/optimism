@@ -30,9 +30,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256",
+        "internalType": "bytes32",
         "name": "_localContext",
-        "type": "uint256"
+        "type": "bytes32"
       },
       {
         "internalType": "bytes32",
