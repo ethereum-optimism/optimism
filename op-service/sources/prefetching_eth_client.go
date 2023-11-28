@@ -85,15 +85,42 @@ func (p *PrefetchingEthClient) InfoByLabel(ctx context.Context, label eth.BlockL
 }
 
 func (p *PrefetchingEthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	return p.inner.InfoAndTxsByHash(ctx, hash)
+	// Fetch the block info and transactions for the requested hash
+	blockInfo, txs, err := p.inner.InfoAndTxsByHash(ctx, hash)
+	if err != nil {
+		return blockInfo, txs, err
+	}
+
+	// Prefetch the next n blocks and their receipts
+	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.prefetchingRange)
+
+	return blockInfo, txs, nil
 }
 
 func (p *PrefetchingEthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
-	return p.inner.InfoAndTxsByNumber(ctx, number)
+	// Fetch the block info and transactions for the requested number
+	blockInfo, txs, err := p.inner.InfoAndTxsByNumber(ctx, number)
+	if err != nil {
+		return blockInfo, txs, err
+	}
+
+	// Prefetch the next n blocks and their receipts
+	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
+
+	return blockInfo, txs, nil
 }
 
 func (p *PrefetchingEthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
-	return p.inner.InfoAndTxsByLabel(ctx, label)
+	// Fetch the block info and transactions for the requested label
+	blockInfo, txs, err := p.inner.InfoAndTxsByLabel(ctx, label)
+	if err != nil {
+		return blockInfo, txs, err
+	}
+
+	// Prefetch the next n blocks and their receipts
+	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.prefetchingRange)
+
+	return blockInfo, txs, nil
 }
 
 func (p *PrefetchingEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
