@@ -28,6 +28,7 @@ func (p *PrefetchingEthClient) FetchWindow(ctx context.Context, start, end uint6
 	for i := start; i <= end; i++ {
 		// Ignoring the error and result as this is just prefetching
 		// The actual fetching and error handling will be done when the data is requested
+		// FLAG FOR CODE REVIEW: Should we be creating new contexts here? The same context is just passed around everywhere.
 		go p.FetchBlockAndReceipts(ctx, i)
 	}
 }
