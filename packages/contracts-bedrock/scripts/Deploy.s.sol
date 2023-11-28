@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { VmSafe } from "forge-std/Vm.sol";
 import { Script } from "forge-std/Script.sol";
 
 import { console2 as console } from "forge-std/console2.sol";
@@ -47,6 +48,7 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
+import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -55,6 +57,8 @@ import { Types } from "scripts/Types.sol";
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
 contract Deploy is Deployer {
     DeployConfig public cfg;
+
+    using stdJson for string;
 
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
@@ -85,6 +89,19 @@ contract Deploy is Deployer {
         ) {
             _;
         }
+    }
+
+    /// @notice Modifier that wraps a function with statediff recording.
+    ///         The returned AccountAccess[] array is then written to
+    ///         the `snapshots/state-diff/<name>.json` output file.
+    modifier stateDiff() {
+        vm.startStateDiffRecording();
+        _;
+        VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+        console.log("Writing %d state diff account accesses to snapshots/state-diff/%s.json", accesses.length, name());
+        string memory json = LibStateDiff.encodeAccountAccesses(accesses);
+        string memory statediffPath = string.concat(vm.projectRoot(), "/snapshots/state-diff/", name(), ".json");
+        vm.writeJson({ json: json, path: statediffPath });
     }
 
     ////////////////////////////////////////////////////////////////
@@ -213,7 +230,16 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
+        _run();
+    }
 
+    /// @notice Deploy all L1 contracts and write the state diff to a file.
+    function runWithStateDiff() public stateDiff {
+        _run();
+    }
+
+    /// @notice Internal function containing the deploy logic.
+    function _run() internal {
         deploySafe();
         setupSuperchain();
         setupOpChain();

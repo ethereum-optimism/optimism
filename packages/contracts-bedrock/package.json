@@ -23,6 +23,7 @@
     "coverage:lcov": "pnpm build:go-ffi && forge coverage --report lcov",
     "deploy": "./scripts/deploy.sh",
     "gas-snapshot:no-build": "forge snapshot --match-contract GasBenchMark",
+    "statediff": "./scripts/statediff.sh && git diff --exit-code",
     "gas-snapshot": "pnpm build:go-ffi && pnpm gas-snapshot:no-build",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "abi-snapshot": "npx tsx scripts/generate-snapshots.ts",
