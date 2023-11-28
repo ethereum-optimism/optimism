@@ -27,7 +27,7 @@ import (
 func TestSyncBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
+		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
 	}{
 		{"DerivationWithFlakyL1RPC", DerivationWithFlakyL1RPC},
 		{"FinalizeWhileSyncing", FinalizeWhileSyncing},
@@ -39,19 +39,19 @@ func TestSyncBatchType(t *testing.T) {
 		})
 	}
 
-	spanBatchTimeOffset := hexutil.Uint64(0)
+	deltaTimeOffset := hexutil.Uint64(0)
 	for _, test := range tests {
 		test := test
 		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &spanBatchTimeOffset)
+			test.f(t, &deltaTimeOffset)
 		})
 	}
 }
 
-func DerivationWithFlakyL1RPC(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func DerivationWithFlakyL1RPC(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -88,10 +88,10 @@ func DerivationWithFlakyL1RPC(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "verifier is synced")
 }
 
-func FinalizeWhileSyncing(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func FinalizeWhileSyncing(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError) // mute all the temporary derivation errors that we forcefully create
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
@@ -207,8 +207,8 @@ func TestInvalidPayloadInSpanBatch(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
-	// Activate SpanBatch hardfork
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// Activate Delta hardfork
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -330,8 +330,8 @@ func TestSpanBatchAtomicity_Consolidation(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
-	// Activate SpanBatch hardfork
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// Activate Delta hardfork
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
@@ -389,8 +389,8 @@ func TestSpanBatchAtomicity_ForceAdvance(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	minTs := hexutil.Uint64(0)
-	// Activate SpanBatch hardfork
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+	// Activate Delta hardfork
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	dp.DeployConfig.L2BlockTime = 2
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)

@@ -132,7 +132,7 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 	// Obtain our sequencer, verifier, and transactor keypair.
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
-	txSigningKey := sys.cfg.Secrets.Alice
+	txSigningKey := sys.Cfg.Secrets.Alice
 	require.Nil(t, err)
 
 	// Create a deposit tx to send over RPC.

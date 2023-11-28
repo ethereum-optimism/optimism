@@ -9,6 +9,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { ProtocolVersion, ProtocolVersions } from "src/L1/ProtocolVersions.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
 import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
@@ -42,7 +43,7 @@ library ChainAssertions {
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
         checkL1ERC721Bridge(_prox);
-        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isPaused: false });
+        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
@@ -134,28 +135,25 @@ library ChainAssertions {
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
-    function checkOptimismPortal(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isPaused
-    )
-        internal
-        view
-    {
+    function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
-        address guardian = _cfg.portalGuardian();
+        address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
+            console.log("Guardian has no code: %s", guardian);
         }
 
         require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
         require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
-        require(portal.GUARDIAN() == _cfg.portalGuardian());
-        require(portal.guardian() == _cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
         require(address(portal.systemConfig()) == _contracts.SystemConfig);
-        require(portal.paused() == _isPaused);
+
+        if (_isProxy) {
+            require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
+            require(portal.guardian() == _cfg.superchainConfigGuardian());
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
+            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+        }
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
@@ -177,5 +175,19 @@ library ChainAssertions {
             require(ProtocolVersion.unwrap(versions.required()) == 0);
             require(ProtocolVersion.unwrap(versions.recommended()) == 0);
         }
+    }
+
+    /// @notice Asserts that the SuperchainConfig is setup correctly
+    function checkSuperchainConfig(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isPaused
+    )
+        internal
+        view
+    {
+        SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
+        require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
+        require(superchainConfig.paused() == _isPaused);
     }
 }

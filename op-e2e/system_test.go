@@ -50,7 +50,7 @@ import (
 func TestSystemBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
+		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
 	}{
 		{"StopStartBatcher", StopStartBatcher},
 	}
@@ -61,11 +61,11 @@ func TestSystemBatchType(t *testing.T) {
 		})
 	}
 
-	spanBatchTimeOffset := hexutil.Uint64(0)
+	deltaTimeOffset := hexutil.Uint64(0)
 	for _, test := range tests {
 		test := test
 		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &spanBatchTimeOffset)
+			test.f(t, &deltaTimeOffset)
 		})
 	}
 }
@@ -192,10 +192,10 @@ func runE2ESystemTest(t *testing.T, sys *System) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Transactor Account
-	ethPrivKey := sys.cfg.Secrets.Alice
+	ethPrivKey := sys.Cfg.Secrets.Alice
 
 	// Send Transaction & wait for success
-	fromAddr := sys.cfg.Secrets.Addresses().Alice
+	fromAddr := sys.Cfg.Secrets.Addresses().Alice
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
@@ -203,11 +203,11 @@ func runE2ESystemTest(t *testing.T, sys *System) {
 	require.Nil(t, err)
 
 	// Send deposit transaction
-	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, sys.cfg.L1ChainIDBig())
+	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, sys.Cfg.L1ChainIDBig())
 	require.Nil(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	SendDepositTx(t, sys.cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {})
+	SendDepositTx(t, sys.Cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {})
 
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
@@ -220,7 +220,7 @@ func runE2ESystemTest(t *testing.T, sys *System) {
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Submit TX to L2 sequencer node
-	receipt := SendL2Tx(t, sys.cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+	receipt := SendL2Tx(t, sys.Cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
 		opts.Value = big.NewInt(1_000_000_000)
 		opts.Nonce = 1 // Already have deposit
 		opts.ToAddr = &common.Address{0xff, 0xff}
@@ -1256,11 +1256,11 @@ func TestFees(t *testing.T) {
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
 
-func StopStartBatcher(t *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func StopStartBatcher(t *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	cfg.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()

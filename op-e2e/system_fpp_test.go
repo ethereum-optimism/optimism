@@ -74,11 +74,11 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
 	if spanBatchActivated {
-		// Activate span batch hard fork
+		// Activate delta hard fork
 		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	} else {
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = nil
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	}
 
 	sys, err := cfg.Start(t)
@@ -179,11 +179,11 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 	if spanBatchActivated {
-		// Activate span batch hard fork
+		// Activate delta hard fork
 		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	} else {
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = nil
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	}
 
 	sys, err := cfg.Start(t)

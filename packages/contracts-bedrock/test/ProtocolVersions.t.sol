@@ -22,16 +22,16 @@ contract ProtocolVersions_Init is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
-        required = ProtocolVersion.wrap(cfg.requiredProtocolVersion());
-        recommended = ProtocolVersion.wrap(cfg.recommendedProtocolVersion());
+        required = ProtocolVersion.wrap(deploy.cfg().requiredProtocolVersion());
+        recommended = ProtocolVersion.wrap(deploy.cfg().recommendedProtocolVersion());
     }
 }
 
 contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
     /// @dev Tests that initialization sets the correct values.
     function test_initialize_values_succeeds() external {
-        ProtocolVersions protocolVersionsImpl = ProtocolVersions(mustGetAddress("ProtocolVersions"));
-        address owner = cfg.finalSystemOwner();
+        ProtocolVersions protocolVersionsImpl = ProtocolVersions(deploy.mustGetAddress("ProtocolVersions"));
+        address owner = deploy.cfg().finalSystemOwner();
 
         assertEq(ProtocolVersion.unwrap(protocolVersions.required()), ProtocolVersion.unwrap(required));
         assertEq(ProtocolVersion.unwrap(protocolVersions.recommended()), ProtocolVersion.unwrap(recommended));
@@ -44,7 +44,7 @@ contract ProtocolVersions_Initialize_Test is ProtocolVersions_Init {
 
     /// @dev Ensures that the events are emitted during initialization.
     function test_initialize_events_succeeds() external {
-        ProtocolVersions protocolVersionsImpl = ProtocolVersions(mustGetAddress("ProtocolVersions"));
+        ProtocolVersions protocolVersionsImpl = ProtocolVersions(deploy.mustGetAddress("ProtocolVersions"));
         assertEq(protocolVersionsImpl.owner(), address(0xdEad));
 
         // Wipe out the initialized slot so the proxy can be initialized again

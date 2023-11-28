@@ -32,15 +32,15 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
 
     function setUp() public virtual override {
         super.setUp();
-        batchInbox = cfg.batchInboxAddress();
-        owner = cfg.finalSystemOwner();
-        overhead = cfg.gasPriceOracleOverhead();
-        scalar = cfg.gasPriceOracleScalar();
-        batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
-        gasLimit = uint64(cfg.l2GenesisBlockGasLimit());
-        unsafeBlockSigner = cfg.p2pSequencerAddress();
-        systemConfigImpl = mustGetAddress("SystemConfig");
-        optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20FactoryProxy");
+        batchInbox = deploy.cfg().batchInboxAddress();
+        owner = deploy.cfg().finalSystemOwner();
+        overhead = deploy.cfg().gasPriceOracleOverhead();
+        scalar = deploy.cfg().gasPriceOracleScalar();
+        batcherHash = bytes32(uint256(uint160(deploy.cfg().batchSenderAddress())));
+        gasLimit = uint64(deploy.cfg().l2GenesisBlockGasLimit());
+        unsafeBlockSigner = deploy.cfg().p2pSequencerAddress();
+        systemConfigImpl = deploy.mustGetAddress("SystemConfig");
+        optimismMintableERC20Factory = deploy.mustGetAddress("OptimismMintableERC20FactoryProxy");
     }
 
     /// @dev Tests that initailization sets the correct values.
@@ -66,7 +66,7 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
 contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
-        address systemConfigImpl = mustGetAddress("SystemConfig");
+        address systemConfigImpl = deploy.mustGetAddress("SystemConfig");
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
 
         // Wipe out the initialized slot so the proxy can be initialized again

@@ -67,6 +67,9 @@ The spec for the deploy config is defined by the `deployConfigSpec` located insi
 
 ### Execution
 
+Before deploying the contracts, you can verify the state diff produced by the deploy script using the `runWithStateDiff()` function signature which produces the outputs inside [`snapshots/state-diff/`](./snapshots/state-diff).
+Run the deployment with state diffs by executing: `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'runWithStateDiff()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`.
+
 1. Set the env vars `ETH_RPC_URL`, `PRIVATE_KEY` and `ETHERSCAN_API_KEY` if contract verification is desired
 1. Deploy the contracts with `forge script -vvv scripts/Deploy.s.sol:Deploy --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
    Pass the `--verify` flag to verify the deployments automatically with Etherscan.

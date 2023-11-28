@@ -158,7 +158,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1SystemConfigAddress:  deployConf.SystemConfigProxy,
 		RegolithTime:           deployConf.RegolithTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 		CanyonTime:             deployConf.CanyonTime(uint64(deployConf.L1GenesisBlockTimestamp)),
-		SpanBatchTime:          deployConf.SpanBatchTime(uint64(deployConf.L1GenesisBlockTimestamp)),
+		DeltaTime:              deployConf.DeltaTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 	}
 
 	require.NoError(t, rollupCfg.Check())

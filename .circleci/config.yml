@@ -4,6 +4,9 @@ parameters:
   ci_builder_image:
     type: string
     default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.30.0
+  base_image:
+    type: string
+    default: ubuntu-2204:2022.07.1
 
 orbs:
   go: circleci/go@1.8.0
@@ -209,7 +212,7 @@ jobs:
         type: string
         default: medium
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true  # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
@@ -640,7 +643,7 @@ jobs:
 
   todo-issues:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - run:
@@ -653,7 +656,7 @@ jobs:
 
   bedrock-markdown:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - check-changed:
@@ -674,7 +677,7 @@ jobs:
 
   bedrock-markdown-links:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - run:
@@ -1023,7 +1026,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2204:2022.10.2
+      image: <<pipeline.parameters.base_image>>
     environment:
       DOCKER_BUILDKIT: 1
       DEVNET_NO_BUILD: 'true'
@@ -1226,6 +1229,45 @@ jobs:
       - run:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
+
+  op-service-rethdb-tests:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-service,op-node
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - run:
+          name: Cargo fmt + clippy
+          command: |
+            cargo +nightly fmt -- --check
+            cargo +nightly clippy --all --all-features -- -D warnings
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Generate testdata db
+          command: cargo test
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Build dylib
+          command: cargo build --release
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Update LD_LIBRARY_PATH
+          command: echo 'export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/project/op-service/rethdb-reader/target/release"' >> $BASH_ENV
+      - run:
+          name: Run op-service RethDB tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/op-service.xml \
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out \
+            -run TestRethDB -tags rethdb -v
+          working_directory: op-service/sources
+      # TODO(CLI-148): Fix codecov
+      #- run:
+          #name: upload coverage
+          #command: codecov --verbose --clean --flags bedrock-rethdb-go-tests
 
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
@@ -1442,6 +1484,9 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["op-stack-go-lint"]
+      - op-service-rethdb-tests:
+          requires:
+            - op-stack-go-lint
       - go-e2e-test:
           name: op-e2e-WS-tests
           module: op-e2e
@@ -1491,6 +1536,7 @@ workflows:
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
             - op-e2e-ext-geth-tests
+            - op-service-rethdb-tests
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
