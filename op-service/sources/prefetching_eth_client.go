@@ -13,7 +13,6 @@ import (
 type PrefetchingEthClient struct {
 	inner            EthClient
 	prefetchingRange uint64
-	// other state fields for managing prefetching
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
