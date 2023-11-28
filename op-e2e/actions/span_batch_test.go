@@ -114,6 +114,116 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	require.ErrorIs(t, err, ethereum.NotFound)
 }
 
+// TestHardforkMiddleOfSpanBatch tests behavior of op-node Delta hardfork.
+// If Delta activation time is in the middle of time range of a SpanBatch, op-node must drop the batch.
+func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	p := &e2eutils.TestParams{
+		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
+		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
+		L1BlockTime:         12,
+	}
+	dp := e2eutils.MakeDeployParams(t, p)
+
+	// Activate HF in the middle of the first epoch
+	deltaOffset := hexutil.Uint64(6)
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &deltaOffset
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlError)
+	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	minerCl := miner.EthClient()
+
+	rollupSeqCl := sequencer.RollupClient()
+	dp2 := e2eutils.MakeDeployParams(t, p)
+	minTs := hexutil.Uint64(0)
+	// Activate Delta hardfork for batcher. so batcher will submit SpanBatches to L1.
+	dp2.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
+	batcher := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+
+	// Alice makes a L2 tx
+	cl := seqEngine.EthClient()
+	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+	require.NoError(t, err)
+	signer := types.LatestSigner(sd.L2Cfg.Config)
+	tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+		ChainID:   sd.L2Cfg.Config.ChainID,
+		Nonce:     n,
+		GasTipCap: big.NewInt(2 * params.GWei),
+		GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
+		Gas:       params.TxGas,
+		To:        &dp.Addresses.Bob,
+		Value:     e2eutils.Ether(2),
+	})
+	require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+
+	// Make a L2 block with the TX
+	sequencer.ActL2StartBlock(t)
+	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	sequencer.ActL2EndBlock(t)
+
+	// HF is not activated yet
+	unsafeOriginNum := new(big.Int).SetUint64(sequencer.L2Unsafe().L1Origin.Number)
+	unsafeHeader, err := minerCl.HeaderByNumber(t.Ctx(), unsafeOriginNum)
+	require.NoError(t, err)
+	require.False(t, sd.RollupCfg.IsDelta(unsafeHeader.Time))
+
+	// Make L2 blocks until the next epoch
+	sequencer.ActBuildToL1Head(t)
+
+	// HF is activated for the last unsafe block
+	unsafeOriginNum = new(big.Int).SetUint64(sequencer.L2Unsafe().L1Origin.Number)
+	unsafeHeader, err = minerCl.HeaderByNumber(t.Ctx(), unsafeOriginNum)
+	require.NoError(t, err)
+	require.True(t, sd.RollupCfg.IsDelta(unsafeHeader.Time))
+
+	// Batch submit to L1. batcher should submit span batches.
+	batcher.ActSubmitAll(t)
+
+	// Confirm batch on L1
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+	bl := miner.l1Chain.CurrentBlock()
+	log.Info("bl", "txs", len(miner.l1Chain.GetBlockByHash(bl.Hash()).Transactions()))
+
+	// Now make enough L1 blocks that the verifier will have to derive a L2 block
+	// It will also eagerly derive the block from the batcher
+	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize; i++ {
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1EndBlock(t)
+	}
+
+	// Try to sync verifier from L1 batch. but verifier should drop every span batch.
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, uint64(2), verifier.SyncStatus().SafeL2.L1Origin.Number)
+
+	verifCl := verifEngine.EthClient()
+	for i := int64(1); i < int64(verifier.L2Safe().Number); i++ {
+		block, _ := verifCl.BlockByNumber(t.Ctx(), big.NewInt(i))
+		require.NoError(t, err)
+		// Because verifier drops every span batch, it should generate empty blocks.
+		// So every block has only L1 attribute deposit transaction.
+		require.Equal(t, block.Transactions().Len(), 1)
+	}
+	// Check that the tx from alice is not included in verifier's chain
+	_, _, err = verifCl.TransactionByHash(t.Ctx(), tx.Hash())
+	require.ErrorIs(t, err, ethereum.NotFound)
+}
+
 // TestAcceptSingularBatchAfterHardfork tests behavior of op-node after Delta hardfork.
 // op-node must accept SingularBatch after Delta hardfork.
 func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
@@ -200,6 +310,103 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	require.NoError(t, err)
 	require.False(t, isPending)
 	require.NotNil(t, vTx)
+}
+
+// TestMixOfBatchesAfterHardfork tests behavior of op-node after Delta hardfork.
+// op-node must accept SingularBatch and SpanBatch in sequence.
+func TestMixOfBatchesAfterHardfork(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	p := &e2eutils.TestParams{
+		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
+		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
+		L1BlockTime:         12,
+	}
+	minTs := hexutil.Uint64(0)
+	dp := e2eutils.MakeDeployParams(t, p)
+
+	// Activate Delta hardfork for verifier.
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlError)
+	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	rollupSeqCl := sequencer.RollupClient()
+	seqEngCl := seqEngine.EthClient()
+
+	// Deploy config for span batch disabled batcher
+	dp2 := e2eutils.MakeDeployParams(t, p)
+	dp2.DeployConfig.L2GenesisDeltaTimeOffset = nil
+	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
+
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+	miner.ActEmptyBlock(t)
+
+	var txHashes [4]common.Hash
+	for i := 0; i < 4; i++ {
+		// Alice makes a L2 tx
+		n, err := seqEngCl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+		require.NoError(t, err)
+		signer := types.LatestSigner(sd.L2Cfg.Config)
+		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+			ChainID:   sd.L2Cfg.Config.ChainID,
+			Nonce:     n,
+			GasTipCap: big.NewInt(2 * params.GWei),
+			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
+			Gas:       params.TxGas,
+			To:        &dp.Addresses.Bob,
+			Value:     e2eutils.Ether(2),
+		})
+		require.NoError(gt, seqEngCl.SendTransaction(t.Ctx(), tx))
+		txHashes[i] = tx.Hash()
+
+		// Make L2 block
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2StartBlock(t)
+		seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+		sequencer.ActL2EndBlock(t)
+		sequencer.ActBuildToL1Head(t)
+
+		// Select batcher mode
+		rcfg := sd.RollupCfg // SpanBatch mode
+		if i&2 == 1 {
+			rcfg = sd2.RollupCfg // SingularBatch mode
+		}
+		batcher := NewL2Batcher(log, rcfg, &BatcherCfg{
+			MinL1TxSize: 0,
+			MaxL1TxSize: 128_000,
+			BatcherKey:  dp.Secrets.Batcher,
+		}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, rcfg))
+		// Submit all new blocks
+		batcher.ActSubmitAll(t)
+
+		// Confirm batch on L1
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+		miner.ActL1EndBlock(t)
+	}
+
+	// Now make enough L1 blocks that the verifier will have to derive a L2 block
+	// It will also eagerly derive the block from the batcher
+	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize; i++ {
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1EndBlock(t)
+	}
+
+	// Sync verifier from L1 batch in otherwise empty sequence window
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, uint64(5), verifier.SyncStatus().SafeL2.L1Origin.Number)
+
+	// Check that the tx from alice made it into the L2 chain
+	verifCl := verifEngine.EthClient()
+	for _, txHash := range txHashes {
+		vTx, isPending, err := verifCl.TransactionByHash(t.Ctx(), txHash)
+		require.NoError(t, err)
+		require.False(t, isPending)
+		require.NotNil(t, vTx)
+	}
 }
 
 // TestSpanBatchEmptyChain tests derivation of empty chain using SpanBatch.
