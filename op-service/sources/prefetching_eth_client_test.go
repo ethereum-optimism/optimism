@@ -12,7 +12,7 @@ import (
 )
 
 // Define a test type for each method
-type testFunction func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error
+type testFunction func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error
 
 // Define test cases
 var testCases = []struct {
@@ -22,43 +22,49 @@ var testCases = []struct {
 }{
 	{
 		name: "InfoByNumber",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
-			number := uint64(1234)
-			block := &types.Block{}
-			blockInfo := eth.BlockToInfo(block)
-			mockRPC.On("InfoByNumber", ctx, number).Return(blockInfo, nil).Once()
-			_, err := client.InfoByNumber(ctx, number)
-			return err
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			_, rhdr := randHeader()
+			expectedInfo, _ := rhdr.Info(true, false)
+			mockRPC.On("InfoByNumber", ctx, rhdr.Number).Return(expectedInfo, nil).Once()
+			info, err := client.InfoByNumber(ctx, uint64(rhdr.Number))
+			require.NoError(t, err)
+			require.Equal(t, expectedInfo, info)
+			return nil
 		},
 		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
 		name: "InfoByHash",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
-			hash := common.Hash{}
-			block := &types.Block{}
-			blockInfo := eth.BlockToInfo(block)
-			mockRPC.On("InfoByHash", ctx, hash).Return(blockInfo, nil).Once()
-			_, err := client.InfoByHash(ctx, hash)
-			return err
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+			hash := randHash()
+			_, rhdr := randHeader()
+			rhdr.Hash = hash
+			expectedInfo, _ := rhdr.Info(true, false)
+			mockRPC.On("InfoByHash", ctx, hash).Return(expectedInfo, nil).Once()
+			info, err := client.InfoByHash(ctx, hash)
+			require.NoError(t, err)
+			require.Equal(t, expectedInfo, info)
+			return nil
 		},
 		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
 		name: "InfoByLabel",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			label := eth.BlockLabel(eth.Unsafe)
-			block := &types.Block{} // Fill in necessary fields for the block
-			blockInfo := eth.BlockToInfo(block)
-			mockRPC.On("InfoByLabel", ctx, label).Return(blockInfo, nil).Once()
-			_, err := client.InfoByLabel(ctx, label)
-			return err
+			_, rhdr := randHeader()
+			expectedInfo, _ := rhdr.Info(true, false)
+			mockRPC.On("InfoByLabel", ctx, label).Return(expectedInfo, nil).Once()
+			info, err := client.InfoByLabel(ctx, label)
+			require.NoError(t, err)
+			require.Equal(t, expectedInfo, info)
+			return nil
 		},
 		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
 		name: "InfoAndTxsByHash",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			hash := common.Hash{}
 			block := &types.Block{}
 			blockInfo := eth.BlockToInfo(block)
@@ -71,7 +77,7 @@ var testCases = []struct {
 	},
 	{
 		name: "InfoAndTxsByNumber",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			number := uint64(1234)
 			block := &types.Block{}
 			blockInfo := eth.BlockToInfo(block)
@@ -84,7 +90,7 @@ var testCases = []struct {
 	},
 	{
 		name: "PayloadByHash",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			hash := common.Hash{}
 			payload := &eth.ExecutionPayload{}
 			mockRPC.On("PayloadByHash", ctx, hash).Return(payload, nil).Once()
@@ -95,7 +101,7 @@ var testCases = []struct {
 	},
 	{
 		name: "PayloadByNumber",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			number := uint64(1234)
 			payload := &eth.ExecutionPayload{}
 			mockRPC.On("PayloadByNumber", ctx, number).Return(payload, nil).Once()
@@ -106,7 +112,7 @@ var testCases = []struct {
 	},
 	{
 		name: "PayloadByLabel",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			label := eth.BlockLabel(eth.Unsafe)
 			payload := &eth.ExecutionPayload{}
 			mockRPC.On("PayloadByLabel", ctx, label).Return(payload, nil).Once()
@@ -117,7 +123,7 @@ var testCases = []struct {
 	},
 	{
 		name: "FetchReceipts",
-		testFunc: func(ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			blockHash := common.Hash{}
 			blockInfo := eth.BlockToInfo(&types.Block{})
 			receipts := types.Receipts{}
@@ -138,7 +144,7 @@ func runTest(t *testing.T, name string, testFunc testFunction, prefetchingRange 
 	client, err := NewPrefetchingEthClient(ethClient, prefetchingRange)
 	require.NoError(t, err)
 
-	err = testFunc(ctx, client, mockRPC)
+	err = testFunc(t, ctx, client, mockRPC)
 	require.NoError(t, err)
 
 	mockRPC.AssertExpectations(t)
