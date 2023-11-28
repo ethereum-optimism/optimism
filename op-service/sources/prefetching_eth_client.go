@@ -91,7 +91,16 @@ func (p *PrefetchingEthClient) PayloadByLabel(ctx context.Context, label eth.Blo
 }
 
 func (p *PrefetchingEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	return p.inner.FetchReceipts(ctx, blockHash)
+	// First, fetch the requested block's receipts
+	blockInfo, receipts, err := p.inner.FetchReceipts(ctx, blockHash)
+	if err != nil {
+		return blockInfo, receipts, err
+	}
+
+	// Now prefetch the next n blocks and their receipts
+	go p.FetchWindow(ctx, blockInfo.NumberU64(), blockInfo.NumberU64()+p.prefetchingRange)
+
+	return blockInfo, receipts, nil
 }
 
 func (p *PrefetchingEthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
