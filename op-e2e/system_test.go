@@ -205,17 +205,8 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
 	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
-	_, err = gethutils.WaitForBlockToBeFinalized(finalizedBlock.Header().Number, l1Client, finalizationTimeout)
-	require.Nil(t, err, "Waiting for blob block to be finalized on L1")
-
-	// fetch the finalized head of geth
-	finalizeCtx, finalizeCancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer finalizeCancel()
-	l2Seq := sys.Clients["sequencer"]
-	l2Finalized, err := l2Seq.BlockByNumber(finalizeCtx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
-	require.NoError(t, err)
-
-	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
+	_, err = gethutils.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
+	require.Nil(t, err, "Waiting for safety of L2 block")
 }
 
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
