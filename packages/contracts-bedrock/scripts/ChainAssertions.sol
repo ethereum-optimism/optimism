@@ -38,7 +38,7 @@ library ChainAssertions {
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkL1CrossDomainMessenger(_prox, _vm);
+        checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
         checkL1StandardBridge(_prox);
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
@@ -76,12 +76,18 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm) internal view {
+    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
+
         require(address(messenger.portal()) == _contracts.OptimismPortal);
         require(address(messenger.PORTAL()) == _contracts.OptimismPortal);
-        bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
+        if (_isProxy) {
+            require(address(messenger.superchainConfig()) == _contracts.SuperchainConfig);
+            bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
+            require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
+        } else {
+            require(address(messenger.superchainConfig()) == address(0));
+        }
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
