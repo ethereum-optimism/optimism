@@ -35,6 +35,7 @@ fs_permissions = [
   { access='read', path='./broadcast/' },
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
+  { access='read-write', path='./.testdata/' },
 ]
 libs = ["node_modules", "lib"]
 
