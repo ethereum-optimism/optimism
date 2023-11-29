@@ -18,14 +18,9 @@ contract ExtendedPause_Test is CommonTest {
         assertTrue(superchainConfig.paused());
         assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
 
-        // The following is hacky approach which ensures that this test will fail if the paused() function is
-        // added to the L1StandardBridge or the L1ERC721Bridge. At that point this test should be updated to include
-        // those methods.
-        try SuperchainConfig(address(l1StandardBridge)).paused() {
-            revert("The L1StandardBridge has a paused() function, but is not tested as part of the ExtendedPause");
-        } catch (bytes memory) {
-            assertTrue(true);
-        }
+        assertTrue(l1StandardBridge.paused());
+        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+
         try SuperchainConfig(address(l1ERC721Bridge)).paused() {
             revert("The L1ERC721Bridge has a paused() function, but is not tested as part of the ExtendedPause");
         } catch (bytes memory) {

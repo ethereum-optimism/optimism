@@ -103,6 +103,14 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions", true)
             })
         );
+        // L1StandardBridge
+        contracts.push(
+            InitializeableContract({
+                target: address(l1StandardBridge),
+                initCalldata: abi.encodeCall(l1StandardBridge.initialize, (superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridge", true)
+            })
+        );
         // L2CrossDomainMessenger
         contracts.push(
             InitializeableContract({

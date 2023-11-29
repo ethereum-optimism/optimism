@@ -5,6 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 
 /// @custom:proxied
@@ -69,12 +70,28 @@ contract L1StandardBridge is StandardBridge, ISemver {
     );
 
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
+
+    /// @notice Address of the SuperchainConfig contract.
+    SuperchainConfig public superchainConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
     /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger) StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE)) { }
+    constructor(address payable _messenger) StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE)) {
+        initialize({ _superchainConfig: SuperchainConfig(address(0)) });
+    }
+
+    /// @notice Initializes the contract.
+    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    function initialize(SuperchainConfig _superchainConfig) public initializer {
+        superchainConfig = _superchainConfig;
+    }
+
+    /// @inheritdoc StandardBridge
+    function paused() public view override returns (bool) {
+        return superchainConfig.paused();
+    }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
