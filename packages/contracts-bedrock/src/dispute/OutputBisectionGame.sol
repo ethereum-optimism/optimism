@@ -302,7 +302,13 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // Load the starting proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
             // TODO(clabby): +1?
-            oracle.loadLocalData(_ident, uuid, bytes32(GENESIS_BLOCK_NUMBER + uint256(starting.position.indexAtDepth()) << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(
+                _ident,
+                uuid,
+                bytes32(GENESIS_BLOCK_NUMBER + uint256(starting.position.indexAtDepth()) << 0xC0),
+                8,
+                _partOffset
+            );
         } else if (_ident == 5) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
             oracle.loadLocalData(_ident, uuid, bytes32(block.chainid << 0xC0), 8, _partOffset);
