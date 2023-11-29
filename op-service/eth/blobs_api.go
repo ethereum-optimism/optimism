@@ -9,6 +9,12 @@ type BlobSidecar struct {
 	KZGProof      Bytes48      `json:"kzg_proof"`
 }
 
+type BlobAndMetadata struct {
+	Blob          Blob    `json:"blob"`
+	KZGCommitment Bytes48 `json:"kzg_commitment"`
+	KZGProof      Bytes48 `json:"kzg_proof"`
+}
+
 type APIGetBlobSidecarsResponse struct {
 	Data []*BlobSidecar `json:"data"`
 }

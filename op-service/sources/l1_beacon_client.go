@@ -74,9 +74,7 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	return cl.timeToSlotFn, nil
 }
 
-// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the
-// given indexed hashes. The order of the returned blobs will match the order of `dataHashes`.
-func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.Blob, error) {
+func (cl *L1BeaconClient) getBlobSidecarsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.BlobSidecar, error) {
 	slotFn, err := cl.GetTimeToSlotFn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get time to slot function: %w", err)
@@ -103,13 +101,24 @@ func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, re
 		return nil, fmt.Errorf("expected %v sidecars but got %v", len(dataHashes), len(resp.Data))
 	}
 
+	return resp.Data, nil
+}
+
+// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the
+// given indexed hashes. The order of the returned blobs will match the order of `dataHashes`.
+func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.Blob, error) {
+	blobSidecars, err := cl.getBlobSidecarsByRefAndIndexedDataHashes(ctx, ref, dataHashes)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make([]*eth.Blob, len(dataHashes))
 	for i, ih := range dataHashes {
 		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
 		// search for the sidecar that matches the current indexed hash to ensure blobs are
 		// returned in the same order.
 		var sidecar *eth.BlobSidecar
-		for _, sc := range resp.Data {
+		for _, sc := range blobSidecars {
 			if uint64(sc.Index) == ih.Index {
 				sidecar = sc
 				break
@@ -130,6 +139,49 @@ func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, re
 			return nil, fmt.Errorf("blob at index %v failed verification: %w", i, err)
 		}
 		out[i] = &sidecar.Blob
+	}
+	return out, nil
+}
+
+// BlobsAndProofsByRefAndIndexedDataHashes fetches blobs and their KZG commitments and proofs that were confirmed in the given L1 block with the
+// given indexed hashes. The order of the returned blobs will match the order of `dataHashes`.
+func (cl *L1BeaconClient) BlobsAndProofsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.BlobAndMetadata, error) {
+	blobSidecars, err := cl.getBlobSidecarsByRefAndIndexedDataHashes(ctx, ref, dataHashes)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]*eth.BlobAndMetadata, len(dataHashes))
+	for i, ih := range dataHashes {
+		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
+		// search for the sidecar that matches the current indexed hash to ensure blobs are
+		// returned in the same order.
+		var sidecar *eth.BlobSidecar
+		for _, sc := range blobSidecars {
+			if uint64(sc.Index) == ih.Index {
+				sidecar = sc
+				break
+			}
+		}
+		if sidecar == nil {
+			return nil, fmt.Errorf("no blob in response matches desired index: %v", ih.Index)
+		}
+
+		// make sure the blob's kzg commitment hashes to the expected value
+		dataHash := eth.KZGToVersionedHash(kzg4844.Commitment(sidecar.KZGCommitment))
+		if dataHash != ih.DataHash {
+			return nil, fmt.Errorf("expected datahash %s for blob at index %d in block %s but got %s", ih.DataHash, ih.Index, ref, dataHash)
+		}
+
+		// confirm blob data is valid by verifying its proof against the commitment
+		if err := eth.VerifyBlobProof(&sidecar.Blob, kzg4844.Commitment(sidecar.KZGCommitment), kzg4844.Proof(sidecar.KZGProof)); err != nil {
+			return nil, fmt.Errorf("blob at index %v failed verification: %w", i, err)
+		}
+		out[i] = &eth.BlobAndMetadata{
+			Blob:          sidecar.Blob,
+			KZGCommitment: sidecar.KZGCommitment,
+			KZGProof:      sidecar.KZGProof,
+		}
 	}
 	return out, nil
 }
