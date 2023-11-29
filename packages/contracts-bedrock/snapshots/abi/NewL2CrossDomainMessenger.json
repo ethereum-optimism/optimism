@@ -1,0 +1,150 @@
+[
+  {
+    "inputs": [],
+    "name": "CHAIN_ID",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MESSAGE_VERSION",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "failedMessages",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_nonce",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_source",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "_sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_value",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_minGasLimit",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      }
+    ],
+    "name": "relayMessage",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_destination",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "_target",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_message",
+        "type": "bytes"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_minGasLimit",
+        "type": "uint32"
+      }
+    ],
+    "name": "sendMessage",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "name": "successfulMessages",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "version",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
