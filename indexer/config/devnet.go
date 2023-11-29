@@ -39,7 +39,12 @@ func DevnetPreset() (*Preset, error) {
 	}
 
 	return &Preset{
-		Name:        "Local Devnet",
-		ChainConfig: ChainConfig{Preset: DevnetPresetId, L1Contracts: l1Contracts},
+		Name: "Local Devnet",
+		ChainConfig: ChainConfig{
+			Preset:            DevnetPresetId,
+			L1Contracts:       l1Contracts,
+			L1PollingInterval: 5000,
+			L2PollingInterval: 5000,
+		},
 	}, nil
 }

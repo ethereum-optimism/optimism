@@ -1,30 +1,29 @@
-# Chain configures l1 chain addresses
-# Can configure them manually or use a preset L2 ChainId for known chains
+# Default to the local Devnet. Can set chain id for some hard-coded chain config
 #  - i.e OP Mainnet, OP Goerli, Base, Base Goerli, Zora, Zora Goerli, etc
 [chain]
-preset = $INDEXER_CHAIN_PRESET
+preset = 901
 
-# L1 Config
-l1-polling-interval = 0
-l1-header-buffer-size = 0
-l1-confirmation-depth = 0
-l1-starting-height = 0
-
-# L2 Config
-l2-polling-interval = 0
-l2-header-buffer-size = 0
-l2-confirmation-depth = 0
+### ChainConfiguration. Uncomment to set desired L1 & L2 config
+##  l1-polling-interval = 0
+##  l1-header-buffer-size = 0
+##  l1-confirmation-depth = 0
+##  l1-starting-height = 0
+##  
+##  l2-polling-interval = 0
+##  l2-header-buffer-size = 0
+##  l2-confirmation-depth = 0
+###
 
 [rpcs]
-l1-rpc = "${INDEXER_RPC_URL_L1}"
-l2-rpc = "${INDEXER_RPC_URL_L2}"
+l1-rpc = "http://127.0.0.1:8545"
+l2-rpc = "http://127.0.0.1:9545"
 
 [db]
-host = "$INDEXER_DB_HOST"
-port = $INDEXER_DB_PORT
-user = "$INDEXER_DB_USER"
-password = "$INDEXER_DB_PASS"
-name = "$INDEXER_DB_NAME"
+host = "127.0.0.1"
+port = 5432
+user = "db_username"
+password = "db_password"
+name = "db_name"
 
 [http]
 host = "127.0.0.1"

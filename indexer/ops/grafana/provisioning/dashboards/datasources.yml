@@ -1,0 +1,13 @@
+apiVersion: 1
+
+datasources:
+  - name: Indexer
+    type: prometheus
+    access: proxy
+    url: http://prometheus:7300
+    isDefault: true
+  - name: API Server
+    type: prometheus
+    access: proxy
+    url: http://prometheus:7301
+    isDefault: true
