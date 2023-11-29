@@ -41,8 +41,8 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID, batch
 	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id, batcherAddr)
 }
 
-// dataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
-type dataSourceConfig struct {
+// DataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
+type DataSourceConfig struct {
 	l1Signer          types.Signer
 	batchInboxAddress common.Address
 }
@@ -56,7 +56,7 @@ type DataSource struct {
 	data []eth.Data
 	// Required to re-attempt fetching
 	id      eth.BlockID
-	cfg     dataSourceConfig
+	dsCfg   DataSourceConfig
 	fetcher L1TransactionFetcher
 	log     log.Logger
 
@@ -67,14 +67,14 @@ type DataSource struct {
 // If there is an error, it will attempt to fetch the result on the next call to `Next`.
 func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID, batcherAddr common.Address) DataIter {
 	_, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
+
+	dsCfg := DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress}
+
 	if err != nil {
 		return &DataSource{
-			open: false,
-			id:   block,
-			cfg: dataSourceConfig{
-				l1Signer:          cfg.L1Signer(),
-				batchInboxAddress: cfg.BatchInboxAddress,
-			},
+			open:        false,
+			id:          block,
+			dsCfg:       dsCfg,
 			fetcher:     fetcher,
 			log:         log,
 			batcherAddr: batcherAddr,
@@ -82,7 +82,7 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 	} else {
 		return &DataSource{
 			open: true,
-			data: DataFromEVMTransactions(cfg.L1Signer(), cfg.BatchInboxAddress, batcherAddr, txs, log.New("origin", block)),
+			data: DataFromEVMTransactions(dsCfg, batcherAddr, txs, log.New("origin", block)),
 		}
 	}
 }
@@ -94,7 +94,7 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 	if !ds.open {
 		if _, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.id.Hash); err == nil {
 			ds.open = true
-			ds.data = DataFromEVMTransactions(ds.cfg.l1Signer, ds.cfg.batchInboxAddress, ds.batcherAddr, txs, log.New("origin", ds.id))
+			ds.data = DataFromEVMTransactions(ds.dsCfg, ds.batcherAddr, txs, log.New("origin", ds.id))
 		} else if errors.Is(err, ethereum.NotFound) {
 			return nil, NewResetError(fmt.Errorf("failed to open calldata source: %w", err))
 		} else {
@@ -113,11 +113,11 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 // DataFromEVMTransactions filters all of the transactions and returns the calldata from transactions
 // that are sent to the batch inbox address from the batch sender address.
 // This will return an empty array if no valid transactions are found.
-func DataFromEVMTransactions(l1Signer types.Signer, batchInboxAddress common.Address, batcherAddr common.Address, txs types.Transactions, log log.Logger) []eth.Data {
+func DataFromEVMTransactions(dsCfg DataSourceConfig, batcherAddr common.Address, txs types.Transactions, log log.Logger) []eth.Data {
 	var out []eth.Data
 	for j, tx := range txs {
-		if to := tx.To(); to != nil && *to == batchInboxAddress {
-			seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
+		if to := tx.To(); to != nil && *to == dsCfg.batchInboxAddress {
+			seqDataSubmitter, err := dsCfg.l1Signer.Sender(tx) // optimization: only derive sender if To is correct
 			if err != nil {
 				log.Warn("tx in inbox with invalid signature", "index", j, "err", err)
 				continue // bad signature, ignore
