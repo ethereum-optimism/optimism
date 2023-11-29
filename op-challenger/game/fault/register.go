@@ -22,9 +22,10 @@ import (
 )
 
 var (
-	cannonGameType       = uint8(0)
-	outputCannonGameType = uint8(0) // TODO(client-pod#43): This should be a unique game type
-	alphabetGameType     = uint8(255)
+	cannonGameType         = uint8(0)
+	outputCannonGameType   = uint8(0) // TODO(client-pod#260): Switch the output cannon game type to 1
+	outputAlphabetGameType = uint8(254)
+	alphabetGameType       = uint8(255)
 )
 
 type CloseFunc func()
@@ -55,6 +56,9 @@ func RegisterGameTypes(
 	if cfg.TraceTypeEnabled(config.TraceTypeOutputCannon) {
 		registerOutputCannon(registry, ctx, logger, m, cfg, txMgr, caller, l2Client)
 	}
+	if cfg.TraceTypeEnabled(config.TraceTypeOutputAlphabet) {
+		registerOutputAlphabet(registry, ctx, logger, m, cfg, txMgr, caller, l2Client)
+	}
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		registerCannon(registry, ctx, logger, m, cfg, txMgr, caller, l2Client)
 	}
@@ -62,6 +66,61 @@ func RegisterGameTypes(
 		registerAlphabet(registry, ctx, logger, m, cfg, txMgr, caller)
 	}
 	return closer, nil
+}
+
+func registerOutputAlphabet(
+	registry Registry,
+	ctx context.Context,
+	logger log.Logger,
+	m metrics.Metricer,
+	cfg *config.Config,
+	txMgr txmgr.TxManager,
+	caller *batching.MultiCaller,
+	l2Client cannon.L2HeaderSource) {
+	resourceCreator := func(addr common.Address) (gameTypeResources, error) {
+		contract, err := contracts.NewOutputBisectionGameContract(addr, caller)
+		if err != nil {
+			return nil, err
+		}
+		return &outputAlphabetResources{
+			m:        m,
+			cfg:      cfg,
+			l2Client: l2Client,
+			contract: contract,
+		}, nil
+	}
+	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, resourceCreator)
+	}
+	registry.RegisterGameType(outputAlphabetGameType, playerCreator)
+}
+
+type outputAlphabetResources struct {
+	m        metrics.Metricer
+	cfg      *config.Config
+	l2Client cannon.L2HeaderSource
+	contract *contracts.OutputBisectionGameContract
+}
+
+func (r *outputAlphabetResources) Contract() GameContract {
+	return r.contract
+}
+
+func (r *outputAlphabetResources) CreateAccessor(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
+	// TODO(client-pod#44): Validate absolute pre-state for split games
+	prestateBlock, poststateBlock, err := r.contract.GetBlockRange(ctx)
+	if err != nil {
+		return nil, err
+	}
+	splitDepth, err := r.contract.GetSplitDepth(ctx)
+	if err != nil {
+		return nil, err
+	}
+	accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, r.m, r.cfg, gameDepth, splitDepth, prestateBlock, poststateBlock)
+	if err != nil {
+		return nil, err
+	}
+	return accessor, nil
 }
 
 func registerOutputCannon(
@@ -97,7 +156,7 @@ type outputCannonResources struct {
 	m        metrics.Metricer
 	cfg      *config.Config
 	l2Client cannon.L2HeaderSource
-	contract *contracts.FaultDisputeGameContract
+	contract *contracts.FaultDisputeGameContract // TODO(client-pod#260): Use the OutputBisectionGame Contract
 }
 
 func (r *outputCannonResources) Contract() GameContract {
