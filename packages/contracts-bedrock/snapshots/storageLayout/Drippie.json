@@ -11,6 +11,6 @@
     "label": "mapping(string => struct Drippie.DripState)",
     "offset": 0,
     "slot": "1",
-    "type": "t_mapping(t_string_memory_ptr,t_struct(DripState)91598_storage)"
+    "type": "t_mapping(t_string_memory_ptr,t_struct(DripState)91663_storage)"
   }
 ]
