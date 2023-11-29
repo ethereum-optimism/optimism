@@ -94,13 +94,10 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			gameDuration := game.GameDuration(ctx)
 
 			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Defender",
-				challenger.WithAgreeProposedOutput(false),
 				challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
 			)
 
 			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
-				// Agree with the proposed output, so disagree with the root claim
-				challenger.WithAgreeProposedOutput(true),
 				challenger.WithAlphabet(test.otherAlphabet),
 				challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 			)
@@ -137,7 +134,6 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 
 		// Start honest challenger
 		game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
-			challenger.WithAgreeProposedOutput(!isRootCorrect),
 			challenger.WithAlphabet(disputegame.CorrectAlphabet),
 			challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 			// Ensures the challenger responds to all claims before test timeout

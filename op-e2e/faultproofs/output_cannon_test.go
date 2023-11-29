@@ -27,8 +27,6 @@ func TestOutputCannonGame(t *testing.T) {
 	game.LogGameData(ctx)
 
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, rollupEndpoint, l1Endpoint, l2Endpoint, "Challenger",
-		// Agree with the proposed output, so disagree with the root claim
-		challenger.WithAgreeProposedOutput(true),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)
 

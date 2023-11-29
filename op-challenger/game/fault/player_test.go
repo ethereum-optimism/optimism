@@ -22,7 +22,7 @@ var (
 )
 
 func TestProgressGame_LogErrorFromAct(t *testing.T) {
-	handler, game, actor := setupProgressGameTest(t, true)
+	handler, game, actor := setupProgressGameTest(t)
 	actor.actErr = errors.New("boom")
 	status := game.ProgressGame(context.Background())
 	require.Equal(t, gameTypes.GameStatusInProgress, status)
@@ -39,58 +39,36 @@ func TestProgressGame_LogErrorFromAct(t *testing.T) {
 
 func TestProgressGame_LogGameStatus(t *testing.T) {
 	tests := []struct {
-		name            string
-		status          gameTypes.GameStatus
-		agreeWithOutput bool
-		logLevel        log.Lvl
-		logMsg          string
+		name   string
+		status gameTypes.GameStatus
+		logMsg string
 	}{
 		{
-			name:            "GameLostAsDefender",
-			status:          gameTypes.GameStatusChallengerWon,
-			agreeWithOutput: false,
-			logLevel:        log.LvlError,
-			logMsg:          "Game lost",
+			name:   "ChallengerWon",
+			status: gameTypes.GameStatusChallengerWon,
+			logMsg: "Game resolved",
 		},
 		{
-			name:            "GameLostAsChallenger",
-			status:          gameTypes.GameStatusDefenderWon,
-			agreeWithOutput: true,
-			logLevel:        log.LvlError,
-			logMsg:          "Game lost",
+			name:   "DefenderWon",
+			status: gameTypes.GameStatusDefenderWon,
+			logMsg: "Game resolved",
 		},
 		{
-			name:            "GameWonAsDefender",
-			status:          gameTypes.GameStatusDefenderWon,
-			agreeWithOutput: false,
-			logLevel:        log.LvlInfo,
-			logMsg:          "Game won",
-		},
-		{
-			name:            "GameWonAsChallenger",
-			status:          gameTypes.GameStatusChallengerWon,
-			agreeWithOutput: true,
-			logLevel:        log.LvlInfo,
-			logMsg:          "Game won",
-		},
-		{
-			name:            "GameInProgress",
-			status:          gameTypes.GameStatusInProgress,
-			agreeWithOutput: true,
-			logLevel:        log.LvlInfo,
-			logMsg:          "Game info",
+			name:   "GameInProgress",
+			status: gameTypes.GameStatusInProgress,
+			logMsg: "Game info",
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			handler, game, gameState := setupProgressGameTest(t, test.agreeWithOutput)
+			handler, game, gameState := setupProgressGameTest(t)
 			gameState.status = test.status
 
 			status := game.ProgressGame(context.Background())
 			require.Equal(t, 1, gameState.callCount, "should perform next actions")
 			require.Equal(t, test.status, status)
-			errLog := handler.FindLog(test.logLevel, test.logMsg)
+			errLog := handler.FindLog(log.LvlInfo, test.logMsg)
 			require.NotNil(t, errLog, "should log game result")
 			require.Equal(t, test.status, errLog.GetContextValue("status"))
 		})
@@ -100,7 +78,7 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 func TestDoNotActOnCompleteGame(t *testing.T) {
 	for _, status := range []gameTypes.GameStatus{gameTypes.GameStatusChallengerWon, gameTypes.GameStatusDefenderWon} {
 		t.Run(status.String(), func(t *testing.T) {
-			_, game, gameState := setupProgressGameTest(t, true)
+			_, game, gameState := setupProgressGameTest(t)
 			gameState.status = status
 
 			fetched := game.ProgressGame(context.Background())
@@ -152,7 +130,7 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	})
 }
 
-func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.CapturingHandler, *GamePlayer, *stubGameState) {
+func setupProgressGameTest(t *testing.T) (*testlog.CapturingHandler, *GamePlayer, *stubGameState) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	handler := &testlog.CapturingHandler{
 		Delegate: logger.GetHandler(),
@@ -160,10 +138,9 @@ func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.C
 	logger.SetHandler(handler)
 	gameState := &stubGameState{claimCount: 1}
 	game := &GamePlayer{
-		act:                     gameState.Act,
-		agreeWithProposedOutput: agreeWithProposedRoot,
-		loader:                  gameState,
-		logger:                  logger,
+		act:    gameState.Act,
+		loader: gameState,
+		logger: logger,
 	}
 	return handler, game, gameState
 }

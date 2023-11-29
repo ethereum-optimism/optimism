@@ -314,7 +314,7 @@ func setupAlphabetSplitSelector(t *testing.T) (*alphabet.AlphabetTraceProvider, 
 	selector := NewSplitProviderSelector(top, topDepth, bottomCreator)
 
 	claimBuilder := test.NewAlphabetClaimBuilder(t, topDepth+bottomDepth)
-	gameBuilder := claimBuilder.GameBuilder(true, true)
+	gameBuilder := claimBuilder.GameBuilder(true)
 	return top, selector, gameBuilder
 }
 

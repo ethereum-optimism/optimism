@@ -90,7 +90,7 @@ func registerOutputCannon(
 		return accessor, noopValidator, nil
 	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, client, resourceCreator)
 	}
 	registry.RegisterGameType(outputCannonGameType, playerCreator)
 }
@@ -117,7 +117,7 @@ func registerCannon(
 		return trace.NewSimpleTraceAccessor(provider), validator, nil
 	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, client, resourceCreator)
 	}
 	registry.RegisterGameType(cannonGameType, playerCreator)
 }
@@ -138,7 +138,7 @@ func registerAlphabet(
 		return trace.NewSimpleTraceAccessor(provider), validator, nil
 	}
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
-		return NewGamePlayer(ctx, logger, m, cfg, dir, game.Proxy, txMgr, client, resourceCreator)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, client, resourceCreator)
 	}
 	registry.RegisterGameType(alphabetGameType, playerCreator)
 }
