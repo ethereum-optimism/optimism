@@ -18,6 +18,9 @@ import (
 // on the ProxyAdmin contract.
 const upgradeAndCall = "upgradeAndCall(address,address,bytes)"
 
+// storageSetterAddr represents the address of the StorageSetter contract.
+var storageSetterAddr = common.HexToAddress("0xd81f43eDBCAcb4c29a9bA38a13Ee5d79278270cC")
+
 // L1 will add calls for upgrading each of the L1 contracts.
 func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	if err := L1CrossDomainMessenger(batch, implementations, list, config, chainConfig, backend); err != nil {
@@ -51,6 +54,27 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L28
+		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{31: 0xf9}, common.Hash{})
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
+			storageSetterAddr,
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+			return err
+		}
+	}
+
 	l1CrossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -80,6 +104,28 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
+	}
+
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+
+		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L100-L103
+		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(list.L1ERC721BridgeProxy.String()),
+			storageSetterAddr,
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+			return err
+		}
 	}
 
 	l1ERC721BridgeABI, err := bindings.L1ERC721BridgeMetaData.GetAbi()
@@ -113,24 +159,36 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	// Add in OP Mainnet specific upgrade logic here
-	if chainConfig.ChainID == 10 {
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
 		}
-		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
+
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L36-L37
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L41
+			{
+				Key:   common.Hash{31: 0x03},
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
 		if err != nil {
 			return err
 		}
 		args := []any{
 			common.HexToAddress(list.L1StandardBridgeProxy.String()),
-			common.HexToAddress("0xf30CE41cA2f24D28b95Eb861553dAc2948e0157F"),
+			storageSetterAddr,
 			calldata,
 		}
 		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
-		sig := "upgradeAndCall(address,address,bytes)"
-		if err := batch.AddCall(proxyAdmin, common.Big0, sig, args, proxyAdminABI); err != nil {
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 			return err
 		}
 	}
@@ -164,6 +222,40 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
+	}
+
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L55
+			{
+				Key:   common.Hash{31: 0x04},
+				Value: common.Hash{},
+			},
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L56
+			{
+				Key:   common.Hash{31: 0x05},
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(list.L2OutputOracleProxy.String()),
+			storageSetterAddr,
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+			return err
+		}
 	}
 
 	l2OutputOracleABI, err := bindings.L2OutputOracleMetaData.GetAbi()
@@ -233,6 +325,28 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		return err
 	}
 
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+
+		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L287-L289
+		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
+			storageSetterAddr,
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+			return err
+		}
+	}
+
 	optimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
 	if err != nil {
 		return err
@@ -262,6 +376,45 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
+	}
+
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L72
+			{
+				Key:   common.Hash{31: 53},
+				Value: common.Hash{},
+			},
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L73
+			{
+				Key:   common.Hash{31: 54},
+				Value: common.Hash{},
+			},
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L74
+			{
+				Key:   common.Hash{31: 55},
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(list.OptimismPortalProxy.String()),
+			storageSetterAddr,
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+			return err
+		}
 	}
 
 	optimismPortalABI, err := bindings.OptimismPortalMetaData.GetAbi()
@@ -308,6 +461,70 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 	proxyAdminABI, err := bindings.ProxyAdminMetaData.GetAbi()
 	if err != nil {
 		return err
+	}
+
+	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
+		if err != nil {
+			return err
+		}
+
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L92
+			{
+				Key:   common.Hash{31: 106},
+				Value: common.Hash{},
+			},
+			// bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
+			{
+				Key:   common.HexToHash("0x383f291819e6d54073bc9a648251d97421076bdd101933c0c022219ce9580636"),
+				Value: common.Hash{},
+			},
+			// bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
+			{
+				Key:   common.HexToHash("0x46adcbebc6be8ce551740c29c47c8798210f23f7f4086c41752944352568d5a7"),
+				Value: common.Hash{},
+			},
+			// bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
+			{
+				Key:   common.HexToHash("0x9904ba90dde5696cda05c9e0dab5cbaa0fea005ace4d11218a02ac668dad6376"),
+				Value: common.Hash{},
+			},
+			// bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
+			{
+				Key:   common.HexToHash("0xe52a667f71ec761b9b381c7b76ca9b852adf7e8905da0e0ad49986a0a6871815"),
+				Value: common.Hash{},
+			},
+			// bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
+			{
+				Key:   common.HexToHash("0x4b6c74f9e688cb39801f2112c14a8c57232a3fc5202e1444126d4bce86eb19ac"),
+				Value: common.Hash{},
+			},
+			// bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT = bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
+			{
+				Key:   common.HexToHash("0xa04c5bb938ca6fc46d95553abf0a76345ce3e722a30bf4f74928b8e7d852320c"),
+				Value: common.Hash{},
+			},
+			// bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+			{
+				Key:   common.HexToHash("0x71ac12829d66ee73d8d95bff50b3589745ce57edae70a3fb111a2342464dc597"),
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		if err != nil {
+			return err
+		}
+		args := []any{
+			common.HexToAddress(chainConfig.SystemConfigAddr.String()),
+			storageSetterAddr,
+			calldata,
+		}
+		proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
+		if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+			return err
+		}
 	}
 
 	systemConfigABI, err := bindings.SystemConfigMetaData.GetAbi()
