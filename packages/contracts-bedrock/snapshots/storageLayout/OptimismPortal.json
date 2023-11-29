@@ -18,7 +18,7 @@
     "label": "struct ResourceMetering.ResourceParams",
     "offset": 0,
     "slot": "1",
-    "type": "t_struct(ResourceParams)76287_storage"
+    "type": "t_struct(ResourceParams)76818_storage"
   },
   {
     "bytes": "1536",
@@ -46,7 +46,7 @@
     "label": "mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal)",
     "offset": 0,
     "slot": "52",
-    "type": "t_mapping(t_bytes32,t_struct(ProvenWithdrawal)75366_storage)"
+    "type": "t_mapping(t_bytes32,t_struct(ProvenWithdrawal)75897_storage)"
   },
   {
     "bytes": "1",
@@ -60,6 +60,6 @@
     "label": "contract SuperchainConfig",
     "offset": 1,
     "slot": "53",
-    "type": "t_contract(SuperchainConfig)76810"
+    "type": "t_contract(SuperchainConfig)77341"
   }
 ]
