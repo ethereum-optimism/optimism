@@ -23,8 +23,9 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
     /// @dev The L2 Block Number for the game's proposed output (the root claim)
-    uint256 internal constant L2_BLOCK_NUMBER = 0xFFFF;
+    uint256 internal constant L2_BLOCK_NUMBER = 0x0a;
 
+    /// @dev The genesis block number configured for the output bisection portion of the game.
     uint256 internal constant GENESIS_BLOCK_NUMBER = 0;
 
     /// @dev The implementation of the game.
@@ -45,15 +46,15 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
         extraData = abi.encode(L2_BLOCK_NUMBER);
 
         // Deploy an implementation of the fault game
-        gameImpl = new OutputBisectionGame(
-            GAME_TYPE,
-            absolutePrestate,
-            GENESIS_BLOCK_NUMBER,
-            4,
-            2,
-            Duration.wrap(7 days),
-            new AlphabetVM(absolutePrestate)
-        );
+        gameImpl = new OutputBisectionGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: absolutePrestate,
+            _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
+            _maxGameDepth: 2**3,
+            _splitDepth: 2**2,
+            _gameDuration: Duration.wrap(7 days),
+            _vm: new AlphabetVM(absolutePrestate)
+        });
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
@@ -128,7 +129,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         assertEq(Timestamp.unwrap(gameProxy.createdAt()), block.timestamp);
 
         // Assert that the blockhash provided is correct.
-        assertEq(Hash.unwrap(gameProxy.l1Head()), blockhash(block.number - 1));
+        assertEq(Hash.unwrap(gameProxy.settlementHead()), blockhash(block.number - 1));
     }
 
     /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
@@ -446,15 +447,16 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Tests that adding local data with an out of bounds identifier reverts.
     function testFuzz_addLocalData_oob_reverts(uint256 _ident) public {
         // Get a claim below the split depth so that we can add local data for an execution trace subgame.
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
-        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
-        gameProxy.attack(2, ROOT_CLAIM);
+        for (uint256 i; i < 4; i++) {
+            gameProxy.attack(i, Claim.wrap(bytes32(uint256(5))));
+        }
+        gameProxy.attack(4, ROOT_CLAIM);
 
         // [1, 5] are valid local data identifiers.
         if (_ident <= 5) _ident = 0;
 
         vm.expectRevert(InvalidLocalIdent.selector);
-        gameProxy.addLocalData(_ident, 3, 0);
+        gameProxy.addLocalData(_ident, 5, 0);
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.

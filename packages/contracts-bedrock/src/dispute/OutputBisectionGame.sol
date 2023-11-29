@@ -65,7 +65,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     IBondManager public bondManager;
 
     /// @inheritdoc IOutputBisectionGame
-    Hash public l1Head;
+    Hash public settlementHead;
 
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
@@ -290,8 +290,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
 
         IPreimageOracle oracle = VM.oracle();
         if (_ident == 1) {
-            // Load the L1 head hash
-            oracle.loadLocalData(_ident, uuid, Hash.unwrap(l1Head), 32, _partOffset);
+            // Load the settlement layer head hash
+            oracle.loadLocalData(_ident, uuid, Hash.unwrap(settlementHead), 32, _partOffset);
         } else if (_ident == 2) {
             // Load the starting proposal's output root.
             oracle.loadLocalData(_ident, uuid, Claim.unwrap(starting.claim), 32, _partOffset);
@@ -301,11 +301,11 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         } else if (_ident == 4) {
             // Load the starting proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
-            // TODO(clabby): +1?
+            // TODO(clabby): +1? See TODO in natspec of `findStartingAndDisputedOutputs`
             oracle.loadLocalData(
                 _ident,
                 uuid,
-                bytes32(GENESIS_BLOCK_NUMBER + uint256(starting.position.indexAtDepth()) << 0xC0),
+                bytes32(uint256(GENESIS_BLOCK_NUMBER + starting.position.indexAtDepth()) << 0xC0),
                 8,
                 _partOffset
             );
@@ -444,11 +444,11 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             })
         );
 
-        // Persist the L1 head hash of the parent block.
+        // Persist the settlement layer hash of the parent block.
         // TODO(clabby): There may be a bug here - Do we just allow the dispute game to be invalid? We can
         //               always just create another, but it is possible to create a game where the data was not
-        //               already available on L1.
-        l1Head = Hash.wrap(blockhash(block.number - 1));
+        //               already available on the settlement layer.
+        settlementHead = Hash.wrap(blockhash(block.number - 1));
     }
 
     /// @notice Returns the length of the `claimData` array.
@@ -497,6 +497,10 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @param _start The index within `claimData` of the claim to start searching from.
     /// @return starting_ The starting, agreed upon output root claim.
     /// @return disputed_ The disputed output root claim.
+    ///
+    /// TODO: This function does not account for the case where the starting output root is the absolute
+    ///       prestate. Need to determine whether or not the first leaf at the split depth is genesis or
+    ///       block #1.
     function findStartingAndDisputedOutputs(uint256 _start)
         internal
         view
@@ -541,6 +545,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // 2. If it was a defense, the starting output root is `claim`, and the disputed output root is
         //    elsewhere in the dag (it must commit to the block # index at depth of `outputPos + 1`).
         if (wasAttack) {
+            // See TODO in natspec.
             starting_ = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx);
             disputed_ = claimData[claimIdx];
         } else {
