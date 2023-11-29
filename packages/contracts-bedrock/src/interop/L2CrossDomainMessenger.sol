@@ -6,6 +6,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
+import { ISemver } from "src/universal/ISemver.sol";
 
 /// @title NewL2CrossDomainMessenger
 /// @notice NewL2CrossDomainMessenger is an extended version of the existing predeploy
@@ -14,19 +15,17 @@ import { SafeCall } from "src/libraries/SafeCall.sol";
 ////        L2-L2 implementation, changes to the interface and messaging format that
 ///         would reside in the CrossDomainMessenger are scoped internally in this
 ///         contract. The L2-L1 flow remains unchanged.
-contract NewL2CrossDomainMessenger {
+contract NewL2CrossDomainMessenger is ISemver {
+    /// @custom:semver 0.0.1
+    string public constant version = "0.0.1";
+
     // CrossDomainMessenger: some copied internals & updated dispatch/message spec
 
     /// @notice Latest message version identifier (interop-enabled)
     uint16 public constant MESSAGE_VERSION = 2;
 
     /// @notice Chain identifier of the network
-    bytes32 public immutable CHAIN_ID;
-
-    /// @param _chain_id Chain identifier of this network
-    constructor(bytes32 _chain_id) {
-        CHAIN_ID = _chain_id;
-    }
+    bytes32 public immutable CHAIN_ID = bytes32(uint256(block.chainid));
 
     // TODO: Events
 
