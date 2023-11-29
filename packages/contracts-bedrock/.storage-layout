@@ -24,8 +24,8 @@
 | xDomainMsgSender   | address                   | 204  | 0      | 20    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | msgNonce           | uint240                   | 205  | 0      | 30    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | failedMessages     | mapping(bytes32 => bool)  | 206  | 0      | 32    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| __gap              | uint256[42]               | 207  | 0      | 1344  | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| superchainConfig   | contract SuperchainConfig | 249  | 0      | 20    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| __gap              | uint256[44]               | 207  | 0      | 1408  | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| superchainConfig   | contract SuperchainConfig | 251  | 0      | 20    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 
 =======================
 ➡ src/L1/L1StandardBridge.sol:L1StandardBridge
@@ -145,7 +145,7 @@
 | xDomainMsgSender   | address                  | 204  | 0      | 20    | src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | msgNonce           | uint240                  | 205  | 0      | 30    | src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | failedMessages     | mapping(bytes32 => bool) | 206  | 0      | 32    | src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| __gap              | uint256[42]              | 207  | 0      | 1344  | src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| __gap              | uint256[44]              | 207  | 0      | 1408  | src/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 
 =======================
 ➡ src/L2/L2StandardBridge.sol:L2StandardBridge

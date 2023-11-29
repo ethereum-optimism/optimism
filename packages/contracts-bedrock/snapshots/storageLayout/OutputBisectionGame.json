@@ -4,49 +4,49 @@
     "label": "Timestamp",
     "offset": 0,
     "slot": "0",
-    "type": "t_userDefinedValueType(Timestamp)77306"
+    "type": "t_userDefinedValueType(Timestamp)88547"
   },
   {
     "bytes": "8",
     "label": "Timestamp",
     "offset": 8,
     "slot": "0",
-    "type": "t_userDefinedValueType(Timestamp)77306"
+    "type": "t_userDefinedValueType(Timestamp)88547"
   },
   {
     "bytes": "1",
     "label": "enum GameStatus",
     "offset": 16,
     "slot": "0",
-    "type": "t_enum(GameStatus)77322"
+    "type": "t_enum(GameStatus)88563"
   },
   {
     "bytes": "20",
     "label": "contract IBondManager",
     "offset": 0,
     "slot": "1",
-    "type": "t_contract(IBondManager)75008"
+    "type": "t_contract(IBondManager)86056"
   },
   {
     "bytes": "32",
     "label": "Hash",
     "offset": 0,
     "slot": "2",
-    "type": "t_userDefinedValueType(Hash)77298"
+    "type": "t_userDefinedValueType(Hash)88539"
   },
   {
     "bytes": "32",
     "label": "struct IOutputBisectionGame.ClaimData[]",
     "offset": 0,
     "slot": "3",
-    "type": "t_array(t_struct(ClaimData)75343_storage)dyn_storage"
+    "type": "t_array(t_struct(ClaimData)86391_storage)dyn_storage"
   },
   {
     "bytes": "32",
     "label": "mapping(ClaimHash => bool)",
     "offset": 0,
     "slot": "4",
-    "type": "t_mapping(t_userDefinedValueType(ClaimHash)77302,t_bool)"
+    "type": "t_mapping(t_userDefinedValueType(ClaimHash)88543,t_bool)"
   },
   {
     "bytes": "32",

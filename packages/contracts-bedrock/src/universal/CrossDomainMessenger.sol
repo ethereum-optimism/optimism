@@ -139,9 +139,9 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public failedMessages;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    ///         A gap size of 41 was chosen here, so that the first slot used in a child contract
-    ///         would be a multiple of 50.
-    uint256[42] private __gap;
+    ///         A gap size of 44 was chosen here, so that the first slot used in a child contract
+    ///         would be 1 plus a multiple of 50.
+    uint256[44] private __gap;
 
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param target       Address of the recipient of the message.

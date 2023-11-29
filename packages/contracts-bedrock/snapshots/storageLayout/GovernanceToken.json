@@ -39,7 +39,7 @@
     "label": "mapping(address => struct Counters.Counter)",
     "offset": 0,
     "slot": "5",
-    "type": "t_mapping(t_address,t_struct(Counter)49118_storage)"
+    "type": "t_mapping(t_address,t_struct(Counter)51095_storage)"
   },
   {
     "bytes": "32",
@@ -60,14 +60,14 @@
     "label": "mapping(address => struct ERC20Votes.Checkpoint[])",
     "offset": 0,
     "slot": "8",
-    "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)46264_storage)dyn_storage)"
+    "type": "t_mapping(t_address,t_array(t_struct(Checkpoint)48241_storage)dyn_storage)"
   },
   {
     "bytes": "32",
     "label": "struct ERC20Votes.Checkpoint[]",
     "offset": 0,
     "slot": "9",
-    "type": "t_array(t_struct(Checkpoint)46264_storage)dyn_storage"
+    "type": "t_array(t_struct(Checkpoint)48241_storage)dyn_storage"
   },
   {
     "bytes": "20",

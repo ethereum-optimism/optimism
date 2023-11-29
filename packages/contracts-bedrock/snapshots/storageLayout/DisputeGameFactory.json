@@ -39,20 +39,20 @@
     "label": "mapping(GameType => contract IDisputeGame)",
     "offset": 0,
     "slot": "101",
-    "type": "t_mapping(t_userDefinedValueType(GameType)77316,t_contract(IDisputeGame)75085)"
+    "type": "t_mapping(t_userDefinedValueType(GameType)1585,t_contract(IDisputeGame)1063)"
   },
   {
     "bytes": "32",
     "label": "mapping(Hash => GameId)",
     "offset": 0,
     "slot": "102",
-    "type": "t_mapping(t_userDefinedValueType(Hash)77298,t_userDefinedValueType(GameId)77310)"
+    "type": "t_mapping(t_userDefinedValueType(Hash)1567,t_userDefinedValueType(GameId)1579)"
   },
   {
     "bytes": "32",
     "label": "GameId[]",
     "offset": 0,
     "slot": "103",
-    "type": "t_array(t_userDefinedValueType(GameId)77310)dyn_storage"
+    "type": "t_array(t_userDefinedValueType(GameId)1579)dyn_storage"
   }
 ]
