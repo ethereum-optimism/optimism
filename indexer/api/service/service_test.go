@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func assertNotEmpty(t *testing.T, item any) {
+func assertFieldsAreSet(t *testing.T, item any) {
 	structType := reflect.TypeOf(item)
 
 	structVal := reflect.ValueOf(item)
@@ -59,7 +59,7 @@ func TestWithdrawalResponse(t *testing.T) {
 	response := svc.WithdrawResponse(withdraws)
 	require.NotEmpty(t, response.Items)
 	require.Len(t, response.Items, 1)
-	assertNotEmpty(t, response.Items[0])
+	assertFieldsAreSet(t, response.Items[0])
 }
 
 func TestDepositResponse(t *testing.T) {
@@ -90,7 +90,7 @@ func TestDepositResponse(t *testing.T) {
 	response := svc.DepositResponse(deposits)
 	require.NotEmpty(t, response.Items)
 	require.Len(t, response.Items, 1)
-	assertNotEmpty(t, response.Items[0])
+	assertFieldsAreSet(t, response.Items[0])
 }
 
 func TestQueryParams(t *testing.T) {

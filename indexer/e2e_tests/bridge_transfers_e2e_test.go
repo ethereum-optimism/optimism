@@ -460,7 +460,6 @@ func TestClientBridgeFunctions(t *testing.T) {
 	// (2) Create test actors that will deposit and withdraw using the standard bridge
 	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
 	bobAddr := testSuite.OpCfg.Secrets.Addresses().Bob
-	malAddr := testSuite.OpCfg.Secrets.Addresses().Mallory
 
 	type actor struct {
 		addr    common.Address
@@ -480,11 +479,6 @@ func TestClientBridgeFunctions(t *testing.T) {
 		{
 			addr: bobAddr,
 			priv: testSuite.OpCfg.Secrets.Bob,
-			amt:  big.NewInt(0),
-		},
-		{
-			addr: malAddr,
-			priv: testSuite.OpCfg.Secrets.Mallory,
 			amt:  big.NewInt(0),
 		},
 	}
