@@ -41,8 +41,8 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID, batch
 	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id, batcherAddr)
 }
 
-// minimalDataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
-type minimalDataSourceConfig struct {
+// dataSourceConfig regroups the mandatory rollup.Config fields needed for DataFromEVMTransactions.
+type dataSourceConfig struct {
 	l1Signer          types.Signer
 	batchInboxAddress common.Address
 }
@@ -56,7 +56,7 @@ type DataSource struct {
 	data []eth.Data
 	// Required to re-attempt fetching
 	id      eth.BlockID
-	cfg     minimalDataSourceConfig
+	cfg     dataSourceConfig
 	fetcher L1TransactionFetcher
 	log     log.Logger
 
@@ -71,7 +71,7 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 		return &DataSource{
 			open: false,
 			id:   block,
-			cfg: minimalDataSourceConfig{
+			cfg: dataSourceConfig{
 				l1Signer:          cfg.L1Signer(),
 				batchInboxAddress: cfg.BatchInboxAddress,
 			},
