@@ -17,32 +17,18 @@ services:
       - postgres_data:/data/postgres
       - ./migrations:/docker-entrypoint-initdb.d/
 
-  migrations:
-    build:
-      context: ..
-      dockerfile: indexer/Dockerfile
-    command: ["indexer", "migrate"]
-    volumes:
-      - ./indexer.toml:/indexer/indexer.toml
-    depends_on:
-      postgres:
-        condition: service_healthy
-
   indexer:
     build:
       context: ..
       dockerfile: indexer/Dockerfile
-    command: ["indexer", "index"]
     ports:
       - "8080:8080",
       - "7300:7300",
-    volumes:
-      - ./indexer.toml:/indexer/indexer.toml
+    healthcheck:
+      test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
     depends_on:
       postgres:
         condition: service_healthy
-      migrations:
-        condition: service_started
 
   api:
     build:
@@ -54,8 +40,6 @@ services:
       - "7031:7300"
     healthcheck:
       test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
-    volumes:
-      - ./indexer.toml:/indexer/indexer.toml
     depends_on:
       postgres:
         condition: service_healthy
