@@ -1,15 +1,15 @@
 {
-  "detectors_to_exclude": "incorrect-shift-in-assembly",
-  "fail_high": true,
-  "fail_pedantic": false,
-  "exclude_optimization": true,
-  "exclude_informational": true,
-  "exclude_low": true,
-  "exclude_medium": true,
-  "solc_disable_warnings": false,
-  "hardhat_ignore_compile": false,
-  "disable_color": false,
-  "exclude_dependencies": true,
-  "filter_paths": "test,src/vendor,lib,src/cannon/MIPS.sol",
-  "foundry_out_directory": "artifacts"
+    "detectors_to_exclude": "incorrect-shift-in-assembly,assembly,timestamp,solc-version,missing-zero-check,immutable-states,arbitrary-send-eth,too-many-digits,divide-before-multiply,conformance-to-solidity-naming-conventions,low-level-calls,reentrancy-events,cache-array-length,unused-return,cyclomatic-complexity,calls-loop,reentrancy-unlimited-gas,reentrancy-eth,reentrancy-benign,costly-loop,events-maths,incorrect-equality",
+    "exclude_informational": true,
+    "exclude_optimization": true,
+    "exclude_low": true,
+    "json": "slither-report.json",
+    "exclude_medium": false,
+    "exclude_high": false,
+    "solc_disable_warnings": false,
+    "disable_color": false,
+    "exclude_dependencies": true,
+    "filter_paths": "(lib/|src/vendor|src/cannon/MIPS.sol)",
+    "legacy_ast": false,
+    "foundry_out_directory": "artifacts"
 }
