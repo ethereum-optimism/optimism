@@ -100,8 +100,8 @@ contract NewL2CrossDomainMessenger is ISemver {
         external
         payable
     {
-        (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-        require(version == MESSAGE_VERSION, "NewL2CrossDomainMessenger: incorrect message version");
+        (, uint16 msgVersion) = Encoding.decodeVersionedNonce(_nonce);
+        require(msgVersion == MESSAGE_VERSION, "NewL2CrossDomainMessenger: incorrect message version");
 
         bytes32 messageHash =
             hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
