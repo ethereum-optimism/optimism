@@ -1,4 +1,5 @@
 
+/*
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
@@ -11,6 +12,7 @@ BEGIN
             CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
     END IF;
 END $$;
+*/
 
 /**
  * BLOCK DATA
@@ -133,6 +135,8 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
 );
 CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_timestamp ON l2_transaction_withdrawals(timestamp);
 CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_initiated_l2_event_guid ON l2_transaction_withdrawals(initiated_l2_event_guid);
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_proven_l1_event_guid ON l2_transaction_withdrawals(proven_l1_event_guid);
+CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_finalized_l1_event_guid ON l2_transaction_withdrawals(finalized_l1_event_guid);
 CREATE INDEX IF NOT EXISTS l2_transaction_withdrawals_from_address ON l2_transaction_withdrawals(from_address);
 
 -- CrossDomainMessenger
@@ -154,6 +158,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
 );
 CREATE INDEX IF NOT EXISTS l1_bridge_messages_timestamp ON l1_bridge_messages(timestamp);
 CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_source_hash ON l1_bridge_messages(transaction_source_hash);
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_sent_message_event_guid ON l1_bridge_messages(sent_message_event_guid);
+CREATE INDEX IF NOT EXISTS l1_bridge_messages_transaction_relayed_message_event_guid ON l1_bridge_messages(relayed_message_event_guid);
 CREATE INDEX IF NOT EXISTS l1_bridge_messages_from_address ON l1_bridge_messages(from_address);
 
 CREATE TABLE IF NOT EXISTS l2_bridge_messages(
@@ -174,6 +180,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
 );
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_timestamp ON l2_bridge_messages(timestamp);
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_withdrawal_hash ON l2_bridge_messages(transaction_withdrawal_hash);
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_sent_message_event_guid ON l2_bridge_messages(sent_message_event_guid);
+CREATE INDEX IF NOT EXISTS l2_bridge_messages_transaction_relayed_message_event_guid ON l2_bridge_messages(relayed_message_event_guid);
 CREATE INDEX IF NOT EXISTS l2_bridge_messages_from_address ON l2_bridge_messages(from_address);
 
 /**
