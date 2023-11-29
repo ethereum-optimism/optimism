@@ -43,17 +43,20 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 // This does not check that the number of claims is exactly the specified count to avoid intermittent failures
 // where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, defaultTimeout)
+	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
-		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	err := wait.For(timedCtx, time.Second, func() (bool, error) {
+		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
 		if err != nil {
 			return false, err
 		}
 		g.t.Log("Waiting for claim count", "current", actual, "expected", count, "game", g.addr)
 		return actual.Cmp(big.NewInt(count)) >= 0, nil
 	})
-	g.require.NoErrorf(err, "Did not find expected claim count %v", count)
+	if err != nil {
+		g.LogGameData(ctx)
+		g.require.NoErrorf(err, "Did not find expected claim count %v", count)
+	}
 }
 
 type ContractClaim struct {

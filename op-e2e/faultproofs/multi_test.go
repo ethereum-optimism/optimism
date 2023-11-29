@@ -27,7 +27,6 @@ func TestMultipleCannonGames(t *testing.T) {
 	challenger := gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
 		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-		challenger.WithAgreeProposedOutput(true),
 	)
 
 	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
@@ -88,7 +87,6 @@ func TestMultipleGameTypes(t *testing.T) {
 		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
 		challenger.WithAlphabet(disputegame.CorrectAlphabet),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-		challenger.WithAgreeProposedOutput(true),
 	)
 
 	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})

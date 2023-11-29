@@ -54,12 +54,6 @@ func WithPrivKey(key *ecdsa.PrivateKey) Option {
 	}
 }
 
-func WithAgreeProposedOutput(agree bool) Option {
-	return func(c *config.Config) {
-		c.AgreeWithProposedOutput = agree
-	}
-}
-
 func WithAlphabet(alphabet string) Option {
 	return func(c *config.Config) {
 		c.TraceTypes = append(c.TraceTypes, config.TraceTypeAlphabet)
@@ -144,7 +138,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 
 func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
 	// Use the NewConfig method to ensure we pick up any defaults that are set.
-	cfg := config.NewConfig(common.Address{}, l1Endpoint, true, t.TempDir())
+	cfg := config.NewConfig(common.Address{}, l1Endpoint, t.TempDir())
 	cfg.TxMgrConfig.NumConfirmations = 1
 	cfg.TxMgrConfig.ReceiptQueryInterval = 1 * time.Second
 	if cfg.MaxConcurrency > 4 {
