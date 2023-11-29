@@ -1,72 +1,62 @@
 [
   {
     "bytes": "1",
-    "label": "uint8",
+    "label": "_initialized",
     "offset": 0,
-    "slot": "0",
-    "type": "t_uint8"
+    "slot": "0"
   },
   {
     "bytes": "1",
-    "label": "bool",
+    "label": "_initializing",
     "offset": 1,
-    "slot": "0",
-    "type": "t_bool"
+    "slot": "0"
   },
   {
     "bytes": "1600",
-    "label": "uint256[50]",
+    "label": "__gap",
     "offset": 0,
-    "slot": "1",
-    "type": "t_array(t_uint256)50_storage"
+    "slot": "1"
   },
   {
     "bytes": "20",
-    "label": "address",
+    "label": "_owner",
     "offset": 0,
-    "slot": "51",
-    "type": "t_address"
+    "slot": "51"
   },
   {
     "bytes": "1568",
-    "label": "uint256[49]",
+    "label": "__gap",
     "offset": 0,
-    "slot": "52",
-    "type": "t_array(t_uint256)49_storage"
+    "slot": "52"
   },
   {
     "bytes": "32",
-    "label": "uint256",
+    "label": "overhead",
     "offset": 0,
-    "slot": "101",
-    "type": "t_uint256"
+    "slot": "101"
   },
   {
     "bytes": "32",
-    "label": "uint256",
+    "label": "scalar",
     "offset": 0,
-    "slot": "102",
-    "type": "t_uint256"
+    "slot": "102"
   },
   {
     "bytes": "32",
-    "label": "bytes32",
+    "label": "batcherHash",
     "offset": 0,
-    "slot": "103",
-    "type": "t_bytes32"
+    "slot": "103"
   },
   {
     "bytes": "8",
-    "label": "uint64",
+    "label": "gasLimit",
     "offset": 0,
-    "slot": "104",
-    "type": "t_uint64"
+    "slot": "104"
   },
   {
     "bytes": "32",
-    "label": "struct ResourceMetering.ResourceConfig",
+    "label": "_resourceConfig",
     "offset": 0,
-    "slot": "105",
-    "type": "t_struct(ResourceConfig)3433_storage"
+    "slot": "105"
   }
 ]

@@ -1,16 +1,14 @@
 [
   {
     "bytes": "32",
-    "label": "uint256",
+    "label": "_status",
     "offset": 0,
-    "slot": "0",
-    "type": "t_uint256"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "bytes32",
+    "label": "shell",
     "offset": 0,
-    "slot": "1",
-    "type": "t_bytes32"
+    "slot": "1"
   }
 ]
