@@ -1,5 +1,4 @@
 
-/*
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'uint256') THEN
@@ -12,7 +11,6 @@ BEGIN
             CHECK (VALUE >= 0 AND VALUE < POWER(CAST(2 AS NUMERIC), CAST(256 AS NUMERIC)) AND SCALE(VALUE) = 0);
     END IF;
 END $$;
-*/
 
 /**
  * BLOCK DATA
