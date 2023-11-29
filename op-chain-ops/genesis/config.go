@@ -206,6 +206,10 @@ type DeployConfig struct {
 	// game can run for before it is ready to be resolved. Each side receives half of this value
 	// on their chess clock at the inception of the dispute.
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// OutputBisectionGameGenesisBlock is the block number for genesis.
+	OutputBisectionGameGenesisBlock uint64 `json:"outputBisectionGameGenesisBlock"`
+	// OutputBisectionGameSplitDepth is the depth at which the output bisection game splits.
+	OutputBisectionGameSplitDepth uint64 `json:"outputBisectionGameSplitDepth"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`

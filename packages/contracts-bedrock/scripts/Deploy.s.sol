@@ -33,6 +33,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { OutputBisectionGame } from "src/dispute/OutputBisectionGame.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
@@ -288,6 +289,7 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
+        setOutputBisectionImplementation();
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
 
@@ -1018,6 +1020,21 @@ contract Deploy is Deployer {
         );
     }
 
+    /// @notice Sets the implementation for the output bisection game type (254) in the `DisputeGameFactory`
+    function setOutputBisectionImplementation() public onlyDevnet broadcast {
+        console.log("Setting OutputBisectionGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameType.wrap(254),
+            _absolutePrestate: outputAbsolutePrestate,
+            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
+    }
+
     /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
     function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
         console.log("Setting Alphabet FaultDisputeGame implementation");
@@ -1044,7 +1061,31 @@ contract Deploy is Deployer {
     )
         internal
     {
-        if (address(_factory.gameImpls(_gameType)) == address(0)) {
+        if (address(_factory.gameImpls(_gameType)) != address(0)) {
+            console.log(
+                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
+                vm.toString(GameType.unwrap(_gameType))
+            );
+            return;
+        }
+
+        string memory deployed;
+        if (GameType.unwrap(_gameType) == 254) {
+            deployed = "OutputBisectionGame";
+            _factory.setImplementation(
+                _gameType,
+                new OutputBisectionGame({
+                    _gameType: _gameType,
+                    _absolutePrestate: _absolutePrestate,
+                    _genesisBlockNumber: cfg.outputBisectionGameGenesisBlock(),
+                    _maxGameDepth: _maxGameDepth,
+                    _splitDepth: cfg.outputBisectionGameSplitDepth(),
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _vm: _faultVm
+                })
+            );
+        } else {
+            deployed = "FaultDisputeGame";
             _factory.setImplementation(
                 _gameType,
                 new FaultDisputeGame({
@@ -1057,18 +1098,25 @@ contract Deploy is Deployer {
                     _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
                 })
             );
-
-            uint8 rawGameType = GameType.unwrap(_gameType);
-            console.log(
-                "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
-                rawGameType == 0 ? "Cannon" : "Alphabet",
-                vm.toString(rawGameType)
-            );
-        } else {
-            console.log(
-                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
-                vm.toString(GameType.unwrap(_gameType))
-            );
         }
+
+        uint8 rawGameType = GameType.unwrap(_gameType);
+        string memory gameTypeString;
+        if (rawGameType == 0) {
+            gameTypeString = "Cannon";
+        } else if (rawGameType == 254) {
+            gameTypeString = "OutputBisectionAlphabet";
+        } else if (rawGameType == 255) {
+            gameTypeString = "Alphabet";
+        } else {
+            gameTypeString = "Unknown";
+        }
+
+        console.log(
+            "DisputeGameFactoryProxy: set `%s` implementation (Backend: %s | GameType: %s)",
+            deployed,
+            gameTypeString,
+            vm.toString(rawGameType)
+        );
     }
 }
