@@ -438,25 +438,34 @@ func TestSpanBatchEmptyChain(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 
 	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
 	// Make 1200 empty L2 blocks (L1BlockTime / L2BlockTime * 100)
 	for i := 0; i < 100; i++ {
-		sequencer.ActL1HeadSignal(t)
 		sequencer.ActBuildToL1Head(t)
 
 		if i%10 == 9 {
 			// batch submit to L1
 			batcher.ActSubmitAll(t)
 
+			// Since the unsafe head could be changed due to the reorg during derivation, save the current unsafe head.
+			unsafeHead := sequencer.L2Unsafe().ID()
+
 			// confirm batch on L1
 			miner.ActL1StartBlock(12)(t)
 			miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 			miner.ActL1EndBlock(t)
+
+			sequencer.ActL1HeadSignal(t)
+			sequencer.ActL2PipelineFull(t)
+
+			// After derivation pipeline, the safe head must be same as latest unsafe head
+			// i.e. There must be no reorg during derivation pipeline.
+			require.Equal(t, sequencer.L2Safe().ID(), unsafeHead)
 		} else {
 			miner.ActEmptyBlock(t)
+			sequencer.ActL1HeadSignal(t)
 		}
 	}
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActL2PipelineFull(t)
 
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
@@ -515,9 +524,7 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 	totalTxCount := 0
 	// Make 600 L2 blocks (L1BlockTime / L2BlockTime * 50) including 1~3 txs
 	for i := 0; i < 50; i++ {
-		sequencer.ActL1HeadSignal(t)
 		for sequencer.derivation.UnsafeL2Head().L1Origin.Number < sequencer.l1State.L1Head().Number {
-			sequencer.ActL2PipelineFull(t)
 			sequencer.ActL2StartBlock(t)
 			// fill the block with random number of L2 txs
 			for j := 0; j < rand.Intn(3); j++ {
@@ -552,16 +559,25 @@ func TestSpanBatchLowThroughputChain(gt *testing.T) {
 			// batch submit to L1
 			batcher.ActSubmitAll(t)
 
+			// Since the unsafe head could be changed due to the reorg during derivation, save the current unsafe head.
+			unsafeHead := sequencer.L2Unsafe().ID()
+
 			// confirm batch on L1
 			miner.ActL1StartBlock(12)(t)
 			miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 			miner.ActL1EndBlock(t)
+
+			sequencer.ActL1HeadSignal(t)
+			sequencer.ActL2PipelineFull(t)
+
+			// After derivation pipeline, the safe head must be same as latest unsafe head
+			// i.e. There must be no reorg during derivation pipeline.
+			require.Equal(t, sequencer.L2Safe().ID(), unsafeHead)
 		} else {
 			miner.ActEmptyBlock(t)
+			sequencer.ActL1HeadSignal(t)
 		}
 	}
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActL2PipelineFull(t)
 
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
