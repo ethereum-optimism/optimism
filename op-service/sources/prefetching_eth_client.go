@@ -39,7 +39,7 @@ func (p *PrefetchingEthClient) FetchBlockAndReceipts(ctx context.Context, number
 	blockInfo, _ := p.inner.InfoByNumber(ctx, number)
 	// Now that we have the block, fetch its receipts
 	// Again, ignore error and result as this is just prefetching
-	p.inner.FetchReceipts(ctx, blockInfo.Hash())
+	_, _, _ = p.inner.FetchReceipts(ctx, blockInfo.Hash())
 }
 
 func (p *PrefetchingEthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
