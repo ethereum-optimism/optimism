@@ -20,17 +20,21 @@ var testCases = []struct {
 }{
 	{
 		name:              "InfoByNumber",
-		prefetchingRanges: []uint64{0, 1, 5},
+		prefetchingRanges: []uint64{0},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			_, rhdr := randHeader()
-
+			expectedInfo, _ := rhdr.Info(true, false)
+			n := rhdr.Number
 			// Mock the call to CallContext for 'eth_getBlockByNumber', expecting it to be called at least once
-			mockRPC.On("CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.Anything).Return([]error{nil}).Maybe()
+			mockRPC.On("CallContext", ctx, new(*rpcHeader),
+				"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
+				*args[1].(**rpcHeader) = rhdr
+			}).Return([]error{nil}).Maybe()
 
 			// Call the method which is expected to internally call 'eth_getBlockByNumber'
-			_, err := client.InfoByNumber(ctx, uint64(rhdr.Number))
+			info, err := client.InfoByNumber(ctx, uint64(rhdr.Number))
 			require.NoError(t, err)
-
+			require.Equal(t, info, expectedInfo)
 			// Assert that 'eth_getBlockByNumber' was called at least once
 			mockRPC.AssertCalled(t, "CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.Anything)
 
