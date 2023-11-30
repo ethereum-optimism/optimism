@@ -242,7 +242,7 @@ var (
 	// Delete this flag at a later date.
 	L2EngineSyncEnabled = &cli.BoolFlag{
 		Name:     "l2.engine-sync",
-		Usage:    "WARNING: Deprecated. Use --syncmode=snap instead",
+		Usage:    "WARNING: Deprecated. Use --syncmode=execution-layer instead",
 		EnvVars:  prefixEnvVars("L2_ENGINE_SYNC_ENABLED"),
 		Required: false,
 		Value:    false,

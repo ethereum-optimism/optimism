@@ -65,7 +65,7 @@ type Config struct {
 	// SyncMode is defined above.
 	SyncMode Mode `json:"syncmode"`
 	// SkipSyncStartCheck skip the sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point.
-	// This defers the L1-origin verification, and is recommended to use in when utilizing --syncmode=EL on op-node and --syncmode=snap on op-geth
+	// This defers the L1-origin verification, and is recommended to use in when utilizing --syncmode=execution-layer on op-node and --syncmode=snap on op-geth
 	// Warning: This will be removed when we implement proper checkpoints.
 	// Note: We probably need to detect the condition that snap sync has not complete when we do a restart prior to running sync-start if we are doing
 	// snap sync with a genesis finalization data.
