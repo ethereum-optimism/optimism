@@ -68,7 +68,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     IBondManager public bondManager;
 
     /// @inheritdoc IOutputBisectionGame
-    Hash public settlementHead;
+    Hash public l1Head;
 
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
@@ -295,8 +295,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
 
         IPreimageOracle oracle = VM.oracle();
         if (_ident == 1) {
-            // Load the settlement layer head hash
-            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Hash.unwrap(settlementHead), 32, _partOffset);
+            // Load the L1 head hash
+            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Hash.unwrap(l1Head), 32, _partOffset);
         } else if (_ident == 2) {
             // Load the starting proposal's output root.
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(starting), 32, _partOffset);
@@ -449,8 +449,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             })
         );
 
-        // Persist the settlement layer hash of the parent block.
-        settlementHead = Hash.wrap(blockhash(block.number - 1));
+        // Persist the blockhash of the parent block.
+        l1Head = Hash.wrap(blockhash(block.number - 1));
     }
 
     /// @notice Returns the length of the `claimData` array.

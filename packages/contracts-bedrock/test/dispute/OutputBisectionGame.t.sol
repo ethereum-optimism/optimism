@@ -144,7 +144,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         assertEq(Timestamp.unwrap(gameProxy.createdAt()), block.timestamp);
 
         // Assert that the blockhash provided is correct.
-        assertEq(Hash.unwrap(gameProxy.settlementHead()), blockhash(block.number - 1));
+        assertEq(Hash.unwrap(gameProxy.l1Head()), blockhash(block.number - 1));
     }
 
     /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
@@ -493,7 +493,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
         // Expected local data
         bytes32[5] memory data = [
-            Hash.unwrap(gameProxy.settlementHead()),
+            Hash.unwrap(gameProxy.l1Head()),
             startingClaim,
             disputedClaim,
             bytes32(0),
@@ -539,7 +539,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
         // Expected local data
         bytes32[5] memory data = [
-            Hash.unwrap(gameProxy.settlementHead()),
+            Hash.unwrap(gameProxy.l1Head()),
             startingClaim,
             disputedClaim,
             bytes32(uint256(1) << 0xC0),
