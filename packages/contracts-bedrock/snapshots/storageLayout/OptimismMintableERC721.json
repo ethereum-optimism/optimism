@@ -1,79 +1,68 @@
 [
   {
     "bytes": "32",
-    "label": "string",
+    "label": "_name",
     "offset": 0,
-    "slot": "0",
-    "type": "t_string_storage"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "string",
+    "label": "_symbol",
     "offset": 0,
-    "slot": "1",
-    "type": "t_string_storage"
+    "slot": "1"
   },
   {
     "bytes": "32",
-    "label": "mapping(uint256 => address)",
+    "label": "_owners",
     "offset": 0,
-    "slot": "2",
-    "type": "t_mapping(t_uint256,t_address)"
+    "slot": "2"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => uint256)",
+    "label": "_balances",
     "offset": 0,
-    "slot": "3",
-    "type": "t_mapping(t_address,t_uint256)"
+    "slot": "3"
   },
   {
     "bytes": "32",
-    "label": "mapping(uint256 => address)",
+    "label": "_tokenApprovals",
     "offset": 0,
-    "slot": "4",
-    "type": "t_mapping(t_uint256,t_address)"
+    "slot": "4"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => mapping(address => bool))",
+    "label": "_operatorApprovals",
     "offset": 0,
-    "slot": "5",
-    "type": "t_mapping(t_address,t_mapping(t_address,t_bool))"
+    "slot": "5"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => mapping(uint256 => uint256))",
+    "label": "_ownedTokens",
     "offset": 0,
-    "slot": "6",
-    "type": "t_mapping(t_address,t_mapping(t_uint256,t_uint256))"
+    "slot": "6"
   },
   {
     "bytes": "32",
-    "label": "mapping(uint256 => uint256)",
+    "label": "_ownedTokensIndex",
     "offset": 0,
-    "slot": "7",
-    "type": "t_mapping(t_uint256,t_uint256)"
+    "slot": "7"
   },
   {
     "bytes": "32",
-    "label": "uint256[]",
+    "label": "_allTokens",
     "offset": 0,
-    "slot": "8",
-    "type": "t_array(t_uint256)dyn_storage"
+    "slot": "8"
   },
   {
     "bytes": "32",
-    "label": "mapping(uint256 => uint256)",
+    "label": "_allTokensIndex",
     "offset": 0,
-    "slot": "9",
-    "type": "t_mapping(t_uint256,t_uint256)"
+    "slot": "9"
   },
   {
     "bytes": "32",
-    "label": "string",
+    "label": "baseTokenURI",
     "offset": 0,
-    "slot": "10",
-    "type": "t_string_storage"
+    "slot": "10"
   }
 ]

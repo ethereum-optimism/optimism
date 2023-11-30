@@ -1,37 +1,32 @@
 [
   {
     "bytes": "20",
-    "label": "address",
+    "label": "_owner",
     "offset": 0,
-    "slot": "0",
-    "type": "t_address"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => enum ProxyAdmin.ProxyType)",
+    "label": "proxyType",
     "offset": 0,
-    "slot": "1",
-    "type": "t_mapping(t_address,t_enum(ProxyType)2988)"
+    "slot": "1"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => string)",
+    "label": "implementationName",
     "offset": 0,
-    "slot": "2",
-    "type": "t_mapping(t_address,t_string_storage)"
+    "slot": "2"
   },
   {
     "bytes": "20",
-    "label": "contract AddressManager",
+    "label": "addressManager",
     "offset": 0,
-    "slot": "3",
-    "type": "t_contract(AddressManager)2205"
+    "slot": "3"
   },
   {
     "bytes": "1",
-    "label": "bool",
+    "label": "upgrading",
     "offset": 20,
-    "slot": "3",
-    "type": "t_bool"
+    "slot": "3"
   }
 ]

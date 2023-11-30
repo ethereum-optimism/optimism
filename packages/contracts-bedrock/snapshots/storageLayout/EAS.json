@@ -1,44 +1,38 @@
 [
   {
     "bytes": "32",
-    "label": "mapping(address => uint256)",
+    "label": "_nonces",
     "offset": 0,
-    "slot": "0",
-    "type": "t_mapping(t_address,t_uint256)"
+    "slot": "0"
   },
   {
     "bytes": "1568",
-    "label": "uint256[49]",
+    "label": "__gap",
     "offset": 0,
-    "slot": "1",
-    "type": "t_array(t_uint256)49_storage"
+    "slot": "1"
   },
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => struct Attestation)",
+    "label": "_db",
     "offset": 0,
-    "slot": "50",
-    "type": "t_mapping(t_bytes32,t_struct(Attestation)44875_storage)"
+    "slot": "50"
   },
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => uint64)",
+    "label": "_timestamps",
     "offset": 0,
-    "slot": "51",
-    "type": "t_mapping(t_bytes32,t_uint64)"
+    "slot": "51"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => mapping(bytes32 => uint64))",
+    "label": "_revocationsOffchain",
     "offset": 0,
-    "slot": "52",
-    "type": "t_mapping(t_address,t_mapping(t_bytes32,t_uint64))"
+    "slot": "52"
   },
   {
     "bytes": "1504",
-    "label": "uint256[47]",
+    "label": "__gap",
     "offset": 0,
-    "slot": "53",
-    "type": "t_array(t_uint256)47_storage"
+    "slot": "53"
   }
 ]

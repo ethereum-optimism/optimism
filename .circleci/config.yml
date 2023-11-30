@@ -433,7 +433,7 @@ jobs:
           name: snapshots
           command: |
             pnpm snapshots
-            if [ "$(git diff --exit-code snapshots)" ]; then
+            if git diff --exit-code snapshots > /dev/null; then
               [ -z "$(git ls-files --others --exclude-standard snapshots)" ] || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
             else
               echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"

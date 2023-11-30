@@ -1,9 +1,8 @@
 [
   {
     "bytes": "20",
-    "label": "address",
+    "label": "owner",
     "offset": 0,
-    "slot": "0",
-    "type": "t_address"
+    "slot": "0"
   }
 ]

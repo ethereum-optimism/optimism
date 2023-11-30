@@ -1,23 +1,20 @@
 [
   {
     "bytes": "32",
-    "label": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig)",
+    "label": "modules",
     "offset": 0,
-    "slot": "0",
-    "type": "t_mapping(t_contract(IFaucetAuthModule)92584,t_struct(ModuleConfig)92261_storage)"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))",
+    "label": "timeouts",
     "offset": 0,
-    "slot": "1",
-    "type": "t_mapping(t_contract(IFaucetAuthModule)92584,t_mapping(t_bytes32,t_uint256))"
+    "slot": "1"
   },
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => mapping(bytes32 => bool))",
+    "label": "nonces",
     "offset": 0,
-    "slot": "2",
-    "type": "t_mapping(t_bytes32,t_mapping(t_bytes32,t_bool))"
+    "slot": "2"
   }
 ]

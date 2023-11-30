@@ -187,6 +187,19 @@
   },
   {
     "inputs": [],
+    "name": "GENESIS_BLOCK_NUMBER",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "MAX_GAME_DEPTH",
     "outputs": [
       {

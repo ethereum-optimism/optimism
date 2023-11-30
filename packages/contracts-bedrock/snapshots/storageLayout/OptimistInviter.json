@@ -1,58 +1,50 @@
 [
   {
     "bytes": "1",
-    "label": "uint8",
+    "label": "_initialized",
     "offset": 0,
-    "slot": "0",
-    "type": "t_uint8"
+    "slot": "0"
   },
   {
     "bytes": "1",
-    "label": "bool",
+    "label": "_initializing",
     "offset": 1,
-    "slot": "0",
-    "type": "t_bool"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "bytes32",
+    "label": "_HASHED_NAME",
     "offset": 0,
-    "slot": "1",
-    "type": "t_bytes32"
+    "slot": "1"
   },
   {
     "bytes": "32",
-    "label": "bytes32",
+    "label": "_HASHED_VERSION",
     "offset": 0,
-    "slot": "2",
-    "type": "t_bytes32"
+    "slot": "2"
   },
   {
     "bytes": "1600",
-    "label": "uint256[50]",
+    "label": "__gap",
     "offset": 0,
-    "slot": "3",
-    "type": "t_array(t_uint256)50_storage"
+    "slot": "3"
   },
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => uint256)",
+    "label": "commitmentTimestamps",
     "offset": 0,
-    "slot": "53",
-    "type": "t_mapping(t_bytes32,t_uint256)"
+    "slot": "53"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => mapping(bytes32 => bool))",
+    "label": "usedNonces",
     "offset": 0,
-    "slot": "54",
-    "type": "t_mapping(t_address,t_mapping(t_bytes32,t_bool))"
+    "slot": "54"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => uint256)",
+    "label": "inviteCounts",
     "offset": 0,
-    "slot": "55",
-    "type": "t_mapping(t_address,t_uint256)"
+    "slot": "55"
   }
 ]
