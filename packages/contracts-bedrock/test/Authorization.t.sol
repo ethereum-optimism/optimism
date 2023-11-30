@@ -189,7 +189,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("SystemConfig", SystemConfig.minimumGasLimit.selector, false);
         _addSpec("SystemConfig", _getSel("overhead()"), false);
         _addSpec("SystemConfig", _getSel("owner()"), false);
-        _addSpec("SystemConfig", _getSel("renounceOwnership()"), false);
+        _addSpec("SystemConfig", _getSel("renounceOwnership()"), true);
         _addSpec("SystemConfig", SystemConfig.resourceConfig.selector, false);
         _addSpec("SystemConfig", _getSel("scalar()"), false);
         _addSpec("SystemConfig", SystemConfig.setBatcherHash.selector, false);
