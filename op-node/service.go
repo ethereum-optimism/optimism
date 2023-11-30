@@ -3,6 +3,7 @@ package opnode
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -64,7 +65,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
 
-	syncConfig := NewSyncConfig(ctx)
+	syncConfig, err := NewSyncConfig(ctx, log)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create the sync config: %w", err)
+	}
 
 	haltOption := ctx.String(flags.RollupHalt.Name)
 	if haltOption == "none" {
@@ -243,9 +247,23 @@ func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	return logger, nil
 }
 
-func NewSyncConfig(ctx *cli.Context) *sync.Config {
-	return &sync.Config{
-		EngineSync:         ctx.Bool(flags.L2EngineSyncEnabled.Name),
+func NewSyncConfig(ctx *cli.Context, log log.Logger) (*sync.Config, error) {
+	if ctx.IsSet(flags.L2EngineSyncEnabled.Name) && ctx.IsSet(flags.SyncModeFlag.Name) {
+		return nil, errors.New("cannot set both --l2.engine-sync and --syncmode at the same time.")
+	} else if ctx.IsSet(flags.L2EngineSyncEnabled.Name) {
+		log.Error("l2.engine-sync is deprecated and will be removed in a future release. Use --syncmode=execution-layer instead.")
+	}
+	mode, err := sync.StringToMode(ctx.String(flags.SyncModeFlag.Name))
+	if err != nil {
+		return nil, err
+	}
+	cfg := &sync.Config{
+		SyncMode:           mode,
 		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
 	}
+	if ctx.Bool(flags.L2EngineSyncEnabled.Name) {
+		cfg.SyncMode = sync.ELSync
+	}
+
+	return cfg, nil
 }

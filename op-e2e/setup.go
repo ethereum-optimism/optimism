@@ -16,7 +16,7 @@ import (
 	"time"
 
 	ds "github.com/ipfs/go-datastore"
-	"github.com/ipfs/go-datastore/sync"
+	dsSync "github.com/ipfs/go-datastore/sync"
 	ic "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -52,6 +52,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -127,6 +128,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 				L1EpochPollInterval:         time.Second * 2,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
+				Sync:                        sync.Config{SyncMode: sync.CLSync},
 			},
 			"verifier": {
 				Driver: driver.Config{
@@ -137,6 +139,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 				L1EpochPollInterval:         time.Second * 4,
 				RuntimeConfigReloadInterval: time.Minute * 10,
 				ConfigPersistence:           &rollupNode.DisabledConfigPersistence{},
+				Sync:                        sync.Config{SyncMode: sync.CLSync},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -779,7 +782,7 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	_ = ps.AddPrivKey(p, sk)
 	_ = ps.AddPubKey(p, sk.GetPublic())
 
-	ds := sync.MutexWrap(ds.NewMapDatastore())
+	ds := dsSync.MutexWrap(ds.NewMapDatastore())
 	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
 	if err != nil {
 		return nil, err
