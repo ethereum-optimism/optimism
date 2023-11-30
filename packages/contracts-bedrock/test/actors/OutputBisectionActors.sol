@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Vm } from "forge-std/Vm.sol";
+import { CommonBase } from "forge-std/Base.sol";
 
 import { OutputBisectionGame } from "src/dispute/OutputBisectionGame.sol";
 import { IOutputBisectionGame } from "src/dispute/interfaces/IOutputBisectionGame.sol";
@@ -13,9 +13,7 @@ import "src/libraries/DisputeTypes.sol";
 ///         moves for a given `OutputBisectionGame` contract, from the eyes of an honest
 ///         actor. The `GameSolver` does not implement functionality for acting on the `Move`s
 ///         it suggests.
-abstract contract GameSolver {
-    /// @notice The HEVM cheatcode address.
-    Vm internal immutable VM;
+abstract contract GameSolver is CommonBase {
     /// @notice The `OutputBisectionGame` proxy that the `GameSolver` will be solving.
     OutputBisectionGame public immutable GAME;
     /// @notice The maximum length of the execution trace, in bytes. Enforced by the depth of the
@@ -50,8 +48,7 @@ abstract contract GameSolver {
         bytes data;
     }
 
-    constructor(Vm _vm, OutputBisectionGame _gameProxy, bytes memory _trace) {
-        VM = _vm;
+    constructor(OutputBisectionGame _gameProxy, bytes memory _trace) {
         GAME = _gameProxy;
         MAX_TRACE_LENGTH = 2 ** (_gameProxy.MAX_GAME_DEPTH() - _gameProxy.SPLIT_DEPTH());
         trace = _trace;
@@ -75,7 +72,7 @@ contract HonestGameSolver is GameSolver {
         Noop
     }
 
-    constructor(Vm _vm, OutputBisectionGame _gameProxy, bytes memory _trace) GameSolver(_vm, _gameProxy, _trace) {
+    constructor(OutputBisectionGame _gameProxy, bytes memory _trace) GameSolver(_gameProxy, _trace) {
         // Mark agreement with the root claim if the local opinion of the root claim is the same as the
         // observed root claim.
         if (Claim.unwrap(outputAt(MAX_TRACE_LENGTH)) == Claim.unwrap(_gameProxy.rootClaim())) {
