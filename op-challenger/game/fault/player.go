@@ -5,15 +5,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -24,10 +21,6 @@ type GameInfo interface {
 	GetClaimCount(context.Context) (uint64, error)
 }
 
-// gameValidator checks that the specific game instance is compatible with the configuration.
-// Typically, this is done by verifying the absolute prestate of the game matches the local absolute prestate.
-type gameValidator func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error
-
 type GamePlayer struct {
 	act    actor
 	loader GameInfo
@@ -35,7 +28,20 @@ type GamePlayer struct {
 	status gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, gameValidator, error)
+type GameContract interface {
+	responder.GameContract
+	GameInfo
+	ClaimLoader
+	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
+	GetMaxGameDepth(ctx context.Context) (uint64, error)
+}
+
+type gameTypeResources interface {
+	Contract() GameContract
+	CreateAccessor(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
+}
+
+type resourceCreator func(addr common.Address) (gameTypeResources, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -44,15 +50,16 @@ func NewGamePlayer(
 	dir string,
 	addr common.Address,
 	txMgr txmgr.TxManager,
-	client *ethclient.Client,
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
-	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
+	resources, err := creator(addr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create fault dispute game contract wrapper: %w", err)
+		return nil, fmt.Errorf("failed to create game resources: %w", err)
 	}
+
+	loader := resources.Contract()
 
 	status, err := loader.GetStatus(ctx)
 	if err != nil {
@@ -77,13 +84,9 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	accessor, validator, err := creator(addr, loader, gameDepth, dir)
+	accessor, err := resources.CreateAccessor(ctx, logger, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
-	}
-
-	if err := validator(ctx, loader); err != nil {
-		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
 	responder, err := responder.NewFaultResponder(logger, txMgr, loader)

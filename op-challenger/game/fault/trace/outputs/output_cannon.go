@@ -22,7 +22,7 @@ func NewOutputCannonTraceAccessor(
 	m metrics.Metricer,
 	cfg *config.Config,
 	l2Client cannon.L2HeaderSource,
-	contract *contracts.FaultDisputeGameContract,
+	contract cannon.L1HeadSource,
 	dir string,
 	gameDepth uint64,
 	prestateBlock uint64,

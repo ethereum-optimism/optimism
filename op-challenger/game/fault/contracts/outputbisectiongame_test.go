@@ -13,51 +13,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFaultDisputeGameContract_CommonTests(t *testing.T) {
+func TestOutputBisectionGameContract_CommonTests(t *testing.T) {
 	runCommonDisputeGameTests(t, func(t *testing.T) (*batchingTest.AbiBasedRpc, *disputeGameContract) {
-		stubRpc, contract := setupFaultDisputeGameTest(t)
+		stubRpc, contract := setupOutputBisectionGameTest(t)
 		return stubRpc, &contract.disputeGameContract
 	})
 }
 
-func TestGetProposals(t *testing.T) {
-	stubRpc, game := setupFaultDisputeGameTest(t)
-	agreedIndex := big.NewInt(5)
-	agreedBlockNum := big.NewInt(6)
-	agreedRoot := common.Hash{0xaa}
-	disputedIndex := big.NewInt(7)
-	disputedBlockNum := big.NewInt(8)
-	disputedRoot := common.Hash{0xdd}
-	agreed := contractProposal{
-		Index:         agreedIndex,
-		L2BlockNumber: agreedBlockNum,
-		OutputRoot:    agreedRoot,
-	}
-	disputed := contractProposal{
-		Index:         disputedIndex,
-		L2BlockNumber: disputedBlockNum,
-		OutputRoot:    disputedRoot,
-	}
-	expectedAgreed := Proposal{
-		L2BlockNumber: agreed.L2BlockNumber,
-		OutputRoot:    agreed.OutputRoot,
-	}
-	expectedDisputed := Proposal{
-		L2BlockNumber: disputed.L2BlockNumber,
-		OutputRoot:    disputed.OutputRoot,
-	}
-	stubRpc.SetResponse(fdgAddr, methodProposals, batching.BlockLatest, []interface{}{}, []interface{}{
-		agreed, disputed,
-	})
-	actualAgreed, actualDisputed, err := game.GetProposals(context.Background())
+func TestGetBlockRange(t *testing.T) {
+	stubRpc, contract := setupOutputBisectionGameTest(t)
+	expectedStart := uint64(65)
+	expectedEnd := uint64(102)
+	stubRpc.SetResponse(fdgAddr, methodGenesisBlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
+	start, end, err := contract.GetBlockRange(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, expectedAgreed, actualAgreed)
-	require.Equal(t, expectedDisputed, actualDisputed)
+	require.Equal(t, expectedStart, start)
+	require.Equal(t, expectedEnd, end)
 }
 
-func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
+func TestGetSplitDepth(t *testing.T) {
+	stubRpc, contract := setupOutputBisectionGameTest(t)
+	expectedSplitDepth := uint64(15)
+	stubRpc.SetResponse(fdgAddr, methodSplitDepth, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedSplitDepth)})
+	splitDepth, err := contract.GetSplitDepth(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, expectedSplitDepth, splitDepth)
+}
+
+func TestOutputBisectionGame_UpdateOracleTx(t *testing.T) {
 	t.Run("Local", func(t *testing.T) {
-		stubRpc, game := setupFaultDisputeGameTest(t)
+		stubRpc, game := setupOutputBisectionGameTest(t)
 		data := &faultTypes.PreimageOracleData{
 			IsLocal:      true,
 			LocalContext: common.Hash{0x02},
@@ -68,7 +54,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
-			data.LocalContext,
+			new(big.Int).SetUint64(claimIdx),
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), claimIdx, data)
@@ -77,7 +63,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 	})
 
 	t.Run("Global", func(t *testing.T) {
-		stubRpc, game := setupFaultDisputeGameTest(t)
+		stubRpc, game := setupOutputBisectionGameTest(t)
 		data := &faultTypes.PreimageOracleData{
 			IsLocal:      false,
 			OracleKey:    common.Hash{0xbc}.Bytes(),
@@ -97,8 +83,8 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 	})
 }
 
-func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultDisputeGameContract) {
-	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
+func setupOutputBisectionGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *OutputBisectionGameContract) {
+	fdgAbi, err := bindings.OutputBisectionGameMetaData.GetAbi()
 	require.NoError(t, err)
 
 	vmAbi, err := bindings.MIPSMetaData.GetAbi()
@@ -110,7 +96,7 @@ func setupFaultDisputeGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *FaultD
 	stubRpc.AddContract(vmAddr, vmAbi)
 	stubRpc.AddContract(oracleAddr, oracleAbi)
 	caller := batching.NewMultiCaller(stubRpc, batching.DefaultBatchSize)
-	game, err := NewFaultDisputeGameContract(fdgAddr, caller)
+	game, err := NewOutputBisectionGameContract(fdgAddr, caller)
 	require.NoError(t, err)
 	return stubRpc, game
 }
