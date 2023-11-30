@@ -690,7 +690,11 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1ERC721Bridge = address(bridge);
-        ChainAssertions.checkL1ERC721Bridge(contracts);
+
+        ChainAssertions.checkL1ERC721Bridge({
+            _contracts: contracts,
+            _isProxy: false
+        });
 
         addr_ = address(bridge);
     }
@@ -811,17 +815,22 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _callViaSafe({
-            _target: address(proxyAdmin),
-            _data: abi.encodeCall(ProxyAdmin.upgrade, (payable(l1ERC721BridgeProxy), l1ERC721Bridge))
+        _upgradeAndCallViaSafe({
+            _proxy: payable(l1ERC721BridgeProxy),
+            _implementation: l1ERC721Bridge,
+            _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (SuperchainConfig(superchainConfigProxy)))
         });
 
         L1ERC721Bridge bridge = L1ERC721Bridge(l1ERC721BridgeProxy);
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
-        ChainAssertions.checkL1ERC721Bridge(_proxies());
+        ChainAssertions.checkL1ERC721Bridge({
+            _contracts: _proxies(),
+            _isProxy: true
+        });
     }
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
