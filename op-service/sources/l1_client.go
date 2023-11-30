@@ -52,7 +52,7 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 // with optimized batch requests, cached results, and flag to not trust the RPC
 // (i.e. to verify all returned contents against corresponding block hashes).
 type L1Client struct {
-	*PrefetchingEthClient
+	*EthClient
 
 	// cache L1BlockRef by hash
 	// common.Hash -> eth.L1BlockRef
@@ -65,14 +65,10 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	if err != nil {
 		return nil, err
 	}
-	prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, 5)
-	if err != nil {
-		return nil, err
-	}
 
 	return &L1Client{
-		PrefetchingEthClient: prefetchingEthClient,
-		l1BlockRefsCache:     caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.L1BlockRefsCacheSize),
+		EthClient:        ethClient,
+		l1BlockRefsCache: caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.L1BlockRefsCacheSize),
 	}, nil
 }
 
