@@ -183,8 +183,8 @@ importers:
         specifier: ^10.9.1
         version: 10.9.1(@types/node@20.10.1)(typescript@5.3.2)
       tsx:
-        specifier: ^4.6.0
-        version: 4.6.0
+        specifier: ^4.6.1
+        version: 4.6.1
 
   packages/common-ts:
     dependencies:
@@ -271,8 +271,8 @@ importers:
         specifier: ^6.13.1
         version: 6.13.1(eslint@8.54.0)(typescript@5.3.2)
       tsx:
-        specifier: ^4.6.0
-        version: 4.6.0
+        specifier: ^4.6.1
+        version: 4.6.1
       typescript:
         specifier: ^5.3.2
         version: 5.3.2
@@ -13876,8 +13876,8 @@ packages:
       - ts-node
     dev: true
 
-  /tsx@4.6.0:
-    resolution: {integrity: sha512-HLHaDQ78mly4Pd5co6tWQOiNVYoYYAPUcwSSZK4bcs3zSEsg+/67LS/ReHook0E7DKPfe1J5jc0ocIhUrnaR4w==}
+  /tsx@4.6.1:
+    resolution: {integrity: sha512-OQ4TAPHXAPUo/NZAmmIybl0o8LFOTlycQxFepLBAp6EV87U88fOKYGCQI2viGAEOVU9UW/cgQcxcOMnfEKVY3Q==}
     engines: {node: '>=18.0.0'}
     hasBin: true
     dependencies:
