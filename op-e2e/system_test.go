@@ -187,8 +187,8 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	defer sys.Close()
 
 	// send a blob-containing txn on l1
-	ethPrivKey := sys.cfg.Secrets.Alice
-	txData := transactions.CreateEmptyBlobTx(ethPrivKey, true, sys.cfg.L1ChainIDBig().Uint64())
+	ethPrivKey := sys.Cfg.Secrets.Alice
+	txData := transactions.CreateEmptyBlobTx(ethPrivKey, true, sys.Cfg.L1ChainIDBig().Uint64())
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L1ChainIDBig()), txData)
 	// send blob-containing txn
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 15*time.Second)
