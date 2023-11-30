@@ -134,13 +134,14 @@ contract Setup {
 
     /// @dev Sets up the L2 contracts. Depends on `L1()` being called first.
     function L2(DeployConfig cfg) public {
-        string[] memory args = new string[](3);
-        args[0] = Executables.bash;
-        args[1] = "-c";
-        args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
-        vm.ffi(args);
-
         string memory allocsPath = string.concat(vm.projectRoot(), "/.testdata/genesis.json");
+        if (vm.isFile(allocsPath) == false) {
+            string[] memory args = new string[](3);
+            args[0] = Executables.bash;
+            args[1] = "-c";
+            args[2] = string.concat(vm.projectRoot(), "/scripts/generate-l2-genesis.sh");
+            vm.ffi(args);
+        }
         vm.loadAllocs(allocsPath);
 
         // Set the governance token's owner to be the final system owner
