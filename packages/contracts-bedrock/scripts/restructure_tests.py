@@ -2,7 +2,7 @@ import os
 import shutil
 
 
-def mimic_directory_structure(src_folder, test_folder):
+def mimic_directory_structure(src_folder: str, test_folder: str) -> None:
     """
     This function takes a source folder and a test folder as input, and restructures
     the test folder to match the directory structure of the source folder.
