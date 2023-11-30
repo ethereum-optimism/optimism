@@ -112,10 +112,10 @@
     "type": "t_mapping(t_bytes32,t_bool)"
   },
   {
-    "bytes": "1344",
-    "label": "uint256[42]",
+    "bytes": "1408",
+    "label": "uint256[44]",
     "offset": 0,
     "slot": "207",
-    "type": "t_array(t_uint256)42_storage"
+    "type": "t_array(t_uint256)44_storage"
   }
 ]

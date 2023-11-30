@@ -38,8 +38,6 @@ func TestCannonDisputeGame(t *testing.T) {
 			game.LogGameData(ctx)
 
 			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
-				// Agree with the proposed output, so disagree with the root claim
-				challenger.WithAgreeProposedOutput(true),
 				challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 			)
 
@@ -78,8 +76,6 @@ func TestCannonDefendStep(t *testing.T) {
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l2Endpoint := sys.NodeEndpoint("sequencer")
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger",
-		// Agree with the proposed output, so disagree with the root claim
-		challenger.WithAgreeProposedOutput(true),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)
 
@@ -214,8 +210,6 @@ func TestCannonPoisonedPostState(t *testing.T) {
 
 	// Start the honest challenger
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Honest",
-		// Agree with the proposed output, so disagree with the root claim
-		challenger.WithAgreeProposedOutput(true),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Bob),
 	)
 
@@ -272,8 +266,6 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	game.LogGameData(ctx)
 
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger",
-		// Agree with the proposed output, so disagree with the root claim
-		challenger.WithAgreeProposedOutput(true),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)
 

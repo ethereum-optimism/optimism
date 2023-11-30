@@ -75,13 +75,25 @@ type Config struct {
 	// Active if RegolithTime != nil && L2 block timestamp >= *RegolithTime, inactive otherwise.
 	RegolithTime *uint64 `json:"regolith_time,omitempty"`
 
-	// CanyonTime sets the activation time of the next network upgrade.
+	// CanyonTime sets the activation time of the Canyon network upgrade.
 	// Active if CanyonTime != nil && L2 block timestamp >= *CanyonTime, inactive otherwise.
 	CanyonTime *uint64 `json:"canyon_time,omitempty"`
 
-	// DeltaTime sets the activation time of the next network upgrade.
+	// DeltaTime sets the activation time of the Delta network upgrade.
 	// Active if DeltaTime != nil && L2 block timestamp >= *DeltaTime, inactive otherwise.
 	DeltaTime *uint64 `json:"delta_time,omitempty"`
+
+	// EclipseTime sets the activation time of the Eclipse network upgrade.
+	// Active if EclipseTime != nil && L2 block timestamp >= *EclipseTime, inactive otherwise.
+	EclipseTime *uint64 `json:"eclipse_time,omitempty"`
+
+	// FjordTime sets the activation time of the Fjord network upgrade.
+	// Active if FjordTime != nil && L2 block timestamp >= *FjordTime, inactive otherwise.
+	FjordTime *uint64 `json:"fjord_time,omitempty"`
+
+	// InteropTime sets the activation time for an experimental feature-set, activated like a hardfork.
+	// Active if InteropTime != nil && L2 block timestamp >= *InteropTime, inactive otherwise.
+	InteropTime *uint64 `json:"interop_time,omitempty"`
 
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
@@ -281,6 +293,21 @@ func (c *Config) IsDelta(timestamp uint64) bool {
 	return c.DeltaTime != nil && timestamp >= *c.DeltaTime
 }
 
+// IsEclipse returns true if the Eclipse hardfork is active at or past the given timestamp.
+func (c *Config) IsEclipse(timestamp uint64) bool {
+	return c.EclipseTime != nil && timestamp >= *c.EclipseTime
+}
+
+// IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.
+func (c *Config) IsFjord(timestamp uint64) bool {
+	return c.FjordTime != nil && timestamp >= *c.FjordTime
+}
+
+// IsInterop returns true if the Interop hardfork is active at or past the given timestamp.
+func (c *Config) IsInterop(timestamp uint64) bool {
+	return c.InteropTime != nil && timestamp >= *c.InteropTime
+}
+
 // Description outputs a banner describing the important parts of rollup configuration in a human-readable form.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
@@ -310,6 +337,9 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += fmt.Sprintf("  - Regolith: %s\n", fmtForkTimeOrUnset(c.RegolithTime))
 	banner += fmt.Sprintf("  - Canyon: %s\n", fmtForkTimeOrUnset(c.CanyonTime))
 	banner += fmt.Sprintf("  - Delta: %s\n", fmtForkTimeOrUnset(c.DeltaTime))
+	banner += fmt.Sprintf("  - Eclipse: %s\n", fmtForkTimeOrUnset(c.EclipseTime))
+	banner += fmt.Sprintf("  - Fjord: %s\n", fmtForkTimeOrUnset(c.FjordTime))
+	banner += fmt.Sprintf("  - Interop: %s\n", fmtForkTimeOrUnset(c.InteropTime))
 	// Report the protocol version
 	banner += fmt.Sprintf("Node supports up to OP-Stack Protocol Version: %s\n", OPStackSupport)
 	return banner
@@ -337,6 +367,9 @@ func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
 		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime),
 		"canyon_time", fmtForkTimeOrUnset(c.CanyonTime),
 		"delta_time", fmtForkTimeOrUnset(c.DeltaTime),
+		"eclipse_time", fmtForkTimeOrUnset(c.EclipseTime),
+		"fjord_time", fmtForkTimeOrUnset(c.FjordTime),
+		"interop_time", fmtForkTimeOrUnset(c.InteropTime),
 	)
 }
 
