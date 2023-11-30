@@ -43,11 +43,11 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper public immutable VM;
 
+    /// @notice The genesis block number
+    uint256 public immutable GENESIS_BLOCK_NUMBER;
+
     /// @notice The game type ID
     GameType internal immutable GAME_TYPE;
-
-    /// @notice The genesis block number
-    uint256 internal immutable GENESIS_BLOCK_NUMBER;
 
     /// @notice The global root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
