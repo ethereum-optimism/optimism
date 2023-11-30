@@ -142,7 +142,7 @@ func (svc *HandlerSvc) DepositResponse(deposits *database.L1BridgeDepositsRespon
 
 // GetSupplyInfo ... Fetch native bridge supply info
 func (svc *HandlerSvc) GetSupplyInfo() (*models.BridgeSupplyView, error) {
-	depositSum, err := svc.db.L1BridgeDepositSum()
+	depositSum, err := svc.db.L1TxDepositSum()
 	if err != nil {
 		svc.logger.Error("error getting deposit sum", "err", err)
 		return nil, err

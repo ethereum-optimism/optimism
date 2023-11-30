@@ -96,7 +96,7 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.
 	}, nil
 }
 
-func (mbv *MockBridgeTransfersView) L1BridgeDepositSum() (float64, error) {
+func (mbv *MockBridgeTransfersView) L1TxDepositSum() (float64, error) {
 	return 69, nil
 }
 func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalSum(database.WithdrawFilter) (float64, error) {
