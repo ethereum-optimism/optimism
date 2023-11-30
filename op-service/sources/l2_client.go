@@ -63,7 +63,7 @@ func L2ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L2ClientConfig
 
 // L2Client extends EthClient with functions to fetch and cache eth.L2BlockRef values.
 type L2Client struct {
-	*EthClient
+	*PrefetchingEthClient
 	rollupCfg *rollup.Config
 
 	// cache L2BlockRef by hash
@@ -83,12 +83,16 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	if err != nil {
 		return nil, err
 	}
+	prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, 5)
+	if err != nil {
+		return nil, err
+	}
 
 	return &L2Client{
-		EthClient:          ethClient,
-		rollupCfg:          config.RollupCfg,
-		l2BlockRefsCache:   caching.NewLRUCache[common.Hash, eth.L2BlockRef](metrics, "blockrefs", config.L2BlockRefsCacheSize),
-		systemConfigsCache: caching.NewLRUCache[common.Hash, eth.SystemConfig](metrics, "systemconfigs", config.L1ConfigsCacheSize),
+		PrefetchingEthClient: prefetchingEthClient,
+		rollupCfg:            config.RollupCfg,
+		l2BlockRefsCache:     caching.NewLRUCache[common.Hash, eth.L2BlockRef](metrics, "blockrefs", config.L2BlockRefsCacheSize),
+		systemConfigsCache:   caching.NewLRUCache[common.Hash, eth.SystemConfig](metrics, "systemconfigs", config.L1ConfigsCacheSize),
 	}, nil
 }
 
