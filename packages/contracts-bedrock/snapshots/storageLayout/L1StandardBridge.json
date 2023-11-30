@@ -1,8 +1,22 @@
 [
   {
-    "bytes": "20",
-    "label": "spacer_0_0_20",
+    "bytes": "1",
+    "label": "_initialized",
     "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "spacer_0_2_20",
+    "offset": 2,
     "slot": "0",
     "type": "address"
   },
@@ -26,5 +40,12 @@
     "offset": 0,
     "slot": "3",
     "type": "uint256[47]"
+  },
+  {
+    "bytes": "20",
+    "label": "superchainConfig",
+    "offset": 0,
+    "slot": "50",
+    "type": "contract SuperchainConfig"
   }
 ]

@@ -1,8 +1,22 @@
 [
   {
-    "bytes": "20",
-    "label": "spacer_0_0_20",
+    "bytes": "1",
+    "label": "_initialized",
     "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "20",
+    "label": "spacer_0_2_20",
+    "offset": 2,
     "slot": "0",
     "type": "address"
   },
