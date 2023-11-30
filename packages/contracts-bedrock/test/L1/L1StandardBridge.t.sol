@@ -14,6 +14,7 @@ import { Constants } from "src/libraries/Constants.sol";
 import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 // Target contract
@@ -35,6 +36,31 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
+    }
+}
+
+contract L1StandardBridge_Pause_Test is Bridge_Initializer {
+    /// @dev Test that the accessors return the correct initialized values
+    function test_paused_succeeds() external {
+        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+    }
+
+    /// @dev Tests that the superchain config is called by the messengers paused function
+    function test_pause_callsSuperchainConfig_succeeds() external {
+        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
+        l1StandardBridge.paused();
+    }
+
+    /// @dev Tests that changing the superchain config paused status changes the return value of the bridge.
+    function test_pause_matchesSuperchainConfig_succeeds() external {
+        assertFalse(l1StandardBridge.paused());
+        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause("identifier");
+
+        assertTrue(l1StandardBridge.paused());
+        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
     }
 }
 

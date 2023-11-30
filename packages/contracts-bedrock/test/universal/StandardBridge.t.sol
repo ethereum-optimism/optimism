@@ -112,4 +112,9 @@ contract StandardBridge_Stateless_Test is CommonTest {
         vm.expectRevert();
         bridge.isCorrectTokenPair(address(erc20), address(1));
     }
+
+    /// @notice The bridge by default should be unpaused.
+    function test_paused_succeeds() external {
+        assertFalse(bridge.paused());
+    }
 }
