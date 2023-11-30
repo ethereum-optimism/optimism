@@ -206,6 +206,10 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 			canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
 			config.CanyonTime = &canyon
 		}
+		if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
+			delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+			config.DeltaTime = &delta
+		}
 
 		return config, nil
 	}
@@ -223,6 +227,10 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
 		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
 		rollupConfig.CanyonTime = &canyon
+	}
+	if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
+		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+		rollupConfig.DeltaTime = &delta
 	}
 	return &rollupConfig, nil
 }

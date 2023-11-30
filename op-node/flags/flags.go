@@ -265,6 +265,12 @@ var (
 		EnvVars: prefixEnvVars("OVERRIDE_CANYON"),
 		Hidden:  false,
 	}
+	DeltaOverrideFlag = &cli.Uint64Flag{
+		Name:    "override.delta",
+		Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
+		EnvVars: prefixEnvVars("OVERRIDE_DELTA"),
+		Hidden:  false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -311,6 +317,7 @@ var optionalFlags = []cli.Flag{
 	RollupLoadProtocolVersions,
 	CanyonOverrideFlag,
 	L1RethDBPath,
+	DeltaOverrideFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.
