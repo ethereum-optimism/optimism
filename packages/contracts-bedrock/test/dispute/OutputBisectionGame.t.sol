@@ -492,13 +492,8 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         Position disputedPos = LibPosition.wrap(4, 0);
 
         // Expected local data
-        bytes32[5] memory data = [
-            Hash.unwrap(gameProxy.l1Head()),
-            startingClaim,
-            disputedClaim,
-            bytes32(0),
-            bytes32(block.chainid << 0xC0)
-        ];
+        bytes32[5] memory data =
+            [Hash.unwrap(gameProxy.l1Head()), startingClaim, disputedClaim, bytes32(0), bytes32(block.chainid << 0xC0)];
 
         for (uint256 i = 1; i <= 5; i++) {
             uint256 expectedLen = i > 3 ? 8 : 32;

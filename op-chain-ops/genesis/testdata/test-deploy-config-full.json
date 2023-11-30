@@ -69,6 +69,7 @@
   "faultGameMaxDepth": 63,
   "faultGameMaxDuration": 604800,
   "outputBisectionGameGenesisBlock": 0,
+  "outputBisectionGameGenesisOutputRoot": "0x0000000000000000000000000000000000000000000000000000000000000000",
   "outputBisectionGameSplitDepth": 0,
   "systemConfigStartBlock": 0,
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000000000000000000000000000000",
