@@ -57,8 +57,6 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 
 	// Start the honest challenger
 	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Defender",
-		// Disagree with the proposed output, so agree with the (correct) root claim
-		challenger.WithAgreeProposedOutput(false),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
 	)
 	return sys, l1Client, game, correctTrace

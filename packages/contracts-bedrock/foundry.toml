@@ -36,6 +36,7 @@ fs_permissions = [
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
 ]
+libs = ["node_modules", "lib"]
 
 [fuzz]
 runs = 64

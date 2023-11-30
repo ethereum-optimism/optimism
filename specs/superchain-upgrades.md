@@ -33,6 +33,9 @@ chains following the same Superchain Target upgrade synchronously.
 - [Post-Bedrock Network upgrades](#post-bedrock-network-upgrades)
   - [Regolith](#regolith)
 - [Canyon](#canyon)
+- [Delta](#delta)
+- [Eclipse](#eclipse)
+- [Fjord](#fjord)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -246,7 +249,9 @@ but the matching L1-origin information may not be present at the time of activat
   ([announcement](https://optimism.mirror.xyz/gQWKlrDqHzdKPsB1iUnI-cVN3v0NvsWnazK7ajlt1fI)).
 - `v3.0.0-1`: 2023 Jan 13th - Bedrock pre-release, deployed on OP-Goerli, and later Base-Goerli.
 - `v3.0.0`: 2023 Jun 6th - Bedrock, including the Regolith hardfork improvements, first deployed on OP-Mainnet.
-- `v4.0.0`: TBD - Canyon
+- `v4.0.0`: TBD - Canyon.
+  [Governance proposal](https://gov.optimism.io/t/final-upgrade-proposal-2-canyon-network-upgrade/7088).
+- `v5.0.0-1`: Delta - Experimental, devnet pre-release stage.
 
 ## Post-Bedrock Network upgrades
 
@@ -296,3 +301,17 @@ The Canyon upgrade contains the Shapella upgrade from L1 and some minor protocol
 The Canyon upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
 rollup-node (`canyon_time`) and execution engine (`config.canyonTime`). Shanghai time in the
 execution engine should be set to the same time as the Canyon time.
+
+## Delta
+
+The Delta upgrade consists of a single consensus-layer feature: [Span Batches](./span-batches.md).
+
+The Delta upgrade uses a *L2 block-timestamp* activation-rule, and is specified only in the rollup-node (`delta_time`).
+
+## Eclipse
+
+Name of the next upgrade after Delta. Placeholder for development coordination.
+
+## Fjord
+
+Name of the next upgrade after Eclipse. Placeholder for development coordination.

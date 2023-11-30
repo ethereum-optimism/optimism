@@ -29,7 +29,6 @@ var (
 	cannonL2                = "http://example.com:9545"
 	rollupRpc               = "http://example.com:8555"
 	alphabetTrace           = "abcdefghijz"
-	agreeWithProposedOutput = "true"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -49,14 +48,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, true, datadir, config.TraceTypeAlphabet)
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.AlphabetTrace = alphabetTrace
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, true, datadir, config.TraceTypeAlphabet)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, datadir, config.TraceTypeAlphabet)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.AlphabetTrace = alphabetTrace
@@ -166,24 +165,6 @@ func TestTxManagerFlagsSupported(t *testing.T) {
 	// Not a comprehensive list of flags, just enough to sanity check the txmgr.CLIFlags were defined
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--"+txmgr.NumConfirmationsFlagName, "7"))
 	require.Equal(t, uint64(7), cfg.TxMgrConfig.NumConfirmations)
-}
-
-func TestAgreeWithProposedOutput(t *testing.T) {
-	t.Run("MustBeProvided", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag agree-with-proposed-output is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--agree-with-proposed-output"))
-	})
-	t.Run("Enabled", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--agree-with-proposed-output"))
-		require.True(t, cfg.AgreeWithProposedOutput)
-	})
-	t.Run("EnabledWithArg", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--agree-with-proposed-output=true"))
-		require.True(t, cfg.AgreeWithProposedOutput)
-	})
-	t.Run("Disabled", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--agree-with-proposed-output=false"))
-		require.False(t, cfg.AgreeWithProposedOutput)
-	})
 }
 
 func TestMaxConcurrency(t *testing.T) {
@@ -475,11 +456,10 @@ func addRequiredArgsExcept(traceType config.TraceType, name string, optionalArgs
 
 func requiredArgs(traceType config.TraceType) map[string]string {
 	args := map[string]string{
-		"--agree-with-proposed-output": agreeWithProposedOutput,
-		"--l1-eth-rpc":                 l1EthRpc,
-		"--game-factory-address":       gameFactoryAddressValue,
-		"--trace-type":                 traceType.String(),
-		"--datadir":                    datadir,
+		"--l1-eth-rpc":           l1EthRpc,
+		"--game-factory-address": gameFactoryAddressValue,
+		"--trace-type":           traceType.String(),
+		"--datadir":              datadir,
 	}
 	switch traceType {
 	case config.TraceTypeAlphabet:

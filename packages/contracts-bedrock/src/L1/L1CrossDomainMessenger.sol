@@ -5,7 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { Constants } from "src/libraries/Constants.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -18,19 +18,24 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:legacy
     OptimismPortal public immutable PORTAL;
 
+    /// @notice Address of the other SuperchainConfig contract.
+    SuperchainConfig public superchainConfig;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.8.0
-    string public constant version = "1.8.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
     constructor(OptimismPortal _portal) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
         PORTAL = _portal;
-        initialize();
+        initialize({ _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
-    function initialize() public initializer {
+    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    function initialize(SuperchainConfig _superchainConfig) public initializer {
+        superchainConfig = _superchainConfig;
         __CrossDomainMessenger_init();
     }
 
@@ -52,5 +57,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @inheritdoc CrossDomainMessenger
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
         return _target == address(this) || _target == address(PORTAL);
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function paused() public view override returns (bool) {
+        return superchainConfig.paused();
     }
 }

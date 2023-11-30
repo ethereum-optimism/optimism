@@ -8,17 +8,15 @@ import (
 )
 
 type GameBuilder struct {
-	builder             *ClaimBuilder
-	Game                types.Game
-	ExpectedActions     []types.Action
-	agreeWithOutputRoot bool
+	builder         *ClaimBuilder
+	Game            types.Game
+	ExpectedActions []types.Action
 }
 
-func (c *ClaimBuilder) GameBuilder(agreeWithOutputRoot bool, rootCorrect bool) *GameBuilder {
+func (c *ClaimBuilder) GameBuilder(rootCorrect bool) *GameBuilder {
 	return &GameBuilder{
-		builder:             c,
-		agreeWithOutputRoot: agreeWithOutputRoot,
-		Game:                types.NewGameState(agreeWithOutputRoot, []types.Claim{c.CreateRootClaim(rootCorrect)}, uint64(c.maxDepth)),
+		builder: c,
+		Game:    types.NewGameState([]types.Claim{c.CreateRootClaim(rootCorrect)}, uint64(c.maxDepth)),
 	}
 }
 
@@ -45,7 +43,7 @@ func (g *GameBuilder) SeqFrom(claim types.Claim) *GameBuilderSeq {
 func (s *GameBuilderSeq) addClaimToGame(claim *types.Claim) {
 	claim.ContractIndex = len(s.gameBuilder.Game.Claims())
 	claims := append(s.gameBuilder.Game.Claims(), *claim)
-	s.gameBuilder.Game = types.NewGameState(s.gameBuilder.agreeWithOutputRoot, claims, uint64(s.builder.maxDepth))
+	s.gameBuilder.Game = types.NewGameState(claims, uint64(s.builder.maxDepth))
 }
 
 func (s *GameBuilderSeq) AttackCorrect() *GameBuilderSeq {

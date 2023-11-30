@@ -139,9 +139,9 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public failedMessages;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    ///         A gap size of 41 was chosen here, so that the first slot used in a child contract
-    ///         would be a multiple of 50.
-    uint256[42] private __gap;
+    ///         A gap size of 44 was chosen here, so that the first slot used in a child contract
+    ///         would be 1 plus a multiple of 50.
+    uint256[44] private __gap;
 
     /// @notice Emitted whenever a message is sent to the other chain.
     /// @param target       Address of the recipient of the message.
@@ -219,6 +219,10 @@ abstract contract CrossDomainMessenger is
         external
         payable
     {
+        // On L1 this function will check the Portal for its paused status.
+        // On L2 this function should be a no-op, because paused will always return false.
+        require(paused() == false, "CrossDomainMessenger: paused");
+
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
         require(version < 2, "CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
 
@@ -376,4 +380,12 @@ abstract contract CrossDomainMessenger is
     /// @param _target Address of the contract to check.
     /// @return Whether or not the address is an unsafe system address.
     function _isUnsafeTarget(address _target) internal view virtual returns (bool);
+
+    /// @notice This function should return true if the contract is paused.
+    ///         On L1 this function will check the SuperchainConfig for its paused status.
+    ///         On L2 this function should be a no-op.
+    /// @return Whether or not the contract is paused.
+    function paused() public view virtual returns (bool) {
+        return false;
+    }
 }
