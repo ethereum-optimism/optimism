@@ -1,0 +1,50 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "_HASHED_NAME",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "_HASHED_VERSION",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "3"
+  },
+  {
+    "bytes": "32",
+    "label": "commitmentTimestamps",
+    "offset": 0,
+    "slot": "53"
+  },
+  {
+    "bytes": "32",
+    "label": "usedNonces",
+    "offset": 0,
+    "slot": "54"
+  },
+  {
+    "bytes": "32",
+    "label": "inviteCounts",
+    "offset": 0,
+    "slot": "55"
+  }
+]

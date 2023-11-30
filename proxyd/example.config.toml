@@ -98,6 +98,8 @@ backends = ["infura"]
 # consensus_max_update_threshold = "20s"
 # Maximum block lag, default 8
 # consensus_max_block_lag = 16
+# Maximum block range (for eth_getLogs method), no default
+# consensus_max_block_range = 20000
 # Minimum peer count, default 3
 # consensus_min_peer_count = 4
 

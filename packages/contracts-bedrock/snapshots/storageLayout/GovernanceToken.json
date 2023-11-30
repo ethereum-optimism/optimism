@@ -1,0 +1,68 @@
+[
+  {
+    "bytes": "32",
+    "label": "_balances",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "_allowances",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "_totalSupply",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "32",
+    "label": "_name",
+    "offset": 0,
+    "slot": "3"
+  },
+  {
+    "bytes": "32",
+    "label": "_symbol",
+    "offset": 0,
+    "slot": "4"
+  },
+  {
+    "bytes": "32",
+    "label": "_nonces",
+    "offset": 0,
+    "slot": "5"
+  },
+  {
+    "bytes": "32",
+    "label": "_PERMIT_TYPEHASH_DEPRECATED_SLOT",
+    "offset": 0,
+    "slot": "6"
+  },
+  {
+    "bytes": "32",
+    "label": "_delegates",
+    "offset": 0,
+    "slot": "7"
+  },
+  {
+    "bytes": "32",
+    "label": "_checkpoints",
+    "offset": 0,
+    "slot": "8"
+  },
+  {
+    "bytes": "32",
+    "label": "_totalSupplyCheckpoints",
+    "offset": 0,
+    "slot": "9"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "10"
+  }
+]

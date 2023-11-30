@@ -74,11 +74,11 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool, spanBatchActi
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
 	if spanBatchActivated {
-		// Activate span batch hard fork
+		// Activate delta hard fork
 		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	} else {
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = nil
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	}
 
 	sys, err := cfg.Start(t)
@@ -179,11 +179,11 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool, spanBatchActivated bool
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 	if spanBatchActivated {
-		// Activate span batch hard fork
+		// Activate delta hard fork
 		minTs := hexutil.Uint64(0)
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = &minTs
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
 	} else {
-		cfg.DeployConfig.L2GenesisSpanBatchTimeOffset = nil
+		cfg.DeployConfig.L2GenesisDeltaTimeOffset = nil
 	}
 
 	sys, err := cfg.Start(t)
@@ -290,7 +290,8 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	t.Log("Shutting down network")
 	// Shutdown the nodes from the actual chain. Should now be able to run using only the pre-fetched data.
 	require.NoError(t, sys.BatchSubmitter.Kill())
-	sys.L2OutputSubmitter.Stop()
+	err = sys.L2OutputSubmitter.Driver().StopL2OutputSubmitting()
+	require.NoError(t, err)
 	sys.L2OutputSubmitter = nil
 	for _, node := range sys.EthInstances {
 		node.Close()

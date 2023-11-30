@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -30,20 +29,18 @@ type GameInfo interface {
 type gameValidator func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error
 
 type GamePlayer struct {
-	act                     actor
-	agreeWithProposedOutput bool
-	loader                  GameInfo
-	logger                  log.Logger
-	status                  gameTypes.GameStatus
+	act    actor
+	loader GameInfo
+	logger log.Logger
+	status gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, types.OracleUpdater, gameValidator, error)
+type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, gameValidator, error)
 
 func NewGamePlayer(
 	ctx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg *config.Config,
 	dir string,
 	addr common.Address,
 	txMgr txmgr.TxManager,
@@ -51,6 +48,7 @@ func NewGamePlayer(
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
+
 	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fault dispute game contract wrapper: %w", err)
@@ -64,10 +62,9 @@ func NewGamePlayer(
 		logger.Info("Game already resolved", "status", status)
 		// Game is already complete so skip creating the trace provider, loading game inputs etc.
 		return &GamePlayer{
-			logger:                  logger,
-			loader:                  loader,
-			agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
-			status:                  status,
+			logger: logger,
+			loader: loader,
+			status: status,
 			// Act function does nothing because the game is already complete
 			act: func(ctx context.Context) error {
 				return nil
@@ -80,7 +77,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	accessor, updater, validator, err := creator(addr, loader, gameDepth, dir)
+	accessor, validator, err := creator(addr, loader, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}
@@ -94,13 +91,12 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, updater, cfg.AgreeWithProposedOutput, logger)
+	agent := NewAgent(m, loader, int(gameDepth), accessor, responder, logger)
 	return &GamePlayer{
-		act:                     agent.Act,
-		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
-		loader:                  loader,
-		logger:                  logger,
-		status:                  status,
+		act:    agent.Act,
+		loader: loader,
+		logger: logger,
+		status: status,
 	}, nil
 }
 
@@ -138,17 +134,7 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameSta
 		g.logger.Info("Game info", "claims", claimCount, "status", status)
 		return
 	}
-	var expectedStatus gameTypes.GameStatus
-	if g.agreeWithProposedOutput {
-		expectedStatus = gameTypes.GameStatusChallengerWon
-	} else {
-		expectedStatus = gameTypes.GameStatusDefenderWon
-	}
-	if expectedStatus == status {
-		g.logger.Info("Game won", "status", status)
-	} else {
-		g.logger.Error("Game lost", "status", status)
-	}
+	g.logger.Info("Game resolved", "status", status)
 }
 
 type PrestateLoader interface {

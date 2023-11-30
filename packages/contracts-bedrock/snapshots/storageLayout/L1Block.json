@@ -1,0 +1,50 @@
+[
+  {
+    "bytes": "8",
+    "label": "number",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "8",
+    "label": "timestamp",
+    "offset": 8,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "basefee",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "hash",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "8",
+    "label": "sequenceNumber",
+    "offset": 0,
+    "slot": "3"
+  },
+  {
+    "bytes": "32",
+    "label": "batcherHash",
+    "offset": 0,
+    "slot": "4"
+  },
+  {
+    "bytes": "32",
+    "label": "l1FeeOverhead",
+    "offset": 0,
+    "slot": "5"
+  },
+  {
+    "bytes": "32",
+    "label": "l1FeeScalar",
+    "offset": 0,
+    "slot": "6"
+  }
+]

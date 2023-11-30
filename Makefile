@@ -39,12 +39,17 @@ golang-docker:
 			op-node op-batcher op-proposer op-challenger
 .PHONY: golang-docker
 
+contracts-bedrock-docker:
+	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	docker buildx bake \
+			--progress plain \
+			--load \
+			-f docker-bake.hcl \
+		  contracts-bedrock
+.PHONY: contracts-bedrock-docker
+
 submodules:
-	# CI will checkout submodules on its own (and fails on these commands)
-	if [ -z "$$GITHUB_ENV" ]; then \
-		git submodule init; \
-		git submodule update --recursive; \
-	fi
+	git submodule update --init --recursive
 .PHONY: submodules
 
 op-bindings:

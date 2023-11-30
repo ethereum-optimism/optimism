@@ -1,0 +1,14 @@
+[
+  {
+    "bytes": "20",
+    "label": "owner",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "drips",
+    "offset": 0,
+    "slot": "1"
+  }
+]

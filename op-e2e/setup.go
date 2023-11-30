@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -51,7 +52,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -110,6 +110,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
+		BlobsPath:              t.TempDir(),
 		Nodes: map[string]*rollupNode.Config{
 			"sequencer": {
 				Driver: driver.Config{
@@ -175,6 +176,8 @@ type SystemConfig struct {
 
 	JWTFilePath string
 	JWTSecret   [32]byte
+
+	BlobsPath string
 
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
@@ -245,7 +248,7 @@ type EthInstance interface {
 }
 
 type System struct {
-	cfg SystemConfig
+	Cfg SystemConfig
 
 	RollupConfig *rollup.Config
 
@@ -256,9 +259,11 @@ type System struct {
 	Clients           map[string]*ethclient.Client
 	RawClients        map[string]*rpc.Client
 	RollupNodes       map[string]*rollupNode.OpNode
-	L2OutputSubmitter *l2os.L2OutputSubmitter
+	L2OutputSubmitter *l2os.ProposerService
 	BatchSubmitter    *bss.BatcherService
 	Mocknet           mocknet.Mocknet
+
+	L1BeaconAPIAddr string
 
 	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
 	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
@@ -277,7 +282,7 @@ func (sys *System) Close() {
 	postCancel() // immediate shutdown, no allowance for idling
 
 	if sys.L2OutputSubmitter != nil {
-		sys.L2OutputSubmitter.Stop()
+		_ = sys.L2OutputSubmitter.Kill()
 	}
 	if sys.BatchSubmitter != nil {
 		_ = sys.BatchSubmitter.Kill()
@@ -330,7 +335,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	sys := &System{
-		cfg:          cfg,
+		Cfg:          cfg,
 		EthInstances: make(map[string]EthInstance),
 		Clients:      make(map[string]*ethclient.Client),
 		RawClients:   make(map[string]*rpc.Client),
@@ -428,7 +433,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			L1SystemConfigAddress:   cfg.DeployConfig.SystemConfigProxy,
 			RegolithTime:            cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			CanyonTime:              cfg.DeployConfig.CanyonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			SpanBatchTime:           cfg.DeployConfig.SpanBatchTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			DeltaTime:               cfg.DeployConfig.DeltaTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			EclipseTime:             cfg.DeployConfig.EclipseTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
 		}
 	}
@@ -438,8 +446,19 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 	sys.RollupConfig = &defaultConfig
 
+	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
+	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LvlInfo).New("role", "l1_cl"),
+		path.Join(cfg.BlobsPath, "l1_cl"), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
+	t.Cleanup(func() {
+		_ = bcn.Close()
+	})
+	require.NoError(t, bcn.Start("127.0.0.1:0"))
+	beaconApiAddr := bcn.BeaconAddr()
+	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
+
 	// Initialize nodes
-	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c,
+		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -662,7 +681,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	// L2Output Submitter
-	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
+	proposerCLIConfig := &l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
 		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
@@ -673,17 +692,18 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
+	}
+	proposer, err := l2os.ProposerServiceFromCLIConfig(context.Background(), "0.0.1", proposerCLIConfig, sys.Cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
-
-	if err := sys.L2OutputSubmitter.Start(); err != nil {
+	if err := proposer.Start(context.Background()); err != nil {
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
+	sys.L2OutputSubmitter = proposer
 
 	var batchType uint = derive.SingularBatchType
-	if cfg.DeployConfig.L2GenesisSpanBatchTimeOffset != nil && *cfg.DeployConfig.L2GenesisSpanBatchTimeOffset == hexutil.Uint64(0) {
+	if cfg.DeployConfig.L2GenesisDeltaTimeOffset != nil && *cfg.DeployConfig.L2GenesisDeltaTimeOffset == hexutil.Uint64(0) {
 		batchType = derive.SpanBatchType
 	}
 	batcherMaxL1TxSizeBytes := cfg.BatcherMaxL1TxSizeBytes
@@ -709,11 +729,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			Level:  log.LvlInfo,
 			Format: oplog.FormatText,
 		},
-		Stopped:   sys.cfg.DisableBatcher, // Batch submitter may be enabled later
+		Stopped:   sys.Cfg.DisableBatcher, // Batch submitter may be enabled later
 		BatchType: batchType,
 	}
 	// Batch Submitter
-	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.cfg.Loggers["batcher"])
+	batcher, err := bss.BatcherServiceFromCLIConfig(context.Background(), "0.0.1", batcherCLIConfig, sys.Cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}

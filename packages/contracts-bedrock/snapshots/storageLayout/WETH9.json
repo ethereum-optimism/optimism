@@ -1,0 +1,32 @@
+[
+  {
+    "bytes": "32",
+    "label": "name",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "symbol",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "1",
+    "label": "decimals",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "32",
+    "label": "balanceOf",
+    "offset": 0,
+    "slot": "3"
+  },
+  {
+    "bytes": "32",
+    "label": "allowance",
+    "offset": 0,
+    "slot": "4"
+  }
+]

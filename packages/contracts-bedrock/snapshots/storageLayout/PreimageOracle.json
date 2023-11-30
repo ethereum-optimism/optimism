@@ -1,0 +1,20 @@
+[
+  {
+    "bytes": "32",
+    "label": "preimageLengths",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "preimageParts",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "preimagePartOk",
+    "offset": 0,
+    "slot": "2"
+  }
+]

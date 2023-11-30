@@ -1,0 +1,56 @@
+[
+  {
+    "bytes": "1600",
+    "label": "spacer_1_0_1600",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "20",
+    "label": "spacer_51_0_20",
+    "offset": 0,
+    "slot": "50"
+  },
+  {
+    "bytes": "1568",
+    "label": "spacer_52_0_1568",
+    "offset": 0,
+    "slot": "51"
+  },
+  {
+    "bytes": "1",
+    "label": "spacer_101_0_1",
+    "offset": 0,
+    "slot": "100"
+  },
+  {
+    "bytes": "1568",
+    "label": "spacer_102_0_1568",
+    "offset": 0,
+    "slot": "101"
+  },
+  {
+    "bytes": "32",
+    "label": "spacer_151_0_32",
+    "offset": 0,
+    "slot": "150"
+  },
+  {
+    "bytes": "1568",
+    "label": "spacer_152_0_1568",
+    "offset": 0,
+    "slot": "151"
+  },
+  {
+    "bytes": "32",
+    "label": "spacer_201_0_32",
+    "offset": 0,
+    "slot": "200"
+  },
+  {
+    "bytes": "32",
+    "label": "spacer_202_0_32",
+    "offset": 0,
+    "slot": "201"
+  }
+]

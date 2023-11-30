@@ -1,0 +1,62 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "51"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "52"
+  },
+  {
+    "bytes": "32",
+    "label": "overhead",
+    "offset": 0,
+    "slot": "101"
+  },
+  {
+    "bytes": "32",
+    "label": "scalar",
+    "offset": 0,
+    "slot": "102"
+  },
+  {
+    "bytes": "32",
+    "label": "batcherHash",
+    "offset": 0,
+    "slot": "103"
+  },
+  {
+    "bytes": "8",
+    "label": "gasLimit",
+    "offset": 0,
+    "slot": "104"
+  },
+  {
+    "bytes": "32",
+    "label": "_resourceConfig",
+    "offset": 0,
+    "slot": "105"
+  }
+]

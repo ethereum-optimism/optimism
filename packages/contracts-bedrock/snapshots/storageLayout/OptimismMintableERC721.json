@@ -1,0 +1,68 @@
+[
+  {
+    "bytes": "32",
+    "label": "_name",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "_symbol",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "_owners",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "32",
+    "label": "_balances",
+    "offset": 0,
+    "slot": "3"
+  },
+  {
+    "bytes": "32",
+    "label": "_tokenApprovals",
+    "offset": 0,
+    "slot": "4"
+  },
+  {
+    "bytes": "32",
+    "label": "_operatorApprovals",
+    "offset": 0,
+    "slot": "5"
+  },
+  {
+    "bytes": "32",
+    "label": "_ownedTokens",
+    "offset": 0,
+    "slot": "6"
+  },
+  {
+    "bytes": "32",
+    "label": "_ownedTokensIndex",
+    "offset": 0,
+    "slot": "7"
+  },
+  {
+    "bytes": "32",
+    "label": "_allTokens",
+    "offset": 0,
+    "slot": "8"
+  },
+  {
+    "bytes": "32",
+    "label": "_allTokensIndex",
+    "offset": 0,
+    "slot": "9"
+  },
+  {
+    "bytes": "32",
+    "label": "baseTokenURI",
+    "offset": 0,
+    "slot": "10"
+  }
+]

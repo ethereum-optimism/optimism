@@ -1,0 +1,14 @@
+[
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "deposits",
+    "offset": 0,
+    "slot": "49"
+  }
+]

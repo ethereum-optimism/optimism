@@ -103,7 +103,7 @@ func (c *coordinator) createJob(game types.GameMetadata) (*job, error) {
 		c.states[game.Proxy] = state
 	}
 	if state.inflight {
-		c.logger.Debug("Not rescheduling already in-flight game", "game", game)
+		c.logger.Debug("Not rescheduling already in-flight game", "game", game.Proxy)
 		return nil, nil
 	}
 	// Create the player separately to the state so we retry creating it if it fails on the first attempt.
@@ -117,7 +117,7 @@ func (c *coordinator) createJob(game types.GameMetadata) (*job, error) {
 	}
 	state.inflight = true
 	if state.status != types.GameStatusInProgress {
-		c.logger.Debug("Not rescheduling resolved game", "game", game, "status", state.status)
+		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
 		return nil, nil
 	}
 	return &job{addr: game.Proxy, player: state.player, status: state.status}, nil

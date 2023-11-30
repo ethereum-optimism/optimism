@@ -9,7 +9,7 @@ library PreimageKeyLib {
     /// @param _ident The identifier of the local data. [0, 32) bytes in size.
     /// @param _localContext The local context for the key.
     /// @return key_ The context-specific local key.
-    function localizeIdent(uint256 _ident, uint256 _localContext) internal view returns (bytes32 key_) {
+    function localizeIdent(uint256 _ident, bytes32 _localContext) internal view returns (bytes32 key_) {
         assembly {
             // Set the type byte in the given identifier to `1` (Local). We only care about
             // the [1, 32) bytes in this value.
@@ -26,7 +26,7 @@ library PreimageKeyLib {
     /// @param _key The local data key to localize.
     /// @param _localContext The local context for the key.
     /// @return localizedKey_ The localized local data key.
-    function localize(bytes32 _key, uint256 _localContext) internal view returns (bytes32 localizedKey_) {
+    function localize(bytes32 _key, bytes32 _localContext) internal view returns (bytes32 localizedKey_) {
         assembly {
             // Grab the current free memory pointer to restore later.
             let ptr := mload(0x40)

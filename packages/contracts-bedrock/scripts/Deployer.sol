@@ -30,6 +30,17 @@ struct Artifact {
     string userdoc;
 }
 
+/// @notice Contains information about a storage slot. Mirrors the layout of the storage
+///         slot object in Forge artifacts so that we can deserialize JSON into this struct.
+struct StorageSlot {
+    uint256 astId;
+    string _contract;
+    string label;
+    uint256 offset;
+    string slot;
+    string _type;
+}
+
 /// @title Deployer
 /// @author tynes
 /// @notice A contract that can make deploying and interacting with deployments easy.
@@ -359,7 +370,7 @@ abstract contract Deployer is Script {
     }
 
     /// @notice Returns the receipt of a deployment transaction.
-    function _getDeployReceiptByContractAddress(address addr) internal returns (string memory) {
+    function _getDeployReceiptByContractAddress(address _addr) internal returns (string memory receipt_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
@@ -367,64 +378,94 @@ abstract contract Deployer is Script {
             Executables.jq,
             " -r '.receipts[] | select(.contractAddress == ",
             '"',
-            vm.toString(addr),
+            vm.toString(_addr),
             '"',
             ")' < ",
             deployPath
         );
         bytes memory res = vm.ffi(cmd);
         string memory receipt = string(res);
-        return receipt;
+        receipt_ = receipt;
     }
 
     /// @notice Returns the devdoc for a deployed contract.
-    function getDevDoc(string memory _name) internal returns (string memory) {
+    function getDevDoc(string memory _name) internal returns (string memory doc_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.devdoc' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        doc_ = string(res);
     }
 
     /// @notice Returns the storage layout for a deployed contract.
-    function getStorageLayout(string memory _name) internal returns (string memory) {
+    function getStorageLayout(string memory _name) internal returns (string memory layout_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.storageLayout' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        layout_ = string(res);
     }
 
     /// @notice Returns the abi for a deployed contract.
-    function getAbi(string memory _name) internal returns (string memory) {
+    function getAbi(string memory _name) public returns (string memory abi_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.abi' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        abi_ = string(res);
     }
 
     /// @notice Returns the userdoc for a deployed contract.
-    function getUserDoc(string memory _name) internal returns (string memory) {
+    function getUserDoc(string memory _name) internal returns (string memory doc_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.userdoc' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        doc_ = string(res);
     }
 
     /// @notice
-    function getMetadata(string memory _name) internal returns (string memory) {
+    function getMetadata(string memory _name) internal returns (string memory metadata_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " '.metadata | tostring' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
-        return string(res);
+        metadata_ = string(res);
+    }
+
+    /// @dev Pulls the `_initialized` storage slot information from the Forge artifacts for a given contract.
+    function getInitializedSlot(string memory _contractName) internal returns (StorageSlot memory slot_) {
+        string memory storageLayout = getStorageLayout(_contractName);
+
+        string[] memory command = new string[](3);
+        command[0] = Executables.bash;
+        command[1] = "-c";
+        command[2] = string.concat(
+            Executables.echo,
+            " '",
+            storageLayout,
+            "'",
+            " | ",
+            Executables.jq,
+            " '.storage[] | select(.label == \"_initialized\" and .type == \"t_uint8\")'"
+        );
+        bytes memory rawSlot = vm.parseJson(string(vm.ffi(command)));
+        slot_ = abi.decode(rawSlot, (StorageSlot));
+    }
+
+    /// @dev Returns the value of the internal `_initialized` storage slot for a given contract.
+    function loadInitializedSlot(string memory _contractName, bool _isProxy) public returns (uint8 initialized_) {
+        StorageSlot memory slot = getInitializedSlot(_contractName);
+        if (_isProxy) {
+            _contractName = string.concat(_contractName, "Proxy");
+        }
+        bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
+        initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 
     /// @notice Adds a deployment to the temp deployments file

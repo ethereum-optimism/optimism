@@ -126,7 +126,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, al
 	engine := derivationPipeline
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
-
+	driverCtx, driverCancel := context.WithCancel(context.Background())
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
@@ -138,7 +138,8 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, al
 		sequencerNotifs:  sequencerStateListener,
 		config:           cfg,
 		driverConfig:     driverCfg,
-		done:             make(chan struct{}),
+		driverCtx:        driverCtx,
+		driverCancel:     driverCancel,
 		log:              log,
 		snapshotLog:      snapshotLog,
 		l1:               l1,

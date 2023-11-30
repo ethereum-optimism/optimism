@@ -1,0 +1,14 @@
+[
+  {
+    "bytes": "32",
+    "label": "_delay",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "_queuedAt",
+    "offset": 0,
+    "slot": "1"
+  }
+]

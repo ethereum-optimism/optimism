@@ -16,10 +16,7 @@ func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint str
 	opts := []challenger.Option{
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
-		// By default the challenger agrees with the root claim (thus disagrees with the proposed output)
-		// This can be overridden by passing in options
 		challenger.WithAlphabet(g.claimedAlphabet),
-		challenger.WithAgreeProposedOutput(false),
 	}
 	opts = append(opts, options...)
 	c := challenger.NewChallenger(g.t, ctx, l1Endpoint, name, opts...)

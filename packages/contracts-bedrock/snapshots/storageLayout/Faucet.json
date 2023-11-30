@@ -1,0 +1,20 @@
+[
+  {
+    "bytes": "32",
+    "label": "modules",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "timeouts",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "nonces",
+    "offset": 0,
+    "slot": "2"
+  }
+]

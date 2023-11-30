@@ -1,0 +1,32 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "51"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "52"
+  }
+]

@@ -1,0 +1,32 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0"
+  },
+  {
+    "bytes": "32",
+    "label": "startingBlockNumber",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "startingTimestamp",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "32",
+    "label": "l2Outputs",
+    "offset": 0,
+    "slot": "3"
+  }
+]

@@ -7,17 +7,21 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-type ProviderCreator func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error)
-
 func NewSimpleTraceAccessor(trace types.TraceProvider) *Accessor {
 	selector := func(_ context.Context, _ types.Game, _ types.Claim, _ types.Position) (types.TraceProvider, error) {
 		return trace, nil
 	}
+	return NewAccessor(selector)
+}
+
+type ProviderSelector func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error)
+
+func NewAccessor(selector ProviderSelector) *Accessor {
 	return &Accessor{selector}
 }
 
 type Accessor struct {
-	selector func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error)
+	selector ProviderSelector
 }
 
 func (t *Accessor) Get(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (common.Hash, error) {

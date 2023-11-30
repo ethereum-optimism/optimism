@@ -108,11 +108,8 @@ func (db *bridgeTransactionsDB) L1TransactionDeposit(sourceHash common.Hash) (*L
 }
 
 func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
-	// Latest Transaction Deposit
-	l1Query := db.gorm.Table("l1_transaction_deposits").Order("l1_transaction_deposits.timestamp DESC")
-	l1Query = l1Query.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
-	l1Query = l1Query.Joins("INNER JOIN l1_block_headers ON l1_block_headers.hash = l1_contract_events.block_hash")
-	l1Query = l1Query.Select("l1_block_headers.*")
+	// L1: Latest Transaction Deposit
+	l1Query := db.gorm.Where("timestamp = (?)", db.gorm.Table("l1_transaction_deposits").Select("MAX(timestamp)"))
 
 	var l1Header L1BlockHeader
 	result := l1Query.Take(&l1Header)
@@ -128,21 +125,18 @@ func (db *bridgeTransactionsDB) L1LatestBlockHeader() (*L1BlockHeader, error) {
 
 func (db *bridgeTransactionsDB) L1LatestFinalizedBlockHeader() (*L1BlockHeader, error) {
 	// A Proven, Finalized Event or Relayed Message
-	provenQuery := db.gorm.Table("l2_transaction_withdrawals").Order("timestamp DESC").Limit(1)
-	provenQuery = provenQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
-	provenQuery = provenQuery.Order("l1_contract_events.timestamp DESC").Select("l1_contract_events.*")
 
-	finalizedQuery := db.gorm.Table("l2_transaction_withdrawals").Order("timestamp DESC").Limit(1)
-	finalizedQuery = finalizedQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l2_transaction_withdrawals.proven_l1_event_guid")
-	finalizedQuery = finalizedQuery.Select("l1_contract_events.*")
+	latestProvenWithdrawal := db.gorm.Table("l2_transaction_withdrawals").Where("proven_l1_event_guid IS NOT NULL").Order("timestamp DESC").Limit(1)
+	provenQuery := db.gorm.Table("l1_contract_events").Where("guid = (?)", latestProvenWithdrawal.Select("proven_l1_event_guid"))
 
-	relayedQuery := db.gorm.Table("l2_bridge_messages").Order("timestamp DESC")
-	relayedQuery = relayedQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l2_bridge_messages.relayed_message_event_guid")
-	relayedQuery = relayedQuery.Select("l1_contract_events.*")
+	latestFinalizedWithdrawal := db.gorm.Table("l2_transaction_withdrawals").Where("finalized_l1_event_guid IS NOT NULL").Order("timestamp DESC").Limit(1)
+	finalizedQuery := db.gorm.Table("l1_contract_events").Where("guid = (?)", latestFinalizedWithdrawal.Select("finalized_l1_event_guid"))
 
-	l1Query := db.gorm.Table("((?) UNION (?) UNION (?)) AS finalized_bridge_events", provenQuery, finalizedQuery, relayedQuery)
-	l1Query = l1Query.Joins("INNER JOIN l1_block_headers ON l1_block_headers.hash = finalized_bridge_events.block_hash")
-	l1Query = l1Query.Order("finalized_bridge_events.timestamp DESC").Select("l1_block_headers.*")
+	latestRelayedWithdrawal := db.gorm.Table("l2_bridge_messages").Where("relayed_message_event_guid IS NOT NULL").Order("timestamp DESC").Limit(1)
+	relayedQuery := db.gorm.Table("l1_contract_events").Where("guid = (?)", latestRelayedWithdrawal.Select("relayed_message_event_guid"))
+
+	events := db.gorm.Table("((?) UNION (?) UNION (?)) AS events", provenQuery, finalizedQuery, relayedQuery)
+	l1Query := db.gorm.Where("hash = (?)", events.Select("block_hash").Order("timestamp DESC").Limit(1))
 
 	var l1Header L1BlockHeader
 	result := l1Query.Take(&l1Header)
@@ -227,60 +221,30 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 }
 
 func (db *bridgeTransactionsDB) L2LatestBlockHeader() (*L2BlockHeader, error) {
-	// L2: Latest Withdrawal, Latest L2 Header of indexed deposit epoch
-	var latestWithdrawalHeader, latestL2DepositHeader *L2BlockHeader
+	// L2: Block With The Latest Withdrawal
+	l2Query := db.gorm.Where("timestamp = (?)", db.gorm.Table("l2_transaction_withdrawals").Select("MAX(timestamp)"))
 
-	var withdrawHeader L2BlockHeader
-	withdrawalQuery := db.gorm.Table("l2_transaction_withdrawals").Order("timestamp DESC").Limit(1)
-	withdrawalQuery = withdrawalQuery.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
-	withdrawalQuery = withdrawalQuery.Joins("INNER JOIN l2_block_headers ON l2_block_headers.hash = l2_contract_events.block_hash")
-	result := withdrawalQuery.Select("l2_block_headers.*").Take(&withdrawHeader)
-	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, result.Error
-	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		latestWithdrawalHeader = &withdrawHeader
-	}
-
-	// Check for any deposits that may have been included after the latest withdrawal. However, since the bridge
-	// processor only inserts entries when the corresponding epoch has been indexed on both L1 and L2, we can
-	// simply look for the latest L2 block with at <= time of the latest L1 deposit.
-	var l1Deposit L1TransactionDeposit
-	result = db.gorm.Table("l1_transaction_deposits").Order("timestamp DESC").Limit(1).Take(&l1Deposit)
-	if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		return nil, result.Error
-	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		var l2DepositHeader L2BlockHeader
-		result := db.gorm.Table("l2_block_headers").Order("timestamp DESC").Limit(1).Where("timestamp <= ?", l1Deposit.Tx.Timestamp).Take(&l2DepositHeader)
-		if result.Error != nil && !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, result.Error
-		} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			latestL2DepositHeader = &l2DepositHeader
+	var l2Header L2BlockHeader
+	result := l2Query.Take(&l2Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
 		}
+		return nil, result.Error
 	}
 
-	// compare
-	if latestWithdrawalHeader == nil {
-		return latestL2DepositHeader, nil
-	} else if latestL2DepositHeader == nil {
-		return latestWithdrawalHeader, nil
-	}
-
-	if latestWithdrawalHeader.Timestamp >= latestL2DepositHeader.Timestamp {
-		return latestWithdrawalHeader, nil
-	} else {
-		return latestL2DepositHeader, nil
-	}
+	return &l2Header, nil
 }
 
 func (db *bridgeTransactionsDB) L2LatestFinalizedBlockHeader() (*L2BlockHeader, error) {
 	// Only a Relayed message since we dont track L1 deposit inclusion status.
-	relayedQuery := db.gorm.Table("l1_bridge_messages").Order("timestamp DESC").Limit(1)
-	relayedQuery = relayedQuery.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l1_bridge_messages.relayed_message_event_guid")
-	relayedQuery = relayedQuery.Joins("INNER JOIN l2_block_headers ON l2_block_headers.hash = l2_contract_events.block_hash")
-	relayedQuery = relayedQuery.Select("l2_block_headers.*")
+	latestRelayedDeposit := db.gorm.Table("l1_bridge_messages").Where("relayed_message_event_guid IS NOT NULL").Order("timestamp DESC").Limit(1)
+	relayedQuery := db.gorm.Table("l2_contract_events").Where("guid = (?)", latestRelayedDeposit.Select("relayed_message_event_guid"))
+
+	l2Query := db.gorm.Where("hash = (?)", relayedQuery.Select("block_hash"))
 
 	var l2Header L2BlockHeader
-	result := relayedQuery.Take(&l2Header)
+	result := l2Query.Take(&l2Header)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil

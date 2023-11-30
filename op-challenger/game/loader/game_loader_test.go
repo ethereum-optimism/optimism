@@ -24,39 +24,39 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 		name        string
 		caller      *mockMinimalDisputeGameFactoryCaller
 		earliest    uint64
-		blockNumber uint64
+		blockHash   common.Hash
 		expectedErr error
 		expectedLen int
 	}{
 		{
 			name:        "success",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, false),
-			blockNumber: 1,
+			blockHash:   common.Hash{0x01},
 			expectedLen: 10,
 		},
 		{
 			name:        "expired game ignored",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, false),
 			earliest:    500,
-			blockNumber: 1,
+			blockHash:   common.Hash{0x01},
 			expectedLen: 5,
 		},
 		{
 			name:        "game count error",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, true, false),
-			blockNumber: 1,
+			blockHash:   common.Hash{0x01},
 			expectedErr: gameCountErr,
 		},
 		{
 			name:        "game index error",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, true),
-			blockNumber: 1,
+			blockHash:   common.Hash{0x01},
 			expectedErr: gameIndexErr,
 		},
 		{
-			name:        "no games",
-			caller:      newMockMinimalDisputeGameFactoryCaller(0, false, false),
-			blockNumber: 1,
+			name:      "no games",
+			caller:    newMockMinimalDisputeGameFactoryCaller(0, false, false),
+			blockHash: common.Hash{0x01},
 		},
 	}
 
@@ -67,7 +67,7 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 			t.Parallel()
 
 			loader := NewGameLoader(test.caller)
-			games, err := loader.FetchAllGamesAtBlock(context.Background(), test.earliest, test.blockNumber)
+			games, err := loader.FetchAllGamesAtBlock(context.Background(), test.earliest, test.blockHash)
 			require.ErrorIs(t, err, test.expectedErr)
 			require.Len(t, games, test.expectedLen)
 			expectedGames := test.caller.games
@@ -138,7 +138,7 @@ func newMockMinimalDisputeGameFactoryCaller(count uint64, gameCountErr bool, ind
 	}
 }
 
-func (m *mockMinimalDisputeGameFactoryCaller) GetGameCount(_ context.Context, blockNum uint64) (uint64, error) {
+func (m *mockMinimalDisputeGameFactoryCaller) GetGameCount(_ context.Context, _ common.Hash) (uint64, error) {
 	if m.gameCountErr {
 		return 0, gameCountErr
 	}
@@ -146,7 +146,7 @@ func (m *mockMinimalDisputeGameFactoryCaller) GetGameCount(_ context.Context, bl
 	return m.gameCount, nil
 }
 
-func (m *mockMinimalDisputeGameFactoryCaller) GetGame(_ context.Context, index uint64, blockNum uint64) (types.GameMetadata, error) {
+func (m *mockMinimalDisputeGameFactoryCaller) GetGame(_ context.Context, index uint64, _ common.Hash) (types.GameMetadata, error) {
 	if m.indexErrors[index] {
 		return struct {
 			GameType  uint8

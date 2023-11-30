@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -46,8 +47,12 @@ func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rol
 	maxDepth := g.MaxDepth(ctx)
 	gameContract, err := contracts.NewFaultDisputeGameContract(g.addr, batching.NewMultiCaller(l1Client.Client(), batching.DefaultBatchSize))
 	g.require.NoError(err, "Create game contract bindings")
-	provider, err := cannon.NewTraceProvider(ctx, logger, metrics.NoopMetrics, cfg, gameContract, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
-	g.require.NoError(err, "create cannon trace provider")
+	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	g.require.NoErrorf(err, "dial l2 client %v", cfg.CannonL2)
+	defer l2Client.Close() // Not needed after fetching the inputs
+	localInputs, err := cannon.FetchLocalInputs(ctx, gameContract, l2Client)
+	g.require.NoError(err, "fetch cannon local inputs")
+	provider := cannon.NewTraceProvider(logger, metrics.NoopMetrics, cfg, types.NoLocalContext, localInputs, filepath.Join(cfg.Datadir, "honest"), uint64(maxDepth))
 
 	return &HonestHelper{
 		t:            g.t,

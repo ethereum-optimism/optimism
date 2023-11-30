@@ -21,11 +21,10 @@ var (
 	validDatadir               = "/tmp/data"
 	validCannonL2              = "http://localhost:9545"
 	validRollupRpc             = "http://localhost:8555"
-	agreeWithProposedOutput    = true
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, agreeWithProposedOutput, validDatadir, traceType)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validDatadir, traceType)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
@@ -135,6 +134,12 @@ func TestRollupRpcRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
 
+func TestCannotEnableBothCannonAndOutputCannonTraceTypes(t *testing.T) {
+	config := validConfig(TraceTypeOutputCannon)
+	config.TraceTypes = append(config.TraceTypes, TraceTypeCannon)
+	require.ErrorIs(t, config.Check(), ErrCannonAndOutputCannonConflict)
+}
+
 func TestCannonL2Required(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.CannonL2 = ""
@@ -195,18 +200,13 @@ func TestNetworkMustBeValid(t *testing.T) {
 	require.ErrorIs(t, cfg.Check(), ErrCannonNetworkUnknown)
 }
 
-func TestRequireConfigForAllSupportedTraceTypes(t *testing.T) {
+func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeOutputCannon, TraceTypeAlphabet}
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	cfg.AlphabetTrace = validAlphabetTrace
 	require.NoError(t, cfg.Check())
-
-	// Require output cannon specific args
-	cfg.RollupRpc = ""
-	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
-	cfg.RollupRpc = validRollupRpc
 
 	// Require cannon specific args
 	cfg.CannonL2 = ""

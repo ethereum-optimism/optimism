@@ -21,6 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,6 +34,7 @@ import (
 
 const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
+const outputCannonGameType uint8 = 0 // TODO(client-pod#43): This should be a unique game type
 const alphabetGameDepth = 4
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
@@ -101,8 +103,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1
 }
 
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *AlphabetGameHelper {
-	l2BlockNumber := h.waitForProposals(ctx)
-	l1Head := h.checkpointL1Block(ctx)
+	extraData, _, _ := h.createDisputeGameExtraData(ctx)
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -111,9 +112,6 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	pos := faultTypes.NewPosition(alphabetGameDepth, lastAlphabetTraceIndex)
 	rootClaim, err := trace.Get(ctx, pos)
 	h.require.NoError(err, "get root claim")
-	extraData := make([]byte, 64)
-	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
-	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
 	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.factory.Create(opts, alphabetGameType, rootClaim, extraData)
 	})
@@ -141,13 +139,49 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	}
 }
 
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoint string, rootClaim common.Hash) *OutputCannonGameHelper {
+	extraData, _, _ := h.createDisputeGameExtraData(ctx)
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return h.factory.Create(opts, outputCannonGameType, rootClaim, extraData)
+	})
+	h.require.NoError(err, "create fault dispute game")
+	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
+	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
+	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
+	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
+	h.require.NoError(err)
+	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
+	h.require.NoError(err)
+
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
+	h.require.NoError(err)
+
+	return &OutputCannonGameHelper{
+		FaultGameHelper: FaultGameHelper{
+			t:           h.t,
+			require:     h.require,
+			client:      h.client,
+			opts:        h.opts,
+			game:        game,
+			factoryAddr: h.factoryAddr,
+			addr:        createdEvent.DisputeProxy,
+		},
+		rollupClient: rollupClient,
+	}
+
+}
+
 func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Hash) *CannonGameHelper {
-	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
-	return h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
+	extraData, _, _ := h.createDisputeGameExtraData(ctx)
+	return h.createCannonGame(ctx, rootClaim, extraData)
 }
 
 func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, rollupCfg *rollup.Config, l2Genesis *core.Genesis, l1Endpoint string, l2Endpoint string, options ...challenger.Option) (*CannonGameHelper, *HonestHelper) {
-	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
+	extraData, l1Head, l2BlockNumber := h.createDisputeGameExtraData(ctx)
 	challengerOpts := []challenger.Option{
 		challenger.WithCannon(h.t, rollupCfg, l2Genesis, l2Endpoint),
 		challenger.WithFactoryAddress(h.factoryAddr),
@@ -187,10 +221,11 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 	maxDepth, err := gameImpl.MAXGAMEDEPTH(opts)
 	h.require.NoError(err, "fetch max game depth")
 
-	provider := cannon.NewTraceProviderFromInputs(
+	provider := cannon.NewTraceProvider(
 		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
 		metrics.NoopMetrics,
 		cfg,
+		faultTypes.NoLocalContext,
 		inputs,
 		cfg.Datadir,
 		maxDepth.Uint64(),
@@ -201,7 +236,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 	// Otherwise creating the game will fail
 	rootClaim[0] = mipsevm.VMStatusInvalid
 
-	game := h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
+	game := h.createCannonGame(ctx, rootClaim, extraData)
 	correctMaxDepth := game.MaxDepth(ctx)
 	provider.SetMaxDepth(uint64(correctMaxDepth))
 	honestHelper := &HonestHelper{
@@ -213,13 +248,10 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 	return game, honestHelper
 }
 
-func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint64, l1Head *big.Int, rootClaim common.Hash) *CannonGameHelper {
+func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.Hash, extraData []byte) *CannonGameHelper {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
-	extraData := make([]byte, 64)
-	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
-	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
 	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
 		return h.factory.Create(opts, cannonGameType, rootClaim, extraData)
 	})
@@ -245,6 +277,15 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint
 	}
 }
 
+func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraData []byte, l1Head *big.Int, l2BlockNumber uint64) {
+	l2BlockNumber = h.waitForProposals(ctx)
+	l1Head = h.checkpointL1Block(ctx)
+	extraData = make([]byte, 64)
+	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
+	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
+	return
+}
+
 func (h *FactoryHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
 		challenger.WithFactoryAddress(h.factoryAddr),
@@ -255,12 +296,6 @@ func (h *FactoryHelper) StartChallenger(ctx context.Context, l1Endpoint string, 
 		_ = c.Close()
 	})
 	return c
-}
-
-func (h *FactoryHelper) prepareCannonGame(ctx context.Context) (uint64, *big.Int) {
-	l2BlockNumber := h.waitForProposals(ctx)
-	l1Head := h.checkpointL1Block(ctx)
-	return l2BlockNumber, l1Head
 }
 
 // waitForProposals waits until there are at least two proposals in the output oracle
