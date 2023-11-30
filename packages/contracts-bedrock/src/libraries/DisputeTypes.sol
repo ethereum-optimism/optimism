@@ -87,6 +87,17 @@ library GameTypes {
 
     /// @dev The game will use a `IDisputeGame` implementation that utilizes attestation proofs.
     GameType internal constant ATTESTATION = GameType.wrap(2);
+
+    /// @dev A dispute game type that performs output bisection and then uses the cannon vm.
+    GameType internal constant OUTPUT_CANNON = GameType.wrap(253);
+
+    /// @dev A dispute game type that performs output bisection and then uses an alphabet vm.
+    ///      Note intended for production use.
+    GameType internal constant OUTPUT_ALPHABET = GameType.wrap(254);
+
+    /// @dev A dispute game type that uses an alphabet vm.
+    ///      Note intended for production use.
+    GameType internal constant ALPHABET = GameType.wrap(255);
 }
 
 /// @title VMStatuses

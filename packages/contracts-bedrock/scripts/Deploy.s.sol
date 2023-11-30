@@ -289,7 +289,9 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        setOutputBisectionImplementation();
+        setCannonOutputBisectionGameImplementation();
+        setAlphabetOutputBisectionGameImplementation();
+
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
 
@@ -985,12 +987,9 @@ contract Deploy is Deployer {
         }
     }
 
-    /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting Cannon FaultDisputeGame implementation");
-        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-
-        Claim mipsAbsolutePrestate;
+    /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise
+    ///         from the config.
+    function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             // Fetch the absolute prestate dump
             string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
@@ -1002,53 +1001,77 @@ contract Deploy is Deployer {
                 revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
             }
             commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
-            mipsAbsolutePrestate = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
+            mipsAbsolutePrestate_ = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
             console.log(
                 "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
-                vm.toString(Claim.unwrap(mipsAbsolutePrestate))
+                vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
             );
         } else {
             console.log(
                 "[Cannon Dispute Game] Using absolute prestate from config: %s", cfg.faultGameAbsolutePrestate()
             );
-            mipsAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+            mipsAbsolutePrestate_ = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         }
-
-        // Set the Cannon FaultDisputeGame implementation in the factory.
-        _setFaultGameImplementation(
-            factory, GameTypes.FAULT, mipsAbsolutePrestate, IBigStepper(mustGetAddress("Mips")), cfg.faultGameMaxDepth()
-        );
     }
 
-    /// @notice Sets the implementation for the output bisection game type (254) in the `DisputeGameFactory`
-    function setOutputBisectionImplementation() public onlyDevnet broadcast {
-        console.log("Setting OutputBisectionGame implementation");
+    /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
+    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Cannon FaultDisputeGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        // Set the Cannon FaultDisputeGame implementation in the factory.
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.FAULT,
+            _absolutePrestate: loadMipsAbsolutePrestate(),
+            _faultVm: IBigStepper(mustGetAddress("Mips")),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
+    }
+
+    /// @notice Sets the implementation for the `OUTPUT_CANNON` game type in the `DisputeGameFactory`
+    function setCannonOutputBisectionGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Cannon OutputBisectionGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.OUTPUT_CANNON,
+            _absolutePrestate: loadMipsAbsolutePrestate(),
+            _faultVm: IBigStepper(mustGetAddress("Mips")),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
+    }
+
+    /// @notice Sets the implementation for the `OUTPUT_ALPHABET` game type in the `DisputeGameFactory`
+    function setAlphabetOutputBisectionGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Alphabet OutputBisectionGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         _setFaultGameImplementation({
             _factory: factory,
-            _gameType: GameType.wrap(254),
+            _gameType: GameTypes.OUTPUT_ALPHABET,
             _absolutePrestate: outputAbsolutePrestate,
             _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
             _maxGameDepth: cfg.faultGameMaxDepth()
         });
     }
 
-    /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
+    /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
     function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
         console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         // Set the Alphabet FaultDisputeGame implementation in the factory.
         Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        _setFaultGameImplementation(
-            factory,
-            GameType.wrap(255),
-            alphabetAbsolutePrestate,
-            IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
-            4 // The max game depth of the alphabet game is always 4.
-        );
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.ALPHABET,
+            _absolutePrestate: alphabetAbsolutePrestate,
+            _faultVm: IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
+            _maxGameDepth: 4 // The max game depth of the alphabet game is always 4.
+         });
     }
 
     /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
@@ -1070,7 +1093,10 @@ contract Deploy is Deployer {
         }
 
         string memory deployed;
-        if (GameType.unwrap(_gameType) == 254) {
+        if (
+            GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.OUTPUT_ALPHABET)
+                || GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.OUTPUT_CANNON)
+        ) {
             deployed = "OutputBisectionGame";
             _factory.setImplementation(
                 _gameType,
@@ -1104,6 +1130,8 @@ contract Deploy is Deployer {
         string memory gameTypeString;
         if (rawGameType == 0) {
             gameTypeString = "Cannon";
+        } else if (rawGameType == 253) {
+            gameTypeString = "OutputBisectionCannon";
         } else if (rawGameType == 254) {
             gameTypeString = "OutputBisectionAlphabet";
         } else if (rawGameType == 255) {
