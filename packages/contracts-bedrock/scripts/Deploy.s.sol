@@ -43,6 +43,7 @@ import { Chains } from "scripts/Chains.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { AlphabetVM2 } from "test/mocks/AlphabetVM2.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
@@ -1052,7 +1053,7 @@ contract Deploy is Deployer {
             _factory: factory,
             _gameType: GameTypes.OUTPUT_ALPHABET,
             _absolutePrestate: outputAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _faultVm: IBigStepper(new AlphabetVM2(outputAbsolutePrestate)),
             _maxGameDepth: cfg.faultGameMaxDepth()
         });
     }
