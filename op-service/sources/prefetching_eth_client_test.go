@@ -17,11 +17,12 @@ type testFunction func(t *testing.T, ctx context.Context, client *PrefetchingEth
 // Define test cases
 var testCases = []struct {
 	name              string
-	testFunc          testFunction
 	prefetchingRanges []uint64
+	testFunc          testFunction
 }{
 	{
-		name: "InfoByNumber",
+		name:              "InfoByNumber",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			_, rhdr := randHeader()
 			expectedInfo, _ := rhdr.Info(true, false)
@@ -31,10 +32,10 @@ var testCases = []struct {
 			require.Equal(t, expectedInfo, info)
 			return nil
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "InfoByHash",
+		name:              "InfoByHash",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			hash := randHash()
 			_, rhdr := randHeader()
@@ -46,10 +47,10 @@ var testCases = []struct {
 			require.Equal(t, expectedInfo, info)
 			return nil
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "InfoByLabel",
+		name:              "InfoByLabel",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			label := eth.BlockLabel(eth.Unsafe)
 			_, rhdr := randHeader()
@@ -60,10 +61,10 @@ var testCases = []struct {
 			require.Equal(t, expectedInfo, info)
 			return nil
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "InfoAndTxsByHash",
+		name:              "InfoAndTxsByHash",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			hash := common.Hash{}
 			block := &types.Block{}
@@ -73,10 +74,10 @@ var testCases = []struct {
 			_, _, err := client.InfoAndTxsByHash(ctx, hash)
 			return err
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "InfoAndTxsByNumber",
+		name:              "InfoAndTxsByNumber",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			number := uint64(1234)
 			block := &types.Block{}
@@ -86,10 +87,10 @@ var testCases = []struct {
 			_, _, err := client.InfoAndTxsByNumber(ctx, number)
 			return err
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "PayloadByHash",
+		name:              "PayloadByHash",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			hash := common.Hash{}
 			payload := &eth.ExecutionPayload{}
@@ -97,10 +98,10 @@ var testCases = []struct {
 			_, err := client.PayloadByHash(ctx, hash)
 			return err
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "PayloadByNumber",
+		name:              "PayloadByNumber",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			number := uint64(1234)
 			payload := &eth.ExecutionPayload{}
@@ -108,10 +109,10 @@ var testCases = []struct {
 			_, err := client.PayloadByNumber(ctx, number)
 			return err
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "PayloadByLabel",
+		name:              "PayloadByLabel",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			label := eth.BlockLabel(eth.Unsafe)
 			payload := &eth.ExecutionPayload{}
@@ -119,10 +120,10 @@ var testCases = []struct {
 			_, err := client.PayloadByLabel(ctx, label)
 			return err
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 	{
-		name: "FetchReceipts",
+		name:              "FetchReceipts",
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			blockHash := common.Hash{}
 			blockInfo := eth.BlockToInfo(&types.Block{})
@@ -131,7 +132,6 @@ var testCases = []struct {
 			_, _, err := client.FetchReceipts(ctx, blockHash)
 			return err
 		},
-		prefetchingRanges: []uint64{0, 1, 5},
 	},
 }
 
