@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	gameTypes "github.com/ethereum-optimism/optimism/op-challenger/game/types"
@@ -26,7 +25,7 @@ type GameInfo interface {
 
 // gameValidator checks that the specific game instance is compatible with the configuration.
 // Typically, this is done by verifying the absolute prestate of the game matches the local absolute prestate.
-type gameValidator func(ctx context.Context, gameContract *contracts.FaultDisputeGameContract) error
+type gameValidator func(ctx context.Context, gameContract GameContract) error
 
 type GamePlayer struct {
 	act    actor
@@ -35,7 +34,17 @@ type GamePlayer struct {
 	status gameTypes.GameStatus
 }
 
-type resourceCreator func(addr common.Address, contract *contracts.FaultDisputeGameContract, gameDepth uint64, dir string) (types.TraceAccessor, gameValidator, error)
+type GameContract interface {
+	responder.GameContract
+	GameInfo
+	ClaimLoader
+	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
+	GetMaxGameDepth(ctx context.Context) (uint64, error)
+}
+
+type contractCreator func(addr common.Address, caller *batching.MultiCaller) (GameContract, error)
+
+type resourceCreator func(addr common.Address, contract GameContract, gameDepth uint64, dir string) (types.TraceAccessor, gameValidator, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -45,11 +54,12 @@ func NewGamePlayer(
 	addr common.Address,
 	txMgr txmgr.TxManager,
 	client *ethclient.Client,
+	contractCreator contractCreator,
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
-	loader, err := contracts.NewFaultDisputeGameContract(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
+	loader, err := contractCreator(addr, batching.NewMultiCaller(client.Client(), batching.DefaultBatchSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create fault dispute game contract wrapper: %w", err)
 	}
