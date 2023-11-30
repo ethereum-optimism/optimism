@@ -103,14 +103,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions", true)
             })
         );
+        // L2CrossDomainMessenger
+        contracts.push(
+            InitializeableContract({
+                target: address(l2CrossDomainMessenger),
+                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ()),
+                initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger", false)
+            })
+        );
     }
 
     /// @notice Tests that:
-    ///         1. All `Initializable` contracts in `src/L1` are accounted for in the `contracts` array.
+    ///         1. All `Initializable` contracts in `src/L1` and `src/L2` are accounted for in the `contracts` array.
     ///         2. The `_initialized` flag of each contract is properly set to `1`, signifying that the
     ///            contracts are initialized.
     ///         3. The `initialize()` function of each contract cannot be called more than once.
-    function test_cannotReinitializeL1_succeeds() public {
+    function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1 `Initializable` contracts are accounted for.
         assertEq(_getNumL1Initializable(), contracts.length);
 
@@ -135,7 +143,7 @@ contract Initializer_Test is Bridge_Initializer {
         command[1] = "-c";
         command[2] = string.concat(
             Executables.find,
-            " src/L1 -type f -exec basename {} \\;",
+            " src/L1 src/L2 -type f -exec basename {} \\;",
             " | ",
             Executables.sed,
             " 's/\\.[^.]*$//'",
