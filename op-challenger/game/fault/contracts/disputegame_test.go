@@ -20,7 +20,7 @@ var (
 	oracleAddr = common.HexToAddress("0x44442842371dFC380576ebb09Ae16Cb6B6ca4444")
 )
 
-type disputeGameSetupFunc func(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameContract)
+type disputeGameSetupFunc func(t *testing.T) (*batchingTest.AbiBasedRpc, *disputeGameContract)
 
 func runCommonDisputeGameTests(t *testing.T, setup disputeGameSetupFunc) {
 	tests := []struct {
@@ -52,19 +52,19 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 		args     []interface{}
 		result   interface{}
 		expected interface{} // Defaults to expecting the same as result
-		call     func(game *DisputeGameContract) (any, error)
+		call     func(game *disputeGameContract) (any, error)
 	}{
 		{
 			method: methodStatus,
 			result: types.GameStatusChallengerWon,
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.GetStatus(context.Background())
 			},
 		},
 		{
 			method: methodGameDuration,
 			result: uint64(5566),
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.GetGameDuration(context.Background())
 			},
 		},
@@ -72,14 +72,14 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 			method:   methodMaxGameDepth,
 			result:   big.NewInt(128),
 			expected: uint64(128),
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.GetMaxGameDepth(context.Background())
 			},
 		},
 		{
 			method: methodAbsolutePrestate,
 			result: common.Hash{0xab},
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.GetAbsolutePrestateHash(context.Background())
 			},
 		},
@@ -87,21 +87,21 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 			method:   methodClaimCount,
 			result:   big.NewInt(9876),
 			expected: uint64(9876),
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.GetClaimCount(context.Background())
 			},
 		},
 		{
 			method: methodL1Head,
 			result: common.Hash{0xdd, 0xbb},
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.GetL1Head(context.Background())
 			},
 		},
 		{
 			method: methodResolve,
 			result: types.GameStatusInProgress,
-			call: func(game *DisputeGameContract) (any, error) {
+			call: func(game *disputeGameContract) (any, error) {
 				return game.CallResolve(context.Background())
 			},
 		},

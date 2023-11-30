@@ -14,9 +14,9 @@ import (
 )
 
 func TestOutputBisectionGameContract_CommonTests(t *testing.T) {
-	runCommonDisputeGameTests(t, func(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameContract) {
+	runCommonDisputeGameTests(t, func(t *testing.T) (*batchingTest.AbiBasedRpc, *disputeGameContract) {
 		stubRpc, contract := setupOutputBisectionGameTest(t)
-		return stubRpc, &contract.DisputeGameContract
+		return stubRpc, &contract.disputeGameContract
 	})
 }
 

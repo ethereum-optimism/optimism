@@ -19,7 +19,7 @@ var (
 )
 
 type OutputBisectionGameContract struct {
-	DisputeGameContract
+	disputeGameContract
 }
 
 func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiCaller) (*OutputBisectionGameContract, error) {
@@ -29,7 +29,7 @@ func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiC
 	}
 
 	return &OutputBisectionGameContract{
-		DisputeGameContract: DisputeGameContract{
+		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
 		},
@@ -78,7 +78,7 @@ func (f *OutputBisectionGameContract) addLocalDataTx(claimIdx uint64, data *type
 	return call.ToTxCandidate()
 }
 
-func (f *DisputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (f *disputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	vm, err := f.vm(ctx)
 	if err != nil {
 		return txmgr.TxCandidate{}, err

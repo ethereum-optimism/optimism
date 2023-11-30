@@ -17,7 +17,7 @@ const (
 )
 
 type FaultDisputeGameContract struct {
-	DisputeGameContract
+	disputeGameContract
 }
 
 func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCaller) (*FaultDisputeGameContract, error) {
@@ -27,7 +27,7 @@ func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCall
 	}
 
 	return &FaultDisputeGameContract{
-		DisputeGameContract: DisputeGameContract{
+		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(fdgAbi, addr),
 		},

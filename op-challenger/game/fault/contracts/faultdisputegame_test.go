@@ -14,9 +14,9 @@ import (
 )
 
 func TestFaultDisputeGameContract_CommonTests(t *testing.T) {
-	runCommonDisputeGameTests(t, func(t *testing.T) (*batchingTest.AbiBasedRpc, *DisputeGameContract) {
+	runCommonDisputeGameTests(t, func(t *testing.T) (*batchingTest.AbiBasedRpc, *disputeGameContract) {
 		stubRpc, contract := setupFaultDisputeGameTest(t)
-		return stubRpc, &contract.DisputeGameContract
+		return stubRpc, &contract.disputeGameContract
 	})
 }
 
