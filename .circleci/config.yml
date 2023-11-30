@@ -432,7 +432,7 @@ jobs:
       - run:
           name: snapshots
           command: |
-            pnpm snapshots:check
+            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check statuses
