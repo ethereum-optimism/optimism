@@ -125,7 +125,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     }
 
     ////////////////////////////////////////////////////////////////
-    //          `IOutputBisectionGame` Implementation Tests          //
+    //          `IOutputBisectionGame` Implementation Tests       //
     ////////////////////////////////////////////////////////////////
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -323,6 +323,26 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         );
     }
 
+    /// @dev Tests that making a claim at the execution trace bisection root level with an invalid status
+    ///      byte reverts with the `UnexpectedRootClaim` error.
+    function test_move_incorrectStatusExecRoot_reverts() public {
+        for (uint256 i; i < 4; i++) {
+            gameProxy.attack(i, Claim.wrap(bytes32(uint256(5))));
+        }
+
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, bytes32(0)));
+        gameProxy.attack(4, Claim.wrap(bytes32(0)));
+    }
+
+    /// @dev Tests that making a claim at the execution trace bisection root level with a valid status
+    ///      byte succeeds.
+    function test_move_correctStatusExecRoot_succeeds() public {
+        for (uint256 i; i < 4; i++) {
+            gameProxy.attack(i, Claim.wrap(bytes32(uint256(5))));
+        }
+        gameProxy.attack(4, ROOT_CLAIM);
+    }
+
     /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested_succeeds() public {
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
@@ -487,7 +507,6 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
         // Expected start/disputed claims
         bytes32 startingClaim = Hash.unwrap(GENESIS_OUTPUT_ROOT);
-        Position startingPos = LibPosition.wrap(0, 0);
         bytes32 disputedClaim = bytes32(uint256(3));
         Position disputedPos = LibPosition.wrap(4, 0);
 
