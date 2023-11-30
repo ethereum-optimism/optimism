@@ -20,7 +20,7 @@ var testCases = []struct {
 }{
 	{
 		name:              "InfoByNumber",
-		prefetchingRanges: []uint64{0},
+		prefetchingRanges: []uint64{0, 1, 5},
 		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mockRPC *mockRPC) error {
 			_, rhdr := randHeader()
 			expectedInfo, _ := rhdr.Info(true, false)
