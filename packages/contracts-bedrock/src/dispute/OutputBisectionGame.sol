@@ -46,6 +46,9 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice The genesis block number
     uint256 public immutable GENESIS_BLOCK_NUMBER;
 
+    /// @notice The genesis output root
+    Hash public immutable GENESIS_OUTPUT_ROOT;
+
     /// @notice The game type ID
     GameType internal immutable GAME_TYPE;
 
@@ -86,6 +89,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _genesisBlockNumber The block number of the genesis block.
+    /// @param _genesisOutputRoot The output root of the genesis block.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _splitDepth The final depth of the output bisection portion of the game.
     /// @param _gameDuration The duration of the game.
@@ -95,6 +99,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         GameType _gameType,
         Claim _absolutePrestate,
         uint256 _genesisBlockNumber,
+        Hash _genesisOutputRoot,
         uint256 _maxGameDepth,
         uint256 _splitDepth,
         Duration _gameDuration,
@@ -105,6 +110,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         GENESIS_BLOCK_NUMBER = _genesisBlockNumber;
+        GENESIS_OUTPUT_ROOT = _genesisOutputRoot;
         MAX_GAME_DEPTH = _maxGameDepth;
         SPLIT_DEPTH = _splitDepth;
         GAME_DURATION = _gameDuration;
@@ -157,9 +163,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         //            indicate the VM Status and is added after the digest is computed.
         if (keccak256(_stateData) << 8 != Claim.unwrap(preStateClaim) << 8) revert InvalidPrestate();
 
-        // TODO(clabby): Include less context. See Adrian's proposal for the local context salt.
-        (ClaimData storage starting, ClaimData storage disputed) = findStartingAndDisputedOutputs(_claimIndex);
-        bytes32 uuid = keccak256(abi.encode(starting.claim, starting.parentIndex, disputed.claim, disputed.parentIndex));
+        // Compute the local preimage context for the step.
+        Hash uuid = findLocalContext(_claimIndex);
 
         // INVARIANT: If a step is an attack, the poststate is valid if the step produces
         //            the same poststate hash as the parent claim's value.
@@ -173,7 +178,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof, uuid) == Claim.unwrap(postState.claim);
+        bool validStep = VM.step(_stateData, _proof, Hash.unwrap(uuid)) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 
@@ -211,7 +216,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
 
         // When the next position surpasses the split depth (i.e., it is the root claim of an execution
         // trace bisection sub-game), we need to perform some extra verification steps.
-        if (nextPosition.depth() == SPLIT_DEPTH + 1) verifyExecBisectionRoot(_claim, _challengeIndex);
+        if (nextPosition.depth() == SPLIT_DEPTH + 1) verifyExecBisectionRoot(_claim);
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
@@ -284,34 +289,34 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        // TODO(clabby): Include less context. See Adrian's proposal for the local context salt.
-        (ClaimData storage starting, ClaimData storage disputed) = findStartingAndDisputedOutputs(_execLeafIdx);
-        bytes32 uuid = keccak256(abi.encode(starting.claim, starting.parentIndex, disputed.claim, disputed.parentIndex));
+        (Claim starting, Position startingPos, Claim disputed, Position disputedPos) =
+            findStartingAndDisputedOutputs(_execLeafIdx);
+        Hash uuid = computeLocalContext(starting, startingPos, disputed, disputedPos);
 
         IPreimageOracle oracle = VM.oracle();
         if (_ident == 1) {
             // Load the settlement layer head hash
-            oracle.loadLocalData(_ident, uuid, Hash.unwrap(settlementHead), 32, _partOffset);
+            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Hash.unwrap(settlementHead), 32, _partOffset);
         } else if (_ident == 2) {
             // Load the starting proposal's output root.
-            oracle.loadLocalData(_ident, uuid, Claim.unwrap(starting.claim), 32, _partOffset);
+            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(starting), 32, _partOffset);
         } else if (_ident == 3) {
             // Load the disputed proposal's output root
-            oracle.loadLocalData(_ident, uuid, Claim.unwrap(disputed.claim), 32, _partOffset);
+            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(disputed), 32, _partOffset);
         } else if (_ident == 4) {
             // Load the starting proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
-            // TODO(clabby): +1? See TODO in natspec of `findStartingAndDisputedOutputs`
-            oracle.loadLocalData(
-                _ident,
-                uuid,
-                bytes32(uint256(GENESIS_BLOCK_NUMBER + starting.position.indexAtDepth()) << 0xC0),
-                8,
-                _partOffset
-            );
+
+            // If the starting position is 0 (invalid), the starting output root is genesis. Otherwise,
+            // we add the index at depth + 1 to the genesis block number to get the L2 block number.
+            uint256 l2Number = Position.unwrap(startingPos) == 0
+                ? GENESIS_BLOCK_NUMBER
+                : GENESIS_BLOCK_NUMBER + startingPos.indexAtDepth() + 1;
+
+            oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == 5) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
-            oracle.loadLocalData(_ident, uuid, bytes32(block.chainid << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(block.chainid << 0xC0), 8, _partOffset);
         } else {
             revert InvalidLocalIdent();
         }
@@ -445,9 +450,6 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         );
 
         // Persist the settlement layer hash of the parent block.
-        // TODO(clabby): There may be a bug here - Do we just allow the dispute game to be invalid? We can
-        //               always just create another, but it is possible to create a game where the data was not
-        //               already available on the settlement layer.
         settlementHead = Hash.wrap(blockhash(block.number - 1));
     }
 
@@ -463,17 +465,13 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim
     ///         is invalid.
     /// @param _rootClaim The root claim of the execution bisection subgame.
-    function verifyExecBisectionRoot(Claim _rootClaim, uint256 /* _parentIndex */ ) internal pure {
+    function verifyExecBisectionRoot(Claim _rootClaim) internal pure {
         // The VMStatus must indicate 'invalid' (1), to argue that disputed thing is invalid.
         // Games that agree with the existing outcome are not allowed.
-        // TODO(clabby): This assumption will change in Alpha Chad, and also depending on the split depth! Be careful
-        //               about what we go with here.
         uint8 vmStatus = uint8(Claim.unwrap(_rootClaim)[0]);
         if (!(vmStatus == VMStatus.unwrap(VMStatuses.INVALID) || vmStatus == VMStatus.unwrap(VMStatuses.PANIC))) {
             revert UnexpectedRootClaim(_rootClaim);
         }
-
-        // TODO(clabby): Other verification steps (?)
     }
 
     /// @notice Finds the trace ancestor of a given position within the DAG.
@@ -495,16 +493,14 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice Finds the starting and disputed output root for a given `ClaimData` within the DAG. This
     ///         `ClaimData` must be below the `SPLIT_DEPTH`.
     /// @param _start The index within `claimData` of the claim to start searching from.
-    /// @return starting_ The starting, agreed upon output root claim.
-    /// @return disputed_ The disputed output root claim.
-    ///
-    /// TODO: This function does not account for the case where the starting output root is the absolute
-    ///       prestate. Need to determine whether or not the first leaf at the split depth is genesis or
-    ///       block #1.
+    /// @return startingClaim_ The starting output root claim.
+    /// @return startingPos_ The starting output root position.
+    /// @return disputedClaim_ The disputed output root claim.
+    /// @return disputedPos_ The disputed output root position.
     function findStartingAndDisputedOutputs(uint256 _start)
         internal
         view
-        returns (ClaimData storage starting_, ClaimData storage disputed_)
+        returns (Claim startingClaim_, Position startingPos_, Claim disputedClaim_, Position disputedPos_)
     {
         // Fatch the starting claim.
         uint256 claimIdx = _start;
@@ -521,7 +517,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // Walk up the DAG until the ancestor's depth is equal to the split depth.
         uint256 currentDepth;
         ClaimData storage execRootClaim = claim;
-        while ((currentDepth = claim.position.depth()) != SPLIT_DEPTH) {
+        while ((currentDepth = claim.position.depth()) > SPLIT_DEPTH) {
             uint256 parentIndex = claim.parentIndex;
 
             // If we're currently at the split depth + 1, we're at the root of the execution sub-game.
@@ -541,16 +537,62 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
 
         // Determine the starting and disputed output root indices.
         // 1. If it was an attack, the disputed output root is `claim`, and the starting output root is
-        //    elsewhere in the dag (it must commit to the block # index at depth of `outputPos - 1`).
+        //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos - 1`).
         // 2. If it was a defense, the starting output root is `claim`, and the disputed output root is
-        //    elsewhere in the dag (it must commit to the block # index at depth of `outputPos + 1`).
+        //    elsewhere in the DAG (it must commit to the block # index at depth of `outputPos + 1`).
         if (wasAttack) {
-            // See TODO in natspec.
-            starting_ = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx);
-            disputed_ = claimData[claimIdx];
+            // If this is an attack on the first output root (the block directly after genesis), the
+            // starting claim nor position exists in the tree. We leave these as 0, which can be easily
+            // identified due to 0 being an invalid Gindex.
+            if (outputPos.indexAtDepth() > 0) {
+                ClaimData storage starting = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx);
+                startingClaim_ = starting.claim;
+                startingPos_ = starting.position;
+            } else {
+                startingClaim_ = Claim.wrap(Hash.unwrap(GENESIS_OUTPUT_ROOT));
+            }
+            disputedClaim_ = claim.claim;
+            disputedPos_ = claim.position;
         } else {
-            starting_ = claimData[claimIdx];
-            disputed_ = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx);
+            ClaimData storage disputed = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx);
+            startingClaim_ = claim.claim;
+            startingPos_ = claim.position;
+            disputedClaim_ = disputed.claim;
+            disputedPos_ = disputed.position;
+        }
+    }
+
+    /// @notice Finds the local context hash for a given claim index that is present in an execution trace subgame.
+    /// @param _claimIndex The index of the claim to find the local context hash for.
+    /// @return uuid_ The local context hash.
+    function findLocalContext(uint256 _claimIndex) internal view returns (Hash uuid_) {
+        (Claim starting, Position startingPos, Claim disputed, Position disputedPos) =
+            findStartingAndDisputedOutputs(_claimIndex);
+        uuid_ = computeLocalContext(starting, startingPos, disputed, disputedPos);
+    }
+
+    /// @notice Computes the local context hash for a set of starting/disputed claim values and positions.
+    /// @param _starting The starting claim.
+    /// @param _startingPos The starting claim's position.
+    /// @param _disputed The disputed claim.
+    /// @param _disputedPos The disputed claim's position.
+    /// @return uuid_ The local context hash.
+    function computeLocalContext(
+        Claim _starting,
+        Position _startingPos,
+        Claim _disputed,
+        Position _disputedPos
+    )
+        internal
+        pure
+        returns (Hash uuid_)
+    {
+        // A position of 0 indicates that the starting claim is the absolute prestate. In this special case,
+        // we do not include the starting claim within the local context hash.
+        if (Position.unwrap(_startingPos) == 0) {
+            uuid_ = Hash.wrap(keccak256(abi.encode(_disputed, _disputedPos)));
+        } else {
+            uuid_ = Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));
         }
     }
 }

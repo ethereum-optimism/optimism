@@ -27,6 +27,8 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
 
     /// @dev The genesis block number configured for the output bisection portion of the game.
     uint256 internal constant GENESIS_BLOCK_NUMBER = 0;
+    /// @dev The genesis output root commitment
+    Hash internal constant GENESIS_OUTPUT_ROOT = Hash.wrap(bytes32(0));
 
     /// @dev The implementation of the game.
     OutputBisectionGame internal gameImpl;
@@ -45,20 +47,33 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(L2_BLOCK_NUMBER);
 
+        AlphabetVM _vm = new AlphabetVM(absolutePrestate);
+
         // Deploy an implementation of the fault game
         gameImpl = new OutputBisectionGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
             _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
+            _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
             _maxGameDepth: 2**3,
             _splitDepth: 2**2,
             _gameDuration: Duration.wrap(7 days),
-            _vm: new AlphabetVM(absolutePrestate)
+            _vm: _vm
         });
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
         gameProxy = OutputBisectionGame(address(factory.create(GAME_TYPE, rootClaim, extraData)));
+
+        // Check immutables
+        assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
+        assertEq(Claim.unwrap(gameProxy.ABSOLUTE_PRESTATE()), Claim.unwrap(absolutePrestate));
+        assertEq(gameProxy.GENESIS_BLOCK_NUMBER(), GENESIS_BLOCK_NUMBER);
+        assertEq(Hash.unwrap(gameProxy.GENESIS_OUTPUT_ROOT()), Hash.unwrap(GENESIS_OUTPUT_ROOT));
+        assertEq(gameProxy.MAX_GAME_DEPTH(), 2 ** 3);
+        assertEq(gameProxy.SPLIT_DEPTH(), 2 ** 2);
+        assertEq(Duration.unwrap(gameProxy.GAME_DURATION()), 7 days);
+        assertEq(address(gameProxy.VM()), address(_vm));
 
         // Label the proxy
         vm.label(address(gameProxy), "OutputBisectionGame_Clone");
@@ -457,6 +472,99 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
         vm.expectRevert(InvalidLocalIdent.selector);
         gameProxy.addLocalData(_ident, 5, 0);
+    }
+
+    /// @dev Tests that local data is loaded into the preimage oracle correctly in the subgame
+    ///      that is disputing the transition from `GENESIS -> GENESIS + 1`
+    function test_addLocalDataGenesisTransition_static_succeeds() public {
+        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.VM().oracle()));
+
+        // Get a claim below the split depth so that we can add local data for an execution trace subgame.
+        for (uint256 i; i < 4; i++) {
+            gameProxy.attack(i, Claim.wrap(bytes32(i)));
+        }
+        gameProxy.attack(4, ROOT_CLAIM);
+
+        // Expected start/disputed claims
+        bytes32 startingClaim = Hash.unwrap(GENESIS_OUTPUT_ROOT);
+        Position startingPos = LibPosition.wrap(0, 0);
+        bytes32 disputedClaim = bytes32(uint256(3));
+        Position disputedPos = LibPosition.wrap(4, 0);
+
+        // Expected local data
+        bytes32[5] memory data = [
+            Hash.unwrap(gameProxy.settlementHead()),
+            startingClaim,
+            disputedClaim,
+            bytes32(0),
+            bytes32(block.chainid << 0xC0)
+        ];
+
+        for (uint256 i = 1; i <= 5; i++) {
+            uint256 expectedLen = i > 3 ? 8 : 32;
+            bytes32 key = _getKey(i, keccak256(abi.encode(disputedClaim, disputedPos)));
+
+            gameProxy.addLocalData(i, 5, 0);
+            (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
+            assertEq(dat >> 0xC0, bytes32(expectedLen));
+            // Account for the length prefix if i > 3 (the data stored
+            // at identifiers i <= 3 are 32 bytes long, so the expected
+            // length is already correct. If i > 3, the data is only 8
+            // bytes long, so the length prefix + the data is 16 bytes
+            // total.)
+            assertEq(datLen, expectedLen + (i > 3 ? 8 : 0));
+
+            gameProxy.addLocalData(i, 5, 8);
+            (dat, datLen) = oracle.readPreimage(key, 8);
+            assertEq(dat, data[i - 1]);
+            assertEq(datLen, expectedLen);
+        }
+    }
+
+    /// @dev Tests that local data is loaded into the preimage oracle correctly.
+    function test_addLocalDataMiddle_static_succeeds() public {
+        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.VM().oracle()));
+
+        // Get a claim below the split depth so that we can add local data for an execution trace subgame.
+        for (uint256 i; i < 4; i++) {
+            gameProxy.attack(i, Claim.wrap(bytes32(i)));
+        }
+        gameProxy.defend(4, ROOT_CLAIM);
+
+        // Expected start/disputed claims
+        bytes32 startingClaim = bytes32(uint256(3));
+        Position startingPos = LibPosition.wrap(4, 0);
+        bytes32 disputedClaim = bytes32(uint256(2));
+        Position disputedPos = LibPosition.wrap(3, 0);
+
+        // Expected local data
+        bytes32[5] memory data = [
+            Hash.unwrap(gameProxy.settlementHead()),
+            startingClaim,
+            disputedClaim,
+            bytes32(uint256(1) << 0xC0),
+            bytes32(block.chainid << 0xC0)
+        ];
+
+        for (uint256 i = 1; i <= 5; i++) {
+            uint256 expectedLen = i > 3 ? 8 : 32;
+            bytes32 key = _getKey(i, keccak256(abi.encode(startingClaim, startingPos, disputedClaim, disputedPos)));
+
+            gameProxy.addLocalData(i, 5, 0);
+            (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
+            assertEq(dat >> 0xC0, bytes32(expectedLen));
+            // Account for the length prefix if i > 3 (the data stored
+            // at identifiers i <= 3 are 32 bytes long, so the expected
+            // length is already correct. If i > 3, the data is only 8
+            // bytes long, so the length prefix + the data is 16 bytes
+            // total.)
+            assertEq(datLen, expectedLen + (i > 3 ? 8 : 0));
+
+            gameProxy.addLocalData(i, 5, 8);
+            (dat, datLen) = oracle.readPreimage(key, 8);
+            assertEq(dat, data[i - 1]);
+            assertEq(datLen, expectedLen);
+        }
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
