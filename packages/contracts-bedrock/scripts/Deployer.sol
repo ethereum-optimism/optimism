@@ -396,14 +396,14 @@ abstract contract Deployer is Script {
         return string.concat(sanitized, ".sol:", _name);
     }
 
-    function _getForgeArtifactDirectory(string memory _name) internal returns (string memory) {
+    function _getForgeArtifactDirectory(string memory _name) internal returns (string memory dir_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
         bytes memory res = vm.ffi(cmd);
         string memory contractName = _stripSemver(_name);
-        return string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol");
+        dir_ = string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol");
     }
 
     /// @notice Returns the filesystem path to the artifact path. If the contract was compiled
@@ -479,9 +479,6 @@ abstract contract Deployer is Script {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
-
-        cmd[2] = "";
-
         cmd[2] = string.concat(Executables.jq, " -r '.abi' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
         abi_ = string(res);
