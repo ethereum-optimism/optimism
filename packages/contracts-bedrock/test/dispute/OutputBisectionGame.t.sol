@@ -158,7 +158,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         uint256 mask = 0xFF << offset;
         // Replace the byte in the slot value with the challenger wins status.
         slot = (slot & ~mask) | (chalWins << offset);
-        vm.store(address(gameProxy), bytes32(uint256(0)), bytes32(slot));
+        vm.store(address(gameProxy), bytes32(0), bytes32(slot));
 
         // Ensure that the game status was properly updated.
         GameStatus status = gameProxy.status();
@@ -172,19 +172,19 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Tests that an attempt to defend the root claim reverts with the `CannotDefendRootClaim` error.
     function test_move_defendRoot_reverts() public {
         vm.expectRevert(CannotDefendRootClaim.selector);
-        gameProxy.defend(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.defend(0, _dummyClaim());
     }
 
     /// @dev Tests that an attempt to move against a claim that does not exist reverts with the
     ///      `ParentDoesNotExist` error.
     function test_move_nonExistentParent_reverts() public {
-        Claim claim = Claim.wrap(bytes32(uint256(5)));
+        Claim claim = _dummyClaim();
 
         // Expect an out of bounds revert for an attack
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x32));
         gameProxy.attack(1, claim);
 
-        // Expect an out of bounds revert for an attack
+        // Expect an out of bounds revert for a defense
         vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x32));
         gameProxy.defend(1, claim);
     }
@@ -192,7 +192,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Tests that an attempt to move at the maximum game depth reverts with the
     ///      `GameDepthExceeded` error.
     function test_move_gameDepthExceeded_reverts() public {
-        Claim claim = Claim.wrap(bytes32(uint256(5)));
+        Claim claim = _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC);
 
         uint256 maxDepth = gameProxy.MAX_GAME_DEPTH();
 
@@ -201,8 +201,6 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
             // the `GameDepthExceeded` error.
             if (i == maxDepth) {
                 vm.expectRevert(GameDepthExceeded.selector);
-            } else if (i == 2) {
-                claim = changeClaimStatus(claim, VMStatuses.PANIC);
             }
             gameProxy.attack(i, claim);
         }
@@ -214,7 +212,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         // Warp ahead past the clock time for the first move (3 1/2 days)
         vm.warp(block.timestamp + 3 days + 12 hours + 1);
         vm.expectRevert(ClockTimeExceeded.selector);
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(0, _dummyClaim());
     }
 
     /// @notice Static unit test for the correctness of the chess clock incrementation.
@@ -224,7 +222,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
             Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
         );
 
-        Claim claim = Claim.wrap(bytes32(uint256(5)));
+        Claim claim = _dummyClaim();
 
         vm.warp(block.timestamp + 15);
         gameProxy.attack(0, claim);
@@ -242,7 +240,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
         // We are at the split depth, so we need to set the status byte of the claim
         // for the next move.
-        claim = changeClaimStatus(claim, VMStatuses.PANIC);
+        claim = _changeClaimStatus(claim, VMStatuses.PANIC);
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(2, claim);
@@ -262,7 +260,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
     ///      revert with the `ClaimAlreadyExists` error.
     function test_move_duplicateClaim_reverts() public {
-        Claim claim = Claim.wrap(bytes32(uint256(5)));
+        Claim claim = _dummyClaim();
 
         // Make the first move. This should succeed.
         gameProxy.attack(0, claim);
@@ -274,14 +272,16 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Static unit test asserting that identical claims at the same position can be made in different subgames.
     function test_move_duplicateClaimsDifferentSubgames_succeeds() public {
-        Claim claimA = Claim.wrap(bytes32(uint256(5)));
-        Claim claimB = Claim.wrap(bytes32(uint256(6)));
+        Claim claimA = _dummyClaim();
+        Claim claimB = _dummyClaim();
 
-        // Make the first move. This should succeed.
+        // Make the first moves. This should succeed.
         gameProxy.attack(0, claimA);
         gameProxy.attack(0, claimB);
 
-        gameProxy.attack(1, claimB);
+        // Perform an attack at the same position with the same claim value in both subgames.
+        // These both should succeed.
+        gameProxy.attack(1, claimA);
         gameProxy.attack(2, claimA);
     }
 
@@ -290,7 +290,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         // Warp ahead 5 seconds.
         vm.warp(block.timestamp + 5);
 
-        Claim counter = Claim.wrap(bytes32(uint256(5)));
+        Claim counter = _dummyClaim();
 
         // Perform the attack.
         vm.expectEmit(true, true, true, false);
@@ -327,7 +327,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     ///      byte reverts with the `UnexpectedRootClaim` error.
     function test_move_incorrectStatusExecRoot_reverts() public {
         for (uint256 i; i < 4; i++) {
-            gameProxy.attack(i, Claim.wrap(bytes32(uint256(5))));
+            gameProxy.attack(i, _dummyClaim());
         }
 
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, bytes32(0)));
@@ -338,9 +338,9 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     ///      byte succeeds.
     function test_move_correctStatusExecRoot_succeeds() public {
         for (uint256 i; i < 4; i++) {
-            gameProxy.attack(i, Claim.wrap(bytes32(uint256(5))));
+            gameProxy.attack(i, _dummyClaim());
         }
-        gameProxy.attack(4, ROOT_CLAIM);
+        gameProxy.attack(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
     }
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
@@ -384,7 +384,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Static unit test for the correctness of resolving a single attack game state.
     function test_resolve_rootContested_succeeds() public {
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(0, _dummyClaim());
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
@@ -394,8 +394,8 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Static unit test for the correctness of resolving a game with a contested challenge claim.
     function test_resolve_challengeContested_succeeds() public {
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
-        gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
+        gameProxy.attack(0, _dummyClaim());
+        gameProxy.defend(1, _dummyClaim());
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
@@ -406,10 +406,10 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Static unit test for the correctness of resolving a game with multiplayer moves.
     function test_resolve_teamDeathmatch_succeeds() public {
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(4))));
-        gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
-        gameProxy.defend(1, Claim.wrap(bytes32(uint256(7))));
+        gameProxy.attack(0, _dummyClaim());
+        gameProxy.attack(0, _dummyClaim());
+        gameProxy.defend(1, _dummyClaim());
+        gameProxy.defend(1, _dummyClaim());
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
@@ -420,29 +420,30 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Static unit test for the correctness of resolving a game that reaches max game depth.
     function test_resolve_stepReached_succeeds() public {
-        Claim dummyClaim = Claim.wrap(bytes32(uint256(5)));
-        gameProxy.attack(0, dummyClaim);
-        gameProxy.attack(1, dummyClaim);
+        Claim claim = _dummyClaim();
+        for (uint256 i; i < gameProxy.SPLIT_DEPTH(); i++) {
+            gameProxy.attack(i, claim);
+        }
 
-        dummyClaim = changeClaimStatus(dummyClaim, VMStatuses.PANIC);
-
-        gameProxy.attack(2, dummyClaim);
-        gameProxy.attack(3, dummyClaim);
+        claim = _changeClaimStatus(claim, VMStatuses.PANIC);
+        for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.MAX_GAME_DEPTH(); i++) {
+            gameProxy.attack(i, claim);
+        }
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
-        // resolving claim at 4 isn't necessary
-        gameProxy.resolveClaim(3);
-        gameProxy.resolveClaim(2);
-        gameProxy.resolveClaim(1);
-        gameProxy.resolveClaim(0);
+        // resolving claim at 8 isn't necessary
+        for (uint256 i = 8; i > 0; i--) {
+            gameProxy.resolveClaim(i - 1);
+        }
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
     }
 
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame multiple times
     function test_resolve_claimAlreadyResolved_reverts() public {
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
-        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
+        Claim claim = _dummyClaim();
+        gameProxy.attack(0, claim);
+        gameProxy.attack(1, claim);
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
@@ -453,25 +454,26 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame at max depth
     function test_resolve_claimAtMaxDepthAlreadyResolved_reverts() public {
-        Claim dummyClaim = Claim.wrap(bytes32(uint256(5)));
-        gameProxy.attack(0, dummyClaim);
-        gameProxy.attack(1, dummyClaim);
+        Claim claim = _dummyClaim();
+        for (uint256 i; i < gameProxy.SPLIT_DEPTH(); i++) {
+            gameProxy.attack(i, claim);
+        }
 
-        dummyClaim = changeClaimStatus(dummyClaim, VMStatuses.PANIC);
-
-        gameProxy.attack(2, dummyClaim);
-        gameProxy.attack(3, dummyClaim);
+        claim = _changeClaimStatus(claim, VMStatuses.PANIC);
+        for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.MAX_GAME_DEPTH(); i++) {
+            gameProxy.attack(i, claim);
+        }
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
         vm.expectRevert(ClaimAlreadyResolved.selector);
-        gameProxy.resolveClaim(4);
+        gameProxy.resolveClaim(8);
     }
 
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve subgames out of order
     function test_resolve_outOfOrderResolution_reverts() public {
-        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
-        gameProxy.attack(1, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(0, _dummyClaim());
+        gameProxy.attack(1, _dummyClaim());
 
         vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
@@ -483,9 +485,9 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     function testFuzz_addLocalData_oob_reverts(uint256 _ident) public {
         // Get a claim below the split depth so that we can add local data for an execution trace subgame.
         for (uint256 i; i < 4; i++) {
-            gameProxy.attack(i, Claim.wrap(bytes32(uint256(5))));
+            gameProxy.attack(i, _dummyClaim());
         }
-        gameProxy.attack(4, ROOT_CLAIM);
+        gameProxy.attack(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // [1, 5] are valid local data identifiers.
         if (_ident <= 5) _ident = 0;
@@ -503,7 +505,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         for (uint256 i; i < 4; i++) {
             gameProxy.attack(i, Claim.wrap(bytes32(i)));
         }
-        gameProxy.attack(4, ROOT_CLAIM);
+        gameProxy.attack(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // Expected start/disputed claims
         bytes32 startingClaim = Hash.unwrap(GENESIS_OUTPUT_ROOT);
@@ -581,6 +583,11 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         }
     }
 
+    /// @dev Helper to return a pseudo-random claim
+    function _dummyClaim() internal view returns (Claim) {
+        return Claim.wrap(keccak256(abi.encode(gasleft())));
+    }
+
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
     function _getKey(uint256 _ident, bytes32 _localContext) internal view returns (bytes32) {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
@@ -588,7 +595,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     }
 
     /// @dev Helper to change the VM status byte of a claim.
-    function changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
+    function _changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
         assembly {
             out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
         }
