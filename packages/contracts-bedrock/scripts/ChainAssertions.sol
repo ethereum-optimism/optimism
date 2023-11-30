@@ -42,7 +42,7 @@ library ChainAssertions {
         checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
-        checkL1ERC721Bridge(_prox);
+        checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }

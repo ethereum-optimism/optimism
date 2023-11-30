@@ -2,12 +2,16 @@
 pragma solidity 0.8.15;
 
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
-abstract contract ERC721Bridge {
+abstract contract ERC721Bridge is Initializable {
+    /// @notice
+    SuperchainConfig public superChainConfig;
+
     /// @notice Messenger contract on this domain. This will be removed in the
     ///         future, use `messenger` instead.
     /// @custom:legacy
@@ -19,7 +23,7 @@ abstract contract ERC721Bridge {
     address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 
     /// @notice Emitted when an ERC721 bridge to the other network is initiated.
     /// @param localToken  Address of the token on this domain.
