@@ -3,12 +3,14 @@
     "bytes": "1568",
     "label": "__gap",
     "offset": 0,
-    "slot": "0"
+    "slot": "0",
+    "type": "uint256[49]"
   },
   {
     "bytes": "32",
     "label": "deposits",
     "offset": 0,
-    "slot": "49"
+    "slot": "49",
+    "type": "mapping(address => mapping(address => mapping(uint256 => bool)))"
   }
 ]
