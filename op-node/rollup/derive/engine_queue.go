@@ -267,7 +267,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	}
 	if eq.isEngineSyncing() {
 		// Make pipeline first focus to sync unsafe blocks to engineSyncTarget
-		return EngineP2PSyncing
+		return EngineELSyncing
 	}
 	if eq.safeAttributes != nil {
 		return eq.tryNextSafeAttributes(ctx)
@@ -458,8 +458,8 @@ func (eq *EngineQueue) tryUpdateEngine(ctx context.Context) error {
 // checkNewPayloadStatus checks returned status of engine_newPayloadV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (eq *EngineQueue) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bool {
-	if eq.syncCfg.EngineSync {
-		// Allow SYNCING and ACCEPTED if engine P2P sync is enabled
+	if eq.syncCfg.SyncMode == sync.ELSync {
+		// Allow SYNCING and ACCEPTED if engine EL sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing || status == eth.ExecutionAccepted
 	}
 	return status == eth.ExecutionValid
@@ -468,7 +468,7 @@ func (eq *EngineQueue) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bo
 // checkForkchoiceUpdatedStatus checks returned status of engine_forkchoiceUpdatedV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (eq *EngineQueue) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
-	if eq.syncCfg.EngineSync {
+	if eq.syncCfg.SyncMode == sync.ELSync {
 		// Allow SYNCING if engine P2P sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
 	}
@@ -490,7 +490,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 
 	// Ensure that the unsafe payload builds upon the current unsafe head
-	if !eq.syncCfg.EngineSync && first.ParentHash != eq.unsafeHead.Hash {
+	if eq.syncCfg.SyncMode != sync.ELSync && first.ParentHash != eq.unsafeHead.Hash {
 		if uint64(first.BlockNumber) == eq.unsafeHead.Number+1 {
 			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
 			eq.unsafePayloads.Pop()
