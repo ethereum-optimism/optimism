@@ -25,7 +25,7 @@ type OutputBisectionGameContract struct {
 func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiCaller) (*OutputBisectionGameContract, error) {
 	contractAbi, err := bindings.OutputBisectionGameMetaData.GetAbi()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load fault dispute game ABI: %w", err)
+		return nil, fmt.Errorf("failed to load output bisection game ABI: %w", err)
 	}
 
 	return &OutputBisectionGameContract{
@@ -78,7 +78,7 @@ func (f *OutputBisectionGameContract) addLocalDataTx(claimIdx uint64, data *type
 	return call.ToTxCandidate()
 }
 
-func (f *disputeGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
+func (f *OutputBisectionGameContract) addGlobalDataTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error) {
 	vm, err := f.vm(ctx)
 	if err != nil {
 		return txmgr.TxCandidate{}, err
