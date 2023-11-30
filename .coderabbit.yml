@@ -21,3 +21,5 @@ reviews:
     base_branches:
       - "develop"
       - "feat/*"
+chat:
+  auto_reply: true
