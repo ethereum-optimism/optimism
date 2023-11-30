@@ -67,7 +67,11 @@ const sortKeys = (obj: any) => {
 // ContractName.0.9.8.json -> ContractName.sol
 // ContractName.json -> ContractName.sol
 const parseArtifactName = (artifactVersionFile: string): string => {
-  return artifactVersionFile.match(/(.*?)\.([0-9]+\.[0-9]+\.[0-9]+)?/)[1]
+  const match = artifactVersionFile.match(/(.*?)\.([0-9]+\.[0-9]+\.[0-9]+)?/);
+  if (!match) {
+    throw new Error(`Invalid artifact file name: ${artifactVersionFile}`);
+  }
+  return match[1];
 }
 
 const main = async () => {
