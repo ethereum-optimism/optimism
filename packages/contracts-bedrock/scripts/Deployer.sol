@@ -484,6 +484,16 @@ abstract contract Deployer is Script {
         abi_ = string(res);
     }
 
+    /// @notice
+    function getMethodIdentifiers(string memory _name) public returns (string[] memory ids_) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(Executables.jq, " '.methodIdentifiers | keys' < ", _getForgeArtifactPath(_name));
+        bytes memory res = vm.ffi(cmd);
+        ids_ = stdJson.readStringArray(string(res), "");
+    }
+
     /// @notice Returns the userdoc for a deployed contract.
     function getUserDoc(string memory _name) internal returns (string memory doc_) {
         string[] memory cmd = new string[](3);
