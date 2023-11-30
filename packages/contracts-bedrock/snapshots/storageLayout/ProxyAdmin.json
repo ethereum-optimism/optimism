@@ -11,7 +11,7 @@
     "label": "mapping(address => enum ProxyAdmin.ProxyType)",
     "offset": 0,
     "slot": "1",
-    "type": "t_mapping(t_address,t_enum(ProxyType)95525)"
+    "type": "t_mapping(t_address,t_enum(ProxyType)2988)"
   },
   {
     "bytes": "32",
@@ -25,7 +25,7 @@
     "label": "contract AddressManager",
     "offset": 0,
     "slot": "3",
-    "type": "t_contract(AddressManager)87040"
+    "type": "t_contract(AddressManager)2205"
   },
   {
     "bytes": "1",

@@ -4,7 +4,7 @@
     "label": "mapping(bytes32 => struct SchemaRecord)",
     "offset": 0,
     "slot": "0",
-    "type": "t_mapping(t_bytes32,t_struct(SchemaRecord)57720_storage)"
+    "type": "t_mapping(t_bytes32,t_struct(SchemaRecord)47255_storage)"
   },
   {
     "bytes": "1568",

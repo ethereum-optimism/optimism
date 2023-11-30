@@ -4,14 +4,14 @@
     "label": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig)",
     "offset": 0,
     "slot": "0",
-    "type": "t_mapping(t_contract(IFaucetAuthModule)92519,t_struct(ModuleConfig)92196_storage)"
+    "type": "t_mapping(t_contract(IFaucetAuthModule)92584,t_struct(ModuleConfig)92261_storage)"
   },
   {
     "bytes": "32",
     "label": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))",
     "offset": 0,
     "slot": "1",
-    "type": "t_mapping(t_contract(IFaucetAuthModule)92519,t_mapping(t_bytes32,t_uint256))"
+    "type": "t_mapping(t_contract(IFaucetAuthModule)92584,t_mapping(t_bytes32,t_uint256))"
   },
   {
     "bytes": "32",
