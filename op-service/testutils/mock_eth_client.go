@@ -2,9 +2,11 @@ package testutils
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -13,6 +15,15 @@ import (
 
 type MockEthClient struct {
 	mock.Mock
+}
+
+func (m *MockEthClient) ChainID(ctx context.Context) (*big.Int, error) {
+	out := m.Mock.MethodCalled("ChainID")
+	return out[0].(*big.Int), *out[1].(*error)
+}
+
+func (m *MockEthClient) ExpectChainID(chainID *big.Int, err error) {
+	m.Mock.On("ChainID").Once().Return(chainID, &err)
 }
 
 func (m *MockEthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
@@ -127,4 +138,10 @@ func (m *MockEthClient) ReadStorageAt(ctx context.Context, address common.Addres
 
 func (m *MockEthClient) ExpectReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash, result common.Hash, err error) {
 	m.Mock.On("ReadStorageAt", address, storageSlot, blockHash).Once().Return(result, &err)
+}
+
+func (m *MockEthClient) Close() {}
+
+func (m *MockEthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
+	return nil, nil
 }
