@@ -142,7 +142,7 @@ type L1BridgeDepositsResponse struct {
 // L1BridgeDepositSum ... returns the sum of all l1 bridge deposit mints in gwei
 func (db *bridgeTransfersDB) L1BridgeDepositSum() (float64, error) {
 	var sum float64
-	result := db.gorm.Model(&L1TransactionDeposit{}).Select("SUM(amount)").Scan(&sum)
+	result := db.gorm.Model(&L1BridgeDeposit{}).Select("SUM(amount)").Scan(&sum)
 	if result.Error != nil {
 		return 0, result.Error
 	}
