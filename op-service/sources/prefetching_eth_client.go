@@ -30,13 +30,13 @@ type EthClientInterface interface {
 }
 
 type PrefetchingEthClient struct {
-	inner            *EthClientInterface
+	inner            EthClientInterface
 	prefetchingRange uint64
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
 // and a prefetching range.
-func NewPrefetchingEthClient(inner *EthClientInterface, prefetchingRange uint64) (*PrefetchingEthClient, error) {
+func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64) (*PrefetchingEthClient, error) {
 	return &PrefetchingEthClient{
 		inner:            inner,
 		prefetchingRange: prefetchingRange,
@@ -55,23 +55,23 @@ func (p *PrefetchingEthClient) FetchWindow(ctx context.Context, start, end uint6
 func (p *PrefetchingEthClient) FetchBlockAndReceipts(ctx context.Context, number uint64) {
 	// Ignoring the error as this is just prefetching
 	// The actual fetching and error handling will be done when the data is requested
-	blockInfo, _ := (*p.inner).InfoByNumber(ctx, number)
+	blockInfo, _ := p.inner.InfoByNumber(ctx, number)
 	// Now that we have the block, fetch its receipts
 	// Again, ignore error and result as this is just prefetching
-	_, _, _ = (*p.inner).FetchReceipts(ctx, blockInfo.Hash())
+	_, _, _ = p.inner.FetchReceipts(ctx, blockInfo.Hash())
 }
 
 func (p *PrefetchingEthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
-	return (*p.inner).SubscribeNewHead(ctx, ch)
+	return p.inner.SubscribeNewHead(ctx, ch)
 }
 
 func (p *PrefetchingEthClient) ChainID(ctx context.Context) (*big.Int, error) {
-	return (*p.inner).ChainID(ctx)
+	return p.inner.ChainID(ctx)
 }
 
 func (p *PrefetchingEthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
 	// Fetch the block information for the given hash
-	blockInfo, err := (*p.inner).InfoByHash(ctx, hash)
+	blockInfo, err := p.inner.InfoByHash(ctx, hash)
 	if err != nil {
 		return blockInfo, err
 	}
@@ -87,12 +87,12 @@ func (p *PrefetchingEthClient) InfoByNumber(ctx context.Context, number uint64) 
 	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
 
 	// Fetch the requested block
-	return (*p.inner).InfoByNumber(ctx, number)
+	return p.inner.InfoByNumber(ctx, number)
 }
 
 func (p *PrefetchingEthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, error) {
 	// Fetch the block information for the given label
-	blockInfo, err := (*p.inner).InfoByLabel(ctx, label)
+	blockInfo, err := p.inner.InfoByLabel(ctx, label)
 	if err != nil {
 		return blockInfo, err
 	}
@@ -105,7 +105,7 @@ func (p *PrefetchingEthClient) InfoByLabel(ctx context.Context, label eth.BlockL
 
 func (p *PrefetchingEthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	// Fetch the block info and transactions for the requested hash
-	blockInfo, txs, err := (*p.inner).InfoAndTxsByHash(ctx, hash)
+	blockInfo, txs, err := p.inner.InfoAndTxsByHash(ctx, hash)
 	if err != nil {
 		return blockInfo, txs, err
 	}
@@ -118,7 +118,7 @@ func (p *PrefetchingEthClient) InfoAndTxsByHash(ctx context.Context, hash common
 
 func (p *PrefetchingEthClient) InfoAndTxsByNumber(ctx context.Context, number uint64) (eth.BlockInfo, types.Transactions, error) {
 	// Fetch the block info and transactions for the requested number
-	blockInfo, txs, err := (*p.inner).InfoAndTxsByNumber(ctx, number)
+	blockInfo, txs, err := p.inner.InfoAndTxsByNumber(ctx, number)
 	if err != nil {
 		return blockInfo, txs, err
 	}
@@ -131,7 +131,7 @@ func (p *PrefetchingEthClient) InfoAndTxsByNumber(ctx context.Context, number ui
 
 func (p *PrefetchingEthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel) (eth.BlockInfo, types.Transactions, error) {
 	// Fetch the block info and transactions for the requested label
-	blockInfo, txs, err := (*p.inner).InfoAndTxsByLabel(ctx, label)
+	blockInfo, txs, err := p.inner.InfoAndTxsByLabel(ctx, label)
 	if err != nil {
 		return blockInfo, txs, err
 	}
@@ -144,7 +144,7 @@ func (p *PrefetchingEthClient) InfoAndTxsByLabel(ctx context.Context, label eth.
 
 func (p *PrefetchingEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
 	// Fetch the payload for the requested hash
-	payload, err := (*p.inner).PayloadByHash(ctx, hash)
+	payload, err := p.inner.PayloadByHash(ctx, hash)
 	if err != nil {
 		return payload, err
 	}
@@ -157,7 +157,7 @@ func (p *PrefetchingEthClient) PayloadByHash(ctx context.Context, hash common.Ha
 
 func (p *PrefetchingEthClient) PayloadByNumber(ctx context.Context, number uint64) (*eth.ExecutionPayload, error) {
 	// Fetch the payload for the requested number
-	payload, err := (*p.inner).PayloadByNumber(ctx, number)
+	payload, err := p.inner.PayloadByNumber(ctx, number)
 	if err != nil {
 		return payload, err
 	}
@@ -170,7 +170,7 @@ func (p *PrefetchingEthClient) PayloadByNumber(ctx context.Context, number uint6
 
 func (p *PrefetchingEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
 	// Fetch the payload for the requested label
-	payload, err := (*p.inner).PayloadByLabel(ctx, label)
+	payload, err := p.inner.PayloadByLabel(ctx, label)
 	if err != nil {
 		return payload, err
 	}
@@ -183,7 +183,7 @@ func (p *PrefetchingEthClient) PayloadByLabel(ctx context.Context, label eth.Blo
 
 func (p *PrefetchingEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	// Fetch the block info and receipts for the requested hash
-	blockInfo, receipts, err := (*p.inner).FetchReceipts(ctx, blockHash)
+	blockInfo, receipts, err := p.inner.FetchReceipts(ctx, blockHash)
 	if err != nil {
 		return blockInfo, receipts, err
 	}
@@ -195,17 +195,17 @@ func (p *PrefetchingEthClient) FetchReceipts(ctx context.Context, blockHash comm
 }
 
 func (p *PrefetchingEthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
-	return (*p.inner).GetProof(ctx, address, storage, blockTag)
+	return p.inner.GetProof(ctx, address, storage, blockTag)
 }
 
 func (p *PrefetchingEthClient) GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error) {
-	return (*p.inner).GetStorageAt(ctx, address, storageSlot, blockTag)
+	return p.inner.GetStorageAt(ctx, address, storageSlot, blockTag)
 }
 
 func (p *PrefetchingEthClient) ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error) {
-	return (*p.inner).ReadStorageAt(ctx, address, storageSlot, blockHash)
+	return p.inner.ReadStorageAt(ctx, address, storageSlot, blockHash)
 }
 
 func (p *PrefetchingEthClient) Close() {
-	(*p.inner).Close()
+	p.inner.Close()
 }
