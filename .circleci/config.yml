@@ -922,7 +922,7 @@ jobs:
           working_directory: indexer
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate cannon prestate
           command: make cannon-prestate
@@ -997,7 +997,7 @@ jobs:
           key: golang-build-cache
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate devnet allocs
           command: make devnet-allocs
@@ -1056,7 +1056,7 @@ jobs:
             npm i pnpm --global
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: Install and build
           command: |

@@ -110,7 +110,7 @@ nuke: clean devnet-clean
 	git clean -Xdf
 .PHONY: nuke
 
-pre-devnet:
+pre-devnet: submodules
 	@if ! [ -x "$(command -v geth)" ]; then \
 		make install-geth; \
 	fi
