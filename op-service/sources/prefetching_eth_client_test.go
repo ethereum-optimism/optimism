@@ -10,7 +10,7 @@ import (
 )
 
 // Define a test type for each method
-type testFunction func(t *testing.T, ctx context.Context, client *PrefetchingEthClient) error
+type testFunction func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mock *testutils.MockEthClient) error
 
 // Define test cases
 var testCases = []struct {
@@ -21,23 +21,20 @@ var testCases = []struct {
 	{
 		name:              "InfoByNumber",
 		prefetchingRanges: []uint64{0, 1, 5},
-		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient) error {
+		testFunc: func(t *testing.T, ctx context.Context, client *PrefetchingEthClient, mock *testutils.MockEthClient) error {
 			_, rhdr := randHeader()
-			// _, _ := rhdr.Info(true, false)
-
-			// Setup the mock to expect a call to CallContext with any block number
-			// mockRPC.On("CallContext", ctx, new(*rpcHeader),
-			// 	"eth_getBlockByNumber", []any{mock.Anything, false}).Run(func(args mock.Arguments) {
-			// 	*args[1].(**rpcHeader) = rhdr
-			// }).Return([]error{nil}).Maybe()
-
-			// Call the method which is expected to internally call 'eth_getBlockByNumber'
-			_, err := client.InfoByNumber(ctx, uint64(rhdr.Number))
+			expectedInfo, err := rhdr.Info(true, false)
 			require.NoError(t, err)
-			// require.Equal(t, info, expectedInfo)
 
-			// Assert that 'eth_getBlockByNumber' was called
-			// mockRPC.AssertCalled(t, "CallContext", mock.Anything, mock.Anything, "eth_getBlockByNumber", mock.Anything)
+			windowEnd := (uint64(rhdr.Number) + client.PrefetchingRange)
+			for i := uint64(rhdr.Number); i <= windowEnd; i++ {
+				mock.ExpectInfoByNumber(i, expectedInfo, nil)
+			}
+
+			mock.SetupDefaultFetchReceipts(expectedInfo, nil)
+			info, err := client.InfoByNumber(ctx, uint64(rhdr.Number))
+			require.NoError(t, err)
+			require.Equal(t, info, expectedInfo)
 
 			return nil
 		},
@@ -151,7 +148,7 @@ func runTest(t *testing.T, name string, testFunc testFunction, prefetchingRange 
 	client, err := NewPrefetchingEthClient(mockEthClient, prefetchingRange)
 	require.NoError(t, err)
 
-	err = testFunc(t, ctx, client)
+	err = testFunc(t, ctx, client, mockEthClient)
 	require.NoError(t, err)
 
 	mockEthClient.AssertExpectations(t)

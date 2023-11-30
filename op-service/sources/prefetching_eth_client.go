@@ -31,7 +31,7 @@ type EthClientInterface interface {
 
 type PrefetchingEthClient struct {
 	inner            EthClientInterface
-	prefetchingRange uint64
+	PrefetchingRange uint64
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
@@ -39,7 +39,7 @@ type PrefetchingEthClient struct {
 func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64) (*PrefetchingEthClient, error) {
 	return &PrefetchingEthClient{
 		inner:            inner,
-		prefetchingRange: prefetchingRange,
+		PrefetchingRange: prefetchingRange,
 	}, nil
 }
 
@@ -77,14 +77,14 @@ func (p *PrefetchingEthClient) InfoByHash(ctx context.Context, hash common.Hash)
 	}
 
 	// Prefetch the next n blocks and their receipts starting from the block number of the fetched block
-	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.prefetchingRange)
+	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, nil
 }
 
 func (p *PrefetchingEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
 	// Trigger prefetching in the background
-	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
+	go p.FetchWindow(ctx, number+1, number+p.PrefetchingRange)
 
 	// Fetch the requested block
 	return p.inner.InfoByNumber(ctx, number)
@@ -98,7 +98,7 @@ func (p *PrefetchingEthClient) InfoByLabel(ctx context.Context, label eth.BlockL
 	}
 
 	// Prefetch the next n blocks and their receipts starting from the block number of the fetched block
-	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.prefetchingRange)
+	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, nil
 }
@@ -111,7 +111,7 @@ func (p *PrefetchingEthClient) InfoAndTxsByHash(ctx context.Context, hash common
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.prefetchingRange)
+	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, txs, nil
 }
@@ -124,7 +124,7 @@ func (p *PrefetchingEthClient) InfoAndTxsByNumber(ctx context.Context, number ui
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
+	go p.FetchWindow(ctx, number+1, number+p.PrefetchingRange)
 
 	return blockInfo, txs, nil
 }
@@ -137,7 +137,7 @@ func (p *PrefetchingEthClient) InfoAndTxsByLabel(ctx context.Context, label eth.
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.prefetchingRange)
+	go p.FetchWindow(ctx, blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, txs, nil
 }
@@ -150,7 +150,7 @@ func (p *PrefetchingEthClient) PayloadByHash(ctx context.Context, hash common.Ha
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.prefetchingRange)
+	go p.FetchWindow(ctx, uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.PrefetchingRange)
 
 	return payload, nil
 }
@@ -163,7 +163,7 @@ func (p *PrefetchingEthClient) PayloadByNumber(ctx context.Context, number uint6
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, number+1, number+p.prefetchingRange)
+	go p.FetchWindow(ctx, number+1, number+p.PrefetchingRange)
 
 	return payload, nil
 }
@@ -176,7 +176,7 @@ func (p *PrefetchingEthClient) PayloadByLabel(ctx context.Context, label eth.Blo
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.prefetchingRange)
+	go p.FetchWindow(ctx, uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.PrefetchingRange)
 
 	return payload, nil
 }
@@ -189,7 +189,7 @@ func (p *PrefetchingEthClient) FetchReceipts(ctx context.Context, blockHash comm
 	}
 
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(ctx, blockInfo.NumberU64(), blockInfo.NumberU64()+p.prefetchingRange)
+	go p.FetchWindow(ctx, blockInfo.NumberU64(), blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, receipts, nil
 }
