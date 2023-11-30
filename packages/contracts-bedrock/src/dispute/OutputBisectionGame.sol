@@ -546,19 +546,15 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
                 ClaimData storage starting = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx);
-                startingClaim_ = starting.claim;
-                startingPos_ = starting.position;
+                (startingClaim_, startingPos_) = (starting.claim, starting.position);
             } else {
                 startingClaim_ = Claim.wrap(Hash.unwrap(GENESIS_OUTPUT_ROOT));
             }
-            disputedClaim_ = claim.claim;
-            disputedPos_ = claim.position;
+            (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
         } else {
             ClaimData storage disputed = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx);
-            startingClaim_ = claim.claim;
-            startingPos_ = claim.position;
-            disputedClaim_ = disputed.claim;
-            disputedPos_ = disputed.position;
+            (startingClaim_, startingPos_) = (claim.claim, claim.position);
+            (disputedClaim_, disputedPos_) = (disputed.claim, disputed.position);
         }
     }
 
