@@ -706,62 +706,105 @@ func NewStateDump(path string) (*gstate.Dump, error) {
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
-	immutable := make(immutables.ImmutableConfig)
-
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables.PredeploysImmutableConfig, error) {
 	if config.L1StandardBridgeProxy == (common.Address{}) {
-		return immutable, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return immutable, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return immutable, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.SequencerFeeVaultRecipient == (common.Address{}) {
-		return immutable, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.BaseFeeVaultRecipient == (common.Address{}) {
-		return immutable, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1FeeVaultRecipient == (common.Address{}) {
-		return immutable, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 
-	immutable["L2StandardBridge"] = immutables.ImmutableValues{
-		"otherBridge": config.L1StandardBridgeProxy,
-		"messenger":   predeploys.L2CrossDomainMessengerAddr,
+	cfg := immutables.PredeploysImmutableConfig{
+		L2ToL1MessagePasser: struct{}{},
+		DeployerWhitelist:   struct{}{},
+		WETH9:               struct{}{},
+		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
+			OtherMessenger: config.L1CrossDomainMessengerProxy,
+		},
+		L2StandardBridge: struct {
+			OtherBridge common.Address
+			Messenger   common.Address
+		}{
+			OtherBridge: config.L1StandardBridgeProxy,
+			Messenger:   predeploys.L2CrossDomainMessengerAddr,
+		},
+		SequencerFeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.SequencerFeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.SequencerFeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		L1BlockNumber:       struct{}{},
+		GasPriceOracle:      struct{}{},
+		L1Block:             struct{}{},
+		GovernanceToken:     struct{}{},
+		LegacyMessagePasser: struct{}{},
+		L2ERC721Bridge: struct {
+			Messenger   common.Address
+			OtherBridge common.Address
+		}{
+			Messenger:   predeploys.L2CrossDomainMessengerAddr,
+			OtherBridge: config.L1ERC721BridgeProxy,
+		},
+		OptimismMintableERC721Factory: struct {
+			Bridge        common.Address
+			RemoteChainId *big.Int
+		}{
+			Bridge:        predeploys.L2ERC721BridgeAddr,
+			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
+		},
+		OptimismMintableERC20Factory: struct {
+			Bridge common.Address
+		}{
+			Bridge: predeploys.L2StandardBridgeAddr,
+		},
+		ProxyAdmin: struct{}{},
+		BaseFeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.BaseFeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.BaseFeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		L1FeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.L1FeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.L1FeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.L1FeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		SchemaRegistry: struct{}{},
+		EAS: struct {
+			Name string
+		}{
+			Name: "EAS",
+		},
+		Create2Deployer: struct{}{},
 	}
-	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
-		"otherMessenger": config.L1CrossDomainMessengerProxy,
+
+	if err := cfg.Check(); err != nil {
+		return nil, err
 	}
-	immutable["L2ERC721Bridge"] = immutables.ImmutableValues{
-		"messenger":   predeploys.L2CrossDomainMessengerAddr,
-		"otherBridge": config.L1ERC721BridgeProxy,
-	}
-	immutable["OptimismMintableERC721Factory"] = immutables.ImmutableValues{
-		"bridge":        predeploys.L2ERC721BridgeAddr,
-		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
-	}
-	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
-		"recipient":               config.SequencerFeeVaultRecipient,
-		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
-	}
-	immutable["L1FeeVault"] = immutables.ImmutableValues{
-		"recipient":               config.L1FeeVaultRecipient,
-		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork.ToUint8(),
-	}
-	immutable["BaseFeeVault"] = immutables.ImmutableValues{
-		"recipient":               config.BaseFeeVaultRecipient,
-		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
-	}
-	immutable["OptimismMintableERC20Factory"] = immutables.ImmutableValues{
-		"bridge": predeploys.L2StandardBridgeAddr,
-	}
-	return immutable, nil
+	return &cfg, nil
 }
 
 // NewL2StorageConfig will create a StorageConfig given an instance of a
