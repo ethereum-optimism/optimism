@@ -31,12 +31,19 @@ func TestOutputCannonGame(t *testing.T) {
 	)
 
 	game.LogGameData(ctx)
-	maxDepth := game.MaxDepth(ctx)
 	// Challenger should post an output root to counter claims down to the leaf level of the top game
-	// TODO(client-pod#43): Load the depth of the top game from the contract instead of deriving it
-	for i := int64(1); i <= maxDepth/2+1; i += 2 {
+	splitDepth := game.SplitDepth(ctx)
+	for i := int64(1); i < splitDepth; i += 2 {
 		game.WaitForCorrectOutputRoot(ctx, i)
 		game.Attack(ctx, i, common.Hash{0xaa})
 		game.LogGameData(ctx)
 	}
+	game.WaitForCorrectOutputRoot(ctx, splitDepth)
+
+	// Post the first cannon output root (with 01 status code to show the output root is invalid)
+	game.Attack(ctx, splitDepth, common.Hash{0x01})
+
+	// Challenger should counter
+	game.WaitForClaimAtDepth(ctx, int(splitDepth+2))
+	game.LogGameData(ctx)
 }

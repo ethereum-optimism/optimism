@@ -23,7 +23,7 @@ import (
 
 var (
 	cannonGameType         = uint8(0)
-	outputCannonGameType   = uint8(0) // TODO(client-pod#260): Switch the output cannon game type to 1
+	outputCannonGameType   = uint8(253) // TODO(client-pod#260): Switch the output cannon game type to 1
 	outputAlphabetGameType = uint8(254)
 	alphabetGameType       = uint8(255)
 )
@@ -133,9 +133,7 @@ func registerOutputCannon(
 	caller *batching.MultiCaller,
 	l2Client cannon.L2HeaderSource) {
 	resourceCreator := func(addr common.Address) (gameTypeResources, error) {
-		// Currently still using the old fault dispute game contracts for output_cannon
-		// as the output bisection+cannon contract isn't being deployed.
-		contract, err := contracts.NewFaultDisputeGameContract(addr, caller)
+		contract, err := contracts.NewOutputBisectionGameContract(addr, caller)
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +154,7 @@ type outputCannonResources struct {
 	m        metrics.Metricer
 	cfg      *config.Config
 	l2Client cannon.L2HeaderSource
-	contract *contracts.FaultDisputeGameContract // TODO(client-pod#260): Use the OutputBisectionGame Contract
+	contract *contracts.OutputBisectionGameContract
 }
 
 func (r *outputCannonResources) Contract() GameContract {
@@ -165,12 +163,11 @@ func (r *outputCannonResources) Contract() GameContract {
 
 func (r *outputCannonResources) CreateAccessor(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
 	// TODO(client-pod#44): Validate absolute pre-state for split games
-	// TODO(client-pod#43): Updated contracts should expose this as the pre and post state blocks
-	agreed, disputed, err := r.contract.GetProposals(ctx)
+	agreed, disputed, err := r.contract.GetBlockRange(ctx)
 	if err != nil {
 		return nil, err
 	}
-	accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, r.m, r.cfg, r.l2Client, r.contract, dir, gameDepth, agreed.L2BlockNumber.Uint64(), disputed.L2BlockNumber.Uint64())
+	accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, r.m, r.cfg, r.l2Client, r.contract, dir, gameDepth, agreed, disputed)
 	if err != nil {
 		return nil, err
 	}
