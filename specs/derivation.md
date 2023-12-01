@@ -100,7 +100,7 @@ on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
 
 The L2 chain is derived from the L1 chain. In particular, each L1 block following [L2 chain
 inception][g-l2-chain-inception] is mapped to a [sequencing epoch][g-sequencing-epoch] comprising
-multiple L2 blocks. Each L2 block belongs to exactly one epoch, and we call the corresponding L1
+at least one L2 block. Each L2 block belongs to exactly one epoch, and we call the corresponding L1
 block its [L1 origin][l1-origin]. The epoch's number equals that of its L1 origin block.
 
 To derive the L2 blocks of epoch number `E`, we need the following inputs:
