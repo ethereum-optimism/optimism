@@ -3,7 +3,6 @@ package derive
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 
@@ -92,11 +91,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	}
 	switch batchData.GetBatchType() {
 	case SingularBatchType:
-		singularBatch, ok := batchData.inner.(*SingularBatch)
-		if !ok {
-			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
-		}
-		return singularBatch, nil
+		return GetSingularBatch(batchData)
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
 			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
