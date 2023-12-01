@@ -81,7 +81,6 @@ func registerOutputAlphabet(
 			return nil, err
 		}
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			// TODO(client-pod#44): Validate absolute pre-state for split games
 			prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 			if err != nil {
 				return nil, err
@@ -90,7 +89,10 @@ func registerOutputAlphabet(
 			if err != nil {
 				return nil, err
 			}
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, m, cfg, gameDepth, splitDepth, prestateBlock, poststateBlock)
+			validateAbsolutePrestate := func(ctx context.Context, provider faultTypes.TraceProvider) error {
+				return ValidateAbsolutePrestate(ctx, provider, contract.GetGenesisOutputRoot)
+			}
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, validateAbsolutePrestate, m, cfg, gameDepth, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -116,7 +118,6 @@ func registerOutputCannon(
 			return nil, err
 		}
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			// TODO(client-pod#44): Validate absolute pre-state for split games
 			agreed, disputed, err := contract.GetBlockRange(ctx)
 			if err != nil {
 				return nil, err
@@ -125,7 +126,10 @@ func registerOutputCannon(
 			if err != nil {
 				return nil, fmt.Errorf("failed to load split depth: %w", err)
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, splitDepth, agreed, disputed)
+			validateAbsolutePrestate := func(ctx context.Context, provider faultTypes.TraceProvider) error {
+				return ValidateAbsolutePrestate(ctx, provider, contract.GetGenesisOutputRoot)
+			}
+			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, validateAbsolutePrestate, m, cfg, l2Client, contract, dir, gameDepth, splitDepth, agreed, disputed)
 			if err != nil {
 				return nil, err
 			}
@@ -156,7 +160,7 @@ func registerCannon(
 				return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 			}
 			provider := cannon.NewTraceProvider(logger, m, cfg, faultTypes.NoLocalContext, localInputs, dir, gameDepth)
-			if err := ValidateAbsolutePrestate(ctx, provider, contract); err != nil {
+			if err := ValidateAbsolutePrestate(ctx, provider, contract.GetAbsolutePrestateHash); err != nil {
 				return nil, err
 			}
 			return trace.NewSimpleTraceAccessor(provider), nil
@@ -181,7 +185,7 @@ func registerAlphabet(
 		}
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
 			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
-			if err := ValidateAbsolutePrestate(ctx, provider, contract); err != nil {
+			if err := ValidateAbsolutePrestate(ctx, provider, contract.GetAbsolutePrestateHash); err != nil {
 				return nil, err
 			}
 			return trace.NewSimpleTraceAccessor(provider), nil

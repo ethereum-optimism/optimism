@@ -200,20 +200,11 @@ func (m *mockTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (com
 	return hash, nil
 }
 
-type mockLoader struct {
-	prestateError bool
-	prestate      common.Hash
-}
-
-func newMockPrestateLoader(prestateError bool, prestate common.Hash) *mockLoader {
-	return &mockLoader{
-		prestateError: prestateError,
-		prestate:      prestate,
+func newMockPrestateLoader(prestateError bool, prestate common.Hash) func(ctx context.Context) (common.Hash, error) {
+	return func(ctx context.Context) (common.Hash, error) {
+		if prestateError {
+			return common.Hash{}, mockLoaderError
+		}
+		return prestate, nil
 	}
-}
-func (m *mockLoader) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
-	if m.prestateError {
-		return common.Hash{}, mockLoaderError
-	}
-	return m.prestate, nil
 }

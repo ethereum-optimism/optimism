@@ -20,6 +20,8 @@ var (
 
 var _ types.TraceProvider = (*OutputTraceProvider)(nil)
 
+type AbsolutePrestateValidator = func(ctx context.Context, provider types.TraceProvider) error
+
 type OutputRollupClient interface {
 	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
 }

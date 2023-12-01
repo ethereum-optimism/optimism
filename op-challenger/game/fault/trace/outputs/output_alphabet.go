@@ -17,6 +17,7 @@ import (
 func NewOutputAlphabetTraceAccessor(
 	ctx context.Context,
 	logger log.Logger,
+	v AbsolutePrestateValidator,
 	m metrics.Metricer,
 	cfg *config.Config,
 	gameDepth uint64,
@@ -27,6 +28,10 @@ func NewOutputAlphabetTraceAccessor(
 	bottomDepth := gameDepth - splitDepth
 	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, splitDepth, prestateBlock, poststateBlock)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := v(ctx, outputProvider); err != nil {
 		return nil, err
 	}
 

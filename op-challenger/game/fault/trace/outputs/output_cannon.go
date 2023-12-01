@@ -19,6 +19,7 @@ import (
 func NewOutputCannonTraceAccessor(
 	ctx context.Context,
 	logger log.Logger,
+	v AbsolutePrestateValidator,
 	m metrics.Metricer,
 	cfg *config.Config,
 	l2Client cannon.L2HeaderSource,
@@ -32,6 +33,10 @@ func NewOutputCannonTraceAccessor(
 	bottomDepth := gameDepth - splitDepth
 	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, splitDepth, prestateBlock, poststateBlock)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := v(ctx, outputProvider); err != nil {
 		return nil, err
 	}
 
