@@ -144,9 +144,9 @@ library ChainAssertions {
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
         require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
         if (_isProxy) {
-            require(address(bridge.superChainConfig()) == _contracts.SuperchainConfig);
+            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
         } else {
-            require(address(bridge.superChainConfig()) == address(0));
+            require(address(bridge.superchainConfig()) == address(0));
         }
     }
 

@@ -757,11 +757,11 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
 		L2ERC721Bridge: struct {
-			Messenger   common.Address
 			OtherBridge common.Address
+			Messenger   common.Address
 		}{
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
 			OtherBridge: config.L1ERC721BridgeProxy,
+			Messenger:   predeploys.L2CrossDomainMessengerAddr,
 		},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address

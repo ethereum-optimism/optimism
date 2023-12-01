@@ -678,8 +678,7 @@ contract Deploy is Deployer {
         console.log("Deploying L1ERC721Bridge implementation");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({
-            _messenger: l1CrossDomainMessengerProxy,
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE
+            _messenger: l1CrossDomainMessengerProxy
         });
 
         save("L1ERC721Bridge", address(bridge));
