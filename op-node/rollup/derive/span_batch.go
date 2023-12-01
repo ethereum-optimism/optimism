@@ -416,6 +416,16 @@ func (b *RawSpanBatch) derive(blockTime, genesisTimestamp uint64, chainID *big.I
 	return &spanBatch, nil
 }
 
+// ToSpanBatch converts RawSpanBatch to SpanBatch,
+// which implements a wrapper of derive method of RawSpanBatch
+func (b *RawSpanBatch) ToSpanBatch(blockTime, genesisTimestamp uint64, chainID *big.Int) (*SpanBatch, error) {
+	spanBatch, err := b.derive(blockTime, genesisTimestamp, chainID)
+	if err != nil {
+		return nil, err
+	}
+	return spanBatch, nil
+}
+
 // spanBatchElement is a derived form of input to build a L2 block.
 // similar to SingularBatch, but does not have ParentHash and EpochHash
 // because Span batch spec does not contain parent hash and epoch hash of every block in the span.
@@ -602,6 +612,16 @@ func NewSpanBatch(singularBatches []*SingularBatch) *SpanBatch {
 		spanBatch.batches = append(spanBatch.batches, singularBatchToElement(singularBatch))
 	}
 	return spanBatch
+}
+
+// DeriveSpanBatch derives SpanBatch from BatchData.
+func DeriveSpanBatch(batchData *BatchData, blockTime, genesisTimestamp uint64, chainID *big.Int) (*SpanBatch, error) {
+	rawSpanBatch, ok := batchData.inner.(*RawSpanBatch)
+	if !ok {
+		return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
+	}
+	// If the batch type is Span batch, derive block inputs from RawSpanBatch.
+	return rawSpanBatch.ToSpanBatch(blockTime, genesisTimestamp, chainID)
 }
 
 // SpanBatchBuilder is a utility type to build a SpanBatch by adding a SingularBatch one by one.

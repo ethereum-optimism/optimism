@@ -172,9 +172,7 @@ func TestBatchRoundTrip(t *testing.T) {
 		err = dec.UnmarshalBinary(enc)
 		require.NoError(t, err)
 		if dec.GetBatchType() == SpanBatchType {
-			rawSpanBatch, ok := dec.inner.(*RawSpanBatch)
-			require.True(t, ok)
-			_, err := rawSpanBatch.derive(blockTime, genesisTimestamp, chainID)
+			_, err := DeriveSpanBatch(&dec, blockTime, genesisTimestamp, chainID)
 			require.NoError(t, err)
 		}
 		require.Equal(t, batch, &dec, "Batch not equal test case %v", i)
@@ -222,9 +220,7 @@ func TestBatchRoundTripRLP(t *testing.T) {
 		err = dec.DecodeRLP(s)
 		require.NoError(t, err)
 		if dec.GetBatchType() == SpanBatchType {
-			rawSpanBatch, ok := dec.inner.(*RawSpanBatch)
-			require.True(t, ok)
-			_, err := rawSpanBatch.derive(blockTime, genesisTimestamp, chainID)
+			_, err = DeriveSpanBatch(&dec, blockTime, genesisTimestamp, chainID)
 			require.NoError(t, err)
 		}
 		require.Equal(t, batch, &dec, "Batch not equal test case %v", i)
