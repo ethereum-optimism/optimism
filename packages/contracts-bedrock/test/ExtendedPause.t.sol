@@ -21,10 +21,7 @@ contract ExtendedPause_Test is CommonTest {
         assertTrue(l1StandardBridge.paused());
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
 
-        try SuperchainConfig(address(l1ERC721Bridge)).paused() {
-            revert("The L1ERC721Bridge has a paused() function, but is not tested as part of the ExtendedPause");
-        } catch (bytes memory) {
-            assertTrue(true);
-        }
+        assertTrue(l1ERC721Bridge.paused());
+        assertEq(l1ERC721Bridge.paused(), superchainConfig.paused());
     }
 }
