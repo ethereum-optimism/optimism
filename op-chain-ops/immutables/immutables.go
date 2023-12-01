@@ -184,7 +184,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 	var withdrawalNetwork uint8
 	var err error
 
-	if has, err := bindings.HasImmutableReferences(deployment.Name); err != nil || has == false {
+	if has, err := bindings.HasImmutableReferences(deployment.Name); err != nil || !has {
 		return nil, fmt.Errorf("%s does not have immutables: %w", deployment.Name, err)
 	}
 
