@@ -61,9 +61,11 @@ func (p *PrefetchingEthClient) FetchWindow(ctx context.Context, start, end uint6
 func (p *PrefetchingEthClient) FetchBlockAndReceipts(ctx context.Context, number uint64) {
 	// Return data and error info is discarded as we are just filling the inner cache
 	blockInfo, err := p.inner.InfoByNumber(ctx, number) // We need err here, though, to make sure blockInfo is safe to access
-	if err == nil {
-		_, _, _ = p.inner.FetchReceipts(ctx, blockInfo.Hash())
+	if err != nil {
+		// It's unsafe to access blockInfo. Return.
+		return
 	}
+	_, _, _ = p.inner.FetchReceipts(ctx, blockInfo.Hash())
 }
 
 func (p *PrefetchingEthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
