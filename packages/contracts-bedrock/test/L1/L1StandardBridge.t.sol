@@ -40,18 +40,21 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
 }
 
 contract L1StandardBridge_Pause_Test is Bridge_Initializer {
-    /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the `superchainConfig`.
+    /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
+    ///      `superchainConfig`.
     function test_paused_succeeds() external {
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
     }
 
-    /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the `superchainConfig`.
+    /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
+    ///      `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
         vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
         l1StandardBridge.paused();
     }
 
-    /// @dev Checks that the `paused` state of the bridge matches the `paused` state of the `superchainConfig` after it's been changed.
+    /// @dev Checks that the `paused` state of the bridge matches the `paused` state of the `superchainConfig` after
+    ///      it's been changed.
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1StandardBridge.paused());
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
