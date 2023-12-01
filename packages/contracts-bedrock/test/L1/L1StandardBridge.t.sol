@@ -71,85 +71,60 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
         vm.prank(superchainConfig.guardian());
         superchainConfig.pause("identifier");
         assertTrue(l1StandardBridge.paused());
+
+        vm.deal(address(l1StandardBridge.messenger()), 1 ether);
+
+        vm.mockCall(
+            address(l1StandardBridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l1StandardBridge.otherBridge()))
+        );
     }
 
-    function test_pause_bridgeETH_reverts() external {
+    function test_pause_finalizeBridgeETH_reverts() external {
+        vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.bridgeETH({ _minGasLimit: 0, _extraData: hex"" });
-    }
-
-    function test_pause_bridgeETHTo_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.bridgeETHTo({ _to: address(1), _minGasLimit: 0, _extraData: hex"" });
-    }
-
-    function test_pause_depositETH_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.depositETH({ _minGasLimit: 0, _extraData: hex"" });
-    }
-
-    function test_pause_depositETHTo_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.depositETHTo({ _to: address(1), _minGasLimit: 0, _extraData: hex"" });
-    }
-
-    function test_pause_fallback_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        (bool success,) = address(l1StandardBridge).call{ value: 1 ether }(hex"");
-        assertTrue(success);
-    }
-
-    function test_pause_bridgeERC20_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.bridgeERC20({
-            _localToken: address(1),
-            _remoteToken: address(2),
-            _amount: 0,
-            _minGasLimit: 0,
-            _extraData: hex""
-        });
-    }
-
-    function test_pause_bridgeERC20To_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.bridgeERC20To({
-            _localToken: address(1),
-            _remoteToken: address(2),
+        l1StandardBridge.finalizeBridgeETH{ value: 100 }({
+            _from: address(2),
             _to: address(3),
-            _amount: 0,
-            _minGasLimit: 0,
+            _amount: 100,
             _extraData: hex""
         });
     }
 
-    function test_pause_depositERC20_reverts() external {
+    function test_pause_finalizeETHWithdrawal_reverts() external {
+        vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.depositERC20({
-            _l1Token: address(1),
-            _l2Token: address(2),
-            _amount: 0,
-            _minGasLimit: 0,
-            _extraData: hex""
-        });
-    }
-
-    function test_pause_depositERC20To_reverts() external {
-        vm.expectRevert("StandardBridge: paused");
-        vm.prank(alice, alice);
-        l1StandardBridge.depositERC20To({
-            _l1Token: address(1),
-            _l2Token: address(2),
+        l1StandardBridge.finalizeETHWithdrawal{ value: 100 }({
+            _from: address(2),
             _to: address(3),
+            _amount: 100,
+            _extraData: hex""
+        });
+    }
+
+    function test_pause_finalizeERC20Withdrawal_reverts() external {
+        vm.prank(address(l1StandardBridge.messenger()));
+        vm.expectRevert("StandardBridge: paused");
+        l1StandardBridge.finalizeERC20Withdrawal({
+            _l1Token: address(0),
+            _l2Token: address(0),
+            _from: address(0),
+            _to: address(0),
             _amount: 0,
-            _minGasLimit: 0,
+            _extraData: hex""
+        });
+    }
+
+    function test_pause_finalizeBridgeERC20_reverts() external {
+        vm.prank(address(l1StandardBridge.messenger()));
+        vm.expectRevert("StandardBridge: paused");
+        l1StandardBridge.finalizeBridgeERC20({
+            _localToken: address(0),
+            _remoteToken: address(0),
+            _from: address(0),
+            _to: address(0),
+            _amount: 0,
             _extraData: hex""
         });
     }
