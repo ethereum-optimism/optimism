@@ -91,9 +91,9 @@ func (btx *spanBatchTxs) decodeContractCreationBits(r *bytes.Reader) error {
 	return nil
 }
 
-func (btx *spanBatchTxs) contractCreationCount() uint64 {
+func (btx *spanBatchTxs) contractCreationCount() (uint64, error) {
 	if btx.contractCreationBits == nil {
-		panic("contract creation bits not set")
+		return 0, errors.New("dev error: contract creation bits not set")
 	}
 	var result uint64 = 0
 	for i := 0; i < int(btx.totalBlockTxCount); i++ {
@@ -102,7 +102,7 @@ func (btx *spanBatchTxs) contractCreationCount() uint64 {
 			result++
 		}
 	}
-	return result
+	return result, nil
 }
 
 // yParityBits is bitlist right-padded to a multiple of 8 bits
@@ -264,7 +264,10 @@ func (btx *spanBatchTxs) decodeTxGases(r *bytes.Reader) error {
 func (btx *spanBatchTxs) decodeTxTos(r *bytes.Reader) error {
 	var txTos []common.Address
 	txToBuffer := make([]byte, common.AddressLength)
-	contractCreationCount := btx.contractCreationCount()
+	contractCreationCount, err := btx.contractCreationCount()
+	if err != nil {
+		return err
+	}
 	for i := 0; i < int(btx.totalBlockTxCount-contractCreationCount); i++ {
 		_, err := io.ReadFull(r, txToBuffer)
 		if err != nil {
@@ -293,9 +296,9 @@ func (btx *spanBatchTxs) decodeTxDatas(r *bytes.Reader) error {
 	return nil
 }
 
-func (btx *spanBatchTxs) recoverV(chainID *big.Int) {
+func (btx *spanBatchTxs) recoverV(chainID *big.Int) error {
 	if len(btx.txTypes) != len(btx.txSigs) {
-		panic("tx type length and tx sigs length mismatch")
+		return errors.New("tx type length and tx sigs length mismatch")
 	}
 	for idx, txType := range btx.txTypes {
 		bit := uint64(btx.yParityBits.Bit(idx))
@@ -309,10 +312,11 @@ func (btx *spanBatchTxs) recoverV(chainID *big.Int) {
 		case types.DynamicFeeTxType:
 			v = bit
 		default:
-			panic(fmt.Sprintf("invalid tx type: %d", txType))
+			return fmt.Errorf("invalid tx type: %d", txType)
 		}
 		btx.txSigs[idx].v = v
 	}
+	return nil
 }
 
 func (btx *spanBatchTxs) encode(w io.Writer) error {
@@ -400,7 +404,7 @@ func (btx *spanBatchTxs) fullTxs(chainID *big.Int) ([][]byte, error) {
 	return txs, nil
 }
 
-func convertVToYParity(v uint64, txType int) uint {
+func convertVToYParity(v uint64, txType int) (uint, error) {
 	var yParityBit uint
 	switch txType {
 	case types.LegacyTxType:
@@ -412,9 +416,9 @@ func convertVToYParity(v uint64, txType int) uint {
 	case types.DynamicFeeTxType:
 		yParityBit = uint(v)
 	default:
-		panic(fmt.Sprintf("invalid tx type: %d", txType))
+		return 0, fmt.Errorf("invalid tx type: %d", txType)
 	}
-	return yParityBit
+	return yParityBit, nil
 }
 
 func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
@@ -449,7 +453,10 @@ func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 			contractCreationBit = uint(0)
 		}
 		contractCreationBits.SetBit(contractCreationBits, idx, contractCreationBit)
-		yParityBit := convertVToYParity(txSig.v, int(tx.Type()))
+		yParityBit, err := convertVToYParity(txSig.v, int(tx.Type()))
+		if err != nil {
+			return nil, err
+		}
 		yParityBits.SetBit(yParityBits, idx, yParityBit)
 		txNonces = append(txNonces, tx.Nonce())
 		txGases = append(txGases, tx.Gas())
