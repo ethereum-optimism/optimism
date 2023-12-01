@@ -834,6 +834,10 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initialized":  1,
 		"_initializing": false,
 	}
+	storage["L2ERC721Bridge"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
 		"timestamp":      block.Time(),
