@@ -102,8 +102,7 @@ func TestBuildOptimism(t *testing.T) {
 
 		// If a predeploy has no config, it needs to have no immutable references in the solc output.
 		if reflect.ValueOf(predeployConfig).IsZero() {
-			ref, err := bindings.GetImmutableReferences(name)
-			require.Errorf(t, err, "error getting immutable reference for %s", name)
+			ref, _ := bindings.HasImmutableReferences(name)
 			require.Zero(t, ref, "found immutable reference for %s", name)
 			return nil
 		}
@@ -115,13 +114,12 @@ func TestBuildOptimism(t *testing.T) {
 	for name := range predeploys.Predeploys {
 		require.Truef(t, all[name], "predeploy %s not in set of predeploys", name)
 
-		ref, err := bindings.GetImmutableReferences(name)
+		ref, err := bindings.HasImmutableReferences(name)
 		// If there is predeploy config, there should be an immutable reference
 		if withConfig[name] {
 			require.NoErrorf(t, err, "error getting immutable reference for %s", name)
 			require.NotZerof(t, ref, "no immutable reference for %s", name)
 		} else {
-			require.Errorf(t, err, "no error getting immutable reference for %s", name)
 			require.Zero(t, ref, "found immutable reference for %s", name)
 		}
 	}
@@ -135,7 +133,7 @@ func TestBuildOptimism(t *testing.T) {
 		// It is in the set of contracts that we care about
 		require.Truef(t, withConfig[name], "contract %s not in set of contracts", name)
 		// The immutable reference is present
-		ref, err := bindings.GetImmutableReferences(name)
+		ref, err := bindings.HasImmutableReferences(name)
 		require.NoErrorf(t, err, "cannot get immutable reference for %s", name)
 		require.NotZerof(t, ref, "contract %s has no immutable reference", name)
 	}
