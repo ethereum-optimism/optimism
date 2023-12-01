@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	SubmitEventABI      = "SendDACommitment(address,address,uint256,bytes)"
+	SubmitEventABI      = "TransactionSubmitted(address,address,uint256,bytes)"
 	SubmitEventABIHash  = crypto.Keccak256Hash([]byte(SubmitEventABI))
 	SubmitEventVersion0 = common.Hash{}
 )
@@ -32,7 +32,7 @@ var (
 //	);
 //
 // Additionally, the event log-index and
-func UnmarshalSubmitsLogEvent(ev *types.Log) (*types.DepositTx, error) {
+func UnmarshalSubmitsLogEvent(ev *types.Log) (*types.SubmitTx, error) {
 	if len(ev.Topics) != 4 {
 		return nil, fmt.Errorf("expected 4 event topics (event identity, indexed from, indexed to, indexed version), got %d", len(ev.Topics))
 	}
@@ -73,7 +73,7 @@ func UnmarshalSubmitsLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	// and then padded to 32 bytes by the EVM.
 	opaqueData := ev.Data[64 : 64+opaqueContentLength.Uint64()]
 
-	var dep types.DepositTx
+	var dep types.SubmitTx
 
 	source := UserDepositSource{
 		L1BlockHash: ev.BlockHash,
@@ -96,16 +96,12 @@ func UnmarshalSubmitsLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	return &dep, nil
 }
 
-func unmarshalSubmitsVersion0(dep *types.DepositTx, to common.Address, opaqueData []byte) error {
+func unmarshalSubmitsVersion0(dep *types.SubmitTx, to common.Address, opaqueData []byte) error {
 	if len(opaqueData) < 32+32+8+1 {
 		return fmt.Errorf("unexpected opaqueData length: %d", len(opaqueData))
 	}
 	offset := uint64(0)
 
-	// 0 mint is represented as nil to skip minting code
-	if dep.Mint.Cmp(new(big.Int)) == 0 {
-		dep.Mint = nil
-	}
 	offset += 32
 
 	// uint256 value

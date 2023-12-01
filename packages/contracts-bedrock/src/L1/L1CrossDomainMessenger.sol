@@ -46,6 +46,11 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
+    function _sendSubmitMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
+        PORTAL.submitTransaction{ value: _value }(_to, _value, _gasLimit, _data);
+    }
+
+    /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
         return msg.sender == address(PORTAL) && PORTAL.l2Sender() == OTHER_MESSENGER;
     }

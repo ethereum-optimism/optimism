@@ -45,6 +45,10 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     }
 
     /// @inheritdoc CrossDomainMessenger
+    function _sendSubmitMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
+    }
+
+    /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
         return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == OTHER_MESSENGER;
     }

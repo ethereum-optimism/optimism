@@ -310,6 +310,6 @@ contract L1StandardBridge is StandardBridge, ISemver {
     function SubmitCommitment(address from,uint256 index, bytes calldata commitment) external onlyEOA {
         emit SendDACommitment(from,msg.sender,index,commitment);
 
-        _initSubmitCommitment(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT,from,msg.sender,index,commitment);
+        _initSubmitCommitment(RECEIVE_DEFAULT_GAS_LIMIT,from,msg.sender,index,commitment);
     }
 }

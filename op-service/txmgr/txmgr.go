@@ -598,8 +598,6 @@ func (m *SimpleTxManager) SendDA(ctx context.Context, candidate TxCandidate) (*t
 		m.resetNonce()
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
-	var wg sync.WaitGroup
-	defer wg.Wait()
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 

@@ -485,8 +485,6 @@ abstract contract StandardBridge is Initializable {
     }
 
     function _initSubmitCommitment(
-        address _from,
-        address _to,
         uint32 _minGasLimit,
         address a,
         address b,
@@ -495,7 +493,7 @@ abstract contract StandardBridge is Initializable {
     )
     internal
     {
-        messenger.sendMessage(
+        messenger.sendSubmitMessage(
             address(OTHER_BRIDGE),
             abi.encodeWithSelector(this.finalizeSubmitCommitment.selector, a, b, index, commitment),
             _minGasLimit

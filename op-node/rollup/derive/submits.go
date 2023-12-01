@@ -2,16 +2,15 @@ package derive
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/hashicorp/go-multierror"
 )
 
 // UserSubmits transforms the L2 block-height and L1 receipts into the transaction inputs for a full L2 block
-func UserSubmits(receipts []*types.Receipt, depositContractAddr common.Address) ([]*types.DepositTx, error) {
-	var out []*types.DepositTx
+func UserSubmits(receipts []*types.Receipt, depositContractAddr common.Address) ([]*types.SubmitTx, error) {
+	var out []*types.SubmitTx
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {

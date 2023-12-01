@@ -73,6 +73,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
+    /// @notice Emitted when a transaction is submitted from L1 to L2.
+    ///         The parameters of this event are read by the rollup node and used to derive submit
+    ///         transactions on L2.
+    /// @param from       Address that triggered the submit transaction.
+    /// @param to         Address that the submit transaction is directed to.
+    /// @param version    Version of this submit transaction event.
+    /// @param opaqueData ABI encoded submit data to be parsed off-chain.
+    event TransactionSubmitted(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
+
     /// @notice Emitted when a withdrawal transaction is proven.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param from           Address that triggered the withdrawal transaction.
@@ -433,5 +442,41 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @return Whether or not the finalization period has elapsed.
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
         return block.timestamp > _timestamp + l2Oracle.FINALIZATION_PERIOD_SECONDS();
+    }
+
+    function submitTransaction(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bytes memory _data
+    )
+    public
+    payable
+    metered(_gasLimit)
+    {
+        // Prevent depositing transactions that have too small of a gas limit. Users should pay
+        // more for more resource usage.
+        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
+
+        // Prevent the creation of deposit transactions that have too much calldata. This gives an
+        // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
+        // that the transaction can fit into the p2p network policy of 128kb even though deposit
+        // transactions are not gossipped over the p2p network.
+        require(_data.length <= 120_000, "OptimismPortal: data too large");
+
+        // Transform the from-address to its alias if the caller is a contract.
+        address from = msg.sender;
+        if (msg.sender != tx.origin) {
+            from = AddressAliasHelper.applyL1ToL2Alias(msg.sender);
+        }
+
+        // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
+        // We use opaque data so that we can update the TransactionDeposited event in the future
+        // without breaking the current interface.
+        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, false, _data);
+
+        // Emit a TransactionDeposited event so that the rollup node can derive a submit
+        // transaction for this submit.
+        emit TransactionSubmitted(from, _to, DEPOSIT_VERSION, opaqueData);
     }
 }
