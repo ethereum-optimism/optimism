@@ -62,7 +62,6 @@ contract L1StandardBridge_Pause_Test is Bridge_Initializer {
         assertTrue(l1StandardBridge.paused());
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
     }
-
 }
 
 contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
