@@ -14,6 +14,7 @@ import (
 
 var (
 	methodGenesisBlockNumber = "GENESIS_BLOCK_NUMBER"
+	methodGenesisOutputRoot  = "GENESIS_OUTPUT_ROOT"
 	methodSplitDepth         = "SPLIT_DEPTH"
 	methodL2BlockNumber      = "l2BlockNumber"
 )
@@ -53,6 +54,14 @@ func (c *OutputBisectionGameContract) GetBlockRange(ctx context.Context) (presta
 	prestateBlock = results[0].GetBigInt(0).Uint64()
 	poststateBlock = results[1].GetBigInt(0).Uint64()
 	return
+}
+
+func (c *OutputBisectionGameContract) GetGenesisOutputRoot(ctx context.Context) (common.Hash, error) {
+	genesisOutputRoot, err := c.multiCaller.SingleCall(ctx, batching.BlockLatest, c.contract.Call(methodGenesisOutputRoot))
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to retrieve genesis output root: %w", err)
+	}
+	return genesisOutputRoot.GetHash(0), nil
 }
 
 func (c *OutputBisectionGameContract) GetSplitDepth(ctx context.Context) (uint64, error) {
