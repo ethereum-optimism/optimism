@@ -9,7 +9,7 @@
     "solc_disable_warnings": false,
     "disable_color": false,
     "exclude_dependencies": true,
-    "filter_paths": "(lib/|src/vendor|src/cannon/MIPS.sol)",
+    "filter_paths": "(lib/|src/vendor|src/cannon/MIPS.sol|src/EAS/EAS.sol)",
     "legacy_ast": false,
     "foundry_out_directory": "artifacts"
 }

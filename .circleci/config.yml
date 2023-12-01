@@ -435,6 +435,11 @@ jobs:
             pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: slither
+          command: |
+            pnpm slither:check || echo "export SLITHER_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
           name: check statuses
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
@@ -461,22 +466,13 @@ jobs:
               echo "Snapshots check failed, see job output for details."
               FAILED=1
             fi
+            if [[ "$SLITHER_STATUS" -ne 0 ]]; then
+              echo "Slither check failed, see job output for details."
+              FAILED=1
+            fi
             if [[ "$FAILED" -ne 0 ]]; then
               exit 1
             fi
-
-  contracts-bedrock-slither:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - check-changed:
-          patterns: contracts-bedrock
-      - run:
-          name: slither
-          command: |
-            pnpm slither:check || echo "Slither failed"
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -1351,7 +1347,7 @@ jobs:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
       - setup_remote_docker:
           docker_layer_caching: true
-      - run: 
+      - run:
           name: Install Docker CLI
           command: |
             # Add Docker's official GPG key:
@@ -1370,7 +1366,7 @@ jobs:
       - run:
           name: Run Kontrol Tests
           command: |
-            pnpm test:kontrol 
+            pnpm test:kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
@@ -1401,7 +1397,6 @@ workflows:
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
