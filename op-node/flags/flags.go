@@ -24,11 +24,6 @@ func prefixEnvVars(name string) []string {
 
 var (
 	/* Required Flags */
-	L1EthRpcFlag = &cli.StringFlag{
-		Name:    "l1-eth-rpc",
-		Usage:   "HTTP provider URL for L1",
-		EnvVars: prefixEnvVars("L1_ETH_RPC"),
-	}
 	L1NodeAddr = &cli.StringFlag{
 		Name:    "l1",
 		Usage:   "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
@@ -51,6 +46,13 @@ var (
 		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */
+
+	L1EthRpcFlag = &cli.StringFlag{
+		Name:     "l1-eth-rpc",
+		Usage:    "HTTP provider URL for L1",
+		Required: false,
+		EnvVars:  prefixEnvVars("L1_ETH_RPC"),
+	}
 	RPCListenAddr = &cli.StringFlag{
 		Name:    "rpc.addr",
 		Usage:   "RPC listening address",
@@ -276,10 +278,10 @@ var (
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddr,
-	L1EthRpcFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	L1EthRpcFlag,
 	RPCListenAddr,
 	RPCListenPort,
 	RollupConfig,
