@@ -20,7 +20,7 @@
     "sourceCodeHash": "0x76ab62d44cf4efdc1db7042e75738b6d187682b0bdfb4160f5d0dc09eab55b4f"
   },
   "src/L1/L1StandardBridge.sol": {
-    "initCodeHash": "0xd2d28ef1a70dc6d42d4f0042a197ac8d06f75cbdfb67951b7069179c2e68d632",
+    "initCodeHash": "0x56a7fbc6807e1c4fa818a9706a12545f86499ca4269b0dc84c328ec632933eaf",
     "sourceCodeHash": "0x113420a17423d39cebb9b756fbf698ca9bdc03054ae24fe680750d979905d5a3"
   },
   "src/L1/L2OutputOracle.sol": {
