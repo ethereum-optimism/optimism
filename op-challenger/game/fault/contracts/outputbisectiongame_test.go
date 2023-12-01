@@ -22,13 +22,14 @@ func TestOutputBisectionGameContract_CommonTests(t *testing.T) {
 
 func TestGetBlockRange(t *testing.T) {
 	stubRpc, contract := setupOutputBisectionGameTest(t)
-	expectedStart := uint64(65)
+	genesisBlock := uint64(65)
 	expectedEnd := uint64(102)
-	stubRpc.SetResponse(fdgAddr, methodGenesisBlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedStart)})
+	stubRpc.SetResponse(fdgAddr, methodGenesisBlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(genesisBlock)})
 	stubRpc.SetResponse(fdgAddr, methodL2BlockNumber, batching.BlockLatest, nil, []interface{}{new(big.Int).SetUint64(expectedEnd)})
 	start, end, err := contract.GetBlockRange(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, expectedStart, start)
+	// The returned `start` is offset by 1 from the genesis block due to the dispute range being from [genesisBlockNumber+1, l2BlockNumber]
+	require.Equal(t, genesisBlock, start-1)
 	require.Equal(t, expectedEnd, end)
 }
 
