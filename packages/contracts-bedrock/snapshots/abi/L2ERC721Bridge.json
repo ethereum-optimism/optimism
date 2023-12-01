@@ -102,6 +102,19 @@
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "MESSENGER",
     "outputs": [
@@ -238,6 +251,13 @@
   },
   {
     "inputs": [],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "messenger",
     "outputs": [
       {
@@ -255,6 +275,19 @@
     "outputs": [
       {
         "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superChainConfig",
+    "outputs": [
+      {
+        "internalType": "contract SuperchainConfig",
         "name": "",
         "type": "address"
       }
