@@ -219,7 +219,8 @@ func TestSpanBatchPayload(t *testing.T) {
 	err = sb.decodePayload(r)
 	require.NoError(t, err)
 
-	sb.txs.recoverV(chainID)
+	err = sb.txs.recoverV(chainID)
+	require.NoError(t, err)
 
 	require.Equal(t, rawSpanBatch.spanBatchPayload, sb.spanBatchPayload)
 }
@@ -283,7 +284,8 @@ func TestSpanBatchTxs(t *testing.T) {
 	err = sb.decodeTxs(r)
 	require.NoError(t, err)
 
-	sb.txs.recoverV(chainID)
+	err = sb.txs.recoverV(chainID)
+	require.NoError(t, err)
 
 	require.Equal(t, rawSpanBatch.txs, sb.txs)
 }
@@ -302,7 +304,8 @@ func TestSpanBatchRoundTrip(t *testing.T) {
 	err = sb.decode(bytes.NewReader(result.Bytes()))
 	require.NoError(t, err)
 
-	sb.txs.recoverV(chainID)
+	err = sb.txs.recoverV(chainID)
+	require.NoError(t, err)
 
 	require.Equal(t, rawSpanBatch, &sb)
 }
