@@ -2,11 +2,14 @@
 pragma solidity 0.8.15;
 
 import { L2CrossDomainMessenger as LegacyL2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
+import { CrossL2Outbox } from "src/interop/CrossL2Outbox.sol";
+
 import { Constants } from "src/libraries/Constants.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { ISemver } from "src/universal/ISemver.sol";
+
 
 /// @title NewL2CrossDomainMessenger
 /// @notice NewL2CrossDomainMessenger is an extended version of the existing predeploy
@@ -19,15 +22,21 @@ contract NewL2CrossDomainMessenger is ISemver {
     /// @custom:semver 0.0.1
     string public constant version = "0.0.1";
 
-    // CrossDomainMessenger: some copied internals & updated dispatch/message spec
+    // CrossDomainMessenger: copied internals & updated dispatch/message spec
 
-    /// @notice Latest message version identifier (interop-enabled)
-    uint16 public constant MESSAGE_VERSION = 2;
+    uint64 public constant RELAY_CONSTANT_OVERHEAD = 200_000;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 64;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 63;
+    uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
+    uint64 public constant RELAY_CALL_OVERHEAD = 40_000;
+    uint64 public constant RELAY_RESERVED_GAS = 40_000;
+    uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
     /// @notice Chain identifier of the network
     bytes32 public immutable CHAIN_ID = bytes32(uint256(block.chainid));
 
-    // TODO: Events
+    /// @notice Latest message version identifier (interop-enabled)
+    uint16 public constant MESSAGE_VERSION = 2;
 
     /// @notice Nonce for the next message to be sent
     uint240 internal msgNonce;
@@ -40,6 +49,38 @@ contract NewL2CrossDomainMessenger is ISemver {
 
     /// @notice Mapping of delivered messages in a failed state
     mapping(bytes32 => bool) public failedMessages;
+
+    /// @notice Emitted whenever a message is sent to the other chain.
+    event SentMessage(
+        uint256 indexed messageNonce,
+        bytes32 indexed destination,
+        address indexed target,
+        address sender,
+        bytes message,
+        uint256 gasLimit,
+        uint256 value
+    );
+
+    /// @notice Emitted whenever a message is successfully relayed on this chain.
+    event RelayedMessage(uint256 indexed messageNonce, bytes32 indexed source_chain, bytes32 indexed msgHash);
+
+    /// @notice Emitted whenever a message fails to be relayed on this chain.
+    event FailedRelayedMessage(uint256 indexed messageNonce, bytes32 indexed source_chain, bytes32 indexed msgHash);
+
+    /// @notice Checks if the call target is a blocked system address
+    function _isUnsafeTarget(address _target) internal view returns (bool) {
+        return _target == address(this) || _target == address(Predeploys.CROSS_L2_OUTBOX);
+    }
+
+    /// @notice See CrossDomainMessenger#baseGas as reference
+    function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
+        return RELAY_CONSTANT_OVERHEAD
+            + (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD)
+            + ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
+            + RELAY_CALL_OVERHEAD
+            + RELAY_RESERVED_GAS
+            + RELAY_GAS_CHECK_BUFFER;
+    }
 
     /// @notice Sends a message to the specified destination chain. If the destination
     ///         chain is ETH Mainnet (0x1), then this message follows the legacy
@@ -55,7 +96,7 @@ contract NewL2CrossDomainMessenger is ISemver {
         external
         payable
     {
-        // L2->L1 Support: Required as we are leaving the CrossDomainMessenger untouched
+        // L2->L1 Support: Utilize the old pathway for now
         bytes32 ETH_MAINNET_ID = bytes32(uint256(1));
         if (_destination == ETH_MAINNET_ID) {
             LegacyL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(
@@ -67,18 +108,20 @@ contract NewL2CrossDomainMessenger is ISemver {
         require(_destination != CHAIN_ID, "NewL2CrossDomainMessenger: message cant be sent to self");
 
         uint256 nonce = Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
-        bytes memory data = abi.encodeWithSelector(
+        bytes memory message = abi.encodeWithSelector(
             this.relayMessage.selector, nonce, CHAIN_ID, msg.sender, _target, msg.value, _minGasLimit, _message
         );
 
-        // (1) Send to the CrossL2Inbox.
-        // With an updated CrossDomainMessenger message format, this contract will
+        // (1) Initiate the withdrawal
+        // Once v2 is the official CrossDomainMessenger format, this contract will
         // replace existing L2CrossDomainmMessenger predeploy and switch between
-        // L2ToL1MessagePasser/CrossL2Inbox based on the provided `_destination`.
-        //
-        // i.e: CrossL2Inbox.sendMessage(source, destination, _minGasLimit, msg.value, data)
+        // L2ToL1MessagePasser/CrossL2Outbox based on the provided `_destination`.
+        CrossL2Outbox(payable(Predeploys.CROSS_L2_OUTBOX)).initiateMessage(
+            _destination, address(this), baseGas(_message, _minGasLimit), message
+        );
 
         // (2) Emit Events
+        emit SentMessage(nonce, _destination, _target, msg.sender, _message, _minGasLimit, msg.value);
 
         unchecked {
             ++msgNonce;
@@ -103,23 +146,39 @@ contract NewL2CrossDomainMessenger is ISemver {
         (, uint16 msgVersion) = Encoding.decodeVersionedNonce(_nonce);
         require(msgVersion == MESSAGE_VERSION, "NewL2CrossDomainMessenger: incorrect message version");
 
-        bytes32 messageHash =
-            hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
-        require(successfulMessages[messageHash] == false, "NewL2CrossDomainMessenger: message already processed");
+        bytes32 msgHash = hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
+        require(successfulMessages[msgHash] == false, "NewL2CrossDomainMessenger: message already processed");
 
-        // (1) Allow for replay
-        if (_sender == address(this)) {
+        // (1) Allow for replay. Initial replayer can only be the CrossL2Inbox as L1 messages
+        // are relayed via old v1 pathway until v2 becomes the canonical message format.
+        if (msg.sender == Predeploys.CROSS_L2_INBOX) {
             assert(msg.value == _value);
-            assert(failedMessages[messageHash] == false);
+            assert(failedMessages[msgHash] == false);
         } else {
-            require(msg.value == 0, "cannot replay with more funds");
-            require(failedMessages[messageHash], "NewL2CrossDomainMessenger: message cannot be replayed");
+            require(msg.value == 0, "NewL2CrossDomainMessenger: cannot replay with additonal funds");
+            require(failedMessages[msgHash], "NewL2CrossDomainMessenger: message cannot be replayed");
         }
 
-        // **CrossDomainMessenger Checks**. min gas, unsafe target, etc.
+        require(
+            _isUnsafeTarget(_target) == false, "NewL2CrossDomainMessenger: cannot send message to blocked system address"
+        );
+
+        if (
+            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER)
+                || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
+        ) {
+            failedMessages[msgHash] = true;
+            emit FailedRelayedMessage(_nonce, _source, msgHash);
+
+            // Revert in this case if the transaction was triggered by the estimation address
+            if (tx.origin == Constants.ESTIMATION_ADDRESS) {
+                revert("NewL2CrossDomainMessenger: failed to relay message");
+            }
+
+            return;
+        }
 
         // (2) Relay Message
-        uint64 RELAY_RESERVED_GAS = 40_000;
         xDomainMsgSender = _sender;
         bool success = SafeCall.call({
             _target: _target,
@@ -127,13 +186,19 @@ contract NewL2CrossDomainMessenger is ISemver {
             _value: _value,
             _calldata: _message
         });
+
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         if (success) {
-            successfulMessages[messageHash] = true;
-            // (3) Emit event
+            successfulMessages[msgHash] = true;
+            emit RelayedMessage(_nonce, _source, msgHash);
         } else {
-            failedMessages[messageHash] = true;
-            // (3) Emit event
+            failedMessages[msgHash] = true;
+            emit FailedRelayedMessage(_nonce, _source, msgHash);
+
+            // Revert in this case if the transaction was triggered by the estimation address
+            if (tx.origin == Constants.ESTIMATION_ADDRESS) {
+                revert("NewL2CrossDomainMessenger: failed to relay message");
+            }
         }
     }
 
