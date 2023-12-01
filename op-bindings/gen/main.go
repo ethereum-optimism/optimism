@@ -27,12 +27,12 @@ type flags struct {
 }
 
 type data struct {
-	Name                string
-	StorageLayout       string
-	DeployedBin         string
-	Package             string
-	DeployedSourceMap   string
-	ImmutableReferences string
+	Name                   string
+	StorageLayout          string
+	DeployedBin            string
+	Package                string
+	DeployedSourceMap      string
+	HasImmutableReferences bool
 }
 
 func main() {
@@ -180,13 +180,15 @@ func main() {
 			log.Fatalf("error marshaling immutable references: %v\n", err)
 		}
 
+		hasImmutables := string(immutableRefs) != `""`
+
 		d := data{
-			Name:                name,
-			StorageLayout:       serStr,
-			DeployedBin:         artifact.DeployedBytecode.Object.String(),
-			Package:             f.Package,
-			DeployedSourceMap:   deployedSourceMap,
-			ImmutableReferences: string(immutableRefs),
+			Name:                   name,
+			StorageLayout:          serStr,
+			DeployedBin:            artifact.DeployedBytecode.Object.String(),
+			Package:                f.Package,
+			DeployedSourceMap:      deployedSourceMap,
+			HasImmutableReferences: hasImmutables,
 		}
 
 		fname := filepath.Join(f.OutDir, strings.ToLower(name)+"_more.go")
@@ -227,8 +229,6 @@ var {{.Name}}DeployedBin = "{{.DeployedBin}}"
 var {{.Name}}DeployedSourceMap = "{{.DeployedSourceMap}}"
 {{end}}
 
-var {{.Name}}ImmutableReferencesJSON = {{.ImmutableReferences}}
-
 func init() {
 	if err := json.Unmarshal([]byte({{.Name}}StorageLayoutJSON), {{.Name}}StorageLayout); err != nil {
 		panic(err)
@@ -236,6 +236,6 @@ func init() {
 
 	layouts["{{.Name}}"] = {{.Name}}StorageLayout
 	deployedBytecodes["{{.Name}}"] = {{.Name}}DeployedBin
-	immutableReferences["{{.Name}}"] = {{.Name}}ImmutableReferencesJSON
+	immutableReferences["{{.Name}}"] = {{.HasImmutableReferences}}
 }
 `

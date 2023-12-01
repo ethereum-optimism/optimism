@@ -19,7 +19,7 @@ var deployedBytecodes = make(map[string]string)
 
 // immutableReferences represents the set of immutable references. It is populated
 // in an init function.
-var immutableReferences = make(map[string]string)
+var immutableReferences = make(map[string]bool)
 
 // Create2DeployerCodeHash represents the codehash of the Create2Deployer contract.
 var Create2DeployerCodeHash = common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
@@ -55,13 +55,13 @@ func GetDeployedBytecode(name string) ([]byte, error) {
 	return common.FromHex(bc), nil
 }
 
-// GetImmutableReferences returns the immutable references of a contract by name.
-func GetImmutableReferences(name string) (string, error) {
-	ref := immutableReferences[name]
-	if ref == "" {
-		return "", fmt.Errorf("%s: immutable reference not found", name)
+// HasImmutableReferences returns the immutable references of a contract by name.
+func HasImmutableReferences(name string) (bool, error) {
+	has, ok := immutableReferences[name]
+	if !ok {
+		return false, fmt.Errorf("%s: immutable reference not found", name)
 	}
-	return ref, nil
+	return has, nil
 }
 
 // isHexCharacter returns bool of c being a valid hexadecimal.

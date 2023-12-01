@@ -16,8 +16,6 @@ var ISemverStorageLayout = new(solc.StorageLayout)
 var ISemverDeployedBin = "0x"
 
 
-var ISemverImmutableReferencesJSON = ""
-
 func init() {
 	if err := json.Unmarshal([]byte(ISemverStorageLayoutJSON), ISemverStorageLayout); err != nil {
 		panic(err)
@@ -25,5 +23,5 @@ func init() {
 
 	layouts["ISemver"] = ISemverStorageLayout
 	deployedBytecodes["ISemver"] = ISemverDeployedBin
-	immutableReferences["ISemver"] = ISemverImmutableReferencesJSON
+	immutableReferences["ISemver"] = false
 }

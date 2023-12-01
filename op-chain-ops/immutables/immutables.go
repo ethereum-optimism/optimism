@@ -80,8 +80,8 @@ func (c *PredeploysImmutableConfig) Check() error {
 			return nil
 		}
 
-		_, err := bindings.GetImmutableReferences(name)
-		exists := err == nil
+		has, err := bindings.HasImmutableReferences(name)
+		exists := err == nil && has
 		isZero := val.IsZero()
 
 		// There are immutables defined in the solc output and
@@ -184,7 +184,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 	var withdrawalNetwork uint8
 	var err error
 
-	if _, err := bindings.GetImmutableReferences(deployment.Name); err != nil {
+	if has, err := bindings.HasImmutableReferences(deployment.Name); err != nil || has == false {
 		return nil, fmt.Errorf("%s does not have immutables: %w", deployment.Name, err)
 	}
 
