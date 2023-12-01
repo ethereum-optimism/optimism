@@ -105,7 +105,9 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         Duration _gameDuration,
         IBigStepper _vm
     ) {
-        if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
+        // The split depth cannot be greater than or equal to the max game depth, and it must
+        // be even due to the constraint laid out in `verifyExecBisectionRoot`
+        if (_splitDepth >= _maxGameDepth || _splitDepth % 2 != 0) revert InvalidSplitDepth();
 
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;

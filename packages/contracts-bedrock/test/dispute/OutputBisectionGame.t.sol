@@ -95,6 +95,45 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     //            `IDisputeGame` Implementation Tests             //
     ////////////////////////////////////////////////////////////////
 
+    /// @dev Tests that the constructor of the `OutputBisectionGame` reverts when the `_splitDepth`
+    ///      parameter is either:
+    ///      1. Greater than or equal to the `MAX_GAME_DEPTH`
+    ///      2. Odd
+    function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
+        AlphabetVM alphabetVM = new AlphabetVM(ABSOLUTE_PRESTATE);
+
+        // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
+        // to the `MAX_GAME_DEPTH` parameter.
+        _splitDepth = bound(_splitDepth, 2 ** 3, type(uint256).max);
+        vm.expectRevert(InvalidSplitDepth.selector);
+        new OutputBisectionGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: ABSOLUTE_PRESTATE,
+            _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
+            _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
+            _maxGameDepth: 2**3,
+            _splitDepth: _splitDepth,
+            _gameDuration: Duration.wrap(7 days),
+            _vm: alphabetVM
+        });
+
+        // Test that the constructor reverts when the `_splitDepth` parameter is odd.
+        _splitDepth = bound(_splitDepth, 0, 2 ** 3 - 1);
+        if (_splitDepth % 2 == 0) _splitDepth += 1;
+
+        vm.expectRevert(InvalidSplitDepth.selector);
+        new OutputBisectionGame({
+            _gameType: GAME_TYPE,
+            _absolutePrestate: ABSOLUTE_PRESTATE,
+            _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
+            _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
+            _maxGameDepth: 2**3,
+            _splitDepth: _splitDepth,
+            _gameDuration: Duration.wrap(7 days),
+            _vm: alphabetVM
+        });
+    }
+
     /// @dev Tests that the game's root claim is set correctly.
     function test_rootClaim_succeeds() public {
         assertEq(Claim.unwrap(gameProxy.rootClaim()), Claim.unwrap(ROOT_CLAIM));
