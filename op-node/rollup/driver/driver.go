@@ -2,6 +2,8 @@ package driver
 
 import (
 	"context"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/core/types"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +34,14 @@ type Metrics interface {
 	SetDerivationIdle(idle bool)
 
 	RecordL1ReorgDepth(d uint64)
+
+	RecordGasBumpCount(int)
+	RecordTxConfirmationLatency(int64)
+	RecordNonce(uint64)
+	RecordPendingTx(pending int64)
+	TxConfirmed(*types.Receipt)
+	TxPublished(string)
+	RPCError()
 
 	EngineMetrics
 	L1FetcherMetrics
@@ -115,7 +125,7 @@ type SequencerStateListener interface {
 }
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics, sequencerStateListener SequencerStateListener, syncCfg *sync.Config) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, txcfg txmgr.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics, sequencerStateListener SequencerStateListener, syncCfg *sync.Config) *Driver {
 	l1 = NewMeteredL1Fetcher(l1, metrics)
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
@@ -127,6 +137,13 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, al
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
 	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 
+	var daMgr *DAManager
+	txMgr, err := txmgr.NewSimpleTxManagerFromConfig("submit", log, metrics, txcfg)
+	if err != nil {
+		daMgr = NewDAManager(log, cfg, meteredEngine, nil, false)
+	} else {
+		daMgr = NewDAManager(log, cfg, meteredEngine, txMgr, true)
+	}
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
@@ -151,5 +168,6 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, al
 		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
 		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 		altSync:          altSync,
+		daMgr:            daMgr,
 	}
 }

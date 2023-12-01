@@ -3,6 +3,8 @@ package sources
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"time"
 
 	"github.com/ethereum/go-ethereum/eth/catalyst"
@@ -136,5 +138,16 @@ func (s *EngineClient) SignalSuperchainV1(ctx context.Context, recommended, requ
 		Recommended: recommended,
 		Required:    required,
 	})
+	return result, err
+}
+
+func (s *EngineClient) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	var result bool
+	err := s.client.CallContext(ctx, &result, "eth_uploadFileDataByParams", user, broadcaster, index, length, commitment, data, sign, hash)
+	return result, err
+}
+func (s *EngineClient) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+	var result *types.FileData
+	err := s.client.CallContext(ctx, &result, "eth_getFileDataByHash", hash)
 	return result, err
 }

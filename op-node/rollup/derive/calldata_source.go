@@ -116,7 +116,7 @@ func DataFromEVMTransactions(config *rollup.Config, batcherAddr common.Address, 
 			}
 			// some random L1 user might have sent a transaction to our batch inbox, ignore them
 			if seqDataSubmitter != batcherAddr {
-				log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
+				// 暂时注释log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
 				continue // not an authorized batch submitter, ignore
 			}
 			out = append(out, tx.Data())

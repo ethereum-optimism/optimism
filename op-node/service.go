@@ -73,9 +73,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	txmgr, err := NewTxManagerConfig(ctx, log)
-	if err != nil {
-		return nil, err
-	}
 
 	cfg := &node.Config{
 		L1:     l1Endpoint,

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -186,6 +188,14 @@ func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 // UnsafeL2SyncTarget retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
 func (dp *DerivationPipeline) UnsafeL2SyncTarget() eth.L2BlockRef {
 	return dp.eng.UnsafeL2SyncTarget()
+}
+
+func (dp *DerivationPipeline) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	return dp.eng.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
+}
+
+func (dp *DerivationPipeline) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+	return dp.eng.GetFileDataByHash(ctx, hash)
 }
 
 // Step tries to progress the buffer.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"net"
 	"strconv"
 	"sync/atomic"
@@ -305,7 +304,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return err
 	}
 
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, cfg.TxMgr, n.l2Source, n.l1Source, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
 
 	return nil
 }
@@ -327,11 +326,7 @@ func (n *OpNode) initRPCSync(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	txMgr, err := txmgr.NewSimpleTxManagerFromConfig("submit", n.log, n.metrics, cfg.TxMgr)
-	if err != nil {
-		return err
-	}
-	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics, txMgr)
+	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}

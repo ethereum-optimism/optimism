@@ -89,6 +89,8 @@ type Driver struct {
 	done        chan struct{}
 
 	wg gosync.WaitGroup
+
+	daMgr *DAManager
 }
 
 // Start starts up the state loop.
@@ -515,6 +517,14 @@ func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2Bloc
 	case <-ctx.Done():
 		return eth.L2BlockRef{}, nil, ctx.Err()
 	}
+}
+
+func (s *Driver) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	return s.daMgr.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+}
+
+func (s *Driver) Broadcaster(ctx context.Context) (common.Address, error) {
+	return s.daMgr.Broadcaster(ctx)
 }
 
 // deferJSONString helps avoid a JSON-encoding performance hit if the snapshot logger does not run

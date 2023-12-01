@@ -2,10 +2,7 @@ package node
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/submit"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +29,9 @@ type driverClient interface {
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 	SequencerActive(context.Context) (bool, error)
+
+	SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error)
+	Broadcaster(ctx context.Context) (common.Address, error)
 }
 
 type adminAPI struct {
@@ -76,17 +76,15 @@ type nodeAPI struct {
 	dr     driverClient
 	log    log.Logger
 	m      metrics.RPCMetricer
-	txMgr  *txmgr.SimpleTxManager
 }
 
-func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer, txmgr *txmgr.SimpleTxManager) *nodeAPI {
+func NewNodeAPI(config *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, m metrics.RPCMetricer) *nodeAPI {
 	return &nodeAPI{
 		config: config,
 		client: l2Client,
 		dr:     dr,
 		log:    log,
 		m:      m,
-		txMgr:  txmgr,
 	}
 }
 
@@ -132,36 +130,9 @@ func (n *nodeAPI) Version(ctx context.Context) (string, error) {
 }
 
 func (n *nodeAPI) Broadcaster(ctx context.Context) (common.Address, error) {
-	return n.txMgr.From(), nil
+	return n.dr.Broadcaster(ctx)
 }
 
-func (n *nodeAPI) SendDA(ctx context.Context, address common.Address, index hexutil.Uint64, data, commitment, sign hexutil.Bytes) (common.Hash, error) {
-	log.Info("SendDA", "address", address, "index", index, "data", data, "commitment", commitment, "sign", sign)
-	if !verifySignature(address, index, data, commitment, sign) {
-		return common.Hash{}, errors.New("invalid public key")
-	}
-	data, err := submit.L1SubmitTxData(address, uint64(index), commitment, sign)
-	if err != nil {
-		return common.Hash{}, err
-	}
-	log.Info("L1SubmitTxData")
-
-	tx, err := n.txMgr.SendDA(ctx, txmgr.TxCandidate{
-		TxData:   data,
-		To:       &n.config.SubmitContractAddress,
-		GasLimit: 0,
-	})
-	log.Info("Send")
-
-	if err != nil {
-		return common.Hash{}, err
-	}
-	log.Info("L1Submit tx successfully published",
-		"tx_hash", tx.Hash().Hex())
-
-	return tx.Hash(), nil
-}
-
-func verifySignature(address common.Address, index hexutil.Uint64, data, commitment, sign hexutil.Bytes) bool {
-	return true
+func (n *nodeAPI) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data hexutil.Bytes) (common.Hash, error) {
+	return n.dr.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
 }

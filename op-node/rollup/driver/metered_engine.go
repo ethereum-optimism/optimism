@@ -2,6 +2,8 @@ package driver
 
 import (
 	"context"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -96,4 +98,12 @@ func (m *MeteredEngine) BuildingPayload() (onto eth.L2BlockRef, id eth.PayloadID
 
 func (m *MeteredEngine) Reset() {
 	m.inner.Reset()
+}
+
+func (m *MeteredEngine) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	return m.inner.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
+}
+
+func (m *MeteredEngine) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+	return m.inner.GetFileDataByHash(ctx, hash)
 }

@@ -37,6 +37,8 @@ type Engine interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+
+	EngineDA
 	SystemConfigL2Fetcher
 }
 
@@ -47,11 +49,17 @@ type EngineState interface {
 	SafeL2Head() eth.L2BlockRef
 }
 
+type EngineDA interface {
+	UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error)
+	GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error)
+}
+
 // EngineControl enables other components to build blocks with the Engine,
 // while keeping the forkchoice state and payload-id management internal to
 // avoid state inconsistencies between different users of the EngineControl.
 type EngineControl interface {
 	EngineState
+	EngineDA
 
 	// StartPayload requests the engine to start building a block with the given attributes.
 	// If updateSafe, the resulting block will be marked as a safe block.
@@ -846,4 +854,12 @@ func (eq *EngineQueue) UnsafeL2SyncTarget() eth.L2BlockRef {
 	} else {
 		return eth.L2BlockRef{}
 	}
+}
+
+func (eq *EngineQueue) UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error) {
+	return eq.engine.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
+}
+
+func (eq *EngineQueue) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+	return eq.engine.GetFileDataByHash(ctx, hash)
 }
