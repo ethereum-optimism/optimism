@@ -16,6 +16,13 @@ contract MakeStateDiff is Script {
         name_ = "TestDiff";
     }
 
+    /// @notice Modifier that wraps a function in broadcasting.
+    modifier broadcast() {
+        vm.startBroadcast(msg.sender);
+        _;
+        vm.stopBroadcast();
+    }
+
     /// @notice Modifier that wraps a function with statediff recording.
     ///         The returned AccountAccess[] array is then written to
     ///         the `snapshots/state-diff/<name>.json` output file.
@@ -29,8 +36,9 @@ contract MakeStateDiff is Script {
         vm.writeJson({ json: json, path: statediffPath });
     }
 
-    function testStateDiff() public stateDiff {
+    function testStateDiff() public broadcast stateDiff {
         Counter counter = new Counter();
         counter.setNumber(3);
+        counter.setNumber(42);
     }
 }
