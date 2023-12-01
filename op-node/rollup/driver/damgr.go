@@ -39,14 +39,14 @@ func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaste
 	if !verifySignature(index, length, broadcaster, user, commitment, sign) {
 		return common.Hash{}, errors.New("invalid public key")
 	}
-	data, err := submit.L1SubmitTxData(user, uint64(index), commitment, sign)
+	input, err := submit.L1SubmitTxData(user, uint64(index), commitment, sign)
 	if err != nil {
 		return common.Hash{}, err
 	}
 	log.Info("L1SubmitTxData")
 
 	tx, err := d.TxMgr.SendDA(ctx, txmgr.TxCandidate{
-		TxData:   data,
+		TxData:   input,
 		To:       &d.RollupConfig.SubmitContractAddress,
 		GasLimit: 0,
 	})
@@ -58,7 +58,7 @@ func (d *DAManager) SendDA(ctx context.Context, index, length uint64, broadcaste
 	log.Info("L1Submit tx successfully published",
 		"tx_hash", tx.Hash().Hex())
 
-	go d.engine.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, tx.Hash())
+	d.engine.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, tx.Hash())
 	return tx.Hash(), nil
 }
 
