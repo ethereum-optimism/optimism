@@ -10,7 +10,6 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-
 /// @title NewL2CrossDomainMessenger
 /// @notice NewL2CrossDomainMessenger is an extended version of the existing predeploy
 ///         that supports interopability between many chains (L2-L2). Since we are
@@ -74,12 +73,9 @@ contract NewL2CrossDomainMessenger is ISemver {
 
     /// @notice See CrossDomainMessenger#baseGas as reference
     function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
-        return RELAY_CONSTANT_OVERHEAD
-            + (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD)
+        return RELAY_CONSTANT_OVERHEAD + (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD)
             + ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
-            + RELAY_CALL_OVERHEAD
-            + RELAY_RESERVED_GAS
-            + RELAY_GAS_CHECK_BUFFER;
+            + RELAY_CALL_OVERHEAD + RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER;
     }
 
     /// @notice Sends a message to the specified destination chain. If the destination
@@ -146,7 +142,8 @@ contract NewL2CrossDomainMessenger is ISemver {
         (, uint16 msgVersion) = Encoding.decodeVersionedNonce(_nonce);
         require(msgVersion == MESSAGE_VERSION, "NewL2CrossDomainMessenger: incorrect message version");
 
-        bytes32 msgHash = hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
+        bytes32 msgHash =
+            hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
         require(successfulMessages[msgHash] == false, "NewL2CrossDomainMessenger: message already processed");
 
         // (1) Allow for replay. Initial replayer can only be the CrossL2Inbox as L1 messages
@@ -160,7 +157,8 @@ contract NewL2CrossDomainMessenger is ISemver {
         }
 
         require(
-            _isUnsafeTarget(_target) == false, "NewL2CrossDomainMessenger: cannot send message to blocked system address"
+            _isUnsafeTarget(_target) == false,
+            "NewL2CrossDomainMessenger: cannot send message to blocked system address"
         );
 
         if (
