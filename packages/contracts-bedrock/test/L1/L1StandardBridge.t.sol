@@ -40,18 +40,18 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
 }
 
 contract L1StandardBridge_Pause_Test is Bridge_Initializer {
-    /// @dev Test that the accessors return the correct initialized values
+    /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the `superchainConfig`.
     function test_paused_succeeds() external {
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
     }
 
-    /// @dev Tests that the superchain config is called by the messengers paused function
+    /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the `superchainConfig`.
     function test_pause_callsSuperchainConfig_succeeds() external {
         vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
         l1StandardBridge.paused();
     }
 
-    /// @dev Tests that changing the superchain config paused status changes the return value of the bridge.
+    /// @dev Checks that the `paused` state of the bridge matches the `paused` state of the `superchainConfig` after it's been changed.
     function test_pause_matchesSuperchainConfig_succeeds() external {
         assertFalse(l1StandardBridge.paused());
         assertEq(l1StandardBridge.paused(), superchainConfig.paused());
@@ -65,6 +65,8 @@ contract L1StandardBridge_Pause_Test is Bridge_Initializer {
 }
 
 contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
+    /// @dev Sets up the test by pausing the bridge, giving ether to the bridge and mocking
+    ///      the calls to the xDomainMessageSender so that it returns the correct value.
     function setUp() public override {
         super.setUp();
         vm.prank(superchainConfig.guardian());
@@ -80,6 +82,7 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
         );
     }
 
+    /// @dev Confirms that the `finalizeBridgeETH` function reverts when the bridge is paused.
     function test_pause_finalizeBridgeETH_reverts() external {
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
@@ -91,6 +94,7 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
         });
     }
 
+    /// @dev Confirms that the `finalizeETHWithdrawal` function reverts when the bridge is paused.
     function test_pause_finalizeETHWithdrawal_reverts() external {
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
@@ -102,6 +106,7 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
         });
     }
 
+    /// @dev Confirms that the `finalizeERC20Withdrawal` function reverts when the bridge is paused.
     function test_pause_finalizeERC20Withdrawal_reverts() external {
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
@@ -115,6 +120,7 @@ contract L1StandardBridge_Pause_TestFail is Bridge_Initializer {
         });
     }
 
+    /// @dev Confirms that the `finalizeBridgeERC20` function reverts when the bridge is paused.
     function test_pause_finalizeBridgeERC20_reverts() external {
         vm.prank(address(l1StandardBridge.messenger()));
         vm.expectRevert("StandardBridge: paused");
