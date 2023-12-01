@@ -120,7 +120,7 @@ contract Initializer_Test is Bridge_Initializer {
     ///         3. The `initialize()` function of each contract cannot be called more than once.
     function test_cannotReinitialize_succeeds() public {
         // Ensure that all L1 `Initializable` contracts are accounted for.
-        assertEq(_getNumL1Initializable(), contracts.length);
+        assertEq(_getNumInitializable(), contracts.length);
 
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
@@ -136,8 +136,8 @@ contract Initializer_Test is Bridge_Initializer {
         }
     }
 
-    /// @dev Returns the number of contracts that are `Initializable` in `src/L1`.
-    function _getNumL1Initializable() internal returns (uint256 numContracts_) {
+    /// @dev Returns the number of contracts that are `Initializable` in `src/L1` and `src/L2`.
+    function _getNumInitializable() internal returns (uint256 numContracts_) {
         string[] memory command = new string[](3);
         command[0] = Executables.bash;
         command[1] = "-c";

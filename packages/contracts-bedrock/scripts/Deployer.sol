@@ -530,9 +530,7 @@ abstract contract Deployer is Script {
         if (_isProxy) {
             _contractName = string.concat(_contractName, "Proxy");
         }
-        address addr = getAddress(_contractName);
-
-        bytes32 slotVal = vm.load(addr, bytes32(vm.parseUint(slot.slot)));
+        bytes32 slotVal = vm.load(mustGetAddress(_contractName), bytes32(vm.parseUint(slot.slot)));
         initialized_ = uint8((uint256(slotVal) >> (slot.offset * 8)) & 0xFF);
     }
 
