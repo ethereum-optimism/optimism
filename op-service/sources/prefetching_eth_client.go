@@ -53,11 +53,11 @@ func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64, 
 }
 
 func (p *PrefetchingEthClient) FetchWindow(ctx context.Context, start, end uint64) {
+	ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
+	defer cancel()
 	for i := start; i <= end; i++ {
 		// Ignoring the error and result as this is just prefetching
 		// The actual fetching and error handling will be done when the data is requested
-		ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
-		defer cancel()
 		p.FetchBlockAndReceipts(ctx, i)
 	}
 }
