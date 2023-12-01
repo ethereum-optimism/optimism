@@ -146,7 +146,7 @@ var testCases = []struct {
 func runTest(t *testing.T, name string, testFunc testFunction, prefetchingRange uint64) {
 	ctx := context.Background()
 	mockEthClient := new(testutils.MockEthClient)
-	client, err := NewPrefetchingEthClient(mockEthClient, prefetchingRange, time.Duration(30)*time.Second, context.Background())
+	client, err := NewPrefetchingEthClient(mockEthClient, prefetchingRange, time.Duration(30)*time.Second)
 	require.NoError(t, err)
 
 	err = testFunc(t, ctx, client, mockEthClient)

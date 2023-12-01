@@ -35,16 +35,20 @@ type PrefetchingEthClient struct {
 	PrefetchingRange   uint64
 	PrefetchingTimeout time.Duration
 	runningCtx         context.Context
+	runningCancel      context.CancelFunc
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
 // and a prefetching range.
-func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64, timeout time.Duration, ctx context.Context) (*PrefetchingEthClient, error) {
+func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64, timeout time.Duration) (*PrefetchingEthClient, error) {
+	// Create a new context for the prefetching goroutines
+	runningCtx, runningCancel := context.WithCancel(context.Background())
 	return &PrefetchingEthClient{
 		inner:              inner,
 		PrefetchingRange:   prefetchingRange,
 		PrefetchingTimeout: timeout,
-		runningCtx:         ctx,
+		runningCtx:         runningCtx,
+		runningCancel:      runningCancel,
 	}, nil
 }
 
@@ -214,5 +218,6 @@ func (p *PrefetchingEthClient) ReadStorageAt(ctx context.Context, address common
 }
 
 func (p *PrefetchingEthClient) Close() {
+	p.runningCancel()
 	p.inner.Close()
 }
