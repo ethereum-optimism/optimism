@@ -3,11 +3,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_messenger",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_otherBridge",
         "type": "address"
       }
@@ -284,12 +279,12 @@
   },
   {
     "inputs": [],
-    "name": "superChainConfig",
+    "name": "paused",
     "outputs": [
       {
-        "internalType": "contract SuperchainConfig",
+        "internalType": "bool",
         "name": "",
-        "type": "address"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",

@@ -5,11 +5,6 @@
         "internalType": "address",
         "name": "_messenger",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_otherBridge",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -319,7 +314,20 @@
   },
   {
     "inputs": [],
-    "name": "superChainConfig",
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
     "outputs": [
       {
         "internalType": "contract SuperchainConfig",
