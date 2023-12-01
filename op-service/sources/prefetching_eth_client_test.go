@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/stretchr/testify/require"
@@ -145,7 +146,7 @@ var testCases = []struct {
 func runTest(t *testing.T, name string, testFunc testFunction, prefetchingRange uint64) {
 	ctx := context.Background()
 	mockEthClient := new(testutils.MockEthClient)
-	client, err := NewPrefetchingEthClient(mockEthClient, prefetchingRange)
+	client, err := NewPrefetchingEthClient(mockEthClient, prefetchingRange, time.Duration(30)*time.Second, context.Background())
 	require.NoError(t, err)
 
 	err = testFunc(t, ctx, client, mockEthClient)

@@ -65,7 +65,7 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	if err != nil {
 		return nil, err
 	}
-	prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, 5)
+	prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, 5, 30*time.Duration(time.Second), context.Background()) // TODO DONOTMERGE needs to be a config item
 	if err != nil {
 		return nil, err
 	}

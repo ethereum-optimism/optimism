@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
@@ -30,16 +31,20 @@ type EthClientInterface interface {
 }
 
 type PrefetchingEthClient struct {
-	inner            EthClientInterface
-	PrefetchingRange uint64
+	inner              EthClientInterface
+	PrefetchingRange   uint64
+	PrefetchingTimeout time.Duration
+	runningCtx         context.Context
 }
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
 // and a prefetching range.
-func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64) (*PrefetchingEthClient, error) {
+func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64, timeout time.Duration, ctx context.Context) (*PrefetchingEthClient, error) {
 	return &PrefetchingEthClient{
-		inner:            inner,
-		PrefetchingRange: prefetchingRange,
+		inner:              inner,
+		PrefetchingRange:   prefetchingRange,
+		PrefetchingTimeout: timeout,
+		runningCtx:         ctx,
 	}, nil
 }
 
@@ -47,7 +52,8 @@ func (p *PrefetchingEthClient) FetchWindow(ctx context.Context, start, end uint6
 	for i := start; i <= end; i++ {
 		// Ignoring the error and result as this is just prefetching
 		// The actual fetching and error handling will be done when the data is requested
-		// FLAG FOR CODE REVIEW: Should we be creating new contexts here? The same context is just passed around everywhere.
+		ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
+		defer cancel()
 		p.FetchBlockAndReceipts(ctx, i)
 	}
 }
