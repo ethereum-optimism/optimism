@@ -214,7 +214,7 @@ type DeployConfig struct {
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
 	// OutputBisectionGameGenesisBlock is the block number for genesis.
 	OutputBisectionGameGenesisBlock uint64 `json:"outputBisectionGameGenesisBlock"`
-	// OutputBisectionGameGenesisBlock is the output root for the genesis block.
+	// OutputBisectionGameGenesisOutputRoot is the output root for the genesis block.
 	OutputBisectionGameGenesisOutputRoot common.Hash `json:"outputBisectionGameGenesisOutputRoot"`
 	// OutputBisectionGameSplitDepth is the depth at which the output bisection game splits.
 	OutputBisectionGameSplitDepth uint64 `json:"outputBisectionGameSplitDepth"`
