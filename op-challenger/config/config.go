@@ -183,9 +183,6 @@ func (c Config) Check() error {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
-		if c.TraceTypeEnabled(TraceTypeCannon) && (c.TraceTypeEnabled(TraceTypeOutputCannon) || c.TraceTypeEnabled(TraceTypeOutputAlphabet)) {
-			return ErrCannonAndOutputCannonConflict
-		}
 	}
 	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypeOutputCannon) {
 		if c.CannonBin == "" {
