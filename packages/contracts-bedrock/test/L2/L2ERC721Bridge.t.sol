@@ -79,6 +79,12 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l2ERC721Bridge.otherBridge()), address(l1ERC721Bridge));
     }
 
+    /// @dev Ensures that the L2ERC721Bridge is always not paused. The pausability
+    ///      happens on L1 and not L2.
+    function test_paused_succeeds() external {
+        assertFalse(l2ERC721Bridge.paused());
+    }
+
     /// @dev Tests that `bridgeERC721` correctly bridges a token and
     ///      burns it on the origin chain.
     function test_bridgeERC721_succeeds() public {
