@@ -40,17 +40,14 @@ func TestDropSpanBatchBeforeHardfork(gt *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
-
 	rollupSeqCl := sequencer.RollupClient()
-	dp2 := e2eutils.MakeDeployParams(t, p)
-	minTs := hexutil.Uint64(0)
-	// activate Delta hardfork for batcher. so batcher will submit SpanBatches to L1.
-	dp2.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
-	batcher := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
+
+	// Force batcher to submit SpanBatches to L1.
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		ForceSubmitSpanBatch: true,
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Alice makes a L2 tx
@@ -134,17 +131,14 @@ func TestHardforkMiddleOfSpanBatch(gt *testing.T) {
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 	minerCl := miner.EthClient()
-
 	rollupSeqCl := sequencer.RollupClient()
-	dp2 := e2eutils.MakeDeployParams(t, p)
-	minTs := hexutil.Uint64(0)
-	// Activate Delta hardfork for batcher. so batcher will submit SpanBatches to L1.
-	dp2.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
-	batcher := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
+
+	// Force batcher to submit SpanBatches to L1.
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		ForceSubmitSpanBatch: true,
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Alice makes a L2 tx
@@ -243,17 +237,14 @@ func TestAcceptSingularBatchAfterHardfork(gt *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
-
 	rollupSeqCl := sequencer.RollupClient()
-	dp2 := e2eutils.MakeDeployParams(t, p)
 
-	// not activate Delta hardfork for batcher
-	dp2.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
-	batcher := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
+	// Force batcher to submit SingularBatches to L1.
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize:              0,
+		MaxL1TxSize:              128_000,
+		BatcherKey:               dp.Secrets.Batcher,
+		ForceSubmitSingularBatch: true,
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 
 	// Alice makes a L2 tx
@@ -334,11 +325,6 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 	rollupSeqCl := sequencer.RollupClient()
 	seqEngCl := seqEngine.EthClient()
 
-	// Deploy config for span batch disabled batcher
-	dp2 := e2eutils.MakeDeployParams(t, p)
-	dp2.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	sd2 := e2eutils.Setup(t, dp2, defaultAlloc)
-
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 	miner.ActEmptyBlock(t)
@@ -369,15 +355,14 @@ func TestMixOfBatchesAfterHardfork(gt *testing.T) {
 		sequencer.ActBuildToL1Head(t)
 
 		// Select batcher mode
-		rcfg := sd.RollupCfg // SpanBatch mode
-		if i&2 == 1 {
-			rcfg = sd2.RollupCfg // SingularBatch mode
+		batcherCfg := BatcherCfg{
+			MinL1TxSize:              0,
+			MaxL1TxSize:              128_000,
+			BatcherKey:               dp.Secrets.Batcher,
+			ForceSubmitSpanBatch:     i%2 == 0, // Submit SpanBatch for odd numbered batches
+			ForceSubmitSingularBatch: i%2 == 1, // Submit SingularBatch for even numbered batches
 		}
-		batcher := NewL2Batcher(log, rcfg, &BatcherCfg{
-			MinL1TxSize: 0,
-			MaxL1TxSize: 128_000,
-			BatcherKey:  dp.Secrets.Batcher,
-		}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, rcfg))
+		batcher := NewL2Batcher(log, sd.RollupCfg, &batcherCfg, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
 		// Submit all new blocks
 		batcher.ActSubmitAll(t)
 
@@ -601,46 +586,44 @@ func TestBatchEquivalence(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	minTs := hexutil.Uint64(0)
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &minTs
-	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	sdDeltaActivated := e2eutils.Setup(t, dp, defaultAlloc)
 
 	// Delta deactivated deploy config
-	//dp2 := e2eutils.MakeDeployParams(t, p)
-	//dp2.DeployConfig.L2GenesisDeltaTimeOffset = nil
-	//sd2 := sd
-	//sd2.RollupCfg.Genesis = sd.RollupCfg.Genesis
-	rcfg2 := *sd.RollupCfg
-	rcfg2.DeltaTime = nil
-	sd2 := &e2eutils.SetupData{
-		L1Cfg:         sd.L1Cfg,
-		L2Cfg:         sd.L2Cfg,
-		RollupCfg:     &rcfg2,
-		DeploymentsL1: sd.DeploymentsL1,
+	rcfg := *sdDeltaActivated.RollupCfg
+	rcfg.DeltaTime = nil
+	sdDeltaDeactivated := &e2eutils.SetupData{
+		L1Cfg:         sdDeltaActivated.L1Cfg,
+		L2Cfg:         sdDeltaActivated.L2Cfg,
+		RollupCfg:     &rcfg,
+		DeploymentsL1: sdDeltaActivated.DeploymentsL1,
 	}
 
 	// Setup sequencer
-	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
+	miner, seqEngine, sequencer := setupSequencerTest(t, sdDeltaActivated, log)
 	rollupSeqCl := sequencer.RollupClient()
 	seqEngCl := seqEngine.EthClient()
 
-	// Setup Delta activated verifier
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
+	// Setup Delta activated spanVerifier
+	_, spanVerifier := setupVerifier(t, sdDeltaActivated, log, miner.L1Client(t, sdDeltaActivated.RollupCfg), &sync.Config{})
 
-	// Setup Delta deactivated verifier
-	_, verifier2 := setupVerifier(t, sd2, log, miner.L1Client(t, sd2.RollupCfg), &sync.Config{})
+	// Setup Delta deactivated spanVerifier
+	_, singularVerifier := setupVerifier(t, sdDeltaDeactivated, log, miner.L1Client(t, sdDeltaDeactivated.RollupCfg), &sync.Config{})
 
-	// Setup Delta activated batcher
-	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd.RollupCfg))
+	// Setup SpanBatcher
+	spanBatcher := NewL2Batcher(log, sdDeltaActivated.RollupCfg, &BatcherCfg{
+		MinL1TxSize:          0,
+		MaxL1TxSize:          128_000,
+		BatcherKey:           dp.Secrets.Batcher,
+		ForceSubmitSpanBatch: true,
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sdDeltaActivated.RollupCfg))
 
-	// Setup Delta deactivated batcher
-	batcher2 := NewL2Batcher(log, sd2.RollupCfg, &BatcherCfg{
-		MinL1TxSize: 0,
-		MaxL1TxSize: 128_000,
-		BatcherKey:  dp.Secrets.Batcher,
-	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sd2.RollupCfg))
+	// Setup SingularBatcher
+	singularBatcher := NewL2Batcher(log, sdDeltaDeactivated.RollupCfg, &BatcherCfg{
+		MinL1TxSize:              0,
+		MaxL1TxSize:              128_000,
+		BatcherKey:               dp.Secrets.Batcher,
+		ForceSubmitSingularBatch: true,
+	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient(), seqEngine.EngineClient(t, sdDeltaDeactivated.RollupCfg))
 
 	const numTestUsers = 5
 	var privKeys [numTestUsers]*ecdsa.PrivateKey
@@ -668,7 +651,7 @@ func TestBatchEquivalence(gt *testing.T) {
 		// fill the block with random number of L2 txs
 		for j := 0; j < rand.Intn(3); j++ {
 			userIdx := totalTxCount % numTestUsers
-			signer := types.LatestSigner(sd.L2Cfg.Config)
+			signer := types.LatestSigner(sdDeltaActivated.L2Cfg.Config)
 			data := make([]byte, rand.Intn(100))
 			_, err := crand.Read(data[:]) // fill with random bytes
 			require.NoError(t, err)
@@ -678,7 +661,7 @@ func TestBatchEquivalence(gt *testing.T) {
 			nonce, err := seqEngCl.PendingNonceAt(t.Ctx(), addrs[userIdx])
 			require.NoError(t, err)
 			tx := types.MustSignNewTx(privKeys[userIdx], signer, &types.DynamicFeeTx{
-				ChainID:   sd.L2Cfg.Config.ChainID,
+				ChainID:   sdDeltaActivated.L2Cfg.Config.ChainID,
 				Nonce:     nonce,
 				GasTipCap: big.NewInt(2 * params.GWei),
 				GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
@@ -695,34 +678,34 @@ func TestBatchEquivalence(gt *testing.T) {
 	}
 
 	// Submit SpanBatch
-	batcher.ActSubmitAll(t)
+	spanBatcher.ActSubmitAll(t)
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 	miner.ActL1EndBlock(t)
 
 	// Run derivation pipeline for verifiers
-	verifier.ActL1HeadSignal(t)
-	verifier.ActL2PipelineFull(t)
-	verifier2.ActL1HeadSignal(t)
-	verifier2.ActL2PipelineFull(t)
+	spanVerifier.ActL1HeadSignal(t)
+	spanVerifier.ActL2PipelineFull(t)
+	singularVerifier.ActL1HeadSignal(t)
+	singularVerifier.ActL2PipelineFull(t)
 
-	// Delta activated verifier must be synced
-	require.Equal(t, verifier.L2Safe(), sequencer.L2Unsafe())
-	// Delta deactivated verifier could not derive SpanBatch
-	require.Equal(t, verifier2.L2Safe().Number, uint64(0))
+	// Delta activated spanVerifier must be synced
+	require.Equal(t, spanVerifier.L2Safe(), sequencer.L2Unsafe())
+	// Delta deactivated spanVerifier could not derive SpanBatch
+	require.Equal(t, singularVerifier.L2Safe().Number, uint64(0))
 
 	// Submit SingularBatches
-	batcher2.ActSubmitAll(t)
+	singularBatcher.ActSubmitAll(t)
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 	miner.ActL1EndBlock(t)
 
 	// Run derivation pipeline for verifiers
-	verifier.ActL1HeadSignal(t)
-	verifier.ActL2PipelineFull(t)
-	verifier2.ActL1HeadSignal(t)
-	verifier2.ActL2PipelineFull(t)
+	spanVerifier.ActL1HeadSignal(t)
+	spanVerifier.ActL2PipelineFull(t)
+	singularVerifier.ActL1HeadSignal(t)
+	singularVerifier.ActL2PipelineFull(t)
 
-	// Delta deactivated verifier must be synced
-	require.Equal(t, verifier.L2Safe(), verifier2.L2Safe())
+	// Delta deactivated spanVerifier must be synced
+	require.Equal(t, spanVerifier.L2Safe(), singularVerifier.L2Safe())
 }
