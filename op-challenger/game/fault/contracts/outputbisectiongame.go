@@ -48,7 +48,7 @@ func (c *OutputBisectionGameContract) GetBlockRange(ctx context.Context) (presta
 		retErr = fmt.Errorf("expected 2 results but got %v", len(results))
 		return
 	}
-	prestateBlock = results[0].GetBigInt(0).Uint64()
+	prestateBlock = results[0].GetBigInt(0).Uint64() + 1
 	poststateBlock = results[1].GetBigInt(0).Uint64()
 	return
 }
