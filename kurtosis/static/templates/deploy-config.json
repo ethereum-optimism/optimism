@@ -1,8 +1,8 @@
 {
   "finalSystemOwner": "0x123463a4b065722e99115d6c222f267d9cabb524",
-  "portalGuardian": "0x123463a4b065722e99115d6c222f267d9cabb524",
+  "superchainConfigGuardian": "0x123463a4b065722e99115d6c222f267d9cabb524",
   "l1StartingBlockTag": "{{.l1_starting_block_tag}}",
-  "l1ChainID": 32382,
+  "l1ChainID": {{.l1_chain_id}},
   "l2ChainID": 133742001,
   "l2BlockTime": 2,
   "l1BlockTime": 12,
@@ -14,7 +14,7 @@
   "batchSenderAddress": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": {{.l2oo_starting_block_number}},
+  "l2OutputOracleStartingTimestamp": {{.l2oo_starting_timestamp}},
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x123463a4b065722e99115d6c222f267d9cabb524",
   "finalizationPeriodSeconds": 12,
@@ -43,5 +43,10 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "l2GenesisCanyonTimeOffset": "0x0",
   "requiredProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000001",
-  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000001"
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000001",
+  "faultGameAbsolutePrestate": "0x03c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
+  "faultGameMaxDepth": 30,
+  "faultGameMaxDuration": 1200,
+  "outputBisectionGameGenesisBlock": 0,
+  "outputBisectionGameSplitDepth": 15
 }

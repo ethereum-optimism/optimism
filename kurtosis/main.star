@@ -3,22 +3,23 @@ op_geth = import_module('./src/l2/op-geth.star')
 op_batcher = import_module('./src/l2/op-batcher.star')
 op_proposer = import_module('./src/l2/op-proposer.star')
 geth = import_module('./src/geth.star')
+contracts = import_module('./src/l1/contracts.star')
 
+default_devnet_config = {
+    'allocs_path': None
+}
 
 def run(
         plan,
         playbook,
-        config_path=None
+        config=None
 ):
     if playbook == 'devnet':
-        devnet(plan, config_path)
-    else:
-        fail('Unknown playbook: {}'.format(playbook))
+        devnet(plan, config)
+    elif playbook == 'generate_allocs':
+        generate_allocs(plan)
 
-def devnet(plan, config_path):
-    if config_path == None:
-        fail('config_path is required')
-
+def devnet(plan, config):
     # Make an archive containing the Geth genesis file and the keystore password.
     geth_config = plan.upload_files(
         name='geth_bootstrap',
@@ -43,24 +44,29 @@ def devnet(plan, config_path):
         src='/static/jwt-secret.txt'
     )
 
+    scripts = plan.upload_files(
+        name='scripts',
+        src='/static/scripts'
+    )
+
+    genesis_l1_files = {
+        '/scripts': scripts,
+        '/config': prysm_config,
+        '/execution-in': geth_config,
+    }
+
+    if config['allocs_path']:
+        genesis_l1_allocs = plan.upload_files(
+            name='genesis_l1_allocs',
+            src=config['allocs_path']
+        )
+        genesis_l1_files['/allocs'] = genesis_l1_allocs
+
     # Generate the PoS genesis state and the Geth genesis file.
     plan.run_sh(
-        run='mkdir -p /execution-out && ' +
-            'mkdir -p /consensus && ' +
-            'prysmctl ' +
-            'testnet ' +
-            'generate-genesis ' +
-            '--fork=capella ' +
-            '--num-validators=64 ' +
-            '--output-ssz=/consensus/genesis.ssz ' +
-            '--chain-config-file=/config/config.yml ' +
-            '--geth-genesis-json-in=/execution-in/genesis.json ' +
-            '--geth-genesis-json-out=/execution-out/genesis.json ',
+        run='bash /scripts/generate-l1-genesis.sh',
         image='mslipper/prysm-shell:latest',
-        files={
-            '/config': prysm_config,
-            '/execution-in': geth_config,
-        },
+        files=genesis_l1_files,
         store=[
             StoreSpec(src='/consensus/genesis.ssz', name='prysm_genesis'),
             StoreSpec(src='/execution-out/genesis.json', name='geth_genesis')
@@ -178,7 +184,7 @@ def devnet(plan, config_path):
                 template=read_file('/static/templates/deploy-config.json'),
                 data={
                     'l1_starting_block_tag': head_block['extract.hash'],
-                    'l2oo_starting_block_number': unhexlified_timestamp.output,
+                    'l2oo_starting_timestamp': unhexlified_timestamp.output,
                 }
             )
         }
@@ -291,4 +297,12 @@ def devnet(plan, config_path):
         l1_eth_rpc='http://{}:8545'.format(l1_geth.ip_address),
         l2_rollup_rpc='http://{}:9545'.format(sequencer_op_node.ip_address),
         l2oo_address=l2oo_addr_finder.output,
+    )
+
+
+def generate_allocs(plan):
+    contracts.create_allocs(
+        plan=plan,
+        name='l1-allocs',
+        l2oo_starting_timestamp=1234,
     )
