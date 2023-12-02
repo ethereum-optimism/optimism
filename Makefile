@@ -194,3 +194,11 @@ install-geth:
  			go install -v github.com/ethereum/go-ethereum/cmd/geth@$(shell cat .gethrc); \
  			echo "Installed geth!"; true)
 .PHONY: install-geth
+
+gen-allocs-kurtosis:
+	kurtosis enclave rm gen-allocs-kurtosis --force || true
+	kurtosis run --enclave gen-allocs-kurtosis ./kurtosis '{"playbook": "generate_allocs"}'
+	kurtosis files download gen-allocs-kurtosis l1-allocs-allocs ./kurtosis/linked/allocs
+	kurtosis files download gen-allocs-kurtosis l1-allocs-artifacts ./kurtosis/linked/artifacts
+	kurtosis enclave rm gen-allocs-kurtosis --force
+.PHONY: gen-allocs-kurtosis

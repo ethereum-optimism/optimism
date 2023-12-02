@@ -6,7 +6,7 @@ geth = import_module('./src/geth.star')
 contracts = import_module('./src/l1/contracts.star')
 
 default_devnet_config = {
-    'allocs_path': None
+    'genesis_contracts_path': None
 }
 
 def run(
@@ -55,12 +55,12 @@ def devnet(plan, config):
         '/execution-in': geth_config,
     }
 
-    if config['allocs_path']:
+    if config['genesis_contracts_path']:
         genesis_l1_allocs = plan.upload_files(
-            name='genesis_l1_allocs',
-            src=config['allocs_path']
+            name='genesis-l1-allocs',
+            src=config['genesis_contracts_path'] + '/allocs'
         )
-        genesis_l1_files['/allocs'] = genesis_l1_allocs
+        genesis_l1_files['/allocs-in'] = genesis_l1_allocs
 
     # Generate the PoS genesis state and the Geth genesis file.
     plan.run_sh(
@@ -183,6 +183,7 @@ def devnet(plan, config):
             '32382.json': struct(
                 template=read_file('/static/templates/deploy-config.json'),
                 data={
+                    'l1_chain_id': '32382',
                     'l1_starting_block_tag': head_block['extract.hash'],
                     'l2oo_starting_timestamp': unhexlified_timestamp.output,
                 }
@@ -190,32 +191,21 @@ def devnet(plan, config):
         }
     )
 
-    # Deploy the contracts.
-    deployer = plan.run_sh(
-        run=' '.join([
-            'forge',
-            'script',
-            'scripts/Deploy.s.sol',
-            '--rpc-url=http://{}:8545'.format(l1_geth.ip_address),
-            '--broadcast',
-            '--sender=0x123463a4b065722e99115d6c222f267d9cabb524',
-            '--unlocked',
-            '&&',
-            'forge',
-            'script',
-            'scripts/Deploy.s.sol',
-            "--sig='sync()'",
-            '--rpc-url=http://{}:8545'.format(l1_geth.ip_address),
-        ]),
-        image='us-docker.pkg.dev/oplabs-tools-artifacts/images/contracts-bedrock:latest',
-        files={
-            '/opt/optimism/packages/contracts-bedrock/deploy-config': deploy_config,
-        },
-        store=[
-            StoreSpec(src='/opt/optimism/packages/contracts-bedrock/deployments/32382/*',
-                      name='l1_deployment_artifacts')
-        ]
-    )
+    if config['genesis_contracts_path']:
+        deployment_artifacts = plan.upload_files(
+            name='genesis-l1-artifacts',
+            src=config['genesis_contracts_path'] + '/artifacts'
+        )
+    else:
+        deployer = contracts.deploy(
+            plan=plan,
+            name='deployer',
+            l1_eth_rpc='http://{}:8545'.format(l1_geth.ip_address),
+            l1_chain_id='32382',
+            deploy_config=deploy_config,
+
+        )
+        deployment_artifacts = deployer.files_artifacts[0]
 
     # Generate the L2 genesis and rollup configs.
     plan.run_sh(
@@ -231,7 +221,7 @@ def devnet(plan, config):
             '--outfile.rollup=/rollup.json',
         ]),
         files={
-            '/deployment': deployer.files_artifacts[0],
+            '/deployment': deployment_artifacts,
             '/deploy-config': deploy_config,
         },
         store=[
@@ -286,7 +276,7 @@ def devnet(plan, config):
         image='badouralix/curl-jq:latest',
         run='jq -r .address /deployment/L2OutputOracleProxy.json | tr -d "\\n"',
         files={
-            '/deployment': deployer.files_artifacts[0],
+            '/deployment': deployment_artifacts,
         }
     )
 

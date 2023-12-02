@@ -5,12 +5,16 @@ set -euo pipefail
 mkdir -p /execution-out
 mkdir -p /consensus
 
+apt-get install -y jq
+
 cp /execution-in/genesis.json /tmp/genesis.json
 
-# If /allocs-in exists, merge the geneis files
+# If /allocs-in exists, merge the genesis files
 if [ -d "/allocs-in" ]; then
   echo "Merging genesis files."
   jq --slurpfile allocs /allocs-in/allocs.json '.alloc += $allocs[0]' /execution-in/genesis.json > /tmp/genesis.json
+  echo "Merged genesis:"
+  cat /tmp/genesis.json
 fi
 
 prysmctl \

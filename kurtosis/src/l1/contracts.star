@@ -63,11 +63,12 @@ def create_allocs(
         image='badouralix/curl-jq:latest',
         run='sh /scripts/generate-allocs.sh "http://{}:8545"'.format(anvil_l1.ip_address),
         files={
-            '/dummy': deployment.files_artifacts[0],
+            '/artifacts': deployment.files_artifacts[0],
             '/scripts': scripts,
         },
         store=[
             StoreSpec(src='/allocs/*', name=name + '-allocs'),
+            StoreSpec(src='/artifacts/*', name=name + '-artifacts'),
         ]
     )
 
