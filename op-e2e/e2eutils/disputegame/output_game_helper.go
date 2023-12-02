@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -17,21 +18,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type FaultGameHelper struct {
-	t           *testing.T
-	require     *require.Assertions
-	client      *ethclient.Client
-	opts        *bind.TransactOpts
-	game        *bindings.FaultDisputeGame
-	factoryAddr common.Address
-	addr        common.Address
+const defaultTimeout = 5 * time.Minute
+
+type OutputGameHelper struct {
+	t            *testing.T
+	require      *require.Assertions
+	client       *ethclient.Client
+	opts         *bind.TransactOpts
+	game         *bindings.OutputBisectionGame
+	factoryAddr  common.Address
+	addr         common.Address
+	rollupClient *sources.RollupClient
 }
 
-func (g *FaultGameHelper) Addr() common.Address {
+func (g *OutputGameHelper) Addr() common.Address {
 	return g.addr
 }
 
-func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
+func (g *OutputGameHelper) SplitDepth(ctx context.Context) int64 {
+	splitDepth, err := g.game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to load split depth")
+	return splitDepth.Int64()
+}
+
+func (g *OutputGameHelper) WaitForCorrectOutputRoot(ctx context.Context, claimIdx int64) {
+	g.WaitForClaimCount(ctx, claimIdx+1)
+	claim := g.getClaim(ctx, claimIdx)
+	err, blockNum := g.blockNumForClaim(ctx, claim)
+	g.require.NoError(err)
+	output, err := g.rollupClient.OutputAtBlock(ctx, blockNum)
+	g.require.NoErrorf(err, "Failed to get output at block %v", blockNum)
+	g.require.EqualValuesf(output.OutputRoot, claim.Claim, "Incorrect output root at claim %v. Expected to be from block %v", claimIdx, blockNum)
+}
+
+func (g *OutputGameHelper) blockNumForClaim(ctx context.Context, claim ContractClaim) (error, uint64) {
+	opts := &bind.CallOpts{Context: ctx}
+	prestateBlockNum, err := g.game.GENESISBLOCKNUMBER(opts)
+	g.require.NoError(err, "failed to retrieve proposals")
+	disputedBlockNum, err := g.game.L2BlockNumber(opts)
+	g.require.NoError(err, "failed to retrieve l2 block number")
+
+	topDepth := g.SplitDepth(ctx)
+	traceIdx := types.NewPositionFromGIndex(claim.Position).TraceIndex(int(topDepth))
+	blockNum := new(big.Int).Add(prestateBlockNum, traceIdx).Uint64() + 1
+	if blockNum > disputedBlockNum.Uint64() {
+		blockNum = disputedBlockNum.Uint64()
+	}
+	return err, blockNum
+}
+
+func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
 	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
@@ -40,7 +76,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 // WaitForClaimCount waits until there are at least count claims in the game.
 // This does not check that the number of claims is exactly the specified count to avoid intermittent failures
 // where a challenger posts an additional claim before this method sees the number of claims it was waiting for.
-func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
+func (g *OutputGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
@@ -57,13 +93,21 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	}
 }
 
-func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
+type ContractClaim struct {
+	ParentIndex uint32
+	Countered   bool
+	Claim       [32]byte
+	Position    *big.Int
+	Clock       *big.Int
+}
+
+func (g *OutputGameHelper) MaxDepth(ctx context.Context) int64 {
 	depth, err := g.game.MAXGAMEDEPTH(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "Failed to load game depth")
 	return depth.Int64()
 }
 
-func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
+func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
@@ -88,7 +132,7 @@ func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, pre
 	}
 }
 
-func (g *FaultGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
+func (g *OutputGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
@@ -113,13 +157,13 @@ func (g *FaultGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, p
 	}
 }
 
-func (g *FaultGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) common.Hash {
+func (g *OutputGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) common.Hash {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
 	return claim.Claim
 }
 
-func (g *FaultGameHelper) GetClaimPosition(ctx context.Context, claimIdx int64) types.Position {
+func (g *OutputGameHelper) GetClaimPosition(ctx context.Context, claimIdx int64) types.Position {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
 	return types.NewPositionFromGIndex(claim.Position)
@@ -127,7 +171,7 @@ func (g *FaultGameHelper) GetClaimPosition(ctx context.Context, claimIdx int64) 
 
 // getClaim retrieves the claim data for a specific index.
 // Note that it is deliberately not exported as tests should use WaitForClaim to avoid race conditions.
-func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
+func (g *OutputGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
 	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
 	if err != nil {
 		g.require.NoErrorf(err, "retrieve claim %v", claimIdx)
@@ -135,12 +179,7 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 	return claimData
 }
 
-// getClaimPosition retrieves the [types.Position] of a claim at a specific index.
-func (g *FaultGameHelper) getClaimPosition(ctx context.Context, claimIdx int64) types.Position {
-	return types.NewPositionFromGIndex(g.getClaim(ctx, claimIdx).Position)
-}
-
-func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
+func (g *OutputGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
 	g.waitForClaim(
 		ctx,
 		fmt.Sprintf("Could not find claim depth %v", depth),
@@ -150,7 +189,7 @@ func (g *FaultGameHelper) WaitForClaimAtDepth(ctx context.Context, depth int) {
 		})
 }
 
-func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
+func (g *OutputGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	maxDepth := g.MaxDepth(ctx)
 	g.waitForClaim(
 		ctx,
@@ -161,7 +200,7 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 		})
 }
 
-func (g *FaultGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
+func (g *OutputGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 	g.waitForNoClaim(
 		ctx,
 		"Did not find all claims countered",
@@ -170,7 +209,7 @@ func (g *FaultGameHelper) WaitForAllClaimsCountered(ctx context.Context) {
 		})
 }
 
-func (g *FaultGameHelper) Resolve(ctx context.Context) {
+func (g *OutputGameHelper) Resolve(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	tx, err := g.game.Resolve(g.opts)
@@ -179,13 +218,13 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 	g.require.NoError(err)
 }
 
-func (g *FaultGameHelper) Status(ctx context.Context) Status {
+func (g *OutputGameHelper) Status(ctx context.Context) Status {
 	status, err := g.game.Status(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err)
 	return Status(status)
 }
 
-func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
+func (g *OutputGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
@@ -202,7 +241,7 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 	g.require.NoErrorf(err, "wait for game status. Game state: \n%v", g.gameData(ctx))
 }
 
-func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlocks int, untilGameEnds bool) {
+func (g *OutputGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlocks int, untilGameEnds bool) {
 	g.t.Logf("Waiting for game %v to have no activity for %v blocks", g.addr, numInactiveBlocks)
 	headCh := make(chan *gethtypes.Header, 100)
 	headSub, err := g.client.SubscribeNewHead(ctx, headCh)
@@ -242,10 +281,16 @@ func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 	}
 }
 
+// Mover is a function that either attacks or defends the claim at parentClaimIdx
+type Mover func(parentClaimIdx int64)
+
+// Stepper is a function that attempts to perform a step against the claim at parentClaimIdx
+type Stepper func(parentClaimIdx int64)
+
 // DefendRootClaim uses the supplied Mover to perform moves in an attempt to defend the root claim.
 // It is assumed that the output root being disputed is valid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
+func (g *OutputGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
 	maxDepth := g.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
 		g.LogGameData(ctx)
@@ -267,7 +312,7 @@ func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover
 // It is assumed that the output root being disputed is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it calls the Stepper to attempt to counter the leaf claim.
 // Since the output root is invalid, it should not be possible for the Stepper to call step successfully.
-func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mover, attemptStep Stepper) {
+func (g *OutputGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mover, attemptStep Stepper) {
 	maxDepth := g.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
 		g.LogGameData(ctx)
@@ -289,10 +334,10 @@ func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mo
 	attemptStep(maxDepth)
 }
 
-func (g *FaultGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
+func (g *OutputGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
 	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
 }
-func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
+func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var newClaimLen int64
@@ -307,22 +352,26 @@ func (g *FaultGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64,
 	return newClaimLen, err
 }
 
-func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
+func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Attack transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
 }
 
-func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
+func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Defend transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Defend transaction was not OK")
 }
 
+type ErrWithData interface {
+	ErrorData() interface{}
+}
+
 // StepFails attempts to call step and verifies that it fails with ValidStep()
-func (g *FaultGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
+func (g *OutputGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []byte, proof []byte) {
 	g.t.Logf("Attempting step against claim %v isAttack: %v", claimIdx, isAttack)
 	_, err := g.game.Step(g.opts, big.NewInt(claimIdx), isAttack, stateData, proof)
 	errData, ok := err.(ErrWithData)
@@ -331,16 +380,17 @@ func (g *FaultGameHelper) StepFails(claimIdx int64, isAttack bool, stateData []b
 }
 
 // ResolveClaim resolves a single subgame
-func (g *FaultGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
+func (g *OutputGameHelper) ResolveClaim(ctx context.Context, claimIdx int64) {
 	tx, err := g.game.ResolveClaim(g.opts, big.NewInt(claimIdx))
 	g.require.NoError(err, "ResolveClaim transaction did not send")
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "ResolveClaim transaction was not OK")
 }
 
-func (g *FaultGameHelper) gameData(ctx context.Context) string {
+func (g *OutputGameHelper) gameData(ctx context.Context) string {
 	opts := &bind.CallOpts{Context: ctx}
 	maxDepth := int(g.MaxDepth(ctx))
+	splitDepth := int(g.SplitDepth(ctx))
 	claimCount, err := g.game.ClaimDataLen(opts)
 	info := fmt.Sprintf("Claim count: %v\n", claimCount)
 	g.require.NoError(err, "Fetching claim count")
@@ -354,9 +404,10 @@ func (g *FaultGameHelper) gameData(ctx context.Context) string {
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
-	return fmt.Sprintf("Game %v (%v):\n%v\n", g.addr, Status(status), info)
+	return fmt.Sprintf("Game %v - %v - Split Depth: %v - Max Depth: %v:\n%v\n",
+		g.addr, Status(status), splitDepth, maxDepth, info)
 }
 
-func (g *FaultGameHelper) LogGameData(ctx context.Context) {
+func (g *OutputGameHelper) LogGameData(ctx context.Context) {
 	g.t.Log(g.gameData(ctx))
 }

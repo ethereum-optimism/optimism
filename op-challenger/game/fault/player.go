@@ -36,12 +36,7 @@ type GameContract interface {
 	GetMaxGameDepth(ctx context.Context) (uint64, error)
 }
 
-type gameTypeResources interface {
-	Contract() GameContract
-	CreateAccessor(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
-}
-
-type resourceCreator func(addr common.Address) (gameTypeResources, error)
+type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -50,16 +45,10 @@ func NewGamePlayer(
 	dir string,
 	addr common.Address,
 	txMgr txmgr.TxManager,
+	loader GameContract,
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
-
-	resources, err := creator(addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create game resources: %w", err)
-	}
-
-	loader := resources.Contract()
 
 	status, err := loader.GetStatus(ctx)
 	if err != nil {
@@ -84,7 +73,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
 	}
 
-	accessor, err := resources.CreateAccessor(ctx, logger, gameDepth, dir)
+	accessor, err := creator(ctx, logger, gameDepth, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trace accessor: %w", err)
 	}

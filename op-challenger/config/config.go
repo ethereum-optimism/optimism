@@ -34,7 +34,6 @@ var (
 	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
 	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
 	ErrMissingRollupRpc              = errors.New("missing rollup rpc url")
-	ErrCannonAndOutputCannonConflict = errors.New("trace types cannon and outputCannon cannot be enabled at the same time")
 )
 
 type TraceType string
@@ -184,12 +183,6 @@ func (c Config) Check() error {
 		if c.RollupRpc == "" {
 			return ErrMissingRollupRpc
 		}
-		if c.TraceTypeEnabled(TraceTypeCannon) && (c.TraceTypeEnabled(TraceTypeOutputCannon) || c.TraceTypeEnabled(TraceTypeOutputAlphabet)) {
-			return ErrCannonAndOutputCannonConflict
-		}
-	}
-	if c.TraceTypeEnabled(TraceTypeCannon) && c.TraceTypeEnabled(TraceTypeOutputCannon) {
-		return ErrCannonAndOutputCannonConflict
 	}
 	if c.TraceTypeEnabled(TraceTypeCannon) || c.TraceTypeEnabled(TraceTypeOutputCannon) {
 		if c.CannonBin == "" {

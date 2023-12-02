@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,7 +35,7 @@ import (
 
 const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
-const outputCannonGameType uint8 = 0 // TODO(client-pod#43): This should be a unique game type
+const outputCannonGameType uint8 = 253 // TODO(client-pod#43): Switch this game type to 1
 const alphabetGameDepth = 4
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
@@ -140,7 +141,10 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 }
 
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoint string, rootClaim common.Hash) *OutputCannonGameHelper {
-	extraData, _, _ := h.createDisputeGameExtraData(ctx)
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
+	h.require.NoError(err)
+
+	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -154,23 +158,20 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoin
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
 	h.require.NoError(err)
-	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
-	h.require.NoError(err)
-
-	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
+	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
 	return &OutputCannonGameHelper{
-		FaultGameHelper: FaultGameHelper{
-			t:           h.t,
-			require:     h.require,
-			client:      h.client,
-			opts:        h.opts,
-			game:        game,
-			factoryAddr: h.factoryAddr,
-			addr:        createdEvent.DisputeProxy,
+		OutputGameHelper: OutputGameHelper{
+			t:            h.t,
+			require:      h.require,
+			client:       h.client,
+			opts:         h.opts,
+			game:         game,
+			factoryAddr:  h.factoryAddr,
+			addr:         createdEvent.DisputeProxy,
+			rollupClient: rollupClient,
 		},
-		rollupClient: rollupClient,
 	}
 
 }
@@ -275,6 +276,15 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.H
 			addr:        createdEvent.DisputeProxy,
 		},
 	}
+}
+
+func (h *FactoryHelper) createBisectionGameExtraData(ctx context.Context, client *sources.RollupClient) (extraData []byte, l2BlockNumber uint64) {
+	syncStatus, err := client.SyncStatus(ctx)
+	h.require.NoError(err, "failed to get sync status")
+	l2BlockNumber = syncStatus.SafeL2.Number
+	extraData = make([]byte, 32)
+	binary.BigEndian.PutUint64(extraData, l2BlockNumber)
+	return
 }
 
 func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraData []byte, l1Head *big.Int, l2BlockNumber uint64) {
