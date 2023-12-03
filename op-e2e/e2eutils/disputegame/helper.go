@@ -35,7 +35,7 @@ import (
 
 const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
-const outputCannonGameType uint8 = 253 // TODO(client-pod#43): Switch this game type to 1
+const outputCannonGameType uint8 = 1
 const alphabetGameDepth = 4
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
