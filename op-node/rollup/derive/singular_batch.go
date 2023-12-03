@@ -44,6 +44,7 @@ func (b *SingularBatch) GetEpochNum() rollup.Epoch {
 // LogContext creates a new log context that contains information of the batch
 func (b *SingularBatch) LogContext(log log.Logger) log.Logger {
 	return log.New(
+		"batch_type", "SingularBatch",
 		"batch_timestamp", b.Timestamp,
 		"parent_hash", b.ParentHash,
 		"batch_epoch", b.Epoch(),
