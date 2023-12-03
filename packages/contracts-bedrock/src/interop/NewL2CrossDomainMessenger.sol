@@ -61,10 +61,10 @@ contract NewL2CrossDomainMessenger is ISemver {
     );
 
     /// @notice Emitted whenever a message is successfully relayed on this chain.
-    event RelayedMessage(uint256 indexed messageNonce, bytes32 indexed source_chain, bytes32 indexed msgHash);
+    event RelayedMessage(uint256 indexed messageNonce, bytes32 indexed source, bytes32 indexed msgHash);
 
     /// @notice Emitted whenever a message fails to be relayed on this chain.
-    event FailedRelayedMessage(uint256 indexed messageNonce, bytes32 indexed source_chain, bytes32 indexed msgHash);
+    event FailedRelayedMessage(uint256 indexed messageNonce, bytes32 indexed source, bytes32 indexed msgHash);
 
     /// @notice Checks if the call target is a blocked system address
     function _isUnsafeTarget(address _target) internal view returns (bool) {
