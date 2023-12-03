@@ -172,7 +172,7 @@ def devnet(plan, config):
 
     # HACK: The timestamp is hexlified, so we need to unhexlify it.
     unhexlified_timestamp = plan.run_python(
-        run="import sys; sys.stdout.write(str(int(sys.argv[1].replace('0x', ''), 16)))",
+        run='import sys; sys.stdout.write(str(int(sys.argv[1].replace("0x", ""), 16)))',
         args=[head_block['extract.timestamp']],
     )
 
