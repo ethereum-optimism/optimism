@@ -402,10 +402,12 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
 			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex)
 	}
+	l2BlockNum, err := g.game.L2BlockNumber(opts)
+	g.require.NoError(err, "Load l2 block number")
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
-	return fmt.Sprintf("Game %v - %v - Split Depth: %v - Max Depth: %v:\n%v\n",
-		g.addr, Status(status), splitDepth, maxDepth, info)
+	return fmt.Sprintf("Game %v - %v - L2 Block: %v - Split Depth: %v - Max Depth: %v:\n%v\n",
+		g.addr, Status(status), l2BlockNum.Uint64(), splitDepth, maxDepth, info)
 }
 
 func (g *OutputGameHelper) LogGameData(ctx context.Context) {
