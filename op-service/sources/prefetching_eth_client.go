@@ -59,13 +59,13 @@ func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64, 
 func (p *PrefetchingEthClient) updateRequestingHead(start, end uint64) (newStart uint64, shouldFetch bool) {
 	// Acquire lock before reading/updating highestHeadRequesting
 	p.highestHeadLock.Lock()
+	defer p.highestHeadLock.Unlock()
 	if start <= p.highestHeadRequesting {
 		start = p.highestHeadRequesting + 1
 	}
 	if p.highestHeadRequesting < end {
 		p.highestHeadRequesting = end
 	}
-	p.highestHeadLock.Unlock()
 	return start, start <= end
 }
 
