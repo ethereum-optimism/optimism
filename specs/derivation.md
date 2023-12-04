@@ -126,12 +126,13 @@ starting at the first L1 block following [L2 chain inception][g-l2-chain-incepti
 The L2 chain may contain pre-Bedrock history, but the L2 genesis here refers to the Bedrock L2
 genesis block.
 
-Each L2 `block` with origin `l1_origin` is subject to the following constraints (whose values
-are denominated in seconds):
+Each L2 `block` with origin `l1_origin` is subject to the following constraints (whose values are
+denominated in seconds):
 
 - `block.timestamp = prev_l2_timestamp + l2_block_time`
-  - `prev_l2_timestamp` is the timestamp of the L2 block immediately preceeding this one, or
-    `l1_origin.timestamp` if this is the first L2 block in the first epoch.
+  - `prev_l2_timestamp` is the timestamp of the L2 block immediately preceeding this one. If there
+    is no preceeding block, then this is the genesis block, and its timestamp is explicitly
+    specified.
   - `l2_block_time` is a configurable parameter of the time between L2 blocks (2s on Optimism).
 
 - `l1_origin.timestamp <= block.timestamp <= max_l2_timestamp`, where
@@ -146,7 +147,7 @@ chain inception.
 
 The second constraint ensures that an L2 block timestamp never precedes its L1 origin timestamp,
 and is never more than `max_sequencer_drift` ahead of it, except only in the unusual case where it
-might prohibit an L2 block from being produced ever l2_block_time seconds. (Such cases might arise
+might prohibit an L2 block from being produced every l2_block_time seconds. (Such cases might arise
 for example under a proof-of-work L1 that sees a period of rapid L1 block production.)  In either
 case, the sequencer enforces `len(batch.transactions) == 0` while `max_sequencer_drift` is
 exceeded. See [Batch Queue](#batch-queue) for more details.
