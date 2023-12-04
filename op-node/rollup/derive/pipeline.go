@@ -21,6 +21,8 @@ type Metrics interface {
 	RecordHeadChannelOpened()
 	RecordChannelTimedOut()
 	RecordFrame()
+	RecordDerivedSingularBatches()
+	RecordDerivedSpanBatches()
 }
 
 type L1Fetcher interface {

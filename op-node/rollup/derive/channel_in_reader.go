@@ -97,6 +97,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
 		}
 		cr.log.Debug("decoded singular batch from channel")
+		cr.metrics.RecordDerivedSingularBatches()
 		return singularBatch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
@@ -115,6 +116,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			return nil, err
 		}
 		cr.log.Debug("decoded span batch from channel")
+		cr.metrics.RecordDerivedSpanBatches()
 		return spanBatch, nil
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.

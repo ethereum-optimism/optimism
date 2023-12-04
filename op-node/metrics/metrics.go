@@ -46,6 +46,8 @@ type Metricer interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+	RecordDerivedSingularBatches()
+	RecordDerivedSpanBatches()
 	CountSequencedTxs(count int)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
@@ -92,6 +94,9 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+
+	DerivedSingularBatches *metrics.Event
+	DerivedSpanBatches     *metrics.Event
 
 	P2PReqDurationSeconds *prometheus.HistogramVec
 	P2PReqTotal           *prometheus.CounterVec
@@ -191,6 +196,9 @@ func NewMetrics(procName string) *Metrics {
 		DerivationErrors: metrics.NewEvent(factory, ns, "", "derivation_errors", "derivation errors"),
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
+
+		DerivedSingularBatches: metrics.NewEvent(factory, ns, "", "derived_singular_batches", "derived singular batches"),
+		DerivedSpanBatches:     metrics.NewEvent(factory, ns, "", "derived_span_batches", "derived span batches"),
 
 		SequencerInconsistentL1Origin: metrics.NewEvent(factory, ns, "", "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
 		SequencerResets:               metrics.NewEvent(factory, ns, "", "sequencer_resets", "sequencer resets"),
@@ -449,6 +457,14 @@ func (m *Metrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next
 	m.UnsafePayloadsBufferMemSize.Set(float64(memSize))
 }
 
+func (m *Metrics) RecordDerivedSingularBatches() {
+	m.DerivedSingularBatches.Record()
+}
+
+func (m *Metrics) RecordDerivedSpanBatches() {
+	m.DerivedSpanBatches.Record()
+}
+
 func (m *Metrics) CountSequencedTxs(count int) {
 	m.TransactionsSequencedTotal.Add(float64(count))
 }
@@ -644,6 +660,12 @@ func (n *noopMetricer) RecordL2Ref(name string, ref eth.L2BlockRef) {
 }
 
 func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+}
+
+func (n *noopMetricer) RecordDerivedSingularBatches() {
+}
+
+func (n *noopMetricer) RecordDerivedSpanBatches() {
 }
 
 func (n *noopMetricer) CountSequencedTxs(count int) {
