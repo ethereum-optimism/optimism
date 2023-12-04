@@ -198,20 +198,12 @@ Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
 `, "network", network, "rollup_config", rollupConfigPath)
 		}
-		config, err := chaincfg.GetRollupConfig(network)
+		rollupConfig, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
 		}
-		if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
-			canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
-			config.CanyonTime = &canyon
-		}
-		if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
-			delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
-			config.DeltaTime = &delta
-		}
-
-		return config, nil
+		applyOverrides(ctx, rollupConfig)
+		return rollupConfig, nil
 	}
 
 	file, err := os.Open(rollupConfigPath)
@@ -224,6 +216,11 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
+	applyOverrides(ctx, &rollupConfig)
+	return &rollupConfig, nil
+}
+
+func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
 		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
 		rollupConfig.CanyonTime = &canyon
@@ -232,7 +229,6 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
 		rollupConfig.DeltaTime = &delta
 	}
-	return &rollupConfig, nil
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
