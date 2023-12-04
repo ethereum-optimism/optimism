@@ -54,6 +54,9 @@ import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 ///         To add a new contract to the system, add a public function that deploys that individual contract.
 ///         Then add a call to that function inside of `run`. Be sure to call the `save` function after each
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
+///         The `ADDRESSES` environment variable can be set to a path that contains a JSON file full of
+///         contract name to address pairs. That enables this script to be much more flexible in the way
+///         it is used.
 contract Deploy is Deployer {
     DeployConfig public cfg;
 
@@ -224,6 +227,32 @@ contract Deploy is Deployer {
 
         console.log("Deploying from %s", deployScript);
         console.log("Deployment context: %s", deploymentContext);
+
+        // Load addresses from a JSON file if the ADDRESSES environment variable is set.
+        // Great for loading addresses from `superchain-registry`.
+        string memory addresses = vm.envOr("ADDRESSES", string(""));
+        if (bytes(addresses).length > 0) {
+            console.log("Loading addresses from %s", addresses);
+            _loadAddresses(addresses);
+        }
+    }
+
+    /// @notice Populates the addresses to be used in a script based on a JSON file.
+    ///         The format of the JSON file is the same that it output by this script
+    ///         as well as the JSON files that contain addresses in the `superchain-ops`
+    ///         repo. The JSON key is the name of the contract and the value is an address.
+    function _loadAddresses(string memory _path) internal {
+        string[] memory commands = new string[](3);
+        commands[0] = "bash";
+        commands[1] = "-c";
+        commands[2] = string.concat("jq -cr < ", _path);
+        string memory json = string(vm.ffi(commands));
+        string[] memory keys = vm.parseJsonKeys(json, "");
+        for (uint256 i; i < keys.length; i++) {
+            string memory key = keys[i];
+            address addr = stdJson.readAddress(json, string.concat("$.", key));
+            save(key, addr);
+        }
     }
 
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
