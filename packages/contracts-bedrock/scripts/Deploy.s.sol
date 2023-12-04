@@ -1024,7 +1024,7 @@ contract Deploy is Deployer {
         // Set the Cannon FaultDisputeGame implementation in the factory.
         _setFaultGameImplementation({
             _factory: factory,
-            _gameType: GameTypes.FAULT,
+            _gameType: GameTypes.CANNON,
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
             _maxGameDepth: 30 // Hard code depth for legacy game to keep e2e tests fast
@@ -1131,13 +1131,13 @@ contract Deploy is Deployer {
 
         uint8 rawGameType = GameType.unwrap(_gameType);
         string memory gameTypeString;
-        if (rawGameType == 0) {
+        if (rawGameType == GameType.unwrap(GameTypes.CANNON)) {
             gameTypeString = "Cannon";
-        } else if (rawGameType == 253) {
+        } else if (rawGameType == GameType.unwrap(GameTypes.OUTPUT_CANNON)) {
             gameTypeString = "OutputBisectionCannon";
-        } else if (rawGameType == 254) {
+        } else if (rawGameType == GameType.unwrap(GameTypes.OUTPUT_ALPHABET)) {
             gameTypeString = "OutputBisectionAlphabet";
-        } else if (rawGameType == 255) {
+        } else if (rawGameType == GameType.unwrap(GameTypes.ALPHABET)) {
             gameTypeString = "Alphabet";
         } else {
             gameTypeString = "Unknown";

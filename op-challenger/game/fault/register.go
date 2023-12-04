@@ -22,7 +22,7 @@ import (
 
 var (
 	cannonGameType         = uint8(0)
-	outputCannonGameType   = uint8(253) // TODO(client-pod#43): Switch the output cannon game type to 1
+	outputCannonGameType   = uint8(1)
 	outputAlphabetGameType = uint8(254)
 	alphabetGameType       = uint8(255)
 )
