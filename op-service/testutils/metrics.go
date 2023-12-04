@@ -53,10 +53,7 @@ func (t *TestDerivationMetrics) RecordChannelTimedOut() {
 func (t *TestDerivationMetrics) RecordFrame() {
 }
 
-func (n *TestDerivationMetrics) RecordDerivedSingularBatches() {
-}
-
-func (n *TestDerivationMetrics) RecordDerivedSpanBatches() {
+func (n *TestDerivationMetrics) RecordDerivedBatches(batchType string) {
 }
 
 type TestRPCMetrics struct{}
