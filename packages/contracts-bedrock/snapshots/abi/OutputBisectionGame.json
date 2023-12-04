@@ -17,6 +17,11 @@
         "type": "uint256"
       },
       {
+        "internalType": "Hash",
+        "name": "_genesisOutputRoot",
+        "type": "bytes32"
+      },
+      {
         "internalType": "uint256",
         "name": "_maxGameDepth",
         "type": "uint256"
@@ -193,6 +198,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "GENESIS_OUTPUT_ROOT",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

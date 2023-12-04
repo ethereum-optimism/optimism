@@ -61,10 +61,7 @@ interface IOutputBisectionGame is IDisputeGame {
     /// @param _claimIndex The index of the subgame root claim to resolve.
     function resolveClaim(uint256 _claimIndex) external payable;
 
-    /// @notice An L1 block hash that contains the disputed output root, fetched from the
-    ///         `BlockOracle` and verified by referencing the timestamp associated with the
-    ///         first L2 Output Proposal in the `L2OutputOracle` that contains the disputed
-    ///         L2 block number.
+    /// @notice A block hash on the L1 that contains the disputed output root.
     function l1Head() external view returns (Hash l1Head_);
 
     /// @notice The l2BlockNumber of the disputed output root in the `L2OutputOracle`.

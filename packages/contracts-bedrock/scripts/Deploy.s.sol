@@ -1027,8 +1027,8 @@ contract Deploy is Deployer {
             _gameType: GameTypes.FAULT,
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: cfg.faultGameMaxDepth()
-        });
+            _maxGameDepth: 30 // Hard code depth for legacy game to keep e2e tests fast
+         });
     }
 
     /// @notice Sets the implementation for the `OUTPUT_CANNON` game type in the `DisputeGameFactory`
@@ -1106,6 +1106,7 @@ contract Deploy is Deployer {
                     _gameType: _gameType,
                     _absolutePrestate: _absolutePrestate,
                     _genesisBlockNumber: cfg.outputBisectionGameGenesisBlock(),
+                    _genesisOutputRoot: Hash.wrap(cfg.outputBisectionGameGenesisOutputRoot()),
                     _maxGameDepth: _maxGameDepth,
                     _splitDepth: cfg.outputBisectionGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),

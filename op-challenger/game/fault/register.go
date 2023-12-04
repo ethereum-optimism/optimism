@@ -121,7 +121,11 @@ func registerOutputCannon(
 			if err != nil {
 				return nil, err
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, agreed, disputed)
+			splitDepth, err := contract.GetSplitDepth(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load split depth: %w", err)
+			}
+			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, splitDepth, agreed, disputed)
 			if err != nil {
 				return nil, err
 			}
