@@ -138,7 +138,7 @@ func (f *fakePoS) Start() error {
 					tim.Stop()
 					return nil
 				}
-				envelope, err := f.engineAPI.GetPayloadV2(*res.PayloadID)
+				envelope, err := f.engineAPI.GetPayloadV3(*res.PayloadID)
 				if err != nil {
 					f.log.Error("failed to finish building L1 block", "err", err)
 					continue
@@ -178,7 +178,7 @@ func (f *fakePoS) Start() error {
 						continue
 					}
 				}
-				if _, err := f.engineAPI.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
+				if _, err := f.engineAPI.ForkchoiceUpdatedV3(engine.ForkchoiceStateV1{
 					HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),

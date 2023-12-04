@@ -31,6 +31,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -169,6 +171,42 @@ func TestSystemE2EDencunAtGenesis(t *testing.T) {
 	head, err := sys.Clients["l1"].BlockByNumber(context.Background(), big.NewInt(0))
 	require.NoError(t, err)
 	require.NotNil(t, head.ExcessBlobGas(), "L1 is building dencun blocks since genesis")
+}
+
+// TestSystemE2EDencunAtGenesis tests if L2 finalizes when blobs are present on L1
+func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	//cancun is on from genesis:
+	genesisActivation := uint64(0)
+	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	// send a blob-containing txn on l1
+	ethPrivKey := sys.Cfg.Secrets.Alice
+	txData := transactions.CreateEmptyBlobTx(ethPrivKey, true, sys.Cfg.L1ChainIDBig().Uint64())
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L1ChainIDBig()), txData)
+	// send blob-containing txn
+	sendCtx, sendCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer sendCancel()
+
+	l1Client := sys.Clients["l1"]
+	err = l1Client.SendTransaction(sendCtx, tx)
+	require.NoError(t, err, "Sending L1 empty blob tx")
+	// Wait for transaction on L1
+	blockContainsBlob, err := geth.WaitForTransaction(tx.Hash(), l1Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for blob tx on L1")
+	// end sending blob-containing txns on l1
+	l2Client := sys.Clients["sequencer"]
+	finalizedBlock, err := gethutils.WaitForL1OriginOnL2(blockContainsBlob.BlockNumber.Uint64(), l2Client, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L1 origin of blob tx on L2")
+	finalizationTimeout := 30 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
+	_, err = gethutils.WaitForBlockToBeSafe(finalizedBlock.Header().Number, l2Client, finalizationTimeout)
+	require.Nil(t, err, "Waiting for safety of L2 block")
 }
 
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
