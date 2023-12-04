@@ -66,7 +66,7 @@ func (p *PrefetchingEthClient) updateRequestingHead(start, end uint64) (newStart
 		p.highestHeadRequesting = end
 	}
 	p.highestHeadLock.Unlock()
-	return start, end < start
+	return start, start <= end
 }
 
 func (p *PrefetchingEthClient) FetchWindow(start, end uint64) {
