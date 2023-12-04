@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -450,6 +451,22 @@ type SpanBatch struct {
 	ParentCheck   [20]byte            // First 20 bytes of the first block's parent hash
 	L1OriginCheck [20]byte            // First 20 bytes of the last block's L1 origin hash
 	Batches       []*SpanBatchElement // List of block input in derived form
+}
+
+// spanBatchMarshaling is a helper type used for JSON marshaling.
+type spanBatchMarshaling struct {
+	ParentCheck   []hexutil.Bytes     `json:"parent_check"`
+	L1OriginCheck []hexutil.Bytes     `json:"l1_origin_check"`
+	Batches       []*SpanBatchElement `json:"span_batch_elements"`
+}
+
+func (b *SpanBatch) MarshalJSON() ([]byte, error) {
+	spanBatch := spanBatchMarshaling{
+		ParentCheck:   []hexutil.Bytes{b.ParentCheck[:]},
+		L1OriginCheck: []hexutil.Bytes{b.L1OriginCheck[:]},
+		Batches:       b.Batches,
+	}
+	return json.Marshal(spanBatch)
 }
 
 // GetBatchType returns its batch type (batch_version)
