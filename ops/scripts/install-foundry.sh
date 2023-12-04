@@ -8,6 +8,18 @@ SHA=$(cat ./.foundryrc)
 # Check if there is a nightly tag corresponding to the `.foundryrc` commit hash
 TAG="nightly-$SHA"
 
+# If the foundry repository exists and a branch is checked out, we need to abort
+# any changes inside ~/.foundry/foundry-rs/foundry. This is because foundryup will
+# attempt to pull the latest changes from the remote repository, which will fail
+# if there are any uncommitted changes.
+if [ -d ~/.foundry/foundry-rs/foundry ]; then
+  echo "Foundry repository exists! Aborting any changes..."
+  cd ~/.foundry/foundry-rs/foundry
+  git reset --hard
+  git clean -fd
+  cd -
+fi
+
 # Create a temporary directory
 TMP_DIR=$(mktemp -d)
 echo "Created tempdir @ $TMP_DIR"
