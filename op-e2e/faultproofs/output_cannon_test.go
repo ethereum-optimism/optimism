@@ -38,12 +38,8 @@ func TestOutputCannonGame(t *testing.T) {
 		game.Attack(ctx, i, common.Hash{0xaa})
 		game.LogGameData(ctx)
 	}
-	game.WaitForCorrectOutputRoot(ctx, splitDepth)
 
-	// Post the first cannon output root (with 01 status code to show the output root is invalid)
-	game.Attack(ctx, splitDepth, common.Hash{0x01})
-
-	// Challenger should counter
-	game.WaitForClaimAtDepth(ctx, int(splitDepth+2))
+	// Wait for the challenger to post the first claim in the cannon trace
+	game.WaitForClaimAtDepth(ctx, int(splitDepth+1))
 	game.LogGameData(ctx)
 }

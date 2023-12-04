@@ -79,17 +79,11 @@ enum GameStatus
 /// @title GameTypes
 /// @notice A library that defines the IDs of games that can be played.
 library GameTypes {
-    /// @dev The game will use a `IDisputeGame` implementation that utilizes fault proofs.
-    GameType internal constant FAULT = GameType.wrap(0);
-
-    /// @dev The game will use a `IDisputeGame` implementation that utilizes validity proofs.
-    GameType internal constant VALIDITY = GameType.wrap(1);
-
-    /// @dev The game will use a `IDisputeGame` implementation that utilizes attestation proofs.
-    GameType internal constant ATTESTATION = GameType.wrap(2);
+    /// @dev A dispute game type the uses the cannon vm.
+    GameType internal constant CANNON = GameType.wrap(0);
 
     /// @dev A dispute game type that performs output bisection and then uses the cannon vm.
-    GameType internal constant OUTPUT_CANNON = GameType.wrap(253);
+    GameType internal constant OUTPUT_CANNON = GameType.wrap(1);
 
     /// @dev A dispute game type that performs output bisection and then uses an alphabet vm.
     ///      Note intended for production use.

@@ -25,13 +25,12 @@ func NewOutputCannonTraceAccessor(
 	contract cannon.L1HeadSource,
 	dir string,
 	gameDepth uint64,
+	splitDepth uint64,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
-	// TODO(client-pod#43): Load depths from the contract
-	topDepth := gameDepth / 2
-	bottomDepth := gameDepth - topDepth
-	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, topDepth, prestateBlock, poststateBlock)
+	bottomDepth := gameDepth - splitDepth
+	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, splitDepth, prestateBlock, poststateBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +47,6 @@ func NewOutputCannonTraceAccessor(
 	}
 
 	cache := NewProviderCache(m, "output_cannon_provider", cannonCreator)
-	selector := split.NewSplitProviderSelector(outputProvider, int(topDepth), OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
+	selector := split.NewSplitProviderSelector(outputProvider, int(splitDepth), OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
 	return trace.NewAccessor(selector), nil
 }

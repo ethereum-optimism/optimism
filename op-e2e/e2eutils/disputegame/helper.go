@@ -35,7 +35,7 @@ import (
 
 const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
-const outputCannonGameType uint8 = 253 // TODO(client-pod#43): Switch this game type to 1
+const outputCannonGameType uint8 = 1
 const alphabetGameDepth = 4
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
@@ -143,6 +143,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoint string, rootClaim common.Hash) *OutputCannonGameHelper {
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
 	h.require.NoError(err)
+	h.t.Cleanup(rollupClient.Close)
 
 	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
 
@@ -279,11 +280,22 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.H
 }
 
 func (h *FactoryHelper) createBisectionGameExtraData(ctx context.Context, client *sources.RollupClient) (extraData []byte, l2BlockNumber uint64) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+	err := wait.For(timeoutCtx, time.Second, func() (bool, error) {
+		status, err := client.SyncStatus(ctx)
+		if err != nil {
+			return false, err
+		}
+		return status.SafeL2.Number > 0, nil
+	})
+	h.require.NoError(err, "Safe head did not progress past genesis")
 	syncStatus, err := client.SyncStatus(ctx)
 	h.require.NoError(err, "failed to get sync status")
 	l2BlockNumber = syncStatus.SafeL2.Number
+	h.t.Logf("Creating game with l2 block number: %v", l2BlockNumber)
 	extraData = make([]byte, 32)
-	binary.BigEndian.PutUint64(extraData, l2BlockNumber)
+	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	return
 }
 

@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"errors"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -65,4 +66,13 @@ func (b *SingularBatch) encode(w io.Writer) error {
 // decode reads the byte encoding of SingularBatch from Reader stream
 func (b *SingularBatch) decode(r *bytes.Reader) error {
 	return rlp.Decode(r, b)
+}
+
+// GetSingularBatch retrieves SingularBatch from batchData
+func GetSingularBatch(batchData *BatchData) (*SingularBatch, error) {
+	singularBatch, ok := batchData.inner.(*SingularBatch)
+	if !ok {
+		return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
+	}
+	return singularBatch, nil
 }

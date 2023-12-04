@@ -22,7 +22,7 @@ import (
 
 var (
 	cannonGameType         = uint8(0)
-	outputCannonGameType   = uint8(253) // TODO(client-pod#43): Switch the output cannon game type to 1
+	outputCannonGameType   = uint8(1)
 	outputAlphabetGameType = uint8(254)
 	alphabetGameType       = uint8(255)
 )
@@ -121,7 +121,11 @@ func registerOutputCannon(
 			if err != nil {
 				return nil, err
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, agreed, disputed)
+			splitDepth, err := contract.GetSplitDepth(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to load split depth: %w", err)
+			}
+			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, splitDepth, agreed, disputed)
 			if err != nil {
 				return nil, err
 			}
