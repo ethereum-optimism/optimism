@@ -36,6 +36,8 @@ func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiC
 	}, nil
 }
 
+// GetBlockRange returns the block numbers of the absolute pre-state block (typically genesis or the bedrock activation block)
+// and the post-state block (that the proposed output root is for).
 func (c *OutputBisectionGameContract) GetBlockRange(ctx context.Context) (prestateBlock uint64, poststateBlock uint64, retErr error) {
 	results, err := c.multiCaller.Call(ctx, batching.BlockLatest,
 		c.contract.Call(methodGenesisBlockNumber),
