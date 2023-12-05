@@ -95,7 +95,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		if err != nil {
 			return nil, err
 		}
-		cr.log.Debug("decoded singular batch from channel")
+		singularBatch.LogContext(cr.log).Debug("decoded singular batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("singular")
 		return singularBatch, nil
 	case SpanBatchType:
@@ -109,7 +109,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 		if err != nil {
 			return nil, err
 		}
-		cr.log.Debug("decoded span batch from channel")
+		spanBatch.LogContext(cr.log).Debug("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")
 		return spanBatch, nil
 	default:
