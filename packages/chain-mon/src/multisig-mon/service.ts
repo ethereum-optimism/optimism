@@ -171,7 +171,7 @@ export class MultisigMonService extends BaseServiceV2<
             latestNonce
           )
           this.logger.debug(`latestNonce: ${latestNonce}`)
-      }
+        }
       )
     } catch (err) {
       this.logger.error(`got unexpected error from onepass`, {
