@@ -3,13 +3,17 @@
 package sources
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-
 	"unsafe"
 
+	"github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 /*
@@ -62,4 +66,36 @@ func FetchRethReceipts(dbPath string, blockHash *common.Hash) (types.Receipts, e
 	}
 
 	return receipts, nil
+}
+
+type RethDBReceiptsFetcher struct {
+	dbPath string
+	// TODO(8225): Now that we have reading from a Reth DB encapsulated here,
+	//   We could store a reference to the RethDB here instead of just a db path,
+	//   which would be more optimal.
+	//   We could move the opening of the RethDB and creation of the db reference
+	//   into NewRethDBReceiptsFetcher.
+}
+
+func NewRethDBReceiptsFetcher(dbPath string) *RethDBReceiptsFetcher {
+	return &RethDBReceiptsFetcher{
+		dbPath: dbPath,
+	}
+}
+
+func (f *RethDBReceiptsFetcher) FetchReceipts(ctx context.Context, block eth.BlockID, txHashes []common.Hash) (types.Receipts, error) {
+	return FetchRethReceipts(f.dbPath, &block.Hash)
+}
+
+func NewCachingRethDBReceiptsFetcher(dbPath string, m caching.Metrics, cacheSize int) *CachingReceiptsProvider {
+	return NewCachingReceiptsProvider(NewRethDBReceiptsFetcher(dbPath), m, cacheSize)
+}
+
+const buildRethdb = true
+
+func newRecProviderFromConfig(client client.RPC, log log.Logger, metrics caching.Metrics, config *EthClientConfig) *CachingReceiptsProvider {
+	if dbPath := config.RethDBPath; dbPath != "" {
+		return NewCachingRethDBReceiptsFetcher(dbPath, metrics, config.ReceiptsCacheSize)
+	}
+	return newRPCRecProviderFromConfig(client, log, metrics, config)
 }
