@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-export FOUNDRY_PROFILE=kontrol
+# export FOUNDRY_PROFILE=kontrol
 
 # Create a log file to store standard out and standard error
 LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
@@ -14,11 +14,13 @@ kontrol_build() {
             --verbose                 \
             --require ${lemmas}       \
             --module-import ${module} \
+            --no-forge-build          \
             ${rekompile}
 }
 
 kontrol_prove() {
     kontrol prove                              \
+            --verbose                          \
             --max-depth ${max_depth}           \
             --max-iterations ${max_iterations} \
             --smt-timeout ${smt_timeout}       \
@@ -38,7 +40,7 @@ kontrol_prove() {
 # NOTE: This script should be executed from the `contracts-bedrock` directory
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=CounterTest:${base_module}
+module=StateDiffTest:${base_module}
 
 rekompile=--rekompile
 rekompile=
@@ -73,7 +75,8 @@ use_booster=--use-booster
 
 # List of tests to symbolically execute
 tests=""
-tests+="--match-test CounterTest.test_SetNumber "
+#tests+="--match-test CounterTest.test_SetNumber "
+tests+="--match-test StateDiffTest.testVerifyStateChange "
 
 kontrol_build
 kontrol_prove
