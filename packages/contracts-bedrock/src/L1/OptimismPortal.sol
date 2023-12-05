@@ -61,7 +61,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:legacy
     /// @custom:spacer paused
     /// @notice Spacer for backwards compatibility.
-    bool public spacer_53_0_1;
+    bool spacer_53_0_1;
 
     /// @notice The address of the Superchain Config contract.
     SuperchainConfig public superchainConfig;
@@ -101,8 +101,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
