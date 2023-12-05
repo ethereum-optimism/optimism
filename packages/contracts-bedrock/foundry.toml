@@ -55,6 +55,7 @@ ignore = ['src/vendor/WETH9.sol']
 
 [profile.ci.fuzz]
 runs = 512
+deny_warnings = true
 
 ################################################################
 #                         PROFILE: LITE                        #
