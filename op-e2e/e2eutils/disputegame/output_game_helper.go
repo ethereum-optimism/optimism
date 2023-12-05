@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	gethtypes "github.com/ethereum/go-ethereum/core/types"
@@ -21,14 +21,14 @@ import (
 const defaultTimeout = 5 * time.Minute
 
 type OutputGameHelper struct {
-	t            *testing.T
-	require      *require.Assertions
-	client       *ethclient.Client
-	opts         *bind.TransactOpts
-	game         *bindings.OutputBisectionGame
-	factoryAddr  common.Address
-	addr         common.Address
-	rollupClient *sources.RollupClient
+	t                     *testing.T
+	require               *require.Assertions
+	client                *ethclient.Client
+	opts                  *bind.TransactOpts
+	game                  *bindings.OutputBisectionGame
+	factoryAddr           common.Address
+	addr                  common.Address
+	correctOutputProvider *outputs.OutputTraceProvider
 }
 
 func (g *OutputGameHelper) Addr() common.Address {
@@ -41,30 +41,60 @@ func (g *OutputGameHelper) SplitDepth(ctx context.Context) int64 {
 	return splitDepth.Int64()
 }
 
+func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
+	blockNum, err := g.game.L2BlockNumber(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to load l2 block number")
+	return blockNum.Uint64()
+}
+
+func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
+	blockNum, err := g.game.GENESISBLOCKNUMBER(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to load genesis block number")
+	return blockNum.Uint64()
+}
+
+// DisputeLastBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
+// through to the split depth and the claims are setup such that the last block in the game range is the block
+// to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
+func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) {
+	rootClaim := g.GetClaimValue(ctx, 0)
+	disputeBlockNum := g.L2BlockNum(ctx)
+	splitDepth := int(g.SplitDepth(ctx))
+	pos := types.NewPositionFromGIndex(big.NewInt(1))
+	getClaimValue := func(parentClaimIdx int, claimPos types.Position) common.Hash {
+		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)
+		g.require.NoError(err, "failed to calculate claim block number")
+		// Use the correct output root for the challenger and incorrect for the defender
+		if parentClaimIdx%2 == 0 || claimBlockNum < disputeBlockNum {
+			return g.correctOutputRoot(ctx, claimPos)
+		} else {
+			return rootClaim
+		}
+	}
+	for i := 0; i < splitDepth; i++ {
+		parentClaimBlockNum, err := g.correctOutputProvider.BlockNumber(pos)
+		g.require.NoError(err, "failed to calculate parent claim block number")
+		if parentClaimBlockNum >= disputeBlockNum {
+			pos = pos.Attack()
+			g.Attack(ctx, int64(i), getClaimValue(i, pos))
+		} else {
+			pos = pos.Defend()
+			g.Defend(ctx, int64(i), getClaimValue(i, pos))
+		}
+	}
+}
+
 func (g *OutputGameHelper) WaitForCorrectOutputRoot(ctx context.Context, claimIdx int64) {
 	g.WaitForClaimCount(ctx, claimIdx+1)
 	claim := g.getClaim(ctx, claimIdx)
-	err, blockNum := g.blockNumForClaim(ctx, claim)
-	g.require.NoError(err)
-	output, err := g.rollupClient.OutputAtBlock(ctx, blockNum)
-	g.require.NoErrorf(err, "Failed to get output at block %v", blockNum)
-	g.require.EqualValuesf(output.OutputRoot, claim.Claim, "Incorrect output root at claim %v. Expected to be from block %v", claimIdx, blockNum)
+	output := g.correctOutputRoot(ctx, types.NewPositionFromGIndex(claim.Position))
+	g.require.EqualValuesf(output, claim.Claim, "Incorrect output root at claim %v at position %v", claimIdx, claim.Position.Uint64())
 }
 
-func (g *OutputGameHelper) blockNumForClaim(ctx context.Context, claim ContractClaim) (error, uint64) {
-	opts := &bind.CallOpts{Context: ctx}
-	prestateBlockNum, err := g.game.GENESISBLOCKNUMBER(opts)
-	g.require.NoError(err, "failed to retrieve proposals")
-	disputedBlockNum, err := g.game.L2BlockNumber(opts)
-	g.require.NoError(err, "failed to retrieve l2 block number")
-
-	topDepth := g.SplitDepth(ctx)
-	traceIdx := types.NewPositionFromGIndex(claim.Position).TraceIndex(int(topDepth))
-	blockNum := new(big.Int).Add(prestateBlockNum, traceIdx).Uint64() + 1
-	if blockNum > disputedBlockNum.Uint64() {
-		blockNum = disputedBlockNum.Uint64()
-	}
-	return err, blockNum
+func (g *OutputGameHelper) correctOutputRoot(ctx context.Context, pos types.Position) common.Hash {
+	outputRoot, err := g.correctOutputProvider.Get(ctx, pos)
+	g.require.NoErrorf(err, "Failed to get correct output for position %v", pos)
+	return outputRoot
 }
 
 func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
@@ -292,11 +322,14 @@ type Stepper func(parentClaimIdx int64)
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
 func (g *OutputGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
 	maxDepth := g.MaxDepth(ctx)
-	for claimCount := int64(1); claimCount < maxDepth; {
+	claimCount, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get current claim count")
+	for claimCount := claimCount.Int64(); claimCount < maxDepth; {
 		g.LogGameData(ctx)
 		claimCount++
 		// Wait for the challenger to counter
 		g.WaitForClaimCount(ctx, claimCount)
+		g.LogGameData(ctx)
 
 		// Respond with our own move
 		performMove(claimCount - 1)
@@ -399,15 +432,22 @@ func (g *OutputGameHelper) gameData(ctx context.Context) string {
 		g.require.NoErrorf(err, "Fetch claim %v", i)
 
 		pos := types.NewPositionFromGIndex(claim.Position)
-		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v\n",
-			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex)
+		extra := ""
+		if pos.Depth() <= splitDepth {
+			blockNum, err := g.correctOutputProvider.BlockNumber(pos)
+			if err != nil {
+			} else {
+				extra = fmt.Sprintf("Block num: %v", blockNum)
+			}
+		}
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v, ParentIndex: %v %v\n",
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered, claim.ParentIndex, extra)
 	}
-	l2BlockNum, err := g.game.L2BlockNumber(opts)
-	g.require.NoError(err, "Load l2 block number")
+	l2BlockNum := g.L2BlockNum(ctx)
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
 	return fmt.Sprintf("Game %v - %v - L2 Block: %v - Split Depth: %v - Max Depth: %v:\n%v\n",
-		g.addr, Status(status), l2BlockNum.Uint64(), splitDepth, maxDepth, info)
+		g.addr, Status(status), l2BlockNum, splitDepth, maxDepth, info)
 }
 
 func (g *OutputGameHelper) LogGameData(ctx context.Context) {

@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -141,7 +142,8 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 }
 
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoint string, rootClaim common.Hash) *OutputCannonGameHelper {
-	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, testlog.Logger(h.t, log.LvlInfo), rollupEndpoint)
+	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputCannonGameHelper")
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, logger, rollupEndpoint)
 	h.require.NoError(err)
 	h.t.Cleanup(rollupClient.Close)
 
@@ -162,16 +164,24 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoin
 	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
+	prestateBlock, err := game.GENESISBLOCKNUMBER(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load genesis block number")
+	poststateBlock, err := game.L2BlockNumber(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load l2 block number")
+	splitDepth, err := game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load split depth")
+	provider := outputs.NewTraceProviderFromInputs(logger, rollupClient, splitDepth.Uint64(), prestateBlock.Uint64(), poststateBlock.Uint64())
+
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
-			t:            h.t,
-			require:      h.require,
-			client:       h.client,
-			opts:         h.opts,
-			game:         game,
-			factoryAddr:  h.factoryAddr,
-			addr:         createdEvent.DisputeProxy,
-			rollupClient: rollupClient,
+			t:                     h.t,
+			require:               h.require,
+			client:                h.client,
+			opts:                  h.opts,
+			game:                  game,
+			factoryAddr:           h.factoryAddr,
+			addr:                  createdEvent.DisputeProxy,
+			correctOutputProvider: provider,
 		},
 	}
 
