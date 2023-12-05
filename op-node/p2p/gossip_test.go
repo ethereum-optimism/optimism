@@ -57,20 +57,31 @@ func TestCombinePeers(t *testing.T) {
 
 func TestVerifyBlockSignature(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlCrit)
+	// rng := rand.New(rand.NewSource(4982432))
 	cfg := &rollup.Config{
 		L2ChainID: big.NewInt(100),
 	}
 	peerId := peer.ID("foo")
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
-	msg := []byte("any msg")
+	signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+	// txs := []hexutil.Bytes{
+	// 	testutils.RandomL1DepositInfoTx(rng),
+	// }
+	payload := eth.ExecutionPayload{
+		Timestamp:   hexutil.Uint64(time.Now().Unix()),
+		Withdrawals: &types.Withdrawals{},
+		// Transactions: txs,
+	}
+	msg, err := createSignedP2Payload(&payload, signer, cfg.L2ChainID)
+	require.NoError(t, err)
 
 	t.Run("Valid", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
 		require.Equal(t, pubsub.ValidationAccept, result)
 	})
 
@@ -79,14 +90,14 @@ func TestVerifyBlockSignature(t *testing.T) {
 		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
 	t.Run("InvalidSignature", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
 		sig := make([]byte, 65)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg, &payload)
 		require.Equal(t, pubsub.ValidationReject, result)
 	})
 
@@ -95,7 +106,7 @@ func TestVerifyBlockSignature(t *testing.T) {
 		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
+		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
 		require.Equal(t, pubsub.ValidationIgnore, result)
 	})
 }

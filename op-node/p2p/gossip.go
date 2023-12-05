@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
@@ -58,7 +59,7 @@ type GossipSetupConfigurables interface {
 }
 
 type GossipRuntimeConfig interface {
-	P2PSequencerAddress() common.Address
+	P2PSequencerAddress(eth.L2BlockRef) common.Address
 }
 
 //go:generate mockery --name GossipMetricer
@@ -280,17 +281,17 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		// message starts with compact-encoding secp256k1 encoded signature
 		signatureBytes, payloadBytes := data[:65], data[65:]
 
-		// [REJECT] if the signature by the sequencer is not valid
-		result := verifyBlockSignature(log, cfg, runCfg, id, signatureBytes, payloadBytes)
-		if result != pubsub.ValidationAccept {
-			return result
-		}
-
 		// [REJECT] if the block encoding is not valid
 		var payload eth.ExecutionPayload
 		if err := payload.UnmarshalSSZ(blockVersion, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
 			log.Warn("invalid payload", "err", err, "peer", id)
 			return pubsub.ValidationReject
+		}
+
+		// [REJECT] if the signature by the sequencer is not valid
+		result := verifyBlockSignature(log, cfg, runCfg, id, signatureBytes, payloadBytes, &payload)
+		if result != pubsub.ValidationAccept {
+			return result
 		}
 
 		// rounding down to seconds is fine here.
@@ -358,7 +359,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	}
 }
 
-func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte) pubsub.ValidationResult {
+func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte, payload *eth.ExecutionPayload) pubsub.ValidationResult {
 	signingHash, err := BlockSigningHash(cfg, payloadBytes)
 	if err != nil {
 		log.Warn("failed to compute block signing hash", "err", err, "peer", id)
@@ -377,7 +378,11 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 	// For now we only have one signer at a time and thus check the address directly.
 	// This means we may drop old payloads upon key rotation,
 	// but this can be recovered from like any other missed unsafe payload.
-	if expected := runCfg.P2PSequencerAddress(); expected == (common.Address{}) {
+	l2Ref, err := derive.PayloadToBlockRef(payload, &cfg.Genesis)
+	if err != nil {
+		return pubsub.ValidationReject
+	}
+	if expected := runCfg.P2PSequencerAddress(l2Ref); expected == (common.Address{}) {
 		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
 		return pubsub.ValidationIgnore
 	} else if addr != expected {

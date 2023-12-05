@@ -10,7 +10,6 @@ import (
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-
 	"github.com/urfave/cli/v2"
 )
 
@@ -177,6 +176,13 @@ var (
 		Required: false,
 		Value:    time.Minute * 10,
 	}
+	P2PBlockSignerAddrSafeLagFlag = &cli.Uint64Flag{
+		Name:     "verifier.p2p-block-signer-addr-safe-lag",
+		Usage:    "Number of L1 blocks to allow block signer change to take into effect.",
+		EnvVars:  prefixEnvVars("P2P_BLOCK_SIGNER_ADDR_SAFE_LAG"),
+		Required: false,
+		Value:    5,
+	}
 	MetricsEnabledFlag = &cli.BoolFlag{
 		Name:    "metrics.enabled",
 		Usage:   "Enable the metrics server",
@@ -317,6 +323,7 @@ var optionalFlags = []cli.Flag{
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
 	RuntimeConfigReloadIntervalFlag,
+	P2PBlockSignerAddrSafeLagFlag,
 	RPCEnableAdmin,
 	RPCAdminPersistence,
 	MetricsEnabledFlag,

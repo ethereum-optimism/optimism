@@ -6,8 +6,10 @@ import (
 	"math/big"
 	"math/rand"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -336,4 +338,23 @@ func RandomOutputV0(rng *rand.Rand) *eth.OutputV0 {
 		MessagePasserStorageRoot: eth.Bytes32(RandomHash(rng)),
 		BlockHash:                RandomHash(rng),
 	}
+}
+
+func RandomL1DepositInfoTx(rng *rand.Rand) hexutil.Bytes {
+	l1Info := derive.L1BlockInfo{
+		Number:  rng.Uint64(),
+		BaseFee: big.NewInt(0),
+	}
+	infoData, err := l1Info.MarshalBinary()
+	if err != nil {
+		return nil
+	}
+	depositTx := &types.DepositTx{
+		Data: infoData,
+	}
+	txData, err := types.NewTx(depositTx).MarshalBinary()
+	if err != nil {
+		return nil
+	}
+	return txData
 }

@@ -48,6 +48,11 @@ type Config struct {
 	// but if log-events are not coming in (e.g. not syncing blocks) then the reload ensures the config stays accurate.
 	RuntimeConfigReloadInterval time.Duration
 
+	// P2PBlockSignerAddrSafeLag defines the number of L1 blocks to allow the latest block signer change to take effect.
+	// e.g. If p2p block signer is changed at block X, and Safe Lag is 5, then all the verifiers will start to accept
+	// unsafe p2p blocks at X + 5.
+	P2PBlockSignerAddrSafeLag uint64
+
 	// Optional
 	Tracer    Tracer
 	Heartbeat HeartbeatConfig

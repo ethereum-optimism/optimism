@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 )
 
 // MockL1OriginSelector is a shim to override the origin as sequencer, so we can force it to stay on an older origin.
@@ -42,7 +41,7 @@ type L2Sequencer struct {
 
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
 	ver := NewL2Verifier(t, log, l1, eng, cfg, &sync.Config{})
-	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
+	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng, nil)
 	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
 		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),

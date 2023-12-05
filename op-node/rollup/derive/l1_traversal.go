@@ -6,13 +6,12 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L1 Traversal fetches the next L1 block and exposes it through the progress API
@@ -29,15 +28,17 @@ type L1Traversal struct {
 	log      log.Logger
 	sysCfg   eth.SystemConfig
 	cfg      *rollup.Config
+	listener SystemConfigUpdateSignalListener
 }
 
 var _ ResettableStage = (*L1Traversal)(nil)
 
-func NewL1Traversal(log log.Logger, cfg *rollup.Config, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
+func NewL1Traversal(log log.Logger, cfg *rollup.Config, l1Blocks L1BlockRefByNumberFetcher, listener SystemConfigUpdateSignalListener) *L1Traversal {
 	return &L1Traversal{
 		log:      log,
 		l1Blocks: l1Blocks,
 		cfg:      cfg,
+		listener: listener,
 	}
 }
 
@@ -75,7 +76,7 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s (parent: %s) for L1 sysCfg update: %w", nextL1Origin, origin, err))
 	}
-	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg); err != nil {
+	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg, nextL1Origin, l1t.listener); err != nil {
 		// the sysCfg changes should always be formatted correctly.
 		return NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %w", origin, err))
 	}

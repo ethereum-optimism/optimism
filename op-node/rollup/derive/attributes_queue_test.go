@@ -6,16 +6,14 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 )
 
 // TestAttributesQueue checks that it properly uses the PreparePayloadAttributes function
@@ -76,7 +74,8 @@ func TestAttributesQueue(t *testing.T) {
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&expectedL1Cfg.GasLimit),
 	}
-	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l2Fetcher)
+	bsListener := &testutils.MockSystemConfigUpdateListener{}
+	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l2Fetcher, bsListener)
 
 	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, attrBuilder, nil)
 

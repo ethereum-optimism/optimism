@@ -5,15 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hashicorp/go-multierror"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/solabi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/hashicorp/go-multierror"
 )
 
 var (
@@ -30,7 +28,7 @@ var (
 )
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
-func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config) error {
+func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config, l1Ref eth.L1BlockRef, listener SystemConfigUpdateSignalListener) error {
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
@@ -38,7 +36,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 		}
 		for j, log := range rec.Logs {
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
-				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log); err != nil {
+				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log, l1Ref, listener); err != nil {
 					result = multierror.Append(result, fmt.Errorf("malformatted L1 system sysCfg log in receipt %d, log %d: %w", i, j, err))
 				}
 			}
@@ -56,7 +54,7 @@ func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*type
 //	    UpdateType indexed updateType,
 //	    bytes data
 //	);
-func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log) error {
+func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log, l1Ref eth.L1BlockRef, listener SystemConfigUpdateSignalListener) error {
 	if len(ev.Topics) != 3 {
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
@@ -131,7 +129,23 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		destSysCfg.GasLimit = gasLimit
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
-		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
+		if pointer, err := solabi.ReadUint64(reader); err != nil || pointer != 32 {
+			return NewCriticalError(errors.New("invalid pointer field"))
+		}
+		if length, err := solabi.ReadUint64(reader); err != nil || length != 32 {
+			return NewCriticalError(errors.New("invalid length field"))
+		}
+		address, err := solabi.ReadAddress(reader)
+		if err != nil {
+			return NewCriticalError(errors.New("could not read address"))
+		}
+		if !solabi.EmptyReader(reader) {
+			return NewCriticalError(errors.New("too many bytes"))
+		}
+		destSysCfg.UnsafeBlockSigner = address
+		if listener != nil {
+			listener.OnP2PBlockSignerAddressUpdated(address, l1Ref)
+		}
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)

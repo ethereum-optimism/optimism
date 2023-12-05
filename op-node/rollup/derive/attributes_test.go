@@ -8,15 +8,13 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestPreparePayloadAttributes(t *testing.T) {
@@ -43,11 +41,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
 		require.ErrorIs(t, err, ErrReset, "inconsistent L1 origin transition must be handled like a critical error with reorg")
@@ -60,10 +59,11 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number
 		epoch := l1Info.ID()
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
 		require.ErrorIs(t, err, ErrReset, "inconsistent L1 origin transition must be handled like a critical error with reorg")
@@ -76,11 +76,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		epoch := l2Parent.L1Origin
 		epoch.Number += 1
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, nil, nil, mockRPCErr)
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
@@ -93,10 +94,11 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		epoch := l2Parent.L1Origin
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, nil, mockRPCErr)
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
@@ -109,6 +111,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
@@ -116,7 +119,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1InfoTx, err := L1InfoDepositBytes(0, l1Info, testSysCfg, false)
 		require.NoError(t, err)
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs)
@@ -135,6 +138,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
@@ -156,7 +160,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
 
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs)
@@ -175,6 +179,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
+		bsListener := &testutils.MockSystemConfigUpdateListener{}
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number
@@ -184,7 +189,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, l1Info, nil)
-		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs)
@@ -225,6 +230,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 				l1CfgFetcher := &testutils.MockL2Client{}
 				l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 				defer l1CfgFetcher.AssertExpectations(t)
+				bsListener := &testutils.MockSystemConfigUpdateListener{}
 
 				l1Info := testutils.RandomBlockInfo(rng)
 				l1Info.InfoParentHash = l2Parent.L1Origin.Hash
@@ -235,7 +241,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 				l1InfoTx, err := L1InfoDepositBytes(0, l1Info, testSysCfg, tc.regolith)
 				require.NoError(t, err)
 				l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
-				attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+				attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher, bsListener)
 				attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 				require.NoError(t, err)
 				require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))

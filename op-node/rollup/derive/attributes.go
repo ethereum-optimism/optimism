@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // L1ReceiptsFetcher fetches L1 header info and receipts for the payload attributes derivation (the info tx and deposits)
@@ -25,16 +24,18 @@ type SystemConfigL2Fetcher interface {
 
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
 type FetchingAttributesBuilder struct {
-	cfg *rollup.Config
-	l1  L1ReceiptsFetcher
-	l2  SystemConfigL2Fetcher
+	cfg      *rollup.Config
+	l1       L1ReceiptsFetcher
+	l2       SystemConfigL2Fetcher
+	listener SystemConfigUpdateSignalListener
 }
 
-func NewFetchingAttributesBuilder(cfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+func NewFetchingAttributesBuilder(cfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher, listener SystemConfigUpdateSignalListener) *FetchingAttributesBuilder {
 	return &FetchingAttributesBuilder{
-		cfg: cfg,
-		l1:  l1,
-		l2:  l2,
+		cfg:      cfg,
+		l1:       l1,
+		l2:       l2,
+		listener: listener,
 	}
 }
 
@@ -73,7 +74,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 		// apply sysCfg changes
-		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.cfg); err != nil {
+		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.cfg, eth.InfoToL1BlockRef(info), ba.listener); err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
 		}
 

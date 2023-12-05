@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type Metrics interface {
@@ -30,6 +30,11 @@ type L1Fetcher interface {
 	L1BlockRefByHashFetcher
 	L1ReceiptsFetcher
 	L1TransactionFetcher
+}
+
+// SystemConfigUpdateSignalListener defines the interface to listen to System Config change signals.
+type SystemConfigUpdateSignalListener interface {
+	OnP2PBlockSignerAddressUpdated(addr common.Address, l1Ref eth.L1BlockRef)
 }
 
 // ResettableEngineControl wraps EngineControl with reset-functionality,
@@ -83,17 +88,16 @@ type DerivationPipeline struct {
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
-
+func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config, listener SystemConfigUpdateSignalListener) *DerivationPipeline {
 	// Pull stages
-	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher)
+	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher, listener)
 	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher, metrics)
 	chInReader := NewChannelInReader(cfg, log, bank, metrics)
 	batchQueue := NewBatchQueue(log, cfg, chInReader, engine)
-	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, engine)
+	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, engine, listener)
 	attributesQueue := NewAttributesQueue(log, cfg, attrBuilder, batchQueue)
 
 	// Step stages

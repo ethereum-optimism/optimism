@@ -2,9 +2,11 @@ package derive
 
 import (
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -44,8 +46,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		err    bool
 	}{
 		{
-			// The log data is ignored by consensus and no modifications to the
-			// system config occur.
+			// The unsafe block signer should be updated.
 			name: "SystemConfigUpdateUnsafeBlockSigner",
 			log: &types.Log{
 				Topics: []common.Hash{
@@ -55,14 +56,18 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				},
 			},
 			hook: func(t *testing.T, log *types.Log) *types.Log {
-				addr := common.Address{}
-				data, err := addressArgs.Pack(&addr)
+				addr := common.Address{19: 0xaa}
+				addrData, err := addressArgs.Pack(&addr)
+				require.NoError(t, err)
+				data, err := bytesArgs.Pack(addrData)
 				require.NoError(t, err)
 				log.Data = data
 				return log
 			},
-			config: eth.SystemConfig{},
-			err:    false,
+			config: eth.SystemConfig{
+				UnsafeBlockSigner: common.Address{19: 0xaa},
+			},
+			err: false,
 		},
 		{
 			// The batcher address should be updated.
@@ -155,10 +160,23 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 
 	for _, test := range tests {
 		test := test
+
+		var l1Ref eth.L1BlockRef
+		var bsListener *testutils.MockSystemConfigUpdateListener
+		if test.name == "SystemConfigUpdateUnsafeBlockSigner" {
+			rng := rand.New(rand.NewSource(1234))
+			l1Ref = testutils.RandomBlockRef(rng)
+			bsListener = &testutils.MockSystemConfigUpdateListener{}
+			bsListener.ExpectOnP2PBlockSignerAddressUpdated(test.config.UnsafeBlockSigner, l1Ref)
+		} else {
+			l1Ref = eth.L1BlockRef{}
+			bsListener = nil
+		}
+
 		t.Run(test.name, func(t *testing.T) {
 			config := eth.SystemConfig{}
 
-			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log))
+			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), l1Ref, bsListener)
 			if test.err {
 				require.Error(t, err)
 			} else {

@@ -14,9 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrClaimNotValid = errors.New("invalid claim")
-)
+var ErrClaimNotValid = errors.New("invalid claim")
 
 type Derivation interface {
 	Step(ctx context.Context) error
@@ -36,7 +34,7 @@ type Driver struct {
 }
 
 func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
-	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l2Source, metrics.NoopMetrics, &sync.Config{})
+	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l2Source, metrics.NoopMetrics, &sync.Config{}, nil)
 	pipeline.Reset()
 	return &Driver{
 		logger:         logger,
