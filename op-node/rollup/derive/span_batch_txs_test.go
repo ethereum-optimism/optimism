@@ -112,6 +112,44 @@ func TestSpanBatchTxsYParityBits(t *testing.T) {
 	require.Equal(t, yParityBits, sbt.yParityBits)
 }
 
+func TestSpanBatchTxsProtectedBits(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x7331))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	protectedBits := rawSpanBatch.txs.protectedBits
+	txTypes := rawSpanBatch.txs.txTypes
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
+	totalLegacyTxCount := rawSpanBatch.txs.totalLegacyTxCount
+
+	var sbt spanBatchTxs
+	sbt.protectedBits = protectedBits
+	sbt.totalBlockTxCount = totalBlockTxCount
+	sbt.txTypes = txTypes
+	sbt.totalLegacyTxCount = totalLegacyTxCount
+
+	var buf bytes.Buffer
+	err := sbt.encodeProtectedBits(&buf)
+	require.NoError(t, err)
+
+	// protectedBit field is fixed length: single bit
+	protectedBitBufferLen := totalLegacyTxCount / 8
+	require.NoError(t, err)
+	if totalLegacyTxCount%8 != 0 {
+		protectedBitBufferLen++
+	}
+	require.Equal(t, buf.Len(), int(protectedBitBufferLen))
+
+	result := buf.Bytes()
+	sbt.protectedBits = nil
+
+	r := bytes.NewReader(result)
+	err = sbt.decodeProtectedBits(r)
+	require.NoError(t, err)
+
+	require.Equal(t, protectedBits, sbt.protectedBits)
+}
+
 func TestSpanBatchTxsTxSigs(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x73311337))
 	chainID := big.NewInt(rng.Int63n(1000))
@@ -289,6 +327,7 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 	spanBatchTxs.yParityBits = yParityBits
 	spanBatchTxs.txSigs = txSigs
 	spanBatchTxs.txTypes = txTypes
+	spanBatchTxs.protectedBits = protectedBits
 	// recover txSig.v
 	err := spanBatchTxs.recoverV(chainID)
 	require.NoError(t, err)
@@ -362,6 +401,7 @@ func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	sbt.txTypes = []int{types.DepositTxType}
 	sbt.txSigs = []spanBatchSignature{{v: 0, r: nil, s: nil}}
 	sbt.yParityBits = new(big.Int)
+	sbt.protectedBits = new(big.Int)
 
 	err := sbt.recoverV(chainID)
 	require.ErrorContains(t, err, "invalid tx type")
@@ -405,5 +445,15 @@ func TestSpanBatchTxsMaxYParityBitsLength(t *testing.T) {
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchTxsMaxProtectedBitsLength(t *testing.T) {
+	var sb RawSpanBatch
+	sb.txs = &spanBatchTxs{}
+	sb.txs.totalLegacyTxCount = 0xFFFFFFFFFFFFFFFF
+
+	r := bytes.NewReader([]byte{})
+	err := sb.txs.decodeProtectedBits(r)
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }
