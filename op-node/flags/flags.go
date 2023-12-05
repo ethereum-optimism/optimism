@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -45,6 +46,16 @@ var (
 		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */
+	SyncModeFlag = &cli.GenericFlag{
+		Name:    "syncmode",
+		Usage:   fmt.Sprintf("IN DEVELOPMENT: Options are: %s", openum.EnumString(sync.ModeStrings)),
+		EnvVars: prefixEnvVars("SYNCMODE"),
+		Value: func() *sync.Mode {
+			out := sync.CLSync
+			return &out
+		}(),
+		Hidden: true,
+	}
 	RPCListenAddr = &cli.StringFlag{
 		Name:    "rpc.addr",
 		Usage:   "RPC listening address",
@@ -228,12 +239,14 @@ var (
 		EnvVars:  prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
 		Required: false,
 	}
+	// Delete this flag at a later date.
 	L2EngineSyncEnabled = &cli.BoolFlag{
 		Name:     "l2.engine-sync",
-		Usage:    "Enables or disables execution engine P2P sync",
+		Usage:    "WARNING: Deprecated. Use --syncmode=execution-layer instead",
 		EnvVars:  prefixEnvVars("L2_ENGINE_SYNC_ENABLED"),
 		Required: false,
 		Value:    false,
+		Hidden:   true,
 	}
 	SkipSyncStartCheck = &cli.BoolFlag{
 		Name: "l2.skip-sync-start-check",
@@ -273,6 +286,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,
 	RollupConfig,

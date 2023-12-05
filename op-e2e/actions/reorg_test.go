@@ -22,9 +22,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func setupReorgTest(t Testing, config *e2eutils.TestParams, spanBatchTimeOffset *hexutil.Uint64) (*e2eutils.SetupData, *e2eutils.DeployParams, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
+func setupReorgTest(t Testing, config *e2eutils.TestParams, deltaTimeOffset *hexutil.Uint64) (*e2eutils.SetupData, *e2eutils.DeployParams, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
 	dp := e2eutils.MakeDeployParams(t, config)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
@@ -50,7 +50,7 @@ func setupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.Set
 func TestReorgBatchType(t *testing.T) {
 	tests := []struct {
 		name string
-		f    func(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64)
+		f    func(gt *testing.T, deltaTimeOffset *hexutil.Uint64)
 	}{
 		{"ReorgOrphanBlock", ReorgOrphanBlock},
 		{"ReorgFlipFlop", ReorgFlipFlop},
@@ -66,18 +66,18 @@ func TestReorgBatchType(t *testing.T) {
 		})
 	}
 
-	spanBatchTimeOffset := hexutil.Uint64(0)
+	deltaTimeOffset := hexutil.Uint64(0)
 	for _, test := range tests {
 		test := test
 		t.Run(test.name+"_SpanBatch", func(t *testing.T) {
-			test.f(t, &spanBatchTimeOffset)
+			test.f(t, &deltaTimeOffset)
 		})
 	}
 }
 
-func ReorgOrphanBlock(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func ReorgOrphanBlock(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams, spanBatchTimeOffset)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams, deltaTimeOffset)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
@@ -143,9 +143,9 @@ func ReorgOrphanBlock(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Safe(), "verifier and sequencer see same safe L2 block, while only verifier dealt with the orphan and replay")
 }
 
-func ReorgFlipFlop(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
-	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams, spanBatchTimeOffset)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams, deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 	checkVerifEngine := func() {
@@ -220,12 +220,12 @@ func ReorgFlipFlop(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, sd.RollupCfg.Genesis.L1, verifier.L2Safe().L1Origin, "expected to be back at genesis origin after losing A0 and A1")
 
-	if sd.RollupCfg.SpanBatchTime == nil {
-		// before span batch hard fork
+	if sd.RollupCfg.DeltaTime == nil {
+		// before delta hard fork
 		require.NotZero(t, verifier.L2Safe().Number, "still preserving old L2 blocks that did not reference reorged L1 chain (assuming more than one L2 block per L1 block)")
 		require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "head is at safe block after L1 reorg")
 	} else {
-		// after span batch hard fork
+		// after delta hard fork
 		require.Zero(t, verifier.L2Safe().Number, "safe head is at genesis block because span batch referenced reorged L1 chain is not accepted")
 		require.Equal(t, verifier.L2Unsafe().ID(), sequencer.L2Unsafe().ParentID(), "head is at the highest unsafe block that references canonical L1 chain(genesis block)")
 		batcher.l2BufferedBlock = eth.L2BlockRef{} // must reset batcher to resubmit blocks included in the last batch
@@ -364,7 +364,7 @@ func ReorgFlipFlop(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 // Verifier
 // - Unsafe head is 62
 // - Safe head is 42
-func DeepReorg(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func DeepReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 
 	// Create actor and verification engine client
@@ -373,7 +373,7 @@ func DeepReorg(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		SequencerWindowSize: 20,
 		ChannelTimeout:      120,
 		L1BlockTime:         4,
-	}, spanBatchTimeOffset)
+	}, deltaTimeOffset)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	l2Client := seqEngine.EthClient()
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
@@ -599,7 +599,7 @@ type rpcWrapper struct {
 
 // RestartOpGeth tests that the sequencer can restart its execution engine without rollup-node restart,
 // including recovering the finalized/safe state of L2 chain without reorging.
-func RestartOpGeth(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func RestartOpGeth(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dbPath := path.Join(t.TempDir(), "testdb")
 	dbOption := func(_ *ethconfig.Config, nodeCfg *node.Config) error {
@@ -607,7 +607,7 @@ func RestartOpGeth(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		return nil
 	}
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	jwtPath := e2eutils.WriteDefaultJWT(t)
@@ -695,10 +695,10 @@ func RestartOpGeth(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 // ConflictingL2Blocks tests that a second copy of the sequencer stack cannot introduce an alternative
 // L2 block (compared to something already secured by the first sequencer):
 // the alt block is not synced by the verifier, in unsafe and safe sync modes.
-func ConflictingL2Blocks(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func ConflictingL2Blocks(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = spanBatchTimeOffset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = deltaTimeOffset
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
@@ -805,7 +805,7 @@ func ConflictingL2Blocks(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 	require.Equal(t, sequencer.L2Unsafe(), altSequencer.L2Unsafe(), "and gets back in harmony with original sequencer")
 }
 
-func SyncAfterReorg(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
+func SyncAfterReorg(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	t := NewDefaultTesting(gt)
 	testingParams := e2eutils.TestParams{
 		MaxSequencerDrift:   60,
@@ -813,7 +813,7 @@ func SyncAfterReorg(gt *testing.T, spanBatchTimeOffset *hexutil.Uint64) {
 		ChannelTimeout:      2,
 		L1BlockTime:         12,
 	}
-	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := setupReorgTest(t, &testingParams, spanBatchTimeOffset)
+	sd, dp, miner, sequencer, seqEngine, verifier, _, batcher := setupReorgTest(t, &testingParams, deltaTimeOffset)
 	l2Client := seqEngine.EthClient()
 	log := testlog.Logger(t, log.LvlDebug)
 	addresses := e2eutils.CollectAddresses(sd, dp)

@@ -27,7 +27,7 @@ BLOCK_ORACLE_ADDR=$(cast call --rpc-url "${RPC}" "${GAME_IMPL_ADDR}" 'BLOCK_ORAC
 echo "Block Oracle: ${BLOCK_ORACLE_ADDR}"
 
 # Get the L2 block number of the latest output proposal. This is the proposal that will be disputed by the created game.
-L2_BLOCK_NUM=$(cast call --rpc-url "${RPC}" "${L2OO_ADDR}" 'latestBlockNumber() public view returns (uint256)')
+L2_BLOCK_NUM=$(cast call --rpc-url "${RPC}" "${L2OO_ADDR}" 'latestBlockNumber() returns(uint256)')
 echo "L2 Block Number: ${L2_BLOCK_NUM}"
 
 # Create a checkpoint in the block oracle to commit to the current L1 head.

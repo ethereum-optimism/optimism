@@ -53,7 +53,7 @@ func TestTxGasSameAsBlockGasLimit(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	ethPrivKey := sys.cfg.Secrets.Alice
+	ethPrivKey := sys.Cfg.Secrets.Alice
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 		ChainID: cfg.L2ChainIDBig(),
 		Gas:     29_999_999,

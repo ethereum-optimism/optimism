@@ -32,16 +32,16 @@ func NewDisputeGameFactoryContract(addr common.Address, caller *batching.MultiCa
 	}, nil
 }
 
-func (f *DisputeGameFactoryContract) GetGameCount(ctx context.Context, blockNum uint64) (uint64, error) {
-	result, err := f.multiCaller.SingleCall(ctx, batching.BlockByNumber(blockNum), f.contract.Call(methodGameCount))
+func (f *DisputeGameFactoryContract) GetGameCount(ctx context.Context, blockHash common.Hash) (uint64, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockByHash(blockHash), f.contract.Call(methodGameCount))
 	if err != nil {
 		return 0, fmt.Errorf("failed to load game count: %w", err)
 	}
 	return result.GetBigInt(0).Uint64(), nil
 }
 
-func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, blockNum uint64) (types.GameMetadata, error) {
-	result, err := f.multiCaller.SingleCall(ctx, batching.BlockByNumber(blockNum), f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
+func (f *DisputeGameFactoryContract) GetGame(ctx context.Context, idx uint64, blockHash common.Hash) (types.GameMetadata, error) {
+	result, err := f.multiCaller.SingleCall(ctx, batching.BlockByHash(blockHash), f.contract.Call(methodGameAtIndex, new(big.Int).SetUint64(idx)))
 	if err != nil {
 		return types.GameMetadata{}, fmt.Errorf("failed to load game %v: %w", idx, err)
 	}

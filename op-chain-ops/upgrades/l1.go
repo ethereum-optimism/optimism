@@ -269,9 +269,9 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	var portalGuardian common.Address
+	var superchainConfigGuardian common.Address
 	if config != nil {
-		portalGuardian = config.PortalGuardian
+		superchainConfigGuardian = config.SuperchainConfigGuardian
 	} else {
 		optimismPortal, err := bindings.NewOptimismPortalCaller(common.HexToAddress(list.OptimismPortalProxy.String()), backend)
 		if err != nil {
@@ -281,10 +281,10 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		if err != nil {
 			return err
 		}
-		portalGuardian = guardian
+		superchainConfigGuardian = guardian
 	}
 
-	calldata, err := optimismPortalABI.Pack("initialize", common.HexToAddress(list.L2OutputOracleProxy.String()), portalGuardian, common.HexToAddress(chainConfig.SystemConfigAddr.String()), false)
+	calldata, err := optimismPortalABI.Pack("initialize", common.HexToAddress(list.L2OutputOracleProxy.String()), superchainConfigGuardian, common.HexToAddress(chainConfig.SystemConfigAddr.String()), false)
 	if err != nil {
 		return err
 	}
@@ -315,13 +315,6 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	// If we want to be able to override these based on the values in the config,
-	// the logic below will need to be updated. Right now the logic prefers the
-	// on chain values over the offchain values. This to maintain backwards compatibility
-	// in the short term.
-	startBlock := big.NewInt(0)
-	batchInboxAddress := common.HexToAddress(chainConfig.BatchInboxAddr.String())
-
 	var gasPriceOracleOverhead, gasPriceOracleScalar *big.Int
 	var batcherHash common.Hash
 	var p2pSequencerAddress, finalSystemOwner common.Address
@@ -332,8 +325,6 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		gasPriceOracleScalar = new(big.Int).SetUint64(config.GasPriceOracleScalar)
 		batcherHash = common.BytesToHash(config.BatchSenderAddress.Bytes())
 		l2GenesisBlockGasLimit = uint64(config.L2GenesisBlockGasLimit)
-		startBlock = new(big.Int).SetUint64(config.SystemConfigStartBlock)
-		batchInboxAddress = config.BatchInboxAddress
 		p2pSequencerAddress = config.P2PSequencerAddress
 		finalSystemOwner = config.FinalSystemOwner
 	} else {
@@ -357,16 +348,6 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		if err != nil {
 			return err
 		}
-		// StartBlock is a new property, we want to explicitly set it to 0 if there is an error fetching it
-		systemConfigStartBlock, err := systemConfig.StartBlock(&bind.CallOpts{})
-		if err != nil && systemConfigStartBlock != nil {
-			startBlock = systemConfigStartBlock
-		}
-		// BatchInboxAddress is a new property, we want to set it to the offchain value if there is an error fetching it
-		systemConfigBatchInboxAddress, err := systemConfig.BatchInbox(&bind.CallOpts{})
-		if err != nil && systemConfigBatchInboxAddress != (common.Address{}) {
-			batchInboxAddress = systemConfigBatchInboxAddress
-		}
 		p2pSequencerAddress, err = systemConfig.UnsafeBlockSigner(&bind.CallOpts{})
 		if err != nil {
 			return err
@@ -375,15 +356,6 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		if err != nil {
 			return err
 		}
-	}
-
-	addresses := bindings.SystemConfigAddresses{
-		L1CrossDomainMessenger:       common.HexToAddress(list.L1CrossDomainMessengerProxy.String()),
-		L1ERC721Bridge:               common.HexToAddress(list.L1ERC721BridgeProxy.String()),
-		L1StandardBridge:             common.HexToAddress(list.L1StandardBridgeProxy.String()),
-		L2OutputOracle:               common.HexToAddress(list.L2OutputOracleProxy.String()),
-		OptimismPortal:               common.HexToAddress(list.OptimismPortalProxy.String()),
-		OptimismMintableERC20Factory: common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
 	}
 
 	calldata, err := systemConfigABI.Pack(
@@ -395,9 +367,6 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		l2GenesisBlockGasLimit,
 		p2pSequencerAddress,
 		genesis.DefaultResourceConfig,
-		startBlock,
-		batchInboxAddress,
-		addresses,
 	)
 	if err != nil {
 		return err

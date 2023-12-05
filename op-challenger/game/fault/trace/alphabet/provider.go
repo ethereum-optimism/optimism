@@ -3,6 +3,7 @@ package alphabet
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"strings"
 
@@ -43,7 +44,7 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 	traceIndex = traceIndex.Sub(traceIndex, big.NewInt(1))
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if traceIndex.Cmp(big.NewInt(int64(ap.maxLen))) >= 0 {
-		return nil, nil, nil, ErrIndexTooLarge
+		return nil, nil, nil, fmt.Errorf("%w traceIndex: %v max: %v pos: %v", ErrIndexTooLarge, traceIndex, ap.maxLen, i)
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
 	if traceIndex.Cmp(big.NewInt(int64(len(ap.state)))) >= 0 {
@@ -54,6 +55,9 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 
 // Get returns the claim value at the given index in the trace.
 func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (common.Hash, error) {
+	if uint64(i.Depth()) > ap.depth {
+		return common.Hash{}, fmt.Errorf("%w depth: %v max: %v", ErrIndexTooLarge, i.Depth(), ap.depth)
+	}
 	// Step data returns the pre-state, so add 1 to get the state for index i
 	ti := i.TraceIndex(int(ap.depth))
 	postPosition := types.NewPosition(int(ap.depth), new(big.Int).Add(ti, big.NewInt(1)))

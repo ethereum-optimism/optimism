@@ -24,7 +24,12 @@ the transaction hash.
 
 `batch_decoder reassemble` goes through all of the found frames in the cache & then turns them
 into channels. It then stores the channels with metadata on disk where the file name is the Channel ID.
+Each channel can contain multiple batches.
 
+If the batch is span batch, `batch_decoder` derives span batch using `L2BlockTime`, `L2GenesisTime`, and `L2ChainID`.
+These arguments can be provided to the binary using flags.
+
+If the batch is a singular batch, `batch_decoder` does not derive and stores the batch as is.
 
 ### Force Close
 
@@ -45,7 +50,7 @@ those frames need to be generated differently than simply closing the channel.
 jq . $JSON_FILE
 
 # Print the number of valid & invalid transactions
-jq .valid_data $TX_DIR/* | sort | uniq -c  
+jq .valid_data $TX_DIR/* | sort | uniq -c
 
 # Select all transactions that have invalid data & then print the transaction hash
 jq "select(.valid_data == false)|.tx.hash" $TX_DIR

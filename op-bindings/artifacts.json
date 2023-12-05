@@ -28,6 +28,7 @@
   "L1BlockNumber",
   "DisputeGameFactory",
   "FaultDisputeGame",
+  "OutputBisectionGame",
   "AlphabetVM",
   "StandardBridge",
   "CrossDomainMessenger",
@@ -41,5 +42,6 @@
   "SafeProxyFactory",
   "DelayedVetoable",
   "ISemver",
-  "StorageSetter"
+  "StorageSetter",
+  "SuperchainConfig"
 ]

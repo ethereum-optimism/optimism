@@ -5,7 +5,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { Constants } from "src/libraries/Constants.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @custom:proxied
 /// @title L1CrossDomainMessenger
@@ -13,25 +13,29 @@ import { Constants } from "src/libraries/Constants.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @notice Address of the OptimismPortal. The public getter for this
-    ///         is legacy and will be removed in the future. Use `portal()` instead.
-    /// @custom:network-specific
+    /// @notice Address of the OptimismPortal. This will be removed in the
+    ///         future, use `portal` instead.
     /// @custom:legacy
-    OptimismPortal public PORTAL;
+    OptimismPortal public immutable PORTAL;
+
+    /// @notice Address of the SuperchainConfig contract.
+    SuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.7.1
-    string public constant version = "1.7.1";
+    /// @custom:semver 2.1.1
+    string public constant version = "2.1.1";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
-        initialize({ _portal: OptimismPortal(payable(0)) });
+    /// @param _portal Address of the OptimismPortal contract on this network.
+    constructor(OptimismPortal _portal) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+        PORTAL = _portal;
+        initialize({ _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
-    /// @param _portal Address of the OptimismPortal contract on this network.
-    function initialize(OptimismPortal _portal) public reinitializer(Constants.INITIALIZER) {
-        PORTAL = _portal;
+    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    function initialize(SuperchainConfig _superchainConfig) public initializer {
+        superchainConfig = _superchainConfig;
         __CrossDomainMessenger_init();
     }
 
@@ -53,5 +57,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @inheritdoc CrossDomainMessenger
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
         return _target == address(this) || _target == address(PORTAL);
+    }
+
+    /// @inheritdoc CrossDomainMessenger
+    function paused() public view override returns (bool) {
+        return superchainConfig.paused();
     }
 }

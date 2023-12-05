@@ -54,7 +54,8 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
 	contractCreationBits := rawSpanBatch.txs.contractCreationBits
-	contractCreationCount := rawSpanBatch.txs.contractCreationCount()
+	contractCreationCount, err := rawSpanBatch.txs.contractCreationCount()
+	require.NoError(t, err)
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
@@ -62,7 +63,7 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
-	err := sbt.encodeContractCreationBits(&buf)
+	err = sbt.encodeContractCreationBits(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
@@ -72,7 +73,10 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 	err = sbt.decodeContractCreationBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationCount, sbt.contractCreationCount())
+	contractCreationCount2, err := sbt.contractCreationCount()
+	require.NoError(t, err)
+
+	require.Equal(t, contractCreationCount, contractCreationCount2)
 }
 
 func TestSpanBatchTxsYParityBits(t *testing.T) {
@@ -277,7 +281,8 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 		txSig.s, _ = uint256.FromBig(s)
 		txSigs = append(txSigs, txSig)
 		originalVs = append(originalVs, v.Uint64())
-		yParityBit := convertVToYParity(v.Uint64(), int(tx.Type()))
+		yParityBit, err := convertVToYParity(v.Uint64(), int(tx.Type()))
+		require.NoError(t, err)
 		yParityBits.SetBit(yParityBits, idx, yParityBit)
 	}
 
@@ -285,7 +290,8 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 	spanBatchTxs.txSigs = txSigs
 	spanBatchTxs.txTypes = txTypes
 	// recover txSig.v
-	spanBatchTxs.recoverV(chainID)
+	err := spanBatchTxs.recoverV(chainID)
+	require.NoError(t, err)
 
 	var recoveredVs []uint64
 	for _, txSig := range spanBatchTxs.txSigs {
@@ -315,7 +321,9 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 		sbt2.totalBlockTxCount = totalBlockTxCount
 		err = sbt2.decode(r)
 		require.NoError(t, err)
-		sbt2.recoverV(chainID)
+
+		err = sbt2.recoverV(chainID)
+		require.NoError(t, err)
 
 		require.Equal(t, sbt, &sbt2)
 	}
@@ -346,11 +354,6 @@ func TestSpanBatchTxsRoundTripFullTxs(t *testing.T) {
 }
 
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("The code did not panic")
-		}
-	}()
 	rng := rand.New(rand.NewSource(0x321))
 	chainID := big.NewInt(rng.Int63n(1000))
 
@@ -360,8 +363,8 @@ func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	sbt.txSigs = []spanBatchSignature{{v: 0, r: nil, s: nil}}
 	sbt.yParityBits = new(big.Int)
 
-	// expect panic
-	sbt.recoverV(chainID)
+	err := sbt.recoverV(chainID)
+	require.ErrorContains(t, err, "invalid tx type")
 }
 
 func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {

@@ -3,7 +3,6 @@ package derive
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 
@@ -92,28 +91,19 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	}
 	switch batchData.GetBatchType() {
 	case SingularBatchType:
-		singularBatch, ok := batchData.inner.(*SingularBatch)
-		if !ok {
-			return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
-		}
-		return singularBatch, nil
+		cr.log.Debug("decoded singular batch from channel")
+		cr.metrics.RecordDerivedBatches("singular")
+		return GetSingularBatch(batchData)
 	case SpanBatchType:
-		if origin := cr.Origin(); !cr.cfg.IsSpanBatch(origin.Time) {
+		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
 			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
 			// Therefore, even if the batch passed this rule, it can be dropped in the batch queue.
 			// This is just for early dropping invalid batches as soon as possible.
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
-		rawSpanBatch, ok := batchData.inner.(*RawSpanBatch)
-		if !ok {
-			return nil, NewCriticalError(errors.New("failed type assertion to SpanBatch"))
-		}
-		// If the batch type is Span batch, derive block inputs from RawSpanBatch.
-		spanBatch, err := rawSpanBatch.derive(cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
-		if err != nil {
-			return nil, err
-		}
-		return spanBatch, nil
+		cr.log.Debug("decoded span batch from channel")
+		cr.metrics.RecordDerivedBatches("span")
+		return DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
 		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))

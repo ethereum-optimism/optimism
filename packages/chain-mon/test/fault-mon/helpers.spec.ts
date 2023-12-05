@@ -49,6 +49,10 @@ describe('helpers', () => {
     const L2OutputOracleImplementation = await Factory__L2OutputOracle.deploy(
       deployConfig.l2OutputOracleSubmissionInterval,
       deployConfig.l2BlockTime,
+      deployConfig.l2OutputOracleStartingBlockNumber,
+      deployConfig.l2OutputOracleStartingTimestamp,
+      deployConfig.l2OutputOracleProposer,
+      deployConfig.l2OutputOracleChallenger,
       deployConfig.finalizationPeriodSeconds
     )
 
@@ -57,8 +61,6 @@ describe('helpers', () => {
       L2OutputOracleImplementation.interface.encodeFunctionData('initialize', [
         deployConfig.l2OutputOracleStartingBlockNumber,
         deployConfig.l2OutputOracleStartingTimestamp,
-        deployConfig.l2OutputOracleProposer,
-        deployConfig.l2OutputOracleChallenger,
       ])
     )
 
