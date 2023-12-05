@@ -27,6 +27,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
+var (
+	ErrAlreadyStopped = errors.New("already stopped")
+)
+
 type BatcherConfig struct {
 	NetworkTimeout         time.Duration
 	PollInterval           time.Duration
@@ -285,7 +289,7 @@ func (bs *BatcherService) Kill() error {
 // If the provided ctx is cancelled, the stopping is forced, i.e. the batching work is killed non-gracefully.
 func (bs *BatcherService) Stop(ctx context.Context) error {
 	if bs.stopped.Load() {
-		return errors.New("already stopped")
+		return ErrAlreadyStopped
 	}
 	bs.Log.Info("Stopping batcher")
 

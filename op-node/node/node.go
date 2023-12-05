@@ -30,6 +30,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
+var (
+	ErrAlreadyClosed = errors.New("node is already closed")
+)
+
 type OpNode struct {
 	log        log.Logger
 	appVersion string
@@ -553,7 +557,7 @@ func (n *OpNode) RuntimeConfig() ReadonlyRuntimeConfig {
 // If the provided ctx is expired, the node will accelerate the stop where possible, but still fully close.
 func (n *OpNode) Stop(ctx context.Context) error {
 	if n.closed.Load() {
-		return errors.New("node is already closed")
+		return ErrAlreadyClosed
 	}
 
 	var result *multierror.Error
