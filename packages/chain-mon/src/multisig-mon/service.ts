@@ -155,10 +155,10 @@ export class MultisigMonService extends BaseServiceV2<
           }
           const items = JSON.parse(stdout)
           let latestNonce = -1
-          console.debug(`items in vault '${account.vault}':`)
+          this.logger.debug(`items in vault '${account.vault}':`)
           for (const item of items) {
             const title = item['title']
-            console.debug(`- ${title}`)
+            this.logger.debug(`- ${title}`)
             if (title.startsWith('ready-') && title.endsWith('.json')) {
               const nonce = parseInt(title.substring(6, title.length - 5), 10)
               if (nonce > latestNonce) {
@@ -170,7 +170,7 @@ export class MultisigMonService extends BaseServiceV2<
             { address: account.address, nickname: account.nickname },
             latestNonce
           )
-          console.log(`latestNonce: ${latestNonce}`)
+          this.logger.debug(`latestNonce: ${latestNonce}`)
       }
       )
     } catch (err) {
