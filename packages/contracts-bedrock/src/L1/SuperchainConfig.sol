@@ -71,14 +71,14 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @notice Pauses withdrawals.
     /// @param _identifier (Optional) A string to identify provenance of the pause transaction.
     function _pause(string memory _identifier) internal {
-        Storage.setUint(PAUSED_SLOT, 1);
+        Storage.setBool(PAUSED_SLOT, true);
         emit Paused(_identifier);
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can unpause");
-        Storage.setUint(PAUSED_SLOT, 0);
+        Storage.setBool(PAUSED_SLOT, false);
         emit Unpaused();
     }
 
