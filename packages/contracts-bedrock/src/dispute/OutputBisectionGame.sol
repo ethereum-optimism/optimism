@@ -83,8 +83,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.13
-    string public constant version = "0.0.13";
+    /// @custom:semver 0.0.14
+    string public constant version = "0.0.14";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
