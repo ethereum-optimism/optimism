@@ -81,7 +81,7 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cf
 	apis := []rpc.API{
 		{
 			Namespace:     "optimism",
-			Service:       node.NewNodeAPI(cfg, eng, backend, log, m, nil),
+			Service:       node.NewNodeAPI(cfg, eng, backend, log, m),
 			Public:        true,
 			Authenticated: false,
 		},
@@ -99,6 +99,21 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cf
 
 type l2VerifierBackend struct {
 	verifier *L2Verifier
+}
+
+func (s *l2VerifierBackend) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *l2VerifierBackend) Broadcaster(ctx context.Context) (common.Address, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *l2VerifierBackend) Test(ctx context.Context) error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
