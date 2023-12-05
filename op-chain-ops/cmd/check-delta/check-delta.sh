@@ -1,13 +1,25 @@
 #!/bin/bash
+set -uo pipefail
 
 # Check if a directory path is provided
 # Directory must contain the output of batch_decoder's reassemble command
-if [ -z "$1" ]; then
+if [ -z "${1:-}" ]; then
     echo "Usage: $0 /path/to/directory"
     exit 1
 fi
 
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    echo "Error: jq is not installed"
+    exit 1
+fi
+
 directory_path=$1
+# Check if directory exists and is not empty
+if [ ! -d "$directory_path" ] || [ -z "$(ls -A "$directory_path")" ]; then
+    echo "Error: Directory does not exist or is empty"
+    exit 1
+fi
 valid_count=0
 invalid_count=0
 invalid_channels=()
@@ -16,10 +28,11 @@ invalid_channels=()
 for file in "$directory_path"/*.json; do
     # If channel is ready, all batches must valid.
     # If delta is activated, all batch types must be span batch.
-    result=$(jq 'if .is_ready then (.invalid_batches == false and all(.batch_types[]; . == 1)) else empty end' "$file")
+    result=$(jq 'if .is_ready then (.invalid_batches == false and all(.batch_types[]; . == 1)) else empty end' "$file" 2>&1)
     if [[ $result == "true" ]]; then
         ((valid_count++))
-    elif [[ $result == "false" ]]; then
+    else
+        # supplied json is invalid or does not satisfy condition
         ((invalid_count++))
         invalid_channels+=("$file")
     fi
