@@ -112,9 +112,18 @@ type DeployConfig struct {
 	// L2GenesisCanyonTimeOffset is the number of seconds after genesis block that Canyon hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Canyon.
 	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
-	// L2GenesisSpanBatchTimeOffset is the number of seconds after genesis block that Span Batch hard fork activates.
-	// Set it to 0 to activate at genesis. Nil to disable SpanBatch.
-	L2GenesisSpanBatchTimeOffset *hexutil.Uint64 `json:"l2GenesisSpanBatchTimeOffset,omitempty"`
+	// L2GenesisDeltaTimeOffset is the number of seconds after genesis block that Delta hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Delta.
+	L2GenesisDeltaTimeOffset *hexutil.Uint64 `json:"l2GenesisDeltaTimeOffset,omitempty"`
+	// L2GenesisEclipseTimeOffset is the number of seconds after genesis block that Eclipse hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Eclipse.
+	L2GenesisEclipseTimeOffset *hexutil.Uint64 `json:"l2GenesisEclipseTimeOffset,omitempty"`
+	// L2GenesisFjordTimeOffset is the number of seconds after genesis block that Fjord hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Fjord.
+	L2GenesisFjordTimeOffset *hexutil.Uint64 `json:"l2GenesisFjordTimeOffset,omitempty"`
+	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Interop.
+	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
 	// L2GenesisBlockExtraData is configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
 	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
@@ -122,8 +131,8 @@ type DeployConfig struct {
 	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
-	// PortalGuardian represents the GUARDIAN account in the OptimismPortal. Has the ability to pause withdrawals.
-	PortalGuardian common.Address `json:"portalGuardian"`
+	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
+	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
 	// Can be an account on L1 or L2, depending on the BaseFeeVaultWithdrawalNetwork value.
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
@@ -203,6 +212,10 @@ type DeployConfig struct {
 	// game can run for before it is ready to be resolved. Each side receives half of this value
 	// on their chess clock at the inception of the dispute.
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// OutputBisectionGameGenesisBlock is the block number for genesis.
+	OutputBisectionGameGenesisBlock uint64 `json:"outputBisectionGameGenesisBlock"`
+	// OutputBisectionGameSplitDepth is the depth at which the output bisection game splits.
+	OutputBisectionGameSplitDepth uint64 `json:"outputBisectionGameSplitDepth"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -252,8 +265,8 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleStartingBlockNumber == 0 {
 		log.Warn("L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains")
 	}
-	if d.PortalGuardian == (common.Address{}) {
-		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)
+	if d.SuperchainConfigGuardian == (common.Address{}) {
+		return fmt.Errorf("%w: SuperchainConfigGuardian cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.MaxSequencerDrift == 0 {
 		return fmt.Errorf("%w: MaxSequencerDrift cannot be 0", ErrInvalidDeployConfig)
@@ -463,12 +476,45 @@ func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
-func (d *DeployConfig) SpanBatchTime(genesisTime uint64) *uint64 {
-	if d.L2GenesisSpanBatchTimeOffset == nil {
+func (d *DeployConfig) DeltaTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisDeltaTimeOffset == nil {
 		return nil
 	}
 	v := uint64(0)
-	if offset := *d.L2GenesisSpanBatchTimeOffset; offset > 0 {
+	if offset := *d.L2GenesisDeltaTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) EclipseTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisEclipseTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisEclipseTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) FjordTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisFjordTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisFjordTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) InteropTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisInteropTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisInteropTimeOffset; offset > 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
@@ -512,7 +558,10 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
-		SpanBatchTime:          d.SpanBatchTime(l1StartBlock.Time()),
+		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
+		EclipseTime:            d.EclipseTime(l1StartBlock.Time()),
+		FjordTime:              d.FjordTime(l1StartBlock.Time()),
+		InteropTime:            d.InteropTime(l1StartBlock.Time()),
 	}, nil
 }
 

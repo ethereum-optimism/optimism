@@ -51,7 +51,7 @@ func createTestClaims() (Claim, Claim, Claim, Claim) {
 
 func TestIsDuplicate(t *testing.T) {
 	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(false, []Claim{root, top}, testMaxDepth)
+	g := NewGameState([]Claim{root, top}, testMaxDepth)
 
 	// Root + Top should be duplicates
 	require.True(t, g.IsDuplicate(root))
@@ -66,7 +66,7 @@ func TestGame_Claims(t *testing.T) {
 	// Setup the game state.
 	root, top, middle, bottom := createTestClaims()
 	expected := []Claim{root, top, middle, bottom}
-	g := NewGameState(false, expected, testMaxDepth)
+	g := NewGameState(expected, testMaxDepth)
 
 	// Validate claim pairs.
 	actual := g.Claims()
@@ -111,7 +111,7 @@ func TestGame_DefendsParent(t *testing.T) {
 		},
 		{
 			name: "RootDoesntDefend",
-			game: NewGameState(false, []Claim{
+			game: NewGameState([]Claim{
 				{
 					ClaimData: ClaimData{
 						Position: NewPositionFromGIndex(big.NewInt(0)),
@@ -145,5 +145,5 @@ func buildGameWithClaim(claimGIndex *big.Int, parentGIndex *big.Int) *gameState 
 		ContractIndex:       1,
 		ParentContractIndex: 0,
 	}
-	return NewGameState(false, []Claim{parentClaim, claim}, testMaxDepth)
+	return NewGameState([]Claim{parentClaim, claim}, testMaxDepth)
 }

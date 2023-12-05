@@ -157,7 +157,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 
 			var batchType uint = derive.SingularBatchType
 			var spanBatchBuilder *derive.SpanBatchBuilder = nil
-			if s.rollupCfg.IsSpanBatch(block.Time()) {
+			if s.rollupCfg.IsDelta(block.Time()) {
 				batchType = derive.SpanBatchType
 				spanBatchBuilder = derive.NewSpanBatchBuilder(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID)
 			}

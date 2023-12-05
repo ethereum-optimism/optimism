@@ -21,11 +21,10 @@ var (
 	validDatadir               = "/tmp/data"
 	validCannonL2              = "http://localhost:9545"
 	validRollupRpc             = "http://localhost:8555"
-	agreeWithProposedOutput    = true
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, agreeWithProposedOutput, validDatadir, traceType)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, validDatadir, traceType)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace

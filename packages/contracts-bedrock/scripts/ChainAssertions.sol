@@ -38,12 +38,12 @@ library ChainAssertions {
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
-        checkL1CrossDomainMessenger(_prox, _vm);
+        checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
         checkL1StandardBridge(_prox);
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
         checkL1ERC721Bridge(_prox);
-        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isPaused: false });
+        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
@@ -76,12 +76,18 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
-    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm) internal view {
+    function checkL1CrossDomainMessenger(Types.ContractSet memory _contracts, Vm _vm, bool _isProxy) internal view {
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(_contracts.L1CrossDomainMessenger);
+
         require(address(messenger.portal()) == _contracts.OptimismPortal);
         require(address(messenger.PORTAL()) == _contracts.OptimismPortal);
-        bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
+        if (_isProxy) {
+            require(address(messenger.superchainConfig()) == _contracts.SuperchainConfig);
+            bytes32 xdmSenderSlot = _vm.load(address(messenger), bytes32(uint256(204)));
+            require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
+        } else {
+            require(address(messenger.superchainConfig()) == address(0));
+        }
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
@@ -135,28 +141,25 @@ library ChainAssertions {
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
-    function checkOptimismPortal(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isPaused
-    )
-        internal
-        view
-    {
+    function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
 
-        address guardian = _cfg.portalGuardian();
+        address guardian = _cfg.superchainConfigGuardian();
         if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
+            console.log("Guardian has no code: %s", guardian);
         }
 
         require(address(portal.L2_ORACLE()) == _contracts.L2OutputOracle);
         require(address(portal.l2Oracle()) == _contracts.L2OutputOracle);
-        require(portal.GUARDIAN() == _cfg.portalGuardian());
-        require(portal.guardian() == _cfg.portalGuardian());
         require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
         require(address(portal.systemConfig()) == _contracts.SystemConfig);
-        require(portal.paused() == _isPaused);
+
+        if (_isProxy) {
+            require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
+            require(portal.guardian() == _cfg.superchainConfigGuardian());
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
+            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
+        }
     }
 
     /// @notice Asserts that the ProtocolVersions is setup correctly
@@ -181,9 +184,16 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the SuperchainConfig is setup correctly
-    function checkSuperchainConfig(Types.ContractSet memory _contracts, DeployConfig _cfg) internal view {
+    function checkSuperchainConfig(
+        Types.ContractSet memory _contracts,
+        DeployConfig _cfg,
+        bool _isPaused
+    )
+        internal
+        view
+    {
         SuperchainConfig superchainConfig = SuperchainConfig(_contracts.SuperchainConfig);
-        require(superchainConfig.guardian() == _cfg.portalGuardian());
-        require(superchainConfig.paused() == false);
+        require(superchainConfig.guardian() == _cfg.superchainConfigGuardian());
+        require(superchainConfig.paused() == _isPaused);
     }
 }

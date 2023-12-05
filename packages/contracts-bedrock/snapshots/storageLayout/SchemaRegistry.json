@@ -1,16 +1,14 @@
 [
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => struct SchemaRecord)",
+    "label": "_registry",
     "offset": 0,
-    "slot": "0",
-    "type": "t_mapping(t_bytes32,t_struct(SchemaRecord)57706_storage)"
+    "slot": "0"
   },
   {
     "bytes": "1568",
-    "label": "uint256[49]",
+    "label": "__gap",
     "offset": 0,
-    "slot": "1",
-    "type": "t_array(t_uint256)49_storage"
+    "slot": "1"
   }
 ]

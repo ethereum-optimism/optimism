@@ -1,23 +1,20 @@
 [
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => uint256)",
+    "label": "preimageLengths",
     "offset": 0,
-    "slot": "0",
-    "type": "t_mapping(t_bytes32,t_uint256)"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => mapping(uint256 => bytes32))",
+    "label": "preimageParts",
     "offset": 0,
-    "slot": "1",
-    "type": "t_mapping(t_bytes32,t_mapping(t_uint256,t_bytes32))"
+    "slot": "1"
   },
   {
     "bytes": "32",
-    "label": "mapping(bytes32 => mapping(uint256 => bool))",
+    "label": "preimagePartOk",
     "offset": 0,
-    "slot": "2",
-    "type": "t_mapping(t_bytes32,t_mapping(t_uint256,t_bool))"
+    "slot": "2"
   }
 ]

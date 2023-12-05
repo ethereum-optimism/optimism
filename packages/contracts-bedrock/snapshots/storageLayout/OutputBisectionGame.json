@@ -1,0 +1,56 @@
+[
+  {
+    "bytes": "8",
+    "label": "createdAt",
+    "offset": 0,
+    "slot": "0"
+  },
+  {
+    "bytes": "8",
+    "label": "resolvedAt",
+    "offset": 8,
+    "slot": "0"
+  },
+  {
+    "bytes": "1",
+    "label": "status",
+    "offset": 16,
+    "slot": "0"
+  },
+  {
+    "bytes": "20",
+    "label": "bondManager",
+    "offset": 0,
+    "slot": "1"
+  },
+  {
+    "bytes": "32",
+    "label": "l1Head",
+    "offset": 0,
+    "slot": "2"
+  },
+  {
+    "bytes": "32",
+    "label": "claimData",
+    "offset": 0,
+    "slot": "3"
+  },
+  {
+    "bytes": "32",
+    "label": "claims",
+    "offset": 0,
+    "slot": "4"
+  },
+  {
+    "bytes": "32",
+    "label": "subgames",
+    "offset": 0,
+    "slot": "5"
+  },
+  {
+    "bytes": "1",
+    "label": "subgameAtRootResolved",
+    "offset": 0,
+    "slot": "6"
+  }
+]

@@ -13,6 +13,7 @@ import { Encoding } from "src/libraries/Encoding.sol";
 
 // Target contract dependencies
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev The receiver address
@@ -557,5 +558,40 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
             0,
             hex"1111"
         );
+    }
+
+    /// @dev Tests that the relayMessage function is able to relay a message
+    ///      successfully by calling the target contract.
+    function test_relayMessage_paused_reverts() external {
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause("identifier");
+        vm.expectRevert("CrossDomainMessenger: paused");
+
+        l1CrossDomainMessenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
+            address(0),
+            address(0),
+            0, // value
+            0,
+            hex"1111"
+        );
+    }
+
+    /// @dev Tests that the superchain config is called by the messengers paused function
+    function test_pause_callsSuperchainConfig_succeeds() external {
+        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
+        l1CrossDomainMessenger.paused();
+    }
+
+    /// @dev Tests that changing the superchain config paused status changes the return value of the messenger
+    function test_pause_matchesSuperchainConfig_succeeds() external {
+        assertFalse(l1CrossDomainMessenger.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause("identifier");
+
+        assertTrue(l1CrossDomainMessenger.paused());
+        assertEq(l1CrossDomainMessenger.paused(), superchainConfig.paused());
     }
 }

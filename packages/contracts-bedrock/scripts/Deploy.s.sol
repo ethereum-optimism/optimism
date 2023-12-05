@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { VmSafe } from "forge-std/Vm.sol";
 import { Script } from "forge-std/Script.sol";
 
 import { console2 as console } from "forge-std/console2.sol";
@@ -32,6 +33,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { OutputBisectionGame } from "src/dispute/OutputBisectionGame.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
@@ -47,6 +49,7 @@ import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
+import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -55,6 +58,8 @@ import { Types } from "scripts/Types.sol";
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
 contract Deploy is Deployer {
     DeployConfig public cfg;
+
+    using stdJson for string;
 
     ////////////////////////////////////////////////////////////////
     //                        Modifiers                           //
@@ -85,6 +90,19 @@ contract Deploy is Deployer {
         ) {
             _;
         }
+    }
+
+    /// @notice Modifier that wraps a function with statediff recording.
+    ///         The returned AccountAccess[] array is then written to
+    ///         the `snapshots/state-diff/<name>.json` output file.
+    modifier stateDiff() {
+        vm.startStateDiffRecording();
+        _;
+        VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+        console.log("Writing %d state diff account accesses to snapshots/state-diff/%s.json", accesses.length, name());
+        string memory json = LibStateDiff.encodeAccountAccesses(accesses);
+        string memory statediffPath = string.concat(vm.projectRoot(), "/snapshots/state-diff/", name(), ".json");
+        vm.writeJson({ json: json, path: statediffPath });
     }
 
     ////////////////////////////////////////////////////////////////
@@ -213,7 +231,16 @@ contract Deploy is Deployer {
     /// @notice Deploy all of the L1 contracts necessary for a full Superchain with a single Op Chain.
     function run() public {
         console.log("Deploying a fresh OP Stack including SuperchainConfig");
+        _run();
+    }
 
+    /// @notice Deploy all L1 contracts and write the state diff to a file.
+    function runWithStateDiff() public stateDiff {
+        _run();
+    }
+
+    /// @notice Internal function containing the deploy logic.
+    function _run() internal {
         deploySafe();
         setupSuperchain();
         setupOpChain();
@@ -262,6 +289,7 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
+        setOutputBisectionImplementation();
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
 
@@ -398,18 +426,10 @@ contract Deploy is Deployer {
     function deployL1CrossDomainMessengerProxy() public broadcast returns (address addr_) {
         console.log("Deploying proxy for L1CrossDomainMessenger");
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        string memory contractName = "OVM_L1CrossDomainMessenger";
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
+        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, "OVM_L1CrossDomainMessenger");
 
         save("L1CrossDomainMessengerProxy", address(proxy));
         console.log("L1CrossDomainMessengerProxy deployed at %s", address(proxy));
-
-        address contractAddr = addressManager.getAddress(contractName);
-        if (contractAddr != address(proxy)) {
-            addressManager.setAddress(contractName, address(proxy));
-        }
-
-        require(addressManager.getAddress(contractName) == address(proxy));
 
         addr_ = address(proxy);
     }
@@ -461,7 +481,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1CrossDomainMessenger = address(messenger);
-        ChainAssertions.checkL1CrossDomainMessenger(contracts, vm);
+        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
 
         require(loadInitializedSlot("L1CrossDomainMessenger", false) == 1, "L1CrossDomainMessenger is not initialized");
 
@@ -471,18 +491,12 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() public broadcast returns (address addr_) {
         console.log("Deploying OptimismPortal implementation");
-        address guardian = cfg.portalGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
-        }
 
         L2OutputOracle l2OutputOracle = L2OutputOracle(mustGetAddress("L2OutputOracleProxy"));
         SystemConfig systemConfig = SystemConfig(mustGetAddress("SystemConfigProxy"));
 
         OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }({
             _l2Oracle: l2OutputOracle,
-            _guardian: guardian,
-            _paused: true,
             _systemConfig: systemConfig
         });
 
@@ -494,7 +508,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isPaused: true });
+        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
 
         require(loadInitializedSlot("OptimismPortal", false) == 1, "OptimismPortal is not initialized");
 
@@ -707,10 +721,10 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.portalGuardian()))
+            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.superchainConfigGuardian()))
         });
 
-        ChainAssertions.checkSuperchainConfig(_proxiesUnstrict(), cfg);
+        ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
     }
 
     /// @notice Initialize the DisputeGameFactory
@@ -836,6 +850,7 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
@@ -862,14 +877,14 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
-            _innerCallData: abi.encodeCall(L1CrossDomainMessenger.initialize, ())
+            _innerCallData: abi.encodeCall(L1CrossDomainMessenger.initialize, (superchainConfigProxy))
         });
 
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxy);
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
-        ChainAssertions.checkL1CrossDomainMessenger(_proxies(), vm);
+        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
 
         require(
             loadInitializedSlot("L1CrossDomainMessenger", true) == 1, "L1CrossDomainMessengerProxy is not initialized"
@@ -909,18 +924,19 @@ contract Deploy is Deployer {
         console.log("Upgrading and initializing OptimismPortal proxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         address optimismPortal = mustGetAddress("OptimismPortal");
+        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
         _upgradeAndCallViaSafe({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (false))
+            _innerCallData: abi.encodeCall(OptimismPortal.initialize, (superchainConfigProxy))
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
         string memory version = portal.version();
         console.log("OptimismPortal version: %s", version);
 
-        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isPaused: false });
+        ChainAssertions.checkOptimismPortal({ _contracts: _proxies(), _cfg: cfg, _isProxy: true });
 
         require(loadInitializedSlot("OptimismPortal", true) == 1, "OptimismPortalProxy is not initialized");
     }
@@ -1004,6 +1020,21 @@ contract Deploy is Deployer {
         );
     }
 
+    /// @notice Sets the implementation for the output bisection game type (254) in the `DisputeGameFactory`
+    function setOutputBisectionImplementation() public onlyDevnet broadcast {
+        console.log("Setting OutputBisectionGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameType.wrap(254),
+            _absolutePrestate: outputAbsolutePrestate,
+            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
+    }
+
     /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
     function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
         console.log("Setting Alphabet FaultDisputeGame implementation");
@@ -1030,7 +1061,31 @@ contract Deploy is Deployer {
     )
         internal
     {
-        if (address(_factory.gameImpls(_gameType)) == address(0)) {
+        if (address(_factory.gameImpls(_gameType)) != address(0)) {
+            console.log(
+                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
+                vm.toString(GameType.unwrap(_gameType))
+            );
+            return;
+        }
+
+        string memory deployed;
+        if (GameType.unwrap(_gameType) == 254) {
+            deployed = "OutputBisectionGame";
+            _factory.setImplementation(
+                _gameType,
+                new OutputBisectionGame({
+                    _gameType: _gameType,
+                    _absolutePrestate: _absolutePrestate,
+                    _genesisBlockNumber: cfg.outputBisectionGameGenesisBlock(),
+                    _maxGameDepth: _maxGameDepth,
+                    _splitDepth: cfg.outputBisectionGameSplitDepth(),
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _vm: _faultVm
+                })
+            );
+        } else {
+            deployed = "FaultDisputeGame";
             _factory.setImplementation(
                 _gameType,
                 new FaultDisputeGame({
@@ -1043,18 +1098,25 @@ contract Deploy is Deployer {
                     _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
                 })
             );
-
-            uint8 rawGameType = GameType.unwrap(_gameType);
-            console.log(
-                "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
-                rawGameType == 0 ? "Cannon" : "Alphabet",
-                vm.toString(rawGameType)
-            );
-        } else {
-            console.log(
-                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
-                vm.toString(GameType.unwrap(_gameType))
-            );
         }
+
+        uint8 rawGameType = GameType.unwrap(_gameType);
+        string memory gameTypeString;
+        if (rawGameType == 0) {
+            gameTypeString = "Cannon";
+        } else if (rawGameType == 254) {
+            gameTypeString = "OutputBisectionAlphabet";
+        } else if (rawGameType == 255) {
+            gameTypeString = "Alphabet";
+        } else {
+            gameTypeString = "Unknown";
+        }
+
+        console.log(
+            "DisputeGameFactoryProxy: set `%s` implementation (Backend: %s | GameType: %s)",
+            deployed,
+            gameTypeString,
+            vm.toString(rawGameType)
+        );
     }
 }

@@ -1,16 +1,14 @@
 [
   {
     "bytes": "32",
-    "label": "mapping(address => string)",
+    "label": "implementationName",
     "offset": 0,
-    "slot": "0",
-    "type": "t_mapping(t_address,t_string_storage)"
+    "slot": "0"
   },
   {
     "bytes": "32",
-    "label": "mapping(address => contract AddressManager)",
+    "label": "addressManager",
     "offset": 0,
-    "slot": "1",
-    "type": "t_mapping(t_address,t_contract(AddressManager)73949)"
+    "slot": "1"
   }
 ]
