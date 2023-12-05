@@ -615,6 +615,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 		return NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
 	eq.pendingSafeHead = ref
+	eq.metrics.RecordL2Ref("l2_pending_safe", ref)
 	if eq.safeAttributes.isLastInSpan {
 		eq.safeHead = ref
 		eq.needForkchoiceUpdate = true
@@ -829,6 +830,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.sysCfg = l1Cfg
 	eq.metrics.RecordL2Ref("l2_finalized", finalized)
 	eq.metrics.RecordL2Ref("l2_safe", safe)
+	eq.metrics.RecordL2Ref("l2_pending_safe", eq.pendingSafeHead)
 	eq.metrics.RecordL2Ref("l2_unsafe", unsafe)
 	eq.metrics.RecordL2Ref("l2_engineSyncTarget", unsafe)
 	eq.logSyncProgress("reset derivation work")

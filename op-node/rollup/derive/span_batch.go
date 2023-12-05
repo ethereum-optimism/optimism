@@ -231,10 +231,10 @@ func (b *RawSpanBatch) decode(r *bytes.Reader) error {
 		return ErrTooBigSpanBatchSize
 	}
 	if err := b.decodePrefix(r); err != nil {
-		return err
+		return fmt.Errorf("failed to decode span batch prefix: %w", err)
 	}
 	if err := b.decodePayload(r); err != nil {
-		return err
+		return fmt.Errorf("failed to decode span batch payload: %w", err)
 	}
 	return nil
 }
@@ -487,6 +487,7 @@ func (b *SpanBatch) LogContext(log log.Logger) log.Logger {
 		return log.New("block_count", 0)
 	}
 	return log.New(
+		"batch_type", "SpanBatch",
 		"batch_timestamp", b.Batches[0].Timestamp,
 		"parent_check", hexutil.Encode(b.ParentCheck[:]),
 		"origin_check", hexutil.Encode(b.L1OriginCheck[:]),

@@ -91,6 +91,8 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	}
 	switch batchData.GetBatchType() {
 	case SingularBatchType:
+		cr.log.Debug("decoded singular batch from channel")
+		cr.metrics.RecordDerivedBatches("singular")
 		return GetSingularBatch(batchData)
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
@@ -99,6 +101,8 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			// This is just for early dropping invalid batches as soon as possible.
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
+		cr.log.Debug("decoded span batch from channel")
+		cr.metrics.RecordDerivedBatches("span")
 		return DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
