@@ -60,7 +60,7 @@ func TestL2Interop_CrossL2Inbox(gt *testing.T) {
 
 	inboxTxHash := sendToInbox([]bindings.InboxEntry{
 		{
-			Chain:  [32]byte{10}, // TODO: how do we encode the chain?
+			Chain:  [32]byte{10}, // TODO: big-endian chain ID of other chain
 			Output: [32]byte{42}, // TODO: an output root from another L2 chain
 		},
 	})
@@ -74,6 +74,12 @@ func TestL2Interop_CrossL2Inbox(gt *testing.T) {
 	rec, err := cl.TransactionReceipt(t.Ctx(), inboxTxHash)
 	require.NoError(t, err)
 	require.Equal(t, rec.Status, types.ReceiptStatusSuccessful, "must update inbox")
+
+	cdm, err := bindings.NewInteropL2CrossDomainMessenger(predeploys.InteropL2CrossDomainMessengerAddr, cl)
+	require.NoError(t, err)
+	cdmVersion, err := cdm.Version(nil)
+	require.NoError(t, err)
+	require.Equal(t, "0.0.1", cdmVersion, "Interop CDM contract is available")
 
 	// This test can be extended with batch-submission, and replication by a verifier
 }

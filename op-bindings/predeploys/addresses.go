@@ -28,7 +28,7 @@ const (
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 	CrossL2Inbox                  = "0x42000000000000000000000000000000000000E0" // interop predeploy
 	CrossL2Outbox                 = "0x42000000000000000000000000000000000000E1" // interop predeploy
-	NewL2CrossDomainMessenger     = "0x42000000000000000000000000000000000000E2" // interop predeploy
+	InteropL2CrossDomainMessenger = "0x42000000000000000000000000000000000000E2" // interop predeploy
 )
 
 var (
@@ -54,7 +54,7 @@ var (
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
 	CrossL2InboxAddr                  = common.HexToAddress(CrossL2Inbox)
 	CrossL2OutboxAddr                 = common.HexToAddress(CrossL2Outbox)
-	NewL2CrossDomainMessengerAddr     = common.HexToAddress(NewL2CrossDomainMessenger)
+	InteropL2CrossDomainMessengerAddr = common.HexToAddress(InteropL2CrossDomainMessenger)
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
@@ -105,6 +105,14 @@ func init() {
 
 	Predeploys["CrossL2Outbox"] = &Predeploy{
 		Address: CrossL2OutboxAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
+		},
+	}
+
+	Predeploys["InteropL2CrossDomainMessenger"] = &Predeploy{
+		Address: InteropL2CrossDomainMessengerAddr,
 		Enabled: func(config DeployConfig) bool {
 			interopTime := config.InteropTime(0)
 			return interopTime != nil && *interopTime == 0

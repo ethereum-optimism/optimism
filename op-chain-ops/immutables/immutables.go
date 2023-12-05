@@ -71,7 +71,8 @@ type PredeploysImmutableConfig struct {
 	CrossL2Inbox    *struct { // optional, only there in interop
 		SuperchainPostie common.Address
 	}
-	CrossL2Outbox *struct{} // optional, only there in interop
+	CrossL2Outbox                 *struct{} // optional, only there in interop
+	InteropL2CrossDomainMessenger *struct{} // optional, only there in interop
 }
 
 // Check will ensure that the required fields are set on the config.

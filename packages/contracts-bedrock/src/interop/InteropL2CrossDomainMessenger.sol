@@ -10,14 +10,14 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { SafeCall } from "src/libraries/SafeCall.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
-/// @title NewL2CrossDomainMessenger
-/// @notice NewL2CrossDomainMessenger is an extended version of the existing predeploy
+/// @title InteropL2CrossDomainMessenger
+/// @notice InteropL2CrossDomainMessenger is an extended version of the existing predeploy
 ///         that supports interopability between many chains (L2-L2). Since we are
 ///         keeping the existing messaging contracts the same while iterating on the
 ////        L2-L2 implementation, changes to the interface and messaging format that
 ///         would reside in the CrossDomainMessenger are scoped internally in this
 ///         contract. The L2-L1 flow remains unchanged.
-contract NewL2CrossDomainMessenger is ISemver {
+contract InteropL2CrossDomainMessenger is ISemver {
     /// @custom:semver 0.0.1
     string public constant version = "0.0.1";
 
@@ -30,9 +30,6 @@ contract NewL2CrossDomainMessenger is ISemver {
     uint64 public constant RELAY_CALL_OVERHEAD = 40_000;
     uint64 public constant RELAY_RESERVED_GAS = 40_000;
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
-
-    /// @notice Chain identifier of the network
-    bytes32 public immutable CHAIN_ID = bytes32(uint256(block.chainid));
 
     /// @notice Latest message version identifier (interop-enabled)
     uint16 public constant MESSAGE_VERSION = 2;
@@ -65,6 +62,12 @@ contract NewL2CrossDomainMessenger is ISemver {
 
     /// @notice Emitted whenever a message fails to be relayed on this chain.
     event FailedRelayedMessage(uint256 indexed messageNonce, bytes32 indexed source, bytes32 indexed msgHash);
+
+    /// @notice Chain identifier of the network
+    function sourceChainID() internal view returns (bytes32) {
+        // cannot be an immutable value due to op-chain-ops genesis setup limitations.
+        return bytes32(uint256(block.chainid));
+    }
 
     /// @notice Checks if the call target is a blocked system address
     function _isUnsafeTarget(address _target) internal view returns (bool) {
@@ -101,11 +104,11 @@ contract NewL2CrossDomainMessenger is ISemver {
             return;
         }
 
-        require(_destination != CHAIN_ID, "NewL2CrossDomainMessenger: message cant be sent to self");
+        require(_destination != sourceChainID(), "NewL2CrossDomainMessenger: message cant be sent to self");
 
         uint256 nonce = Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
         bytes memory message = abi.encodeWithSelector(
-            this.relayMessage.selector, nonce, CHAIN_ID, msg.sender, _target, msg.value, _minGasLimit, _message
+            this.relayMessage.selector, nonce, sourceChainID(), msg.sender, _target, msg.value, _minGasLimit, _message
         );
 
         // (1) Initiate the withdrawal
@@ -143,7 +146,7 @@ contract NewL2CrossDomainMessenger is ISemver {
         require(msgVersion == MESSAGE_VERSION, "NewL2CrossDomainMessenger: incorrect message version");
 
         bytes32 msgHash =
-            hashCrossDomainMessageV2(_nonce, _source, CHAIN_ID, _sender, _target, _value, _minGasLimit, _message);
+            hashCrossDomainMessageV2(_nonce, _source, sourceChainID(), _sender, _target, _value, _minGasLimit, _message);
         require(successfulMessages[msgHash] == false, "NewL2CrossDomainMessenger: message already processed");
 
         // (1) Allow for replay. Initial replayer can only be the CrossL2Inbox as L1 messages

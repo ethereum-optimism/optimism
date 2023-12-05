@@ -45,5 +45,6 @@
   "StorageSetter",
   "SuperchainConfig",
   "CrossL2Inbox",
-  "CrossL2Outbox"
+  "CrossL2Outbox",
+  "InteropL2CrossDomainMessenger"
 ]

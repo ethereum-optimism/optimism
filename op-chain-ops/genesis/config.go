@@ -813,6 +813,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			SuperchainPostie: *config.SuperchainPostie,
 		}
 		cfg.CrossL2Outbox = &struct{}{}
+		cfg.InteropL2CrossDomainMessenger = &struct{}{}
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err
