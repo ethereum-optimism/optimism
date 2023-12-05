@@ -12,7 +12,6 @@ import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
-import "scripts/Deployer.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
