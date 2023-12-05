@@ -16,7 +16,7 @@
   - [`Chain ID` removal from initial specs](#chain-id-removal-from-initial-specs)
   - [Reorganization of constant length transaction fields](#reorganization-of-constant-length-transaction-fields)
   - [RLP encoding for only variable length fields](#rlp-encoding-for-only-variable-length-fields)
-  - [Store `y_parity` instead of `v`](#store-y_parity-instead-of-v)
+  - [Store `y_parity` and `protected_bit` instead of `v`](#store-y_parity-and-protected_bit-instead-of-v)
   - [Adjust `txs` Data Layout for Better Compression](#adjust-txs-data-layout-for-better-compression)
   - [`fee_recipients` Encoding Scheme](#fee_recipients-encoding-scheme)
 - [How derivation works with Span Batch?](#how-derivation-works-with-span-batch)
@@ -102,7 +102,8 @@ Where:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
   - `txs`: L2 transactions which is reorganized and encoded as below.
-- `txs = contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases`
+- `txs = contract_creation_bits ++ y_parity_bits ++
+        tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases ++ protected_bits`
   - `contract_creation_bits`: bit list of `sum(block_tx_counts)` bits, right-padded to a multiple of 8 bits,
     1 bit per L2 transactions, indicating if transaction is a contract creation transaction.
   - `y_parity_bits`: bit list of `sum(block_tx_counts)` bits, right-padded to a multiple of 8 bits,
@@ -121,6 +122,8 @@ Where:
     - `legacy`: `gasLimit`
     - `1`: ([EIP-2930]): `gasLimit`
     - `2`: ([EIP-1559]): `gas_limit`
+  - `protected_bits`: bit list of length of number of legacy transactions, right-padded to a multiple of 8 bits,
+    1 bit per L2 legacy transactions, indicating if transacion is protected([EIP-155]) or not.
 
 Introduce version `2` to the [batch-format](./derivation.md#batch-format) table:
 
@@ -146,6 +149,8 @@ Where:
 [EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
 
 [EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
+
+[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
 
 Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
 equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
@@ -201,10 +206,12 @@ Our goal is to find the sweet spot on code complexity - span batch size tradeoff
 I decided that using RLP for all variable length fields will be the best option,
 not risking codebase with gnarly custom encoding/decoding implementations.
 
-### Store `y_parity` instead of `v`
+### Store `y_parity` and `protected_bit` instead of `v`
 
-For legacy type transactions, `v = 2 * ChainID + y_parity`. For other types of transactions, `v = y_parity`.
-We may only store `y_parity`, which is single bit per L2 transaction.
+Only legacy type transactions can be optionally protected. If protected([EIP-155]), `v = 2 * ChainID + y_parity`.
+Else, `v = 27 + y_parity`. For other types of transactions, `v = y_parity`.
+We store `y_parity`, which is single bit per L2 transaction.
+We store `protected_bit`, which is single bit per L2 legacy type transactions to indicate that tx is protected.
 
 This optimization will benefit more when ratio between number of legacy type transactions over number of transactions
 excluding deposit tx is higher.
