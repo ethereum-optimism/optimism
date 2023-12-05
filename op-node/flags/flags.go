@@ -100,6 +100,12 @@ var (
 		Required: false,
 		Hidden:   true,
 	}
+	L1RPCMaxConcurrency = &cli.IntFlag{
+		Name:    "l1.max-concurrency",
+		Usage:   "Maximum number of concurrent RPC requests to make to the L1 RPC provider.",
+		EnvVars: prefixEnvVars("L1_MAX_CONCURRENCY"),
+		Value:   10,
+	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
 		Usage:   "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
@@ -295,6 +301,7 @@ var optionalFlags = []cli.Flag{
 	L1RPCProviderKind,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
+	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
 	L2EngineJWTSecret,
 	VerifierL1Confs,

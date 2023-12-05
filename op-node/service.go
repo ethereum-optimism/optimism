@@ -129,6 +129,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 		RateLimit:        ctx.Float64(flags.L1RPCRateLimit.Name),
 		BatchSize:        ctx.Int(flags.L1RPCMaxBatchSize.Name),
 		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),
+		MaxConcurrency:   ctx.Int(flags.L1RPCMaxConcurrency.Name),
 	}
 }
 
