@@ -76,7 +76,7 @@ func (bp *spanBatchPayload) decodeOriginBits(r *bytes.Reader) error {
 	originBits := new(big.Int)
 	for i := 0; i < int(bp.blockCount); i += 8 {
 		end := i + 8
-		if end < int(bp.blockCount) {
+		if end > int(bp.blockCount) {
 			end = int(bp.blockCount)
 		}
 		bits := originBitBuffer[i/8]
@@ -302,7 +302,7 @@ func (bp *spanBatchPayload) encodeOriginBits(w io.Writer) error {
 	originBitBuffer := make([]byte, originBitBufferLen)
 	for i := 0; i < int(bp.blockCount); i += 8 {
 		end := i + 8
-		if end < int(bp.blockCount) {
+		if end > int(bp.blockCount) {
 			end = int(bp.blockCount)
 		}
 		var bits uint = 0

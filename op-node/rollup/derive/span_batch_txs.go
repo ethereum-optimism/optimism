@@ -48,7 +48,7 @@ func (btx *spanBatchTxs) encodeContractCreationBits(w io.Writer) error {
 	contractCreationBitBuffer := make([]byte, contractCreationBitBufferLen)
 	for i := 0; i < int(btx.totalBlockTxCount); i += 8 {
 		end := i + 8
-		if end < int(btx.totalBlockTxCount) {
+		if end > int(btx.totalBlockTxCount) {
 			end = int(btx.totalBlockTxCount)
 		}
 		var bits uint = 0
@@ -81,7 +81,7 @@ func (btx *spanBatchTxs) decodeContractCreationBits(r *bytes.Reader) error {
 	contractCreationBits := new(big.Int)
 	for i := 0; i < int(btx.totalBlockTxCount); i += 8 {
 		end := i + 8
-		if end < int(btx.totalBlockTxCount) {
+		if end > int(btx.totalBlockTxCount) {
 			end = int(btx.totalBlockTxCount)
 		}
 		bits := contractCreationBitBuffer[i/8]
@@ -173,7 +173,7 @@ func (btx *spanBatchTxs) encodeYParityBits(w io.Writer) error {
 	yParityBitBuffer := make([]byte, yParityBitBufferLen)
 	for i := 0; i < int(btx.totalBlockTxCount); i += 8 {
 		end := i + 8
-		if end < int(btx.totalBlockTxCount) {
+		if end > int(btx.totalBlockTxCount) {
 			end = int(btx.totalBlockTxCount)
 		}
 		var bits uint = 0
@@ -260,7 +260,7 @@ func (btx *spanBatchTxs) decodeYParityBits(r *bytes.Reader) error {
 	yParityBits := new(big.Int)
 	for i := 0; i < int(btx.totalBlockTxCount); i += 8 {
 		end := i + 8
-		if end < int(btx.totalBlockTxCount) {
+		if end > int(btx.totalBlockTxCount) {
 			end = int(btx.totalBlockTxCount)
 		}
 		bits := yParityBitBuffer[i/8]
