@@ -30,15 +30,22 @@ contract MakeStateDiff is Script {
         vm.startStateDiffRecording();
         _;
         VmSafe.AccountAccess[] memory accesses = vm.stopAndReturnStateDiff();
+        console.log("ACCESSES CREATE COUNTER", accesses[0].account);
+        console.log("ACCESSES CREATE COUNTER2", accesses[1].account);
         console.log("Writing %d state diff account accesses to snapshots/state-diff/%s.json", accesses.length, name());
         string memory json = LibStateDiff.encodeAccountAccesses(accesses);
         string memory statediffPath = string.concat(vm.projectRoot(), "/snapshots/state-diff/", name(), ".json");
         vm.writeJson({ json: json, path: statediffPath });
     }
 
-    function testStateDiff() public broadcast stateDiff {
+    function testStateDiff() public stateDiff /* broadcast */ {
         Counter counter = new Counter();
+        console.log("COUNTER", address(counter));
+        Counter counter2 = new Counter();
+        console.log("COUNTER2", address(counter2));
         counter.setNumber(3);
         counter.setNumber(42);
+        counter2.setNumber(777);
+        /* sync(); */
     }
 }
