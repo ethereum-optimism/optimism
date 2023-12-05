@@ -1,7 +1,6 @@
 package fault
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -36,7 +35,7 @@ type GameContract interface {
 	GetMaxGameDepth(ctx context.Context) (uint64, error)
 }
 
-type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
+type ResourceCreator func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (types.TraceAccessor, error)
 
 func NewGamePlayer(
 	ctx context.Context,
@@ -46,7 +45,7 @@ func NewGamePlayer(
 	addr common.Address,
 	txMgr txmgr.TxManager,
 	loader GameContract,
-	creator resourceCreator,
+	creator ResourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 
@@ -127,22 +126,4 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameSta
 		return
 	}
 	g.logger.Info("Game resolved", "status", status)
-}
-
-type PrestateLoader = func(ctx context.Context) (common.Hash, error)
-
-// ValidateAbsolutePrestate validates the absolute prestate of the fault game.
-func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, loader PrestateLoader) error {
-	providerPrestateHash, err := trace.AbsolutePreStateCommitment(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
-	}
-	onchainPrestate, err := loader(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
-	}
-	if !bytes.Equal(providerPrestateHash[:], onchainPrestate[:]) {
-		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate: Provider: %s | Chain %s", providerPrestateHash.Hex(), onchainPrestate.Hex())
-	}
-	return nil
 }

@@ -42,9 +42,10 @@ type ProofGenerator interface {
 }
 
 type CannonTraceProvider struct {
+	CannonPrestateProvider
+
 	logger       log.Logger
 	dir          string
-	prestate     string
 	generator    ProofGenerator
 	gameDepth    uint64
 	localContext common.Hash
@@ -56,12 +57,12 @@ type CannonTraceProvider struct {
 
 func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth uint64) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		logger:       logger,
-		dir:          dir,
-		prestate:     cfg.CannonAbsolutePreState,
-		generator:    NewExecutor(logger, m, cfg, localInputs),
-		gameDepth:    gameDepth,
-		localContext: localContext,
+		CannonPrestateProvider: *NewPrestateProvider(cfg),
+		logger:                 logger,
+		dir:                    dir,
+		generator:              NewExecutor(logger, m, cfg, localInputs),
+		gameDepth:              gameDepth,
+		localContext:           localContext,
 	}
 }
 
@@ -108,26 +109,6 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 		oracleData = types.NewPreimageOracleData(p.localContext, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	}
 	return value, data, oracleData, nil
-}
-
-func (p *CannonTraceProvider) absolutePreState() ([]byte, error) {
-	state, err := parseState(p.prestate)
-	if err != nil {
-		return nil, fmt.Errorf("cannot load absolute pre-state: %w", err)
-	}
-	return state.EncodeWitness(), nil
-}
-
-func (p *CannonTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
-	state, err := p.absolutePreState()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
-	}
-	hash, err := mipsevm.StateWitness(state).StateHash()
-	if err != nil {
-		return common.Hash{}, fmt.Errorf("cannot hash absolute pre-state: %w", err)
-	}
-	return hash, nil
 }
 
 // loadProof will attempt to load or generate the proof data at the specified index

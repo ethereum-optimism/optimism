@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/split"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -17,7 +18,7 @@ import (
 func NewOutputAlphabetTraceAccessor(
 	ctx context.Context,
 	logger log.Logger,
-	v AbsolutePrestateValidator,
+	prestateProvider types.PrestateProvider,
 	m metrics.Metricer,
 	cfg *config.Config,
 	gameDepth uint64,
@@ -26,14 +27,12 @@ func NewOutputAlphabetTraceAccessor(
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
 	bottomDepth := gameDepth - splitDepth
-	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, splitDepth, prestateBlock, poststateBlock)
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := v(ctx, outputProvider); err != nil {
-		return nil, err
-	}
+	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, gameDepth, prestateBlock, poststateBlock)
 
 	alphabetCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		provider := alphabet.NewTraceProvider(localContext.Hex(), bottomDepth)

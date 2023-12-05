@@ -46,4 +46,8 @@ func (p *TranslatingProvider) AbsolutePreStateCommitment(ctx context.Context) (h
 	return p.provider.AbsolutePreStateCommitment(ctx)
 }
 
+func (p *TranslatingProvider) GenesisOutputRoot(ctx context.Context) (hash common.Hash, err error) {
+	return p.provider.GenesisOutputRoot(ctx)
+}
+
 var _ types.TraceProvider = (*TranslatingProvider)(nil)

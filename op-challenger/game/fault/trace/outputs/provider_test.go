@@ -96,22 +96,6 @@ func TestGetBlockNumber(t *testing.T) {
 	})
 }
 
-func TestAbsolutePreStateCommitment(t *testing.T) {
-	t.Run("FailedToFetchOutput", func(t *testing.T) {
-		provider, rollupClient := setupWithTestData(t, prestateBlock, poststateBlock)
-		rollupClient.errorsOnPrestateFetch = true
-		_, err := provider.AbsolutePreStateCommitment(context.Background())
-		require.ErrorIs(t, err, errNoOutputAtBlock)
-	})
-
-	t.Run("ReturnsCorrectPrestateOutput", func(t *testing.T) {
-		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
-		value, err := provider.AbsolutePreStateCommitment(context.Background())
-		require.NoError(t, err)
-		require.Equal(t, value, prestateOutputRoot)
-	})
-}
-
 func TestGetStepData(t *testing.T) {
 	provider, _ := setupWithTestData(t, prestateBlock, poststateBlock)
 	_, _, _, err := provider.GetStepData(context.Background(), types.NewPosition(1, common.Big0))
@@ -156,4 +140,25 @@ func (s *stubRollupClient) OutputAtBlock(_ context.Context, blockNum uint64) (*e
 		return nil, fmt.Errorf("%w: %d", errNoOutputAtBlock, blockNum)
 	}
 	return output, nil
+}
+
+type stubPrestateProvider struct {
+	errorsOnGenesisFetch          bool
+	errorsOnAbsolutePrestateFetch bool
+	absolutePrestate              common.Hash
+	genesisOutput                 common.Hash
+}
+
+func (s *stubPrestateProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
+	if s.errorsOnAbsolutePrestateFetch {
+		return common.Hash{}, errNoOutputAtBlock
+	}
+	return s.absolutePrestate, nil
+}
+
+func (s *stubPrestateProvider) GenesisOutputRoot(_ context.Context) (common.Hash, error) {
+	if s.errorsOnGenesisFetch {
+		return common.Hash{}, errNoOutputAtBlock
+	}
+	return s.genesisOutput, nil
 }

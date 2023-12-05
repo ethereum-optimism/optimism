@@ -67,8 +67,19 @@ type TraceAccessor interface {
 	GetStepData(ctx context.Context, game Game, ref Claim, pos Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
 }
 
+// PrestateProvider defines an interface to request the absolute prestate.
+type PrestateProvider interface {
+	// AbsolutePreStateCommitment is the commitment of the pre-image value of the trace that transitions to the trace value at index 0
+	AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error)
+
+	// GenesisOutputRoot is the output root of the provider at genesis.
+	GenesisOutputRoot(ctx context.Context) (hash common.Hash, err error)
+}
+
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.
 type TraceProvider interface {
+	PrestateProvider
+
 	// Get returns the claim value at the requested index.
 	// Get(i) = Keccak256(GetPreimage(i))
 	Get(ctx context.Context, i Position) (common.Hash, error)
@@ -78,9 +89,6 @@ type TraceProvider interface {
 	// and any pre-image data that needs to be loaded into the oracle prior to execution (may be nil)
 	// The prestate returned from GetStepData for trace 10 should be the pre-image of the claim from trace 9
 	GetStepData(ctx context.Context, i Position) (prestate []byte, proofData []byte, preimageData *PreimageOracleData, err error)
-
-	// AbsolutePreStateCommitment is the commitment of the pre-image value of the trace that transitions to the trace value at index 0
-	AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.

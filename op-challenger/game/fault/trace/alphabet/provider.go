@@ -15,12 +15,13 @@ import (
 
 var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
-	absolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 )
 
 // AlphabetTraceProvider is a [TraceProvider] that provides claims for specific
 // indices in the given trace.
 type AlphabetTraceProvider struct {
+	AlphabetPrestateProvider
+
 	state  []string
 	depth  uint64
 	maxLen uint64
@@ -29,9 +30,10 @@ type AlphabetTraceProvider struct {
 // NewTraceProvider returns a new [AlphabetProvider].
 func NewTraceProvider(state string, depth uint64) *AlphabetTraceProvider {
 	return &AlphabetTraceProvider{
-		state:  strings.Split(state, ""),
-		depth:  depth,
-		maxLen: uint64(1 << depth),
+		AlphabetPrestateProvider: *NewPrestateProvider(),
+		state:                    strings.Split(state, ""),
+		depth:                    depth,
+		maxLen:                   uint64(1 << depth),
 	}
 }
 
@@ -66,12 +68,6 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 		return common.Hash{}, err
 	}
 	return alphabetStateHash(claimBytes), nil
-}
-
-func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
-	hash := common.BytesToHash(crypto.Keccak256(absolutePrestate))
-	hash[0] = mipsevm.VMStatusUnfinished
-	return hash, nil
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
