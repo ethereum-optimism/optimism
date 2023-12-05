@@ -1,0 +1,11 @@
+# Postie Private Key
+private-key = "0xabc"
+
+# Interval for mail updates
+update-interval-minutes = 3
+
+# Destination Chain where inbox updates will be delivered
+destination-rpc = "http://localhost:9545"
+
+# List of Connected Chains watched for updates
+connected-rpcs = ["http://localhost:9646", "http://localhost:9747"]

@@ -3,34 +3,150 @@ package interop
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
+	"math/big"
+	"sync/atomic"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
 	CrossL2Outbox = common.HexToAddress("")
+	CrossL2Inbox  = common.HexToAddress("")
 )
 
 type PostieConfig struct {
-	Postie          *ecdsa.PrivateKey
-	ConnectedChains []ethclient.Client
+	Postie *ecdsa.PrivateKey
+
+	DestinationChain *ethclient.Client
+	ConnectedChains  []node.EthClient
+
+	UpdateInterval time.Duration
 }
 
-type Postie struct{}
+type Postie struct {
+	log log.Logger
 
-func NewPostie() *Postie {
-	return &Postie{}
+	chains               map[uint64]node.EthClient
+	outboxStorageRoots   map[uint64]common.Hash
+	outboxUpdateInterval time.Duration
+
+	crossL2Inbox *bindings.CrossL2Inbox
+	tOpts        *bind.TransactOpts
+
+	worker  *clock.LoopFn
+	stopped atomic.Bool
+}
+
+func NewPostie(log log.Logger, cfg PostieConfig) (*Postie, error) {
+	connectedChains := map[uint64]node.EthClient{}
+	for _, clnt := range cfg.ConnectedChains {
+		chainIdBig, err := clnt.ChainID()
+		if err != nil {
+			return nil, fmt.Errorf("unable to retrieve chain id: %w", err)
+		}
+
+		chainId := chainIdBig.Uint64()
+		connectedChains[chainId] = clnt
+	}
+
+	destChainId, err := cfg.DestinationChain.ChainID(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("unable to fetch chain id of destination chain: %w", err)
+	}
+
+	tOpts, err := bind.NewKeyedTransactorWithChainID(cfg.Postie, destChainId)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create transactor for the postiee account: %w", err)
+	}
+
+	crossL2Inbox, err := bindings.NewCrossL2Inbox(CrossL2Inbox, cfg.DestinationChain)
+	if err != nil {
+		return nil, fmt.Errorf("unable to construct inbox contract: %w", err)
+	}
+
+	return &Postie{
+		log:                  log,
+		chains:               connectedChains,
+		outboxStorageRoots:   map[uint64]common.Hash{},
+		outboxUpdateInterval: cfg.UpdateInterval,
+		crossL2Inbox:         crossL2Inbox,
+		tOpts:                tOpts,
+	}, nil
 }
 
 func (p *Postie) Start(ctx context.Context) error {
+	p.log.Info("starting postie...")
+
+	// Run once on startup, then start the loop
+	//  - NOTE: Since the CrossL2Inbox stores all commitments, not just the latest
+	// 	we send an on-chain tx on startup to deliver updates for all chains which
+	//  is redundant if nothing has happened since the restart of this daemon. This
+	//  can be fixed by correctly bootstrapping `p.outboxStorageRoots` with the
+	//  correct previous state.
+	p.tick(context.Background())
+	p.worker = clock.NewLoopFn(clock.SystemClock, p.tick, func() error {
+		p.log.Info("worker stopped")
+		return nil
+	}, p.outboxUpdateInterval)
+
 	return nil
 }
 
 func (p *Postie) Stop(ctx context.Context) error {
-	return nil
+	p.log.Info("stopping postie...")
+	if p.worker == nil {
+		return nil
+	}
+
+	err := p.worker.Close()
+	p.stopped.Store(true)
+	return err
 }
 
 func (p *Postie) Stopped() bool {
-	return false
+	return p.stopped.Load()
+}
+
+func (p *Postie) tick(_ context.Context) {
+	p.log.Info("checking outboxes")
+
+	mail := []bindings.InboxEntry{}
+	for chainId, clnt := range p.chains {
+		oldStorageRoot := p.outboxStorageRoots[chainId]
+
+		outboxStorageRoot, err := clnt.StorageHash(CrossL2Outbox, nil)
+		if err != nil {
+			p.log.Error("unable to fetch outbox storage root", "chain_id", chainId, "err", err)
+		}
+
+		if outboxStorageRoot == oldStorageRoot {
+			p.log.Info("no change in state", "chain_id", chainId)
+		} else {
+			p.log.Info("detected new outbox storage root", "chain_id", chainId, "root", outboxStorageRoot.String(), "old_root", oldStorageRoot.String())
+			mail = append(mail, bindings.InboxEntry{Chain: common.BigToHash(big.NewInt(int64(chainId))), Output: outboxStorageRoot})
+
+			// NOTE: There are some potential lifecycle isssues here that arrives from the delay between
+			// tx submission and inclusion. As long as the tick interval >> block time we're fine
+			p.outboxStorageRoots[chainId] = outboxStorageRoot
+		}
+	}
+
+	if len(mail) > 0 {
+		p.log.Info("delivering mail to inbox...")
+		tx, err := p.crossL2Inbox.DeliverMail(p.tOpts, mail)
+		if err != nil {
+			p.log.Error("unable to deliver mail", "err", err)
+		}
+
+		p.log.Info("mail delivered", "tx_hash", tx.Hash().String())
+	}
 }

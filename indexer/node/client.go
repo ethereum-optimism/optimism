@@ -32,6 +32,8 @@ const (
 )
 
 type EthClient interface {
+	ChainID() (*big.Int, error)
+
 	BlockHeaderByNumber(*big.Int) (*types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
@@ -73,6 +75,20 @@ func DialEthClient(ctx context.Context, rpcUrl string, metrics Metricer) (EthCli
 	}
 
 	return &clnt{rpc: NewRPC(rpcClient, metrics)}, nil
+}
+
+// ChainID retrieves the chain id associated with the rpc connection
+func (c *clnt) ChainID() (*big.Int, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	var result hexutil.Big
+	err := c.rpc.CallContext(ctxwt, &result, "eth_chainId")
+	if err != nil {
+		return nil, err
+	}
+
+	return (*big.Int)(&result), nil
 }
 
 // BlockHeaderByHash retrieves the block header attributed to the supplied hash

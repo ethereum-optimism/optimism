@@ -16,6 +16,11 @@ type MockEthClient struct {
 	mock.Mock
 }
 
+func (m *MockEthClient) ChainID() (*big.Int, error) {
+	args := m.Called()
+	return args.Get(0).(*big.Int), args.Error(1)
+}
+
 func (m *MockEthClient) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
 	args := m.Called(number)
 	return args.Get(0).(*types.Header), args.Error(1)
