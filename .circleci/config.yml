@@ -1356,7 +1356,7 @@ jobs:
       - run:
           name: Create Results Tar
           command: |
-            tar -czvf results.tar.gz kout/proofs
+            tar -czvf results.tar.gz packages/contracts-bedrock/kout
       - store_artifacts:
           path: results.tar.gz
           destination: results
