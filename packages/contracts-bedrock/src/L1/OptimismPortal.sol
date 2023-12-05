@@ -61,7 +61,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @custom:legacy
     /// @custom:spacer paused
     /// @notice Spacer for backwards compatibility.
-    bool spacer_53_0_1;
+    bool private spacer_53_0_1;
 
     /// @notice The address of the Superchain Config contract.
     SuperchainConfig public superchainConfig;
