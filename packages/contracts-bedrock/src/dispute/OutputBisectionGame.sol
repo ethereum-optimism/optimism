@@ -296,16 +296,16 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         Hash uuid = computeLocalContext(starting, startingPos, disputed, disputedPos);
 
         IPreimageOracle oracle = VM.oracle();
-        if (_ident == 1) {
+        if (_ident == LocalPreimageKey.L1_HEAD_HASH) {
             // Load the L1 head hash
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Hash.unwrap(l1Head), 32, _partOffset);
-        } else if (_ident == 2) {
+        } else if (_ident == LocalPreimageKey.STARTING_OUTPUT_ROOT) {
             // Load the starting proposal's output root.
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(starting), 32, _partOffset);
-        } else if (_ident == 3) {
+        } else if (_ident == LocalPreimageKey.DISPUTED_OUTPUT_ROOT) {
             // Load the disputed proposal's output root
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(disputed), 32, _partOffset);
-        } else if (_ident == 4) {
+        } else if (_ident == LocalPreimageKey.STARTING_L2_BLOCK_NUMBER) {
             // Load the starting proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
@@ -316,7 +316,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
                 : GENESIS_BLOCK_NUMBER + startingPos.indexAtDepth() + 1;
 
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(l2Number << 0xC0), 8, _partOffset);
-        } else if (_ident == 5) {
+        } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(block.chainid << 0xC0), 8, _partOffset);
         } else {

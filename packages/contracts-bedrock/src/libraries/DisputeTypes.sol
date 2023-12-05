@@ -85,26 +85,46 @@ library GameTypes {
     /// @dev A dispute game type that performs output bisection and then uses the cannon vm.
     GameType internal constant OUTPUT_CANNON = GameType.wrap(1);
 
-    /// @dev A dispute game type that performs output bisection and then uses an alphabet vm.
-    ///      Note intended for production use.
+    /// @notice A dispute game type that performs output bisection and then uses an alphabet vm.
+    ///         Not intended for production use.
     GameType internal constant OUTPUT_ALPHABET = GameType.wrap(254);
 
-    /// @dev A dispute game type that uses an alphabet vm.
-    ///      Note intended for production use.
+    /// @notice A dispute game type that uses an alphabet vm.
+    ///         Not intended for production use.
     GameType internal constant ALPHABET = GameType.wrap(255);
 }
 
 /// @title VMStatuses
+/// @notice Named type aliases for the various valid VM status bytes.
 library VMStatuses {
-    /// @dev The VM has executed successfully and the outcome is valid.
+    /// @notice The VM has executed successfully and the outcome is valid.
     VMStatus internal constant VALID = VMStatus.wrap(0);
 
-    /// @dev The VM has executed successfully and the outcome is invalid.
+    /// @notice The VM has executed successfully and the outcome is invalid.
     VMStatus internal constant INVALID = VMStatus.wrap(1);
 
-    /// @dev The VM has paniced.
+    /// @notice The VM has paniced.
     VMStatus internal constant PANIC = VMStatus.wrap(2);
 
-    /// @dev The VM execution is still in progress.
+    /// @notice The VM execution is still in progress.
     VMStatus internal constant UNFINISHED = VMStatus.wrap(3);
+}
+
+/// @title LocalPreimageKey
+/// @notice Named type aliases for local `PreimageOracle` key identifiers.
+library LocalPreimageKey {
+    /// @notice The identifier for the L1 head hash.
+    uint256 internal constant L1_HEAD_HASH = 0x01;
+
+    /// @notice The identifier for the starting output root.
+    uint256 internal constant STARTING_OUTPUT_ROOT = 0x02;
+
+    /// @notice The identifier for the disputed output root.
+    uint256 internal constant DISPUTED_OUTPUT_ROOT = 0x03;
+
+    /// @notice The identifier for the starting L2 block number.
+    uint256 internal constant STARTING_L2_BLOCK_NUMBER = 0x04;
+
+    /// @notice The identifier for the chain ID.
+    uint256 internal constant CHAIN_ID = 0x05;
 }

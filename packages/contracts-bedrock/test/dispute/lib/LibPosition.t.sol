@@ -11,6 +11,8 @@ contract LibPosition_Test is Test {
     /// @dev At the lowest level of the tree, this allows for 2 ** 63 leaves. In reality, the max game depth
     ///      will likely be much lower.
     uint8 internal constant MAX_DEPTH = 63;
+    /// @dev Arbitrary split depth around half way down the tree.
+    uint8 internal constant SPLIT_DEPTH = 30;
 
     function boundIndexAtDepth(uint8 _depth, uint64 _indexAtDepth) internal pure returns (uint64) {
         // Index at depth bound: [0, 2 ** _depth-1]
@@ -85,6 +87,24 @@ contract LibPosition_Test is Test {
         Position ancestor = position.traceAncestor();
         Position loopAncestor = position;
         while (loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)) {
+            loopAncestor = loopAncestor.parent();
+        }
+
+        assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
+    }
+
+    /// @notice Tests that the `traceAncestor` function correctly computes the position of the
+    ///         highest ancestor that commits to the same trace index.
+    function testFuzz_traceAncestorExec_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth) public {
+        _depth = uint8(bound(_depth, SPLIT_DEPTH + 1, MAX_DEPTH));
+        _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
+
+        Position position = LibPosition.wrap(_depth, _indexAtDepth);
+        Position ancestor = position.traceAncestorExec(SPLIT_DEPTH);
+        Position loopAncestor = position;
+
+        // Stop at 1 below the split depth.
+        while (loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH) && loopAncestor.depth() != SPLIT_DEPTH + 1) {
             loopAncestor = loopAncestor.parent();
         }
 

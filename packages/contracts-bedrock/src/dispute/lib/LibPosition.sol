@@ -2,6 +2,7 @@
 pragma solidity ^0.8.15;
 
 import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 /// @title LibPosition
 /// @notice This library contains helper functions for working with the `Position` type.
@@ -133,6 +134,39 @@ library LibPosition {
             let a := shr(msb, _position)
             // Bound the ancestor to the minimum gindex, 1.
             ancestor_ := or(a, iszero(a))
+        }
+    }
+
+    /// @notice Gets the position of the highest ancestor of `_position` that commits to the same
+    ///         trace index.
+    /// @param _position The position to get the highest ancestor of.
+    /// @param _splitDepth The split depth within the tree, used to inform where to stop in order to not escape an
+    ///                    execution trace sub-game.
+    /// @return ancestor_ The highest ancestor of `position` that commits to the same trace index.
+    function traceAncestorExec(Position _position, uint256 _splitDepth) internal pure returns (Position ancestor_) {
+        // This function only works for positions that are below the split depth (i.e., commit to state hashes
+        // of the fault proof program rather than output roots)
+        uint256 posDepth = _position.depth();
+        if (posDepth <= _splitDepth) revert ClaimAboveSplit();
+
+        // Create a field with only the lowest unset bit of `_position` set.
+        Position lsb;
+        assembly {
+            lsb := and(not(_position), add(_position, 1))
+        }
+        // Find the index of the lowest unset bit within the field.
+        uint256 msb = lsb.depth();
+        assembly {
+            let a := shr(msb, _position)
+            // Bound the ancestor to the minimum gindex, 1.
+            ancestor_ := or(a, iszero(a))
+        }
+
+        // If the ancestor is above or at the split depth, shift it to below the split depth.
+        // This should be a special case that only covers positions that commit to the final trace
+        // index in an execution trace subtree.
+        if (ancestor_.depth() <= _splitDepth) {
+            ancestor_ = ancestor_.rightIndex(_splitDepth + 1);
         }
     }
 
