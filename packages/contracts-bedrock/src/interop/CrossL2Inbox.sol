@@ -3,6 +3,8 @@ pragma solidity 0.8.15;
 
 import { Types } from "src/libraries/Types.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { SafeCall } from "src/libraries/SafeCall.sol";
+import { Hashing } from "src/libraries/Hashing.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 
 /// @notice Entry to post to the inbox.
@@ -82,7 +84,7 @@ contract CrossL2Inbox is ISemver {
         // that have the system contract address as _msg.from.
 
         require(
-            roots[_msg.sourceChain][_l2OutputRoot] != bytes32(),
+            roots[_msg.sourceChain][_l2OutputRoot],
             "CrossL2Inbox: must proof against known output root from message source chain"
         );
 
@@ -107,7 +109,7 @@ contract CrossL2Inbox is ISemver {
         // TODO: run precompile to verify the storageKey is part of the output root tree
 
         // Make sure that the crossL2Sender has not yet been set. The crossL2Sender is set to a value other
-        // than the default value when a withdrawal transaction is being finalized. This check is
+        // than the default value when a cross-L2 message call is being executed. This check is
         // a defacto reentrancy guard.
         require(
             crossL2Sender == Constants.DEFAULT_L2_SENDER, "CrossL2Inbox: can only trigger one call per cross L2 message"
@@ -120,7 +122,7 @@ contract CrossL2Inbox is ISemver {
         consumedMessages[messageRoot] = true;
 
         // Set the crossL2Sender so contracts know who triggered this call across L2.
-        crossL2Sender = _msg.sender;
+        crossL2Sender = _msg.from;
 
         // set cross L2 source chain identifier so contracts know which L2 the message is coming from.
         messageSourceChain = _msg.sourceChain;
@@ -137,7 +139,7 @@ contract CrossL2Inbox is ISemver {
         // Reset the crossL2Sender back to the default value.
         crossL2Sender = Constants.DEFAULT_L2_SENDER;
         // Reset the source chain back to the default value.
-        messageSourceChain = bytes32();
+        messageSourceChain = bytes32(0);
 
         // All cross-L2 messages are unconditionally relayed. Replayability can
         // be achieved through contracts built on top of this contract
