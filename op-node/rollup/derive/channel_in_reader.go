@@ -91,9 +91,13 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 	}
 	switch batchData.GetBatchType() {
 	case SingularBatchType:
-		cr.log.Debug("decoded singular batch from channel")
+		singularBatch, err := GetSingularBatch(batchData)
+		if err != nil {
+			return nil, err
+		}
+		singularBatch.LogContext(cr.log).Debug("decoded singular batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("singular")
-		return GetSingularBatch(batchData)
+		return singularBatch, nil
 	case SpanBatchType:
 		if origin := cr.Origin(); !cr.cfg.IsDelta(origin.Time) {
 			// Check hard fork activation with the L1 inclusion block time instead of the L1 origin block time.
@@ -101,9 +105,13 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (Batch, error) {
 			// This is just for early dropping invalid batches as soon as possible.
 			return nil, NewTemporaryError(fmt.Errorf("cannot accept span batch in L1 block %s at time %d", origin, origin.Time))
 		}
-		cr.log.Debug("decoded span batch from channel")
+		spanBatch, err := DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
+		if err != nil {
+			return nil, err
+		}
+		spanBatch.LogContext(cr.log).Debug("decoded span batch from channel", "stage_origin", cr.Origin())
 		cr.metrics.RecordDerivedBatches("span")
-		return DeriveSpanBatch(batchData, cr.cfg.BlockTime, cr.cfg.Genesis.L2Time, cr.cfg.L2ChainID)
+		return spanBatch, nil
 	default:
 		// error is bubbled up to user, but pipeline can skip the batch and continue after.
 		return nil, NewTemporaryError(fmt.Errorf("unrecognized batch type: %d", batchData.GetBatchType()))
