@@ -44,13 +44,8 @@ an emergency situation. The Guardian role is authorized to pause and unpause the
 
 #### Paused identifiers
 
-The Guardian may distributed a set of presigned transactions to trusted partners, so that the `pause()`
-method may be called as quickly as possible in the event of an emergency. Although this increases the risk of
-the system being paused unnecessarily, this is preferable to not pausing when assets are legitimately
-vulnerable.
-
-When the system is paused the `Paused(string identifier)` event is emitted, which enables easy attribution
-of which partner triggered the pause.
+When the system is paused the `Paused(string identifier)` event is emitted. This allows for the
+caller to provide additional information to be used during incident response.
 
 #### Scope of pausability
 
@@ -61,8 +56,8 @@ layer.
 When the Pause is activated, the following methods are disabled:
 
 1. `OptimismPortal.proveWithdrawalTransaction()`
-2. `OptimismPortal.finalizeWithdrawalTransaction()`
-3. `StandardBridge.finalizeBridgeERC20()`
-4. `StandardBridge.finalizeBridgeETH()`
-5. `L1ERC721Bridge.finalizeBridgeERC721()`
-6. `L1CrossDomainMessenger.relayMessage()`
+1. `OptimismPortal.finalizeWithdrawalTransaction()`
+1. `L1CrossDomainMessenger.relayMessage()`
+1. `StandardBridge.finalizeBridgeERC20()`
+1. `StandardBridge.finalizeBridgeETH()`
+1. `L1ERC721Bridge.finalizeBridgeERC721()`
