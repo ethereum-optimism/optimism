@@ -147,16 +147,18 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // prestate.
             // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
             // the game state.
+            // WARN: This will not work, except for in the first execution trace bisection game!
+            //       We need to replace `0` with the correct starting index for the given sub-game.
             preStateClaim = stepPos.indexAtDepth() == 0
                 ? ABSOLUTE_PRESTATE
-                : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex).claim;
+                : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex, false).claim;
             // For all attacks, the poststate is the parent claim.
             postState = parent;
         } else {
             // If the step is a defense, the poststate exists elsewhere in the game state,
             // and the parent claim is the expected pre-state.
             preStateClaim = parent.claim;
-            postState = findTraceAncestor(Position.wrap(Position.unwrap(parentPos) + 1), parent.parentIndex);
+            postState = findTraceAncestor(Position.wrap(Position.unwrap(parentPos) + 1), parent.parentIndex, false);
         }
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
@@ -479,10 +481,20 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice Finds the trace ancestor of a given position within the DAG.
     /// @param _pos The position to find the trace ancestor claim of.
     /// @param _start The index to start searching from.
+    /// @param _global Whether or not to search the entire dag or just within an execution trace subgame. If set to
+    ///                `true`, and `_pos` is at or above the split depth, this function will revert.
     /// @return ancestor_ The ancestor claim that commits to the same trace index as `_pos`.
-    function findTraceAncestor(Position _pos, uint256 _start) internal view returns (ClaimData storage ancestor_) {
+    function findTraceAncestor(
+        Position _pos,
+        uint256 _start,
+        bool _global
+    )
+        internal
+        view
+        returns (ClaimData storage ancestor_)
+    {
         // Grab the trace ancestor's expected position.
-        Position preStateTraceAncestor = _pos.traceAncestor();
+        Position preStateTraceAncestor = _global ? _pos.traceAncestor() : _pos.traceAncestorBounded(SPLIT_DEPTH);
 
         // Walk up the DAG to find a claim that commits to the same trace index as `_pos`. It is
         // guaranteed that such a claim exists.
@@ -547,14 +559,16 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // starting claim nor position exists in the tree. We leave these as 0, which can be easily
             // identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
-                ClaimData storage starting = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx);
+                ClaimData storage starting =
+                    findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx, true);
                 (startingClaim_, startingPos_) = (starting.claim, starting.position);
             } else {
                 startingClaim_ = Claim.wrap(Hash.unwrap(GENESIS_OUTPUT_ROOT));
             }
             (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
         } else {
-            ClaimData storage disputed = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx);
+            ClaimData storage disputed =
+                findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx, true);
             (startingClaim_, startingPos_) = (claim.claim, claim.position);
             (disputedClaim_, disputedPos_) = (disputed.claim, disputed.position);
         }

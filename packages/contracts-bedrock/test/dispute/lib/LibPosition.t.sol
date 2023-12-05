@@ -93,18 +93,21 @@ contract LibPosition_Test is Test {
         assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
     }
 
-    /// @notice Tests that the `traceAncestor` function correctly computes the position of the
-    ///         highest ancestor that commits to the same trace index.
-    function testFuzz_traceAncestorExec_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth) public {
+    /// @notice Tests that the `traceAncestorBounded` function correctly computes the position of the
+    ///         highest ancestor (below `SPLIT_DEPTH`) that commits to the same trace index.
+    function testFuzz_traceAncestorBounded_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, SPLIT_DEPTH + 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position ancestor = position.traceAncestorExec(SPLIT_DEPTH);
+        Position ancestor = position.traceAncestorBounded(SPLIT_DEPTH);
         Position loopAncestor = position;
 
         // Stop at 1 below the split depth.
-        while (loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH) && loopAncestor.depth() != SPLIT_DEPTH + 1) {
+        while (
+            loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)
+                && loopAncestor.depth() != SPLIT_DEPTH + 1
+        ) {
             loopAncestor = loopAncestor.parent();
         }
 
