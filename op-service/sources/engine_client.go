@@ -146,6 +146,7 @@ func (s *EngineClient) UploadFileDataByParams(ctx context.Context, index, length
 	err := s.client.CallContext(ctx, &result, "eth_uploadFileDataByParams", user, broadcaster, index, length, commitment, data, sign, hash)
 	return result, err
 }
+
 func (s *EngineClient) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
 	var result *types.FileData
 	err := s.client.CallContext(ctx, &result, "eth_getFileDataByHash", hash)

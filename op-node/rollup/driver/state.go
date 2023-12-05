@@ -93,6 +93,11 @@ type Driver struct {
 	daMgr *DAManager
 }
 
+func (s *Driver) Test(ctx context.Context) error {
+	s.daMgr.Test()
+	return nil
+}
+
 // Start starts up the state loop.
 // The loop will have been started iff err is not nil.
 func (s *Driver) Start() error {

@@ -32,9 +32,9 @@ config=$(cat << EOL
 
   "l1StartingBlockTag": "$blockhash",
 
-  "l1ChainID": 11155111,
-  "l2ChainID": 42069,
-  "l2BlockTime": 2,
+  "l1ChainID": 5,
+  "l2ChainID": 1988,
+  "l2BlockTime": 10,
   "l1BlockTime": 12,
 
   "maxSequencerDrift": 600,

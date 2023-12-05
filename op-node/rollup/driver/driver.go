@@ -144,6 +144,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, txcfg txmgr.Config, l2 L2C
 	} else {
 		daMgr = NewDAManager(log, cfg, meteredEngine, txMgr, true)
 	}
+	daMgr.Start()
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
