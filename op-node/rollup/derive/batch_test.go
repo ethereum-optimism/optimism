@@ -30,15 +30,24 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 	}
 	var blockTxCounts []uint64
 	totalblockTxCounts := uint64(0)
-	for i := 0; i < int(blockCount); i++ {
+
+	blockTxCounts = append(blockTxCounts, 4)
+	totalblockTxCounts += 4
+	for i := 1; i < int(blockCount); i++ {
 		blockTxCount := uint64(rng.Intn(16))
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 		totalblockTxCounts += blockTxCount
 	}
-	signer := types.NewLondonSigner(chainId)
+	londonSigner := types.NewLondonSigner(chainId)
 	var txs [][]byte
 	for i := 0; i < int(totalblockTxCounts); i++ {
-		tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
+		var tx *types.Transaction
+		// ensure unprotected txs are included
+		if i < 4 || testutils.RandomBool(rng) {
+			tx = testutils.RandomLegacyTxNotProtected(rng)
+		} else {
+			tx = testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), londonSigner)
+		}
 		rawTx, err := tx.MarshalBinary()
 		if err != nil {
 			panic("MarshalBinary:" + err.Error())

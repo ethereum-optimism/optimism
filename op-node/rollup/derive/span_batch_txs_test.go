@@ -301,19 +301,36 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x123))
 
 	chainID := big.NewInt(rng.Int63n(1000))
-	signer := types.NewLondonSigner(chainID)
-	totalblockTxCount := rng.Intn(100)
+	londonSigner := types.NewLondonSigner(chainID)
+	totalblockTxCount := 20 + rng.Intn(100)
 
 	var spanBatchTxs spanBatchTxs
 	var txTypes []int
 	var txSigs []spanBatchSignature
 	var originalVs []uint64
 	yParityBits := new(big.Int)
+	protectedBits := new(big.Int)
+	totalLegacyTxCount := 0
 	for idx := 0; idx < totalblockTxCount; idx++ {
-		tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
-		txTypes = append(txTypes, int(tx.Type()))
+		var tx *types.Transaction
+		// ensure unprotected txs are included
+		if idx < 4 || testutils.RandomBool(rng) {
+			tx = testutils.RandomLegacyTxNotProtected(rng)
+		} else {
+			tx = testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), londonSigner)
+		}
+		txType := tx.Type()
+		txTypes = append(txTypes, int(txType))
 		var txSig spanBatchSignature
 		v, r, s := tx.RawSignatureValues()
+		if txType == types.LegacyTxType {
+			protectedBit := uint(0)
+			if tx.Protected() {
+				protectedBit = uint(1)
+			}
+			protectedBits.SetBit(protectedBits, int(totalLegacyTxCount), protectedBit)
+			totalLegacyTxCount++
+		}
 		// Do not fill in txSig.V
 		txSig.r, _ = uint256.FromBig(r)
 		txSig.s, _ = uint256.FromBig(s)
