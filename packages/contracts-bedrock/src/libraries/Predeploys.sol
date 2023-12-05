@@ -4,11 +4,14 @@ pragma solidity ^0.8.0;
 /// @title Predeploys
 /// @notice Contains constant addresses for contracts that are pre-deployed to the L2 system.
 library Predeploys {
-    /// @notice Address of the CrossL2Outbox predeploy.
-    address internal constant CROSS_L2_OUTBOX = 0x4200000000000000000000000000000000001616;
+    /// @notice Address of the CrossL2Outbox predeploy. [interop]
+    address internal constant CROSS_L2_OUTBOX = 0x42000000000000000000000000000000000000E0;
 
-    /// @notice Address of the CrossL2Outbox predeploy.
-    address internal constant CROSS_L2_INBOX = 0x4200000000000000000000000000000000001617;
+    /// @notice Address of the CrossL2Outbox predeploy. [interop]
+    address internal constant CROSS_L2_INBOX = 0x42000000000000000000000000000000000000e1;
+
+    /// @notice Address of the NewL2CrossDomainMessenger predeploy. [interop]
+    address internal constant NEW_L2_CROSS_DOMAIN_MESSENGER = 0x42000000000000000000000000000000000000e2;
 
     /// @notice Address of the L2ToL1MessagePasser predeploy.
     address internal constant L2_TO_L1_MESSAGE_PASSER = 0x4200000000000000000000000000000000000016;
