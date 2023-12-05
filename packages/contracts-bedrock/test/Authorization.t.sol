@@ -10,7 +10,11 @@ import { SystemConfig } from "src/L1/SystemConfig.sol";
 
 /// @title Authorization_Test
 /// @dev Specify access requirements of all entrypoints to L1 contracts.
-///      New contract and methods should be added to the `setUp` function.
+///      When adding new functions, make sure to update the `setUp` function to document if
+///      the function should be authorized or not. The `Spec` struct reppresents this
+///      documentation, where `auth` is `true` if the function requires authorization and
+///      `false` otherwise. However, this contract does not test for authorization, only that
+///      an auth spec is defined for every L1 function.
 contract Authorization_Test is CommonTest {
     struct AbiEntry {
         string fnName;
@@ -72,9 +76,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("L1ERC721Bridge", _getSel("bridgeERC721(address,address,uint256,uint32,bytes)"), false);
         _addSpec("L1ERC721Bridge", _getSel("bridgeERC721To(address,address,address,uint256,uint32,bytes)"), false);
         _addSpec("L1ERC721Bridge", _getSel("deposits(address,address,uint256)"), false);
-        _addSpec(
-            "L1ERC721Bridge", _getSel("finalizeBridgeERC721(address,address,address,address,uint256,bytes)"), false
-        );
+        _addSpec("L1ERC721Bridge", _getSel("finalizeBridgeERC721(address,address,address,address,uint256,bytes)"), true);
         _addSpec("L1ERC721Bridge", _getSel("messenger()"), false);
         _addSpec("L1ERC721Bridge", _getSel("otherBridge()"), false);
         _addSpec("L1ERC721Bridge", _getSel("version()"), false);
@@ -92,13 +94,13 @@ contract Authorization_Test is CommonTest {
         _addSpec("L1StandardBridge", _getSel("depositETHTo(address,uint32,bytes)"), false);
         _addSpec("L1StandardBridge", _getSel("deposits(address,address)"), false);
         _addSpec(
-            "L1StandardBridge", _getSel("finalizeBridgeERC20(address,address,address,address,uint256,bytes)"), false
+            "L1StandardBridge", _getSel("finalizeBridgeERC20(address,address,address,address,uint256,bytes)"), true
         );
-        _addSpec("L1StandardBridge", _getSel("finalizeBridgeETH(address,address,uint256,bytes)"), false);
+        _addSpec("L1StandardBridge", _getSel("finalizeBridgeETH(address,address,uint256,bytes)"), true);
         _addSpec(
-            "L1StandardBridge", _getSel("finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)"), false
+            "L1StandardBridge", _getSel("finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)"), true
         );
-        _addSpec("L1StandardBridge", _getSel("finalizeETHWithdrawal(address,address,uint256,bytes)"), false);
+        _addSpec("L1StandardBridge", _getSel("finalizeETHWithdrawal(address,address,uint256,bytes)"), true);
         _addSpec("L1StandardBridge", _getSel("l2TokenBridge()"), false);
         _addSpec("L1StandardBridge", _getSel("messenger()"), false);
         _addSpec("L1StandardBridge", _getSel("otherBridge()"), false);
@@ -112,7 +114,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("L2OutputOracle", _getSel("SUBMISSION_INTERVAL()"), false);
         _addSpec("L2OutputOracle", _getSel("challenger()"), false);
         _addSpec("L2OutputOracle", _getSel("computeL2Timestamp(uint256)"), false);
-        _addSpec("L2OutputOracle", _getSel("deleteL2Outputs(uint256)"), false);
+        _addSpec("L2OutputOracle", _getSel("deleteL2Outputs(uint256)"), true);
         _addSpec("L2OutputOracle", _getSel("finalizationPeriodSeconds()"), false);
         _addSpec("L2OutputOracle", _getSel("getL2Output(uint256)"), false);
         _addSpec("L2OutputOracle", _getSel("getL2OutputAfter(uint256)"), false);
@@ -123,7 +125,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("L2OutputOracle", _getSel("latestOutputIndex()"), false);
         _addSpec("L2OutputOracle", _getSel("nextBlockNumber()"), false);
         _addSpec("L2OutputOracle", _getSel("nextOutputIndex()"), false);
-        _addSpec("L2OutputOracle", _getSel("proposeL2Output(bytes32,uint256,bytes32,uint256)"), false);
+        _addSpec("L2OutputOracle", _getSel("proposeL2Output(bytes32,uint256,bytes32,uint256)"), true);
         _addSpec("L2OutputOracle", _getSel("proposer()"), false);
         _addSpec("L2OutputOracle", _getSel("startingBlockNumber()"), false);
         _addSpec("L2OutputOracle", _getSel("startingTimestamp()"), false);
@@ -136,7 +138,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("OptimismPortal", _getSel("SYSTEM_CONFIG()"), false);
         _addSpec("OptimismPortal", _getSel("depositTransaction(address,uint256,uint64,bool,bytes)"), false);
         _addSpec("OptimismPortal", _getSel("donateETH()"), false);
-        _addSpec("OptimismPortal", OptimismPortal.finalizeWithdrawalTransaction.selector, false);
+        _addSpec("OptimismPortal", OptimismPortal.finalizeWithdrawalTransaction.selector, true); // pauseable
         _addSpec("OptimismPortal", _getSel("finalizedWithdrawals(bytes32)"), false);
         _addSpec("OptimismPortal", _getSel("guardian()"), false);
         _addSpec("OptimismPortal", _getSel("initialize(address)"), false);
@@ -146,7 +148,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("OptimismPortal", _getSel("minimumGasLimit(uint64)"), false);
         _addSpec("OptimismPortal", _getSel("params()"), false);
         _addSpec("OptimismPortal", _getSel("paused()"), false);
-        _addSpec("OptimismPortal", OptimismPortal.proveWithdrawalTransaction.selector, false);
+        _addSpec("OptimismPortal", OptimismPortal.proveWithdrawalTransaction.selector, true); // pauseable
         _addSpec("OptimismPortal", _getSel("provenWithdrawals(bytes32)"), false);
         _addSpec("OptimismPortal", _getSel("spacer_53_0_1()"), false);
         _addSpec("OptimismPortal", _getSel("superchainConfig()"), false);
@@ -175,9 +177,9 @@ contract Authorization_Test is CommonTest {
         _addSpec("SuperchainConfig", _getSel("PAUSED_SLOT()"), false);
         _addSpec("SuperchainConfig", _getSel("guardian()"), false);
         _addSpec("SuperchainConfig", _getSel("initialize(address)"), false);
-        _addSpec("SuperchainConfig", _getSel("pause(string)"), false);
+        _addSpec("SuperchainConfig", _getSel("pause(string)"), true);
         _addSpec("SuperchainConfig", _getSel("paused()"), false);
-        _addSpec("SuperchainConfig", _getSel("unpause()"), false);
+        _addSpec("SuperchainConfig", _getSel("unpause()"), true);
         _addSpec("SuperchainConfig", _getSel("version()"), false);
 
         // SystemConfig
@@ -192,25 +194,28 @@ contract Authorization_Test is CommonTest {
         _addSpec("SystemConfig", _getSel("renounceOwnership()"), true);
         _addSpec("SystemConfig", SystemConfig.resourceConfig.selector, false);
         _addSpec("SystemConfig", _getSel("scalar()"), false);
-        _addSpec("SystemConfig", SystemConfig.setBatcherHash.selector, false);
-        _addSpec("SystemConfig", SystemConfig.setGasConfig.selector, false);
-        _addSpec("SystemConfig", SystemConfig.setGasLimit.selector, false);
-        _addSpec("SystemConfig", SystemConfig.setResourceConfig.selector, false);
-        _addSpec("SystemConfig", SystemConfig.setUnsafeBlockSigner.selector, false);
-        _addSpec("SystemConfig", _getSel("transferOwnership(address)"), false);
+        _addSpec("SystemConfig", SystemConfig.setBatcherHash.selector, true);
+        _addSpec("SystemConfig", SystemConfig.setGasConfig.selector, true);
+        _addSpec("SystemConfig", SystemConfig.setGasLimit.selector, true);
+        _addSpec("SystemConfig", SystemConfig.setResourceConfig.selector, true);
+        _addSpec("SystemConfig", SystemConfig.setUnsafeBlockSigner.selector, true);
+        _addSpec("SystemConfig", _getSel("transferOwnership(address)"), true);
         _addSpec("SystemConfig", SystemConfig.unsafeBlockSigner.selector, false);
         _addSpec("SystemConfig", _getSel("version()"), false);
     }
 
+    /// @dev Computes the selector from a function signature.
     function _getSel(string memory _name) internal returns (bytes4) {
         return bytes4(keccak256(abi.encodePacked(_name)));
     }
 
+    /// @dev Adds a spec for a function.
     function _addSpec(string memory _name, bytes4 _sel, bool _auth) internal {
         specs[_name][_sel] = Spec({ name: _name, sel: _sel, auth: _auth });
         numEntries[_name]++;
     }
 
+    /// @notice Ensures that there's an auth spec for every L1 contract function.
     function testContractAuth() public {
         Abi[] memory abis = _getL1ContractFunctionAbis();
 
