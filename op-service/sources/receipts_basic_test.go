@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,9 +55,9 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 		txHashes[2]: false,
 		txHashes[3]: false,
 	}
-	var numCalls int
+	var numCalls atomic.Int32
 	mrpc.batchCallFn = func(_ context.Context, b []rpc.BatchElem) (err error) {
-		numCalls++
+		numCalls.Add(1)
 		for i, el := range b {
 			if el.Method == "eth_getTransactionReceipt" {
 				txHash := el.Args[0].(common.Hash)
@@ -78,7 +79,7 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 	recs, err := rp.FetchReceipts(ctx, blockid, txHashes)
 	require.Error(err)
 	require.Nil(recs)
-	require.Equal(2, numCalls)
+	require.EqualValues(2, numCalls.Load())
 
 	// prepare 2nd fetching - all should succeed now
 	response[txHashes[2]] = true
@@ -89,7 +90,7 @@ func TestBasicRPCReceiptsFetcher_Reuse(t *testing.T) {
 	for i, rec := range recs {
 		requireEqualReceipt(t, receipts[i], rec)
 	}
-	require.Equal(3, numCalls)
+	require.EqualValues(3, numCalls.Load())
 }
 
 func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
@@ -105,10 +106,10 @@ func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
 	rp := NewBasicRPCReceiptsFetcher(mrpc, batchSize)
 
 	// prepare mock
-	var numCalls int
+	var numCalls atomic.Int32
 	mrpc.On("BatchCallContext", mock.Anything, mock.AnythingOfType("[]rpc.BatchElem")).
 		Run(func(args mock.Arguments) {
-			numCalls++
+			numCalls.Add(1)
 			els := args.Get(1).([]rpc.BatchElem)
 			for _, el := range els {
 				if el.Method == "eth_getTransactionReceipt" {
@@ -124,8 +125,9 @@ func TestBasicRPCReceiptsFetcher_Concurrency(t *testing.T) {
 	runConcurrentFetchingTest(t, rp, numFetchers, receipts, block)
 
 	mrpc.AssertExpectations(t)
-	require.NotZero(numCalls, "BatchCallContext should have been called.")
-	require.Less(numCalls, numFetchers, "Some IterativeBatchCalls should have been shared.")
+	finalNumCalls := int(numCalls.Load())
+	require.NotZero(finalNumCalls, "BatchCallContext should have been called.")
+	require.Less(finalNumCalls, numFetchers, "Some IterativeBatchCalls should have been shared.")
 }
 
 func runConcurrentFetchingTest(t *testing.T, rp ReceiptsProvider, numFetchers int, receipts types.Receipts, block *rpcBlock) {
