@@ -59,14 +59,16 @@ contract Authorization_Test is CommonTest {
         _addSpec("L1CrossDomainMessenger", _getSel("RELAY_RESERVED_GAS()"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("baseGas(bytes,uint32)"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("failedMessages(bytes32)"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("initialize()"), false);
+        _addSpec("L1CrossDomainMessenger", _getSel("initialize(address)"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("messageNonce()"), false);
+        _addSpec("L1CrossDomainMessenger", _getSel("paused()"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("portal()"), false);
         _addSpec(
             "L1CrossDomainMessenger", _getSel("relayMessage(uint256,address,address,uint256,uint256,bytes)"), false
         );
         _addSpec("L1CrossDomainMessenger", _getSel("sendMessage(address,bytes,uint32)"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("successfulMessages(bytes32)"), false);
+        _addSpec("L1CrossDomainMessenger", _getSel("superchainConfig()"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("version()"), false);
         _addSpec("L1CrossDomainMessenger", _getSel("xDomainMessageSender()"), false);
 
@@ -101,9 +103,12 @@ contract Authorization_Test is CommonTest {
             "L1StandardBridge", _getSel("finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)"), true
         );
         _addSpec("L1StandardBridge", _getSel("finalizeETHWithdrawal(address,address,uint256,bytes)"), true);
+        _addSpec("L1StandardBridge", _getSel("initialize(address)"), false);
         _addSpec("L1StandardBridge", _getSel("l2TokenBridge()"), false);
         _addSpec("L1StandardBridge", _getSel("messenger()"), false);
         _addSpec("L1StandardBridge", _getSel("otherBridge()"), false);
+        _addSpec("L1StandardBridge", _getSel("paused()"), false);
+        _addSpec("L1StandardBridge", _getSel("superchainConfig()"), false);
         _addSpec("L1StandardBridge", _getSel("version()"), false);
 
         // L2OutputOracle
