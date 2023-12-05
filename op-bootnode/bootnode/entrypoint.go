@@ -5,12 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -20,6 +14,10 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/urfave/cli/v2"
 )
 
 type gossipNoop struct{}
@@ -30,7 +28,7 @@ func (g *gossipNoop) OnUnsafeL2Payload(_ context.Context, _ peer.ID, _ *eth.Exec
 
 type gossipConfig struct{}
 
-func (g *gossipConfig) P2PSequencerAddress() common.Address {
+func (g *gossipConfig) P2PSequencerAddress(l2Ref eth.L2BlockRef) common.Address {
 	return common.Address{}
 }
 

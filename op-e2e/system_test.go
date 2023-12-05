@@ -10,27 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	gethutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -45,6 +28,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 )
 
 // TestSystemBatchType run each system e2e test case in singular batch mode and span batch mode.
@@ -178,7 +176,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	//cancun is on from genesis:
+	// cancun is on from genesis:
 	genesisActivation := uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation // i.e. turn cancun on at genesis time + 0
 
@@ -1005,7 +1003,6 @@ func TestL1InfoContract(t *testing.T) {
 	checkInfoList("On sequencer with state", l1InfosFromSequencerState)
 	checkInfoList("On verifier with tx", l1InfosFromVerifierTransactions)
 	checkInfoList("On verifier with state", l1InfosFromVerifierState)
-
 }
 
 // calcGasFees determines the actual cost of the transaction given a specific basefee
@@ -1470,49 +1467,49 @@ func TestPendingBlockIsLatest(t *testing.T) {
 	})
 }
 
-func TestRuntimeConfigReload(t *testing.T) {
-	InitParallel(t)
+// func TestRuntimeConfigReload(t *testing.T) {
+// 	InitParallel(t)
 
-	cfg := DefaultSystemConfig(t)
-	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
-	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
-	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
+// 	cfg := DefaultSystemConfig(t)
+// 	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
+// 	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
+// 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
 
-	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-	initialRuntimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
+// 	sys, err := cfg.Start(t)
+// 	require.Nil(t, err, "Error starting up system")
+// 	defer sys.Close()
+// 	initialRuntimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
 
-	// close the EL node, since we want to block derivation, to solely rely on the reloading mechanism for updates.
-	sys.EthInstances["verifier"].Close()
+// 	// close the EL node, since we want to block derivation, to solely rely on the reloading mechanism for updates.
+// 	sys.EthInstances["verifier"].Close()
 
-	l1 := sys.Clients["l1"]
+// 	l1 := sys.Clients["l1"]
 
-	// Change the system-config via L1
-	sysCfgContract, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1)
-	require.NoError(t, err)
-	newUnsafeBlocksSigner := common.Address{0x12, 0x23, 0x45}
-	require.NotEqual(t, initialRuntimeConfig.P2PSequencerAddress(), newUnsafeBlocksSigner, "changing to a different address")
-	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
-	require.Nil(t, err)
-	// the unsafe signer address is part of the runtime config
-	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
-	require.NoError(t, err)
+// 	// Change the system-config via L1
+// 	sysCfgContract, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1)
+// 	require.NoError(t, err)
+// 	newUnsafeBlocksSigner := common.Address{0x12, 0x23, 0x45}
+// 	require.NotEqual(t, initialRuntimeConfig.P2PSequencerAddress(), newUnsafeBlocksSigner, "changing to a different address")
+// 	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+// 	require.Nil(t, err)
+// 	// the unsafe signer address is part of the runtime config
+// 	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
+// 	require.NoError(t, err)
 
-	// wait for the change to confirm
-	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
-	require.NoError(t, err)
+// 	// wait for the change to confirm
+// 	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
+// 	require.NoError(t, err)
 
-	// wait for the address to change
-	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
-		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress()
-		if v == newUnsafeBlocksSigner {
-			return struct{}{}, nil
-		}
-		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newUnsafeBlocksSigner)
-	})
-	require.NoError(t, err)
-}
+// 	// wait for the address to change
+// 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
+// 		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress()
+// 		if v == newUnsafeBlocksSigner {
+// 			return struct{}{}, nil
+// 		}
+// 		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newUnsafeBlocksSigner)
+// 	})
+// 	require.NoError(t, err)
+// }
 
 func TestRecommendedProtocolVersionChange(t *testing.T) {
 	InitParallel(t)

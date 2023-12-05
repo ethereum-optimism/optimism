@@ -5,28 +5,26 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/golang/snappy"
-
-	// "github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/golang/snappy"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
 func TestGuardGossipValidator(t *testing.T) {
@@ -148,10 +146,7 @@ func TestBlockValidator(t *testing.T) {
 	peerID := peer.ID("foo")
 
 	// Valid Case
-	payload := eth.ExecutionPayload{
-		Timestamp:   hexutil.Uint64(time.Now().Unix()),
-		Withdrawals: &types.Withdrawals{},
-	}
+	payload := generateExecutionPayload(t, rand.New(rand.NewSource(4982432)))
 	payload.BlockHash, _ = payload.CheckBlockHash() // hack to generate the block hash easily.
 	data, err := createSignedP2Payload(&payload, signer, cfg.L2ChainID)
 	require.NoError(t, err)
@@ -159,10 +154,10 @@ func TestBlockValidator(t *testing.T) {
 	res := valFnV2(context.TODO(), peerID, message)
 	require.Equal(t, res, pubsub.ValidationAccept)
 
-	// Invalid because non-empty withdrawals when Canyon is active
+	// Invalid because payload cannot be converted into a L2BlockRef
 	payload = eth.ExecutionPayload{
 		Timestamp:   hexutil.Uint64(time.Now().Unix()),
-		Withdrawals: &types.Withdrawals{&types.Withdrawal{Index: 1, Validator: 1}},
+		Withdrawals: &types.Withdrawals{},
 	}
 	payload.BlockHash, _ = payload.CheckBlockHash()
 	data, err = createSignedP2Payload(&payload, signer, cfg.L2ChainID)
@@ -171,4 +166,41 @@ func TestBlockValidator(t *testing.T) {
 	res = valFnV2(context.TODO(), peerID, message)
 	require.Equal(t, res, pubsub.ValidationReject)
 
+	// Invalid because non-empty withdrawals when Canyon is active
+	payload = generateExecutionPayload(t, rand.New(rand.NewSource(4982432)))
+	payload.Withdrawals = &types.Withdrawals{&types.Withdrawal{Index: 1, Validator: 1}}
+	payload.BlockHash, _ = payload.CheckBlockHash()
+	data, err = createSignedP2Payload(&payload, signer, cfg.L2ChainID)
+	require.NoError(t, err)
+	message = &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
+	res = valFnV2(context.TODO(), peerID, message)
+	require.Equal(t, res, pubsub.ValidationReject)
+}
+
+func generateExecutionPayload(t *testing.T, rng *rand.Rand) eth.ExecutionPayload {
+	payload := eth.ExecutionPayload{
+		BlockNumber: hexutil.Uint64(rng.Uint64()),
+		BlockHash:   testutils.RandomHash(rng),
+		ParentHash:  testutils.RandomHash(rng),
+		Timestamp:   hexutil.Uint64(time.Now().Unix()),
+		Withdrawals: &types.Withdrawals{},
+	}
+
+	txs := make([]hexutil.Bytes, 1)
+	l1InfoTxData := derive.L1BlockInfo{
+		Number:  1,
+		Time:    uint64(time.Now().Unix()),
+		BaseFee: big.NewInt(0),
+	}
+	data, err := l1InfoTxData.MarshalBinary()
+	require.NoError(t, err)
+	l1InfoTx := &types.DepositTx{
+		Data: data,
+	}
+	tx := types.NewTx(l1InfoTx)
+	bytes, err := tx.MarshalBinary()
+	require.NoError(t, err)
+	txs[0] = bytes
+	payload.Transactions = txs
+	return payload
 }
