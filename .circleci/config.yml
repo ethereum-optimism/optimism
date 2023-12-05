@@ -1344,7 +1344,7 @@ jobs:
   kontrol-tests:
     docker:
       - image: runtimeverificationinc/kontrol:ubuntu-jammy-0.1.74
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
