@@ -18,7 +18,7 @@ type spanBatchTxs struct {
 	// this field must be manually set
 	totalBlockTxCount uint64
 
-	// 7 fields
+	// 8 fields
 	contractCreationBits *big.Int
 	yParityBits          *big.Int
 	txSigs               []spanBatchSignature
@@ -26,8 +26,11 @@ type spanBatchTxs struct {
 	txGases              []uint64
 	txTos                []common.Address
 	txDatas              []hexutil.Bytes
+	protectedBits        *big.Int
 
-	txTypes []int
+	// intermediate variables which can be recovered
+	txTypes            []int
+	totalLegacyTxCount uint64
 }
 
 type spanBatchSignature struct {
@@ -88,6 +91,62 @@ func (btx *spanBatchTxs) decodeContractCreationBits(r *bytes.Reader) error {
 		}
 	}
 	btx.contractCreationBits = contractCreationBits
+	return nil
+}
+
+// protectedBits is bitlist right-padded to a multiple of 8 bits
+func (btx *spanBatchTxs) encodeProtectedBits(w io.Writer) error {
+	protectedBitBufferLen := btx.totalLegacyTxCount / 8
+	if btx.totalLegacyTxCount%8 != 0 {
+		protectedBitBufferLen++
+	}
+	protectedBitBuffer := make([]byte, protectedBitBufferLen)
+	for i := 0; i < int(btx.totalLegacyTxCount); i += 8 {
+		end := i + 8
+		if end > int(btx.totalLegacyTxCount) {
+			end = int(btx.totalLegacyTxCount)
+		}
+		var bits uint = 0
+		for j := i; j < end; j++ {
+			bits |= btx.protectedBits.Bit(j) << (j - i)
+		}
+		protectedBitBuffer[i/8] = byte(bits)
+	}
+	if _, err := w.Write(protectedBitBuffer); err != nil {
+		return fmt.Errorf("cannot write protected bits: %w", err)
+	}
+	return nil
+
+}
+
+// protectedBits is bitlist right-padded to a multiple of 8 bits
+func (btx *spanBatchTxs) decodeProtectedBits(r *bytes.Reader) error {
+	protectedBitBufferLen := btx.totalLegacyTxCount / 8
+	if btx.totalLegacyTxCount%8 != 0 {
+		protectedBitBufferLen++
+	}
+	// avoid out of memory before allocation
+	if protectedBitBufferLen > MaxSpanBatchSize {
+		return ErrTooBigSpanBatchSize
+	}
+	protectedBitBuffer := make([]byte, protectedBitBufferLen)
+	_, err := io.ReadFull(r, protectedBitBuffer)
+	if err != nil {
+		return fmt.Errorf("failed to read protected bits: %w", err)
+	}
+	protectedBits := new(big.Int)
+	for i := 0; i < int(btx.totalLegacyTxCount); i += 8 {
+		end := i + 8
+		if end > int(btx.totalLegacyTxCount) {
+			end = int(btx.totalLegacyTxCount)
+		}
+		bits := protectedBitBuffer[i/8]
+		for j := i; j < end; j++ {
+			bit := uint((bits >> (j - i)) & 1)
+			protectedBits.SetBit(protectedBits, j, bit)
+		}
+	}
+	btx.protectedBits = protectedBits
 	return nil
 }
 
@@ -290,6 +349,9 @@ func (btx *spanBatchTxs) decodeTxDatas(r *bytes.Reader) error {
 		}
 		txDatas = append(txDatas, txData)
 		txTypes = append(txTypes, txType)
+		if txType == types.LegacyTxType {
+			btx.totalLegacyTxCount++
+		}
 	}
 	btx.txDatas = txDatas
 	btx.txTypes = txTypes
@@ -300,13 +362,23 @@ func (btx *spanBatchTxs) recoverV(chainID *big.Int) error {
 	if len(btx.txTypes) != len(btx.txSigs) {
 		return errors.New("tx type length and tx sigs length mismatch")
 	}
+	if btx.protectedBits == nil {
+		return errors.New("dev error: protected bits not set")
+	}
+	protectedBitsIdx := 0
 	for idx, txType := range btx.txTypes {
 		bit := uint64(btx.yParityBits.Bit(idx))
 		var v uint64
 		switch txType {
 		case types.LegacyTxType:
-			// EIP155
-			v = chainID.Uint64()*2 + 35 + bit
+			protectedBit := btx.protectedBits.Bit(protectedBitsIdx)
+			protectedBitsIdx++
+			if protectedBit == 0 {
+				v = 27 + bit
+			} else {
+				// EIP-155
+				v = chainID.Uint64()*2 + 35 + bit
+			}
 		case types.AccessListTxType:
 			v = bit
 		case types.DynamicFeeTxType:
@@ -341,6 +413,9 @@ func (btx *spanBatchTxs) encode(w io.Writer) error {
 	if err := btx.encodeTxGases(w); err != nil {
 		return err
 	}
+	if err := btx.encodeProtectedBits(w); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -364,6 +439,9 @@ func (btx *spanBatchTxs) decode(r *bytes.Reader) error {
 		return err
 	}
 	if err := btx.decodeTxGases(r); err != nil {
+		return err
+	}
+	if err := btx.decodeProtectedBits(r); err != nil {
 		return err
 	}
 	return nil
@@ -408,9 +486,14 @@ func convertVToYParity(v uint64, txType int) (uint, error) {
 	var yParityBit uint
 	switch txType {
 	case types.LegacyTxType:
-		// EIP155: v = 2 * chainID + 35 + yParity
-		// v - 35 = yParity (mod 2)
-		yParityBit = uint((v - 35) & 1)
+		if isProtectedV(v, txType) {
+			// EIP-155: v = 2 * chainID + 35 + yParity
+			// v - 35 = yParity (mod 2)
+			yParityBit = uint((v - 35) & 1)
+		} else {
+			// unprotected legacy txs must have v = 27 or 28
+			yParityBit = uint(v - 27)
+		}
 	case types.AccessListTxType:
 		yParityBit = uint(v)
 	case types.DynamicFeeTxType:
@@ -419,6 +502,15 @@ func convertVToYParity(v uint64, txType int) (uint, error) {
 		return 0, fmt.Errorf("invalid tx type: %d", txType)
 	}
 	return yParityBit, nil
+}
+
+func isProtectedV(v uint64, txType int) bool {
+	if txType == types.LegacyTxType {
+		// if EIP-155 applied, v = 2 * chainID + 35 + yParity
+		return v != 27 && v != 28
+	}
+	// every non legacy tx are protected
+	return true
 }
 
 func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
@@ -431,10 +523,20 @@ func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 	var txTypes []int
 	contractCreationBits := new(big.Int)
 	yParityBits := new(big.Int)
+	protectedBits := new(big.Int)
+	totalLegacyTxCount := uint64(0)
 	for idx := 0; idx < int(totalBlockTxCount); idx++ {
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(txs[idx]); err != nil {
 			return nil, errors.New("failed to decode tx")
+		}
+		if tx.Type() == types.LegacyTxType {
+			protectedBit := uint(0)
+			if tx.Protected() {
+				protectedBit = uint(1)
+			}
+			protectedBits.SetBit(protectedBits, int(totalLegacyTxCount), protectedBit)
+			totalLegacyTxCount++
 		}
 		if tx.Protected() && tx.ChainId().Cmp(chainID) != 0 {
 			return nil, fmt.Errorf("protected tx has chain ID %d, but expected chain ID %d", tx.ChainId(), chainID)
@@ -481,5 +583,7 @@ func newSpanBatchTxs(txs [][]byte, chainID *big.Int) (*spanBatchTxs, error) {
 		txTos:                txTos,
 		txDatas:              txDatas,
 		txTypes:              txTypes,
+		protectedBits:        protectedBits,
+		totalLegacyTxCount:   totalLegacyTxCount,
 	}, nil
 }
