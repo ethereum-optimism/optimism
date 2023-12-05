@@ -94,9 +94,9 @@
 > **Note** the following assumes a single sequencer and batcher. In the future, the design will be adapted to
 > accommodate multiple such entities.
 
-[L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsibilities of
-the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity check
-on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
+[L2 chain derivation][g-derivation] — deriving L2 [blocks][g-block] from L1 data — is one of the main responsibilities
+of the [rollup node][g-rollup-node], both in validator mode, and in sequencer mode (where derivation acts as a sanity
+check on sequencing, and enables detecting L1 chain [re-organizations][g-reorg]).
 
 The L2 chain is derived from the L1 chain. In particular, each L1 block following [L2 chain
 inception][g-l2-chain-inception] is mapped to a [sequencing epoch][g-sequencing-epoch] comprising
