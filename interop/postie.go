@@ -43,6 +43,8 @@ type Postie struct {
 }
 
 func NewPostie(log log.Logger, cfg PostieConfig) (*Postie, error) {
+	log.Info("configuring postie...")
+
 	connectedChains := map[uint64]node.EthClient{}
 	for _, clnt := range cfg.ConnectedChains {
 		chainIdBig, err := clnt.ChainID()
@@ -50,8 +52,8 @@ func NewPostie(log log.Logger, cfg PostieConfig) (*Postie, error) {
 			return nil, fmt.Errorf("unable to retrieve chain id: %w", err)
 		}
 
-		chainId := chainIdBig.Uint64()
-		connectedChains[chainId] = clnt
+		log.Info("connected outbox", "id", chainIdBig)
+		connectedChains[chainIdBig.Uint64()] = clnt
 	}
 
 	destChainId, err := cfg.DestinationChain.ChainID(context.Background())
@@ -114,8 +116,12 @@ func (p *Postie) Stopped() bool {
 	return p.stopped.Load()
 }
 
+func (p *Postie) OutboxStorageRoot(chainId uint64) common.Hash {
+	return p.outboxStorageRoots[chainId]
+}
+
 func (p *Postie) tick(_ context.Context) {
-	p.log.Info("checking outboxes")
+	p.log.Info("checking outboxes...")
 
 	// NOTE: There are some potential lifecycle isssues casued by the delay between
 	// tx submission and inclusion that would cause repeated mail delivery. As long as
@@ -126,13 +132,15 @@ func (p *Postie) tick(_ context.Context) {
 
 		outboxStorageRoot, err := clnt.StorageHash(predeploys.CrossL2OutboxAddr, nil)
 		if err != nil {
-			p.log.Error("unable to fetch outbox storage root", "chain_id", chainId, "err", err)
+			p.log.Error("unable to fetch outbox storage root", "id", chainId, "err", err)
 		}
 
 		if outboxStorageRoot == oldStorageRoot {
-			p.log.Info("no change in state", "chain_id", chainId)
+			p.log.Info("no change in state", "id", chainId)
 		} else {
-			p.log.Info("detected new outbox storage root", "chain_id", chainId, "root", outboxStorageRoot.String(), "old_root", oldStorageRoot.String())
+			// NOTE: With the single-outbox design, we technically should be checking for a change that
+			// contains a message specific to the destination. For the prototype, we'll just always update
+			p.log.Info("detected new outbox storage root", "id", chainId, "root", outboxStorageRoot.String(), "old_root", oldStorageRoot.String())
 			mail = append(mail, bindings.InboxEntry{Chain: common.BigToHash(big.NewInt(int64(chainId))), Output: outboxStorageRoot})
 		}
 	}
@@ -151,6 +159,7 @@ func (p *Postie) tick(_ context.Context) {
 		// inclusion should be guaranteed, this is fine
 		for _, mail := range mail {
 			chainId := new(big.Int).SetBytes(mail.Chain[:]).Uint64()
+			p.log.Info("updated chain", "id", chainId)
 			p.outboxStorageRoots[chainId] = mail.Output
 		}
 	}
