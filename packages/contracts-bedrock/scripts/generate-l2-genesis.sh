@@ -30,16 +30,16 @@ cleanup() {
 # written before the solidity tests try to read it
 wait_l2_outfile() {
   i=1
-  while [ $i -le $2 ]; do
+  while [ $i -le "$2" ]; do
     i=$(($i + 1))
 
     if [ ! -f "$OUTFILE_L2" ]; then
-      sleep $1
+      sleep "$1"
       continue
     fi
 
     if [ $(du -m "$OUTFILE_L2" | cut -f1) -lt 8 ]; then
-      sleep $1
+      sleep "$1"
       continue
     fi
 
@@ -59,11 +59,11 @@ if mkdir -- "$LOCKDIR" > /dev/null 2>&1; then
   mkdir -p "$TESTDATA_DIR"
 
   if [ ! -f "$DEPLOY_ARTIFACT" ]; then
-    forge script $CONTRACTS_DIR/scripts/Deploy.s.sol:Deploy > /dev/null 2>&1
+    forge script "$CONTRACTS_DIR"/scripts/Deploy.s.sol:Deploy > /dev/null 2>&1
   fi
 
   if [ ! -f "$OUTFILE_L2" ]; then
-    go run $OP_NODE genesis l2 \
+    go run "$OP_NODE" genesis l2 \
       --deploy-config "$CONTRACTS_DIR/deploy-config/hardhat.json" \
       --l1-deployments "$DEPLOY_ARTIFACT" \
       --l1-starting-block "$L1_STARTING_BLOCK_PATH" \

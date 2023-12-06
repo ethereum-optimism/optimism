@@ -54,7 +54,7 @@ exec geth \
 	--syncmode=full \
 	--nodiscover \
 	--maxpeers=1 \
-	--networkid=$CHAIN_ID \
+	--networkid="$CHAIN_ID" \
 	--unlock=$BLOCK_SIGNER_ADDRESS \
 	--mine \
 	--miner.etherbase=$BLOCK_SIGNER_ADDRESS \

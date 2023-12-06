@@ -26,19 +26,19 @@ echo "Created tempdir @ $TMP_DIR"
 
 # Clone the foundry repo temporarily. We do this to avoid the need for a personal access
 # token to interact with the GitHub REST API, and clean it up after we're done.
-git clone https://github.com/foundry-rs/foundry.git $TMP_DIR && cd $TMP_DIR
+git clone https://github.com/foundry-rs/foundry.git "$TMP_DIR" && cd "$TMP_DIR"
 
 # If the nightly tag exists, we can download the pre-built binaries rather than building
 # from source. Otherwise, clone the repository, check out the commit SHA, and build `forge`,
 # `cast`, `anvil`, and `chisel` from source.
 if git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "Nightly tag exists! Downloading prebuilt binaries..."
-  foundryup -v $TAG
+  foundryup -v "$TAG"
 else
   echo "Nightly tag doesn't exist! Building from source..."
-  foundryup -C $SHA
+  foundryup -C "$SHA"
 fi
 
 # Remove the temporary foundry repo; Used just for checking the nightly tag's existence.
-rm -rf $TMP_DIR
+rm -rf "$TMP_DIR"
 echo "Removed tempdir @ $TMP_DIR"

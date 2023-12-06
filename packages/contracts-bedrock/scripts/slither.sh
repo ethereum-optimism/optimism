@@ -8,7 +8,7 @@ SLITHER_REPORT_BACKUP="slither-report.json.temp"
 # Get the absolute path of the parent directory of this script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && cd .. && pwd )"
 echo "Running slither in $DIR"
-cd $DIR
+cd "$DIR"
 
 # Clean up any previous artifacts.
 # We do not check if pnpm is installed since it is used across the monorepo
