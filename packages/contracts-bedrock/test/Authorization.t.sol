@@ -210,7 +210,7 @@ contract Authorization_Test is CommonTest {
     }
 
     /// @dev Computes the selector from a function signature.
-    function _getSel(string memory _name) internal returns (bytes4) {
+    function _getSel(string memory _name) internal pure returns (bytes4) {
         return bytes4(keccak256(abi.encodePacked(_name)));
     }
 
