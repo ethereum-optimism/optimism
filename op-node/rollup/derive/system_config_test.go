@@ -5,12 +5,13 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 var (
@@ -173,16 +174,18 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			bsListener = nil
 		}
 
-		t.Run(test.name, func(t *testing.T) {
-			config := eth.SystemConfig{}
+		t.Run(
+			test.name, func(t *testing.T) {
+				config := eth.SystemConfig{}
 
-			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), l1Ref, bsListener)
-			if test.err {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-			require.Equal(t, config, test.config)
-		})
+				err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log), l1Ref, bsListener)
+				if test.err {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+				}
+				require.Equal(t, config, test.config)
+			},
+		)
 	}
 }

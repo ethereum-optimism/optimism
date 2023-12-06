@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Metrics interface {
@@ -88,7 +89,15 @@ type DerivationPipeline struct {
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config, listener SystemConfigUpdateSignalListener) *DerivationPipeline {
+func NewDerivationPipeline(
+	log log.Logger,
+	cfg *rollup.Config,
+	l1Fetcher L1Fetcher,
+	engine Engine,
+	metrics Metrics,
+	syncCfg *sync.Config,
+	listener SystemConfigUpdateSignalListener,
+) *DerivationPipeline {
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher, listener)
 	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
@@ -167,11 +176,20 @@ func (dp *DerivationPipeline) EngineSyncTarget() eth.L2BlockRef {
 	return dp.eng.EngineSyncTarget()
 }
 
-func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType BlockInsertionErrType, err error) {
+func (dp *DerivationPipeline) StartPayload(
+	ctx context.Context,
+	parent eth.L2BlockRef,
+	attrs *eth.PayloadAttributes,
+	updateSafe bool,
+) (errType BlockInsertionErrType, err error) {
 	return dp.eng.StartPayload(ctx, parent, attrs, updateSafe)
 }
 
-func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (
+	out *eth.ExecutionPayload,
+	errTyp BlockInsertionErrType,
+	err error,
+) {
 	return dp.eng.ConfirmPayload(ctx)
 }
 

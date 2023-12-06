@@ -9,6 +9,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
@@ -18,10 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -147,7 +148,12 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		}
 		copy(secret[:], jwtSecret)
 	} else {
-		log.Warn("Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf("%q", fileName))
+		log.Warn(
+			"Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf(
+				"%q",
+				fileName,
+			),
+		)
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return nil, fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
@@ -197,10 +203,12 @@ func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	}
 	if network != "" {
 		if rollupConfigPath != "" {
-			log.Error(`Cannot configure network and rollup-config at the same time.
+			log.Error(
+				`Cannot configure network and rollup-config at the same time.
 Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
-`, "network", network, "rollup_config", rollupConfigPath)
+`, "network", network, "rollup_config", rollupConfigPath,
+			)
 		}
 		rollupConfig, err := chaincfg.GetRollupConfig(network)
 		if err != nil {

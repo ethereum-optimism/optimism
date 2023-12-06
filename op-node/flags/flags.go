@@ -5,12 +5,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/urfave/cli/v2"
 )
 
 // Flags
@@ -40,8 +41,11 @@ var (
 		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
 	}
 	Network = &cli.StringFlag{
-		Name:    "network",
-		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		Name: "network",
+		Usage: fmt.Sprintf(
+			"Predefined network selection. Available networks: %s",
+			strings.Join(chaincfg.AvailableNetworks(), ", "),
+		),
 		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */

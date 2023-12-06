@@ -9,12 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -25,19 +19,28 @@ import (
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
 func TestGuardGossipValidator(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlCrit)
-	val := guardGossipValidator(logger, func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
-		if id == "mallory" {
-			panic("mallory was here")
-		}
-		if id == "bob" {
-			return pubsub.ValidationIgnore
-		}
-		return pubsub.ValidationAccept
-	})
+	val := guardGossipValidator(
+		logger, func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
+			if id == "mallory" {
+				panic("mallory was here")
+			}
+			if id == "bob" {
+				return pubsub.ValidationIgnore
+			}
+			return pubsub.ValidationAccept
+		},
+	)
 	// Test that panics from mallory are recovered and rejected,
 	// and test that we can continue to ignore bob and accept alice.
 	require.Equal(t, pubsub.ValidationAccept, val(context.Background(), "alice", nil))
@@ -74,39 +77,47 @@ func TestVerifyBlockSignature(t *testing.T) {
 	msg, err := createSignedP2Payload(&payload, signer, cfg.L2ChainID)
 	require.NoError(t, err)
 
-	t.Run("Valid", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
+	t.Run(
+		"Valid", func(t *testing.T) {
+			runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
 
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
-		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
-		require.Equal(t, pubsub.ValidationAccept, result)
-	})
+			sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+			require.NoError(t, err)
+			result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
+			require.Equal(t, pubsub.ValidationAccept, result)
+		},
+	)
 
-	t.Run("WrongSigner", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
-		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
-		require.Equal(t, pubsub.ValidationReject, result)
-	})
+	t.Run(
+		"WrongSigner", func(t *testing.T) {
+			runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
+			signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+			sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+			require.NoError(t, err)
+			result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
+			require.Equal(t, pubsub.ValidationReject, result)
+		},
+	)
 
-	t.Run("InvalidSignature", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
-		sig := make([]byte, 65)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg, &payload)
-		require.Equal(t, pubsub.ValidationReject, result)
-	})
+	t.Run(
+		"InvalidSignature", func(t *testing.T) {
+			runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
+			sig := make([]byte, 65)
+			result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig, msg, &payload)
+			require.Equal(t, pubsub.ValidationReject, result)
+		},
+	)
 
-	t.Run("NoSequencer", func(t *testing.T) {
-		runCfg := &testutils.MockRuntimeConfig{}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
-		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
-		require.NoError(t, err)
-		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
-		require.Equal(t, pubsub.ValidationIgnore, result)
-	})
+	t.Run(
+		"NoSequencer", func(t *testing.T) {
+			runCfg := &testutils.MockRuntimeConfig{}
+			signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+			sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
+			require.NoError(t, err)
+			result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg, &payload)
+			require.Equal(t, pubsub.ValidationIgnore, result)
+		},
+	)
 }
 
 func createSignedP2Payload(payload *eth.ExecutionPayload, signer Signer, l2ChainID *big.Int) ([]byte, error) {

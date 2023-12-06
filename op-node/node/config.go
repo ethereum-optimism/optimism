@@ -7,13 +7,14 @@ import (
 	"math"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Config struct {
@@ -49,8 +50,8 @@ type Config struct {
 	RuntimeConfigReloadInterval time.Duration
 
 	// P2PBlockSignerAddrSafeLag defines the number of L1 blocks to allow the latest block signer change to take effect.
-	// e.g. If p2p block signer is changed at block X, and Safe Lag is 5, then all the verifiers will start to accept
-	// unsafe p2p blocks at X + 5.
+	// e.g. If p2p block signer is changed at block X, and Safe Lag is 5, then p2p will start to accept unsafe blocks
+	// starting from X + 5.
 	P2PBlockSignerAddrSafeLag uint64
 
 	// Optional
@@ -113,7 +114,11 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 	} else if state != StateUnset {
 		stopped := state == StateStopped
 		if stopped != cfg.Driver.SequencerStopped {
-			log.Warn(fmt.Sprintf("Overriding %v with persisted state", flags.SequencerStoppedFlag.Name), "stopped", stopped)
+			log.Warn(
+				fmt.Sprintf("Overriding %v with persisted state", flags.SequencerStoppedFlag.Name),
+				"stopped",
+				stopped,
+			)
 		}
 		cfg.Driver.SequencerStopped = stopped
 	} else {

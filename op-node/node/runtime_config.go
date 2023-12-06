@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -28,7 +29,12 @@ var (
 )
 
 type RuntimeCfgL1Source interface {
-	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
+	ReadStorageAt(
+		ctx context.Context,
+		address common.Address,
+		storageSlot common.Hash,
+		blockHash common.Hash,
+	) (common.Hash, error)
 }
 
 type ReadonlyRuntimeConfig interface {
@@ -83,7 +89,12 @@ type protocolVersionData struct {
 
 var _ p2p.GossipRuntimeConfig = (*RuntimeConfig)(nil)
 
-func NewRuntimeConfig(log log.Logger, cfg *Config, l1Client RuntimeCfgL1Source, rollupCfg *rollup.Config) *RuntimeConfig {
+func NewRuntimeConfig(
+	log log.Logger,
+	cfg *Config,
+	l1Client RuntimeCfgL1Source,
+	rollupCfg *rollup.Config,
+) *RuntimeConfig {
 	return &RuntimeConfig{
 		log:       log,
 		l1Client:  l1Client,
@@ -130,7 +141,17 @@ func (r *RuntimeConfig) OnP2PBlockSignerAddressUpdated(addr common.Address, l1Re
 	r.sc.mu.Lock()
 	defer r.sc.mu.Unlock()
 	if l1Ref.Time <= r.sc.curP2PBlockSignerL1Ref.Time {
-		r.log.Warn("ignoring outdated P2P signer address update", "current", r.sc.curP2PBlockSignerAddr, "new", addr, "current_l1_ref", r.sc.curP2PBlockSignerL1Ref, "new_l1_ref", l1Ref)
+		r.log.Warn(
+			"ignoring outdated P2P signer address update",
+			"current",
+			r.sc.curP2PBlockSignerAddr,
+			"new",
+			addr,
+			"current_l1_ref",
+			r.sc.curP2PBlockSignerL1Ref,
+			"new_l1_ref",
+			l1Ref,
+		)
 		return
 	}
 
@@ -144,12 +165,22 @@ func (r *RuntimeConfig) loadProtocolVersions(ctx context.Context, l1Ref eth.L1Bl
 	// The superchain protocol version data is optional; only applicable to rollup configs that specify a ProtocolVersions address.
 	var requiredProtVersion, recommendedProtoVersion params.ProtocolVersion
 	if r.rollupCfg.ProtocolVersionsAddress != (common.Address{}) {
-		requiredVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.ProtocolVersionsAddress, RequiredProtocolVersionStorageSlot, l1Ref.Hash)
+		requiredVal, err := r.l1Client.ReadStorageAt(
+			ctx,
+			r.rollupCfg.ProtocolVersionsAddress,
+			RequiredProtocolVersionStorageSlot,
+			l1Ref.Hash,
+		)
 		if err != nil {
 			return fmt.Errorf("required-protocol-version value failed to load from L1 contract: %w", err)
 		}
 		requiredProtVersion = params.ProtocolVersion(requiredVal)
-		recommendedVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.ProtocolVersionsAddress, RecommendedProtocolVersionStorageSlot, l1Ref.Hash)
+		recommendedVal, err := r.l1Client.ReadStorageAt(
+			ctx,
+			r.rollupCfg.ProtocolVersionsAddress,
+			RecommendedProtocolVersionStorageSlot,
+			l1Ref.Hash,
+		)
 		if err != nil {
 			return fmt.Errorf("recommended-protocol-version value failed to load from L1 contract: %w", err)
 		}
@@ -165,7 +196,12 @@ func (r *RuntimeConfig) loadProtocolVersions(ctx context.Context, l1Ref eth.L1Bl
 }
 
 func (r *RuntimeConfig) loadSystemConfig(ctx context.Context, l1Ref eth.L1BlockRef) error {
-	p2pSignerVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.L1SystemConfigAddress, UnsafeBlockSignerAddressSystemConfigStorageSlot, l1Ref.Hash)
+	p2pSignerVal, err := r.l1Client.ReadStorageAt(
+		ctx,
+		r.rollupCfg.L1SystemConfigAddress,
+		UnsafeBlockSignerAddressSystemConfigStorageSlot,
+		l1Ref.Hash,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to fetch unsafe block signing address from system config: %w", err)
 	}

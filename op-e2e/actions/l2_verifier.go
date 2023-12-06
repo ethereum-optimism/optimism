@@ -5,6 +5,12 @@ import (
 	"errors"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	gnode "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -14,11 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	gnode "github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 // L2Verifier is an actor that functions like a rollup node,
@@ -52,11 +53,21 @@ type L2API interface {
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
-	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
+	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (
+		*eth.AccountResult,
+		error,
+	)
 	OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 }
 
-func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, syncCfg *sync.Config) *L2Verifier {
+func NewL2Verifier(
+	t Testing,
+	log log.Logger,
+	l1 derive.L1Fetcher,
+	eng L2API,
+	cfg *rollup.Config,
+	syncCfg *sync.Config,
+) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics, syncCfg, nil)
 	pipeline.Reset()
@@ -100,7 +111,11 @@ type l2VerifierBackend struct {
 	verifier *L2Verifier
 }
 
-func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (
+	eth.L2BlockRef,
+	*eth.SyncStatus,
+	error,
+) {
 	ref, err := s.verifier.eng.L2BlockRefByNumber(ctx, num)
 	return ref, s.verifier.SyncStatus(), err
 }
@@ -226,7 +241,10 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 		return
 	} else if err != nil && errors.Is(err, derive.ErrTemporary) {
 		s.log.Warn("Derivation process temporary error", "err", err)
-		if errors.Is(err, sync.WrongChainErr) { // action-tests don't back off on temporary errors. Avoid a bad genesis setup from looping.
+		if errors.Is(
+			err,
+			sync.WrongChainErr,
+		) { // action-tests don't back off on temporary errors. Avoid a bad genesis setup from looping.
 			t.Fatalf("genesis setup issue: %v", err)
 		}
 		return

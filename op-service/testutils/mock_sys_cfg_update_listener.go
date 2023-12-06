@@ -1,9 +1,10 @@
 package testutils
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type MockSystemConfigUpdateListener struct {
@@ -14,6 +15,9 @@ func (m *MockSystemConfigUpdateListener) OnP2PBlockSignerAddressUpdated(addr com
 	m.Mock.MethodCalled("OnP2PBlockSignerAddressUpdated", addr, l1Ref)
 }
 
-func (m *MockSystemConfigUpdateListener) ExpectOnP2PBlockSignerAddressUpdated(addr common.Address, l1Ref eth.L1BlockRef) {
+func (m *MockSystemConfigUpdateListener) ExpectOnP2PBlockSignerAddressUpdated(
+	addr common.Address,
+	l1Ref eth.L1BlockRef,
+) {
 	m.Mock.On("OnP2PBlockSignerAddressUpdated", addr, l1Ref).Once()
 }

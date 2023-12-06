@@ -1,8 +1,9 @@
 package testutils
 
 import (
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 type MockRuntimeConfig struct {
