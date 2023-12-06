@@ -147,9 +147,11 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // prestate.
             // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
             // the game state.
-            // WARN: This will not work, except for in the first execution trace bisection game!
-            //       We need to replace `0` with the correct starting index for the given sub-game.
-            preStateClaim = stepPos.indexAtDepth() == 0
+            // NOTE: We localize the `indexAtDepth` for the current execution trace subgame by finding
+            //       the remainder of the index at depth divided by 2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH),
+            //       which is the number of leaves in each execution trace subgame. This is so that we can
+            //       determine whether or not the step position is represents the `ABSOLUTE_PRESTATE`.
+            preStateClaim = (stepPos.indexAtDepth() % (2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
                 ? ABSOLUTE_PRESTATE
                 : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex, false).claim;
             // For all attacks, the poststate is the parent claim.
