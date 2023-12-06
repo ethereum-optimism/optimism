@@ -33,18 +33,22 @@ contract SuperchainConfig is Initializable, ISemver {
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.0.1
+    string public constant version = "1.0.1";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
-        initialize({ _guardian: address(0) });
+        initialize({ _guardian: address(0), _paused: false });
     }
 
     /// @notice Initializer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
-    function initialize(address _guardian) public initializer {
+    /// @param _paused      Initial paused status.
+    function initialize(address _guardian, bool _paused) public initializer {
         _setGuardian(_guardian);
+        if (_paused) {
+            _pause("Initializer paused");
+        }
     }
 
     /// @notice Getter for the guardian address.
@@ -61,6 +65,12 @@ contract SuperchainConfig is Initializable, ISemver {
     /// @param _identifier (Optional) A string to identify provenance of the pause transaction.
     function pause(string memory _identifier) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
+        _pause(_identifier);
+    }
+
+    /// @notice Pauses withdrawals.
+    /// @param _identifier (Optional) A string to identify provenance of the pause transaction.
+    function _pause(string memory _identifier) internal {
         Storage.setUint(PAUSED_SLOT, 1);
         emit Paused(_identifier);
     }

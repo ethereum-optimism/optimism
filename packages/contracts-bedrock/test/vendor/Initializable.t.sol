@@ -39,7 +39,7 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(superchainConfig),
-                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0))),
+                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), false)),
                 initializedSlotVal: deploy.loadInitializedSlot("SuperchainConfig", true)
             })
         );
