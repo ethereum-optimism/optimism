@@ -45,10 +45,10 @@ echo " - Balance: $(cast balance 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266)"
 echo "----------------------------------------------------------------"
 
 echo "Funding Charlie"
-cast send $CHARLIE_ADDRESS --value 5ether --private-key $DEVNET_SPONSOR
+cast send "$CHARLIE_ADDRESS" --value 5ether --private-key "$DEVNET_SPONSOR"
 
 echo "Funding Mallory"
-cast send $MALLORY_ADDRESS --value 5ether --private-key $DEVNET_SPONSOR
+cast send "$MALLORY_ADDRESS" --value 5ether --private-key "$DEVNET_SPONSOR"
 
 # Loop and wait until there are at least 2 outputs in the l2 output oracle
 echo "Waiting until 2 output proposals are in the l2 output oracle..."

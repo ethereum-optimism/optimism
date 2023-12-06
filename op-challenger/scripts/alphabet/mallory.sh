@@ -32,7 +32,7 @@ cleanup(){
   --datadir "${DATADIR}" \
   --game-factory-address "$DISPUTE_GAME_PROXY" \
   --game-allowlist "$FAULT_GAME_ADDRESS" \
-  --private-key $MALLORY_KEY \
+  --private-key "$MALLORY_KEY" \
   --num-confirmations 1 \
   --metrics.enabled --metrics.port=7305 \
   --pprof.enabled --pprof.port=6065 \
