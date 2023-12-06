@@ -183,7 +183,7 @@ contract Authorization_Test is CommonTest {
         _addSpec("SuperchainConfig", _getSel("GUARDIAN_SLOT()"), false);
         _addSpec("SuperchainConfig", _getSel("PAUSED_SLOT()"), false);
         _addSpec("SuperchainConfig", _getSel("guardian()"), false);
-        _addSpec("SuperchainConfig", _getSel("initialize(address)"), false);
+        _addSpec("SuperchainConfig", _getSel("initialize(address,bool)"), false);
         _addSpec("SuperchainConfig", _getSel("pause(string)"), true);
         _addSpec("SuperchainConfig", _getSel("paused()"), false);
         _addSpec("SuperchainConfig", _getSel("unpause()"), true);
