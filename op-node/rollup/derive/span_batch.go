@@ -26,7 +26,7 @@ import (
 // spanBatch := SpanBatchType ++ prefix ++ payload
 // prefix := rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check
 // payload := block_count ++ origin_bits ++ block_tx_counts ++ txs
-// txs := contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases
+// txs := contract_creation_bits ++ y_parity_bits ++ tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases ++ protected_bits
 
 var ErrTooBigSpanBatchSize = errors.New("span batch size limit reached")
 
@@ -41,7 +41,7 @@ type spanBatchPrefix struct {
 
 type spanBatchPayload struct {
 	blockCount    uint64        // Number of L2 block in the span
-	originBits    *big.Int      // Bitlist of blockCount bits. Each bit indicates if the L1 origin is changed at the L2 block.
+	originBits    *big.Int      // Standard span-batch bitlist of blockCount bits. Each bit indicates if the L1 origin is changed at the L2 block.
 	blockTxCounts []uint64      // List of transaction counts for each L2 block
 	txs           *spanBatchTxs // Transactions encoded in SpanBatch specs
 }
@@ -58,34 +58,12 @@ func (b *RawSpanBatch) GetBatchType() int {
 }
 
 // decodeOriginBits parses data into bp.originBits
-// originBits is bitlist right-padded to a multiple of 8 bits
 func (bp *spanBatchPayload) decodeOriginBits(r *bytes.Reader) error {
-	originBitBufferLen := bp.blockCount / 8
-	if bp.blockCount%8 != 0 {
-		originBitBufferLen++
-	}
-	// avoid out of memory before allocation
-	if originBitBufferLen > MaxSpanBatchSize {
-		return ErrTooBigSpanBatchSize
-	}
-	originBitBuffer := make([]byte, originBitBufferLen)
-	_, err := io.ReadFull(r, originBitBuffer)
+	bits, err := decodeSpanBatchBits(r, bp.blockCount)
 	if err != nil {
-		return fmt.Errorf("failed to read origin bits: %w", err)
+		return fmt.Errorf("failed to decode origin bits: %w", err)
 	}
-	originBits := new(big.Int)
-	for i := 0; i < int(bp.blockCount); i += 8 {
-		end := i + 8
-		if end < int(bp.blockCount) {
-			end = int(bp.blockCount)
-		}
-		bits := originBitBuffer[i/8]
-		for j := i; j < end; j++ {
-			bit := uint((bits >> (j - i)) & 1)
-			originBits.SetBit(originBits, j, bit)
-		}
-	}
-	bp.originBits = originBits
+	bp.originBits = bits
 	return nil
 }
 
@@ -293,26 +271,9 @@ func (bp *spanBatchPrefix) encodePrefix(w io.Writer) error {
 }
 
 // encodeOriginBits encodes bp.originBits
-// originBits is bitlist right-padded to a multiple of 8 bits
 func (bp *spanBatchPayload) encodeOriginBits(w io.Writer) error {
-	originBitBufferLen := bp.blockCount / 8
-	if bp.blockCount%8 != 0 {
-		originBitBufferLen++
-	}
-	originBitBuffer := make([]byte, originBitBufferLen)
-	for i := 0; i < int(bp.blockCount); i += 8 {
-		end := i + 8
-		if end < int(bp.blockCount) {
-			end = int(bp.blockCount)
-		}
-		var bits uint = 0
-		for j := i; j < end; j++ {
-			bits |= bp.originBits.Bit(j) << (j - i)
-		}
-		originBitBuffer[i/8] = byte(bits)
-	}
-	if _, err := w.Write(originBitBuffer); err != nil {
-		return fmt.Errorf("cannot write origin bits: %w", err)
+	if err := encodeSpanBatchBits(w, bp.blockCount, bp.originBits); err != nil {
+		return fmt.Errorf("failed to encode origin bits: %w", err)
 	}
 	return nil
 }

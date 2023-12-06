@@ -447,9 +447,10 @@ func TestSpanBatchToSingularBatch(t *testing.T) {
 
 func TestSpanBatchReadTxData(t *testing.T) {
 	cases := []spanBatchTxTest{
-		{"legacy tx", 32, testutils.RandomLegacyTx},
-		{"access list tx", 32, testutils.RandomAccessListTx},
-		{"dynamic fee tx", 32, testutils.RandomDynamicFeeTx},
+		{"unprotected legacy tx", 32, testutils.RandomLegacyTx, false},
+		{"legacy tx", 32, testutils.RandomLegacyTx, true},
+		{"access list tx", 32, testutils.RandomAccessListTx, true},
+		{"dynamic fee tx", 32, testutils.RandomDynamicFeeTx, true},
 	}
 
 	for i, testCase := range cases {
@@ -457,6 +458,9 @@ func TestSpanBatchReadTxData(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(0x109550 + i)))
 			chainID := new(big.Int).SetUint64(rng.Uint64())
 			signer := types.NewLondonSigner(chainID)
+			if !testCase.protected {
+				signer = types.HomesteadSigner{}
+			}
 
 			var rawTxs [][]byte
 			var txs []*types.Transaction

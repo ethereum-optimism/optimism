@@ -19,7 +19,7 @@ import (
 )
 
 func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
-	blockCount := uint64(1 + rng.Int()&0xFF)
+	blockCount := uint64(4 + rng.Int()&0xFF) // at least 4
 	originBits := new(big.Int)
 	for i := 0; i < int(blockCount); i++ {
 		bit := uint(0)
@@ -31,14 +31,24 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 	var blockTxCounts []uint64
 	totalblockTxCounts := uint64(0)
 	for i := 0; i < int(blockCount); i++ {
-		blockTxCount := uint64(rng.Intn(16))
+		blockTxCount := 1 + uint64(rng.Intn(16))
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 		totalblockTxCounts += blockTxCount
 	}
-	signer := types.NewLondonSigner(chainId)
+	londonSigner := types.NewLondonSigner(chainId)
 	var txs [][]byte
 	for i := 0; i < int(totalblockTxCounts); i++ {
-		tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
+		var tx *types.Transaction
+		switch i % 4 {
+		case 0:
+			tx = testutils.RandomLegacyTx(rng, types.HomesteadSigner{})
+		case 1:
+			tx = testutils.RandomLegacyTx(rng, londonSigner)
+		case 2:
+			tx = testutils.RandomAccessListTx(rng, londonSigner)
+		case 3:
+			tx = testutils.RandomDynamicFeeTx(rng, londonSigner)
+		}
 		rawTx, err := tx.MarshalBinary()
 		if err != nil {
 			panic("MarshalBinary:" + err.Error())
