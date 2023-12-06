@@ -7,6 +7,9 @@ parameters:
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
+  kontrol_image:
+    type: string
+    default: runtimeverificationinc/kontrol:ubuntu-jammy-0.1.74
 
 orbs:
   go: circleci/go@1.8.0
@@ -1343,20 +1346,27 @@ jobs:
 
   kontrol-tests:
     docker:
-      - image: runtimeverificationinc/kontrol:ubuntu-jammy-0.1.74
+      - image: << pipeline.parameters.kontrol_image >>
     resource_class: xlarge
     steps:
       - checkout
       - check-changed:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
+      - attach_workspace: { at: "/home/user" }
+      - run:
+          name: Install pnpm to Kontrol image
+          command: |
+            curl -fsSL https://get.pnpm.io/install.sh | sh -
       - run:
           name: Run Kontrol Tests
           command: |
-            ./packages/contracts-bedrock/scripts/kontrol.sh           
+            pnpm test:kontrol 
+          working_directory: /home/users/packages/contracts-bedrock
       - run:
           name: Create Results Tar
           command: |
-            tar -czvf results.tar.gz packages/contracts-bedrock/kout
+            tar -czvf results.tar.gz test/kontrol/kontrol/kout/proofs
+          working_directory: /home/user/packages/contracts-bedrock
       - store_artifacts:
           path: results.tar.gz
           destination: results
