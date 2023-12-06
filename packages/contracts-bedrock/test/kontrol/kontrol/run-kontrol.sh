@@ -15,16 +15,16 @@ kontrol_build() {
             --require ${lemmas}       \
             --module-import ${module} \
             --no-forge-build          \
+            ${regen}                  \
             ${rekompile}
 }
-
+  # --bmc-depth ${bmc_depth}           \
 kontrol_prove() {
     kontrol prove                              \
             --verbose                          \
             --max-depth ${max_depth}           \
             --max-iterations ${max_iterations} \
             --smt-timeout ${smt_timeout}       \
-            --bmc-depth ${bmc_depth}           \
             --workers ${workers}               \
             ${reinit}                          \
             ${bug_report}                      \
@@ -40,10 +40,12 @@ kontrol_prove() {
 # NOTE: This script should be executed from the `contracts-bedrock` directory
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=StateDiffTest:${base_module}
+module=StateDiffCheatcode:${base_module}
 
 rekompile=--rekompile
+regen=--regen
 rekompile=
+regen=
 
 ###
 # kontrol prove options
@@ -54,7 +56,7 @@ max_iterations=10000
 
 smt_timeout=100000
 
-bmc_depth=10
+# bmc_depth=10
 
 workers=2
 
@@ -76,7 +78,9 @@ use_booster=--use-booster
 # List of tests to symbolically execute
 tests=""
 #tests+="--match-test CounterTest.test_SetNumber "
-tests+="--match-test StateDiffTest.testVerifyStateChange "
+#tests+="--match-test StateDiffTest.setUp "
+tests+="--match-test StateDiffCheatcode.recreateDeployment "
+# tests+="--match-test StateDiffTest.testVerifyStateChange "
 
 kontrol_build
 kontrol_prove
