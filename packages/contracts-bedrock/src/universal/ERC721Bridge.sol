@@ -2,12 +2,13 @@
 pragma solidity 0.8.15;
 
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
-abstract contract ERC721Bridge {
+abstract contract ERC721Bridge is Initializable {
     /// @notice Messenger contract on this domain. This will be removed in the
     ///         future, use `messenger` instead.
     /// @custom:legacy
@@ -19,7 +20,7 @@ abstract contract ERC721Bridge {
     address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 
     /// @notice Emitted when an ERC721 bridge to the other network is initiated.
     /// @param localToken  Address of the token on this domain.
@@ -82,6 +83,14 @@ abstract contract ERC721Bridge {
     /// @return Address of the bridge on the other network.
     function otherBridge() external view returns (address) {
         return OTHER_BRIDGE;
+    }
+
+    /// @notice This function should return true if the contract is paused.
+    ///         On L1 this function will check the SuperchainConfig for its paused status.
+    ///         On L2 this function should be a no-op.
+    /// @return Whether or not the contract is paused.
+    function paused() public view virtual returns (bool) {
+        return false;
     }
 
     /// @notice Initiates a bridge of an NFT to the caller's account on the other chain. Note that

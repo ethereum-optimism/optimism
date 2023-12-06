@@ -82,6 +82,9 @@ contract Authorization_Test is CommonTest {
         _addSpec("L1ERC721Bridge", _getSel("messenger()"), false);
         _addSpec("L1ERC721Bridge", _getSel("otherBridge()"), false);
         _addSpec("L1ERC721Bridge", _getSel("version()"), false);
+        _addSpec("L1ERC721Bridge", _getSel("superchainConfig()"), false);
+        _addSpec("L1ERC721Bridge", _getSel("paused()"), false);
+        _addSpec("L1ERC721Bridge", _getSel("initialize(address)"), false);
 
         // L1StandardBridge
         _addSpec("L1StandardBridge", _getSel("MESSENGER()"), false);

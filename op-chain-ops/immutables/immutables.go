@@ -45,8 +45,8 @@ type PredeploysImmutableConfig struct {
 	GovernanceToken     struct{}
 	LegacyMessagePasser struct{}
 	L2ERC721Bridge      struct {
-		Messenger   common.Address
 		OtherBridge common.Address
+		Messenger   common.Address
 	}
 	OptimismMintableERC721Factory struct {
 		Bridge        common.Address
@@ -230,15 +230,11 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		}
 		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, bridge)
 	case "L2ERC721Bridge":
-		messenger, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for messenger")
-		}
-		otherBridge, ok := deployment.Args[1].(common.Address)
+		otherBridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
 			return nil, fmt.Errorf("invalid type for otherBridge")
 		}
-		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, messenger, otherBridge)
+		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, otherBridge)
 	case "OptimismMintableERC721Factory":
 		bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {

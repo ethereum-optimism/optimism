@@ -119,6 +119,22 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger", false)
             })
         );
+        // L1ERC721Bridge
+        contracts.push(
+            InitializeableContract({
+                target: address(l1ERC721Bridge),
+                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1ERC721Bridge", true)
+            })
+        );
+        // L2ERC721Bridge
+        contracts.push(
+            InitializeableContract({
+                target: address(l2ERC721Bridge),
+                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, ()),
+                initializedSlotVal: deploy.loadInitializedSlot("L2ERC721Bridge", false)
+            })
+        );
     }
 
     /// @notice Tests that:
