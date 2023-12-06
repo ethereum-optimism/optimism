@@ -104,6 +104,7 @@ CMD ["start:fault-mon"]
 
 from base as multisig-mon
 WORKDIR /opt/optimism/packages/multisig-mon
+COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 CMD ["start:multisig-mon"]
 
 FROM base as replica-mon
