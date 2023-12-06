@@ -117,6 +117,9 @@ func (p *Postie) Stopped() bool {
 func (p *Postie) tick(_ context.Context) {
 	p.log.Info("checking outboxes")
 
+	// NOTE: There are some potential lifecycle isssues casued by the delay between
+	// tx submission and inclusion that would cause repeated mail delivery. As long as
+	// the tick interval >> block time we're fine for the prototype
 	mail := []bindings.InboxEntry{}
 	for chainId, clnt := range p.chains {
 		oldStorageRoot := p.outboxStorageRoots[chainId]
@@ -131,10 +134,6 @@ func (p *Postie) tick(_ context.Context) {
 		} else {
 			p.log.Info("detected new outbox storage root", "chain_id", chainId, "root", outboxStorageRoot.String(), "old_root", oldStorageRoot.String())
 			mail = append(mail, bindings.InboxEntry{Chain: common.BigToHash(big.NewInt(int64(chainId))), Output: outboxStorageRoot})
-
-			// NOTE: There are some potential lifecycle isssues here that arrives from the delay between
-			// tx submission and inclusion. As long as the tick interval >> block time we're fine
-			p.outboxStorageRoots[chainId] = outboxStorageRoot
 		}
 	}
 
@@ -146,5 +145,13 @@ func (p *Postie) tick(_ context.Context) {
 		}
 
 		p.log.Info("mail delivered", "tx_hash", tx.Hash().String())
+
+		// NOTE: Technically we should only be updating on succesful inclusion. We would
+		// ideally read from some on-chain events of updated roots. Since for the prototype
+		// inclusion should be guaranteed, this is fine
+		for _, mail := range mail {
+			chainId := new(big.Int).SetBytes(mail.Chain[:]).Uint64()
+			p.outboxStorageRoots[chainId] = mail.Output
+		}
 	}
 }

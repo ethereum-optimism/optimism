@@ -77,6 +77,10 @@ func DialEthClient(ctx context.Context, rpcUrl string, metrics Metricer) (EthCli
 	return &clnt{rpc: NewRPC(rpcClient, metrics)}, nil
 }
 
+func FromRPCClient(rpc *rpc.Client, metrics Metricer) EthClient {
+	return &clnt{rpc: NewRPC(rpc, metrics)}
+}
+
 // ChainID retrieves the chain id associated with the rpc connection
 func (c *clnt) ChainID() (*big.Int, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
