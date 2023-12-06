@@ -17,7 +17,13 @@ contract CommonTest is Setup, Test, Events {
     FFIInterface ffi;
 
     function setUp() public virtual override {
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        vm.deal(alice, 10000 ether);
+        vm.deal(bob, 10000 ether);
+
         Setup.setUp();
+        vm.prank(alice);
         ffi = new FFIInterface();
 
         // Make sure the base fee is non zero
@@ -26,11 +32,6 @@ contract CommonTest is Setup, Test, Events {
         // Set sane initialize block numbers
         vm.warp(deploy.cfg().l2OutputOracleStartingTimestamp() + 1);
         vm.roll(deploy.cfg().l2OutputOracleStartingBlockNumber() + 1);
-
-        alice = makeAddr("alice");
-        bob = makeAddr("bob");
-        vm.deal(alice, 10000 ether);
-        vm.deal(bob, 10000 ether);
 
         // Deploy L1
         Setup.L1();
