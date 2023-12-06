@@ -9,15 +9,13 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
 abstract contract ERC721Bridge is Initializable {
-    /// @notice Messenger contract on this domain. This will be removed in the
-    ///         future, use `messenger` instead.
-    /// @custom:legacy
-    CrossDomainMessenger public immutable MESSENGER;
+    /// @notice Messenger contract on this domain.
+    /// @custom:network-specific
+    CrossDomainMessenger public messenger;
 
-    /// @notice Address of the bridge on the other network. This will be removed in the
-    ///         future, use `otherBridge` instead.
-    /// @custom:legacy
-    address public immutable OTHER_BRIDGE;
+    /// @notice Address of the bridge on the other network.
+    /// @custom:network-specific
+    address public otherBridge;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     uint256[48] private __gap;
@@ -57,32 +55,38 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(MESSENGER) && MESSENGER.xDomainMessageSender() == OTHER_BRIDGE,
+            msg.sender == address(messenger) && messenger.xDomainMessageSender() == otherBridge,
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
     }
 
+    /// @notice Initializer.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge) {
-        require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
-        require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
+    // solhint-disable-next-line func-name-mixedcase
+    function __ERC721Bridge_init(CrossDomainMessenger _messenger, address _otherBridge) internal onlyInitializing {
+        require(
+            _messenger != CrossDomainMessenger(address(0)), "ERC721Bridge: address of messenger cannot be address(0)"
+        );
+        require(_otherBridge != address(0), "ERC721Bridge: address of other bridge cannot be address(0)");
 
-        MESSENGER = CrossDomainMessenger(_messenger);
-        OTHER_BRIDGE = _otherBridge;
+        messenger = _messenger;
+        otherBridge = _otherBridge;
     }
 
     /// @notice Legacy getter for messenger contract.
     /// @return Messenger contract on this domain.
-    function messenger() external view returns (CrossDomainMessenger) {
-        return MESSENGER;
+    /// @custom:legacy
+    function MESSENGER() external view returns (CrossDomainMessenger) {
+        return messenger;
     }
 
     /// @notice Legacy getter for other bridge address.
     /// @return Address of the bridge on the other network.
-    function otherBridge() external view returns (address) {
-        return OTHER_BRIDGE;
+    /// @custom:legacy
+    function OTHER_BRIDGE() external view returns (address) {
+        return otherBridge;
     }
 
     /// @notice This function should return true if the contract is paused.
