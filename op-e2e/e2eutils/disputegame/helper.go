@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -67,9 +66,21 @@ func (s Status) String() string {
 
 var CorrectAlphabet = "abcdefghijklmnop"
 
+type DisputeSystem interface {
+	NodeEndpoint(name string) string
+	NodeClient(name string) *ethclient.Client
+	RollupEndpoint(name string) string
+	RollupClient(name string) *sources.RollupClient
+
+	L1Deployments() *genesis.L1Deployments
+	RollupCfg() *rollup.Config
+	L2Genesis() *core.Genesis
+}
+
 type FactoryHelper struct {
 	t           *testing.T
 	require     *require.Assertions
+	system      DisputeSystem
 	client      *ethclient.Client
 	opts        *bind.TransactOpts
 	factoryAddr common.Address
@@ -78,29 +89,31 @@ type FactoryHelper struct {
 	l2ooHelper  *l2oo.L2OOHelper
 }
 
-func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1Deployments, client *ethclient.Client) *FactoryHelper {
+func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *FactoryHelper {
 	require := require.New(t)
+	client := system.NodeClient("l1")
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
 	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, chainID)
 	require.NoError(err)
 
-	require.NotNil(deployments, "No deployments")
-	factoryAddr := deployments.DisputeGameFactoryProxy
+	l1Deployments := system.L1Deployments()
+	factoryAddr := l1Deployments.DisputeGameFactoryProxy
 	factory, err := bindings.NewDisputeGameFactory(factoryAddr, client)
 	require.NoError(err)
-	blockOracle, err := bindings.NewBlockOracle(deployments.BlockOracle, client)
+	blockOracle, err := bindings.NewBlockOracle(l1Deployments.BlockOracle, client)
 	require.NoError(err)
 
 	return &FactoryHelper{
 		t:           t,
 		require:     require,
+		system:      system,
 		client:      client,
 		opts:        opts,
 		factory:     factory,
 		factoryAddr: factoryAddr,
 		blockOracle: blockOracle,
-		l2ooHelper:  l2oo.NewL2OOHelperReadOnly(t, deployments, client),
+		l2ooHelper:  l2oo.NewL2OOHelperReadOnly(t, l1Deployments, client),
 	}
 }
 
@@ -131,6 +144,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 		FaultGameHelper: FaultGameHelper{
 			t:           h.t,
 			require:     h.require,
+			system:      h.system,
 			client:      h.client,
 			opts:        h.opts,
 			game:        game,
@@ -141,11 +155,9 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	}
 }
 
-func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoint string, rootClaim common.Hash) *OutputCannonGameHelper {
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, rootClaim common.Hash) *OutputCannonGameHelper {
 	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputCannonGameHelper")
-	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, 30*time.Second, logger, rollupEndpoint)
-	h.require.NoError(err)
-	h.t.Cleanup(rollupClient.Close)
+	rollupClient := h.system.RollupClient(l2Node)
 
 	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
 
@@ -182,6 +194,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoin
 			factoryAddr:           h.factoryAddr,
 			addr:                  createdEvent.DisputeProxy,
 			correctOutputProvider: provider,
+			system:                h.system,
 		},
 	}
 
@@ -192,24 +205,21 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 	return h.createCannonGame(ctx, rootClaim, extraData)
 }
 
-func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, rollupCfg *rollup.Config, l2Genesis *core.Genesis, l1Endpoint string, l2Endpoint string, options ...challenger.Option) (*CannonGameHelper, *HonestHelper) {
+func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, l2Node string, options ...challenger.Option) (*CannonGameHelper, *HonestHelper) {
 	extraData, l1Head, l2BlockNumber := h.createDisputeGameExtraData(ctx)
 	challengerOpts := []challenger.Option{
-		challenger.WithCannon(h.t, rollupCfg, l2Genesis, l2Endpoint),
+		challenger.WithCannon(h.t, h.system.RollupCfg(), h.system.L2Genesis(), h.system.NodeEndpoint(l2Node)),
 		challenger.WithFactoryAddress(h.factoryAddr),
 	}
 	challengerOpts = append(challengerOpts, options...)
-	cfg := challenger.NewChallengerConfig(h.t, l1Endpoint, challengerOpts...)
+	cfg := challenger.NewChallengerConfig(h.t, h.system.NodeEndpoint("l1"), challengerOpts...)
 	opts := &bind.CallOpts{Context: ctx}
 	challengedOutput := h.l2ooHelper.GetL2OutputAfter(ctx, l2BlockNumber)
 	agreedOutput := h.l2ooHelper.GetL2OutputBefore(ctx, l2BlockNumber)
 	l1BlockInfo, err := h.blockOracle.Load(opts, l1Head)
 	h.require.NoError(err, "Fetch L1 block info")
 
-	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
-	if err != nil {
-		h.require.NoErrorf(err, "Failed to dial l2 client %v", l2Endpoint)
-	}
+	l2Client := h.system.NodeClient(l2Node)
 	defer l2Client.Close()
 	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
 	if err != nil {
@@ -280,6 +290,7 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.H
 		FaultGameHelper: FaultGameHelper{
 			t:           h.t,
 			require:     h.require,
+			system:      h.system,
 			client:      h.client,
 			opts:        h.opts,
 			game:        game,
@@ -318,12 +329,12 @@ func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraDa
 	return
 }
 
-func (h *FactoryHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
+func (h *FactoryHelper) StartChallenger(ctx context.Context, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
 		challenger.WithFactoryAddress(h.factoryAddr),
 	}
 	opts = append(opts, options...)
-	c := challenger.NewChallenger(h.t, ctx, l1Endpoint, name, opts...)
+	c := challenger.NewChallenger(h.t, ctx, h.system.NodeEndpoint("l1"), name, opts...)
 	h.t.Cleanup(func() {
 		_ = c.Close()
 	})

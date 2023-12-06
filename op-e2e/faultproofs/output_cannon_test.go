@@ -20,18 +20,11 @@ func TestOutputCannonGame(t *testing.T) {
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	rollupEndpoint := sys.RollupNodes["sequencer"].HTTPEndpoint()
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
-	require.NotEqual(t, rollupEndpoint, l2Endpoint)
-
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-	game := disputeGameFactory.StartOutputCannonGame(ctx, rollupEndpoint, common.Hash{0x01})
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01})
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, rollupEndpoint, l1Endpoint, l2Endpoint, "Challenger",
-		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-	)
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	game.LogGameData(ctx)
 	// Challenger should post an output root to counter claims down to the leaf level of the top game
@@ -89,19 +82,16 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
-			rollupEndpoint := sys.RollupNodes["sequencer"].HTTPEndpoint()
 
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-			game := disputeGameFactory.StartOutputCannonGame(ctx, rollupEndpoint, common.Hash{0x01, 0xaa})
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01, 0xaa})
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
 			game.DisputeLastBlock(ctx)
 			splitDepth := game.SplitDepth(ctx)
 
-			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, rollupEndpoint, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
-				challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-			)
+			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			game.DefendRootClaim(
 				ctx,
@@ -120,4 +110,42 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 		})
 	}
+}
+
+func TestOutputCannonDefendStep(t *testing.T) {
+	// TODO(client-pod#247): Fix and enable this.
+	t.Skip("Currently failing because of invalid pre-state")
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01, 0xaa})
+	require.NotNil(t, game)
+	game.DisputeLastBlock(ctx)
+	game.LogGameData(ctx)
+
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
+
+	splitDepth := game.SplitDepth(ctx)
+	game.DefendRootClaim(ctx, func(parentClaimIdx int64) {
+		// Post invalid claims for most steps to get down into the early part of the trace
+		if parentClaimIdx < splitDepth+27 {
+			game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+		} else {
+			// Post our own counter but using the correct hash in low levels to force a defense step
+			correctTrace.Attack(ctx, parentClaimIdx)
+		}
+	})
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.WaitForInactivity(ctx, 10, true)
+	game.LogGameData(ctx)
+	require.EqualValues(t, disputegame.StatusChallengerWins, game.Status(ctx))
 }

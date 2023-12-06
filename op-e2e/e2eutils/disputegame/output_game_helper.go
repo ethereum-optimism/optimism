@@ -29,6 +29,7 @@ type OutputGameHelper struct {
 	factoryAddr           common.Address
 	addr                  common.Address
 	correctOutputProvider *outputs.OutputTraceProvider
+	system                DisputeSystem
 }
 
 func (g *OutputGameHelper) Addr() common.Address {

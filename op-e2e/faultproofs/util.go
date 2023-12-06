@@ -45,19 +45,14 @@ func setupDisputeGameForInvalidOutputRoot(t *testing.T, outputRoot common.Hash) 
 	// Submit an invalid output root
 	l2oo.PublishNextOutput(ctx, outputRoot)
 
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
-
 	// Dispute the new output root by creating a new game with the correct cannon trace.
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, "sequencer",
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
 	)
 	require.NotNil(t, game)
 
 	// Start the honest challenger
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Defender",
-		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
-	)
+	game.StartChallenger(ctx, "sequencer", "Defender", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 	return sys, l1Client, game, correctTrace
 }
