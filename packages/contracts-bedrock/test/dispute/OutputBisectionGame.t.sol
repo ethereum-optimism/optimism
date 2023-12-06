@@ -17,7 +17,7 @@ import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibClock.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
-import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { AlphabetVM2 } from "test/mocks/AlphabetVM2.sol";
 
 contract OutputBisectionGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
@@ -47,7 +47,7 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
         // Set the extra data for the game creation
         extraData = abi.encode(L2_BLOCK_NUMBER);
 
-        AlphabetVM _vm = new AlphabetVM(absolutePrestate);
+        AlphabetVM2 _vm = new AlphabetVM2(absolutePrestate);
 
         // Deploy an implementation of the fault game
         gameImpl = new OutputBisectionGame({
@@ -100,7 +100,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     ///      1. Greater than or equal to the `MAX_GAME_DEPTH`
     ///      2. Odd
     function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
-        AlphabetVM alphabetVM = new AlphabetVM(ABSOLUTE_PRESTATE);
+        AlphabetVM2 alphabetVM = new AlphabetVM2(ABSOLUTE_PRESTATE);
 
         // Test that the constructor reverts when the `_splitDepth` parameter is greater than or equal
         // to the `MAX_GAME_DEPTH` parameter.
