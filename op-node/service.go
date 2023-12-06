@@ -148,16 +148,11 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		}
 		copy(secret[:], jwtSecret)
 	} else {
-		log.Warn(
-			"Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf(
-				"%q",
-				fileName,
-			),
-		)
+		log.Warn("Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf("%q", fileName))
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return nil, fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
-		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0o600); err != nil {
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
 			return nil, err
 		}
 	}
@@ -203,12 +198,10 @@ func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	}
 	if network != "" {
 		if rollupConfigPath != "" {
-			log.Error(
-				`Cannot configure network and rollup-config at the same time.
+			log.Error(`Cannot configure network and rollup-config at the same time.
 Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
-`, "network", network, "rollup_config", rollupConfigPath,
-			)
+`, "network", network, "rollup_config", rollupConfigPath)
 		}
 		rollupConfig, err := chaincfg.GetRollupConfig(network)
 		if err != nil {

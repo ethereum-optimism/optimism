@@ -6,15 +6,18 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum/go-ethereum/log"
 )
 
-var ErrClaimNotValid = errors.New("invalid claim")
+var (
+	ErrClaimNotValid = errors.New("invalid claim")
+)
 
 type Derivation interface {
 	Step(ctx context.Context) error

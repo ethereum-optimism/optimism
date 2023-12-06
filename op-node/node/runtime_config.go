@@ -29,12 +29,7 @@ var (
 )
 
 type RuntimeCfgL1Source interface {
-	ReadStorageAt(
-		ctx context.Context,
-		address common.Address,
-		storageSlot common.Hash,
-		blockHash common.Hash,
-	) (common.Hash, error)
+	ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error)
 }
 
 type ReadonlyRuntimeConfig interface {
@@ -165,22 +160,12 @@ func (r *RuntimeConfig) loadProtocolVersions(ctx context.Context, l1Ref eth.L1Bl
 	// The superchain protocol version data is optional; only applicable to rollup configs that specify a ProtocolVersions address.
 	var requiredProtVersion, recommendedProtoVersion params.ProtocolVersion
 	if r.rollupCfg.ProtocolVersionsAddress != (common.Address{}) {
-		requiredVal, err := r.l1Client.ReadStorageAt(
-			ctx,
-			r.rollupCfg.ProtocolVersionsAddress,
-			RequiredProtocolVersionStorageSlot,
-			l1Ref.Hash,
-		)
+		requiredVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.ProtocolVersionsAddress, RequiredProtocolVersionStorageSlot, l1Ref.Hash)
 		if err != nil {
 			return fmt.Errorf("required-protocol-version value failed to load from L1 contract: %w", err)
 		}
 		requiredProtVersion = params.ProtocolVersion(requiredVal)
-		recommendedVal, err := r.l1Client.ReadStorageAt(
-			ctx,
-			r.rollupCfg.ProtocolVersionsAddress,
-			RecommendedProtocolVersionStorageSlot,
-			l1Ref.Hash,
-		)
+		recommendedVal, err := r.l1Client.ReadStorageAt(ctx, r.rollupCfg.ProtocolVersionsAddress, RecommendedProtocolVersionStorageSlot, l1Ref.Hash)
 		if err != nil {
 			return fmt.Errorf("recommended-protocol-version value failed to load from L1 contract: %w", err)
 		}

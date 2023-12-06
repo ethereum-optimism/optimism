@@ -41,11 +41,8 @@ var (
 		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
 	}
 	Network = &cli.StringFlag{
-		Name: "network",
-		Usage: fmt.Sprintf(
-			"Predefined network selection. Available networks: %s",
-			strings.Join(chaincfg.AvailableNetworks(), ", "),
-		),
+		Name:    "network",
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
 		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */

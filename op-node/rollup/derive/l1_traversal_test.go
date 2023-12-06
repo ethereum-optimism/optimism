@@ -114,42 +114,40 @@ func TestL1TraversalAdvance(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		t.Run(
-			test.name, func(t *testing.T) {
-				src := &testutils.MockL1Source{}
-				src.ExpectL1BlockRefByNumber(test.startBlock.Number+1, test.nextBlock, test.fetcherErr)
-				info := &testutils.MockBlockInfo{
-					InfoHash:       test.nextBlock.Hash,
-					InfoParentHash: test.nextBlock.ParentHash,
-					InfoNum:        test.nextBlock.Number,
-					InfoTime:       test.nextBlock.Time,
-					// TODO: don't need full L1 info in receipts fetching API maybe?
-				}
-				if test.l1Receipts != nil {
-					src.ExpectFetchReceipts(test.nextBlock.Hash, info, test.l1Receipts, nil)
-				}
+		t.Run(test.name, func(t *testing.T) {
+			src := &testutils.MockL1Source{}
+			src.ExpectL1BlockRefByNumber(test.startBlock.Number+1, test.nextBlock, test.fetcherErr)
+			info := &testutils.MockBlockInfo{
+				InfoHash:       test.nextBlock.Hash,
+				InfoParentHash: test.nextBlock.ParentHash,
+				InfoNum:        test.nextBlock.Number,
+				InfoTime:       test.nextBlock.Time,
+				// TODO: don't need full L1 info in receipts fetching API maybe?
+			}
+			if test.l1Receipts != nil {
+				src.ExpectFetchReceipts(test.nextBlock.Hash, info, test.l1Receipts, nil)
+			}
 
-				cfg := &rollup.Config{
-					Genesis:               rollup.Genesis{SystemConfig: test.initialL1Cfg},
-					L1SystemConfigAddress: sysCfgAddr,
-				}
-				bsListener := &testutils.MockSystemConfigUpdateListener{}
-				tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, src, bsListener)
-				// Load up the initial state with a reset
-				_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
+			cfg := &rollup.Config{
+				Genesis:               rollup.Genesis{SystemConfig: test.initialL1Cfg},
+				L1SystemConfigAddress: sysCfgAddr,
+			}
+			bsListener := &testutils.MockSystemConfigUpdateListener{}
+			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, src, bsListener)
+			// Load up the initial state with a reset
+			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
 
-				// Advance it + assert output
-				err := tr.AdvanceL1Block(context.Background())
-				require.ErrorIs(t, err, test.expectedErr)
+			// Advance it + assert output
+			err := tr.AdvanceL1Block(context.Background())
+			require.ErrorIs(t, err, test.expectedErr)
 
-				if test.expectedErr == nil {
-					ref, err := tr.NextL1Block(context.Background())
-					require.Nil(t, err)
-					require.Equal(t, test.nextBlock, ref)
-				}
+			if test.expectedErr == nil {
+				ref, err := tr.NextL1Block(context.Background())
+				require.Nil(t, err)
+				require.Equal(t, test.nextBlock, ref)
+			}
 
-				src.AssertExpectations(t)
-			},
-		)
+			src.AssertExpectations(t)
+		})
 	}
 }

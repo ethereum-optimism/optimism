@@ -77,14 +77,7 @@ var _ p2p.GossipIn = (*OpNode)(nil)
 // New creates a new OpNode instance.
 // The provided ctx argument is for the span of initialization only;
 // the node will immediately Stop(ctx) before finishing initialization if the context is canceled during initialization.
-func New(
-	ctx context.Context,
-	cfg *Config,
-	log log.Logger,
-	snapshotLog log.Logger,
-	appVersion string,
-	m *metrics.Metrics,
-) (*OpNode, error) {
+func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logger, appVersion string, m *metrics.Metrics) (*OpNode, error) {
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -180,14 +173,12 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
-	n.l1HeadsSub = event.ResubscribeErr(
-		time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
-			if err != nil {
-				n.log.Warn("resubscribing after failed L1 subscription", "err", err)
-			}
-			return eth.WatchHeadChanges(ctx, n.l1Source, n.OnNewL1Head)
-		},
-	)
+	n.l1HeadsSub = event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
+		if err != nil {
+			n.log.Warn("resubscribing after failed L1 subscription", "err", err)
+		}
+		return eth.WatchHeadChanges(ctx, n.l1Source, n.OnNewL1Head)
+	})
 	go func() {
 		err, ok := <-n.l1HeadsSub.Err()
 		if !ok {
@@ -198,14 +189,8 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 	// Poll for the safe L1 block and finalized block,
 	// which only change once per epoch at most and may be delayed.
-	n.l1SafeSub = eth.PollBlockChanges(
-		n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
-		cfg.L1EpochPollInterval, time.Second*10,
-	)
-	n.l1FinalizedSub = eth.PollBlockChanges(
-		n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
-		cfg.L1EpochPollInterval, time.Second*10,
-	)
+	n.l1SafeSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Safe, eth.Safe, cfg.L1EpochPollInterval, time.Second*10)
+	n.l1FinalizedSub = eth.PollBlockChanges(n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized, cfg.L1EpochPollInterval, time.Second*10)
 	return nil
 }
 
@@ -247,15 +232,13 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	}
 
 	// initialize the runtime config before unblocking
-	if _, err := retry.Do(
-		ctx, 5, retry.Fixed(time.Second*10), func() (eth.L1BlockRef, error) {
-			ref, err := reload(ctx)
-			if errors.Is(err, errNodeHalt) { // don't retry on halt error
-				err = nil
-			}
-			return ref, err
-		},
-	); err != nil {
+	if _, err := retry.Do(ctx, 5, retry.Fixed(time.Second*10), func() (eth.L1BlockRef, error) {
+		ref, err := reload(ctx)
+		if errors.Is(err, errNodeHalt) { // don't retry on halt error
+			err = nil
+		}
+		return ref, err
+	}); err != nil {
 		return fmt.Errorf("failed to load runtime configuration repeatedly, last error: %w", err)
 	}
 
@@ -321,20 +304,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	}
 
 	n.runCfg = NewRuntimeConfig(n.log, cfg, n.l1Source, &cfg.Rollup)
-	n.l2Driver = driver.NewDriver(
-		&cfg.Driver,
-		&cfg.Rollup,
-		n.l2Source,
-		n.l1Source,
-		n,
-		n,
-		n.log,
-		snapshotLog,
-		n.metrics,
-		cfg.ConfigPersistence,
-		&cfg.Sync,
-		n.runCfg,
-	)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync, n.runCfg)
 
 	return nil
 }
@@ -356,16 +326,7 @@ func (n *OpNode) initRPCSync(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	server, err := newRPCServer(
-		ctx,
-		&cfg.RPC,
-		&cfg.Rollup,
-		n.l2Source.L2Client,
-		n.l2Driver,
-		n.log,
-		n.appVersion,
-		n.metrics,
-	)
+	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
@@ -429,11 +390,7 @@ func (n *OpNode) initPProf(cfg *Config) error {
 	if !cfg.Pprof.Enabled {
 		return nil
 	}
-	log.Debug(
-		"starting pprof server",
-		"addr",
-		net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)),
-	)
+	log.Debug("starting pprof server", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
 	srv, err := oppprof.StartServer(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
 	if err != nil {
 		return err
@@ -570,15 +527,7 @@ func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) 
 	}
 	if n.p2pNode != nil && n.p2pNode.AltSyncEnabled() {
 		if unixTimeStale(start.Time, 12*time.Hour) {
-			n.log.Debug(
-				"ignoring request to sync L2 range, timestamp is too old for p2p",
-				"start",
-				start,
-				"end",
-				end,
-				"start_time",
-				start.Time,
-			)
+			n.log.Debug("ignoring request to sync L2 range, timestamp is too old for p2p", "start", start, "end", end, "start_time", start.Time)
 			return nil
 		}
 		return n.p2pNode.RequestL2Range(ctx, start, end)
@@ -651,10 +600,7 @@ func (n *OpNode) Stop(ctx context.Context) error {
 		// If the L2 sync client is present & running, close it.
 		if n.rpcSync != nil {
 			if err := n.rpcSync.Close(); err != nil {
-				result = multierror.Append(
-					result,
-					fmt.Errorf("failed to close L2 engine backup sync client cleanly: %w", err),
-				)
+				result = multierror.Append(result, fmt.Errorf("failed to close L2 engine backup sync client cleanly: %w", err))
 			}
 		}
 	}

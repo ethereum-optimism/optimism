@@ -114,11 +114,7 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 	} else if state != StateUnset {
 		stopped := state == StateStopped
 		if stopped != cfg.Driver.SequencerStopped {
-			log.Warn(
-				fmt.Sprintf("Overriding %v with persisted state", flags.SequencerStoppedFlag.Name),
-				"stopped",
-				stopped,
-			)
+			log.Warn(fmt.Sprintf("Overriding %v with persisted state", flags.SequencerStoppedFlag.Name), "stopped", stopped)
 		}
 		cfg.Driver.SequencerStopped = stopped
 	} else {

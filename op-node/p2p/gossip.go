@@ -77,10 +77,7 @@ func blocksTopicV2(cfg *rollup.Config) string {
 // BuildSubscriptionFilter builds a simple subscription filter,
 // to help protect against peers spamming useless subscriptions.
 func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
-	return pubsub.NewAllowlistSubscriptionFilter(
-		blocksTopicV1(cfg),
-		blocksTopicV2(cfg),
-	) // add more topics here in the future, if any.
+	return pubsub.NewAllowlistSubscriptionFilter(blocksTopicV1(cfg), blocksTopicV2(cfg)) // add more topics here in the future, if any.
 }
 
 var msgBufPool = sync.Pool{
@@ -162,15 +159,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 
 // NewGossipSub configures a new pubsub instance with the specified parameters.
 // PubSub uses a GossipSubRouter as it's router under the hood.
-func NewGossipSub(
-	p2pCtx context.Context,
-	h host.Host,
-	cfg *rollup.Config,
-	gossipConf GossipSetupConfigurables,
-	scorer Scorer,
-	m GossipMetricer,
-	log log.Logger,
-) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, scorer Scorer, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -256,12 +245,7 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(
-	log log.Logger,
-	cfg *rollup.Config,
-	runCfg GossipRuntimeConfig,
-	blockVersion eth.BlockVersion,
-) pubsub.ValidatorEx {
+func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, blockVersion eth.BlockVersion) pubsub.ValidatorEx {
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
@@ -300,11 +284,7 @@ func BuildBlocksValidator(
 
 		// [REJECT] if the block encoding is not valid
 		var payload eth.ExecutionPayload
-		if err := payload.UnmarshalSSZ(
-			blockVersion,
-			uint32(len(payloadBytes)),
-			bytes.NewReader(payloadBytes),
-		); err != nil {
+		if err := payload.UnmarshalSSZ(blockVersion, uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
 			log.Warn("invalid payload", "err", err, "peer", id)
 			return pubsub.ValidationReject
 		}
@@ -350,13 +330,7 @@ func BuildBlocksValidator(
 
 		// [REJECT] if a V2 Block has non-empty withdrawals
 		if blockVersion == eth.BlockV2 && len(*payload.Withdrawals) != 0 {
-			log.Warn(
-				"payload is on v2 topic, but has non-empty withdrawals",
-				"bad_hash",
-				payload.BlockHash.String(),
-				"withdrawal_count",
-				len(*payload.Withdrawals),
-			)
+			log.Warn("payload is on v2 topic, but has non-empty withdrawals", "bad_hash", payload.BlockHash.String(), "withdrawal_count", len(*payload.Withdrawals))
 			return pubsub.ValidationReject
 		}
 
@@ -540,26 +514,11 @@ func (p *publisher) Close() error {
 	return errors.Join(e1, e2)
 }
 
-func JoinGossip(
-	self peer.ID,
-	ps *pubsub.PubSub,
-	log log.Logger,
-	cfg *rollup.Config,
-	runCfg GossipRuntimeConfig,
-	gossipIn GossipIn,
-) (GossipOut, error) {
+func JoinGossip(self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
 	p2pCtx, p2pCancel := context.WithCancel(context.Background())
 
 	v1Logger := log.New("topic", "blocksV1")
-	blocksV1Validator := guardGossipValidator(
-		log,
-		logValidationResult(
-			self,
-			"validated blockv1",
-			v1Logger,
-			BuildBlocksValidator(v1Logger, cfg, runCfg, eth.BlockV1),
-		),
-	)
+	blocksV1Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv1", v1Logger, BuildBlocksValidator(v1Logger, cfg, runCfg, eth.BlockV1)))
 	blocksV1, err := newBlockTopic(p2pCtx, blocksTopicV1(cfg), ps, v1Logger, gossipIn, blocksV1Validator)
 	if err != nil {
 		p2pCancel()
@@ -567,15 +526,7 @@ func JoinGossip(
 	}
 
 	v2Logger := log.New("topic", "blocksV2")
-	blocksV2Validator := guardGossipValidator(
-		log,
-		logValidationResult(
-			self,
-			"validated blockv2",
-			v2Logger,
-			BuildBlocksValidator(v2Logger, cfg, runCfg, eth.BlockV2),
-		),
-	)
+	blocksV2Validator := guardGossipValidator(log, logValidationResult(self, "validated blockv2", v2Logger, BuildBlocksValidator(v2Logger, cfg, runCfg, eth.BlockV2)))
 	blocksV2, err := newBlockTopic(p2pCtx, blocksTopicV2(cfg), ps, v2Logger, gossipIn, blocksV2Validator)
 	if err != nil {
 		p2pCancel()
@@ -592,14 +543,7 @@ func JoinGossip(
 	}, nil
 }
 
-func newBlockTopic(
-	ctx context.Context,
-	topicId string,
-	ps *pubsub.PubSub,
-	log log.Logger,
-	gossipIn GossipIn,
-	validator pubsub.ValidatorEx,
-) (*blockTopic, error) {
+func newBlockTopic(ctx context.Context, topicId string, ps *pubsub.PubSub, log log.Logger, gossipIn GossipIn, validator pubsub.ValidatorEx) (*blockTopic, error) {
 	err := ps.RegisterTopicValidator(
 		topicId,
 		validator,
@@ -646,10 +590,7 @@ func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.Exec
 	return func(ctx context.Context, from peer.ID, msg any) error {
 		payload, ok := msg.(*eth.ExecutionPayload)
 		if !ok {
-			return fmt.Errorf(
-				"expected topic validator to parse and validate data into execution payload, but got %T",
-				msg,
-			)
+			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)
 		}
 		return onBlock(ctx, from, payload)
 	}

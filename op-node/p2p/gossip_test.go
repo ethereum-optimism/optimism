@@ -30,17 +30,15 @@ import (
 
 func TestGuardGossipValidator(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlCrit)
-	val := guardGossipValidator(
-		logger, func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
-			if id == "mallory" {
-				panic("mallory was here")
-			}
-			if id == "bob" {
-				return pubsub.ValidationIgnore
-			}
-			return pubsub.ValidationAccept
-		},
-	)
+	val := guardGossipValidator(logger, func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
+		if id == "mallory" {
+			panic("mallory was here")
+		}
+		if id == "bob" {
+			return pubsub.ValidationIgnore
+		}
+		return pubsub.ValidationAccept
+	})
 	// Test that panics from mallory are recovered and rejected,
 	// and test that we can continue to ignore bob and accept alice.
 	require.Equal(t, pubsub.ValidationAccept, val(context.Background(), "alice", nil))

@@ -15,9 +15,6 @@ func (m *MockSystemConfigUpdateListener) OnP2PBlockSignerAddressUpdated(addr com
 	m.Mock.MethodCalled("OnP2PBlockSignerAddressUpdated", addr, l1Ref)
 }
 
-func (m *MockSystemConfigUpdateListener) ExpectOnP2PBlockSignerAddressUpdated(
-	addr common.Address,
-	l1Ref eth.L1BlockRef,
-) {
+func (m *MockSystemConfigUpdateListener) ExpectOnP2PBlockSignerAddressUpdated(addr common.Address, l1Ref eth.L1BlockRef) {
 	m.Mock.On("OnP2PBlockSignerAddressUpdated", addr, l1Ref).Once()
 }
