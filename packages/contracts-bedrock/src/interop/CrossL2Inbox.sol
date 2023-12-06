@@ -34,7 +34,7 @@ contract CrossL2Inbox is ISemver {
     /// @notice Address of the cross L2 account which initiated a call in this cross L2 message.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to runCrossL2Transaction.
-    address public crossL2Sender;
+    address public crossL2Sender = Constants.DEFAULT_L2_SENDER;
 
     /// @notice Source chain identifier from where the cross L2 call originated. Empty if not in a call.
     bytes32 public messageSourceChain;

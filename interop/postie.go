@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -35,8 +36,9 @@ type Postie struct {
 	outboxStorageRoots   map[uint64]common.Hash
 	outboxUpdateInterval time.Duration
 
-	crossL2Inbox *bindings.CrossL2Inbox
-	tOpts        *bind.TransactOpts
+	destionationChain *ethclient.Client
+	crossL2Inbox      *bindings.CrossL2Inbox
+	tOpts             *bind.TransactOpts
 
 	worker  *clock.LoopFn
 	stopped atomic.Bool
@@ -83,6 +85,7 @@ func NewPostie(log log.Logger, cfg PostieConfig) (*Postie, error) {
 		chains:               connectedChains,
 		outboxUpdateInterval: cfg.UpdateInterval,
 		outboxStorageRoots:   outboxStorageRoots,
+		destionationChain:    cfg.DestinationChain,
 		crossL2Inbox:         crossL2Inbox,
 		tOpts:                tOpts,
 	}, nil
@@ -136,17 +139,17 @@ func (p *Postie) tick(_ context.Context) {
 		}
 
 		if outboxStorageRoot == oldStorageRoot {
-			p.log.Info("no change in state", "id", chainId)
+			p.log.Info("no change in outbox state", "id", chainId)
 		} else {
 			// NOTE: With the single-outbox design, we technically should be checking for a change that
 			// contains a message specific to the destination. For the prototype, we'll just always update
-			p.log.Info("detected new outbox storage root", "id", chainId, "root", outboxStorageRoot.String(), "old_root", oldStorageRoot.String())
+			p.log.Info("detected new outbox state", "id", chainId, "root", outboxStorageRoot.String(), "old_root", oldStorageRoot.String())
 			mail = append(mail, bindings.InboxEntry{Chain: common.BigToHash(big.NewInt(int64(chainId))), Output: outboxStorageRoot})
 		}
 	}
 
 	if len(mail) > 0 {
-		p.log.Info("delivering mail to inbox...")
+		p.log.Info("delivering mail to inbox...", "updates", len(mail))
 		tx, err := p.crossL2Inbox.DeliverMail(p.tOpts, mail)
 		if err != nil {
 			p.log.Error("unable to deliver mail", "err", err)
@@ -157,10 +160,15 @@ func (p *Postie) tick(_ context.Context) {
 		// NOTE: Technically we should only be updating on succesful inclusion. We would
 		// ideally read from some on-chain events of updated roots. Since for the prototype
 		// inclusion should be guaranteed, this is fine
-		for _, mail := range mail {
-			chainId := new(big.Int).SetBytes(mail.Chain[:]).Uint64()
-			p.log.Info("updated chain", "id", chainId)
-			p.outboxStorageRoots[chainId] = mail.Output
+		_, err = wait.ForReceiptOK(context.Background(), p.destionationChain, tx.Hash())
+		if err != nil {
+			p.log.Error("mail deliver error", "err", err)
+		} else {
+			for _, mail := range mail {
+				chainId := new(big.Int).SetBytes(mail.Chain[:]).Uint64()
+				p.log.Info("updated outbox", "id", chainId)
+				p.outboxStorageRoots[chainId] = mail.Output
+			}
 		}
 	}
 }
