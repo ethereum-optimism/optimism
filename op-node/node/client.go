@@ -159,6 +159,14 @@ type L1EndpointConfig struct {
 	// It is recommended to use websockets or IPC for efficient following of the changing block.
 	// Setting this to 0 disables polling.
 	HttpPollInterval time.Duration
+
+	// PrefetchingWindow specifies the number of blocks to prefetch from the L1 RPC.
+	// Setting this to 0 disables prefetching.
+	PrefetchingWindow uint64
+
+	// PrefetchingTimeout specifies the timeout for prefetching from the L1 RPC.
+	// Setting this to 0 disables prefetching.
+	PrefetchingTimeout time.Duration
 }
 
 var _ L1EndpointSetup = (*L1EndpointConfig)(nil)
@@ -192,6 +200,8 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
 	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize
 	rpcCfg.MaxConcurrentRequests = cfg.MaxConcurrency
+	rpcCfg.PrefetchingWindow = cfg.PrefetchingWindow
+	rpcCfg.PrefetchingTimeout = cfg.PrefetchingTimeout
 	return l1Node, rpcCfg, nil
 }
 
