@@ -12,8 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const outputCannonTestExecutor = 0
+
 func TestOutputCannonGame(t *testing.T) {
-	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -64,4 +66,58 @@ func TestOutputCannonGame(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+}
+
+func TestOutputCannonDisputeGame(t *testing.T) {
+	// TODO(client-pod#247): Fix and enable this.
+	t.Skip("Currently failing because of invalid pre-state")
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+
+	tests := []struct {
+		name             string
+		defendClaimDepth int64
+	}{
+		{"StepFirst", 0},
+		{"StepMiddle", 28},
+		{"StepInExtension", 2},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			op_e2e.InitParallel(t, op_e2e.UseExecutor(outputCannonTestExecutor))
+
+			ctx := context.Background()
+			sys, l1Client := startFaultDisputeSystem(t)
+			t.Cleanup(sys.Close)
+			rollupEndpoint := sys.RollupNodes["sequencer"].HTTPEndpoint()
+
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+			game := disputeGameFactory.StartOutputCannonGame(ctx, rollupEndpoint, common.Hash{0x01, 0xaa})
+			require.NotNil(t, game)
+			game.LogGameData(ctx)
+
+			game.DisputeLastBlock(ctx)
+			splitDepth := game.SplitDepth(ctx)
+
+			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, rollupEndpoint, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
+				challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
+			)
+
+			game.DefendRootClaim(
+				ctx,
+				func(parentClaimIdx int64) {
+					if parentClaimIdx+1 == splitDepth+test.defendClaimDepth {
+						game.Defend(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+					} else {
+						game.Attack(ctx, parentClaimIdx, common.Hash{byte(parentClaimIdx)})
+					}
+				})
+
+			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+			game.LogGameData(ctx)
+			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+		})
+	}
 }
