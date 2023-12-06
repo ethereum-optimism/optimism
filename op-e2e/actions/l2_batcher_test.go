@@ -1,9 +1,9 @@
 package actions
 
 import (
-	"crypto/rand"
 	"errors"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -467,6 +467,8 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		tx.GasFeeCap = e2eutils.Ether(1) // be very generous with basefee, since we're spamming L1
 	}
 
+	rng := rand.New(rand.NewSource(555))
+
 	// build many L2 blocks filled to the brim with large txs of random data
 	for i := 0; i < 40; i++ {
 		aliceNonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
@@ -483,7 +485,7 @@ func BigL2Txs(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 			require.NoError(t, err)
 			signer := types.LatestSigner(sd.L2Cfg.Config)
 			data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
-			_, err := rand.Read(data[:])  // fill with random bytes, to make compression ineffective
+			_, err := rng.Read(data[:])   // fill with random bytes, to make compression ineffective
 			require.NoError(t, err)
 			gas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 			require.NoError(t, err)
