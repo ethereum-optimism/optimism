@@ -13,50 +13,54 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @notice Address of the OptimismPortal. This will be removed in the
-    ///         future, use `portal` instead.
-    /// @custom:legacy
-    OptimismPortal public immutable PORTAL;
+    /// @notice Address of the OptimismPortal.
+    /// @custom:network-specific
+    OptimismPortal public portal;
 
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
+    // TODO: should semver version be updated?
     /// @notice Semantic version.
     /// @custom:semver 2.2.0
     string public constant version = "2.2.0";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    /// @param _portal Address of the OptimismPortal contract on this network.
-    constructor(OptimismPortal _portal) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
-        PORTAL = _portal;
-        initialize({ _superchainConfig: SuperchainConfig(address(0)) });
+    constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+        initialize({ _portal: OptimismPortal(payable(address(0))), _superchainConfig: SuperchainConfig(address(0)) });
     }
 
     /// @notice Initializes the contract.
+    /// @param _portal Address of the OptimismPortal contract on this network.
     /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public initializer {
+    function initialize(OptimismPortal _portal, SuperchainConfig _superchainConfig) public initializer {
+        portal = _portal;
         superchainConfig = _superchainConfig;
         __CrossDomainMessenger_init();
     }
 
-    /// @notice Getter for the OptimismPortal address.
-    function portal() external view returns (address) {
-        return address(PORTAL);
+    /// @notice Getter function for the address of the OptimismPortal on this chain.
+    /// @return Address of the OptimismPortal on this chain.
+    // TODO: check that @custom:legacy makes sense here
+    // TODO: return type & description is not consistent with return types of other getters in OptimismPortal
+    /// @custom:legacy
+    function PORTAL() external view returns (address) {
+        return address(portal);
     }
 
     /// @inheritdoc CrossDomainMessenger
     function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
-        PORTAL.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
+        portal.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
     }
 
     /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
-        return msg.sender == address(PORTAL) && PORTAL.l2Sender() == OTHER_MESSENGER;
+        return msg.sender == address(portal) && portal.l2Sender() == OTHER_MESSENGER;
     }
 
     /// @inheritdoc CrossDomainMessenger
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
-        return _target == address(this) || _target == address(PORTAL);
+        return _target == address(this) || _target == address(portal);
     }
 
     /// @inheritdoc CrossDomainMessenger
