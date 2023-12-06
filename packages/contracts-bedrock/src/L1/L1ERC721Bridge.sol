@@ -22,20 +22,34 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
+    // TODO: should semver version be updated?
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
 
     /// @notice Constructs the L1ERC721Bridge contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    constructor(address _messenger) ERC721Bridge(_messenger, Predeploys.L2_ERC721_BRIDGE) {
-        initialize(SuperchainConfig(address(0)));
+    constructor() ERC721Bridge() {
+        initialize({
+            _messenger: CrossDomainMessenger(address(0)),
+            _otherBridge: Predeploys.L2_ERC721_BRIDGE,
+            _superchainConfig: SuperchainConfig(address(0))
+        });
     }
 
     /// @notice Initializes the contract.
+    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    /// @param _otherBridge Address of the ERC721 bridge on the other network.
     /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public initializer {
+    function initialize(
+        CrossDomainMessenger _messenger,
+        address _otherBridge,
+        SuperchainConfig _superchainConfig
+    )
+        public
+        initializer
+    {
         superchainConfig = _superchainConfig;
+        __ERC721Bridge_init(_messenger, _otherBridge);
     }
 
     /// @inheritdoc ERC721Bridge
@@ -110,7 +124,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
 
         // Send calldata into L2
-        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage(otherBridge, message, _minGasLimit);
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }
