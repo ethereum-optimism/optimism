@@ -155,9 +155,9 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	}
 }
 
-func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2NodeName string, rootClaim common.Hash) *OutputCannonGameHelper {
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, rootClaim common.Hash) *OutputCannonGameHelper {
 	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputCannonGameHelper")
-	rollupClient := h.system.RollupClient(l2NodeName)
+	rollupClient := h.system.RollupClient(l2Node)
 
 	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
 
