@@ -32,7 +32,7 @@ The L1 and L2 processors are responsible for processing new blocks and system tx
 2. A processor failed to index a block or system tx. This should never happen as resiliency is built into the processor interaction logic, but if it does, the following investigations should be made:
 * Verify that `preset` is set to proper L2 chain ID. If misconfigured, the indexer may be trying to index the wrong system contract addresses. There should be a log at startup that indicates the preset and system contract addresses being used.
 * Verify that the upstream node dependency is healthy and accessible.
-* Verify data tables to ensure that the block or system tx was not indexed. If it wasn't indexed, please file an issue and resync the indexer (see below).
+* Verify data tables to ensure that the block or system tx was indexed. If it wasn't indexed, please file an issue and resync the indexer (see below).
 
 ### Bridge Processor Failures
 The bridge processor is responsible for indexing bridge tx and events (i.e, withdrawals, deposits). The bridge processor actively subscribes to new L1 block events where it waits for the prevalence of new batch submission epoch. Once detected, the processor scans the epoch blocks on L1 and L2 for initialized and finalized bridge events.
