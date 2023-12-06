@@ -14,7 +14,6 @@ kontrol_build() {
             --verbose                 \
             --require ${lemmas}       \
             --module-import ${module} \
-            --no-forge-build          \
             ${regen}                  \
             ${rekompile}
 }
