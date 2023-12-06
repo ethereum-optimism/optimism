@@ -80,8 +80,12 @@ contract Setup {
         deploy.setUp();
     }
 
-    /// @dev Simple wrapper around the `create` opcode
+    /// @dev Simple wrapper around the `create` opcode that uses a particular
+    ///      deployer account.
     function _create(bytes memory _code) internal returns (address addr_) {
+        address deployer = address(0xd3607);
+        vm.deal(deployer, 1 ether);
+        vm.prank(deployer);
         assembly {
             addr_ := create(0, add(_code, 0x20), mload(_code))
         }
