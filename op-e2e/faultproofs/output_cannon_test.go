@@ -20,18 +20,11 @@ func TestOutputCannonGame(t *testing.T) {
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	rollupEndpoint := sys.RollupNodes["sequencer"].HTTPEndpoint()
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
-	require.NotEqual(t, rollupEndpoint, l2Endpoint)
-
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-	game := disputeGameFactory.StartOutputCannonGame(ctx, rollupEndpoint, common.Hash{0x01})
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01})
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, rollupEndpoint, l1Endpoint, l2Endpoint, "Challenger",
-		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-	)
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	game.LogGameData(ctx)
 	// Challenger should post an output root to counter claims down to the leaf level of the top game
@@ -89,19 +82,16 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			ctx := context.Background()
 			sys, l1Client := startFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
-			rollupEndpoint := sys.RollupNodes["sequencer"].HTTPEndpoint()
 
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-			game := disputeGameFactory.StartOutputCannonGame(ctx, rollupEndpoint, common.Hash{0x01, 0xaa})
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01, 0xaa})
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
 			game.DisputeLastBlock(ctx)
 			splitDepth := game.SplitDepth(ctx)
 
-			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, rollupEndpoint, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
-				challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-			)
+			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			game.DefendRootClaim(
 				ctx,
