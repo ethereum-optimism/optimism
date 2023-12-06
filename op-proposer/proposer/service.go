@@ -26,6 +26,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+var (
+	ErrAlreadyStopped = errors.New("already stopped")
+)
+
 type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
@@ -252,7 +256,7 @@ func (ps *ProposerService) Kill() error {
 // See driver.StopL2OutputSubmitting to temporarily stop the L2Output submitter.
 func (ps *ProposerService) Stop(ctx context.Context) error {
 	if ps.stopped.Load() {
-		return errors.New("already stopped")
+		return ErrAlreadyStopped
 	}
 	ps.Log.Info("Stopping Proposer")
 
