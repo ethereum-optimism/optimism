@@ -32,14 +32,12 @@ func TestCannonDisputeGame(t *testing.T) {
 			sys, l1Client := startFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
-			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
-				challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-			)
+			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 			game.DefendRootClaim(
 				ctx,
@@ -68,20 +66,14 @@ func TestCannonDefendStep(t *testing.T) {
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0x01, 0xaa})
 	require.NotNil(t, game)
 	game.LogGameData(ctx)
 
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger",
-		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
-	)
+	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
-	correctTrace := game.CreateHonestActor(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Client, l1Endpoint, l2Endpoint,
-		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
-	)
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Mallory))
 
 	game.DefendRootClaim(ctx, func(parentClaimIdx int64) {
 		// Post invalid claims for most steps to get down into the early part of the trace
@@ -186,11 +178,8 @@ func TestCannonPoisonedPostState(t *testing.T) {
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
-
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, "sequencer",
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
 	)
 	require.NotNil(t, game)
@@ -209,9 +198,7 @@ func TestCannonPoisonedPostState(t *testing.T) {
 	correctTrace.Attack(ctx, 3)
 
 	// Start the honest challenger
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Honest",
-		challenger.WithPrivKey(sys.Cfg.Secrets.Bob),
-	)
+	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
 
 	// Start dishonest challenger that posts correct claims
 	// It participates in the subgame root the honest claim index 4
@@ -255,17 +242,14 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	l1Endpoint := sys.NodeEndpoint("l1")
-	l2Endpoint := sys.NodeEndpoint("sequencer")
-
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
-	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, "sequencer",
 		challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
 	)
 	require.NotNil(t, game)
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger",
+	game.StartChallenger(ctx, "sequencer", "Challenger",
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)
 
