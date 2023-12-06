@@ -882,6 +882,7 @@ jobs:
         default: this-package-does-not-exist
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
@@ -890,14 +891,14 @@ jobs:
           name: Lint
           command: make lint
           working_directory: <<parameters.working_directory>>
-      - store_test_results:
-          path: /test-results
       - run:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum --junitfile /test-results/tests.xml
+            gotestsum  --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=2
           working_directory: <<parameters.working_directory>>
+      - store_test_results:
+          path: /test-results
       - when:
           condition:
             equal: [ true, <<parameters.build>> ]
