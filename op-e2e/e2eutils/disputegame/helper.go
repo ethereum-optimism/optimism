@@ -170,7 +170,9 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, rollupEndpoin
 	h.require.NoError(err, "Failed to load l2 block number")
 	splitDepth, err := game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
-	provider := outputs.NewTraceProviderFromInputs(logger, rollupClient, splitDepth.Uint64(), prestateBlock.Uint64(), poststateBlock.Uint64())
+	prestateProvider, err := outputs.NewPrestateProvider(ctx, logger, rollupEndpoint, prestateBlock.Uint64())
+	h.require.NoError(err, "Failed to create prestate provider")
+	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth.Uint64(), prestateBlock.Uint64(), poststateBlock.Uint64())
 
 	return &OutputCannonGameHelper{
 		OutputGameHelper: OutputGameHelper{
