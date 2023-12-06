@@ -10,17 +10,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-var (
-	CrossL2Outbox = common.HexToAddress("")
-	CrossL2Inbox  = common.HexToAddress("")
 )
 
 type PostieConfig struct {
@@ -68,16 +64,23 @@ func NewPostie(log log.Logger, cfg PostieConfig) (*Postie, error) {
 		return nil, fmt.Errorf("unable to create transactor for the postiee account: %w", err)
 	}
 
-	crossL2Inbox, err := bindings.NewCrossL2Inbox(CrossL2Inbox, cfg.DestinationChain)
+	crossL2Inbox, err := bindings.NewCrossL2Inbox(predeploys.CrossL2InboxAddr, cfg.DestinationChain)
 	if err != nil {
 		return nil, fmt.Errorf("unable to construct inbox contract: %w", err)
 	}
 
+	//  NOTE: Since we dont pre-populate the previous state, this will cause an
+	// 	on-chain tx on startup to deliver an update for all chains which is a
+	//  is a no-op if nothing has happened since the restart of this daemon. This
+	//  can be fixed by correctly bootstrapping `p.outboxStorageRoots` with the
+	//  correct previous state. Choosing not to due this due to the current design
+	//  of CrossL2Inbox. Not worth the effort for a prototype.
+	outboxStorageRoots := map[uint64]common.Hash{}
 	return &Postie{
 		log:                  log,
 		chains:               connectedChains,
-		outboxStorageRoots:   map[uint64]common.Hash{},
 		outboxUpdateInterval: cfg.UpdateInterval,
+		outboxStorageRoots:   outboxStorageRoots,
 		crossL2Inbox:         crossL2Inbox,
 		tOpts:                tOpts,
 	}, nil
@@ -87,11 +90,6 @@ func (p *Postie) Start(ctx context.Context) error {
 	p.log.Info("starting postie...")
 
 	// Run once on startup, then start the loop
-	//  - NOTE: Since the CrossL2Inbox stores all commitments, not just the latest
-	// 	we send an on-chain tx on startup to deliver updates for all chains which
-	//  is redundant if nothing has happened since the restart of this daemon. This
-	//  can be fixed by correctly bootstrapping `p.outboxStorageRoots` with the
-	//  correct previous state.
 	p.tick(context.Background())
 	p.worker = clock.NewLoopFn(clock.SystemClock, p.tick, func() error {
 		p.log.Info("worker stopped")
@@ -123,7 +121,7 @@ func (p *Postie) tick(_ context.Context) {
 	for chainId, clnt := range p.chains {
 		oldStorageRoot := p.outboxStorageRoots[chainId]
 
-		outboxStorageRoot, err := clnt.StorageHash(CrossL2Outbox, nil)
+		outboxStorageRoot, err := clnt.StorageHash(predeploys.CrossL2OutboxAddr, nil)
 		if err != nil {
 			p.log.Error("unable to fetch outbox storage root", "chain_id", chainId, "err", err)
 		}
