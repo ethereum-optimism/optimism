@@ -61,6 +61,10 @@ contract L2StandardBridge is StandardBridge, ISemver {
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
     { }
 
+    /// @notice Initializes the contract. This is a noop in the implementation but included to ensure that
+    ///         the contract cannot be initialized a second time.
+    function initialize() public initializer { }
+
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
         _initiateWithdrawal(
