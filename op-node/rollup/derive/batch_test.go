@@ -19,7 +19,7 @@ import (
 )
 
 func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
-	blockCount := uint64(1 + rng.Int()&0xFF)
+	blockCount := uint64(4 + rng.Int()&0xFF) // at least 4
 	originBits := new(big.Int)
 	for i := 0; i < int(blockCount); i++ {
 		bit := uint(0)
@@ -30,11 +30,8 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 	}
 	var blockTxCounts []uint64
 	totalblockTxCounts := uint64(0)
-
-	blockTxCounts = append(blockTxCounts, 4)
-	totalblockTxCounts += 4
-	for i := 1; i < int(blockCount); i++ {
-		blockTxCount := uint64(rng.Intn(16))
+	for i := 0; i < int(blockCount); i++ {
+		blockTxCount := 1 + uint64(rng.Intn(16))
 		blockTxCounts = append(blockTxCounts, blockTxCount)
 		totalblockTxCounts += blockTxCount
 	}
@@ -42,11 +39,15 @@ func RandomRawSpanBatch(rng *rand.Rand, chainId *big.Int) *RawSpanBatch {
 	var txs [][]byte
 	for i := 0; i < int(totalblockTxCounts); i++ {
 		var tx *types.Transaction
-		// ensure unprotected txs are included
-		if i < 4 || testutils.RandomBool(rng) {
-			tx = testutils.RandomLegacyTxNotProtected(rng)
-		} else {
-			tx = testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), londonSigner)
+		switch i % 4 {
+		case 0:
+			tx = testutils.RandomLegacyTx(rng, types.HomesteadSigner{})
+		case 1:
+			tx = testutils.RandomLegacyTx(rng, londonSigner)
+		case 2:
+			tx = testutils.RandomAccessListTx(rng, londonSigner)
+		case 3:
+			tx = testutils.RandomDynamicFeeTx(rng, londonSigner)
 		}
 		rawTx, err := tx.MarshalBinary()
 		if err != nil {
