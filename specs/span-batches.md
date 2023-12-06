@@ -208,7 +208,7 @@ not risking codebase with gnarly custom encoding/decoding implementations.
 
 ### Store `y_parity` and `protected_bit` instead of `v`
 
-Only legacy type transactions can be optionally protected. If protected([EIP-155]), `v = 2 * ChainID + y_parity`.
+Only legacy type transactions can be optionally protected. If protected([EIP-155]), `v = 2 * ChainID + 35 + y_parity`.
 Else, `v = 27 + y_parity`. For other types of transactions, `v = y_parity`.
 We store `y_parity`, which is single bit per L2 transaction.
 We store `protected_bit`, which is single bit per L2 legacy type transactions to indicate that tx is protected.
