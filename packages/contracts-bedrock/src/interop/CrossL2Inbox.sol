@@ -106,7 +106,38 @@ contract CrossL2Inbox is ISemver {
             )
         );
 
-        // TODO: run precompile to verify the storageKey is part of the output root tree
+        // run new interop MPT verification precompile to verify the storageKey is part of the output root tree
+        assembly {
+            let memPtr := mload(0x40) // get the free memory pointer
+            let startPtr := memPtr
+            // load the precompile arguments into memory
+            mstore(memPtr, _l2OutputRoot) // root
+            memPtr := add(memPtr, 0x20)
+            mstore(memPtr, 32) // pathLength = 32 byte long key
+            memPtr := add(memPtr, 0x20)
+            mstore(memPtr, storageKey) // pathData = storage key
+            memPtr := add(memPtr, 0x20)
+            mstore(memPtr, 32) // valueLength = 32 byte long leaf value.
+            memPtr := add(memPtr, 0x20)
+            mstore(0, 1) // use scratch-pad memory (offset 0) to prepare input data uint256(1) to compute hash of.
+            mstore(memPtr, keccak256(0, 0x20)) // valueData = keccak256(bytes32(uint256(1))) -> the storage value, even though it's just "true", is >= 32 bytes, and thus hashed.
+            memPtr := add(memPtr, 0x20)
+            calldatacopy(memPtr, _inclusionProof.offset, _inclusionProof.length) // trailing call-data: RLP MPT node entries
+            memPtr := add(memPtr, _inclusionProof.length)
+            let argsSize := sub(memPtr, startPtr)
+
+            // This call will revert if the proof is invalid
+            let success := staticcall(
+                100000, // constant 100k gas for proof verification in prototype
+                0x21, // precompile address
+                startPtr, // input ptr
+                argsSize, // input length
+                memPtr, // output ptr
+                0 // output length
+            )
+            // Reset the memory pointer to clean the memory
+            mstore(0, startPtr)
+        }
 
         // Make sure that the crossL2Sender has not yet been set. The crossL2Sender is set to a value other
         // than the default value when a cross-L2 message call is being executed. This check is
