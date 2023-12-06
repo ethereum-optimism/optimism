@@ -50,7 +50,7 @@
     "depcheck": "^1.4.7",
     "doctoc": "^2.2.0",
     "eslint": "^8.54.0",
-    "eslint-config-prettier": "^8.3.0",
+    "eslint-config-prettier": "^9.1.0",
     "eslint-config-standard": "^16.0.3",
     "eslint-plugin-import": "^2.29.0",
     "eslint-plugin-jsdoc": "^35.1.2",
