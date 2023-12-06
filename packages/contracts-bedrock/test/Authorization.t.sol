@@ -155,7 +155,6 @@ contract Authorization_Test is CommonTest {
         _addSpec("OptimismPortal", _getSel("paused()"), false);
         _addSpec("OptimismPortal", OptimismPortal.proveWithdrawalTransaction.selector, true); // pauseable
         _addSpec("OptimismPortal", _getSel("provenWithdrawals(bytes32)"), false);
-        _addSpec("OptimismPortal", _getSel("spacer_53_0_1()"), false);
         _addSpec("OptimismPortal", _getSel("superchainConfig()"), false);
         _addSpec("OptimismPortal", _getSel("systemConfig()"), false);
         _addSpec("OptimismPortal", _getSel("version()"), false);
