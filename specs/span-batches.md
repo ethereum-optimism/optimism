@@ -86,6 +86,9 @@ Notation:
 
 [protobuf spec]: https://protobuf.dev/programming-guides/encoding/#varints
 
+Standard bitlists, in the context of span-batches, are encoded as big-endian integers,
+left-padded with zeroes to the next multiple of 8 bits.
+
 Where:
 
 - `prefix = rel_timestamp ++ l1_origin_num ++ parent_check ++ l1_origin_check`
@@ -98,15 +101,15 @@ Where:
     The hash is truncated to 20 bytes for efficiency, i.e. `span_end.l1_origin.hash[:20]`.
 - `payload = block_count ++ origin_bits ++ block_tx_counts ++ txs`:
   - `block_count`: `uvarint` number of L2 blocks. This is at least 1, empty span batches are invalid.
-  - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
+  - `origin_bits`: standard bitlist of `block_count` bits:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
   - `txs`: L2 transactions which is reorganized and encoded as below.
 - `txs = contract_creation_bits ++ y_parity_bits ++
         tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases ++ protected_bits`
-  - `contract_creation_bits`: bit list of `sum(block_tx_counts)` bits, right-padded to a multiple of 8 bits,
+  - `contract_creation_bits`: standard bitlist of `sum(block_tx_counts)` bits:
     1 bit per L2 transactions, indicating if transaction is a contract creation transaction.
-  - `y_parity_bits`: bit list of `sum(block_tx_counts)` bits, right-padded to a multiple of 8 bits,
+  - `y_parity_bits`: standard bitlist of `sum(block_tx_counts)` bits:
     1 bit per L2 transactions, indicating the y parity value when recovering transaction sender address.
   - `tx_sigs`: concatenated list of transaction signatures
     - `r` is encoded as big-endian `uint256`
@@ -122,7 +125,7 @@ Where:
     - `legacy`: `gasLimit`
     - `1`: ([EIP-2930]): `gasLimit`
     - `2`: ([EIP-1559]): `gas_limit`
-  - `protected_bits`: bit list of length of number of legacy transactions, right-padded to a multiple of 8 bits,
+  - `protected_bits`: standard bitlist of length of number of legacy transactions:
     1 bit per L2 legacy transactions, indicating if transacion is protected([EIP-155]) or not.
 
 Introduce version `2` to the [batch-format](./derivation.md#batch-format) table:
