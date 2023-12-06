@@ -36,6 +36,7 @@ import (
 const alphabetGameType uint8 = 255
 const cannonGameType uint8 = 0
 const outputCannonGameType uint8 = 1
+const outputAlphabetGameType uint8 = 254
 const alphabetGameDepth = 4
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
@@ -197,7 +198,55 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 			system:                h.system,
 		},
 	}
+}
 
+func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, claimedAlphabet string) *OutputAlphabetGameHelper {
+	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputAlphabetGameHelper")
+	rollupClient := h.system.RollupClient(l2Node)
+
+	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
+
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	trace := alphabet.NewTraceProvider(claimedAlphabet, alphabetGameDepth)
+	pos := faultTypes.NewPosition(alphabetGameDepth, lastAlphabetTraceIndex)
+	rootClaim, err := trace.Get(ctx, pos)
+	h.require.NoError(err, "get root claim")
+	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return h.factory.Create(opts, outputAlphabetGameType, rootClaim, extraData)
+	})
+	h.require.NoError(err, "create output bisection game")
+	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
+	h.require.NoError(err, "wait for create output bisection game receipt to be OK")
+	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
+	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
+	h.require.NoError(err)
+	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
+	h.require.NoError(err)
+
+	prestateBlock, err := game.GENESISBLOCKNUMBER(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load genesis block number")
+	poststateBlock, err := game.L2BlockNumber(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load l2 block number")
+	splitDepth, err := game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
+	h.require.NoError(err, "Failed to load split depth")
+	provider := outputs.NewTraceProviderFromInputs(logger, rollupClient, splitDepth.Uint64(), prestateBlock.Uint64(), poststateBlock.Uint64())
+
+	return &OutputAlphabetGameHelper{
+		OutputGameHelper: OutputGameHelper{
+			t:                     h.t,
+			require:               h.require,
+			client:                h.client,
+			opts:                  h.opts,
+			game:                  game,
+			factoryAddr:           h.factoryAddr,
+			addr:                  createdEvent.DisputeProxy,
+			correctOutputProvider: provider,
+			system:                h.system,
+		},
+		claimedAlphabet: claimedAlphabet,
+	}
 }
 
 func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Hash) *CannonGameHelper {
