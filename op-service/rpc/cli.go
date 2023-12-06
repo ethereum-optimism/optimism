@@ -42,6 +42,14 @@ type CLIConfig struct {
 	EnableAdmin bool
 }
 
+func DefaultCLIConfig() CLIConfig {
+	return CLIConfig{
+		ListenAddr:  "0.0.0.0",
+		ListenPort:  8545,
+		EnableAdmin: false,
+	}
+}
+
 func (c CLIConfig) Check() error {
 	if c.ListenPort < 0 || c.ListenPort > math.MaxUint16 {
 		return errors.New("invalid RPC port")

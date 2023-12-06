@@ -1,6 +1,8 @@
 package batcher
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -63,7 +65,24 @@ type CLIConfig struct {
 }
 
 func (c *CLIConfig) Check() error {
-	// TODO(7512): check the sanity of flags loaded directly https://github.com/ethereum-optimism/optimism/issues/7512
+	if c.L1EthRpc == "" {
+		return errors.New("empty L1 RPC URL")
+	}
+	if c.L2EthRpc == "" {
+		return errors.New("empty L2 RPC URL")
+	}
+	if c.RollupRpc == "" {
+		return errors.New("empty rollup RPC URL")
+	}
+	if c.PollInterval == 0 {
+		return errors.New("must set PollInterval")
+	}
+	if c.MaxL1TxSize <= 1 {
+		return errors.New("MaxL1TxSize must be greater than 0")
+	}
+	if c.BatchType > 1 {
+		return fmt.Errorf("unknown batch type: %v", c.BatchType)
+	}
 
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
