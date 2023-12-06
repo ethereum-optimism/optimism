@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -euxo pipefail
+set -euo pipefail
 
 #####################
 # Support Functions #
@@ -19,7 +19,7 @@ notif "Script Home: $SCRIPT_HOME"
 blank_line
 
 # Set Run Directory <root>/packages/contracts-bedrock 
-RUN_DIR="$( cd "$( dirname "$SCRIPT_HOME/../../.." )" >/dev/null 2>&1 && pwd )"
+RUN_DIR="$( cd $SCRIPT_HOME/../../.. >/dev/null 2>&1 && pwd )"
 notif "Run Directory: $RUN_DIR"
 blank_line
 
