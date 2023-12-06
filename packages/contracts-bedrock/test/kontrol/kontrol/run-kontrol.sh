@@ -8,9 +8,9 @@ set -euxo pipefail
 blank_line() { echo '' >&2 ; }
 notif() { echo "== $0: $@" >&2 ; }
 
-###########
-# Globals #
-###########
+#############
+# Variables #
+#############
 export FOUNDRY_PROFILE=kontrol
 
 # Set Script Directory Variables <root>/packages/contracts-bedrock/test/kontrol/kontrol
