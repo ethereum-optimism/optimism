@@ -59,7 +59,9 @@ contract L2StandardBridge is StandardBridge, ISemver {
     /// @param _otherBridge Address of the L1StandardBridge.
     constructor(address payable _otherBridge)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
-    { }
+    {
+        initialize();
+    }
 
     /// @notice Initializes the contract. This is a noop in the implementation but included to ensure that
     ///         the contract cannot be initialized a second time.
