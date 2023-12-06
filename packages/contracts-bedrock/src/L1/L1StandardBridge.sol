@@ -69,6 +69,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
+    // TODO: should semver version be updated?
     /// @notice Semantic version.
     /// @custom:semver 2.0.0
     string public constant version = "2.0.0";
@@ -77,15 +78,28 @@ contract L1StandardBridge is StandardBridge, ISemver {
     SuperchainConfig public superchainConfig;
 
     /// @notice Constructs the L1StandardBridge contract.
-    /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger) StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE)) {
-        initialize({ _superchainConfig: SuperchainConfig(address(0)) });
+    constructor() StandardBridge() {
+        initialize({
+            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)),
+            _superchainConfig: SuperchainConfig(address(0))
+        });
     }
 
-    /// @notice Initializes the contract.
+    /// @notice Initializer.
+    /// @param _messenger        Address of CrossDomainMessenger on this network.
+    /// @param _otherBridge      Address of the other StandardBridge contract.
     /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(SuperchainConfig _superchainConfig) public initializer {
+    function initialize(
+        CrossDomainMessenger _messenger,
+        StandardBridge _otherBridge,
+        SuperchainConfig _superchainConfig
+    )
+        public
+        initializer
+    {
         superchainConfig = _superchainConfig;
+        __StandardBridge_init({ _messenger: _messenger, _otherBridge: _otherBridge });
     }
 
     /// @inheritdoc StandardBridge
@@ -213,7 +227,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Retrieves the access of the corresponding L2 bridge contract.
     /// @return Address of the corresponding L2 bridge contract.
     function l2TokenBridge() external view returns (address) {
-        return address(OTHER_BRIDGE);
+        return address(otherBridge);
     }
 
     /// @notice Internal function for initiating an ETH deposit.
