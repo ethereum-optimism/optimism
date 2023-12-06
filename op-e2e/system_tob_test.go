@@ -292,7 +292,7 @@ func TestMixedDepositValidity(t *testing.T) {
 	}
 
 	// Create our random provider
-	randomProvider := rand.New(rand.NewSource(time.Now().Unix()))
+	randomProvider := rand.New(rand.NewSource(1452))
 
 	// Now we create a number of deposits from each transactor
 	for i := 0; i < depositTxCount; i++ {
