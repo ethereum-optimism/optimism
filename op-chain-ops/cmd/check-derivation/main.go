@@ -351,9 +351,11 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	rng := rand.New(rand.NewSource(1337))
 	// txMap maps txHash to blockID
 	txMap := make(map[common.Hash]eth.BlockID)
+	// Submit random txs for each tx types
 	for i := 0; i < txCount; i++ {
 		txType := types.LegacyTxType
 		protected := true
+		// Generate all tx types alternately
 		switch i % 4 {
 		case 0:
 			protected = false // legacy unprotected TX (Homestead)
