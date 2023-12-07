@@ -84,20 +84,13 @@ type protocolVersionData struct {
 
 var _ p2p.GossipRuntimeConfig = (*RuntimeConfig)(nil)
 
-func NewRuntimeConfig(
-	log log.Logger,
-	cfg *Config,
-	l1Client RuntimeCfgL1Source,
-	rollupCfg *rollup.Config,
-) *RuntimeConfig {
+func NewRuntimeConfig(log log.Logger, cfg *Config, l1Client RuntimeCfgL1Source, rollupCfg *rollup.Config) *RuntimeConfig {
 	return &RuntimeConfig{
 		log:       log,
 		l1Client:  l1Client,
 		rollupCfg: rollupCfg,
-		sc: systemConfigData{
-			p2pBlockSignerSafeLag: cfg.P2PBlockSignerAddrSafeLag,
-		},
-		pv: protocolVersionData{},
+		sc:        systemConfigData{p2pBlockSignerSafeLag: cfg.P2PBlockSignerAddrSafeLag},
+		pv:        protocolVersionData{},
 	}
 }
 
@@ -139,17 +132,7 @@ func (r *RuntimeConfig) OnP2PBlockSignerAddressUpdated(addr common.Address, l1Re
 	r.sc.mu.Lock()
 	defer r.sc.mu.Unlock()
 	if l1Ref.Time <= r.sc.curP2PBlockSignerL1Ref.Time {
-		r.log.Warn(
-			"ignoring outdated P2P signer address update",
-			"current",
-			r.sc.curP2PBlockSignerAddr,
-			"new",
-			addr,
-			"current_l1_ref",
-			r.sc.curP2PBlockSignerL1Ref,
-			"new_l1_ref",
-			l1Ref,
-		)
+		r.log.Warn("ignoring outdated P2P signer address update", "current", r.sc.curP2PBlockSignerAddr, "new", addr, "current_l1_ref", r.sc.curP2PBlockSignerL1Ref, "new_l1_ref", l1Ref)
 		return
 	}
 
@@ -157,6 +140,7 @@ func (r *RuntimeConfig) OnP2PBlockSignerAddressUpdated(addr common.Address, l1Re
 	r.sc.preP2PBlockSignerL1Ref = r.sc.curP2PBlockSignerL1Ref
 	r.sc.curP2PBlockSignerAddr = addr
 	r.sc.curP2PBlockSignerL1Ref = l1Ref
+	r.log.Info("P2P signer address updated", "previous", r.sc.preP2PBlockSignerAddr, "pre_l1_ref", r.sc.preP2PBlockSignerL1Ref, "current", r.sc.curP2PBlockSignerAddr, "cur_l1_ref", r.sc.curP2PBlockSignerL1Ref)
 }
 
 func (r *RuntimeConfig) loadProtocolVersions(ctx context.Context, l1Ref eth.L1BlockRef) error {
