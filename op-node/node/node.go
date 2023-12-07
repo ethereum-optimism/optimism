@@ -197,7 +197,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	// attempt to load runtime config, repeat N times
 	confDepth := cfg.Driver.VerifierConfDepth
-	reload := func(ctx context.Context) (eth.L1BlockRef, error) {
+	reload := func(ctx context.Context, initialize bool) (eth.L1BlockRef, error) {
 		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second*10)
 		l1Head, err := n.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
 		fetchCancel()
@@ -220,7 +220,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 		}
 
 		fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
-		err = n.runCfg.Load(fetchCtx, confirmed)
+		err = n.runCfg.Load(fetchCtx, confirmed, initialize)
 		fetchCancel()
 		if err != nil {
 			n.log.Error("failed to fetch runtime config data", "err", err)
@@ -233,7 +233,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 
 	// initialize the runtime config before unblocking
 	if _, err := retry.Do(ctx, 5, retry.Fixed(time.Second*10), func() (eth.L1BlockRef, error) {
-		ref, err := reload(ctx)
+		ref, err := reload(ctx, true)
 		if errors.Is(err, errNodeHalt) { // don't retry on halt error
 			err = nil
 		}
@@ -255,7 +255,7 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 			case <-ticker.C:
 				// If the reload fails, we will try again the next interval.
 				// Missing a runtime-config update is not critical, and we do not want to overwhelm the L1 RPC.
-				l1Head, err := reload(ctx)
+				l1Head, err := reload(ctx, false)
 				if err != nil {
 					if errors.Is(err, errNodeHalt) {
 						n.halted.Store(true)

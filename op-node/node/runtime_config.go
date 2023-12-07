@@ -122,9 +122,12 @@ func (r *RuntimeConfig) RecommendedProtocolVersion() params.ProtocolVersion {
 // Load resets the runtime configuration by fetching the latest config data from L1 at the given L1 block.
 // Load is safe to call concurrently, but will lock the runtime configuration modifications only,
 // and will thus not block other Load calls with possibly alternative L1 block views.
-func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef) error {
-	if err := r.loadSystemConfig(ctx, l1Ref); err != nil {
-		return err
+func (r *RuntimeConfig) Load(ctx context.Context, l1Ref eth.L1BlockRef, initialize bool) error {
+	// Only load system config during initialization, updates of system config will be piped from derivation pipeline.
+	if initialize {
+		if err := r.loadSystemConfig(ctx, l1Ref); err != nil {
+			return err
+		}
 	}
 	if err := r.loadProtocolVersions(ctx, l1Ref); err != nil {
 		return err
@@ -194,7 +197,9 @@ func (r *RuntimeConfig) loadSystemConfig(ctx context.Context, l1Ref eth.L1BlockR
 	r.sc.mu.Lock()
 	defer r.sc.mu.Unlock()
 	r.sc.curP2PBlockSignerAddr = common.BytesToAddress(p2pSignerVal[:])
+	r.sc.preP2PBlockSignerAddr = common.BytesToAddress(p2pSignerVal[:])
 	r.sc.curP2PBlockSignerL1Ref = l1Ref
+	r.sc.preP2PBlockSignerL1Ref = l1Ref
 	r.log.Info("loaded new runtime system config values!", "p2p_seq_address", r.sc.curP2PBlockSignerAddr)
 	return nil
 }

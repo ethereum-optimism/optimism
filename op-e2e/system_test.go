@@ -1470,49 +1470,57 @@ func TestPendingBlockIsLatest(t *testing.T) {
 	})
 }
 
-// func TestRuntimeConfigReload(t *testing.T) {
-// 	InitParallel(t)
-//
-// 	cfg := DefaultSystemConfig(t)
-// 	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
-// 	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
-// 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
-//
-// 	sys, err := cfg.Start(t)
-// 	require.Nil(t, err, "Error starting up system")
-// 	defer sys.Close()
-// 	initialRuntimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
-//
-// 	// close the EL node, since we want to block derivation, to solely rely on the reloading mechanism for updates.
-// 	sys.EthInstances["verifier"].Close()
-//
-// 	l1 := sys.Clients["l1"]
-//
-// 	// Change the system-config via L1
-// 	sysCfgContract, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1)
-// 	require.NoError(t, err)
-// 	newUnsafeBlocksSigner := common.Address{0x12, 0x23, 0x45}
-// 	require.NotEqual(t, initialRuntimeConfig.P2PSequencerAddress(), newUnsafeBlocksSigner, "changing to a different address")
-// 	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
-// 	require.Nil(t, err)
-// 	// the unsafe signer address is part of the runtime config
-// 	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
-// 	require.NoError(t, err)
-//
-// 	// wait for the change to confirm
-// 	_, err = wait.ForReceiptOK(context.Background(), l1, tx.Hash())
-// 	require.NoError(t, err)
-//
-// 	// wait for the address to change
-// 	_, err = retry.Do(context.Background(), 10, retry.Fixed(time.Second*10), func() (struct{}, error) {
-// 		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress()
-// 		if v == newUnsafeBlocksSigner {
-// 			return struct{}{}, nil
-// 		}
-// 		return struct{}{}, fmt.Errorf("no change yet, seeing %s but looking for %s", v, newUnsafeBlocksSigner)
-// 	})
-// 	require.NoError(t, err)
-// }
+func TestRuntimeConfigReload(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	// to speed up the test, make it reload the config more often, and do not impose a long conf depth
+	cfg.Nodes["verifier"].RuntimeConfigReloadInterval = time.Second * 5
+	cfg.Nodes["verifier"].Driver.VerifierConfDepth = 1
+
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	initialRuntimeConfig := sys.RollupNodes["verifier"].RuntimeConfig()
+
+	// close the EL node, since we want to block derivation, to solely rely on the reloading mechanism for updates.
+	sys.EthInstances["verifier"].Close()
+
+	l1 := sys.Clients["l1"]
+
+	// Change the system-config via L1
+	sysCfgContract, err := bindings.NewSystemConfig(cfg.L1Deployments.SystemConfigProxy, l1)
+	require.NoError(t, err)
+	newUnsafeBlocksSigner := common.Address{0x12, 0x23, 0x45}
+	l2Ref := eth.L2BlockRef{L1Origin: eth.BlockID{Number: 0}}
+	require.NotEqual(t, initialRuntimeConfig.P2PSequencerAddress(l2Ref), newUnsafeBlocksSigner, "changing to a different address")
+	opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+	require.Nil(t, err)
+	// the unsafe signer address is part of the runtime config
+	tx, err := sysCfgContract.SetUnsafeBlockSigner(opts, newUnsafeBlocksSigner)
+	require.NoError(t, err)
+
+	// wait for the change to confirm
+	receipt, err := wait.ForReceiptOK(context.Background(), l1, tx.Hash())
+	require.NoError(t, err)
+
+	safeLag := cfg.Nodes["verifier"].P2PBlockSignerAddrSafeLag
+	signerChangedAt := receipt.BlockNumber.Uint64()
+
+	// wait a little bit for chain to progress so that we could get the system update signal
+	time.Sleep(5 * time.Second)
+
+	// P2PSequencerAddress should return old sequencer address
+	for i := uint64(0); i < safeLag-1; i++ {
+		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress(eth.L2BlockRef{L1Origin: eth.BlockID{Number: signerChangedAt + i}})
+		require.NotEqual(t, newUnsafeBlocksSigner, v)
+	}
+	// after save lag, it should return the new address
+	for i := safeLag; i < safeLag+5; i++ {
+		v := sys.RollupNodes["verifier"].RuntimeConfig().P2PSequencerAddress(eth.L2BlockRef{L1Origin: eth.BlockID{Number: signerChangedAt + safeLag}})
+		require.Equal(t, newUnsafeBlocksSigner, v)
+	}
+}
 
 func TestRecommendedProtocolVersionChange(t *testing.T) {
 	InitParallel(t)
