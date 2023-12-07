@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type EthClientInterface interface {
@@ -33,6 +34,7 @@ type EthClientInterface interface {
 
 type PrefetchingEthClient struct {
 	inner                 EthClientInterface
+	log                   log.Logger
 	PrefetchingRange      uint64
 	PrefetchingTimeout    time.Duration
 	runningCtx            context.Context
@@ -44,11 +46,13 @@ type PrefetchingEthClient struct {
 
 // NewPrefetchingEthClient creates a new [PrefetchingEthClient] with the given underlying [EthClient]
 // and a prefetching range.
-func NewPrefetchingEthClient(inner EthClientInterface, prefetchingRange uint64, timeout time.Duration) (*PrefetchingEthClient, error) {
+func NewPrefetchingEthClient(inner EthClientInterface, logger log.Logger, prefetchingRange uint64, timeout time.Duration) (*PrefetchingEthClient, error) {
 	// Create a new context for the prefetching goroutines
 	runningCtx, runningCancel := context.WithCancel(context.Background())
+	logger.Debug("Created PrefetchingEthClient", "range", prefetchingRange, "timeout", timeout)
 	return &PrefetchingEthClient{
 		inner:                 inner,
+		log:                   logger,
 		PrefetchingRange:      prefetchingRange,
 		PrefetchingTimeout:    timeout,
 		runningCtx:            runningCtx,
@@ -74,11 +78,15 @@ func (p *PrefetchingEthClient) FetchWindow(start, end uint64) {
 	if p.wg != nil {
 		defer p.wg.Done()
 	}
-
+	initStart := start
 	start, shouldFetch := p.updateRequestingHead(start, end)
 	if !shouldFetch {
 		return
 	}
+
+	p.log.Debug("Prefetching window",
+		"initStart", initStart, "start", start,
+		"end", end, "shouldFetch", shouldFetch)
 
 	ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
 	defer cancel()
@@ -90,8 +98,10 @@ func (p *PrefetchingEthClient) FetchWindow(start, end uint64) {
 func (p *PrefetchingEthClient) FetchBlockAndReceipts(ctx context.Context, number uint64) {
 	blockInfo, _, err := p.inner.InfoAndTxsByNumber(ctx, number)
 	if err != nil {
+		p.log.Warn("Prefetching block error", "number", number, "err", err)
 		return
 	}
+	p.log.Debug("Prefetched block", "number", number, "hash", blockInfo.Hash())
 	_, _, _ = p.inner.FetchReceipts(ctx, blockInfo.Hash())
 }
 

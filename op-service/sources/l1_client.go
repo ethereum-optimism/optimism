@@ -73,7 +73,7 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	var clientToUse EthClientInterface
 
 	if config.PrefetchingTimeout > 0 && config.PrefetchingWindow > 0 {
-		prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, config.PrefetchingWindow, config.PrefetchingTimeout)
+		prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, log, config.PrefetchingWindow, config.PrefetchingTimeout)
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +86,6 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 		EthClientInterface: clientToUse,
 		l1BlockRefsCache:   caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.L1BlockRefsCacheSize),
 	}, nil
-
 }
 
 // L1BlockRefByLabel returns the [eth.L1BlockRef] for the given block label.
