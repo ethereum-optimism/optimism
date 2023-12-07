@@ -10,10 +10,6 @@ notif() { echo "== $0: $@" >&2 ; }
 #############
 # Variables #
 #############
-export FOUNDRY_PROFILE=kontrol
-export CONTAINER_NAME=kontrol-tests
-export KONTROL_RELEASE=$(cat .kontrolrc)
-
 # Set Script Directory Variables <root>/packages/contracts-bedrock/test/kontrol/kontrol
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 notif "Script Home: $SCRIPT_HOME"
@@ -23,6 +19,11 @@ blank_line
 WORKSPACE_DIR=$( cd $SCRIPT_HOME/../../.. >/dev/null 2>&1 && pwd )
 notif "Run Directory: $WORKSPACE_DIR"
 blank_line
+
+export FOUNDRY_PROFILE=kontrol
+export CONTAINER_NAME=kontrol-tests
+export KONTROL_RELEASE=$(cat $WORKSPACE_DIR/../../.kontrolrc)
+
 
 #############
 # Functions #
@@ -65,8 +66,6 @@ start_docker () {
     # Copy test content to container
     docker cp --follow-link $WORKSPACE_DIR/. ${CONTAINER_NAME}:/home/user/workspace
     docker exec --user root ${CONTAINER_NAME} chown -R user:user /home/user
-    # Install pnpm
-    docker exec ${CONTAINER_NAME} curl -fsSL https://get.pnpm.io/install.sh | sh - 
 }
 
 docker_exec () {
