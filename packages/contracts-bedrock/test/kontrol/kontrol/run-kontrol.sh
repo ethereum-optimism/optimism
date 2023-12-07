@@ -1,6 +1,5 @@
 #!/bin/bash
-
-set -euo pipefail
+set -u
 
 #####################
 # Support Functions #
@@ -9,9 +8,25 @@ blank_line() { echo '' >&2 ; }
 notif() { echo "== $0: $@" >&2 ; }
 
 #############
+# CMD Check #
+#############
+if [ $# -eq 0 ]; then
+    echo "No arguments provided"
+    echo "Usage: ./run-kontrol.sh <KONTROL_RELEASE>"
+    exit 1
+fi
+# -h or --help
+if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    echo "Usage: ./run-kontrol.sh <KONTROL_RELEASE>"
+    exit 0
+fi
+
+#############
 # Variables #
 #############
 export FOUNDRY_PROFILE=kontrol
+export CONTAINER_NAME=kontrol-tests
+export KONTROL_RELEASE=${1}; shift
 
 # Set Script Directory Variables <root>/packages/contracts-bedrock/test/kontrol/kontrol
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -19,52 +34,101 @@ notif "Script Home: $SCRIPT_HOME"
 blank_line
 
 # Set Run Directory <root>/packages/contracts-bedrock 
-RUN_DIR="$( cd $SCRIPT_HOME/../../.. >/dev/null 2>&1 && pwd )"
-notif "Run Directory: $RUN_DIR"
+WORKSPACE_DIR=$( cd $SCRIPT_HOME/../../.. >/dev/null 2>&1 && pwd )
+notif "Run Directory: $WORKSPACE_DIR"
 blank_line
 
 # Set Log Directory <root>/packages/contracts-bedrock/test/kontrol/kontrol/logs
-LOG_DIRECTORY=$SCRIPT_HOME/logs
-notif "Log Directory: $LOG_DIRECTORY"
-blank_line
+# LOG_DIRECTORY=$SCRIPT_HOME/logs
+# notif "Log Directory: $LOG_DIRECTORY"
+# blank_line
 
-if [ ! -d $LOG_DIRECTORY ] ; then
-  mkdir $LOG_DIRECTORY
-fi
+# if [ ! -d $LOG_DIRECTORY ] ; then
+#   mkdir $LOG_DIRECTORY
+# fi
 
-LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-notif "Logging to $LOG_DIRECTORY/$LOG_FILE"
-blank_line
-exec > >(tee -i $LOG_DIRECTORY/$LOG_FILE)
-exec 2>&1
+# LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+# notif "Logging to $LOG_DIRECTORY/$LOG_FILE"
+# blank_line
+# exec > >(tee -i $LOG_DIRECTORY/$LOG_FILE)
+# exec 2>&1
 
 #############
 # Functions #
 #############
 kontrol_build() {
     notif "Kontrol Build"
-    kontrol build                     \
-            --verbose                 \
-            --require ${lemmas}       \
-            --module-import ${module} \
-            ${rekompile}
-}
+    docker_exec kontrol build                     \
+                        --verbose                 \
+                        --require ${lemmas}       \
+                        --module-import ${module} \
+                        ${rekompile}
+            }
 
 kontrol_prove() {
     notif "Kontrol Prove"
-    kontrol prove                              \
-            --max-depth ${max_depth}           \
-            --max-iterations ${max_iterations} \
-            --smt-timeout ${smt_timeout}       \
-            --bmc-depth ${bmc_depth}           \
-            --workers ${workers}               \
-            ${reinit}                          \
-            ${bug_report}                      \
-            ${break_on_calls}                  \
-            ${auto_abstract}                   \
-            ${tests}                           \
-            ${use_booster}
+    docker_exec kontrol prove                              \
+                        --max-depth ${max_depth}           \
+                        --max-iterations ${max_iterations} \
+                        --smt-timeout ${smt_timeout}       \
+                        --bmc-depth ${bmc_depth}           \
+                        --workers ${workers}               \
+                        ${reinit}                          \
+                        ${bug_report}                      \
+                        ${break_on_calls}                  \
+                        ${auto_abstract}                   \
+                        ${tests}                           \
+                        ${use_booster}
 }
+
+start_docker () {
+    docker run                        \
+      --name ${CONTAINER_NAME}        \
+      --rm                            \
+      --interactive                   \
+      --tty                           \
+      --detach                        \
+      --workdir /home/user/workspace  \
+    runtimeverificationinc/kontrol:ubuntu-jammy-${KONTROL_RELEASE}
+
+    # Copy test content to container
+    docker cp --follow-link $WORKSPACE_DIR/. ${CONTAINER_NAME}:/home/user/workspace
+    docker exec --user root ${CONTAINER_NAME} chown -R user:user /home/user
+    # Install pnpm
+    docker exec ${CONTAINER_NAME} curl -fsSL https://get.pnpm.io/install.sh | sh - 
+}
+
+docker_exec () {
+    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} $@
+}
+
+# Define the function to run on failure
+on_failure() {
+  notif "Something went wrong. Running cleanup..."
+  notif "Creating Tar of Proof Results"
+  docker_exec tar -czvf results.tar.gz kout/proofs
+  
+  notif "Copying Tests Results to Host"
+  blank_line
+  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz .
+  notif "Stopping Docker Container"
+  blank_line
+
+  notif "Dump Logs"
+  LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+  docker logs ${CONTAINER_NAME} > $LOG_FILE
+
+  notif "Stopping Docker Container"
+  docker stop ${CONTAINER_NAME}
+  blank_line
+
+  notif "Cleanup complete."
+  blank_line
+  return 1
+}
+
+# Set up the trap to run the function on failure
+trap on_failure ERR
 
 #########################
 # kontrol build options #
@@ -104,16 +168,11 @@ tests+="--match-test CounterTest.test_SetNumber "
 #############
 # RUN TESTS #
 #############
-pushd $RUN_DIR
-notif "Running Kontrol Build"
-blank_line
-kontrol_build
+start_docker
 
-notif "Running Kontrol Prove"
-blank_line
+kontrol_build
 kontrol_prove
 
 blank_line
 notif "DONE"
 blank_line
-popd 2>&1 > /dev/null

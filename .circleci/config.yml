@@ -7,9 +7,6 @@ parameters:
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
-  kontrol_image:
-    type: string
-    default: runtimeverificationinc/kontrol:ubuntu-jammy-0.1.74
 
 orbs:
   go: circleci/go@1.8.0
@@ -1346,27 +1343,41 @@ jobs:
 
   kontrol-tests:
     docker:
-      - image: << pipeline.parameters.kontrol_image >>
+      - image: << pipeline.parameters.ci_builder_image >>
     resource_class: xlarge
     steps:
       - checkout
       - check-changed:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
-      - attach_workspace: { at: "/home/user" }
-      - run:
-          name: Install pnpm to Kontrol image
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run: 
+          name: Install Docker CLI
           command: |
-            curl -fsSL https://get.pnpm.io/install.sh | sh -
+            # Add Docker's official GPG key:
+            apt-get update
+            apt-get install ca-certificates curl gnupg
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            chmod a+r /etc/apt/keyrings/docker.gpg
+
+            # Add the repository to Apt sources:
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+              tee /etc/apt/sources.list.d/docker.list > /dev/null
+            apt-get update
+            apt-get install -y docker-ce-cli
       - run:
           name: Run Kontrol Tests
           command: |
             pnpm test:kontrol 
-          working_directory: /home/users/packages/contracts-bedrock
+          working_directory: ./packages/contracts-bedrock
       - run:
           name: Create Results Tar
           command: |
-            tar -czvf results.tar.gz test/kontrol/kontrol/kout/proofs
-          working_directory: /home/user/packages/contracts-bedrock
+            tar -czvf results.tar.gz ./kout/proofs
+          working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: results.tar.gz
           destination: results
