@@ -314,8 +314,8 @@ importers:
         specifier: ^8.1.0
         version: 8.1.0
       '@vitest/coverage-istanbul':
-        specifier: ^1.0.1
-        version: 1.0.1(vitest@1.0.1)
+        specifier: ^1.0.2
+        version: 1.0.2(vitest@1.0.1)
       '@wagmi/cli':
         specifier: ^1.5.2
         version: 1.5.2(@wagmi/core@1.4.10)(typescript@5.3.3)(wagmi@1.0.1)
@@ -414,8 +414,8 @@ importers:
         specifier: ^8.0.1
         version: 8.0.1(react@17.0.2)
       '@vitest/coverage-istanbul':
-        specifier: ^1.0.1
-        version: 1.0.1(vitest@1.0.1)
+        specifier: ^1.0.2
+        version: 1.0.2(vitest@1.0.1)
       abitype:
         specifier: ^0.10.3
         version: 0.10.3(typescript@5.3.3)
@@ -557,8 +557,8 @@ importers:
         specifier: ^1.3.100
         version: 1.3.100
       '@vitest/coverage-istanbul':
-        specifier: ^1.0.1
-        version: 1.0.1(vitest@1.0.1)
+        specifier: ^1.0.2
+        version: 1.0.2(vitest@1.0.1)
       tsup:
         specifier: ^8.0.1
         version: 8.0.1(@swc/core@1.3.100)(typescript@5.3.3)
@@ -4470,8 +4470,8 @@ packages:
     resolution: {integrity: sha512-zuVdFrMJiuCDQUMCzQaD6KL28MjnqqN8XnAqiEq9PNm/hCPTSGfrXCOfwj1ow4LFb/tNymJPwsNbVePc1xFqrQ==}
     dev: true
 
-  /@vitest/coverage-istanbul@1.0.1(vitest@1.0.1):
-    resolution: {integrity: sha512-g2XAfl6DlYy37ycUuPtXYpOu9TcFN9wVGraxrKQJESeal7z9d0UMI/FcOqKifUPfjod+QnCl2+9CZe1elvAvMA==}
+  /@vitest/coverage-istanbul@1.0.2(vitest@1.0.1):
+    resolution: {integrity: sha512-HZk0VYYvLrUX/TExxxVT7DwowqjJXmm4LbKGYBLN9HwYZe50nGYU3K/KisnOY7lgt0+Po4MLVa2fXe2ediyr9g==}
     peerDependencies:
       vitest: ^1.0.0
     dependencies:
