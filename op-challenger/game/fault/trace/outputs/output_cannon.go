@@ -23,6 +23,8 @@ func NewOutputCannonTraceAccessor(
 	cfg *config.Config,
 	l2Client cannon.L2HeaderSource,
 	contract cannon.L1HeadSource,
+	prestateProvider types.PrestateProvider,
+	rollupClient OutputRollupClient,
 	dir string,
 	gameDepth uint64,
 	splitDepth uint64,
@@ -30,11 +32,7 @@ func NewOutputCannonTraceAccessor(
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
 	bottomDepth := gameDepth - splitDepth
-	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, splitDepth, prestateBlock, poststateBlock)
-	if err != nil {
-		return nil, err
-	}
-
+	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 	cannonCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
