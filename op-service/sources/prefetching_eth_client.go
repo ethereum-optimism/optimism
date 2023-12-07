@@ -80,13 +80,12 @@ func (p *PrefetchingEthClient) FetchWindow(start, end uint64) {
 	}
 	initStart := start
 	start, shouldFetch := p.updateRequestingHead(start, end)
-	if !shouldFetch {
-		return
-	}
-
 	p.log.Debug("Prefetching window",
 		"initStart", initStart, "start", start,
 		"end", end, "shouldFetch", shouldFetch)
+	if !shouldFetch {
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
 	defer cancel()
@@ -102,7 +101,12 @@ func (p *PrefetchingEthClient) FetchBlockAndReceipts(ctx context.Context, number
 		return
 	}
 	p.log.Debug("Prefetched block", "number", number, "hash", blockInfo.Hash())
-	_, _, _ = p.inner.FetchReceipts(ctx, blockInfo.Hash())
+	_, receipts, err := p.inner.FetchReceipts(ctx, blockInfo.Hash())
+	if err != nil {
+		p.log.Warn("Prefetching receipts error", "number", number, "err", err)
+		return
+	}
+	p.log.Debug("Prefetched receipts", "number", number, "receipts_count", len(receipts))
 }
 
 func (p *PrefetchingEthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Header) (ethereum.Subscription, error) {
