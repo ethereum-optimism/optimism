@@ -53,7 +53,7 @@ details.
 
 ## Generalization
 
-This shim is included to help document and demonstrate the usage of the
+This shim is included to help document and demonstrates the usage of the
 external ethereum process e2e test execution.  It is configured to execute in
 CI to help ensure that the tests remain compatible with external clients.
 
