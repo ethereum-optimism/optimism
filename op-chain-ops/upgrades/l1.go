@@ -21,6 +21,11 @@ const upgradeAndCall = "upgradeAndCall(address,address,bytes)"
 // storageSetterAddr represents the address of the StorageSetter contract.
 var storageSetterAddr = common.HexToAddress("0xd81f43eDBCAcb4c29a9bA38a13Ee5d79278270cC")
 
+// superchainConfigProxy refers to the address of the Sepolia superchain config proxy.
+// NOTE: this is currently hardcoded and we will need to move this to the superchain-registry
+// and have 1 deployed for each superchain target.
+var superchainConfigProxy = common.HexToAddress("0xC2Be75506d5724086DEB7245bd260Cc9753911Be")
+
 // L1 will add calls for upgrading each of the L1 contracts.
 func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
 	if err := L1CrossDomainMessenger(batch, implementations, list, config, chainConfig, backend); err != nil {
@@ -54,7 +59,8 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
@@ -93,7 +99,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", common.HexToAddress(list.OptimismPortalProxy.String()))
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy)
 	if err != nil {
 		return err
 	}
@@ -119,7 +125,8 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
@@ -146,7 +153,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	calldata, err := l1ERC721BridgeABI.Pack("initialize", common.HexToAddress(list.L1CrossDomainMessengerProxy.String()))
+	calldata, err := l1ERC721BridgeABI.Pack("initialize", superchainConfigProxy)
 	if err != nil {
 		return err
 	}
@@ -172,7 +179,8 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
@@ -211,7 +219,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	calldata, err := l1StandardBridgeABI.Pack("initialize", common.HexToAddress(list.L1CrossDomainMessengerProxy.String()))
+	calldata, err := l1StandardBridgeABI.Pack("initialize", superchainConfigProxy)
 	if err != nil {
 		return err
 	}
@@ -237,7 +245,8 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
@@ -343,7 +352,8 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
@@ -396,7 +406,8 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
@@ -445,9 +456,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	// TODO: superchain config address
-	superchainConfig := common.Address{}
-	calldata, err := optimismPortalABI.Pack("initialize", superchainConfig)
+	calldata, err := optimismPortalABI.Pack("initialize", superchainConfigProxy)
 	if err != nil {
 		return err
 	}
@@ -473,7 +482,8 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		return err
 	}
 
-	if chainConfig.ChainID == 10 || chainConfig.ChainID == 420 {
+	// 2 Step Upgrade
+	{
 		storageSetterABI, err := bindings.StorageSetterMetaData.GetAbi()
 		if err != nil {
 			return err
