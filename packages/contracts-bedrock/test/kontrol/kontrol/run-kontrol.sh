@@ -1,11 +1,11 @@
 #!/bin/bash
-set -u
+set -euo pipefail
 
 #####################
 # Support Functions #
 #####################
 blank_line() { echo '' >&2 ; }
-notif() { echo "== $0: $@" >&2 ; }
+notif() { echo "== $0: $*" >&2 ; }
 
 #############
 # Variables #
@@ -16,13 +16,14 @@ notif "Script Home: $SCRIPT_HOME"
 blank_line
 
 # Set Run Directory <root>/packages/contracts-bedrock 
-WORKSPACE_DIR=$( cd $SCRIPT_HOME/../../.. >/dev/null 2>&1 && pwd )
-notif "Run Directory: $WORKSPACE_DIR"
+WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
+notif "Run Directory: ${WORKSPACE_DIR}"
 blank_line
 
 export FOUNDRY_PROFILE=kontrol
 export CONTAINER_NAME=kontrol-tests
-export KONTROL_RELEASE=$(cat $WORKSPACE_DIR/../../.kontrolrc)
+KONTROLRC=$(cat "${WORKSPACE_DIR}/../../.kontrolrc")
+export KONTROL_RELEASE=${KONTROLRC}
 
 
 #############
@@ -32,45 +33,44 @@ kontrol_build() {
     notif "Kontrol Build"
     docker_exec kontrol build                     \
                         --verbose                 \
-                        --require ${lemmas}       \
-                        --module-import ${module} \
-                        ${rekompile}
+                        --require "${lemmas}"       \
+                        --module-import "${module}" \
+                        "${rekompile}"
             }
 
 kontrol_prove() {
     notif "Kontrol Prove"
-    docker_exec kontrol prove                              \
-                        --max-depth ${max_depth}           \
-                        --max-iterations ${max_iterations} \
-                        --smt-timeout ${smt_timeout}       \
-                        --bmc-depth ${bmc_depth}           \
-                        --workers ${workers}               \
-                        ${reinit}                          \
-                        ${bug_report}                      \
-                        ${break_on_calls}                  \
-                        ${auto_abstract}                   \
-                        ${tests}                           \
-                        ${use_booster}
+    docker_exec kontrol prove                                \
+                        --max-depth "${max_depth}"           \
+                        --max-iterations "${max_iterations}" \
+                        --smt-timeout "${smt_timeout}"       \
+                        --bmc-depth "${bmc_depth}"           \
+                        --workers "${workers}"               \
+                        "${reinit}"                          \
+                        "${bug_report}"                      \
+                        "${break_on_calls}"                  \
+                        "${auto_abstract}"                   \
+                        "${tests}"                           \
+                        "${use_booster}"
 }
 
 start_docker () {
     docker run                                  \
-      --name ${CONTAINER_NAME}                  \
+      --name "${CONTAINER_NAME}"                  \
       --rm                                      \
       --interactive                             \
-      --tty                                     \
       --detach                                  \
-      --env FOUNDRY_PROFILE=${FOUNDRY_PROFILE}  \
+      --env FOUNDRY_PROFILE="${FOUNDRY_PROFILE}"  \
       --workdir /home/user/workspace            \
-    runtimeverificationinc/kontrol:ubuntu-jammy-${KONTROL_RELEASE}
+    runtimeverificationinc/kontrol:ubuntu-jammy-"${KONTROL_RELEASE}"
 
     # Copy test content to container
-    docker cp --follow-link $WORKSPACE_DIR/. ${CONTAINER_NAME}:/home/user/workspace
+    docker cp --follow-link "${WORKSPACE_DIR}/." ${CONTAINER_NAME}:/home/user/workspace
     docker exec --user root ${CONTAINER_NAME} chown -R user:user /home/user
 }
 
 docker_exec () {
-    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} $@
+    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} "$@"
 }
 
 dump_log_results(){
@@ -80,12 +80,12 @@ dump_log_results(){
   
   notif "Copying Tests Results to Host"
   blank_line
-  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz ./kontrol-results_$(date +'%Y-%m-%d-%H-%M-%S').tar.gz
+  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz ./kontrol-results_"$(date +'%Y-%m-%d-%H-%M-%S')".tar.gz
   cp kontrol-results_*.tar.gz kontrol-results_latest.tar.gz 
 
   notif "Dump Logs"
   LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-  docker logs ${CONTAINER_NAME} > $LOG_FILE
+  docker logs ${CONTAINER_NAME} > "${LOG_FILE}"
 }
 
 clean_docker(){
@@ -108,7 +108,7 @@ on_failure() {
 }
 
 # Set up the trap to run the function on failure
-trap on_failure ERR
+trap on_failure ERR INT
 
 #########################
 # kontrol build options #
