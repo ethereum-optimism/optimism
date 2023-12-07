@@ -87,14 +87,19 @@ dump_log_results(){
   docker logs ${CONTAINER_NAME} > $LOG_FILE
 }
 
+clean_docker(){
+  notif "Stopping Docker Container"
+  docker stop ${CONTAINER_NAME}
+  blank_line
+
+}
+
 # Define the function to run on failure
 on_failure() {
 
   dump_log_results
 
-  notif "Stopping Docker Container"
-  docker stop ${CONTAINER_NAME}
-  blank_line
+  clean_docker
 
   notif "Cleanup complete."
   blank_line
@@ -148,6 +153,8 @@ kontrol_build
 kontrol_prove
 
 dump_log_results
+
+clean_docker
 
 blank_line
 notif "DONE"
