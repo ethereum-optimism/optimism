@@ -72,24 +72,27 @@ docker_exec () {
     docker exec --workdir /home/user/workspace ${CONTAINER_NAME} $@
 }
 
-# Define the function to run on failure
-on_failure() {
+dump_log_results(){
   notif "Something went wrong. Running cleanup..."
   notif "Creating Tar of Proof Results"
   docker exec ${CONTAINER_NAME} tar -czvf results.tar.gz kout/proofs
   
   notif "Copying Tests Results to Host"
   blank_line
-  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz .
-  notif "Stopping Docker Container"
-  blank_line
+  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz ./kontrol-results_$(date +'%Y-%m-%d-%H-%M-%S').tar.gz
 
   notif "Dump Logs"
   LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
   docker logs ${CONTAINER_NAME} > $LOG_FILE
+}
 
+# Define the function to run on failure
+on_failure() {
+
+  dump_log_results
+  
   notif "Stopping Docker Container"
-  docker stop ${CONTAINER_NAME}
+  # docker stop ${CONTAINER_NAME}
   blank_line
 
   notif "Cleanup complete."
@@ -142,6 +145,8 @@ start_docker
 
 kontrol_build
 kontrol_prove
+
+dump_log_results
 
 blank_line
 notif "DONE"
