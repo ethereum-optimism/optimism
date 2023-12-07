@@ -76,7 +76,7 @@ docker_exec () {
 on_failure() {
   notif "Something went wrong. Running cleanup..."
   notif "Creating Tar of Proof Results"
-  docker_exec tar -czvf results.tar.gz kout/proofs
+  docker exec ${CONTAINER_NAME} tar -czvf results.tar.gz kout/proofs
   
   notif "Copying Tests Results to Host"
   blank_line
@@ -94,7 +94,7 @@ on_failure() {
 
   notif "Cleanup complete."
   blank_line
-  return 1
+  exit 1
 }
 
 # Set up the trap to run the function on failure
