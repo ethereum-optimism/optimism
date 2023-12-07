@@ -23,7 +23,7 @@ contract CommonTest is Setup, Test, Events {
         vm.deal(bob, 10000 ether);
 
         Setup.setUp();
-        vm.prank(alice);
+        vm.prank(deployer);
         ffi = new FFIInterface();
 
         // Make sure the base fee is non zero
