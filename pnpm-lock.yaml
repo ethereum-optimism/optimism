@@ -318,10 +318,10 @@ importers:
         version: 1.0.1(vitest@1.0.1)
       '@wagmi/cli':
         specifier: ^1.5.2
-        version: 1.5.2(@wagmi/core@1.4.8)(typescript@5.3.3)(wagmi@1.0.1)
+        version: 1.5.2(@wagmi/core@1.4.10)(typescript@5.3.3)(wagmi@1.0.1)
       '@wagmi/core':
-        specifier: ^1.4.8
-        version: 1.4.8(react@18.2.0)(typescript@5.3.3)(viem@1.19.11)
+        specifier: ^1.4.10
+        version: 1.4.10(react@18.2.0)(typescript@5.3.3)(viem@1.19.11)
       abitype:
         specifier: ^0.10.3
         version: 0.10.3(typescript@5.3.3)
@@ -4589,7 +4589,7 @@ packages:
     dependencies:
       typescript: 5.3.3
 
-  /@wagmi/cli@1.5.2(@wagmi/core@1.4.8)(typescript@5.3.3)(wagmi@1.0.1):
+  /@wagmi/cli@1.5.2(@wagmi/core@1.4.10)(typescript@5.3.3)(wagmi@1.0.1):
     resolution: {integrity: sha512-UfLMYhW6mQBCjR8A5s01Chf9GpHzdpcuuBuzJ36QGXcMSJAxylz5ImVZWfCRV0ct1UruydjKVSW1QSI6azNxRQ==}
     engines: {node: '>=14'}
     hasBin: true
@@ -4605,7 +4605,7 @@ packages:
       wagmi:
         optional: true
     dependencies:
-      '@wagmi/core': 1.4.8(react@18.2.0)(typescript@5.3.3)(viem@1.19.11)
+      '@wagmi/core': 1.4.10(react@18.2.0)(typescript@5.3.3)(viem@1.19.11)
       abitype: 0.8.7(typescript@5.3.3)(zod@3.22.3)
       abort-controller: 3.0.0
       bundle-require: 3.1.2(esbuild@0.16.17)
@@ -4680,8 +4680,8 @@ packages:
       - utf-8-validate
       - zod
 
-  /@wagmi/connectors@3.1.6(react@18.2.0)(typescript@5.3.3)(viem@1.19.11):
-    resolution: {integrity: sha512-71ZW9ETmzFJbetMfGAUEtJtTyDGetAT/pkdsMwyvH+MBPoZuqHUQ7NxgvhSo9ddsAzsEbJJLCaJdZodj3CbosA==}
+  /@wagmi/connectors@3.1.8(react@18.2.0)(typescript@5.3.3)(viem@1.19.11):
+    resolution: {integrity: sha512-J6m8xWFw/Qb4V6VeERazEgfXPztx7wDWCfmUSrfSM54SSjdaFprAOZlcAMqBtibqH8HgnPvbdFA0DEOHbeX2ag==}
     peerDependencies:
       typescript: '>=5.0.4'
       viem: '>=0.3.35'
@@ -4761,8 +4761,8 @@ packages:
       - utf-8-validate
       - zod
 
-  /@wagmi/core@1.4.8(react@18.2.0)(typescript@5.3.3)(viem@1.19.11):
-    resolution: {integrity: sha512-zIkyw8ZJlMwb04+yohQVMWKjcX5FFlM30tRDanr6dQ+qlYqtUoB70CJGpSRtCYmbK3JlYxH21JNykjOZzdM88Q==}
+  /@wagmi/core@1.4.10(react@18.2.0)(typescript@5.3.3)(viem@1.19.11):
+    resolution: {integrity: sha512-XJ5iSWZKOZSgQP3LFn/QHJqLGoX53SiBKc0/6s7KkVc68VmFenrZymNRg3fSwBsINlZgRVWpSj2lAVsl8IjSgw==}
     peerDependencies:
       typescript: '>=5.0.4'
       viem: '>=0.3.35'
@@ -4770,7 +4770,7 @@ packages:
       typescript:
         optional: true
     dependencies:
-      '@wagmi/connectors': 3.1.6(react@18.2.0)(typescript@5.3.3)(viem@1.19.11)
+      '@wagmi/connectors': 3.1.8(react@18.2.0)(typescript@5.3.3)(viem@1.19.11)
       abitype: 0.8.7(typescript@5.3.3)(zod@3.22.3)
       eventemitter3: 4.0.7
       typescript: 5.3.3
