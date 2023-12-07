@@ -879,6 +879,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
+	if interopTime := config.InteropTime(block.Time()); interopTime != nil && *interopTime <= block.Time() {
+		storage["CrossL2Inbox"] = state.StorageValues{
+			"crossL2Sender":      "0x000000000000000000000000000000000000dEaD",
+			"messageSourceChain": common.Hash{},
+		}
+	}
 	return storage, nil
 }
 

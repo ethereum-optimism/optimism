@@ -96,31 +96,33 @@ contract CrossL2Inbox is ISemver {
         // Unlike the OptimismPortal, we do not register messages with a timestamp, nor verify any finalization period:
         // with cross-L2 messaging there is no dispute delay like on L1.
 
-        // Compute the storage slot of the message root in the L2Outbox contract.
-        // Refer to the Solidity documentation for more information on how storage layouts are
-        // computed for mappings.
-        bytes32 storageKey = keccak256(
-            abi.encode(
-                messageRoot,
-                uint256(0) // The "sentMessages" mapping is at the first slot in the layout.
-            )
-        );
-
         // run new interop MPT verification precompile to verify the storageKey is part of the output root tree
         assembly {
+            // Compute the storage slot of the message root in the L2Outbox contract.
+            // Refer to the Solidity documentation for more information on how storage layouts are
+            // computed for mappings.
+            mstore(0, messageRoot) // use scratch-pad to compute storage-key
+            mstore(0x20, 0)
+            let storageKey := keccak256(0, 0x40)
+            // the strorage-key is hashed, since it is 32 bytes long, to get the MPT key:
+            mstore(0, storageKey)
+            let mptKey := keccak256(0, 0x20)
+
             let memPtr := mload(0x40) // get the free memory pointer
             let startPtr := memPtr
             // load the precompile arguments into memory
+            // type 1 = Merkle Patricia Trie
+            mstore8(memPtr, 1)
+            memPtr := add(memPtr, 1)
             mstore(memPtr, _l2OutputRoot) // root
             memPtr := add(memPtr, 0x20)
             mstore(memPtr, 32) // pathLength = 32 byte long key
             memPtr := add(memPtr, 0x20)
-            mstore(memPtr, storageKey) // pathData = storage key
+            mstore(memPtr, mptKey) // pathData = MPT key
             memPtr := add(memPtr, 0x20)
-            mstore(memPtr, 32) // valueLength = 32 byte long leaf value.
+            mstore(memPtr, 1) // valueLength = 1 byte long leaf value, because of the leading zeroes.
             memPtr := add(memPtr, 0x20)
-            mstore(0, 1) // use scratch-pad memory (offset 0) to prepare input data uint256(1) to compute hash of.
-            mstore(memPtr, keccak256(0, 0x20)) // valueData = keccak256(bytes32(uint256(1))) -> the storage value, even though it's just "true", is >= 32 bytes, and thus hashed.
+            mstore(memPtr, 1) // valueData = bytes32(uint256(1))
             memPtr := add(memPtr, 0x20)
             calldatacopy(memPtr, _inclusionProof.offset, _inclusionProof.length) // trailing call-data: RLP MPT node entries
             memPtr := add(memPtr, _inclusionProof.length)
@@ -133,8 +135,11 @@ contract CrossL2Inbox is ISemver {
                 startPtr, // input ptr
                 argsSize, // input length
                 memPtr, // output ptr
-                0 // output length
+                1000 // output length
             )
+            if iszero(success) {
+                revert(memPtr, 1000)
+            }
             // Reset the memory pointer to clean the memory
             mstore(0, startPtr)
         }
