@@ -53,7 +53,6 @@ type EngineQueueStage interface {
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	PendingSafeL2Head() eth.L2BlockRef
-	EngineSyncTarget() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	SystemConfig() eth.SystemConfig
 	SetUnsafeHead(head eth.L2BlockRef)
@@ -108,7 +107,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 		log:       log,
 		cfg:       cfg,
 		l1Fetcher: l1Fetcher,
-		resetting: 0,
+		resetting: len(stages), // TODO: This is a hack to disable the initial reset.
 		stages:    stages,
 		eng:       eng,
 		metrics:   metrics,
@@ -157,10 +156,6 @@ func (dp *DerivationPipeline) PendingSafeL2Head() eth.L2BlockRef {
 // UnsafeL2Head returns the head of the L2 chain that we are deriving for, this may be past what we derived from L1
 func (dp *DerivationPipeline) UnsafeL2Head() eth.L2BlockRef {
 	return dp.eng.UnsafeL2Head()
-}
-
-func (dp *DerivationPipeline) EngineSyncTarget() eth.L2BlockRef {
-	return dp.eng.EngineSyncTarget()
 }
 
 func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType BlockInsertionErrType, err error) {

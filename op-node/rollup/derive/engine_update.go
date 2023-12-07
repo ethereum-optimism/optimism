@@ -109,6 +109,8 @@ func StartPayload(ctx context.Context, eng Engine, fc eth.ForkchoiceState, attrs
 			return eth.PayloadID{}, BlockInsertTemporaryErr, errors.New("nil id in forkchoice result when expecting a valid ID")
 		}
 		return *id, BlockInsertOK, nil
+	case eth.ExecutionSyncing:
+		return eth.PayloadID{}, BlockInsertTemporaryErr, EngineELSyncing
 	default:
 		return eth.PayloadID{}, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}

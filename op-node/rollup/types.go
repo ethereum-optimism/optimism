@@ -205,6 +205,8 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 
 // CheckL2GenesisBlockHash checks that the configured L2 genesis block hash is valid for the given client.
 func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
+	// TODO: This does not actually work with transitioned networks
+	return nil
 	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
 	if err != nil {
 		return fmt.Errorf("failed to get L2 genesis blockhash: %w", err)

@@ -15,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
@@ -57,6 +58,9 @@ type Driver struct {
 
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
+
+	// Sync Config
+	syncConfig *sync.Config
 
 	// Driver config: verifier and sequencer settings
 	driverConfig *Config
@@ -287,6 +291,10 @@ func (s *Driver) eventLoop() {
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case <-altSyncTicker.C:
+			if s.syncConfig.SyncMode == sync.ELSync {
+				// Skip the alt sync if in EL sync mode
+				continue
+			}
 			// Check if there is a gap in the current unsafe payload queue.
 			ctx, cancel := context.WithTimeout(s.driverCtx, time.Second*2)
 			err := s.checkForGapInUnsafeQueue(ctx)
@@ -299,6 +307,7 @@ func (s *Driver) eventLoop() {
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
 			s.derivation.AddUnsafePayload(payload)
 			s.metrics.RecordReceivedUnsafePayload(payload)
+			// TODO: If syncmode=EL & syncing, may want to do a FCU call... (which is done via req step)
 			reqStep()
 
 		case newL1Head := <-s.l1HeadSig:
@@ -325,7 +334,7 @@ func (s *Driver) eventLoop() {
 				s.metrics.SetDerivationIdle(true)
 				continue
 			} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
-				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "sync_target", s.derivation.EngineSyncTarget(), "err", err)
+				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "err", err)
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
@@ -489,7 +498,6 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 		FinalizedL2:        s.derivation.Finalized(),
 		PendingSafeL2:      s.derivation.PendingSafeL2Head(),
 		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
-		EngineSyncTarget:   s.derivation.EngineSyncTarget(),
 	}
 }
 
