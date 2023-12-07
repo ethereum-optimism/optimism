@@ -90,9 +90,9 @@ dump_log_results(){
 on_failure() {
 
   dump_log_results
-  
+
   notif "Stopping Docker Container"
-  # docker stop ${CONTAINER_NAME}
+  docker stop ${CONTAINER_NAME}
   blank_line
 
   notif "Cleanup complete."
