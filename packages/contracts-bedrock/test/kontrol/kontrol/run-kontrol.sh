@@ -81,6 +81,7 @@ dump_log_results(){
   notif "Copying Tests Results to Host"
   blank_line
   docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz ./kontrol-results_$(date +'%Y-%m-%d-%H-%M-%S').tar.gz
+  cp kontrol-results_*.tar.gz kontrol-results_latest.tar.gz 
 
   notif "Dump Logs"
   LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"

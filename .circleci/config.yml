@@ -1348,9 +1348,8 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Checkout Submodule
           command: |
-            git submodule update --init --recursive
+            forge install
       - check-changed:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
       - setup_remote_docker:
@@ -1378,8 +1377,7 @@ jobs:
             pnpm test:kontrol 
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
-          path: ./packages/contracts-bedrock/kontrol-results_*.tar.gz
-          destination: kontrol-results.tar.gz
+          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
 
 workflows:
   main:
