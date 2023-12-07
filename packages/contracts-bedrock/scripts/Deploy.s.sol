@@ -18,6 +18,7 @@ import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { StandardBridge } from "src/universal/StandardBridge.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
 import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
@@ -650,10 +651,13 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() public broadcast returns (address addr_) {
         console.log("Deploying L1StandardBridge implementation");
-        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
 
-        L1StandardBridge bridge =
-            new L1StandardBridge{ salt: _implSalt() }({ _messenger: payable(l1CrossDomainMessengerProxy) });
+        L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }();
+
+        require(address(bridge.MESSENGER()) == address(0));
+        require(address(bridge.messenger()) == address(0));
+        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
 
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
@@ -775,6 +779,8 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
+        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+        address l2StandardBridge = mustGetAddress("L2StandardBridge");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
@@ -789,13 +795,32 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(l1StandardBridgeProxy),
             _implementation: l1StandardBridge,
-            _innerCallData: abi.encodeCall(L1StandardBridge.initialize, (SuperchainConfig(superchainConfigProxy)))
+            _innerCallData: abi.encodeCall(
+                L1StandardBridge.initialize,
+                (
+                    L1CrossDomainMessenger(l1CrossDomainMessengerProxy),
+                    StandardBridge(payable(l2StandardBridge)),
+                    SuperchainConfig(superchainConfigProxy)
+                )
+                )
         });
 
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
         ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true });
+
+        // TODO: check that the "require"s below are actually necessary
+        L1StandardBridge bridge = L1StandardBridge(payable(l1StandardBridgeProxy));
+        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
+        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
+        require(address(bridge.OTHER_BRIDGE()) == l2StandardBridge);
+        require(address(bridge.otherBridge()) == l2StandardBridge);
+
+        // Ensures that the legacy slot is modified correctly. This will fail
+        // during predeployment simulation on OP Mainnet if there is a bug.
+        bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
+        require(slot0 == bytes32(uint256(2)));
     }
 
     /// @notice Initialize the L1ERC721Bridge
