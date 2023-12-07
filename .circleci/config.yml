@@ -1350,6 +1350,7 @@ jobs:
       - run:
           command: |
             forge update
+            forge install
       - check-changed:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
       - setup_remote_docker:
