@@ -41,6 +41,7 @@ contract Setup {
     Vm private constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
     Deploy internal deploy;
+    address deployer = address(0xd3607);
 
     OptimismPortal optimismPortal;
     L2OutputOracle l2OutputOracle;
@@ -83,7 +84,6 @@ contract Setup {
     /// @dev Simple wrapper around the `create` opcode that uses a particular
     ///      deployer account.
     function _create(bytes memory _code) internal returns (address addr_) {
-        address deployer = address(0xd3607);
         vm.deal(deployer, 1 ether);
         vm.prank(deployer);
         assembly {
