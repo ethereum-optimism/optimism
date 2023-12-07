@@ -1378,8 +1378,8 @@ jobs:
             pnpm test:kontrol 
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
-          path: kontrol-results_*.tar.gz
-          destination: results
+          path: ./packages/contracts-bedrock/kontrol-results_*.tar.gz
+          destination: kontrol-results.tar.gz
 
 workflows:
   main:
