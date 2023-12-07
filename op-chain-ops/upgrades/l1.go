@@ -14,17 +14,23 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-// upgradeAndCall represents the signature of the upgradeAndCall function
-// on the ProxyAdmin contract.
-const upgradeAndCall = "upgradeAndCall(address,address,bytes)"
+const (
+	// upgradeAndCall represents the signature of the upgradeAndCall function
+	// on the ProxyAdmin contract.
+	upgradeAndCall = "upgradeAndCall(address,address,bytes)"
+	// upgrade represents the signature of the upgrade function on the ProxyAdmin contract.
+	upgrade = "upgrade(address,address)"
+)
 
-// storageSetterAddr represents the address of the StorageSetter contract.
-var storageSetterAddr = common.HexToAddress("0xd81f43eDBCAcb4c29a9bA38a13Ee5d79278270cC")
+var (
+	// storageSetterAddr represents the address of the StorageSetter contract.
+	storageSetterAddr = common.HexToAddress("0xd81f43eDBCAcb4c29a9bA38a13Ee5d79278270cC")
 
-// superchainConfigProxy refers to the address of the Sepolia superchain config proxy.
-// NOTE: this is currently hardcoded and we will need to move this to the superchain-registry
-// and have 1 deployed for each superchain target.
-var superchainConfigProxy = common.HexToAddress("0xC2Be75506d5724086DEB7245bd260Cc9753911Be")
+	// superchainConfigProxy refers to the address of the Sepolia superchain config proxy.
+	// NOTE: this is currently hardcoded and we will need to move this to the superchain-registry
+	// and have 1 deployed for each superchain target.
+	superchainConfigProxy = common.HexToAddress("0xC2Be75506d5724086DEB7245bd260Cc9753911Be")
+)
 
 // L1 will add calls for upgrading each of the L1 contracts.
 func L1(batch *safe.Batch, implementations superchain.ImplementationList, list superchain.AddressList, config *genesis.DeployConfig, chainConfig *superchain.ChainConfig, backend bind.ContractBackend) error {
@@ -132,10 +138,17 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 
-		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L100-L102
-		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L100-L102
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
 		if err != nil {
-			return err
+			return fmt.Errorf("setBytes32: %w", err)
 		}
 		args := []any{
 			common.HexToAddress(list.L1ERC721BridgeProxy.String()),
@@ -291,15 +304,12 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 	}
 
 	var l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp *big.Int
-	var l2OutputOracleProposer, l2OutputOracleChallenger common.Address
 	if config != nil {
 		l2OutputOracleStartingBlockNumber = new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber)
 		if config.L2OutputOracleStartingTimestamp < 0 {
 			return fmt.Errorf("L2OutputOracleStartingTimestamp must be concrete")
 		}
 		l2OutputOracleStartingTimestamp = new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp))
-		l2OutputOracleProposer = config.L2OutputOracleProposer
-		l2OutputOracleChallenger = config.L2OutputOracleChallenger
 	} else {
 		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
 		if err != nil {
@@ -314,19 +324,9 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		if err != nil {
 			return err
 		}
-
-		l2OutputOracleProposer, err = l2OutputOracle.PROPOSER(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
-
-		l2OutputOracleChallenger, err = l2OutputOracle.CHALLENGER(&bind.CallOpts{})
-		if err != nil {
-			return err
-		}
 	}
 
-	calldata, err := l2OutputOracleABI.Pack("initialize", l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp, l2OutputOracleProposer, l2OutputOracleChallenger)
+	calldata, err := l2OutputOracleABI.Pack("initialize", l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp)
 	if err != nil {
 		return err
 	}
@@ -359,8 +359,15 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 			return err
 		}
 
-		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L287-L289
-		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L287-L289
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
 		if err != nil {
 			return err
 		}
@@ -375,24 +382,13 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		}
 	}
 
-	optimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
-	if err != nil {
-		return err
-	}
-
-	calldata, err := optimismMintableERC20FactoryABI.Pack("initialize", common.HexToAddress(list.L1StandardBridgeProxy.String()))
-	if err != nil {
-		return err
-	}
-
 	args := []any{
 		common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
 		common.HexToAddress(implementations.OptimismMintableERC20Factory.Address.String()),
-		calldata,
 	}
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
-	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, upgrade, args, proxyAdminABI); err != nil {
 		return err
 	}
 
