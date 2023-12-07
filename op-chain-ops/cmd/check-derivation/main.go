@@ -10,18 +10,19 @@ import (
 	"os"
 	"time"
 
+	clients2 "github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 )
@@ -92,61 +93,50 @@ func main() {
 	}
 }
 
-type clients struct {
-	Client    *ethclient.Client
-	RpcClient *rpc.Client
+func newClientsFromContext(cliCtx *cli.Context) (*ethclient.Client, *sources.EthClient, error) {
+	clients, err := clients2.NewClientsFromContext(cliCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+	ethClCfg := sources.EthClientConfig{
+		MaxRequestsPerBatch:   10,
+		MaxConcurrentRequests: 10,
+		ReceiptsCacheSize:     10,
+		TransactionsCacheSize: 10,
+		HeadersCacheSize:      10,
+		PayloadsCacheSize:     10,
+		TrustRPC:              false,
+		MustBePostMerge:       true,
+		RPCProviderKind:       sources.RPCKindStandard,
+		MethodResetDuration:   time.Minute,
+	}
+	cl := ethclient.NewClient(clients.L2RpcClient)
+	ethCl, err := sources.NewEthClient(client.NewBaseRPCClient(clients.L2RpcClient), log.Root(), nil, &ethClCfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cl, ethCl, nil
 }
 
-func newClientsFromContext(ctx context.Context, cliCtx *cli.Context) (*clients, error) {
-	url := cliCtx.String("l2-rpc-url")
-	ethClient, err := ethclient.Dial(url)
-	if err != nil {
-		return nil, fmt.Errorf("cannot dial ethclient: %w", err)
-	}
-	rpcClient, err := rpc.DialContext(ctx, url)
-	if err != nil {
-		return nil, fmt.Errorf("cannot dial rpc client: %w", err)
-	}
-	return &clients{Client: ethClient, RpcClient: rpcClient}, nil
-}
-
-func getHead(ctx context.Context, client *rpc.Client, info interface{}) (eth.BlockID, common.Hash, error) {
+func getHead(ctx context.Context, client *sources.EthClient, label eth.BlockLabel) (eth.BlockID, common.Hash, error) {
 	return retry.Do2(ctx, 10, &retry.FixedStrategy{Dur: 100 * time.Millisecond}, func() (eth.BlockID, common.Hash, error) {
 		ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 		defer cancel()
-		res := make(map[string]interface{})
-		err := client.CallContext(ctx, &res, "eth_getBlockByNumber", info, false)
+
+		blockInfo, err := client.InfoByLabel(ctx, label)
 		if err != nil {
 			return eth.BlockID{}, common.Hash{}, err
 		}
-		numStr, ok := res["number"].(string)
-		if !ok {
-			return eth.BlockID{}, common.Hash{}, errors.New("block number field invalid")
-		}
-		blockNum, err := hexutil.DecodeUint64(numStr)
-		if err != nil {
-			return eth.BlockID{}, common.Hash{}, fmt.Errorf("failed to decode RPC block number: %w", err)
-		}
-		hashStr, ok := res["hash"].(string)
-		if !ok {
-			return eth.BlockID{}, common.Hash{}, errors.New("hash field invalid")
-		}
-		hash := common.HexToHash(hashStr)
-		parentHashStr, ok := res["parentHash"].(string)
-		if !ok {
-			return eth.BlockID{}, common.Hash{}, errors.New("parent hash field invalid")
-		}
-		parentHash := common.HexToHash(parentHashStr)
-		return eth.BlockID{Hash: hash, Number: blockNum}, parentHash, nil
+		return eth.BlockID{Hash: blockInfo.Hash(), Number: blockInfo.NumberU64()}, blockInfo.ParentHash(), nil
 	})
 }
 
-func getUnsafeHead(ctx context.Context, client *rpc.Client) (eth.BlockID, common.Hash, error) {
-	return getHead(ctx, client, "latest")
+func getUnsafeHead(ctx context.Context, client *sources.EthClient) (eth.BlockID, common.Hash, error) {
+	return getHead(ctx, client, eth.Unsafe)
 }
 
-func getSafeHead(ctx context.Context, client *rpc.Client) (eth.BlockID, common.Hash, error) {
-	return getHead(ctx, client, "safe")
+func getSafeHead(ctx context.Context, client *sources.EthClient) (eth.BlockID, common.Hash, error) {
+	return getHead(ctx, client, eth.Safe)
 }
 
 func checkReorg(blockMap map[uint64]common.Hash, number uint64, hash common.Hash) {
@@ -162,16 +152,17 @@ func checkReorg(blockMap map[uint64]common.Hash, number uint64, hash common.Hash
 // detectL2Reorg polls safe heads and detects l2 unsafe block reorg.
 func detectL2Reorg(cliCtx *cli.Context) error {
 	ctx := context.Background()
-	clients, err := newClientsFromContext(ctx, cliCtx)
+	_, ethCl, err := newClientsFromContext(cliCtx)
 	if err != nil {
 		return err
 	}
+
 	var pollingInterval = time.Duration(cliCtx.Int("polling-interval")) * time.Millisecond
 	// blockMap maps blockNumber to blockHash
 	blockMap := make(map[uint64]common.Hash)
 	var prevUnsafeHeadNum uint64
 	for {
-		unsafeHeadBlockId, parentHash, err := getUnsafeHead(ctx, clients.RpcClient)
+		unsafeHeadBlockId, parentHash, err := getUnsafeHead(ctx, ethCl)
 		if err != nil {
 			return fmt.Errorf("failed to fetch unsafe head: %w", err)
 		}
@@ -331,7 +322,10 @@ func confirmTransaction(ctx context.Context, ethClient *ethclient.Client, l2Bloc
 // Then polls safe head to check unsafe blocks which includes sent tx are consolidated.
 func checkConsolidation(cliCtx *cli.Context) error {
 	ctx := context.Background()
-	clients, err := newClientsFromContext(ctx, cliCtx)
+	cl, ethCl, err := newClientsFromContext(cliCtx)
+	if err != nil {
+		return err
+	}
 	if err != nil {
 		return err
 	}
@@ -364,23 +358,23 @@ func checkConsolidation(cliCtx *cli.Context) error {
 		var tx *types.Transaction
 		switch i % 4 {
 		case 0:
-			tx, err = getRandomSignedTransaction(ctx, clients.Client, rng, from, privateKey, l2ChainID, types.LegacyTxType, false)
+			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.LegacyTxType, false)
 		case 1:
-			tx, err = getRandomSignedTransaction(ctx, clients.Client, rng, from, privateKey, l2ChainID, types.LegacyTxType, true)
+			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.LegacyTxType, true)
 		case 2:
-			tx, err = getRandomSignedTransaction(ctx, clients.Client, rng, from, privateKey, l2ChainID, types.AccessListTxType, true)
+			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.AccessListTxType, true)
 		case 3:
-			tx, err = getRandomSignedTransaction(ctx, clients.Client, rng, from, privateKey, l2ChainID, types.DynamicFeeTxType, true)
+			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.DynamicFeeTxType, true)
 		}
 		if err != nil {
 			return err
 		}
-		err = clients.Client.SendTransaction(ctx, tx)
+		err = cl.SendTransaction(ctx, tx)
 		if err != nil {
 			return fmt.Errorf("failed to send transaction: %w", err)
 		}
 		txHash := tx.Hash()
-		blockId, err := confirmTransaction(ctx, clients.Client, l2BlockTime, txHash)
+		blockId, err := confirmTransaction(ctx, cl, l2BlockTime, txHash)
 		if err != nil {
 			return err
 		}
@@ -390,7 +384,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	numChecked := 0
 	failed := false
 	for {
-		safeHeadBlockId, _, err := getSafeHead(ctx, clients.RpcClient)
+		safeHeadBlockId, _, err := getSafeHead(ctx, ethCl)
 		if err != nil {
 			return fmt.Errorf("failed to fetch safe head: %w", err)
 		}
@@ -401,7 +395,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 				safeBlockHash := safeHeadBlockId.Hash
 				if safeHeadBlockId.Number != blockId.Number {
 					safeBlock, err := retry.Do(ctx, 10, &retry.FixedStrategy{Dur: 100 * time.Millisecond}, func() (*types.Block, error) {
-						return clients.Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockId.Number))
+						return cl.BlockByNumber(ctx, new(big.Int).SetUint64(blockId.Number))
 					})
 					if err != nil {
 						return fmt.Errorf("failed to fetch block by number: %w", err)
