@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
@@ -45,6 +44,14 @@ var deployments = map[uint64]superchain.ImplementationList{
 			Version: "1.11.0",
 			Address: superchain.HexToAddress("0xf55b3dbb3bd2f2fa9236b0be6e8b9e91b819fd14"),
 		},
+		L2OutputOracle: superchain.VersionedContract{
+			Version: "1.7.0",
+			Address: superchain.HexToAddress("0x1187d73b0580f607e1b9c03698238fcad483e776"),
+		},
+		OptimismMintableERC20Factory: superchain.VersionedContract{
+			Version: "1.8.0",
+			Address: superchain.HexToAddress("0x6B047052dc3DafbA003e2fA4fEEe2e883dd5575B"),
+		},
 	},
 	// OP Sepolia
 	11155420: {
@@ -67,6 +74,14 @@ var deployments = map[uint64]superchain.ImplementationList{
 		SystemConfig: superchain.VersionedContract{
 			Version: "1.11.0",
 			Address: superchain.HexToAddress("0xce77d580e0befbb1561376a722217017651b9dbf"),
+		},
+		L2OutputOracle: superchain.VersionedContract{
+			Version: "1.7.0",
+			Address: superchain.HexToAddress("0x83aEb8B156cD90E64C702781C84A681DADb1DDe2"),
+		},
+		OptimismMintableERC20Factory: superchain.VersionedContract{
+			Version: "1.8.0",
+			Address: superchain.HexToAddress("0xd7e63ec8ec03803236be93642a610641dee51e62"),
 		},
 	},
 	// Zora Sepolia
@@ -91,6 +106,14 @@ var deployments = map[uint64]superchain.ImplementationList{
 			Version: "1.11.0",
 			Address: superchain.HexToAddress("0xaeb5f8ed2977e70f4ddacf2f603c0dcf8e561873"),
 		},
+		L2OutputOracle: superchain.VersionedContract{
+			Version: "1.7.0",
+			Address: superchain.HexToAddress("0x1d5a9755983fa8520bb0fc5caf7904fac77ede76"),
+		},
+		OptimismMintableERC20Factory: superchain.VersionedContract{
+			Version: "1.8.0",
+			Address: superchain.HexToAddress("0xc1fa0ca70cd4f392883d2abe00d3971230382996"),
+		},
 	},
 	// PGN Sepolia
 	58008: {
@@ -113,6 +136,14 @@ var deployments = map[uint64]superchain.ImplementationList{
 		SystemConfig: superchain.VersionedContract{
 			Version: "1.11.0",
 			Address: superchain.HexToAddress("0xd1557adfee8eda61619fc227c3dbb41fc16fc840"),
+		},
+		L2OutputOracle: superchain.VersionedContract{
+			Version: "1.7.0",
+			Address: superchain.HexToAddress("0xfae8e4695a0c96ea7ce20e1ed8d401604964315a"),
+		},
+		OptimismMintableERC20Factory: superchain.VersionedContract{
+			Version: "1.8.0",
+			Address: superchain.HexToAddress("0x8b55bf68569a9561a60d48419453ee570f87f7f0"),
 		},
 	},
 }
@@ -217,38 +248,13 @@ func entrypoint(ctx *cli.Context) error {
 	log.Info("OptimismPortal", "version", list.OptimismPortal.Version, "address", list.OptimismPortal.Address)
 	log.Info("SystemConfig", "version", list.SystemConfig.Version, "address", list.SystemConfig.Address)
 
-	// Check just the versions that we care about
-	if err := upgrades.CheckVersionedContract(ctx.Context, list.L1CrossDomainMessenger, clients.L1Client); err != nil {
-		return fmt.Errorf("L1CrossDomainMessenger: %w", err)
-	}
-	if err := upgrades.CheckVersionedContract(ctx.Context, list.L1ERC721Bridge, clients.L1Client); err != nil {
-		return fmt.Errorf("L1ERC721Bridge: %w", err)
-	}
-	if err := upgrades.CheckVersionedContract(ctx.Context, list.L1StandardBridge, clients.L1Client); err != nil {
-		return fmt.Errorf("L1StandardBridge: %w", err)
-	}
-	if err := upgrades.CheckVersionedContract(ctx.Context, list.OptimismPortal, clients.L1Client); err != nil {
-		return fmt.Errorf("OptimismPortal: %w", err)
-	}
-	if err := upgrades.CheckVersionedContract(ctx.Context, list.SystemConfig, clients.L1Client); err != nil {
-		return fmt.Errorf("SystemConfig: %w", err)
+	if err := upgrades.CheckL1(ctx.Context, &list, clients.L1Client); err != nil {
+		return fmt.Errorf("error checking L1 contracts: %w", err)
 	}
 
 	// Build the batch
-	if err := upgrades.L1CrossDomainMessenger(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
-		return fmt.Errorf("upgrading L1CrossDomainMessenger: %w", err)
-	}
-	if err := upgrades.L1ERC721Bridge(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
-		return fmt.Errorf("upgrading L1ERC721Bridge: %w", err)
-	}
-	if err := upgrades.L1StandardBridge(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
-		return fmt.Errorf("upgrading L1StandardBridge: %w", err)
-	}
-	if err := upgrades.OptimismPortal(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
-		return fmt.Errorf("upgrading OptimismPortal: %w", err)
-	}
-	if err := upgrades.SystemConfig(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
-		return fmt.Errorf("upgrading SystemConfig: %w", err)
+	if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
+		return fmt.Errorf("cannot build L1 upgrade batch: %w", err)
 	}
 
 	// Write the batch to disk or stdout
