@@ -52,6 +52,7 @@ func TestPrefetchingEthClient(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, info, expectedInfo)
 			require.Equal(t, txs, types.Transactions(expectedTxs))
+
 			client.wg.Wait() // Wait for all goroutines to complete before asserting expectations
 			mockEthClient.AssertExpectations(t)
 		})

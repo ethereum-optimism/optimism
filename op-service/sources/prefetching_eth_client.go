@@ -71,19 +71,25 @@ func (p *PrefetchingEthClient) updateRequestingHead(start, end uint64) (newStart
 }
 
 func (p *PrefetchingEthClient) FetchWindow(start, end uint64) {
-	if p.wg != nil {
-		defer p.wg.Done()
-	}
 
 	start, shouldFetch := p.updateRequestingHead(start, end)
 	if !shouldFetch {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
-	defer cancel()
 	for i := start; i <= end; i++ {
-		p.FetchBlockAndReceipts(ctx, i)
+		if p.wg != nil {
+			p.wg.Add(1)
+		}
+		go func(blockNumber uint64) {
+			if p.wg != nil {
+				defer p.wg.Done()
+			}
+			ctx, cancel := context.WithTimeout(p.runningCtx, p.PrefetchingTimeout)
+			defer cancel()
+
+			p.FetchBlockAndReceipts(ctx, blockNumber)
+		}(i)
 	}
 }
 
@@ -110,21 +116,15 @@ func (p *PrefetchingEthClient) InfoByHash(ctx context.Context, hash common.Hash)
 		return blockInfo, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts starting from the block number of the fetched block
-	go p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
+	p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, nil
 }
 
 func (p *PrefetchingEthClient) InfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Trigger prefetching in the background
-	go p.FetchWindow(number+1, number+p.PrefetchingRange)
+	p.FetchWindow(number+1, number+p.PrefetchingRange)
 
 	// Fetch the requested block
 	return p.inner.InfoByNumber(ctx, number)
@@ -137,11 +137,8 @@ func (p *PrefetchingEthClient) InfoByLabel(ctx context.Context, label eth.BlockL
 		return blockInfo, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts starting from the block number of the fetched block
-	go p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
+	p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, nil
 }
@@ -153,11 +150,8 @@ func (p *PrefetchingEthClient) InfoAndTxsByHash(ctx context.Context, hash common
 		return blockInfo, txs, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
+	p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, txs, nil
 }
@@ -169,11 +163,8 @@ func (p *PrefetchingEthClient) InfoAndTxsByNumber(ctx context.Context, number ui
 		return blockInfo, txs, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(number+1, number+p.PrefetchingRange)
+	p.FetchWindow(number+1, number+p.PrefetchingRange)
 
 	return blockInfo, txs, nil
 }
@@ -185,11 +176,8 @@ func (p *PrefetchingEthClient) InfoAndTxsByLabel(ctx context.Context, label eth.
 		return blockInfo, txs, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
+	p.FetchWindow(blockInfo.NumberU64()+1, blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, txs, nil
 }
@@ -201,11 +189,8 @@ func (p *PrefetchingEthClient) PayloadByHash(ctx context.Context, hash common.Ha
 		return payload, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.PrefetchingRange)
+	p.FetchWindow(uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.PrefetchingRange)
 
 	return payload, nil
 }
@@ -217,11 +202,8 @@ func (p *PrefetchingEthClient) PayloadByNumber(ctx context.Context, number uint6
 		return payload, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(number+1, number+p.PrefetchingRange)
+	p.FetchWindow(number+1, number+p.PrefetchingRange)
 
 	return payload, nil
 }
@@ -233,11 +215,8 @@ func (p *PrefetchingEthClient) PayloadByLabel(ctx context.Context, label eth.Blo
 		return payload, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.PrefetchingRange)
+	p.FetchWindow(uint64(payload.BlockNumber)+1, uint64(payload.BlockNumber)+p.PrefetchingRange)
 
 	return payload, nil
 }
@@ -249,11 +228,8 @@ func (p *PrefetchingEthClient) FetchReceipts(ctx context.Context, blockHash comm
 		return blockInfo, receipts, err
 	}
 
-	if p.wg != nil {
-		p.wg.Add(1)
-	}
 	// Prefetch the next n blocks and their receipts
-	go p.FetchWindow(blockInfo.NumberU64(), blockInfo.NumberU64()+p.PrefetchingRange)
+	p.FetchWindow(blockInfo.NumberU64(), blockInfo.NumberU64()+p.PrefetchingRange)
 
 	return blockInfo, receipts, nil
 }
