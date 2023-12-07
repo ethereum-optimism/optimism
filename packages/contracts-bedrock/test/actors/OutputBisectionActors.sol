@@ -22,6 +22,8 @@ abstract contract GameSolver is CommonBase {
 
     /// @notice The execution trace that the `GameSolver` will be representing.
     bytes public trace;
+    /// @notice The raw absolute prestate data.
+    bytes public absolutePrestateData;
     /// @notice The offset of previously processed claims in the `GAME` contract's `claimData` array.
     ///         Starts at 0 and increments by 1 for each claim processed.
     uint256 public processedBuf;
@@ -44,14 +46,14 @@ abstract contract GameSolver is CommonBase {
     ///         to the `OutputBisectionGame` contract by a consumer of this contract.
     struct Move {
         MoveKind kind;
-        address sender;
         bytes data;
     }
 
-    constructor(OutputBisectionGame _gameProxy, bytes memory _trace) {
+    constructor(OutputBisectionGame _gameProxy, bytes memory _trace, bytes memory _preStateData) {
         GAME = _gameProxy;
         MAX_TRACE_LENGTH = 2 ** (_gameProxy.MAX_GAME_DEPTH() - _gameProxy.SPLIT_DEPTH());
         trace = _trace;
+        absolutePrestateData = _preStateData;
     }
 
     /// @notice Returns an array of `Move`s that can be taken from the perspective of an honest
@@ -72,7 +74,13 @@ contract HonestGameSolver is GameSolver {
         Noop
     }
 
-    constructor(OutputBisectionGame _gameProxy, bytes memory _trace) GameSolver(_gameProxy, _trace) {
+    constructor(
+        OutputBisectionGame _gameProxy,
+        bytes memory _trace,
+        bytes memory _preStateData
+    )
+        GameSolver(_gameProxy, _trace, _preStateData)
+    {
         // Mark agreement with the root claim if the local opinion of the root claim is the same as the
         // observed root claim.
         if (Claim.unwrap(outputAt(MAX_TRACE_LENGTH)) == Claim.unwrap(_gameProxy.rootClaim())) {
@@ -193,7 +201,6 @@ contract HonestGameSolver is GameSolver {
         bool isAttack = _direction == Direction.Attack;
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
-            sender: address(this), // TODO: Change to allow for alt actors?
             data: abi.encodeCall(OutputBisectionGame.move, (_challengeIndex, outputAt(_movePos), isAttack))
         });
     }
@@ -214,7 +221,6 @@ contract HonestGameSolver is GameSolver {
         bool isAttack = _direction == Direction.Attack;
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
-            sender: address(this), // TODO: Change to allow for alt actors?
             data: abi.encodeCall(OutputBisectionGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
         });
     }
@@ -241,7 +247,7 @@ contract HonestGameSolver is GameSolver {
         // are making an attack step or a defense step. If the index at depth of the
         // move position is 0, the prestate is the absolute prestate and we need to
         // do nothing.
-        if (_movePos.indexAtDepth() > 0) {
+        if ((_movePos.indexAtDepth() % (2 ** (GAME.MAX_GAME_DEPTH() - GAME.SPLIT_DEPTH()))) > 0) {
             Position leafPos =
                 isAttack ? Position.wrap(Position.unwrap(parentPos) - 1) : Position.wrap(Position.unwrap(parentPos) + 1);
             Position statePos = leafPos.traceAncestor();
@@ -253,13 +259,11 @@ contract HonestGameSolver is GameSolver {
                 preStateTrace = abi.encode(parentPos.traceIndex(GAME.MAX_GAME_DEPTH()), traceAt(parentPos));
             }
         } else {
-            // TODO: Prestate trace value.
-            preStateTrace = abi.encode(0xdead);
+            preStateTrace = absolutePrestateData;
         }
 
         move_ = Move({
             kind: MoveKind.Step,
-            sender: address(this), // TODO: Change to allow for alt actors?
             data: abi.encodeCall(OutputBisectionGame.step, (_challengeIndex, isAttack, preStateTrace, hex""))
         });
     }
@@ -287,30 +291,26 @@ contract HonestGameSolver is GameSolver {
     }
 
     /// @notice Returns the mock output at the given position.
-    /// @dev TODO: Variability for malicious actors?
     function outputAt(Position _position) public view returns (Claim claim_) {
         // Don't allow for positions that are deeper than the split depth.
         if (_position.depth() > GAME.SPLIT_DEPTH()) {
             revert("GameSolver: invalid position depth");
         }
 
-        return outputAt(_position.traceIndex(GAME.SPLIT_DEPTH()));
+        return outputAt(_position.traceIndex(GAME.SPLIT_DEPTH()) + 1);
     }
 
     /// @notice Returns the mock output at the given L2 block number.
-    /// @dev TODO: Variability for malicious actors?
     function outputAt(uint256 _l2BlockNumber) public pure returns (Claim claim_) {
         return Claim.wrap(bytes32(_l2BlockNumber));
     }
 
     /// @notice Returns the state at the trace index within the player's trace.
-    /// @dev TODO: Separate traces per execution trace game.
     function traceAt(Position _position) public view returns (uint256 state_) {
         return traceAt(_position.traceIndex(GAME.MAX_GAME_DEPTH()));
     }
 
     /// @notice Returns the state at the trace index within the player's trace.
-    /// @dev TODO: Separate traces per execution trace game.
     function traceAt(uint256 _traceIndex) public view returns (uint256 state_) {
         return uint256(uint8(_traceIndex >= trace.length ? trace[trace.length - 1] : trace[_traceIndex]));
     }
@@ -336,6 +336,35 @@ contract HonestGameSolver is GameSolver {
     }
 }
 
-// TODO: `DishonestGameSolver`. Can remove a lot of the cruft and just throw bad claims
-//        at the wall.
-// TODO: Actors that utilize the `HonestGameSolver`
+/// @title DisputeActor
+/// @notice The `DisputeActor` contract is an abstract contract that represents an actor
+///         that consumes the suggested moves from a `GameSolver` contract.
+abstract contract DisputeActor {
+    /// @notice The `GameSolver` contract used to determine the moves to be taken.
+    GameSolver public solver;
+
+    /// @notice Performs all available moves deemed by the attached solver.
+    /// @return success_ True if all moves were successful, false otherwise.
+    function move() external virtual returns (bool success_);
+}
+
+/// @title HonestDisputeActor
+/// @notice An actor that consumes the suggested moves from an `HonestGameSolver` contract. Note
+///         that this actor *can* be dishonest if the trace is faulty, but it will always follow
+///         the rules of the honest actor.
+contract HonestDisputeActor is DisputeActor {
+    OutputBisectionGame public immutable GAME;
+
+    constructor(OutputBisectionGame _gameProxy, bytes memory _trace, bytes memory _preStateData) {
+        GAME = _gameProxy;
+        solver = GameSolver(new HonestGameSolver(_gameProxy, _trace, _preStateData));
+    }
+
+    /// @inheritdoc DisputeActor
+    function move() external override returns (bool success_) {
+        GameSolver.Move[] memory moves = solver.solveGame();
+        for (uint256 i = 0; i < moves.length; i++) {
+            (success_,) = address(GAME).call(moves[i].data);
+        }
+    }
+}

@@ -19,16 +19,11 @@ import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { AlphabetVM2 } from "test/mocks/AlphabetVM2.sol";
 
+import { DisputeActor, HonestDisputeActor } from "test/actors/OutputBisectionActors.sol";
+
 contract OutputBisectionGame_Init is DisputeGameFactory_Init {
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
-    /// @dev The L2 Block Number for the game's proposed output (the root claim)
-    uint256 internal constant L2_BLOCK_NUMBER = 0x0a;
-
-    /// @dev The genesis block number configured for the output bisection portion of the game.
-    uint256 internal constant GENESIS_BLOCK_NUMBER = 0;
-    /// @dev The genesis output root commitment
-    Hash internal constant GENESIS_OUTPUT_ROOT = Hash.wrap(bytes32(0));
 
     /// @dev The implementation of the game.
     OutputBisectionGame internal gameImpl;
@@ -40,12 +35,20 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
-    function init(Claim rootClaim, Claim absolutePrestate) public {
+    function init(
+        Claim rootClaim,
+        Claim absolutePrestate,
+        uint256 l2BlockNumber,
+        uint256 genesisBlockNumber,
+        Hash genesisOutputRoot
+    )
+        public
+    {
         // Set the time to a realistic date.
         vm.warp(1690906994);
 
         // Set the extra data for the game creation
-        extraData = abi.encode(L2_BLOCK_NUMBER);
+        extraData = abi.encode(l2BlockNumber);
 
         AlphabetVM2 _vm = new AlphabetVM2(absolutePrestate);
 
@@ -53,8 +56,8 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
         gameImpl = new OutputBisectionGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: absolutePrestate,
-            _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
-            _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
+            _genesisBlockNumber: genesisBlockNumber,
+            _genesisOutputRoot: genesisOutputRoot,
             _maxGameDepth: 2 ** 3,
             _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
@@ -68,8 +71,8 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
         // Check immutables
         assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
         assertEq(Claim.unwrap(gameProxy.ABSOLUTE_PRESTATE()), Claim.unwrap(absolutePrestate));
-        assertEq(gameProxy.GENESIS_BLOCK_NUMBER(), GENESIS_BLOCK_NUMBER);
-        assertEq(Hash.unwrap(gameProxy.GENESIS_OUTPUT_ROOT()), Hash.unwrap(GENESIS_OUTPUT_ROOT));
+        assertEq(gameProxy.GENESIS_BLOCK_NUMBER(), genesisBlockNumber);
+        assertEq(Hash.unwrap(gameProxy.GENESIS_OUTPUT_ROOT()), Hash.unwrap(genesisOutputRoot));
         assertEq(gameProxy.MAX_GAME_DEPTH(), 2 ** 3);
         assertEq(gameProxy.SPLIT_DEPTH(), 2 ** 2);
         assertEq(Duration.unwrap(gameProxy.GAME_DURATION()), 7 days);
@@ -88,7 +91,13 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     function setUp() public override {
         super.setUp();
-        super.init(ROOT_CLAIM, ABSOLUTE_PRESTATE);
+        super.init({
+            rootClaim: ROOT_CLAIM,
+            absolutePrestate: ABSOLUTE_PRESTATE,
+            l2BlockNumber: 0x10,
+            genesisBlockNumber: 0,
+            genesisOutputRoot: Hash.wrap(bytes32(0))
+        });
     }
 
     ////////////////////////////////////////////////////////////////
@@ -109,8 +118,8 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         new OutputBisectionGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: ABSOLUTE_PRESTATE,
-            _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
-            _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
+            _genesisBlockNumber: 0,
+            _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
@@ -125,9 +134,9 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         new OutputBisectionGame({
             _gameType: GAME_TYPE,
             _absolutePrestate: ABSOLUTE_PRESTATE,
-            _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
-            _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
             _maxGameDepth: 2 ** 3,
+            _genesisBlockNumber: 0,
+            _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM
@@ -547,7 +556,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         gameProxy.attack(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // Expected start/disputed claims
-        bytes32 startingClaim = Hash.unwrap(GENESIS_OUTPUT_ROOT);
+        bytes32 startingClaim = Hash.unwrap(gameProxy.GENESIS_OUTPUT_ROOT());
         bytes32 disputedClaim = bytes32(uint256(3));
         Position disputedPos = LibPosition.wrap(4, 0);
 
@@ -638,5 +647,60 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         assembly {
             out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
         }
+    }
+}
+
+contract ThunderDome_1v1_Test is OutputBisectionGame_Init {
+    /// @dev The root claim of the game. This is the output root at block # 2 ** SPLIT_DEPTH
+    ///      in the alphabet game.
+    Claim internal immutable ROOT_CLAIM;
+    /// @dev The absolute prestate of the trace.
+    Claim internal immutable ABSOLUTE_PRESTATE;
+    /// @dev The state data (preimage) of the absolute prestate hash.
+    bytes internal absolutePrestateData;
+
+    constructor() {
+        ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
+        ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
+    }
+
+    function setUp() public override {
+        // Setup the `OutputBisectionGame`
+        super.setUp();
+    }
+
+    /// @notice Static unit test for a 1v1 output bisection dispute.
+    function test_static_1v1_succeeds() public {
+        // Create the dispute game.
+        super.init({
+            rootClaim: ROOT_CLAIM,
+            absolutePrestate: ABSOLUTE_PRESTATE,
+            l2BlockNumber: 0x10,
+            genesisBlockNumber: 0,
+            genesisOutputRoot: Hash.wrap(bytes32(0))
+        });
+
+        bytes memory honestPreStateData = abi.encode(0);
+        bytes memory honestTrace = hex"";
+    }
+
+    /// @dev Helper to create actors for the 1v1 dispute.
+    function _createActors(
+        bytes memory _honestTrace,
+        bytes memory _honestPreStateData,
+        bytes memory _dishonestTrace,
+        bytes memory _dishonestPreStateData
+    )
+        internal
+        returns (DisputeActor honest_, DisputeActor dishonest_)
+    {
+        // Setup the honest and dishonest actors (todo)
+        honest_ =
+            new HonestDisputeActor({ _gameProxy: gameProxy, _trace: _honestTrace, _preStateData: _honestPreStateData });
+        dishonest_ = new HonestDisputeActor({
+            _gameProxy: gameProxy,
+            _trace: _dishonestTrace,
+            _preStateData: _dishonestPreStateData
+        });
     }
 }
