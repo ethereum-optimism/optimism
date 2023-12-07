@@ -1347,6 +1347,10 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: Checkout Submodule
+          command: |
+            git submodule update --init --recursive
       - check-changed:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
       - setup_remote_docker:
@@ -1379,7 +1383,7 @@ jobs:
             tar -czvf results.tar.gz ./kout/proofs
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
-          path: results.tar.gz
+          path: kontrol-results_*.tar.gz
           destination: results
 
 workflows:

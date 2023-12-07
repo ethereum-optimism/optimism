@@ -54,14 +54,14 @@ kontrol_prove() {
 }
 
 start_docker () {
-    docker run                        \
-      --name ${CONTAINER_NAME}        \
-      --rm                            \
-      --interactive                   \
-      --tty                           \
-      --detach                        \
-      --env FOUNDRY_PROFILE=${FOUNDRY_PROFILE} \
-      --workdir /home/user/workspace  \
+    docker run                                  \
+      --name ${CONTAINER_NAME}                  \
+      --rm                                      \
+      --interactive                             \
+      --tty                                     \
+      --detach                                  \
+      --env FOUNDRY_PROFILE=${FOUNDRY_PROFILE}  \
+      --workdir /home/user/workspace            \
     runtimeverificationinc/kontrol:ubuntu-jammy-${KONTROL_RELEASE}
 
     # Copy test content to container
