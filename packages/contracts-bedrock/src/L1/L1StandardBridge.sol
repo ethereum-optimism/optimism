@@ -86,6 +86,7 @@ contract L1StandardBridge is StandardBridge, ISemver {
         });
     }
 
+    // TODO: does it make sense to also make otherBridge non-immutable? unlike in the PR
     /// @notice Initializer.
     /// @param _messenger        Address of CrossDomainMessenger on this network.
     /// @param _otherBridge      Address of the other StandardBridge contract.
