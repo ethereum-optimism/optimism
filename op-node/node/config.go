@@ -50,8 +50,8 @@ type Config struct {
 	RuntimeConfigReloadInterval time.Duration
 
 	// P2PBlockSignerAddrSafeLag defines the number of L1 blocks to allow the latest block signer change to take effect.
-	// e.g. If p2p block signer is changed at block X, and Safe Lag is 5, then p2p will start to accept unsafe blocks
-	// starting from X + 5.
+	// e.g. If p2p block signer is changed at L1 block X, and Safe Lag is 5, then p2p will start to accept unsafe blocks
+	// that is derived from L1 starting from L1 block X + 5.
 	P2PBlockSignerAddrSafeLag uint64
 
 	// Optional
