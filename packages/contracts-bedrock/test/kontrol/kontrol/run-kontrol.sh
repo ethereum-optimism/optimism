@@ -112,7 +112,10 @@ trap on_failure ERR
 #########################
 # kontrol build options #
 #########################
-# NOTE: This script has a recurring pattern of setting and unsetting variables, such as `rekompile`. Such a pattern is intended for easy use while locally developing and executing the proofs via this script. Comment/uncomment the empty assignment to activate/deactivate the corresponding flag
+# NOTE: This script has a recurring pattern of setting and unsetting variables,
+# such as `rekompile`. Such a pattern is intended for easy use while locally
+# developing and executing the proofs via this script. Comment/uncomment the
+# empty assignment to activate/deactivate the corresponding flag
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
 module=CounterTest:${base_module}
