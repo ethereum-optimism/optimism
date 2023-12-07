@@ -90,7 +90,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		}
 		start := time.Now()
 		info, err := ba.l1.InfoByHash(ctx, epoch.Hash)
-		log.Debug("FetchingAttributesBuilder:PreparePayloadAttributes: called ba.l1.InfoByHash.", "duration", time.Since(start))
+		log.Debug("derivation fetcher performance info", "stage", "FetchingAttribtuesBuilder", "caller", "PreparePayloadAttributes", "method", "InfoByHash", "duration", time.Since(start))
 		if err != nil {
 			return nil, NewTemporaryError(fmt.Errorf("failed to fetch L1 block info: %w", err))
 		}
