@@ -59,8 +59,21 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		if err != nil {
 			return err
 		}
-		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L28
-		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{31: 0xf9}, common.Hash{})
+
+		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L11-L13
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L28
+			{
+				Key:   common.Hash{31: 249},
+				Value: common.Hash{},
+			},
+		}
+
+		calldata, err := storageSetterABI.Pack("setBytes32", input)
 		if err != nil {
 			return err
 		}
@@ -112,7 +125,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 
-		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L100-L103
+		// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L100-L102
 		calldata, err := storageSetterABI.Pack("setBytes32", common.Hash{}, common.Hash{})
 		if err != nil {
 			return err
@@ -231,6 +244,11 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		}
 
 		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L50-L51
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L55
 			{
 				Key:   common.Hash{31: 0x04},
@@ -385,6 +403,11 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 		}
 
 		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L64-L65
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L72
 			{
 				Key:   common.Hash{31: 53},
@@ -457,6 +480,11 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 		}
 
 		input := []bindings.StorageSetterSlot{
+			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L82-L83
+			{
+				Key:   common.Hash{},
+				Value: common.Hash{},
+			},
 			// https://github.com/ethereum-optimism/optimism/blob/86a96023ffd04d119296dff095d02fff79fa15de/packages/contracts-bedrock/.storage-layout#L92
 			{
 				Key:   common.Hash{31: 106},
