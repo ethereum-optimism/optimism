@@ -68,7 +68,10 @@ func (p *PrefetchingEthClient) updateRequestingHead(start, end uint64) (newStart
 	if start <= p.highestHeadRequesting {
 		start = p.highestHeadRequesting + 1
 	}
-	if p.highestHeadRequesting < end {
+	// the correct way to do this is to detect historical vs current head queries and hinge on that
+	// but this is a quick fix for testing, just ignore "large" jumps
+	ignoreDueToLargeJump := (end - p.highestHeadRequesting) > p.PrefetchingRange
+	if (p.highestHeadRequesting < end) && !ignoreDueToLargeJump {
 		p.highestHeadRequesting = end
 	}
 	return start, start <= end

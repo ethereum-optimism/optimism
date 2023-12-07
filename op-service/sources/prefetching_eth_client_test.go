@@ -89,3 +89,22 @@ func TestUpdateRequestingHead_OverlappingRange(t *testing.T) {
 	require.True(t, shouldFetch)
 	require.Equal(t, client.highestHeadRequesting, end)
 }
+
+// this test will probably be killed when "smart" logic that detects the difference between historical and current head queries
+func TestUpdateRequestingHead_IgnoreLargeJump(t *testing.T) {
+	prefetchingRange := uint64(256)
+	client := &PrefetchingEthClient{
+		highestHeadRequesting: 8000000, // 8M
+		PrefetchingRange:      prefetchingRange,
+		PrefetchingTimeout:    30 * time.Second,
+	}
+
+	start, end := uint64(8000000), uint64(10000000) // Request from 8M to 10M
+	newStart, shouldFetch := client.updateRequestingHead(start, end)
+
+	require.Equal(t, uint64(8000001), newStart, "newStart should be one more than highestHeadRequesting")
+	require.True(t, shouldFetch, "shouldFetch should be true as start is less than end")
+
+	// Check that highestHeadRequesting is not updated due to large jump
+	require.Equal(t, uint64(8000000), client.highestHeadRequesting, "highestHeadRequesting should not be updated due to large jump")
+}
