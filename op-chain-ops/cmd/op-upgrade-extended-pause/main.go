@@ -22,26 +22,96 @@ import (
 // Note that the key is the L2 chain id. This is because the L1 contracts must be specific
 // for a particular OP Stack chain and cannot currently be used by multiple chains.
 var addresses = map[uint64]superchain.ImplementationList{
-	10: {
+	// Base Sepolia
+	84532: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
-			Version: "",
-			Address: superchain.Address{},
+			Version: "2.1.1",
+			Address: superchain.HexToAddress("0x442d5c024a80c34d64fed048bdc7c50dd84665c4"),
 		},
 		L1ERC721Bridge: superchain.VersionedContract{
-			Version: "",
-			Address: superchain.Address{},
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0x30e2c20c73353b8ddb6021d5636aef1b91727077"),
 		},
 		L1StandardBridge: superchain.VersionedContract{
-			Version: "",
-			Address: superchain.Address{},
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0xf71db0a6955b3edc78a267cd6441feed4ee0197b"),
 		},
 		OptimismPortal: superchain.VersionedContract{
-			Version: "",
-			Address: superchain.Address{},
+			Version: "2.1.0",
+			Address: superchain.HexToAddress("0x770d02b87e081e61ab30713b0ece6dfade792aff"),
 		},
 		SystemConfig: superchain.VersionedContract{
-			Version: "",
-			Address: superchain.Address{},
+			Version: "1.11.0",
+			Address: superchain.HexToAddress("0xf55b3dbb3bd2f2fa9236b0be6e8b9e91b819fd14"),
+		},
+	},
+	// OP Sepolia
+	11155420: {
+		L1CrossDomainMessenger: superchain.VersionedContract{
+			Version: "2.1.1",
+			Address: superchain.HexToAddress("0xc3c7e6f4ad6a593a9731a39fa883ec1999d7d873"),
+		},
+		L1ERC721Bridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0x532cad52e1f812eeb9c9a9571e07fef55993fefa"),
+		},
+		L1StandardBridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0xe19c7a2c0bb32287731ea75da9b1c836815964f1"),
+		},
+		OptimismPortal: superchain.VersionedContract{
+			Version: "2.1.0",
+			Address: superchain.HexToAddress("0x592B7D3255a8037307d23C16cC8c13a9563c8Ab1"),
+		},
+		SystemConfig: superchain.VersionedContract{
+			Version: "1.11.0",
+			Address: superchain.HexToAddress("0xce77d580e0befbb1561376a722217017651b9dbf"),
+		},
+	},
+	// Zora Sepolia
+	999999999: {
+		L1CrossDomainMessenger: superchain.VersionedContract{
+			Version: "2.1.1",
+			Address: superchain.HexToAddress("0xb74e6f01cddfc53cd48fb94e14137a0801a67ee4"),
+		},
+		L1ERC721Bridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0x5ff51b220049151710752ebe65d0a060020f6018"),
+		},
+		L1StandardBridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0xf8e25ec7ca94a960a9392c56c55b68414f5c7ded"),
+		},
+		OptimismPortal: superchain.VersionedContract{
+			Version: "2.1.0",
+			Address: superchain.HexToAddress("0xd2b5f6dfa6fdfd89327a5aa4c787a89456ef0ca8"),
+		},
+		SystemConfig: superchain.VersionedContract{
+			Version: "1.11.0",
+			Address: superchain.HexToAddress("0xaeb5f8ed2977e70f4ddacf2f603c0dcf8e561873"),
+		},
+	},
+	// PGN Sepolia
+	58008: {
+		L1CrossDomainMessenger: superchain.VersionedContract{
+			Version: "2.1.1",
+			Address: superchain.HexToAddress("0x99bb19a985e1def20d363405c5943d10e715dc12"),
+		},
+		L1ERC721Bridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0x89eba5aeb024534e6e1575c6bdb0f4f70d32f7da"),
+		},
+		L1StandardBridge: superchain.VersionedContract{
+			Version: "2.0.0",
+			Address: superchain.HexToAddress("0x9cde10006cac4423505864c904e2cfcf124dcaee"),
+		},
+		OptimismPortal: superchain.VersionedContract{
+			Version: "2.1.0",
+			Address: superchain.HexToAddress("0x725da050f385e52c0ae700e8c433c3636aba4592"),
+		},
+		SystemConfig: superchain.VersionedContract{
+			Version: "1.11.0",
+			Address: superchain.HexToAddress("0xd1557adfee8eda61619fc227c3dbb41fc16fc840"),
 		},
 	},
 }
@@ -54,16 +124,18 @@ func main() {
 		Usage: "Build transactions useful for upgrading the Superchain",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:    "l1-rpc-url",
-				Value:   "http://127.0.0.1:8545",
-				Usage:   "L1 RPC URL, the chain ID will be used to determine the superchain",
-				EnvVars: []string{"L1_RPC_URL"},
+				Name:     "l1-rpc-url",
+				Value:    "http://127.0.0.1:8545",
+				Usage:    "L1 RPC URL, the chain ID will be used to determine the superchain",
+				Required: true,
+				EnvVars:  []string{"L1_RPC_URL"},
 			},
 			&cli.StringFlag{
-				Name:    "l2-rpc-url",
-				Value:   "http://127.0.0.1:9545",
-				Usage:   "L2 RPC URL",
-				EnvVars: []string{"L2_RPC_URL"},
+				Name:     "l2-rpc-url",
+				Value:    "http://127.0.0.1:9545",
+				Usage:    "L2 RPC URL",
+				Required: true,
+				EnvVars:  []string{"L2_RPC_URL"},
 			},
 			&cli.PathFlag{
 				Name:     "deploy-config",
