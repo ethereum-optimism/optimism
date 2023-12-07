@@ -287,7 +287,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.Empty(t, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
 
 	// wait for processor catchup
-	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
+	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
@@ -366,7 +366,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 	require.Empty(t, aliceWithdrawals.Withdrawals[0].FinalizedL1TransactionHash)
 
 	// wait for processor catchup
-	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], testSuite.OpCfg.Secrets.Alice, l2ToL1WithdrawReceipt)
+	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", testSuite.OpCfg.Secrets.Alice, l2ToL1WithdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.BridgeProcessor.LastFinalizedL1Header
 		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
@@ -561,7 +561,7 @@ func TestClientBridgeFunctions(t *testing.T) {
 
 	// (5) Prove & finalize withdrawals on L1
 	for _, actor := range actors {
-		params, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], actor.priv, actor.receipt)
+		params, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, testSuite.OpSys, "sequencer", actor.priv, actor.receipt)
 		require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.BridgeProcessor.LastL1Header
 			seen := l1Header != nil && l1Header.Number.Uint64() >= proveReceipt.BlockNumber.Uint64()
