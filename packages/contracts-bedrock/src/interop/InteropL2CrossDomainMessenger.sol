@@ -74,7 +74,10 @@ contract InteropL2CrossDomainMessenger is ISemver {
 
     /// @notice Retrieves the address of the currently executing message
     function xDomainMessageSender() external view returns (address) {
-        require(xDomainMsgSender != Constants.DEFAULT_L2_SENDER, "InteropL2CrossDomainMessenger: xDomainMessageSender is not set");
+        require(
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER,
+            "InteropL2CrossDomainMessenger: xDomainMessageSender is not set"
+        );
         return xDomainMsgSender;
     }
 

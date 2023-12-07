@@ -19,24 +19,17 @@ contract InteropL2StandardBridge is ISemver {
     string public constant version = "0.0.1";
 
     /// @notice Interop enabled L2CrossDomainMessenger
-    InteropL2CrossDomainMessenger immutable MESSENGER = InteropL2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
+    InteropL2CrossDomainMessenger immutable MESSENGER =
+        InteropL2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
 
     /// @notice emitted whenever ETH is bridged to a destination
     event ETHBridgeInitiated(
-        bytes32 indexed destinationChain,
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes extraData
+        bytes32 indexed destinationChain, address indexed from, address indexed to, uint256 amount, bytes extraData
     );
 
     /// @notice emitted whenever ETH is bridged from a source
     event ETHBridgeFinalized(
-        bytes32 indexed sourceChain,
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes extraData
+        bytes32 indexed sourceChain, address indexed from, address indexed to, uint256 amount, bytes extraData
     );
 
     /// @notice emitted whenever an ERC20 is bridged to a destination
@@ -107,10 +100,10 @@ contract InteropL2StandardBridge is ISemver {
         public
         onlyEOA
     {
-
         require(
             ERC165Checker.supportsInterface(_localToken, type(IOptimismMintableERC20).interfaceId),
-            "InteropL2StandardBridge: can only bridge the IOptimismMintableERC20 interface");
+            "InteropL2StandardBridge: can only bridge the IOptimismMintableERC20 interface"
+        );
 
         IOptimismMintableERC20(_localToken).burn(msg.sender, _amount);
 
@@ -122,11 +115,9 @@ contract InteropL2StandardBridge is ISemver {
             address(this),
             abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
-
                 // local & remote stay the same as a cross L2 transfer
                 _localToken,
                 remoteToken,
-
                 msg.sender,
                 _to,
                 _amount,
@@ -135,7 +126,7 @@ contract InteropL2StandardBridge is ISemver {
             _minGasLimit
         );
     }
-    
+
     /// @notice finalizeBridgeETH releases ETH to the specified recipient
     function finalizeBridgeETH(
         address _from,
@@ -177,9 +168,14 @@ contract InteropL2StandardBridge is ISemver {
 
         // As a safety check, we just ensure the _remoteToken address remains the same
         // when completing a cross L2 transfer.
-        require(IOptimismMintableERC20(_localToken).remoteToken() == _remoteToken, "InteropL2StandardBridge: remote token mismatch");
+        require(
+            IOptimismMintableERC20(_localToken).remoteToken() == _remoteToken,
+            "InteropL2StandardBridge: remote token mismatch"
+        );
 
         IOptimismMintableERC20(_localToken).mint(_to, _amount);
-        emit ERC20BridgeFinalized(MESSENGER.xDomainChainId(), _localToken, _from, _remoteToken, _to, _amount, _extraData);
+        emit ERC20BridgeFinalized(
+            MESSENGER.xDomainChainId(), _localToken, _from, _remoteToken, _to, _amount, _extraData
+        );
     }
 }
