@@ -1377,11 +1377,6 @@ jobs:
           command: |
             pnpm test:kontrol 
           working_directory: ./packages/contracts-bedrock
-      - run:
-          name: Create Results Tar
-          command: |
-            tar -czvf results.tar.gz ./kout/proofs
-          working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: kontrol-results_*.tar.gz
           destination: results
