@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +24,8 @@ func TestPrefetchingEthClient(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			ctx := context.Background()
 			mockEthClient := new(testutils.MockEthClient)
-			client, err := NewPrefetchingEthClient(mockEthClient, prefetchingRange, 30*time.Second)
+			logger := testlog.Logger(t, log.LvlDebug)
+			client, err := NewPrefetchingEthClient(mockEthClient, logger, prefetchingRange, 30*time.Second)
 			require.NoError(t, err)
 			defer client.Close()
 			client.wg = new(sync.WaitGroup) // Initialize the WaitGroup for testing
