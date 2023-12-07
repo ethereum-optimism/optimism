@@ -8,25 +8,11 @@ blank_line() { echo '' >&2 ; }
 notif() { echo "== $0: $@" >&2 ; }
 
 #############
-# CMD Check #
-#############
-if [ $# -eq 0 ]; then
-    echo "No arguments provided"
-    echo "Usage: ./run-kontrol.sh <KONTROL_RELEASE>"
-    exit 1
-fi
-# -h or --help
-if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
-    echo "Usage: ./run-kontrol.sh <KONTROL_RELEASE>"
-    exit 0
-fi
-
-#############
 # Variables #
 #############
 export FOUNDRY_PROFILE=kontrol
 export CONTAINER_NAME=kontrol-tests
-export KONTROL_RELEASE=${1}; shift
+export KONTROL_RELEASE=$(cat .kontrolrc)
 
 # Set Script Directory Variables <root>/packages/contracts-bedrock/test/kontrol/kontrol
 SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -37,21 +23,6 @@ blank_line
 WORKSPACE_DIR=$( cd $SCRIPT_HOME/../../.. >/dev/null 2>&1 && pwd )
 notif "Run Directory: $WORKSPACE_DIR"
 blank_line
-
-# Set Log Directory <root>/packages/contracts-bedrock/test/kontrol/kontrol/logs
-# LOG_DIRECTORY=$SCRIPT_HOME/logs
-# notif "Log Directory: $LOG_DIRECTORY"
-# blank_line
-
-# if [ ! -d $LOG_DIRECTORY ] ; then
-#   mkdir $LOG_DIRECTORY
-# fi
-
-# LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-# notif "Logging to $LOG_DIRECTORY/$LOG_FILE"
-# blank_line
-# exec > >(tee -i $LOG_DIRECTORY/$LOG_FILE)
-# exec 2>&1
 
 #############
 # Functions #
