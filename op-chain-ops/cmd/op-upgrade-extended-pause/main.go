@@ -18,10 +18,10 @@ import (
 	"github.com/ethereum-optimism/superchain-registry/superchain"
 )
 
-// addresses contains the L1 addresses of the contracts that are being upgraded to.
+// deployments contains the L1 addresses of the contracts that are being upgraded to.
 // Note that the key is the L2 chain id. This is because the L1 contracts must be specific
 // for a particular OP Stack chain and cannot currently be used by multiple chains.
-var addresses = map[uint64]superchain.ImplementationList{
+var deployments = map[uint64]superchain.ImplementationList{
 	// Base Sepolia
 	84532: {
 		L1CrossDomainMessenger: superchain.VersionedContract{
@@ -175,7 +175,7 @@ func entrypoint(ctx *cli.Context) error {
 		return errors.New("Cannot create L1 client")
 	}
 	if clients.L2Client == nil {
-		return errors.New("Cannot create L1 client")
+		return errors.New("Cannot create L2 client")
 	}
 
 	l1ChainID, err := clients.L1Client.ChainID(ctx.Context)
@@ -192,7 +192,7 @@ func entrypoint(ctx *cli.Context) error {
 	// Create a batch of transactions
 	batch := safe.Batch{}
 
-	list, ok := addresses[l2ChainID.Uint64()]
+	list, ok := deployments[l2ChainID.Uint64()]
 	if !ok {
 		return fmt.Errorf("no implementations for chain ID %d", l2ChainID)
 	}
