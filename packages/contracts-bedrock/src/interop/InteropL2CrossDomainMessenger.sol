@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { L2CrossDomainMessenger as LegacyL2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { CrossL2Outbox } from "src/interop/CrossL2Outbox.sol";
+import { InteropConstants } from "src/interop/InteropConstants.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -114,8 +115,7 @@ contract InteropL2CrossDomainMessenger is ISemver {
         payable
     {
         // L2->L1 Support: Utilize the old pathway for now
-        bytes32 ETH_MAINNET_ID = bytes32(uint256(1));
-        if (_destination == ETH_MAINNET_ID) {
+        if (_destination == InteropConstants.ETH_MAINNET_ID) {
             LegacyL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(
                 _target, _message, _minGasLimit
             );

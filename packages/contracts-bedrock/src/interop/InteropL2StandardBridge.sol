@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { L2StandardBridge as LegacyL2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { InteropL2CrossDomainMessenger } from "src/interop/InteropL2CrossDomainMessenger.sol";
+import { InteropConstants } from "src/interop/InteropConstants.sol";
 
 import { IOptimismMintableERC20 } from "src/universal/IOptimismMintableERC20.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
@@ -17,6 +19,8 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 contract InteropL2StandardBridge is ISemver {
     /// @custom:semver 0.0.1
     string public constant version = "0.0.1";
+
+    // StandardBridge: copied internals & updated dispatch/message spec
 
     /// @notice Interop enabled L2CrossDomainMessenger
     InteropL2CrossDomainMessenger immutable MESSENGER =
@@ -78,6 +82,15 @@ contract InteropL2StandardBridge is ISemver {
         payable
         onlyEOA
     {
+
+        // L2->L1 Support: Utilize the old pathway for now
+        if (targetChain == InteropConstants.ETH_MAINNET_ID) {
+            LegacyL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: msg.value }(
+                _to, _minGasLimit, _extraData
+            );
+            return;
+        }
+
         emit ETHBridgeInitiated(targetChain, msg.sender, _to, msg.value, _extraData);
         MESSENGER.sendMessage{ value: msg.value }(
             targetChain,
@@ -105,9 +118,17 @@ contract InteropL2StandardBridge is ISemver {
             "InteropL2StandardBridge: can only bridge the IOptimismMintableERC20 interface"
         );
 
-        IOptimismMintableERC20(_localToken).burn(msg.sender, _amount);
-
         address remoteToken = IOptimismMintableERC20(_localToken).remoteToken();
+
+        // L2->L1 Support: Utilize the old pathway for now
+        if (targetChain == InteropConstants.ETH_MAINNET_ID) {
+            LegacyL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeERC20To(
+                _localToken, remoteToken, _to, _amount, _minGasLimit, _extraData
+            );
+            return;
+        }
+
+        IOptimismMintableERC20(_localToken).burn(msg.sender, _amount);
         emit ERC20BridgeInitiated(targetChain, _localToken, remoteToken, msg.sender, _to, _amount, _extraData);
 
         MESSENGER.sendMessage(
