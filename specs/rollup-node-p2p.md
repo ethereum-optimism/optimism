@@ -285,6 +285,7 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 
 - `[REJECT]` if the compression is not valid
 - `[REJECT]` if the block encoding is not valid
+- `[REJECT]` if the signature by the sequencer is not valid
 - `[REJECT]` if the `payload.timestamp` is older than 60 seconds in the past
   (graceful boundary for worst-case propagation and clock skew)
 - `[REJECT]` if the `payload.timestamp` is more than 5 seconds into the future
@@ -294,7 +295,6 @@ An [extended-validator] checks the incoming messages as follows, in order of ope
 - `[REJECT]` if the block is on the V2 topic and has a non-zero amount of withdrawals
 - `[REJECT]` if more than 5 different blocks have been seen with the same block height
 - `[IGNORE]` if the block has already been seen
-- `[REJECT]` if the signature by the sequencer is not valid
 - Mark the block as seen for the given block height
 
 The block is signed by the corresponding sequencer, to filter malicious messages.
