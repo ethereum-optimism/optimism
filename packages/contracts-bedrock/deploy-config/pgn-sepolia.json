@@ -34,5 +34,12 @@
   "l2OutputOracleChallenger": "0x69F0FFc19504B57e9AE4B6D7694d028c3CD876F8",
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
-  "sequencerFeeVaultWithdrawalNetwork": 0
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+  "l2OutputOracleStartingBlockNumber": 0,
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "systemConfigStartBlock": 0,
+  "requiredProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000001",
+  "recommendedProtocolVersion": "0x0000000000000000000000000000000000000003000000010000000000000001"
 }
