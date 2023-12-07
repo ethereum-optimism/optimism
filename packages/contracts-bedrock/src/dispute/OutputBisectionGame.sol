@@ -83,8 +83,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.13
-    string public constant version = "0.0.13";
+    /// @custom:semver 0.0.14
+    string public constant version = "0.0.14";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -147,16 +147,20 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // prestate.
             // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
             // the game state.
-            preStateClaim = stepPos.indexAtDepth() == 0
+            // NOTE: We localize the `indexAtDepth` for the current execution trace subgame by finding
+            //       the remainder of the index at depth divided by 2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH),
+            //       which is the number of leaves in each execution trace subgame. This is so that we can
+            //       determine whether or not the step position is represents the `ABSOLUTE_PRESTATE`.
+            preStateClaim = (stepPos.indexAtDepth() % (2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
                 ? ABSOLUTE_PRESTATE
-                : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex).claim;
+                : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex, false).claim;
             // For all attacks, the poststate is the parent claim.
             postState = parent;
         } else {
             // If the step is a defense, the poststate exists elsewhere in the game state,
             // and the parent claim is the expected pre-state.
             preStateClaim = parent.claim;
-            postState = findTraceAncestor(Position.wrap(Position.unwrap(parentPos) + 1), parent.parentIndex);
+            postState = findTraceAncestor(Position.wrap(Position.unwrap(parentPos) + 1), parent.parentIndex, false);
         }
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
@@ -296,16 +300,16 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         Hash uuid = computeLocalContext(starting, startingPos, disputed, disputedPos);
 
         IPreimageOracle oracle = VM.oracle();
-        if (_ident == 1) {
+        if (_ident == LocalPreimageKey.L1_HEAD_HASH) {
             // Load the L1 head hash
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Hash.unwrap(l1Head), 32, _partOffset);
-        } else if (_ident == 2) {
+        } else if (_ident == LocalPreimageKey.STARTING_OUTPUT_ROOT) {
             // Load the starting proposal's output root.
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(starting), 32, _partOffset);
-        } else if (_ident == 3) {
+        } else if (_ident == LocalPreimageKey.DISPUTED_OUTPUT_ROOT) {
             // Load the disputed proposal's output root
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(disputed), 32, _partOffset);
-        } else if (_ident == 4) {
+        } else if (_ident == LocalPreimageKey.STARTING_L2_BLOCK_NUMBER) {
             // Load the starting proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
@@ -316,7 +320,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
                 : GENESIS_BLOCK_NUMBER + startingPos.indexAtDepth() + 1;
 
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(l2Number << 0xC0), 8, _partOffset);
-        } else if (_ident == 5) {
+        } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(block.chainid << 0xC0), 8, _partOffset);
         } else {
@@ -479,10 +483,20 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice Finds the trace ancestor of a given position within the DAG.
     /// @param _pos The position to find the trace ancestor claim of.
     /// @param _start The index to start searching from.
+    /// @param _global Whether or not to search the entire dag or just within an execution trace subgame. If set to
+    ///                `true`, and `_pos` is at or above the split depth, this function will revert.
     /// @return ancestor_ The ancestor claim that commits to the same trace index as `_pos`.
-    function findTraceAncestor(Position _pos, uint256 _start) internal view returns (ClaimData storage ancestor_) {
+    function findTraceAncestor(
+        Position _pos,
+        uint256 _start,
+        bool _global
+    )
+        internal
+        view
+        returns (ClaimData storage ancestor_)
+    {
         // Grab the trace ancestor's expected position.
-        Position preStateTraceAncestor = _pos.traceAncestor();
+        Position preStateTraceAncestor = _global ? _pos.traceAncestor() : _pos.traceAncestorBounded(SPLIT_DEPTH);
 
         // Walk up the DAG to find a claim that commits to the same trace index as `_pos`. It is
         // guaranteed that such a claim exists.
@@ -547,14 +561,16 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // starting claim nor position exists in the tree. We leave these as 0, which can be easily
             // identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
-                ClaimData storage starting = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx);
+                ClaimData storage starting =
+                    findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx, true);
                 (startingClaim_, startingPos_) = (starting.claim, starting.position);
             } else {
                 startingClaim_ = Claim.wrap(Hash.unwrap(GENESIS_OUTPUT_ROOT));
             }
             (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
         } else {
-            ClaimData storage disputed = findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx);
+            ClaimData storage disputed =
+                findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx, true);
             (startingClaim_, startingPos_) = (claim.claim, claim.position);
             (disputedClaim_, disputedPos_) = (disputed.claim, disputed.position);
         }
