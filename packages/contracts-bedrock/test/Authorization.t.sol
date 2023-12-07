@@ -26,10 +26,16 @@ contract Authorization_Test is CommonTest {
         AbiEntry[] entries;
     }
 
+    /// @notice Represents the specification of a function.
+    /// @custom:field name     Contract name
+    /// @custom:field sel      Function selector
+    /// @custom:field auth     Specifies authentication as a requirement
+    /// @custom:field pausable Specifies that the function is pausable
     struct Spec {
         string name;
         bytes4 sel;
         bool auth;
+        bool pausable;
     }
 
     mapping(string => mapping(bytes4 => Spec)) specs;
@@ -39,176 +45,392 @@ contract Authorization_Test is CommonTest {
         super.setUp();
 
         // DelayedVetoable
-        _addSpec("DelayedVetoable", _getSel("delay()"), false);
-        _addSpec("DelayedVetoable", _getSel("initiator()"), false);
-        _addSpec("DelayedVetoable", _getSel("queuedAt(bytes32)"), false);
-        _addSpec("DelayedVetoable", _getSel("target()"), false);
-        _addSpec("DelayedVetoable", _getSel("version()"), false);
-        _addSpec("DelayedVetoable", _getSel("vetoer()"), false);
+        _addSpec({ _name: "DelayedVetoable", _sel: _getSel("delay()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "DelayedVetoable", _sel: _getSel("initiator()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "DelayedVetoable", _sel: _getSel("queuedAt(bytes32)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "DelayedVetoable", _sel: _getSel("target()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "DelayedVetoable", _sel: _getSel("version()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "DelayedVetoable", _sel: _getSel("vetoer()"), _auth: false, _pausable: false });
 
         // L1CrossDomainMessenger
-        _addSpec("L1CrossDomainMessenger", _getSel("MESSAGE_VERSION()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("MIN_GAS_CALLDATA_OVERHEAD()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("OTHER_MESSENGER()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("PORTAL()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("RELAY_CALL_OVERHEAD()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("RELAY_CONSTANT_OVERHEAD()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("RELAY_GAS_CHECK_BUFFER()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("RELAY_RESERVED_GAS()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("baseGas(bytes,uint32)"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("failedMessages(bytes32)"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("initialize(address)"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("messageNonce()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("paused()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("portal()"), false);
-        _addSpec(
-            "L1CrossDomainMessenger", _getSel("relayMessage(uint256,address,address,uint256,uint256,bytes)"), false
-        );
-        _addSpec("L1CrossDomainMessenger", _getSel("sendMessage(address,bytes,uint32)"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("successfulMessages(bytes32)"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("superchainConfig()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("version()"), false);
-        _addSpec("L1CrossDomainMessenger", _getSel("xDomainMessageSender()"), false);
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("MESSAGE_VERSION()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("MIN_GAS_CALLDATA_OVERHEAD()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("OTHER_MESSENGER()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("PORTAL()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("RELAY_CALL_OVERHEAD()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("RELAY_CONSTANT_OVERHEAD()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("RELAY_GAS_CHECK_BUFFER()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("RELAY_RESERVED_GAS()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("baseGas(bytes,uint32)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("failedMessages(bytes32)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("initialize(address)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("messageNonce()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("paused()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("portal()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("relayMessage(uint256,address,address,uint256,uint256,bytes)"),
+            _auth: false,
+            _pausable: true
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("sendMessage(address,bytes,uint32)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("successfulMessages(bytes32)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("superchainConfig()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("version()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1CrossDomainMessenger",
+            _sel: _getSel("xDomainMessageSender()"),
+            _auth: false,
+            _pausable: false
+        });
 
         // L1ERC721Bridge
-        _addSpec("L1ERC721Bridge", _getSel("MESSENGER()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("OTHER_BRIDGE()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("bridgeERC721(address,address,uint256,uint32,bytes)"), false);
-        _addSpec("L1ERC721Bridge", _getSel("bridgeERC721To(address,address,address,uint256,uint32,bytes)"), false);
-        _addSpec("L1ERC721Bridge", _getSel("deposits(address,address,uint256)"), false);
-        _addSpec("L1ERC721Bridge", _getSel("finalizeBridgeERC721(address,address,address,address,uint256,bytes)"), true);
-        _addSpec("L1ERC721Bridge", _getSel("messenger()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("otherBridge()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("version()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("superchainConfig()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("paused()"), false);
-        _addSpec("L1ERC721Bridge", _getSel("initialize(address)"), false);
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("MESSENGER()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("OTHER_BRIDGE()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1ERC721Bridge",
+            _sel: _getSel("bridgeERC721(address,address,uint256,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1ERC721Bridge",
+            _sel: _getSel("bridgeERC721To(address,address,address,uint256,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1ERC721Bridge",
+            _sel: _getSel("deposits(address,address,uint256)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1ERC721Bridge",
+            _sel: _getSel("finalizeBridgeERC721(address,address,address,address,uint256,bytes)"),
+            _auth: false,
+            _pausable: true
+        });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("messenger()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("otherBridge()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("version()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("superchainConfig()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("paused()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1ERC721Bridge", _sel: _getSel("initialize(address)"), _auth: false, _pausable: false });
 
         // L1StandardBridge
-        _addSpec("L1StandardBridge", _getSel("MESSENGER()"), false);
-        _addSpec("L1StandardBridge", _getSel("OTHER_BRIDGE()"), false);
-        _addSpec("L1StandardBridge", _getSel("bridgeERC20(address,address,uint256,uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("bridgeERC20To(address,address,address,uint256,uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("bridgeETH(uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("bridgeETHTo(address,uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("depositERC20(address,address,uint256,uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("depositERC20To(address,address,address,uint256,uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("depositETH(uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("depositETHTo(address,uint32,bytes)"), false);
-        _addSpec("L1StandardBridge", _getSel("deposits(address,address)"), false);
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("MESSENGER()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("OTHER_BRIDGE()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("bridgeERC20(address,address,uint256,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
         _addSpec(
-            "L1StandardBridge", _getSel("finalizeBridgeERC20(address,address,address,address,uint256,bytes)"), true
+            "L1StandardBridge", _getSel("bridgeERC20To(address,address,address,uint256,uint32,bytes)"), false, false
         );
-        _addSpec("L1StandardBridge", _getSel("finalizeBridgeETH(address,address,uint256,bytes)"), true);
-        _addSpec(
-            "L1StandardBridge", _getSel("finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)"), true
-        );
-        _addSpec("L1StandardBridge", _getSel("finalizeETHWithdrawal(address,address,uint256,bytes)"), true);
-        _addSpec("L1StandardBridge", _getSel("initialize(address)"), false);
-        _addSpec("L1StandardBridge", _getSel("l2TokenBridge()"), false);
-        _addSpec("L1StandardBridge", _getSel("messenger()"), false);
-        _addSpec("L1StandardBridge", _getSel("otherBridge()"), false);
-        _addSpec("L1StandardBridge", _getSel("paused()"), false);
-        _addSpec("L1StandardBridge", _getSel("superchainConfig()"), false);
-        _addSpec("L1StandardBridge", _getSel("version()"), false);
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("bridgeETH(uint32,bytes)"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("bridgeETHTo(address,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("depositERC20(address,address,uint256,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("depositERC20To(address,address,address,uint256,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("depositETH(uint32,bytes)"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("depositETHTo(address,uint32,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("deposits(address,address)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("finalizeBridgeERC20(address,address,address,address,uint256,bytes)"),
+            _auth: true,
+            _pausable: true
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("finalizeBridgeETH(address,address,uint256,bytes)"),
+            _auth: true,
+            _pausable: true
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)"),
+            _auth: true,
+            _pausable: true
+        });
+        _addSpec({
+            _name: "L1StandardBridge",
+            _sel: _getSel("finalizeETHWithdrawal(address,address,uint256,bytes)"),
+            _auth: true,
+            _pausable: true
+        });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("initialize(address)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("l2TokenBridge()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("messenger()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("otherBridge()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("paused()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("superchainConfig()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L1StandardBridge", _sel: _getSel("version()"), _auth: false, _pausable: false });
 
         // L2OutputOracle
-        _addSpec("L2OutputOracle", _getSel("CHALLENGER()"), false);
-        _addSpec("L2OutputOracle", _getSel("FINALIZATION_PERIOD_SECONDS()"), false);
-        _addSpec("L2OutputOracle", _getSel("L2_BLOCK_TIME()"), false);
-        _addSpec("L2OutputOracle", _getSel("PROPOSER()"), false);
-        _addSpec("L2OutputOracle", _getSel("SUBMISSION_INTERVAL()"), false);
-        _addSpec("L2OutputOracle", _getSel("challenger()"), false);
-        _addSpec("L2OutputOracle", _getSel("computeL2Timestamp(uint256)"), false);
-        _addSpec("L2OutputOracle", _getSel("deleteL2Outputs(uint256)"), true);
-        _addSpec("L2OutputOracle", _getSel("finalizationPeriodSeconds()"), false);
-        _addSpec("L2OutputOracle", _getSel("getL2Output(uint256)"), false);
-        _addSpec("L2OutputOracle", _getSel("getL2OutputAfter(uint256)"), false);
-        _addSpec("L2OutputOracle", _getSel("getL2OutputIndexAfter(uint256)"), false);
-        _addSpec("L2OutputOracle", _getSel("initialize(uint256,uint256)"), false);
-        _addSpec("L2OutputOracle", _getSel("l2BlockTime()"), false);
-        _addSpec("L2OutputOracle", _getSel("latestBlockNumber()"), false);
-        _addSpec("L2OutputOracle", _getSel("latestOutputIndex()"), false);
-        _addSpec("L2OutputOracle", _getSel("nextBlockNumber()"), false);
-        _addSpec("L2OutputOracle", _getSel("nextOutputIndex()"), false);
-        _addSpec("L2OutputOracle", _getSel("proposeL2Output(bytes32,uint256,bytes32,uint256)"), true);
-        _addSpec("L2OutputOracle", _getSel("proposer()"), false);
-        _addSpec("L2OutputOracle", _getSel("startingBlockNumber()"), false);
-        _addSpec("L2OutputOracle", _getSel("startingTimestamp()"), false);
-        _addSpec("L2OutputOracle", _getSel("submissionInterval()"), false);
-        _addSpec("L2OutputOracle", _getSel("version()"), false);
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("CHALLENGER()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("FINALIZATION_PERIOD_SECONDS()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("L2_BLOCK_TIME()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("PROPOSER()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("SUBMISSION_INTERVAL()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("challenger()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("computeL2Timestamp(uint256)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("deleteL2Outputs(uint256)"), _auth: true, _pausable: false });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("finalizationPeriodSeconds()"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2Output(uint256)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2OutputAfter(uint256)"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("getL2OutputIndexAfter(uint256)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("initialize(uint256,uint256)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("l2BlockTime()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("latestBlockNumber()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("latestOutputIndex()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("nextBlockNumber()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("nextOutputIndex()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("proposeL2Output(bytes32,uint256,bytes32,uint256)"),
+            _auth: true,
+            _pausable: false
+        });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("proposer()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("startingBlockNumber()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("startingTimestamp()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("submissionInterval()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("version()"), _auth: false, _pausable: false });
 
         // OptimismPortal
-        _addSpec("OptimismPortal", _getSel("GUARDIAN()"), false);
-        _addSpec("OptimismPortal", _getSel("L2_ORACLE()"), false);
-        _addSpec("OptimismPortal", _getSel("SYSTEM_CONFIG()"), false);
-        _addSpec("OptimismPortal", _getSel("depositTransaction(address,uint256,uint64,bool,bytes)"), false);
-        _addSpec("OptimismPortal", _getSel("donateETH()"), false);
-        _addSpec("OptimismPortal", OptimismPortal.finalizeWithdrawalTransaction.selector, true); // pauseable
-        _addSpec("OptimismPortal", _getSel("finalizedWithdrawals(bytes32)"), false);
-        _addSpec("OptimismPortal", _getSel("guardian()"), false);
-        _addSpec("OptimismPortal", _getSel("initialize(address)"), false);
-        _addSpec("OptimismPortal", _getSel("isOutputFinalized(uint256)"), false);
-        _addSpec("OptimismPortal", _getSel("l2Oracle()"), false);
-        _addSpec("OptimismPortal", _getSel("l2Sender()"), false);
-        _addSpec("OptimismPortal", _getSel("minimumGasLimit(uint64)"), false);
-        _addSpec("OptimismPortal", _getSel("params()"), false);
-        _addSpec("OptimismPortal", _getSel("paused()"), false);
-        _addSpec("OptimismPortal", OptimismPortal.proveWithdrawalTransaction.selector, true); // pauseable
-        _addSpec("OptimismPortal", _getSel("provenWithdrawals(bytes32)"), false);
-        _addSpec("OptimismPortal", _getSel("superchainConfig()"), false);
-        _addSpec("OptimismPortal", _getSel("systemConfig()"), false);
-        _addSpec("OptimismPortal", _getSel("version()"), false);
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("GUARDIAN()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("L2_ORACLE()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("SYSTEM_CONFIG()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "OptimismPortal",
+            _sel: _getSel("depositTransaction(address,uint256,uint64,bool,bytes)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("donateETH()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "OptimismPortal",
+            _sel: OptimismPortal.finalizeWithdrawalTransaction.selector,
+            _auth: false,
+            _pausable: true
+        });
+        _addSpec({
+            _name: "OptimismPortal",
+            _sel: _getSel("finalizedWithdrawals(bytes32)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("guardian()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("initialize(address)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("isOutputFinalized(uint256)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("l2Oracle()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("l2Sender()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("minimumGasLimit(uint64)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("params()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("paused()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "OptimismPortal",
+            _sel: OptimismPortal.proveWithdrawalTransaction.selector,
+            _auth: false,
+            _pausable: true
+        });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("provenWithdrawals(bytes32)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("superchainConfig()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("systemConfig()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("version()"), _auth: false, _pausable: false });
 
         // ProtocolVersions
-        _addSpec("ProtocolVersions", _getSel("RECOMMENDED_SLOT()"), false);
-        _addSpec("ProtocolVersions", _getSel("REQUIRED_SLOT()"), false);
-        _addSpec("ProtocolVersions", _getSel("VERSION()"), false);
-        _addSpec("ProtocolVersions", ProtocolVersions.initialize.selector, false);
-        _addSpec("ProtocolVersions", _getSel("owner()"), false);
-        _addSpec("ProtocolVersions", ProtocolVersions.recommended.selector, false);
-        _addSpec("ProtocolVersions", _getSel("renounceOwnership()"), true);
-        _addSpec("ProtocolVersions", ProtocolVersions.required.selector, false);
-        _addSpec("ProtocolVersions", ProtocolVersions.setRequired.selector, true);
-        _addSpec("ProtocolVersions", ProtocolVersions.setRecommended.selector, true);
-        _addSpec("ProtocolVersions", _getSel("transferOwnership(address)"), false);
-        _addSpec("ProtocolVersions", _getSel("version()"), false);
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("RECOMMENDED_SLOT()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("REQUIRED_SLOT()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("VERSION()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "ProtocolVersions",
+            _sel: ProtocolVersions.initialize.selector,
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("owner()"), _auth: false, _pausable: false });
+        _addSpec({
+            _name: "ProtocolVersions",
+            _sel: ProtocolVersions.recommended.selector,
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("renounceOwnership()"), _auth: true, _pausable: false });
+        _addSpec({ _name: "ProtocolVersions", _sel: ProtocolVersions.required.selector, _auth: false, _pausable: false });
+        _addSpec({
+            _name: "ProtocolVersions",
+            _sel: ProtocolVersions.setRequired.selector,
+            _auth: true,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProtocolVersions",
+            _sel: ProtocolVersions.setRecommended.selector,
+            _auth: true,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProtocolVersions",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: false,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProtocolVersions", _sel: _getSel("version()"), _auth: false, _pausable: false });
 
         // ResourceMetering
-        _addSpec("ResourceMetering", _getSel("params()"), false);
+        _addSpec({ _name: "ResourceMetering", _sel: _getSel("params()"), _auth: false, _pausable: false });
 
         // SuperchainConfig
-        _addSpec("SuperchainConfig", _getSel("GUARDIAN_SLOT()"), false);
-        _addSpec("SuperchainConfig", _getSel("PAUSED_SLOT()"), false);
-        _addSpec("SuperchainConfig", _getSel("guardian()"), false);
-        _addSpec("SuperchainConfig", _getSel("initialize(address,bool)"), false);
-        _addSpec("SuperchainConfig", _getSel("pause(string)"), true);
-        _addSpec("SuperchainConfig", _getSel("paused()"), false);
-        _addSpec("SuperchainConfig", _getSel("unpause()"), true);
-        _addSpec("SuperchainConfig", _getSel("version()"), false);
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("GUARDIAN_SLOT()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("PAUSED_SLOT()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("guardian()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("initialize(address,bool)"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("pause(string)"), _auth: true, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("paused()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("unpause()"), _auth: true, _pausable: false });
+        _addSpec({ _name: "SuperchainConfig", _sel: _getSel("version()"), _auth: false, _pausable: false });
 
         // SystemConfig
-        _addSpec("SystemConfig", _getSel("UNSAFE_BLOCK_SIGNER_SLOT()"), false);
-        _addSpec("SystemConfig", _getSel("VERSION()"), false);
-        _addSpec("SystemConfig", _getSel("batcherHash()"), false);
-        _addSpec("SystemConfig", _getSel("gasLimit()"), false);
-        _addSpec("SystemConfig", SystemConfig.initialize.selector, false);
-        _addSpec("SystemConfig", SystemConfig.minimumGasLimit.selector, false);
-        _addSpec("SystemConfig", _getSel("overhead()"), false);
-        _addSpec("SystemConfig", _getSel("owner()"), false);
-        _addSpec("SystemConfig", _getSel("renounceOwnership()"), true);
-        _addSpec("SystemConfig", SystemConfig.resourceConfig.selector, false);
-        _addSpec("SystemConfig", _getSel("scalar()"), false);
-        _addSpec("SystemConfig", SystemConfig.setBatcherHash.selector, true);
-        _addSpec("SystemConfig", SystemConfig.setGasConfig.selector, true);
-        _addSpec("SystemConfig", SystemConfig.setGasLimit.selector, true);
-        _addSpec("SystemConfig", SystemConfig.setResourceConfig.selector, true);
-        _addSpec("SystemConfig", SystemConfig.setUnsafeBlockSigner.selector, true);
-        _addSpec("SystemConfig", _getSel("transferOwnership(address)"), true);
-        _addSpec("SystemConfig", SystemConfig.unsafeBlockSigner.selector, false);
-        _addSpec("SystemConfig", _getSel("version()"), false);
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("UNSAFE_BLOCK_SIGNER_SLOT()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("VERSION()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("batcherHash()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("gasLimit()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.initialize.selector, _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.minimumGasLimit.selector, _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("overhead()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("owner()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("renounceOwnership()"), _auth: true, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.resourceConfig.selector, _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("scalar()"), _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setBatcherHash.selector, _auth: true, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setGasConfig.selector, _auth: true, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setGasLimit.selector, _auth: true, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.setResourceConfig.selector, _auth: true, _pausable: false });
+        _addSpec({
+            _name: "SystemConfig",
+            _sel: SystemConfig.setUnsafeBlockSigner.selector,
+            _auth: true,
+            _pausable: false
+        });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("transferOwnership(address)"), _auth: true, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: SystemConfig.unsafeBlockSigner.selector, _auth: false, _pausable: false });
+        _addSpec({ _name: "SystemConfig", _sel: _getSel("version()"), _auth: false, _pausable: false });
     }
 
     /// @dev Computes the selector from a function signature.
@@ -217,8 +439,8 @@ contract Authorization_Test is CommonTest {
     }
 
     /// @dev Adds a spec for a function.
-    function _addSpec(string memory _name, bytes4 _sel, bool _auth) internal {
-        specs[_name][_sel] = Spec({ name: _name, sel: _sel, auth: _auth });
+    function _addSpec(string memory _name, bytes4 _sel, bool _auth, bool _pausable) internal {
+        specs[_name][_sel] = Spec({ name: _name, sel: _sel, auth: _auth, pausable: _pausable });
         numEntries[_name]++;
     }
 
