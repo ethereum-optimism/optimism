@@ -1104,7 +1104,7 @@ func TestWithdrawals(t *testing.T) {
 	startBalanceBeforeFinalize, err := l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	proveReceipt, finalizeReceipt := ProveAndFinalizeWithdrawal(t, cfg, l1Client, sys.EthInstances["verifier"], ethPrivKey, receipt)
+	proveReceipt, finalizeReceipt := ProveAndFinalizeWithdrawal(t, cfg, sys, "verifier", ethPrivKey, receipt)
 
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
