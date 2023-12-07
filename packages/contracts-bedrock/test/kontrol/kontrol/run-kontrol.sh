@@ -60,6 +60,7 @@ start_docker () {
       --interactive                   \
       --tty                           \
       --detach                        \
+      --env FOUNDRY_PROFILE=${FOUNDRY_PROFILE} \
       --workdir /home/user/workspace  \
     runtimeverificationinc/kontrol:ubuntu-jammy-${KONTROL_RELEASE}
 
