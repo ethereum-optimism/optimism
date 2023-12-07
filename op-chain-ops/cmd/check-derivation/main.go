@@ -44,10 +44,10 @@ func main() {
 					Usage:   "L2 RPC URL",
 					EnvVars: []string{"L2_RPC_URL"},
 				},
-				&cli.IntFlag{
+				&cli.DurationFlag{
 					Name:  "polling-interval",
-					Value: 500,
-					Usage: "Polling interval (ms)",
+					Value: time.Millisecond * 500,
+					Usage: "Polling interval",
 				},
 			},
 			Action: detectL2Reorg,
@@ -62,10 +62,10 @@ func main() {
 					Usage:   "L2 RPC URL",
 					EnvVars: []string{"L2_RPC_URL"},
 				},
-				&cli.IntFlag{
+				&cli.DurationFlag{
 					Name:  "polling-interval",
-					Value: 1000,
-					Usage: "Polling interval (ms)",
+					Value: time.Millisecond * 1000,
+					Usage: "Polling interval",
 				},
 				&cli.StringFlag{
 					Name:  "private-key",
@@ -157,7 +157,7 @@ func detectL2Reorg(cliCtx *cli.Context) error {
 		return err
 	}
 
-	var pollingInterval = time.Duration(cliCtx.Int("polling-interval")) * time.Millisecond
+	var pollingInterval = cliCtx.Duration("polling-interval")
 	// blockMap maps blockNumber to blockHash
 	blockMap := make(map[uint64]common.Hash)
 	var prevUnsafeHeadNum uint64
@@ -326,10 +326,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
-	var pollingInterval = time.Duration(cliCtx.Int("polling-interval")) * time.Millisecond
+	var pollingInterval = cliCtx.Duration("polling-interval")
 	privateKey, err := getPrivateKey(cliCtx)
 	if err != nil {
 		return err
@@ -355,17 +352,19 @@ func checkConsolidation(cliCtx *cli.Context) error {
 	// txMap maps txHash to blockID
 	txMap := make(map[common.Hash]eth.BlockID)
 	for i := 0; i < txCount; i++ {
-		var tx *types.Transaction
+		txType := types.LegacyTxType
+		protected := true
 		switch i % 4 {
 		case 0:
-			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.LegacyTxType, false)
+			protected = false // legacy unprotected TX (Homestead)
 		case 1:
-			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.LegacyTxType, true)
+			// legacy protected TX
 		case 2:
-			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.AccessListTxType, true)
+			txType = types.AccessListTxType
 		case 3:
-			tx, err = getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, types.DynamicFeeTxType, true)
+			txType = types.DynamicFeeTxType
 		}
+		tx, err := getRandomSignedTransaction(ctx, cl, rng, from, privateKey, l2ChainID, txType, protected)
 		if err != nil {
 			return err
 		}
@@ -373,6 +372,7 @@ func checkConsolidation(cliCtx *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to send transaction: %w", err)
 		}
+		log.Info("Sent transaction", "txType", txType, "protected", protected)
 		txHash := tx.Hash()
 		blockId, err := confirmTransaction(ctx, cl, l2BlockTime, txHash)
 		if err != nil {
