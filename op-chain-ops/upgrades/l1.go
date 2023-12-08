@@ -20,6 +20,8 @@ const (
 	upgradeAndCall = "upgradeAndCall(address,address,bytes)"
 	// upgrade represents the signature of the upgrade function on the ProxyAdmin contract.
 	upgrade = "upgrade(address,address)"
+
+	method = "setBytes32"
 )
 
 var (
@@ -85,7 +87,7 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return err
 		}
@@ -146,7 +148,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return fmt.Errorf("setBytes32: %w", err)
 		}
@@ -212,7 +214,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return err
 		}
@@ -283,7 +285,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return err
 		}
@@ -367,7 +369,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return err
 		}
@@ -432,7 +434,7 @@ func OptimismPortal(batch *safe.Batch, implementations superchain.Implementation
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return err
 		}
@@ -533,7 +535,7 @@ func SystemConfig(batch *safe.Batch, implementations superchain.ImplementationLi
 			},
 		}
 
-		calldata, err := storageSetterABI.Pack("setBytes32", input)
+		calldata, err := storageSetterABI.Pack(method, input)
 		if err != nil {
 			return err
 		}
