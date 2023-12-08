@@ -31,7 +31,7 @@ contract AlphabetVM2 is IBigStepper {
             // If the state data is empty, then the absolute prestate is the claim.
             traceIndex = 0;
             (claim) = abi.decode(_stateData, (uint256));
-            claim = claim + uint256(oracle.loadLocalData(4, _localContext, 0, 32, 0));
+            claim = claim + uint256(oracle.loadLocalData(4, _localContext, 0, 8, 0));
         } else {
             // Otherwise, decode the state data.
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));

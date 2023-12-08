@@ -641,28 +641,13 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy), _localContext));
         return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }
-
-    /// @dev Helper to change the VM status byte of a claim.
-    function _changeClaimStatus(Claim _claim, VMStatus _status) public pure returns (Claim out_) {
-        assembly {
-            out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
-        }
-    }
 }
 
-contract ThunderDome_1v1_Test is OutputBisectionGame_Init {
-    /// @dev The root claim of the game. This is the output root at block # 2 ** SPLIT_DEPTH
-    ///      in the alphabet game.
-    Claim internal immutable ROOT_CLAIM;
-    /// @dev The absolute prestate of the trace.
-    Claim internal immutable ABSOLUTE_PRESTATE;
-    /// @dev The state data (preimage) of the absolute prestate hash.
-    bytes internal absolutePrestateData;
-
-    constructor() {
-        ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) | uint256(10)));
-        ABSOLUTE_PRESTATE = Claim.wrap(bytes32((uint256(3) << 248) | uint256(0)));
-    }
+contract OutputBisection_1v1_Actors_Test is OutputBisectionGame_Init {
+    /// @dev The honest actor
+    DisputeActor internal honest;
+    /// @dev The dishonest actor
+    DisputeActor internal dishonest;
 
     function setUp() public override {
         // Setup the `OutputBisectionGame`
@@ -670,37 +655,145 @@ contract ThunderDome_1v1_Test is OutputBisectionGame_Init {
     }
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
-    function test_static_1v1_succeeds() public {
-        // Create the dispute game.
+    function test_static_1v1honestRoot_succeeds() public {
+        // Create the dispute game with an honest `ROOT_CLAIM`
+        bytes memory absolutePrestateData = abi.encode(0);
+        Claim absolutePrestateExec =
+            _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
+        Claim rootClaim = Claim.wrap(bytes32(uint256(0x10)));
         super.init({
-            rootClaim: ROOT_CLAIM,
-            absolutePrestate: ABSOLUTE_PRESTATE,
+            rootClaim: rootClaim,
+            absolutePrestate: absolutePrestateExec,
             l2BlockNumber: 0x10,
             genesisBlockNumber: 0,
             genesisOutputRoot: Hash.wrap(bytes32(0))
         });
 
-        bytes memory honestPreStateData = abi.encode(0);
-        bytes memory honestTrace = hex"";
+        // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of bytes [0, 255].
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+        // Create actors
+        _createActors({
+            _honestTrace: honestTrace,
+            _honestPreStateData: absolutePrestateData,
+            _honestStartingBlock: 0,
+            _dishonestTrace: new bytes(256),
+            _dishonestPreStateData: absolutePrestateData,
+            _dishonestStartingBlock: 1
+        });
+
+        // Exhaust all moves from both actors
+        _exhaustMoves();
+
+        // Resolve the game and assert that the defender won
+        _warpAndResolve();
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
+    }
+
+    /// @notice Static unit test for a 1v1 output bisection dispute.
+    function test_static_1v1dishonestRoot_succeeds() public {
+        // Create the dispute game with an honest `ROOT_CLAIM`
+        bytes memory absolutePrestateData = abi.encode(0);
+        Claim absolutePrestateExec =
+            _changeClaimStatus(Claim.wrap(keccak256(absolutePrestateData)), VMStatuses.UNFINISHED);
+        Claim rootClaim = Claim.wrap(bytes32(uint256(0x11)));
+        super.init({
+            rootClaim: rootClaim,
+            absolutePrestate: absolutePrestateExec,
+            l2BlockNumber: 0x11,
+            genesisBlockNumber: 0,
+            genesisOutputRoot: Hash.wrap(bytes32(0))
+        });
+
+        // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of bytes [0, 255].
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+        // The dishonest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of all zeros.
+        bytes memory dishonestTrace = new bytes(256);
+
+        // Create actors
+        _createActors({
+            _honestTrace: honestTrace,
+            _honestPreStateData: absolutePrestateData,
+            _honestStartingBlock: 0,
+            _dishonestTrace: dishonestTrace,
+            _dishonestPreStateData: absolutePrestateData,
+            _dishonestStartingBlock: 1
+        });
+
+        // Exhaust all moves from both actors
+        _exhaustMoves();
+
+        // Resolve the game and assert that the defender won
+        _warpAndResolve();
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
     }
 
     /// @dev Helper to create actors for the 1v1 dispute.
     function _createActors(
         bytes memory _honestTrace,
         bytes memory _honestPreStateData,
+        uint256 _honestStartingBlock,
         bytes memory _dishonestTrace,
-        bytes memory _dishonestPreStateData
-    )
-        internal
-        returns (DisputeActor honest_, DisputeActor dishonest_)
-    {
-        // Setup the honest and dishonest actors (todo)
-        honest_ =
-            new HonestDisputeActor({ _gameProxy: gameProxy, _trace: _honestTrace, _preStateData: _honestPreStateData });
-        dishonest_ = new HonestDisputeActor({
+        bytes memory _dishonestPreStateData,
+        uint256 _dishonestStartingBlock
+    ) internal {
+        honest = new HonestDisputeActor({
+            _gameProxy: gameProxy,
+            _trace: _honestTrace,
+            _preStateData: _honestPreStateData,
+            _startingL2BlockNumber: _honestStartingBlock
+        });
+        dishonest = new HonestDisputeActor({
             _gameProxy: gameProxy,
             _trace: _dishonestTrace,
-            _preStateData: _dishonestPreStateData
+            _preStateData: _dishonestPreStateData,
+            _startingL2BlockNumber: _dishonestStartingBlock
         });
+
+        vm.label(address(honest), "HonestActor");
+        vm.label(address(dishonest), "DishonestActor");
+    }
+
+    /// @dev Helper to exhaust all moves from both actors.
+    function _exhaustMoves() internal {
+        while (true) {
+            // Allow the dishonest actor to make their moves, and then the honest actor.
+            (uint256 numMovesA,) = dishonest.move();
+            (uint256 numMovesB,) = honest.move();
+
+            // If both actors have run out of moves, we're done.
+            if (numMovesA == 0 && numMovesB == 0) break;
+        }
+    }
+
+    /// @dev Helper to warp past the chess clock and resolve all claims within the dispute game.
+    function _warpAndResolve() internal {
+        // Warp past the chess clock
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // Resolve all claims in reverse order. We allow `resolveClaim` calls to fail due to
+        // the check that prevents claims with no subgames attached from being passed to
+        // `resolveClaim`. There's also a check in `resolve` to ensure all children have been
+        // resolved before global resolution, which catches any unresolved subgames here.
+        for (uint256 i = gameProxy.claimDataLen(); i > 0; i--) {
+            (bool success,) = address(gameProxy).call(abi.encodeCall(gameProxy.resolveClaim, (i - 1)));
+            success;
+        }
+        gameProxy.resolve();
+    }
+}
+
+/// @dev Helper to change the VM status byte of a claim.
+function _changeClaimStatus(Claim _claim, VMStatus _status) pure returns (Claim out_) {
+    assembly {
+        out_ := or(and(not(shl(248, 0xFF)), _claim), shl(248, _status))
     }
 }
