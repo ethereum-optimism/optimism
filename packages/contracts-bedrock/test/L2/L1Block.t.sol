@@ -226,9 +226,9 @@ contract L1BlockTest is CommonTest {
         vm.startPrank(depositor);
 
         uint64 lowerBound = 0;
-        uint8 m = 3;
+        uint8 rounds = 3;
 
-        for (uint64 i = 1; i <= uint256(m) * RING_SIZE + (m - 1); i++) {
+        for (uint64 i = 1; i <= uint256(rounds) * RING_SIZE + (rounds - 1); i++) {
             l1Block.setL1BlockValues({
                 _number: i,
                 _timestamp: uint64(0),
