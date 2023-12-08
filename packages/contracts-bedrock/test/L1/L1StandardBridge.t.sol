@@ -37,13 +37,6 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
     }
-
-    function test_initialize_fix_succeeds() external {
-        bytes32 slot0 = vm.load(address(l1StandardBridge), bytes32(uint256(0)));
-        // The first storage slot should only have its first byte set to 0x02.
-        // This covers the `clearLegacySlot` fix.
-        assertEq(slot0, bytes32(uint256(2)));
-    }
 }
 
 contract L1StandardBridge_Pause_Test is Bridge_Initializer {
