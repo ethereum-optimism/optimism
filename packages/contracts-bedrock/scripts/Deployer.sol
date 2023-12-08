@@ -116,6 +116,32 @@ abstract contract Deployer is Script {
             vm.writeJson("{}", tempDeploymentsPath);
         }
         console.log("Storing temp deployment data in %s", tempDeploymentsPath);
+
+        // Load addresses from a JSON file if the CONTRACT_ADDRESSES_PATH environment variable
+        // is set. Great for loading addresses from `superchain-registry`.
+        string memory addresses = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
+        if (bytes(addresses).length > 0) {
+            console.log("Loading addresses from %s", addresses);
+            _loadAddresses(addresses);
+        }
+    }
+
+    /// @notice Populates the addresses to be used in a script based on a JSON file.
+    ///         The format of the JSON file is the same that it output by this script
+    ///         as well as the JSON files that contain addresses in the `superchain-ops`
+    ///         repo. The JSON key is the name of the contract and the value is an address.
+    function _loadAddresses(string memory _path) internal {
+        string[] memory commands = new string[](3);
+        commands[0] = "bash";
+        commands[1] = "-c";
+        commands[2] = string.concat("jq -cr < ", _path);
+        string memory json = string(vm.ffi(commands));
+        string[] memory keys = vm.parseJsonKeys(json, "");
+        for (uint256 i; i < keys.length; i++) {
+            string memory key = keys[i];
+            address addr = stdJson.readAddress(json, string.concat("$.", key));
+            save(key, addr);
+        }
     }
 
     /// @notice Call this function to sync the deployment artifacts such that

@@ -54,6 +54,9 @@ import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 ///         To add a new contract to the system, add a public function that deploys that individual contract.
 ///         Then add a call to that function inside of `run`. Be sure to call the `save` function after each
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
+///         The `CONTRACT_ADDRESSES_PATH` environment variable can be set to a path that contains a JSON file full of
+///         contract name to address pairs. That enables this script to be much more flexible in the way
+///         it is used.
 contract Deploy is Deployer {
     DeployConfig public cfg;
 
