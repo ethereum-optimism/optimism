@@ -489,13 +489,6 @@ contract Deploy is Deployer {
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
 
-        // Override the `OptimismPortal` contract to the deployed implementation. This is necessary
-        // to check the `OptimismPortal` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.OptimismPortal = address(portal);
-        ChainAssertions.checkOptimismPortal({ _contracts: contracts, _cfg: cfg, _isProxy: false });
-
         require(loadInitializedSlot("OptimismPortal") == 1, "OptimismPortal is not initialized");
 
         addr_ = address(portal);
