@@ -1,7 +1,6 @@
 package fault
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -22,10 +21,11 @@ type GameInfo interface {
 }
 
 type GamePlayer struct {
-	act    actor
-	loader GameInfo
-	logger log.Logger
-	status gameTypes.GameStatus
+	act                actor
+	loader             GameInfo
+	logger             log.Logger
+	prestateValidators []Validator
+	status             gameTypes.GameStatus
 }
 
 type GameContract interface {
@@ -46,6 +46,7 @@ func NewGamePlayer(
 	addr common.Address,
 	txMgr txmgr.TxManager,
 	loader GameContract,
+	validators []Validator,
 	creator resourceCreator,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
@@ -58,9 +59,10 @@ func NewGamePlayer(
 		logger.Info("Game already resolved", "status", status)
 		// Game is already complete so skip creating the trace provider, loading game inputs etc.
 		return &GamePlayer{
-			logger: logger,
-			loader: loader,
-			status: status,
+			logger:             logger,
+			loader:             loader,
+			prestateValidators: validators,
+			status:             status,
 			// Act function does nothing because the game is already complete
 			act: func(ctx context.Context) error {
 				return nil
@@ -90,6 +92,15 @@ func NewGamePlayer(
 		logger: logger,
 		status: status,
 	}, nil
+}
+
+func (g *GamePlayer) ValidatePrestate(ctx context.Context) error {
+	for _, validator := range g.prestateValidators {
+		if err := validator.Validate(ctx); err != nil {
+			return fmt.Errorf("failed to validate prestate: %w", err)
+		}
+	}
+	return nil
 }
 
 func (g *GamePlayer) Status() gameTypes.GameStatus {
@@ -127,24 +138,4 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status gameTypes.GameSta
 		return
 	}
 	g.logger.Info("Game resolved", "status", status)
-}
-
-type PrestateLoader interface {
-	GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error)
-}
-
-// ValidateAbsolutePrestate validates the absolute prestate of the fault game.
-func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, loader PrestateLoader) error {
-	providerPrestateHash, err := trace.AbsolutePreStateCommitment(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
-	}
-	onchainPrestate, err := loader.GetAbsolutePrestateHash(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
-	}
-	if !bytes.Equal(providerPrestateHash[:], onchainPrestate[:]) {
-		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate: Provider: %s | Chain %s", providerPrestateHash.Hex(), onchainPrestate.Hex())
-	}
-	return nil
 }
