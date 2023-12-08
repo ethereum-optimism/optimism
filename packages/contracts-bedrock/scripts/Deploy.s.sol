@@ -812,7 +812,6 @@ contract Deploy is Deployer {
     /// @notice Initialize the L1ERC721Bridge
     function initializeL1ERC721Bridge() public broadcast {
         console.log("Upgrading and initializing L1ERC721Bridge proxy");
-        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
