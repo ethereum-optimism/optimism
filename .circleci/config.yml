@@ -1336,6 +1336,45 @@ jobs:
           name: Verify Values Match
           command: |
             ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
+
+  kontrol-tests:
+    docker:
+      - image: << pipeline.parameters.ci_builder_image >>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: Checkout Submodule
+          command: |
+            git submodule update --init --recursive
+      - check-changed:
+          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run: 
+          name: Install Docker CLI
+          command: |
+            # Add Docker's official GPG key:
+            apt-get update
+            apt-get install ca-certificates curl gnupg
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            chmod a+r /etc/apt/keyrings/docker.gpg
+            # Add the repository to Apt sources:
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+              tee /etc/apt/sources.list.d/docker.list > /dev/null
+            apt-get update
+            apt-get install -y docker-ce-cli
+      - run:
+          name: Run Kontrol Tests
+          command: |
+            pnpm test:kontrol 
+          working_directory: ./packages/contracts-bedrock
+      - store_artifacts:
+          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+
 workflows:
   main:
     when:
@@ -1588,6 +1627,7 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
+      - kontrol-tests
   release:
     when:
       not:
