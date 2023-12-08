@@ -89,18 +89,11 @@ func (p *PrefetchingEthClient) updateRange(from uint64) (start uint64, end uint6
 	start = from + 1
 	end = start + p.PrefetchingRange
 
-	// full range before latest requesting head, must be different window
-	// just prefetch it and don't update requestHead
-	// Not sure if this case even exists in the DP, but worth debugging.
-	if p.requestHead > p.PrefetchingRange && // must be initialized
-		end < p.requestHead-p.PrefetchingRange {
-		p.log().Debug("Prefetching full earlier window", "from", from, "start", start, "end", end)
-		return start, end, true
-	}
-
-	// avoid duplicate requests
-	if start < p.requestHead {
+	// avoid duplicate requests within current window
+	if start < p.requestHead && start >= p.requestHead-p.PrefetchingRange {
 		start = p.requestHead
+	} else {
+		p.log().Debug("Prefetching new window", "from", from, "start", start, "end", end)
 	}
 
 	// don't request beyond tip
@@ -110,9 +103,10 @@ func (p *PrefetchingEthClient) updateRange(from uint64) (start uint64, end uint6
 	}
 
 	// update requestHead
-	if p.requestHead < end {
-		p.requestHead = end
+	if p.requestHead > end {
+		p.log().Debug("Prefetching: Rewinding requestHead to end", "from", from, "start", start, "end", end)
 	}
+	p.requestHead = end
 	return start, end, start < end
 }
 

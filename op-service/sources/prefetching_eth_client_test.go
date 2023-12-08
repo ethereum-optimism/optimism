@@ -219,7 +219,7 @@ func TestPrefetchingEthClient_updateRange(t *testing.T) {
 				},
 				{
 					from:        105,
-					start:       111,
+					start:       106,
 					end:         116,
 					shouldFetch: true,
 				},
