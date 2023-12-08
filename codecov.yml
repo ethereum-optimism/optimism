@@ -16,6 +16,7 @@ ignore:
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
   - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
   - "packages/contracts-bedrock/src/libraries/RingLib.sol"
+  - "packages/contracts-bedrock/src/L2/L1Block.sol"
 coverage:
   status:
     patch:
