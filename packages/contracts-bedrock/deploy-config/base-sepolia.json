@@ -1,7 +1,7 @@
 {
   "finalSystemOwner": "0x608081689Fe46936fB2fBDF7552CbB1D80ad4822",
 
-  "l1StartingBlockTag": "safe",
+  "l1StartingBlockTag": "0x85b50d136c509037b2256180c9f911ac5bf9c39b057f94981c9c611efb0fcf02",
 
   "l1ChainID": 11155111,
   "l2ChainID": 84532,
