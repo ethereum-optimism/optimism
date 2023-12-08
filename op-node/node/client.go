@@ -45,9 +45,6 @@ type L2EndpointConfig struct {
 
 	// L2RpcTimeout specifies the timeout for L2 RPC requests.
 	L2RpcTimeout time.Duration
-
-	// L2RpcBatchTimeout specifies the timeout for L2 RPC batch requests.
-	L2RpcBatchTimeout time.Duration
 }
 
 var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
@@ -58,9 +55,6 @@ func (cfg *L2EndpointConfig) Check() error {
 	}
 	if cfg.L2RpcTimeout == 0 {
 		return fmt.Errorf("L2 RPC timeout cannot be 0")
-	}
-	if cfg.L2RpcBatchTimeout == 0 {
-		return fmt.Errorf("L2 RPC batch timeout cannot be 0")
 	}
 	return nil
 }
@@ -73,7 +67,7 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	opts := []client.RPCOption{
 		client.WithGethRPCOptions(auth),
 		client.WithDialBackoff(10),
-		client.WithTimeout(cfg.L2RpcTimeout, cfg.L2RpcBatchTimeout),
+		client.WithTimeout(cfg.L2RpcTimeout),
 	}
 	l2Node, err := client.NewRPC(ctx, log, cfg.L2EngineAddr, opts...)
 	if err != nil {

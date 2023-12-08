@@ -41,12 +41,6 @@ var (
 		EnvVars: prefixEnvVars("L2_RPC_TIMEOUT"),
 		Value:   time.Second * 10,
 	}
-	L2RpcBatchTimeout = &cli.DurationFlag{
-		Name:    "l2.rpc-batch-timeout",
-		Usage:   "Timeout for L2 RPC batch requests",
-		EnvVars: prefixEnvVars("L2_RPC_BATCH_TIMEOUT"),
-		Value:   time.Second * 20,
-	}
 	RollupConfig = &cli.StringFlag{
 		Name:    "rollup.config",
 		Usage:   "Rollup chain parameters",
@@ -365,7 +359,6 @@ var optionalFlags = []cli.Flag{
 	L1PrefetchingTimeout,
 	L2EngineJWTSecret,
 	L2RpcTimeout,
-	L2RpcBatchTimeout,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,

@@ -880,7 +880,6 @@ func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtS
 		L2EngineAddr:      l2EndpointConfig,
 		L2EngineJWTSecret: jwtSecret,
 		L2RpcTimeout:      10 * time.Second,
-		L2RpcBatchTimeout: 20 * time.Second,
 	}
 }
 
