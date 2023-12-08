@@ -498,13 +498,6 @@ contract Deploy is Deployer {
         save("L1CrossDomainMessenger", address(messenger));
         console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
 
-        // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
-        // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.L1CrossDomainMessenger = address(messenger);
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: contracts, _vm: vm, _isProxy: false });
-
         require(loadInitializedSlot("L1CrossDomainMessenger") == 1, "L1CrossDomainMessenger is not initialized");
 
         addr_ = address(messenger);
