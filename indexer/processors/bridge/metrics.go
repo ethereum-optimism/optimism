@@ -14,7 +14,9 @@ var (
 )
 
 type L1Metricer interface {
-	RecordLatestIndexedL1Height(height *big.Int)
+	RecordL1Interval() (done func(err error))
+	RecordL1LatestHeight(height *big.Int)
+	RecordL1LatestFinalizedHeight(height *big.Int)
 
 	RecordL1TransactionDeposits(size int, mintedETH float64)
 	RecordL1ProvenWithdrawals(size int)
@@ -23,12 +25,18 @@ type L1Metricer interface {
 	RecordL1CrossDomainSentMessages(size int)
 	RecordL1CrossDomainRelayedMessages(size int)
 
+	RecordL1SkippedOVM1ProvenWithdrawals(size int)
+	RecordL1SkippedOVM1FinalizedWithdrawals(size int)
+	RecordL1SkippedOVM1CrossDomainRelayedMessages(size int)
+
 	RecordL1InitiatedBridgeTransfers(token common.Address, size int)
 	RecordL1FinalizedBridgeTransfers(token common.Address, size int)
 }
 
 type L2Metricer interface {
-	RecordLatestIndexedL2Height(height *big.Int)
+	RecordL2Interval() (done func(err error))
+	RecordL2LatestHeight(height *big.Int)
+	RecordL2LatestFinalizedHeight(height *big.Int)
 
 	RecordL2TransactionWithdrawals(size int, withdrawnETH float64)
 
@@ -42,27 +50,28 @@ type L2Metricer interface {
 type Metricer interface {
 	L1Metricer
 	L2Metricer
-
-	RecordInterval() (done func(err error))
 }
 
 type bridgeMetrics struct {
-	intervalTick     prometheus.Counter
-	intervalDuration prometheus.Histogram
-	intervalFailures prometheus.Counter
+	latestHeight *prometheus.GaugeVec
 
-	latestL1Height prometheus.Gauge
-	latestL2Height prometheus.Gauge
+	intervalTick     *prometheus.CounterVec
+	intervalDuration *prometheus.HistogramVec
+	intervalFailures *prometheus.CounterVec
 
 	txDeposits           prometheus.Counter
-	txMintedETH          prometheus.Counter
 	txWithdrawals        prometheus.Counter
-	txWithdrawnETH       prometheus.Counter
 	provenWithdrawals    prometheus.Counter
 	finalizedWithdrawals prometheus.Counter
 
+	txMintedETH    prometheus.Counter
+	txWithdrawnETH prometheus.Counter
+
 	sentMessages    *prometheus.CounterVec
 	relayedMessages *prometheus.CounterVec
+
+	skippedOVM1Withdrawals     *prometheus.CounterVec
+	skippedOVM1RelayedMessages prometheus.Counter
 
 	initiatedBridgeTransfers *prometheus.CounterVec
 	finalizedBridgeTransfers *prometheus.CounterVec
@@ -71,32 +80,34 @@ type bridgeMetrics struct {
 func NewMetrics(registry *prometheus.Registry) Metricer {
 	factory := metrics.With(registry)
 	return &bridgeMetrics{
-		intervalTick: factory.NewCounter(prometheus.CounterOpts{
+		intervalTick: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "intervals_total",
 			Help:      "number of times processing loop has run",
+		}, []string{
+			"chain",
 		}),
-		intervalDuration: factory.NewHistogram(prometheus.HistogramOpts{
+		intervalDuration: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: MetricsNamespace,
 			Name:      "interval_seconds",
 			Help:      "duration elapsed in the processing loop",
+		}, []string{
+			"chain",
 		}),
-		intervalFailures: factory.NewCounter(prometheus.CounterOpts{
+		intervalFailures: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "interval_failures_total",
 			Help:      "number of failures encountered",
+		}, []string{
+			"chain",
 		}),
-		latestL1Height: factory.NewGauge(prometheus.GaugeOpts{
+		latestHeight: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
-			Subsystem: "l1",
 			Name:      "height",
 			Help:      "the latest processed l1 block height",
-		}),
-		latestL2Height: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: MetricsNamespace,
-			Subsystem: "l2",
-			Name:      "height",
-			Help:      "the latest processed l2 block height",
+		}, []string{
+			"chain",
+			"kind",
 		}),
 		txDeposits: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
@@ -111,7 +122,7 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		txWithdrawals: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "tx_withdrawals",
-			Help:      "number of processed transactions withdrawn from l2",
+			Help:      "number of initiated transaction withdrawals from l2",
 		}),
 		txWithdrawnETH: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
@@ -142,6 +153,18 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 		}, []string{
 			"chain",
 		}),
+		skippedOVM1Withdrawals: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "skipped_ovm1_withdrawals",
+			Help:      "number of skipped ovm 1.0 withdrawals on l1 (proven|finalized)",
+		}, []string{
+			"stage",
+		}),
+		skippedOVM1RelayedMessages: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: MetricsNamespace,
+			Name:      "skipped_ovm1_relayed_messages",
+			Help:      "number of skipped ovm 1.0 relayed messages on l1",
+		}),
 		initiatedBridgeTransfers: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,
 			Name:      "initiated_token_transfers",
@@ -161,21 +184,25 @@ func NewMetrics(registry *prometheus.Registry) Metricer {
 	}
 }
 
-func (m *bridgeMetrics) RecordInterval() func(error) {
-	m.intervalTick.Inc()
-	timer := prometheus.NewTimer(m.intervalDuration)
+// L1Metricer
+
+func (m *bridgeMetrics) RecordL1Interval() func(error) {
+	m.intervalTick.WithLabelValues("l1").Inc()
+	timer := prometheus.NewTimer(m.intervalDuration.WithLabelValues("l1"))
 	return func(err error) {
 		timer.ObserveDuration()
 		if err != nil {
-			m.intervalFailures.Inc()
+			m.intervalFailures.WithLabelValues("l1").Inc()
 		}
 	}
 }
 
-// L1Metricer
+func (m *bridgeMetrics) RecordL1LatestHeight(height *big.Int) {
+	m.latestHeight.WithLabelValues("l1", "initiated").Set(float64(height.Uint64()))
+}
 
-func (m *bridgeMetrics) RecordLatestIndexedL1Height(height *big.Int) {
-	m.latestL1Height.Set(float64(height.Uint64()))
+func (m *bridgeMetrics) RecordL1LatestFinalizedHeight(height *big.Int) {
+	m.latestHeight.WithLabelValues("l1", "finalized").Set(float64(height.Uint64()))
 }
 
 func (m *bridgeMetrics) RecordL1TransactionDeposits(size int, mintedETH float64) {
@@ -199,6 +226,18 @@ func (m *bridgeMetrics) RecordL1CrossDomainRelayedMessages(size int) {
 	m.relayedMessages.WithLabelValues("l1").Add(float64(size))
 }
 
+func (m *bridgeMetrics) RecordL1SkippedOVM1ProvenWithdrawals(size int) {
+	m.skippedOVM1Withdrawals.WithLabelValues("stage", "proven").Add(float64(size))
+}
+
+func (m *bridgeMetrics) RecordL1SkippedOVM1FinalizedWithdrawals(size int) {
+	m.skippedOVM1Withdrawals.WithLabelValues("stage", "finalized").Add(float64(size))
+}
+
+func (m *bridgeMetrics) RecordL1SkippedOVM1CrossDomainRelayedMessages(size int) {
+	m.skippedOVM1RelayedMessages.Add(float64(size))
+}
+
 func (m *bridgeMetrics) RecordL1InitiatedBridgeTransfers(tokenAddr common.Address, size int) {
 	m.initiatedBridgeTransfers.WithLabelValues("l1", tokenAddr.String()).Add(float64(size))
 }
@@ -209,8 +248,23 @@ func (m *bridgeMetrics) RecordL1FinalizedBridgeTransfers(tokenAddr common.Addres
 
 // L2Metricer
 
-func (m *bridgeMetrics) RecordLatestIndexedL2Height(height *big.Int) {
-	m.latestL2Height.Set(float64(height.Uint64()))
+func (m *bridgeMetrics) RecordL2Interval() func(error) {
+	m.intervalTick.WithLabelValues("l2").Inc()
+	timer := prometheus.NewTimer(m.intervalDuration.WithLabelValues("l2"))
+	return func(err error) {
+		timer.ObserveDuration()
+		if err != nil {
+			m.intervalFailures.WithLabelValues("l2").Inc()
+		}
+	}
+}
+
+func (m *bridgeMetrics) RecordL2LatestHeight(height *big.Int) {
+	m.latestHeight.WithLabelValues("l2", "initiated").Set(float64(height.Uint64()))
+}
+
+func (m *bridgeMetrics) RecordL2LatestFinalizedHeight(height *big.Int) {
+	m.latestHeight.WithLabelValues("l2", "finalized").Set(float64(height.Uint64()))
 }
 
 func (m *bridgeMetrics) RecordL2TransactionWithdrawals(size int, withdrawnETH float64) {

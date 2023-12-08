@@ -44,6 +44,9 @@ type BatcherCfg struct {
 	BatcherKey *ecdsa.PrivateKey
 
 	GarbageCfg *GarbageChannelCfg
+
+	ForceSubmitSingularBatch bool
+	ForceSubmitSpanBatch     bool
 }
 
 type L2BlockRefs interface {
@@ -157,7 +160,13 @@ func (s *L2Batcher) Buffer(t Testing) error {
 
 			var batchType uint = derive.SingularBatchType
 			var spanBatchBuilder *derive.SpanBatchBuilder = nil
-			if s.rollupCfg.IsSpanBatch(block.Time()) {
+
+			if s.l2BatcherCfg.ForceSubmitSingularBatch && s.l2BatcherCfg.ForceSubmitSpanBatch {
+				t.Fatalf("ForceSubmitSingularBatch and ForceSubmitSpanBatch cannot be set to true at the same time")
+			} else if s.l2BatcherCfg.ForceSubmitSingularBatch {
+				// use SingularBatchType
+			} else if s.l2BatcherCfg.ForceSubmitSpanBatch || s.rollupCfg.IsDelta(block.Time()) {
+				// If both ForceSubmitSingularBatch and ForceSubmitSpanbatch are false, use SpanBatch automatically if Delta HF is activated.
 				batchType = derive.SpanBatchType
 				spanBatchBuilder = derive.NewSpanBatchBuilder(s.rollupCfg.Genesis.L2Time, s.rollupCfg.L2ChainID)
 			}

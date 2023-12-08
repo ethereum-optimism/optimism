@@ -18,7 +18,7 @@
 
 ### Starting op-challenger
 
-When executing `op-challenger`, there are a few placeholders that need to be set to concreate values:
+When executing `op-challenger`, there are a few placeholders that need to be set to concrete values:
 
 - `<L1_URL>` the Goerli L1 JSON RPC endpoint
 - `<DISPUTE_GAME_FACTORY_ADDRESS>` the address of the dispute game factory contract (see
@@ -29,7 +29,7 @@ When executing `op-challenger`, there are a few placeholders that need to be set
 - `<PRIVATE_KEY>` the private key for a funded Goerli account. For other ways to specify the account to use
   see `./op-challenger/bin/op-challenger --help`
 
-From inside the monorepo directory, run the challenger with these placeholders set.
+From inside the monorepo directory, run the challenger after setting these placeholders.
 
 ```bash
 # Build the required components

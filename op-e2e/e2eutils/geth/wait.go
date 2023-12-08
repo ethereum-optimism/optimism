@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 var (
@@ -80,7 +81,6 @@ func WaitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 }
 
 func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
-	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
@@ -99,8 +99,43 @@ func WaitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 			}
 		case err := <-headSub.Err():
 			return nil, fmt.Errorf("error in head subscription: %w", err)
-		case <-timeoutCh:
-			return nil, errTimeout
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+}
+
+func WaitForBlockToBeFinalized(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+	return waitForBlockTag(number, client, timeout, rpc.FinalizedBlockNumber)
+}
+
+func WaitForBlockToBeSafe(number *big.Int, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
+	return waitForBlockTag(number, client, timeout, rpc.SafeBlockNumber)
+}
+
+// waitForBlockTag polls for a block number to reach the specified tag & then returns that block at the number.
+func waitForBlockTag(number *big.Int, client *ethclient.Client, timeout time.Duration, tag rpc.BlockNumber) (*types.Block, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	// Wait for it to be finalized. Poll every half second.
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	tagBigInt := big.NewInt(tag.Int64())
+
+	for {
+		select {
+		case <-ticker.C:
+			block, err := client.BlockByNumber(ctx, tagBigInt)
+			if err != nil {
+				return nil, err
+			}
+			if block != nil && block.NumberU64() >= number.Uint64() {
+				return client.BlockByNumber(ctx, number)
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
 		}
 	}
 }

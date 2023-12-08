@@ -1,5 +1,25 @@
 # @eth-optimism/drippie-mon
 
+## 0.5.5
+
+### Patch Changes
+
+- [#8306](https://github.com/ethereum-optimism/optimism/pull/8306) [`dcb252917`](https://github.com/ethereum-optimism/optimism/commit/dcb25291768ec0f2386486619971d5cd66fbb409) Thanks [@protolambda](https://github.com/protolambda)! - Fixed bug with custom chains not being able to set a custom portal address
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [[`dd0e46986`](https://github.com/ethereum-optimism/optimism/commit/dd0e46986f19dcceb304fc48f2bd410685ecd179)]:
+  - @eth-optimism/sdk@3.1.6
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [[`2534eabb5`](https://github.com/ethereum-optimism/optimism/commit/2534eabb50afe76f176407f83cc1f1c606e6de69)]:
+  - @eth-optimism/sdk@3.1.5
+
 ## 0.5.2
 
 ### Patch Changes

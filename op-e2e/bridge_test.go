@@ -36,7 +36,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	l1Client := sys.Clients["l1"]
 	l2Client := sys.Clients["sequencer"]
 
-	opts, err := bind.NewKeyedTransactorWithChainID(sys.cfg.Secrets.Alice, cfg.L1ChainIDBig())
+	opts, err := bind.NewKeyedTransactorWithChainID(sys.Cfg.Secrets.Alice, cfg.L1ChainIDBig())
 	require.Nil(t, err)
 
 	// Deploy WETH9
@@ -57,7 +57,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	require.Equal(t, big.NewInt(params.Ether), wethBalance)
 
 	// Deploy L2 WETH9
-	l2Opts, err := bind.NewKeyedTransactorWithChainID(sys.cfg.Secrets.Alice, cfg.L2ChainIDBig())
+	l2Opts, err := bind.NewKeyedTransactorWithChainID(sys.Cfg.Secrets.Alice, cfg.L2ChainIDBig())
 	require.NoError(t, err)
 	optimismMintableTokenFactory, err := bindings.NewOptimismMintableERC20Factory(predeploys.OptimismMintableERC20FactoryAddr, l2Client)
 	require.NoError(t, err)

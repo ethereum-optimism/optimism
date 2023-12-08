@@ -1,0 +1,9 @@
+[
+  {
+    "bytes": "32",
+    "label": "totalProcessed",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint256"
+  }
+]

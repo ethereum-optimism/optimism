@@ -26,11 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
-// initialzedValue represents the `Initializable` contract value. It should be kept in
-// sync with the constant in `Constants.sol`.
-// https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/libraries/Constants.sol
-const initializedValue = 3
-
 var (
 	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
@@ -116,10 +111,19 @@ type DeployConfig struct {
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 	// L2GenesisCanyonTimeOffset is the number of seconds after genesis block that Canyon hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Canyon.
-	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"L2GenesisCanyonTimeOffset,omitempty"`
-	// L2GenesisSpanBatchTimeOffset is the number of seconds after genesis block that Span Batch hard fork activates.
-	// Set it to 0 to activate at genesis. Nil to disable SpanBatch.
-	L2GenesisSpanBatchTimeOffset *hexutil.Uint64 `json:"l2GenesisSpanBatchTimeOffset,omitempty"`
+	L2GenesisCanyonTimeOffset *hexutil.Uint64 `json:"l2GenesisCanyonTimeOffset,omitempty"`
+	// L2GenesisDeltaTimeOffset is the number of seconds after genesis block that Delta hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Delta.
+	L2GenesisDeltaTimeOffset *hexutil.Uint64 `json:"l2GenesisDeltaTimeOffset,omitempty"`
+	// L2GenesisEclipseTimeOffset is the number of seconds after genesis block that Eclipse hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Eclipse.
+	L2GenesisEclipseTimeOffset *hexutil.Uint64 `json:"l2GenesisEclipseTimeOffset,omitempty"`
+	// L2GenesisFjordTimeOffset is the number of seconds after genesis block that Fjord hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Fjord.
+	L2GenesisFjordTimeOffset *hexutil.Uint64 `json:"l2GenesisFjordTimeOffset,omitempty"`
+	// L2GenesisInteropTimeOffset is the number of seconds after genesis block that the Interop hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Interop.
+	L2GenesisInteropTimeOffset *hexutil.Uint64 `json:"l2GenesisInteropTimeOffset,omitempty"`
 	// L2GenesisBlockExtraData is configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
 	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
@@ -127,8 +131,8 @@ type DeployConfig struct {
 	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
-	// PortalGuardian represents the GUARDIAN account in the OptimismPortal. Has the ability to pause withdrawals.
-	PortalGuardian common.Address `json:"portalGuardian"`
+	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
+	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
 	// Can be an account on L1 or L2, depending on the BaseFeeVaultWithdrawalNetwork value.
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
@@ -208,6 +212,12 @@ type DeployConfig struct {
 	// game can run for before it is ready to be resolved. Each side receives half of this value
 	// on their chess clock at the inception of the dispute.
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// OutputBisectionGameGenesisBlock is the block number for genesis.
+	OutputBisectionGameGenesisBlock uint64 `json:"outputBisectionGameGenesisBlock"`
+	// OutputBisectionGameGenesisOutputRoot is the output root for the genesis block.
+	OutputBisectionGameGenesisOutputRoot common.Hash `json:"outputBisectionGameGenesisOutputRoot"`
+	// OutputBisectionGameSplitDepth is the depth at which the output bisection game splits.
+	OutputBisectionGameSplitDepth uint64 `json:"outputBisectionGameSplitDepth"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
@@ -217,6 +227,9 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+
+	// When Cancun activates. Relative to L1 genesis.
+	L1CancunTimeOffset *uint64 `json:"l1CancunTimeOffset,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -254,8 +267,8 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleStartingBlockNumber == 0 {
 		log.Warn("L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains")
 	}
-	if d.PortalGuardian == (common.Address{}) {
-		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)
+	if d.SuperchainConfigGuardian == (common.Address{}) {
+		return fmt.Errorf("%w: SuperchainConfigGuardian cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.MaxSequencerDrift == 0 {
 		return fmt.Errorf("%w: MaxSequencerDrift cannot be 0", ErrInvalidDeployConfig)
@@ -352,6 +365,12 @@ func (d *DeployConfig) Check() error {
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
 	}
+	if d.RequiredProtocolVersion == (params.ProtocolVersion{}) {
+		log.Warn("RequiredProtocolVersion is empty")
+	}
+	if d.RecommendedProtocolVersion == (params.ProtocolVersion{}) {
+		log.Warn("RecommendedProtocolVersion is empty")
+	}
 	return nil
 }
 
@@ -388,41 +407,28 @@ func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
-// required for the L2 genesis creation. Legacy systems use the `Proxy__` prefix
-// while modern systems use the `Proxy` suffix. First check for the legacy
-// deployments so that this works with upgrading a system.
+// required for the L2 genesis creation.
 func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
-	var err error
-
 	if d.L1StandardBridgeProxy == (common.Address{}) {
-		var l1StandardBridgeProxyDeployment *hardhat.Deployment
-		l1StandardBridgeProxyDeployment, err = hh.GetDeployment("Proxy__OVM_L1StandardBridge")
-		if errors.Is(err, hardhat.ErrCannotFindDeployment) {
-			l1StandardBridgeProxyDeployment, err = hh.GetDeployment("L1StandardBridgeProxy")
-			if err != nil {
-				return err
-			}
+		l1StandardBridgeProxyDeployment, err := hh.GetDeployment("L1StandardBridgeProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1StandardBridgeProxy artifact: %w", err)
 		}
 		d.L1StandardBridgeProxy = l1StandardBridgeProxyDeployment.Address
 	}
 
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		var l1CrossDomainMessengerProxyDeployment *hardhat.Deployment
-		l1CrossDomainMessengerProxyDeployment, err = hh.GetDeployment("Proxy__OVM_L1CrossDomainMessenger")
-		if errors.Is(err, hardhat.ErrCannotFindDeployment) {
-			l1CrossDomainMessengerProxyDeployment, err = hh.GetDeployment("L1CrossDomainMessengerProxy")
-			if err != nil {
-				return err
-			}
+		l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
+		if err != nil {
+			return fmt.Errorf("cannot find L1CrossDomainMessengerProxy artifact: %w", err)
 		}
 		d.L1CrossDomainMessengerProxy = l1CrossDomainMessengerProxyDeployment.Address
 	}
 
 	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		// There is no legacy deployment of this contract
 		l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find L1ERC721BridgeProxy artifact: %w", err)
 		}
 		d.L1ERC721BridgeProxy = l1ERC721BridgeProxyDeployment.Address
 	}
@@ -430,7 +436,7 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.SystemConfigProxy == (common.Address{}) {
 		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find SystemConfigProxy artifact: %w", err)
 		}
 		d.SystemConfigProxy = systemConfigProxyDeployment.Address
 	}
@@ -438,12 +444,16 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		optimismPortalProxyDeployment, err := hh.GetDeployment("OptimismPortalProxy")
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot find OptimismPortalProxy artifact: %w", err)
 		}
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
 
 	return nil
+}
+
+func (d *DeployConfig) GovernanceEnabled() bool {
+	return d.EnableGovernance
 }
 
 func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
@@ -468,12 +478,45 @@ func (d *DeployConfig) CanyonTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
-func (d *DeployConfig) SpanBatchTime(genesisTime uint64) *uint64 {
-	if d.L2GenesisSpanBatchTimeOffset == nil {
+func (d *DeployConfig) DeltaTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisDeltaTimeOffset == nil {
 		return nil
 	}
 	v := uint64(0)
-	if offset := *d.L2GenesisSpanBatchTimeOffset; offset > 0 {
+	if offset := *d.L2GenesisDeltaTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) EclipseTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisEclipseTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisEclipseTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) FjordTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisFjordTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisFjordTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
+func (d *DeployConfig) InteropTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisInteropTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisInteropTimeOffset; offset > 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
@@ -517,7 +560,10 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
-		SpanBatchTime:          d.SpanBatchTime(l1StartBlock.Time()),
+		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
+		EclipseTime:            d.EclipseTime(l1StartBlock.Time()),
+		FjordTime:              d.FjordTime(l1StartBlock.Time()),
+		InteropTime:            d.InteropTime(l1StartBlock.Time()),
 	}, nil
 }
 
@@ -662,59 +708,105 @@ func NewStateDump(path string) (*gstate.Dump, error) {
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
-	immutable := make(immutables.ImmutableConfig)
-
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables.PredeploysImmutableConfig, error) {
 	if config.L1StandardBridgeProxy == (common.Address{}) {
-		return immutable, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return immutable, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return immutable, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.SequencerFeeVaultRecipient == (common.Address{}) {
-		return immutable, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.BaseFeeVaultRecipient == (common.Address{}) {
-		return immutable, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 	if config.L1FeeVaultRecipient == (common.Address{}) {
-		return immutable, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 
-	immutable["L2StandardBridge"] = immutables.ImmutableValues{
-		"otherBridge": config.L1StandardBridgeProxy,
-	}
-	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
-		"otherMessenger": config.L1CrossDomainMessengerProxy,
-	}
-	immutable["L2ERC721Bridge"] = immutables.ImmutableValues{
-		"messenger":   predeploys.L2CrossDomainMessengerAddr,
-		"otherBridge": config.L1ERC721BridgeProxy,
-	}
-	immutable["OptimismMintableERC721Factory"] = immutables.ImmutableValues{
-		"bridge":        predeploys.L2ERC721BridgeAddr,
-		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
-	}
-	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
-		"recipient":               config.SequencerFeeVaultRecipient,
-		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
-	}
-	immutable["L1FeeVault"] = immutables.ImmutableValues{
-		"recipient":               config.L1FeeVaultRecipient,
-		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork.ToUint8(),
-	}
-	immutable["BaseFeeVault"] = immutables.ImmutableValues{
-		"recipient":               config.BaseFeeVaultRecipient,
-		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
+	cfg := immutables.PredeploysImmutableConfig{
+		L2ToL1MessagePasser: struct{}{},
+		DeployerWhitelist:   struct{}{},
+		WETH9:               struct{}{},
+		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
+			OtherMessenger: config.L1CrossDomainMessengerProxy,
+		},
+		L2StandardBridge: struct {
+			OtherBridge common.Address
+			Messenger   common.Address
+		}{
+			OtherBridge: config.L1StandardBridgeProxy,
+			Messenger:   predeploys.L2CrossDomainMessengerAddr,
+		},
+		SequencerFeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.SequencerFeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.SequencerFeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		L1BlockNumber:       struct{}{},
+		GasPriceOracle:      struct{}{},
+		L1Block:             struct{}{},
+		GovernanceToken:     struct{}{},
+		LegacyMessagePasser: struct{}{},
+		L2ERC721Bridge: struct {
+			OtherBridge common.Address
+			Messenger   common.Address
+		}{
+			OtherBridge: config.L1ERC721BridgeProxy,
+			Messenger:   predeploys.L2CrossDomainMessengerAddr,
+		},
+		OptimismMintableERC721Factory: struct {
+			Bridge        common.Address
+			RemoteChainId *big.Int
+		}{
+			Bridge:        predeploys.L2ERC721BridgeAddr,
+			RemoteChainId: new(big.Int).SetUint64(config.L1ChainID),
+		},
+		OptimismMintableERC20Factory: struct {
+			Bridge common.Address
+		}{
+			Bridge: predeploys.L2StandardBridgeAddr,
+		},
+		ProxyAdmin: struct{}{},
+		BaseFeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.BaseFeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.BaseFeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		L1FeeVault: struct {
+			Recipient           common.Address
+			MinWithdrawalAmount *big.Int
+			WithdrawalNetwork   uint8
+		}{
+			Recipient:           config.L1FeeVaultRecipient,
+			MinWithdrawalAmount: (*big.Int)(config.L1FeeVaultMinimumWithdrawalAmount),
+			WithdrawalNetwork:   config.L1FeeVaultWithdrawalNetwork.ToUint8(),
+		},
+		SchemaRegistry: struct{}{},
+		EAS: struct {
+			Name string
+		}{
+			Name: "EAS",
+		},
+		Create2Deployer: struct{}{},
 	}
 
-	return immutable, nil
+	if err := cfg.Check(); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
 }
 
 // NewL2StorageConfig will create a StorageConfig given an instance of a
@@ -733,15 +825,18 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized":     initializedValue,
+		"_initialized":     1,
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
-		"_initialized":  initializedValue,
+		"_initialized":  1,
 		"_initializing": false,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
+	storage["L2ERC721Bridge"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
@@ -771,16 +866,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
-	}
-	storage["L2ERC721Bridge"] = state.StorageValues{
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"_initialized":  initializedValue,
-		"_initializing": false,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"bridge":        predeploys.L2StandardBridgeAddr,
-		"_initialized":  initializedValue,
-		"_initializing": false,
 	}
 	return storage, nil
 }

@@ -30,12 +30,6 @@ type OptimismPortalWithdrawalFinalizedEvent struct {
 	Event *database.ContractEvent
 }
 
-type OptimismPortalProvenWithdrawal struct {
-	OutputRoot    [32]byte
-	Timestamp     *big.Int
-	L2OutputIndex *big.Int
-}
-
 func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalTransactionDepositEvent, error) {
 	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
 	if err != nil {

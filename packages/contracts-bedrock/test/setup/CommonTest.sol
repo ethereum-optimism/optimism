@@ -9,20 +9,14 @@ import { FFIInterface } from "test/setup/FFIInterface.sol";
 /// @title CommonTest
 /// @dev An extenstion to `Test` that sets up the optimism smart contracts.
 contract CommonTest is Setup, Test, Events {
-    address alice = address(128);
-    address bob = address(256);
+    address alice;
+    address bob;
 
     bytes32 constant nonZeroHash = keccak256(abi.encode("NON_ZERO"));
 
     FFIInterface ffi;
 
     function setUp() public virtual override {
-        vm.deal(alice, type(uint64).max);
-        vm.deal(bob, type(uint64).max);
-
-        vm.label(alice, "alice");
-        vm.label(bob, "bob");
-
         Setup.setUp();
         ffi = new FFIInterface();
 
@@ -30,13 +24,18 @@ contract CommonTest is Setup, Test, Events {
         vm.fee(1 gwei);
 
         // Set sane initialize block numbers
-        vm.warp(cfg.l2OutputOracleStartingTimestamp() + 1);
-        vm.roll(cfg.l2OutputOracleStartingBlockNumber() + 1);
+        vm.warp(deploy.cfg().l2OutputOracleStartingTimestamp() + 1);
+        vm.roll(deploy.cfg().l2OutputOracleStartingBlockNumber() + 1);
+
+        alice = makeAddr("alice");
+        bob = makeAddr("bob");
+        vm.deal(alice, 10000 ether);
+        vm.deal(bob, 10000 ether);
 
         // Deploy L1
         Setup.L1();
         // Deploy L2
-        Setup.L2({ cfg: cfg });
+        Setup.L2({ cfg: deploy.cfg() });
     }
 
     /// @dev Helper function that wraps `TransactionDeposited` event.
@@ -68,7 +67,7 @@ contract CommonTest is Setup, Test, Events {
         warpToProposeTime(nextBlockNumber);
         uint256 proposedNumber = l2OutputOracle.latestBlockNumber();
 
-        uint256 submissionInterval = cfg.l2OutputOracleSubmissionInterval();
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
         // Ensure the submissionInterval is enforced
         assertEq(nextBlockNumber, proposedNumber + submissionInterval);
 
@@ -77,7 +76,7 @@ contract CommonTest is Setup, Test, Events {
         vm.expectEmit(true, true, true, true);
         emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
 
-        address proposer = cfg.l2OutputOracleProposer();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
         vm.prank(proposer);
         l2OutputOracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }

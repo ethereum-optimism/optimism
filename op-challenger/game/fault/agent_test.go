@@ -18,62 +18,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-// TestShouldResolve tests the resolution logic.
-func TestShouldResolve(t *testing.T) {
-	t.Run("AgreeWithProposedOutput", func(t *testing.T) {
-		agent, _, _ := setupTestAgent(t, true)
-		require.False(t, agent.shouldResolve(gameTypes.GameStatusDefenderWon))
-		require.True(t, agent.shouldResolve(gameTypes.GameStatusChallengerWon))
-		require.False(t, agent.shouldResolve(gameTypes.GameStatusInProgress))
-	})
-
-	t.Run("DisagreeWithProposedOutput", func(t *testing.T) {
-		agent, _, _ := setupTestAgent(t, false)
-		require.True(t, agent.shouldResolve(gameTypes.GameStatusDefenderWon))
-		require.False(t, agent.shouldResolve(gameTypes.GameStatusChallengerWon))
-		require.False(t, agent.shouldResolve(gameTypes.GameStatusInProgress))
-	})
-}
-
 func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name                    string
-		agreeWithProposedOutput bool
-		callResolveStatus       gameTypes.GameStatus
-		shouldResolve           bool
+		name              string
+		callResolveStatus gameTypes.GameStatus
 	}{
 		{
-			name:                    "Agree_Losing",
-			agreeWithProposedOutput: true,
-			callResolveStatus:       gameTypes.GameStatusDefenderWon,
-			shouldResolve:           false,
+			name:              "DefenderWon",
+			callResolveStatus: gameTypes.GameStatusDefenderWon,
 		},
 		{
-			name:                    "Agree_Winning",
-			agreeWithProposedOutput: true,
-			callResolveStatus:       gameTypes.GameStatusChallengerWon,
-			shouldResolve:           true,
-		},
-		{
-			name:                    "Disagree_Losing",
-			agreeWithProposedOutput: false,
-			callResolveStatus:       gameTypes.GameStatusChallengerWon,
-			shouldResolve:           false,
-		},
-		{
-			name:                    "Disagree_Winning",
-			agreeWithProposedOutput: false,
-			callResolveStatus:       gameTypes.GameStatusDefenderWon,
-			shouldResolve:           true,
+			name:              "ChallengerWon",
+			callResolveStatus: gameTypes.GameStatusChallengerWon,
 		},
 	}
 
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			agent, claimLoader, responder := setupTestAgent(t, test.agreeWithProposedOutput)
+			agent, claimLoader, responder := setupTestAgent(t)
 			responder.callResolveStatus = test.callResolveStatus
 
 			require.NoError(t, agent.Act(ctx))
@@ -81,18 +46,14 @@ func TestDoNotMakeMovesWhenGameIsResolvable(t *testing.T) {
 			require.Equal(t, 1, responder.callResolveCount, "should check if game is resolvable")
 			require.Equal(t, 1, claimLoader.callCount, "should fetch claims once for resolveClaim")
 
-			if test.shouldResolve {
-				require.EqualValues(t, 1, responder.resolveCount, "should resolve winning game")
-			} else {
-				require.Zero(t, responder.resolveCount, "should not resolve losing game")
-			}
+			require.EqualValues(t, 1, responder.resolveCount, "should resolve winning game")
 		})
 	}
 }
 
 func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	// Checks that if the game isn't resolvable, that the agent continues on to start checking claims
-	agent, claimLoader, responder := setupTestAgent(t, false)
+	agent, claimLoader, responder := setupTestAgent(t)
 	responder.callResolveErr = errors.New("game is not resolvable")
 	responder.callResolveClaimErr = errors.New("claim is not resolvable")
 	depth := 4
@@ -109,14 +70,13 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	require.Zero(t, responder.resolveClaimCount, "should not send resolveClaim")
 }
 
-func setupTestAgent(t *testing.T, agreeWithProposedOutput bool) (*Agent, *stubClaimLoader, *stubResponder) {
+func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	claimLoader := &stubClaimLoader{}
 	depth := 4
 	provider := alphabet.NewTraceProvider("abcd", uint64(depth))
 	responder := &stubResponder{}
-	updater := &stubUpdater{}
-	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, updater, agreeWithProposedOutput, logger)
+	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger)
 	return agent, claimLoader, responder
 }
 
@@ -165,11 +125,4 @@ func (s *stubResponder) ResolveClaim(ctx context.Context, clainIdx uint64) error
 
 func (s *stubResponder) PerformAction(ctx context.Context, response types.Action) error {
 	return nil
-}
-
-type stubUpdater struct {
-}
-
-func (s *stubUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOracleData) error {
-	panic("Not implemented")
 }

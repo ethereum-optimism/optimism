@@ -2,17 +2,20 @@
 pragma solidity 0.8.15;
 
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
 abstract contract ERC721Bridge is Initializable {
-    /// @notice Messenger contract on this domain.
-    /// @custom:network-specific
-    CrossDomainMessenger public messenger;
+    /// @notice Messenger contract on this domain. This will be removed in the
+    ///         future, use `messenger` instead.
+    /// @custom:legacy
+    CrossDomainMessenger public immutable MESSENGER;
 
-    /// @notice Address of the bridge on the other network.
+    /// @notice Address of the bridge on the other network. This will be removed in the
+    ///         future, use `otherBridge` instead.
     /// @custom:legacy
     address public immutable OTHER_BRIDGE;
 
@@ -54,34 +57,40 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == OTHER_BRIDGE,
+            msg.sender == address(MESSENGER) && MESSENGER.xDomainMessageSender() == OTHER_BRIDGE,
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
     }
 
-    /// @notice Constructs the contract.
+    /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) {
+    constructor(address _messenger, address _otherBridge) {
+        require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
         require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
+
+        MESSENGER = CrossDomainMessenger(_messenger);
         OTHER_BRIDGE = _otherBridge;
     }
 
-    // @notice Initializes the contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function __ERC721Bridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
-        messenger = _messenger;
+    /// @notice Legacy getter for messenger contract.
+    /// @return Messenger contract on this domain.
+    function messenger() external view returns (CrossDomainMessenger) {
+        return MESSENGER;
     }
 
-    /// @notice Getter for messenger contract.
-    function MESSENGER() external view returns (CrossDomainMessenger) {
-        return messenger;
-    }
-
-    /// @notice Getter for other bridge address.
+    /// @notice Legacy getter for other bridge address.
     /// @return Address of the bridge on the other network.
     function otherBridge() external view returns (address) {
         return OTHER_BRIDGE;
+    }
+
+    /// @notice This function should return true if the contract is paused.
+    ///         On L1 this function will check the SuperchainConfig for its paused status.
+    ///         On L2 this function should be a no-op.
+    /// @return Whether or not the contract is paused.
+    function paused() public view virtual returns (bool) {
+        return false;
     }
 
     /// @notice Initiates a bridge of an NFT to the caller's account on the other chain. Note that

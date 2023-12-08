@@ -174,7 +174,7 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 
 	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
-	preimageGetter := splitter.Get
+	preimageGetter := preimage.WithVerification(splitter.Get)
 
 	serverDone = launchOracleServer(logger, preimageChannel, preimageGetter)
 	hinterDone = routeHints(logger, hintChannel, hinter)

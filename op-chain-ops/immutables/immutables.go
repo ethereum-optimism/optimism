@@ -1,60 +1,116 @@
 package immutables
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
+	"reflect"
 
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 )
 
-// ImmutableValues represents the values to be set in immutable code.
-// The key is the name of the variable and the value is the value to set in
-// immutable code.
-type ImmutableValues map[string]any
+// PredeploysImmutableConfig represents the set of L2 predeploys. It includes all
+// L2 predeploys - not just ones with immutable values. This is to be very explicit
+// about the configuration of the predeploys. It is important that the inner struct
+// fields are in the same order as the constructor arguments in the solidity code.
+type PredeploysImmutableConfig struct {
+	L2ToL1MessagePasser    struct{}
+	DeployerWhitelist      struct{}
+	WETH9                  struct{}
+	L2CrossDomainMessenger struct {
+		OtherMessenger common.Address
+	}
+	L2StandardBridge struct {
+		OtherBridge common.Address
+		Messenger   common.Address
+	}
+	SequencerFeeVault struct {
+		Recipient           common.Address
+		MinWithdrawalAmount *big.Int
+		WithdrawalNetwork   uint8
+	}
+	OptimismMintableERC20Factory struct {
+		Bridge common.Address
+	}
+	L1BlockNumber       struct{}
+	GasPriceOracle      struct{}
+	L1Block             struct{}
+	GovernanceToken     struct{}
+	LegacyMessagePasser struct{}
+	L2ERC721Bridge      struct {
+		OtherBridge common.Address
+		Messenger   common.Address
+	}
+	OptimismMintableERC721Factory struct {
+		Bridge        common.Address
+		RemoteChainId *big.Int
+	}
+	ProxyAdmin   struct{}
+	BaseFeeVault struct {
+		Recipient           common.Address
+		MinWithdrawalAmount *big.Int
+		WithdrawalNetwork   uint8
+	}
+	L1FeeVault struct {
+		Recipient           common.Address
+		MinWithdrawalAmount *big.Int
+		WithdrawalNetwork   uint8
+	}
+	SchemaRegistry struct{}
+	EAS            struct {
+		Name string
+	}
+	Create2Deployer struct{}
+}
 
-// ImmutableConfig represents the immutable configuration for the L2 predeploy
-// contracts.
-type ImmutableConfig map[string]ImmutableValues
+// Check will ensure that the required fields are set on the config.
+// An error returned by `GetImmutableReferences` means that the solc compiler
+// output for the contract has no immutables in it.
+func (c *PredeploysImmutableConfig) Check() error {
+	return c.ForEach(func(name string, values any) error {
+		val := reflect.ValueOf(values)
+		if val.NumField() == 0 {
+			return nil
+		}
 
-// Check does a sanity check that the specific values that
-// Optimism uses are set inside of the ImmutableConfig.
-func (i ImmutableConfig) Check() error {
-	if _, ok := i["L2CrossDomainMessenger"]["otherMessenger"]; !ok {
-		return errors.New("L2CrossDomainMessenger otherMessenger not set")
-	}
-	if _, ok := i["L2StandardBridge"]["otherBridge"]; !ok {
-		return errors.New("L2StandardBridge otherBridge not set")
-	}
-	if _, ok := i["L2ERC721Bridge"]["messenger"]; !ok {
-		return errors.New("L2ERC721Bridge messenger not set")
-	}
-	if _, ok := i["L2ERC721Bridge"]["otherBridge"]; !ok {
-		return errors.New("L2ERC721Bridge otherBridge not set")
-	}
-	if _, ok := i["OptimismMintableERC721Factory"]["bridge"]; !ok {
-		return errors.New("OptimismMintableERC20Factory bridge not set")
-	}
-	if _, ok := i["OptimismMintableERC721Factory"]["remoteChainId"]; !ok {
-		return errors.New("OptimismMintableERC20Factory remoteChainId not set")
-	}
-	if _, ok := i["SequencerFeeVault"]["recipient"]; !ok {
-		return errors.New("SequencerFeeVault recipient not set")
-	}
-	if _, ok := i["L1FeeVault"]["recipient"]; !ok {
-		return errors.New("L1FeeVault recipient not set")
-	}
-	if _, ok := i["BaseFeeVault"]["recipient"]; !ok {
-		return errors.New("BaseFeeVault recipient not set")
+		has, err := bindings.HasImmutableReferences(name)
+		exists := err == nil && has
+		isZero := val.IsZero()
+
+		// There are immutables defined in the solc output and
+		// the config is not empty.
+		if exists && !isZero {
+			return nil
+		}
+		// There are no immutables defined in the solc output and
+		// the config is empty
+		if !exists && isZero {
+			return nil
+		}
+
+		return fmt.Errorf("invalid immutables config: field %s: %w", name, err)
+	})
+}
+
+// ForEach will iterate over each of the fields in the config and call the callback
+// with the value of the field as well as the field's name.
+func (c *PredeploysImmutableConfig) ForEach(cb func(string, any) error) error {
+	val := reflect.ValueOf(c).Elem()
+	typ := val.Type()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		internalVal := reflect.ValueOf(field.Interface())
+		if err := cb(typ.Field(i).Name, internalVal.Interface()); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -63,103 +119,51 @@ func (i ImmutableConfig) Check() error {
 // contracts so that the immutables can be set properly in the bytecode.
 type DeploymentResults map[string]hexutil.Bytes
 
-// BuildOptimism will deploy the L2 predeploys so that their immutables are set
-// correctly.
-func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
-	if err := immutable.Check(); err != nil {
+// Deploy will deploy L2 predeploys that include immutables. This is to prevent the need
+// for parsing the solc output to find the correct immutable offsets and splicing in the values.
+// Skip any predeploys that do not have immutables as their bytecode will be directly inserted
+// into the state. This does not currently support recursive structs.
+func Deploy(config *PredeploysImmutableConfig) (DeploymentResults, error) {
+	if err := config.Check(); err != nil {
 		return DeploymentResults{}, err
 	}
+	deployments := make([]deployer.Constructor, 0)
 
-	deployments := []deployer.Constructor{
-		{
-			Name: "GasPriceOracle",
-		},
-		{
-			Name: "L1Block",
-		},
-		{
-			Name: "L2CrossDomainMessenger",
-			Args: []interface{}{
-				immutable["L2CrossDomainMessenger"]["otherMessenger"],
-			},
-		},
-		{
-			Name: "L2StandardBridge",
-			Args: []interface{}{
-				immutable["L2StandardBridge"]["otherBridge"],
-			},
-		},
-		{
-			Name: "L2ToL1MessagePasser",
-		},
-		{
-			Name: "SequencerFeeVault",
-			Args: []interface{}{
-				immutable["SequencerFeeVault"]["recipient"],
-				immutable["SequencerFeeVault"]["minimumWithdrawalAmount"],
-				immutable["SequencerFeeVault"]["withdrawalNetwork"],
-			},
-		},
-		{
-			Name: "BaseFeeVault",
-			Args: []interface{}{
-				immutable["BaseFeeVault"]["recipient"],
-				immutable["BaseFeeVault"]["minimumWithdrawalAmount"],
-				immutable["BaseFeeVault"]["withdrawalNetwork"],
-			},
-		},
-		{
-			Name: "L1FeeVault",
-			Args: []interface{}{
-				immutable["L1FeeVault"]["recipient"],
-				immutable["L1FeeVault"]["minimumWithdrawalAmount"],
-				immutable["L1FeeVault"]["withdrawalNetwork"],
-			},
-		},
-		{
-			Name: "OptimismMintableERC20Factory",
-		},
-		{
-			Name: "DeployerWhitelist",
-		},
-		{
-			Name: "LegacyMessagePasser",
-		},
-		{
-			Name: "L1BlockNumber",
-		},
-		{
-			Name: "L2ERC721Bridge",
-			Args: []interface{}{
-				immutable["L2ERC721Bridge"]["otherBridge"],
-			},
-		},
-		{
-			Name: "OptimismMintableERC721Factory",
-			Args: []interface{}{
-				predeploys.L2ERC721BridgeAddr,
-				immutable["OptimismMintableERC721Factory"]["remoteChainId"],
-			},
-		},
-		{
-			Name: "LegacyERC20ETH",
-		},
-		{
-			Name: "EAS",
-		},
-		{
-			Name: "SchemaRegistry",
-		},
+	val := reflect.ValueOf(config).Elem()
+	typ := val.Type()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		if reflect.ValueOf(field.Interface()).IsZero() {
+			continue
+		}
+
+		deployment := deployer.Constructor{
+			Name: typ.Field(i).Name,
+			Args: []any{},
+		}
+
+		internalVal := reflect.ValueOf(field.Interface())
+		for j := 0; j < internalVal.NumField(); j++ {
+			internalField := internalVal.Field(j)
+			deployment.Args = append(deployment.Args, internalField.Interface())
+		}
+
+		deployments = append(deployments, deployment)
 	}
-	return BuildL2(deployments)
+
+	results, err := deployContractsWithImmutables(deployments)
+	if err != nil {
+		return nil, fmt.Errorf("cannot deploy contracts with immutables: %w", err)
+	}
+	return results, nil
 }
 
-// BuildL2 will deploy contracts to a simulated backend so that their immutables
+// deployContractsWithImmutables will deploy contracts to a simulated backend so that their immutables
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
-func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
-	log.Info("Creating L2 state")
-	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
+func deployContractsWithImmutables(constructors []deployer.Constructor) (DeploymentResults, error) {
+	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2ImmutableDeployer)
 	if err != nil {
 		return nil, err
 	}
@@ -170,18 +174,21 @@ func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
 	return results, nil
 }
 
-func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
+// l2ImmutableDeployer will deploy L2 predeploys that contain immutables to the simulated backend.
+// It only needs to care about the predeploys that have immutables so that the deployed bytecode
+// has the dynamic value set at the correct location in the bytecode.
+func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
 	var tx *types.Transaction
 	var recipient common.Address
 	var minimumWithdrawalAmount *big.Int
 	var withdrawalNetwork uint8
 	var err error
+
+	if has, err := bindings.HasImmutableReferences(deployment.Name); err != nil || !has {
+		return nil, fmt.Errorf("%s does not have immutables: %w", deployment.Name, err)
+	}
+
 	switch deployment.Name {
-	case "GasPriceOracle":
-		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
-	case "L1Block":
-		// No arguments required for the L1Block contract
-		_, tx, _, err = bindings.DeployL1Block(opts, backend)
 	case "L2CrossDomainMessenger":
 		otherMessenger, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -194,9 +201,6 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for otherBridge")
 		}
 		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
-	case "L2ToL1MessagePasser":
-		// No arguments required for L2ToL1MessagePasser
-		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "SequencerFeeVault":
 		recipient, minimumWithdrawalAmount, withdrawalNetwork, err = prepareFeeVaultArguments(deployment)
 		if err != nil {
@@ -216,13 +220,15 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		}
 		_, tx, _, err = bindings.DeployL1FeeVault(opts, backend, recipient, minimumWithdrawalAmount, withdrawalNetwork)
 	case "OptimismMintableERC20Factory":
-		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend)
-	case "DeployerWhitelist":
-		_, tx, _, err = bindings.DeployDeployerWhitelist(opts, backend)
-	case "LegacyMessagePasser":
-		_, tx, _, err = bindings.DeployLegacyMessagePasser(opts, backend)
-	case "L1BlockNumber":
-		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
+		bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for bridge")
+		}
+		// Sanity check that the argument is correct
+		if bridge != predeploys.L2StandardBridgeAddr {
+			return nil, fmt.Errorf("invalid bridge address")
+		}
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, bridge)
 	case "L2ERC721Bridge":
 		otherBridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -239,12 +245,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for remoteChainId")
 		}
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
-	case "LegacyERC20ETH":
-		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
-	case "SchemaRegistry":
-		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
@@ -252,12 +254,13 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	return tx, err
 }
 
+// prepareFeeVaultArguments is a helper function that parses the arguments for the fee vault contracts.
 func prepareFeeVaultArguments(deployment deployer.Constructor) (common.Address, *big.Int, uint8, error) {
 	recipient, ok := deployment.Args[0].(common.Address)
 	if !ok {
 		return common.Address{}, nil, 0, fmt.Errorf("invalid type for recipient")
 	}
-	minimumWithdrawalAmountHex, ok := deployment.Args[1].(*hexutil.Big)
+	minimumWithdrawalAmountHex, ok := deployment.Args[1].(*big.Int)
 	if !ok {
 		return common.Address{}, nil, 0, fmt.Errorf("invalid type for minimumWithdrawalAmount")
 	}
@@ -265,5 +268,5 @@ func prepareFeeVaultArguments(deployment deployer.Constructor) (common.Address, 
 	if !ok {
 		return common.Address{}, nil, 0, fmt.Errorf("invalid type for withdrawalNetwork")
 	}
-	return recipient, minimumWithdrawalAmountHex.ToInt(), withdrawalNetwork, nil
+	return recipient, minimumWithdrawalAmountHex, withdrawalNetwork, nil
 }

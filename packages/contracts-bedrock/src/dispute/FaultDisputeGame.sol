@@ -82,8 +82,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.11
-    string public constant version = "0.0.11";
+    /// @custom:semver 0.0.13
+    string public constant version = "0.0.13";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -174,9 +174,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        // TODO(client-pod#94): Once output bisection is implemented, the local context will no longer
-        //                      be constant. We will need to pass it in here based off of the ancestor
-        //                      disputed output root's L2 block number.
         bool validStep = VM.step(_stateData, _proof, 0) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
@@ -281,7 +278,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function addLocalData(uint256 _ident, uint256 _l2BlockNumber, uint256 _partOffset) external {
+    function addLocalData(uint256 _ident, bytes32 _localContext, uint256 _partOffset) external {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -293,7 +290,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // Store the `_ident` argument
             mstore(0x20, _ident)
             // Store the `_localContext` argument
-            mstore(0x40, _l2BlockNumber)
+            mstore(0x40, _localContext)
             // Store the data to load
             let data
             switch _ident

@@ -1,0 +1,23 @@
+[
+  {
+    "bytes": "32",
+    "label": "modules",
+    "offset": 0,
+    "slot": "0",
+    "type": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig)"
+  },
+  {
+    "bytes": "32",
+    "label": "timeouts",
+    "offset": 0,
+    "slot": "1",
+    "type": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))"
+  },
+  {
+    "bytes": "32",
+    "label": "nonces",
+    "offset": 0,
+    "slot": "2",
+    "type": "mapping(bytes32 => mapping(bytes32 => bool))"
+  }
+]

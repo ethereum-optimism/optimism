@@ -58,12 +58,31 @@ library Storage {
 
     /// @notice Stores a bytes32 value in an arbitrary storage slot, `_slot`.
     /// @param _slot The storage slot to store the address in.
-    /// @param _value The protocol version to store
+    /// @param _value The bytes32 value to store.
     /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
     ///      in arbitrary storage slots.
     function setBytes32(bytes32 _slot, bytes32 _value) internal {
         assembly {
             sstore(_slot, _value)
+        }
+    }
+
+    /// @notice Stores a bool value in an arbitrary storage slot, `_slot`.
+    /// @param _slot The storage slot to store the bool in.
+    /// @param _value The bool value to store
+    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
+    ///      in arbitrary storage slots.
+    function setBool(bytes32 _slot, bool _value) internal {
+        assembly {
+            sstore(_slot, _value)
+        }
+    }
+
+    /// @notice Returns a bool stored in an arbitrary storage slot.
+    /// @param _slot The storage slot to retrieve the bool from.
+    function getBool(bytes32 _slot) internal view returns (bool value_) {
+        assembly {
+            value_ := sload(_slot)
         }
     }
 }

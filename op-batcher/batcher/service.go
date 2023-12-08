@@ -27,6 +27,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
+var (
+	ErrAlreadyStopped = errors.New("already stopped")
+)
+
 type BatcherConfig struct {
 	NetworkTimeout         time.Duration
 	PollInterval           time.Duration
@@ -48,7 +52,7 @@ type BatcherService struct {
 	RollupConfig *rollup.Config
 
 	// Channel builder parameters
-	Channel ChannelConfig
+	ChannelConfig ChannelConfig
 
 	driver *BatchSubmitter
 
@@ -90,7 +94,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err
 	}
-	if err := bs.initRollupCfg(ctx); err != nil {
+	if err := bs.initRollupConfig(ctx); err != nil {
 		return fmt.Errorf("failed to load rollup config: %w", err)
 	}
 	if err := bs.initChannelConfig(cfg); err != nil {
@@ -153,12 +157,12 @@ func (bs *BatcherService) initBalanceMonitor(cfg *CLIConfig) {
 	}
 }
 
-func (bs *BatcherService) initRollupCfg(ctx context.Context) error {
-	rollupCfg, err := bs.RollupNode.RollupConfig(ctx)
+func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
+	rollupConfig, err := bs.RollupNode.RollupConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve rollup config: %w", err)
 	}
-	bs.RollupConfig = rollupCfg
+	bs.RollupConfig = rollupConfig
 	if err := bs.RollupConfig.Check(); err != nil {
 		return fmt.Errorf("invalid rollup config: %w", err)
 	}
@@ -166,7 +170,7 @@ func (bs *BatcherService) initRollupCfg(ctx context.Context) error {
 }
 
 func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
-	bs.Channel = ChannelConfig{
+	bs.ChannelConfig = ChannelConfig{
 		SeqWindowSize:      bs.RollupConfig.SeqWindowSize,
 		ChannelTimeout:     bs.RollupConfig.ChannelTimeout,
 		MaxChannelDuration: cfg.MaxChannelDuration,
@@ -175,7 +179,7 @@ func (bs *BatcherService) initChannelConfig(cfg *CLIConfig) error {
 		CompressorConfig:   cfg.CompressorConfig.Config(),
 		BatchType:          cfg.BatchType,
 	}
-	if err := bs.Channel.Check(); err != nil {
+	if err := bs.ChannelConfig.Check(); err != nil {
 		return fmt.Errorf("invalid channel configuration: %w", err)
 	}
 	return nil
@@ -225,15 +229,15 @@ func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initDriver() {
 	bs.driver = NewBatchSubmitter(DriverSetup{
-		Log:          bs.Log,
-		Metr:         bs.Metrics,
-		RollupCfg:    bs.RollupConfig,
-		Cfg:          bs.BatcherConfig,
-		Txmgr:        bs.TxManager,
-		L1Client:     bs.L1Client,
-		L2Client:     bs.L2Client,
-		RollupClient: bs.RollupNode,
-		Channel:      bs.Channel,
+		Log:           bs.Log,
+		Metr:          bs.Metrics,
+		RollupConfig:  bs.RollupConfig,
+		Config:        bs.BatcherConfig,
+		Txmgr:         bs.TxManager,
+		L1Client:      bs.L1Client,
+		L2Client:      bs.L2Client,
+		RollupClient:  bs.RollupNode,
+		ChannelConfig: bs.ChannelConfig,
 	})
 }
 
@@ -285,7 +289,7 @@ func (bs *BatcherService) Kill() error {
 // If the provided ctx is cancelled, the stopping is forced, i.e. the batching work is killed non-gracefully.
 func (bs *BatcherService) Stop(ctx context.Context) error {
 	if bs.stopped.Load() {
-		return errors.New("already stopped")
+		return ErrAlreadyStopped
 	}
 	bs.Log.Info("Stopping batcher")
 
@@ -312,6 +316,10 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 			result = errors.Join(result, fmt.Errorf("failed to close balance metricer: %w", err))
 		}
 	}
+	if bs.TxManager != nil {
+		bs.TxManager.Close()
+	}
+
 	if bs.metricsSrv != nil {
 		if err := bs.metricsSrv.Stop(ctx); err != nil {
 			result = errors.Join(result, fmt.Errorf("failed to stop metrics server: %w", err))

@@ -17,7 +17,7 @@ contract AlphabetVM is IBigStepper {
     }
 
     /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata, uint256) external view returns (bytes32 postState_) {
+    function step(bytes calldata _stateData, bytes calldata, bytes32) external view returns (bytes32 postState_) {
         uint256 traceIndex;
         uint256 claim;
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
@@ -29,6 +29,7 @@ contract AlphabetVM is IBigStepper {
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
             traceIndex++;
         }
+
         // STF: n -> n + 1
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
         assembly {

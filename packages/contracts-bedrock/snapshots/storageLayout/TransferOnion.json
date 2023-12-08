@@ -1,0 +1,16 @@
+[
+  {
+    "bytes": "32",
+    "label": "_status",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "shell",
+    "offset": 0,
+    "slot": "1",
+    "type": "bytes32"
+  }
+]

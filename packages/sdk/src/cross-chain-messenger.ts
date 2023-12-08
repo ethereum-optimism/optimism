@@ -490,8 +490,17 @@ export class CrossChainMessenger {
   ): Promise<IBridgeAdapter> {
     const bridges: IBridgeAdapter[] = []
     for (const bridge of Object.values(this.bridges)) {
-      if (await bridge.supportsTokenPair(l1Token, l2Token)) {
-        bridges.push(bridge)
+      try {
+        if (await bridge.supportsTokenPair(l1Token, l2Token)) {
+          bridges.push(bridge)
+        }
+      } catch (err) {
+        if (
+          !err?.message?.toString().includes('CALL_EXCEPTION') &&
+          !err?.stack?.toString().includes('execution reverted')
+        ) {
+          console.error('Unexpected error when checking bridge', err)
+        }
       }
     }
 
@@ -658,25 +667,54 @@ export class CrossChainMessenger {
     toBlockOrBlockHash?: BlockTag
   ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const receipt = await this.getMessageReceipt(
-      resolved,
-      messageIndex,
-      fromBlockOrBlockHash,
-      toBlockOrBlockHash
+    // legacy withdrawals relayed prebedrock are v1
+    const messageHashV0 = hashCrossDomainMessagev0(
+      resolved.target,
+      resolved.sender,
+      resolved.message,
+      resolved.messageNonce
+    )
+    // bedrock withdrawals are v1
+    // legacy withdrawals relayed postbedrock are v1
+    // there is no good way to differentiate between the two types of legacy
+    // so what we will check for both
+    const messageHashV1 = hashCrossDomainMessagev1(
+      resolved.messageNonce,
+      resolved.sender,
+      resolved.target,
+      resolved.value,
+      resolved.minGasLimit,
+      resolved.message
     )
 
+    // Here we want the messenger that will receive the message, not the one that sent it.
+    const messenger =
+      resolved.direction === MessageDirection.L1_TO_L2
+        ? this.contracts.l2.L2CrossDomainMessenger
+        : this.contracts.l1.L1CrossDomainMessenger
+
+    const success =
+      (await messenger.successfulMessages(messageHashV0)) ||
+      (await messenger.successfulMessages(messageHashV1))
+
+    const failure =
+      (await messenger.failedMessages(messageHashV0)) ||
+      (await messenger.failedMessages(messageHashV1))
+
     if (resolved.direction === MessageDirection.L1_TO_L2) {
-      if (receipt === null) {
-        return MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
+      if (success) {
+        return MessageStatus.RELAYED
+      } else if (failure) {
+        return MessageStatus.FAILED_L1_TO_L2_MESSAGE
       } else {
-        if (receipt.receiptStatus === MessageReceiptStatus.RELAYED_SUCCEEDED) {
-          return MessageStatus.RELAYED
-        } else {
-          return MessageStatus.FAILED_L1_TO_L2_MESSAGE
-        }
+        return MessageStatus.UNCONFIRMED_L1_TO_L2_MESSAGE
       }
     } else {
-      if (receipt === null) {
+      if (success) {
+        return MessageStatus.RELAYED
+      } else if (failure) {
+        return MessageStatus.READY_FOR_RELAY
+      } else {
         let timestamp: number
         if (this.bedrock) {
           const output = await this.getMessageBedrockOutput(
@@ -725,12 +763,6 @@ export class CrossChainMessenger {
 
         if (timestamp + challengePeriod > latestBlock.timestamp) {
           return MessageStatus.IN_CHALLENGE_PERIOD
-        } else {
-          return MessageStatus.READY_FOR_RELAY
-        }
-      } else {
-        if (receipt.receiptStatus === MessageReceiptStatus.RELAYED_SUCCEEDED) {
-          return MessageStatus.RELAYED
         } else {
           return MessageStatus.READY_FOR_RELAY
         }

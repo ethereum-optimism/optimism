@@ -63,7 +63,7 @@ acts as an example of using `cast` to manually call `attack` and `defend`.
 
 ### Performing Steps
 
-Attacking or defending are teh only available actions before the maximum depth of the game is reached. To counter claims
+Attacking or defending are the only available actions before the maximum depth of the game is reached. To counter claims
 at the maximum depth, a step must be performed instead. Calling the `step` method in the `FaultDisputeGame` contract
 counters a claim at the maximum depth by running a single step of the cannon VM on chain. The `step` method will revert
 unless the cannon execution confirms the claim being countered is invalid. Note, if an actor's clock runs out at any

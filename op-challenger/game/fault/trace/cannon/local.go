@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
@@ -19,32 +18,33 @@ type LocalGameInputs struct {
 	L2BlockNumber *big.Int
 }
 
-type L2DataSource interface {
-	ChainID(context.Context) (*big.Int, error)
+type L2HeaderSource interface {
 	HeaderByNumber(context.Context, *big.Int) (*ethtypes.Header, error)
 }
 
-type GameInputsSource interface {
-	L1Head(opts *bind.CallOpts) ([32]byte, error)
-	Proposals(opts *bind.CallOpts) (struct {
-		Starting bindings.IFaultDisputeGameOutputProposal
-		Disputed bindings.IFaultDisputeGameOutputProposal
-	}, error)
+type L1HeadSource interface {
+	GetL1Head(ctx context.Context) (common.Hash, error)
 }
 
-func fetchLocalInputs(ctx context.Context, gameAddr common.Address, caller GameInputsSource, l2Client L2DataSource) (LocalGameInputs, error) {
-	opts := &bind.CallOpts{Context: ctx}
-	l1Head, err := caller.L1Head(opts)
-	if err != nil {
-		return LocalGameInputs{}, fmt.Errorf("fetch L1 head for game %v: %w", gameAddr, err)
-	}
+type GameInputsSource interface {
+	L1HeadSource
+	GetProposals(ctx context.Context) (agreed contracts.Proposal, disputed contracts.Proposal, err error)
+}
 
-	proposals, err := caller.Proposals(opts)
+func FetchLocalInputs(ctx context.Context, caller GameInputsSource, l2Client L2HeaderSource) (LocalGameInputs, error) {
+	agreedOutput, claimedOutput, err := caller.GetProposals(ctx)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch proposals: %w", err)
 	}
-	claimedOutput := proposals.Disputed
-	agreedOutput := proposals.Starting
+	return FetchLocalInputsFromProposals(ctx, caller, l2Client, agreedOutput, claimedOutput)
+}
+
+func FetchLocalInputsFromProposals(ctx context.Context, caller L1HeadSource, l2Client L2HeaderSource, agreedOutput contracts.Proposal, claimedOutput contracts.Proposal) (LocalGameInputs, error) {
+	l1Head, err := caller.GetL1Head(ctx)
+	if err != nil {
+		return LocalGameInputs{}, fmt.Errorf("fetch L1 head: %w", err)
+	}
+
 	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
 	if err != nil {
 		return LocalGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedOutput.L2BlockNumber, err)
