@@ -3,7 +3,6 @@ package outputs
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
@@ -18,7 +17,6 @@ func NewOutputAlphabetTraceAccessor(
 	ctx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg *config.Config,
 	prestateProvider types.PrestateProvider,
 	rollupClient OutputRollupClient,
 	gameDepth uint64,

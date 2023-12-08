@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/loader"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -39,6 +40,8 @@ type Service struct {
 	txMgr *txmgr.SimpleTxManager
 
 	loader *loader.GameLoader
+
+	rollupClient outputs.OutputRollupClient
 
 	l1Client   *ethclient.Client
 	pollClient client.RPC
@@ -71,6 +74,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return err
 	}
 	if err := s.initL1Client(ctx, cfg); err != nil {
+		return err
+	}
+	if err := s.initRollupClient(ctx, cfg); err != nil {
 		return err
 	}
 	if err := s.initPollClient(ctx, cfg); err != nil {
@@ -166,10 +172,19 @@ func (s *Service) initGameLoader(cfg *config.Config) error {
 	return nil
 }
 
+func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) error {
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
+	if err != nil {
+		return err
+	}
+	s.rollupClient = rollupClient
+	return nil
+}
+
 func (s *Service) initScheduler(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.txMgr, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txMgr, caller)
 	if err != nil {
 		return err
 	}
