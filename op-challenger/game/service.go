@@ -173,6 +173,9 @@ func (s *Service) initGameLoader(cfg *config.Config) error {
 }
 
 func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) error {
+	if cfg.RollupRpc == "" {
+		return nil
+	}
 	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
 	if err != nil {
 		return err
