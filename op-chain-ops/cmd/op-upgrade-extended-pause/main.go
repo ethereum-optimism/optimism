@@ -229,7 +229,7 @@ func entrypoint(ctx *cli.Context) error {
 		return fmt.Errorf("no implementations for chain ID %d", l2ChainID)
 	}
 
-	addresses, ok := superchain.Addresses[l2ChainID.Uint64()]
+	proxyAddresses, ok := superchain.Addresses[l2ChainID.Uint64()]
 	if !ok {
 		return fmt.Errorf("no proxy addresses for chain ID %d", l2ChainID)
 	}
@@ -253,7 +253,7 @@ func entrypoint(ctx *cli.Context) error {
 	}
 
 	// Build the batch
-	if err := upgrades.L1(&batch, list, *addresses, config, chainConfig, clients.L1Client); err != nil {
+	if err := upgrades.L1(&batch, list, *proxyAddresses, config, chainConfig, clients.L1Client); err != nil {
 		return fmt.Errorf("cannot build L1 upgrade batch: %w", err)
 	}
 
