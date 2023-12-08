@@ -185,7 +185,8 @@ contract InteropL2StandardBridge is ISemver {
     {
         //  NOTE: Do we want to sent a callback to unlock the tokens on the source chain
         //  if this local token does not exist? Funds are immediately burned on the source
-        //  chain and "lost" until the token is deployed on this destination chain.
+        //  chain and "lost" until the token is deployed on this destination chain and
+        //  this message replayed via the InteropL2CDM.
 
         // As a safety check, we just ensure the _remoteToken address remains the same
         // when completing a cross L2 transfer.
