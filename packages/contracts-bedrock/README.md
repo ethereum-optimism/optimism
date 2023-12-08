@@ -60,7 +60,7 @@ The smart contracts are deployed using `foundry` with a `hardhat-deploy` compati
 they will write a temp file to disk that can then be formatted into a `hardhat-deploy` style artifact by calling another script.
 
 The addresses in the `deployments` directory will be read into the script based on the backend's chain id.
-To manually define the set of addresses used in the script, set the `ADDRESSES` env var to a path on the local
+To manually define the set of addresses used in the script, set the `CONTRACT_ADDRESSES_PATH` env var to a path on the local
 filesystem that points to a JSON file full of key value pairs where the keys are names of contracts and the
 values are addresses. This works well with the JSON files in `superchain-ops`.
 
