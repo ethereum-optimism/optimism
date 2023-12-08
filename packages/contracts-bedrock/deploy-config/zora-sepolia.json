@@ -37,6 +37,7 @@
   "gasPriceOracleOverhead": 188,
   "gasPriceOracleScalar": 684000,
   "eip1559Denominator": 50,
+  "eip1559DenominatorCanyon": 250,
   "eip1559Elasticity": 6,
   "proxyAdminOwner": "0x45eFFbD799Ab49122eeEAB75B78D9C56A187F9A7",
   "baseFeeVaultRecipient": "0xba6fAD507A432402C64444Ed201025e060b34faB",
