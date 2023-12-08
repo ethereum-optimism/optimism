@@ -35,7 +35,11 @@
     "install:abigen": "go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)",
     "print:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/'",
     "check:abigen": "[[ $(abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/') = $(cat .abigenrc) ]] && echo '✓ abigen versions match' || (echo '✗ abigen version mismatch. Run `pnpm upgrade:abigen` to upgrade.' && exit 1)",
-    "upgrade:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/' > .abigenrc"
+    "upgrade:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/' > .abigenrc",
+    "install:slither": "pip3 install slither-analyzer==$(cat .slitherrc)",
+    "print:slither": "slither --version",
+    "check:slither": "[[ $(slither --version) = $(cat .slitherrc) ]] && echo '✓ slither versions match' || (echo '✗ slither version mismatch. Run `pnpm upgrade:slither` to upgrade.' && exit 1)",
+    "upgrade:slither": "slither --version > .slitherrc"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.23.3",
