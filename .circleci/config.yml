@@ -477,8 +477,8 @@ jobs:
           patterns: contracts-bedrock
       - run:
           name: slither
-          command: |
-            pnpm slither:check || echo "Slither failed"
+          command: pnpm slither:check
+          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -1353,7 +1353,7 @@ jobs:
           patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
       - setup_remote_docker:
           docker_layer_caching: true
-      - run: 
+      - run:
           name: Install Docker CLI
           command: |
             # Add Docker's official GPG key:
@@ -1372,7 +1372,7 @@ jobs:
       - run:
           name: Run Kontrol Tests
           command: |
-            pnpm test:kontrol 
+            pnpm test:kontrol
           working_directory: ./packages/contracts-bedrock
       - store_artifacts:
           path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
