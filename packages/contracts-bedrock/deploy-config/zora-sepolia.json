@@ -23,7 +23,7 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "superchainConfigGuardian": "0x45eFFbD799Ab49122eeEAB75B78D9C56A187F9A7",
   "l2OutputOracleSubmissionInterval": 180,
-  "l2OutputOracleStartingTimestamp": -1,
+  "l2OutputOracleStartingTimestamp": 1698080004,
   "l2OutputOracleStartingBlockNumber": 0,
   "l2OutputOracleProposer": "0xe8326a5839175dE7f467e66D8bB443aa70DA1c3e",
   "sequencerFeeVaultWithdrawalNetwork": 0,
