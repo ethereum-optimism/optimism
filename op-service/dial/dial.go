@@ -47,7 +47,7 @@ func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log
 	baseRPCClient := client.NewBaseRPCClient(rpcCl)
 	if len(rpcTimeoutCfg) > 0 {
 		if len(rpcTimeoutCfg) > 1 {
-			return nil, fmt.Errorf("too many rpc timeout configs provided")
+			return nil, fmt.Errorf("too many BaseRPCTimeout configs provided. Expected 1, got %d", len(rpcTimeoutCfg))
 		}
 		if rpcTimeoutCfg[0].RPCTimeout != 0 {
 			baseRPCClient.RPCTimeout = rpcTimeoutCfg[0].RPCTimeout

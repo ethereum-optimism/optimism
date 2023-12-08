@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	ophttp "github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -26,11 +25,11 @@ type rpcServer struct {
 	appVersion string
 	log        log.Logger
 	sources.L2Client
-	rpcServerTimeout httputil.HTTPTimeouts
+	rpcServerTimeout ophttp.HTTPTimeouts
 }
 
 func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, appVersion string, m metrics.Metricer) (*rpcServer, error) {
-	rpcServerTimeout := httputil.DefaultTimeouts
+	rpcServerTimeout := ophttp.DefaultTimeouts
 	if rpcCfg.ListenTimeout != nil {
 		rpcServerTimeout = *rpcCfg.ListenTimeout
 	}
