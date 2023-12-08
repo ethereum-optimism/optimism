@@ -99,7 +99,7 @@ contract OptimismMintableERC20Factory is ISemver {
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol, _decimals));
         address localToken =
-            address(new OptimismMintableERC20{salt: salt}(BRIDGE, _remoteToken, _name, _symbol, _decimals));
+            address(new OptimismMintableERC20{ salt: salt }(BRIDGE, _remoteToken, _name, _symbol, _decimals));
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, localToken);

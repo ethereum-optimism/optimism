@@ -112,10 +112,7 @@ contract OptimistAllowlist_Initializer is Test {
         optimistInviter.initialize("OptimistInviter");
 
         optimistAllowlist = new OptimistAllowlist(
-            attestationStation,
-            alice_allowlistAttestor,
-            sally_coinbaseQuestAttestor,
-            address(optimistInviter)
+            attestationStation, alice_allowlistAttestor, sally_coinbaseQuestAttestor, address(optimistInviter)
         );
 
         optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");

@@ -52,7 +52,7 @@ contract OptimismMintableERC721Factory is ISemver {
 
         bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
         address localToken =
-            address(new OptimismMintableERC721{salt: salt}(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
+            address(new OptimismMintableERC721{ salt: salt }(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
 
         isOptimismMintableERC721[localToken] = true;
         emit OptimismMintableERC721Created(localToken, _remoteToken, msg.sender);
