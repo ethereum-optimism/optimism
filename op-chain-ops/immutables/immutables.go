@@ -73,6 +73,7 @@ type PredeploysImmutableConfig struct {
 	}
 	CrossL2Outbox                 *struct{} // optional, only there in interop
 	InteropL2CrossDomainMessenger *struct{} // optional, only there in interop
+	InteropL2StandardBridge       *struct{} // optional, only there in interop
 }
 
 // Check will ensure that the required fields are set on the config.

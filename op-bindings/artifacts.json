@@ -47,5 +47,6 @@
   "SuperchainConfig",
   "CrossL2Inbox",
   "CrossL2Outbox",
-  "InteropL2CrossDomainMessenger"
+  "InteropL2CrossDomainMessenger",
+  "InteropL2StandardBridge"
 ]

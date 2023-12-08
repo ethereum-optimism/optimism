@@ -29,6 +29,7 @@ const (
 	CrossL2Inbox                  = "0x42000000000000000000000000000000000000E0" // interop predeploy
 	CrossL2Outbox                 = "0x42000000000000000000000000000000000000E1" // interop predeploy
 	InteropL2CrossDomainMessenger = "0x42000000000000000000000000000000000000E2" // interop predeploy
+	InteropL2StandardBridge       = "0x42000000000000000000000000000000000000E3" // interop predeploy
 )
 
 var (
@@ -55,6 +56,7 @@ var (
 	CrossL2InboxAddr                  = common.HexToAddress(CrossL2Inbox)
 	CrossL2OutboxAddr                 = common.HexToAddress(CrossL2Outbox)
 	InteropL2CrossDomainMessengerAddr = common.HexToAddress(InteropL2CrossDomainMessenger)
+	InteropL2StandardBridgeAddr       = common.HexToAddress(InteropL2StandardBridge)
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)

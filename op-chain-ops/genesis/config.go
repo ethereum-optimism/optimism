@@ -814,6 +814,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		}
 		cfg.CrossL2Outbox = &struct{}{}
 		cfg.InteropL2CrossDomainMessenger = &struct{}{}
+		cfg.InteropL2StandardBridge = &struct{}{}
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err
