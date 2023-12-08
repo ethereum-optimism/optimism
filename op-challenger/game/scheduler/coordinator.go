@@ -112,6 +112,7 @@ func (c *coordinator) createJob(game types.GameMetadata) (*job, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
+		// TODO(client-pod#325): Update coordinator to call the game player's ValidatePrestate method
 		state.player = player
 		state.status = player.Status()
 	}

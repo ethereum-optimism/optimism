@@ -27,6 +27,8 @@ type Metrics interface {
 	RecordChannelTimedOut()
 	RecordFrame()
 
+	RecordDerivedBatches(batchType string)
+
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 
 	SetDerivationIdle(idle bool)

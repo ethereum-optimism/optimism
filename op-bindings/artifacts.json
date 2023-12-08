@@ -30,6 +30,7 @@
   "FaultDisputeGame",
   "OutputBisectionGame",
   "AlphabetVM",
+  "AlphabetVM2",
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",

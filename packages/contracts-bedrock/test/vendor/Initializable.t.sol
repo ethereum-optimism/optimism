@@ -39,7 +39,7 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(superchainConfig),
-                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0))),
+                initCalldata: abi.encodeCall(superchainConfig.initialize, (address(0), false)),
                 initializedSlotVal: deploy.loadInitializedSlot("SuperchainConfig", true)
             })
         );
@@ -103,6 +103,14 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("ProtocolVersions", true)
             })
         );
+        // L2CrossDomainMessenger
+        contracts.push(
+            InitializeableContract({
+                target: address(l2CrossDomainMessenger),
+                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ()),
+                initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger", false)
+            })
+        );
         // L1StandardBridge
         contracts.push(
             InitializeableContract({
@@ -111,12 +119,28 @@ contract Initializer_Test is Bridge_Initializer {
                 initializedSlotVal: deploy.loadInitializedSlot("L1StandardBridge", true)
             })
         );
-        // L2CrossDomainMessenger
+        // L2StandardBridge
         contracts.push(
             InitializeableContract({
-                target: address(l2CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ()),
-                initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger", false)
+                target: address(l2StandardBridge),
+                initCalldata: abi.encodeCall(l2StandardBridge.initialize, ()),
+                initializedSlotVal: deploy.loadInitializedSlot("L2StandardBridge", false)
+            })
+        );
+        // L1ERC721Bridge
+        contracts.push(
+            InitializeableContract({
+                target: address(l1ERC721Bridge),
+                initCalldata: abi.encodeCall(l1ERC721Bridge.initialize, (superchainConfig)),
+                initializedSlotVal: deploy.loadInitializedSlot("L1ERC721Bridge", true)
+            })
+        );
+        // L2ERC721Bridge
+        contracts.push(
+            InitializeableContract({
+                target: address(l2ERC721Bridge),
+                initCalldata: abi.encodeCall(l2ERC721Bridge.initialize, ()),
+                initializedSlotVal: deploy.loadInitializedSlot("L2ERC721Bridge", false)
             })
         );
     }
@@ -133,7 +157,12 @@ contract Initializer_Test is Bridge_Initializer {
         // Attempt to re-initialize all contracts within the `contracts` array.
         for (uint256 i; i < contracts.length; i++) {
             InitializeableContract memory _contract = contracts[i];
-
+            uint256 size;
+            address target = _contract.target;
+            assembly {
+                size := extcodesize(target)
+            }
+            console.log(size);
             // Assert that the contract is already initialized.
             assertEq(_contract.initializedSlotVal, 1);
 

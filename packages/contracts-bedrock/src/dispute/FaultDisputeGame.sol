@@ -82,8 +82,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.12
-    string public constant version = "0.0.12";
+    /// @custom:semver 0.0.13
+    string public constant version = "0.0.13";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -174,9 +174,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        // TODO(client-pod#94): Once output bisection is implemented, the local context will no longer
-        //                      be constant. We will need to pass it in here based off of the ancestor
-        //                      disputed output root's L2 block number.
         bool validStep = VM.step(_stateData, _proof, 0) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();

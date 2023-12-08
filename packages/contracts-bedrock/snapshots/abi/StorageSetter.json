@@ -11,8 +11,27 @@
     "outputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "addr_",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_slot",
+        "type": "bytes32"
+      }
+    ],
+    "name": "getBool",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "value_",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -30,7 +49,7 @@
     "outputs": [
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "value_",
         "type": "bytes32"
       }
     ],
@@ -49,7 +68,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "value_",
         "type": "uint256"
       }
     ],
@@ -70,6 +89,24 @@
       }
     ],
     "name": "setAddress",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_slot",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "_value",
+        "type": "bool"
+      }
+    ],
+    "name": "setBool",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

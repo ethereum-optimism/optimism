@@ -100,6 +100,12 @@ var (
 		Required: false,
 		Hidden:   true,
 	}
+	L1RPCMaxConcurrency = &cli.IntFlag{
+		Name:    "l1.max-concurrency",
+		Usage:   "Maximum number of concurrent RPC requests to make to the L1 RPC provider.",
+		EnvVars: prefixEnvVars("L1_MAX_CONCURRENCY"),
+		Value:   10,
+	}
 	L1RPCRateLimit = &cli.Float64Flag{
 		Name:    "l1.rpc-rate-limit",
 		Usage:   "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
@@ -117,6 +123,18 @@ var (
 		Usage:   "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
+	}
+	L1PrefetchingWindow = &cli.Uint64Flag{
+		Name:    "l1.prefetching-window",
+		Usage:   "Number of L1 blocks to prefetch in the background. Disabled if 0.",
+		EnvVars: prefixEnvVars("L1_PREFETCHING_WINDOW"),
+		Value:   0,
+	}
+	L1PrefetchingTimeout = &cli.DurationFlag{
+		Name:    "l1.prefetching-timeout",
+		Usage:   "Timeout for L1 prefetching. Disabled if 0.",
+		EnvVars: prefixEnvVars("L1_PREFETCHING_TIMEOUT"),
+		Value:   time.Second * 30,
 	}
 	L2EngineJWTSecret = &cli.StringFlag{
 		Name:        "l2.jwt-secret",
@@ -278,6 +296,12 @@ var (
 		EnvVars: prefixEnvVars("OVERRIDE_CANYON"),
 		Hidden:  false,
 	}
+	DeltaOverrideFlag = &cli.Uint64Flag{
+		Name:    "override.delta",
+		Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
+		EnvVars: prefixEnvVars("OVERRIDE_DELTA"),
+		Hidden:  false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -295,7 +319,10 @@ var optionalFlags = []cli.Flag{
 	L1RPCProviderKind,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
+	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
+	L1PrefetchingWindow,
+	L1PrefetchingTimeout,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
@@ -325,6 +352,7 @@ var optionalFlags = []cli.Flag{
 	RollupLoadProtocolVersions,
 	CanyonOverrideFlag,
 	L1RethDBPath,
+	DeltaOverrideFlag,
 }
 
 // Flags contains the list of configuration options available to the binary.

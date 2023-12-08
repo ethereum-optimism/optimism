@@ -66,3 +66,21 @@ The indexer service currently supports a Postgres database for storing L1/L2 OP 
 
 ## Metrics
 The indexer services exposes a set of Prometheus metrics that can be used to monitor the health of the service. The metrics are exposed via the `/metrics` endpoint on the health server.
+
+## Prerequisites
+Before launching an instance of the service, ensure you have the following:
+- A postgres database configured with user/password credentials.
+- Access to RPC endpoints for archival layer1 and layer2 nodes.
+- Access to at least two server instances with sufficient resources (TODO - Add resource reqs).
+- Use of a migration procedure for applying database schema changes.
+- Telemetry and monitoring configured for the service.
+
+## Security
+All security related issues should be filed via github issues and will be triaged by the team. The following are some security considerations to be taken when running the service:
+- Since the Indexer API only performs read operations on the database, access to the database for any API instances should be restricted to read-only operations.
+- The API has no rate limiting or authentication/authorization mechanisms. It is recommended to place the API behind a reverse proxy that can provide these features.
+- Postgres connection timeouts are unenforced in the services. It is recommended to configure the database to enforce connection timeouts to prevent connection exhaustion attacks.
+- Setting confirmation count values too low can result in indexing failures due to chain reorgs.
+
+## Troubleshooting
+Please advise the [troubleshooting](./docs/troubleshooting.md) guide for common failure scenarios and how to resolve them.

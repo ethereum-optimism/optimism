@@ -123,12 +123,15 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
-		L1NodeAddr:       ctx.String(flags.L1NodeAddr.Name),
-		L1TrustRPC:       ctx.Bool(flags.L1TrustRPC.Name),
-		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
-		RateLimit:        ctx.Float64(flags.L1RPCRateLimit.Name),
-		BatchSize:        ctx.Int(flags.L1RPCMaxBatchSize.Name),
-		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),
+		L1NodeAddr:         ctx.String(flags.L1NodeAddr.Name),
+		L1TrustRPC:         ctx.Bool(flags.L1TrustRPC.Name),
+		L1RPCKind:          sources.RPCProviderKind(strings.ToLower(ctx.String(flags.L1RPCProviderKind.Name))),
+		PrefetchingWindow:  ctx.Uint64(flags.L1PrefetchingWindow.Name),
+		PrefetchingTimeout: ctx.Duration(flags.L1PrefetchingTimeout.Name),
+		RateLimit:          ctx.Float64(flags.L1RPCRateLimit.Name),
+		BatchSize:          ctx.Int(flags.L1RPCMaxBatchSize.Name),
+		HttpPollInterval:   ctx.Duration(flags.L1HTTPPollInterval.Name),
+		MaxConcurrency:     ctx.Int(flags.L1RPCMaxConcurrency.Name),
 	}
 }
 
@@ -202,16 +205,12 @@ Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
 `, "network", network, "rollup_config", rollupConfigPath)
 		}
-		config, err := chaincfg.GetRollupConfig(network)
+		rollupConfig, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
 		}
-		if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
-			canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
-			config.CanyonTime = &canyon
-		}
-
-		return config, nil
+		applyOverrides(ctx, rollupConfig)
+		return rollupConfig, nil
 	}
 
 	file, err := os.Open(rollupConfigPath)
@@ -224,11 +223,19 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
 		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
+	applyOverrides(ctx, &rollupConfig)
+	return &rollupConfig, nil
+}
+
+func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
 	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
 		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
 		rollupConfig.CanyonTime = &canyon
 	}
-	return &rollupConfig, nil
+	if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
+		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+		rollupConfig.DeltaTime = &delta
+	}
 }
 
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {

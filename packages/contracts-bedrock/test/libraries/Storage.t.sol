@@ -40,6 +40,12 @@ contract Storage_Roundtrip_Test is Test {
         assertEq(hash, vm.load(address(setter), slot));
     }
 
+    function test_setGetBool_succeeds(bytes32 slot, bool value) external {
+        setter.setBool(slot, value);
+        assertEq(setter.getBool(slot), value);
+        assertEq(value, vm.load(address(setter), slot) == bytes32(uint256(1)));
+    }
+
     /// @dev All keys must be unique in the input so deduplication is required.
     function testFuzz_setGetBytes32Multi_succeeds(StorageSetter.Slot[] calldata _slots) external {
         for (uint256 i; i < _slots.length; i++) {

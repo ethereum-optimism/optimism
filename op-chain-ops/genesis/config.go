@@ -214,6 +214,8 @@ type DeployConfig struct {
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
 	// OutputBisectionGameGenesisBlock is the block number for genesis.
 	OutputBisectionGameGenesisBlock uint64 `json:"outputBisectionGameGenesisBlock"`
+	// OutputBisectionGameGenesisOutputRoot is the output root for the genesis block.
+	OutputBisectionGameGenesisOutputRoot common.Hash `json:"outputBisectionGameGenesisOutputRoot"`
 	// OutputBisectionGameSplitDepth is the depth at which the output bisection game splits.
 	OutputBisectionGameSplitDepth uint64 `json:"outputBisectionGameSplitDepth"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
@@ -755,11 +757,11 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 		GovernanceToken:     struct{}{},
 		LegacyMessagePasser: struct{}{},
 		L2ERC721Bridge: struct {
-			Messenger   common.Address
 			OtherBridge common.Address
+			Messenger   common.Address
 		}{
-			Messenger:   predeploys.L2CrossDomainMessengerAddr,
 			OtherBridge: config.L1ERC721BridgeProxy,
+			Messenger:   predeploys.L2CrossDomainMessengerAddr,
 		},
 		OptimismMintableERC721Factory: struct {
 			Bridge        common.Address
@@ -829,6 +831,10 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"msgNonce":         0,
 	}
 	storage["L2StandardBridge"] = state.StorageValues{
+		"_initialized":  1,
+		"_initializing": false,
+	}
+	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
 	}

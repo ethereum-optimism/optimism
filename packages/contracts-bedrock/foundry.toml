@@ -62,3 +62,13 @@ runs = 512
 
 [profile.lite]
 optimizer = false
+
+################################################################
+#                         PROFILE: KONTROL                     #
+################################################################
+
+[profile.kontrol]
+src = 'src/L1'
+out = 'kout'
+test = 'test/kontrol'
+script = 'scripts-kontrol'

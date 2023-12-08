@@ -228,6 +228,9 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.txMgr.Close()
 	}
 
+	if s.pollClient != nil {
+		s.pollClient.Close()
+	}
 	if s.l1Client != nil {
 		s.l1Client.Close()
 	}

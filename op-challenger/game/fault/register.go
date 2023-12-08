@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -22,7 +23,7 @@ import (
 
 var (
 	cannonGameType         = uint8(0)
-	outputCannonGameType   = uint8(253) // TODO(client-pod#43): Switch the output cannon game type to 1
+	outputCannonGameType   = uint8(1)
 	outputAlphabetGameType = uint8(254)
 	alphabetGameType       = uint8(255)
 )
@@ -80,23 +81,29 @@ func registerOutputAlphabet(
 		if err != nil {
 			return nil, err
 		}
+		prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.RollupRpc)
+		if err != nil {
+			return nil, err
+		}
+		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			// TODO(client-pod#44): Validate absolute pre-state for split games
-			prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
-			if err != nil {
-				return nil, err
-			}
 			splitDepth, err := contract.GetSplitDepth(ctx)
 			if err != nil {
 				return nil, err
 			}
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, m, cfg, gameDepth, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, m, cfg, prestateProvider, rollupClient, gameDepth, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
 			return accessor, nil
 		}
-		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, creator)
+		prestateValidator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
+		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
 	registry.RegisterGameType(outputAlphabetGameType, playerCreator)
 }
@@ -115,19 +122,29 @@ func registerOutputCannon(
 		if err != nil {
 			return nil, err
 		}
+		prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.RollupRpc)
+		if err != nil {
+			return nil, err
+		}
+		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			// TODO(client-pod#44): Validate absolute pre-state for split games
-			agreed, disputed, err := contract.GetBlockRange(ctx)
+			splitDepth, err := contract.GetSplitDepth(ctx)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to load split depth: %w", err)
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, dir, gameDepth, agreed, disputed)
+			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, prestateProvider, rollupClient, dir, gameDepth, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
 			return accessor, nil
 		}
-		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, creator)
+		prestateValidator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
+		genesisValidator := NewPrestateValidator(contract.GetGenesisOutputRoot, prestateProvider)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, []Validator{prestateValidator, genesisValidator}, creator)
 	}
 	registry.RegisterGameType(outputCannonGameType, playerCreator)
 }
@@ -146,18 +163,17 @@ func registerCannon(
 		if err != nil {
 			return nil, err
 		}
+		prestateProvider := cannon.NewPrestateProvider(cfg)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
 			localInputs, err := cannon.FetchLocalInputs(ctx, contract, l2Client)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 			}
 			provider := cannon.NewTraceProvider(logger, m, cfg, faultTypes.NoLocalContext, localInputs, dir, gameDepth)
-			if err := ValidateAbsolutePrestate(ctx, provider, contract); err != nil {
-				return nil, err
-			}
 			return trace.NewSimpleTraceAccessor(provider), nil
 		}
-		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, creator)
+		validator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, []Validator{validator}, creator)
 	}
 	registry.RegisterGameType(cannonGameType, playerCreator)
 }
@@ -175,14 +191,13 @@ func registerAlphabet(
 		if err != nil {
 			return nil, err
 		}
+		prestateProvider := &alphabet.AlphabetPrestateProvider{}
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			provider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
-			if err := ValidateAbsolutePrestate(ctx, provider, contract); err != nil {
-				return nil, err
-			}
-			return trace.NewSimpleTraceAccessor(provider), nil
+			traceProvider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
+			return trace.NewSimpleTraceAccessor(traceProvider), nil
 		}
-		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, creator)
+		validator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
+		return NewGamePlayer(ctx, logger, m, dir, game.Proxy, txMgr, contract, []Validator{validator}, creator)
 	}
 	registry.RegisterGameType(alphabetGameType, playerCreator)
 }

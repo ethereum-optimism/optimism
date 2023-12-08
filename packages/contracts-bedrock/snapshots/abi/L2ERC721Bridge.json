@@ -3,11 +3,6 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_messenger",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
         "name": "_otherBridge",
         "type": "address"
       }
@@ -99,6 +94,19 @@
       }
     ],
     "name": "ERC721BridgeInitiated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -238,6 +246,13 @@
   },
   {
     "inputs": [],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "messenger",
     "outputs": [
       {
@@ -257,6 +272,19 @@
         "internalType": "address",
         "name": "",
         "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",

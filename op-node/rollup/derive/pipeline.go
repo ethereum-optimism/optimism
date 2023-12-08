@@ -21,6 +21,7 @@ type Metrics interface {
 	RecordHeadChannelOpened()
 	RecordChannelTimedOut()
 	RecordFrame()
+	RecordDerivedBatches(batchType string)
 }
 
 type L1Fetcher interface {

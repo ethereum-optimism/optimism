@@ -184,7 +184,7 @@ update-op-geth:
 
 bedrock-markdown-links:
 	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
-		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org \
+		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org --exclude vitalik.ca \
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
 
 install-geth:

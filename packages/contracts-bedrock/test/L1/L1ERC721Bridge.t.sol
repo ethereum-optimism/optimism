@@ -8,6 +8,8 @@ import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 // Target contract dependencies
 import { L2ERC721Bridge } from "src/L2/L2ERC721Bridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
+import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 
 // Target contract
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
@@ -65,6 +67,7 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l1ERC721Bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(l1ERC721Bridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1ERC721Bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
+        assertEq(address(l1ERC721Bridge.superchainConfig()), address(superchainConfig));
     }
 
     /// @dev Tests that the ERC721 can be bridged successfully.
@@ -293,5 +296,64 @@ contract L1ERC721Bridge_Test is Bridge_Initializer {
         vm.prank(address(l1CrossDomainMessenger));
         vm.expectRevert("L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge");
         l1ERC721Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
+    }
+}
+
+contract L1ERC721Bridge_Pause_Test is Bridge_Initializer {
+    /// @dev Verifies that the `paused` accessor returns the same value as the `paused` function of the
+    ///      `superchainConfig`.
+    function test_paused_succeeds() external {
+        assertEq(l1ERC721Bridge.paused(), superchainConfig.paused());
+    }
+
+    /// @dev Ensures that the `paused` function of the bridge contract actually calls the `paused` function of the
+    ///      `superchainConfig`.
+    function test_pause_callsSuperchainConfig_succeeds() external {
+        vm.expectCall(address(superchainConfig), abi.encodeWithSelector(SuperchainConfig.paused.selector));
+        l1ERC721Bridge.paused();
+    }
+
+    /// @dev Checks that the `paused` state of the bridge matches the `paused` state of the `superchainConfig` after
+    ///      it's been changed.
+    function test_pause_matchesSuperchainConfig_succeeds() external {
+        assertFalse(l1StandardBridge.paused());
+        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause("identifier");
+
+        assertTrue(l1StandardBridge.paused());
+        assertEq(l1StandardBridge.paused(), superchainConfig.paused());
+    }
+}
+
+contract L1ERC721Bridge_Pause_TestFail is Bridge_Initializer {
+    /// @dev Sets up the test by pausing the bridge, giving ether to the bridge and mocking
+    ///      the calls to the xDomainMessageSender so that it returns the correct value.
+    function setUp() public override {
+        super.setUp();
+        vm.prank(superchainConfig.guardian());
+        superchainConfig.pause("identifier");
+        assertTrue(l1ERC721Bridge.paused());
+
+        vm.mockCall(
+            address(l1ERC721Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(l1ERC721Bridge.otherBridge()))
+        );
+    }
+
+    // @dev Ensures that the `bridgeERC721` function reverts when the bridge is paused.
+    function test_pause_finalizeBridgeERC721_reverts() external {
+        vm.prank(address(l1ERC721Bridge.messenger()));
+        vm.expectRevert("L1ERC721Bridge: paused");
+        l1ERC721Bridge.finalizeBridgeERC721({
+            _localToken: address(0),
+            _remoteToken: address(0),
+            _from: address(0),
+            _to: address(0),
+            _tokenId: 0,
+            _extraData: hex""
+        });
     }
 }
