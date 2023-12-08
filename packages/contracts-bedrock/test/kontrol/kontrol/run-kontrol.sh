@@ -31,37 +31,37 @@ export KONTROL_RELEASE=${KONTROLRC}
 #############
 kontrol_build() {
     notif "Kontrol Build"
-    docker_exec kontrol build                     \
-                        --verbose                 \
-                        --require "${lemmas}"       \
-                        --module-import "${module}" \
-                        "${rekompile}"
+    docker_exec kontrol build                       \
+                        --verbose                   \
+                        --require ${lemmas}         \
+                        --module-import ${module}   \
+                        ${rekompile}
             }
 
 kontrol_prove() {
     notif "Kontrol Prove"
-    docker_exec kontrol prove                                \
-                        --max-depth "${max_depth}"           \
-                        --max-iterations "${max_iterations}" \
-                        --smt-timeout "${smt_timeout}"       \
-                        --bmc-depth "${bmc_depth}"           \
-                        --workers "${workers}"               \
-                        "${reinit}"                          \
-                        "${bug_report}"                      \
-                        "${break_on_calls}"                  \
-                        "${auto_abstract}"                   \
-                        "${tests}"                           \
-                        "${use_booster}"
+    docker_exec kontrol prove                              \
+                        --max-depth ${max_depth}           \
+                        --max-iterations ${max_iterations} \
+                        --smt-timeout ${smt_timeout}       \
+                        --bmc-depth ${bmc_depth}           \
+                        --workers ${workers}               \
+                        ${reinit}                          \
+                        ${bug_report}                      \
+                        ${break_on_calls}                  \
+                        ${auto_abstract}                   \
+                        ${tests}                           \
+                        ${use_booster}
 }
 
 start_docker () {
-    docker run                                  \
+    docker run                                    \
       --name "${CONTAINER_NAME}"                  \
-      --rm                                      \
-      --interactive                             \
-      --detach                                  \
+      --rm                                        \
+      --interactive                               \
+      --detach                                    \
       --env FOUNDRY_PROFILE="${FOUNDRY_PROFILE}"  \
-      --workdir /home/user/workspace            \
+      --workdir /home/user/workspace              \
     runtimeverificationinc/kontrol:ubuntu-jammy-"${KONTROL_RELEASE}"
 
     # Copy test content to container
@@ -70,34 +70,40 @@ start_docker () {
 }
 
 docker_exec () {
-    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} "$@"
+    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
 }
 
 dump_log_results(){
+  trap clean_docker ERR
+
   notif "Something went wrong. Running cleanup..."
+  blank_line
+
   notif "Creating Tar of Proof Results"
   docker exec ${CONTAINER_NAME} tar -czvf results.tar.gz kout/proofs
-  
+  RESULTS_LOG="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
   notif "Copying Tests Results to Host"
+  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz "${RESULTS_LOG}"
+  if [ -f "${RESULTS_LOG}" ]; then
+    cp kontrol-results_*.tar.gz kontrol-results_latest.tar.gz 
+  else
+    notif "Results Log: ${RESULTS_LOG} not found, did not pull from container."
+  fi
   blank_line
-  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz ./kontrol-results_"$(date +'%Y-%m-%d-%H-%M-%S')".tar.gz
-  cp kontrol-results_*.tar.gz kontrol-results_latest.tar.gz 
-
-  notif "Dump Logs"
-  LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-  docker logs ${CONTAINER_NAME} > "${LOG_FILE}"
+  
+  notif "Dump RUN Logs"
+  RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+  docker logs ${CONTAINER_NAME} > "${RUN_LOG}"
 }
 
 clean_docker(){
   notif "Stopping Docker Container"
   docker stop ${CONTAINER_NAME}
   blank_line
-
 }
 
 # Define the function to run on failure
 on_failure() {
-
   dump_log_results
 
   clean_docker
@@ -151,6 +157,15 @@ tests+="--match-test CounterTest.test_SetNumber "
 #############
 # RUN TESTS #
 #############
+
+# Is old docker container running?
+if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
+    # Stop old docker container
+    notif "Stopping old docker container"
+    clean_docker
+    blank_line
+fi
+
 start_docker
 
 kontrol_build
