@@ -203,7 +203,7 @@ func TestPrefetchingEthClient_updateRange(t *testing.T) {
 		},
 
 		{
-			desc: "hist-old-hist",
+			desc: "window-rewind",
 			ts: []testCase{
 				{
 					from:        100,
@@ -218,9 +218,21 @@ func TestPrefetchingEthClient_updateRange(t *testing.T) {
 					shouldFetch: true,
 				},
 				{
+					from:        11,
+					start:       21,
+					end:         22,
+					shouldFetch: true,
+				},
+				{
 					from:        105,
-					start:       111,
+					start:       106,
 					end:         116,
+					shouldFetch: true,
+				},
+				{
+					from:        106,
+					start:       116,
+					end:         117,
 					shouldFetch: true,
 				},
 			},
