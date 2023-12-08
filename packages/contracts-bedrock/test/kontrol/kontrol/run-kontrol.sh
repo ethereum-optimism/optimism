@@ -85,7 +85,7 @@ dump_log_results(){
   notif "Copying Tests Results to Host"
   docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz "${RESULTS_LOG}"
   if [ -f "${RESULTS_LOG}" ]; then
-    cp kontrol-results_*.tar.gz kontrol-results_latest.tar.gz 
+    cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz 
   else
     notif "Results Log: ${RESULTS_LOG} not found, did not pull from container."
   fi
