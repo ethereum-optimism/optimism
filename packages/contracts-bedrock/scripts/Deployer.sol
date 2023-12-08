@@ -144,7 +144,6 @@ abstract contract Deployer is Script {
         }
     }
 
-
     /// @notice Call this function to sync the deployment artifacts such that
     ///         hardhat deploy style artifacts are created.
     function sync() public {
