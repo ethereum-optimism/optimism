@@ -18,7 +18,7 @@
 
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": -1,
+  "l2OutputOracleStartingTimestamp": 1695767904,
 
   "l2OutputOracleProposer": "0x20044a0d104E9e788A0C984A2B7eAe615afD046b",
   "l2OutputOracleChallenger": "0xDa3037Ff70Ac92CD867c683BD807e5A484857405",
