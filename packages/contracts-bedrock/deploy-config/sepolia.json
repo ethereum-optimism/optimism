@@ -14,7 +14,7 @@
   "batchSenderAddress": "0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c",
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": -1,
+  "l2OutputOracleStartingTimestamp": 1690493568,
   "l2OutputOracleProposer": "0x49277EE36A024120Ee218127354c4a3591dc90A9",
   "l2OutputOracleChallenger": "0xfd1D2e729aE8eEe2E146c033bf4400fE75284301",
   "finalizationPeriodSeconds": 12,
