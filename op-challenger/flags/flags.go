@@ -224,6 +224,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 			if !ctx.IsSet(RollupRpcFlag.Name) {
 				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
 			}
+		case config.TraceTypeOutputAlphabet:
+			if !ctx.IsSet(RollupRpcFlag.Name) {
+				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
+			}
 		default:
 			return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 		}

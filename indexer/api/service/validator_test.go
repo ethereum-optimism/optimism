@@ -1,4 +1,4 @@
-package routes
+package service
 
 import (
 	"testing"

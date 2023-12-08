@@ -11,4 +11,5 @@ library Executables {
     string internal constant echo = "echo";
     string internal constant sed = "sed";
     string internal constant find = "find";
+    string internal constant ls = "ls";
 }

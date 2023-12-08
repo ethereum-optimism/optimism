@@ -39,10 +39,10 @@ library ChainAssertions {
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1StandardBridge(_prox);
+        checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
         checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
         checkOptimismMintableERC20Factory(_prox);
-        checkL1ERC721Bridge(_prox);
+        checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
@@ -91,12 +91,17 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory _contracts) internal view {
+    function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
         require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
         require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
         require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
+        if (_isProxy) {
+            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
+        } else {
+            require(address(bridge.superchainConfig()) == address(0));
+        }
     }
 
     /// @notice Asserts that the L2OutputOracle is setup correctly
@@ -132,12 +137,17 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
-    function checkL1ERC721Bridge(Types.ContractSet memory _contracts) internal view {
+    function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
         require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
         require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
         require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
+        if (_isProxy) {
+            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
+        } else {
+            require(address(bridge.superchainConfig()) == address(0));
+        }
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly

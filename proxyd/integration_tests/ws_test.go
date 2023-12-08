@@ -3,90 +3,14 @@ package integration_tests
 import (
 	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/proxyd"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 )
-
-// TestConcurrentWSPanic tests for a panic in the websocket proxy
-// that occurred when messages were sent from the upstream to the
-// client right after the client sent an invalid request.
-func TestConcurrentWSPanic(t *testing.T) {
-	var backendToProxyConn *websocket.Conn
-	var setOnce sync.Once
-
-	readyCh := make(chan struct{}, 1)
-	quitC := make(chan struct{})
-
-	// Pull out the backend -> proxyd conn so that we can spam it directly.
-	// Use a sync.Once to make sure we only do that once, for the first
-	// connection.
-	backend := NewMockWSBackend(func(conn *websocket.Conn) {
-		setOnce.Do(func() {
-			backendToProxyConn = conn
-			readyCh <- struct{}{}
-		})
-	}, nil, nil)
-	defer backend.Close()
-
-	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
-
-	config := ReadConfig("ws")
-	_, shutdown, err := proxyd.Start(config)
-	require.NoError(t, err)
-	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, nil)
-	require.NoError(t, err)
-	defer shutdown()
-
-	// suppress tons of log messages
-	oldHandler := log.Root().GetHandler()
-	log.Root().SetHandler(log.DiscardHandler())
-	defer func() {
-		log.Root().SetHandler(oldHandler)
-	}()
-
-	<-readyCh
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-	// spam messages
-	go func() {
-		for {
-			select {
-			case <-quitC:
-				wg.Done()
-				return
-			default:
-				_ = backendToProxyConn.WriteMessage(websocket.TextMessage, []byte("garbage"))
-			}
-		}
-	}()
-
-	// spam invalid RPCs
-	go func() {
-		for {
-			select {
-			case <-quitC:
-				wg.Done()
-				return
-			default:
-				_ = client.WriteMessage(websocket.TextMessage, []byte("{\"id\": 1, \"method\": \"eth_foo\", \"params\": [\"newHeads\"]}"))
-			}
-		}
-	}()
-
-	// 1 second is enough to trigger the panic due to
-	// concurrent write to websocket connection
-	time.Sleep(time.Second)
-	close(quitC)
-	wg.Wait()
-}
 
 type backendHandler struct {
 	msgCB   atomic.Value

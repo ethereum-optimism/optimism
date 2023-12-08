@@ -87,7 +87,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon
+          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -432,12 +432,7 @@ jobs:
       - run:
           name: snapshots
           command: |
-            pnpm snapshots
-            if git diff --exit-code snapshots > /dev/null; then
-              [ -z "$(git ls-files --others --exclude-standard snapshots)" ] || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
-            else
-              echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
-            fi
+            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check statuses
@@ -887,6 +882,7 @@ jobs:
         default: this-package-does-not-exist
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
@@ -895,14 +891,14 @@ jobs:
           name: Lint
           command: make lint
           working_directory: <<parameters.working_directory>>
-      - store_test_results:
-          path: /test-results
       - run:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum --junitfile /test-results/tests.xml
+            gotestsum  --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=2
           working_directory: <<parameters.working_directory>>
+      - store_test_results:
+          path: /test-results
       - when:
           condition:
             equal: [ true, <<parameters.build>> ]
@@ -927,7 +923,7 @@ jobs:
           working_directory: indexer
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate cannon prestate
           command: make cannon-prestate
@@ -1002,7 +998,7 @@ jobs:
           key: golang-build-cache
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate devnet allocs
           command: make devnet-allocs
@@ -1023,7 +1019,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages,ops-bedrock
+          patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
           name: Install latest golang
           command: |
@@ -1061,7 +1057,7 @@ jobs:
             npm i pnpm --global
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: Install and build
           command: |

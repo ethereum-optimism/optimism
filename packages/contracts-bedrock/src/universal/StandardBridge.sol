@@ -16,7 +16,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 /// @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
 ///         the core bridging logic, including escrowing tokens that are native to the local chain
 ///         and minting/burning tokens that are native to the remote chain.
-abstract contract StandardBridge {
+abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
 
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
@@ -31,7 +31,7 @@ abstract contract StandardBridge {
     /// @custom:legacy
     /// @custom:spacer messenger
     /// @notice Spacer for backwards compatibility.
-    address private spacer_0_0_20;
+    address private spacer_0_2_20;
 
     /// @custom:legacy
     /// @custom:spacer l2TokenBridge
@@ -132,6 +132,14 @@ abstract contract StandardBridge {
         return OTHER_BRIDGE;
     }
 
+    /// @notice This function should return true if the contract is paused.
+    ///         On L1 this function will check the SuperchainConfig for its paused status.
+    ///         On L2 this function should be a no-op.
+    /// @return Whether or not the contract is paused.
+    function paused() public view virtual returns (bool) {
+        return false;
+    }
+
     /// @notice Sends ETH to the sender's address on the other chain.
     /// @param _minGasLimit Minimum amount of gas that the bridge can be relayed with.
     /// @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
@@ -226,6 +234,7 @@ abstract contract StandardBridge {
         payable
         onlyOtherBridge
     {
+        require(paused() == false, "StandardBridge: paused");
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(MESSENGER), "StandardBridge: cannot send to messenger");
@@ -259,6 +268,7 @@ abstract contract StandardBridge {
         public
         onlyOtherBridge
     {
+        require(paused() == false, "StandardBridge: paused");
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),

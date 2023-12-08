@@ -22,4 +22,5 @@ then
 fi
 
 # Perform the move.
+# shellcheck disable=SC2086
 cast send --rpc-url "${RPC}" ${SIGNER_ARGS} "${GAME_ADDR}" "$ACTION(uint256,bytes32)" "${PARENT_INDEX}" "${CLAIM}"

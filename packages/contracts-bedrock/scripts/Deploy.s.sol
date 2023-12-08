@@ -12,11 +12,8 @@ import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { Enum as SafeOps } from "safe-contracts/common/Enum.sol";
 
 import { Deployer } from "scripts/Deployer.sol";
-import "scripts/Deployer.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
 
-import { Safe } from "safe-contracts/Safe.sol";
-import { SafeProxyFactory } from "safe-contracts/proxies/SafeProxyFactory.sol";
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { AddressManager } from "src/legacy/AddressManager.sol";
 import { Proxy } from "src/universal/Proxy.sol";
@@ -46,6 +43,7 @@ import { Chains } from "scripts/Chains.sol";
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
+import { AlphabetVM2 } from "test/mocks/AlphabetVM2.sol";
 import "src/libraries/DisputeTypes.sol";
 import { ChainAssertions } from "scripts/ChainAssertions.sol";
 import { Types } from "scripts/Types.sol";
@@ -56,6 +54,9 @@ import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 ///         To add a new contract to the system, add a public function that deploys that individual contract.
 ///         Then add a call to that function inside of `run`. Be sure to call the `save` function after each
 ///         deployment so that hardhat-deploy style artifacts can be generated using a call to `sync()`.
+///         The `CONTRACT_ADDRESSES_PATH` environment variable can be set to a path that contains a JSON file full of
+///         contract name to address pairs. That enables this script to be much more flexible in the way
+///         it is used.
 contract Deploy is Deployer {
     DeployConfig public cfg;
 
@@ -289,7 +290,9 @@ contract Deploy is Deployer {
         deployImplementations();
         initializeImplementations();
 
-        setOutputBisectionImplementation();
+        setCannonOutputBisectionGameImplementation();
+        setAlphabetOutputBisectionGameImplementation();
+
         setAlphabetFaultGameImplementation();
         setCannonFaultGameImplementation();
 
@@ -669,7 +672,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1StandardBridge = address(bridge);
-        ChainAssertions.checkL1StandardBridge(contracts);
+        ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false });
 
         addr_ = address(bridge);
     }
@@ -679,8 +682,7 @@ contract Deploy is Deployer {
         console.log("Deploying L1ERC721Bridge implementation");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         L1ERC721Bridge bridge = new L1ERC721Bridge{ salt: _implSalt() }({
-            _messenger: l1CrossDomainMessengerProxy,
-            _otherBridge: Predeploys.L2_ERC721_BRIDGE
+            _messenger: l1CrossDomainMessengerProxy
         });
 
         save("L1ERC721Bridge", address(bridge));
@@ -691,7 +693,8 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1ERC721Bridge = address(bridge);
-        ChainAssertions.checkL1ERC721Bridge(contracts);
+
+        ChainAssertions.checkL1ERC721Bridge({ _contracts: contracts, _isProxy: false });
 
         addr_ = address(bridge);
     }
@@ -721,7 +724,7 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: superchainConfigProxy,
             _implementation: superchainConfig,
-            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.superchainConfigGuardian()))
+            _innerCallData: abi.encodeCall(SuperchainConfig.initialize, (cfg.superchainConfigGuardian(), false))
         });
 
         ChainAssertions.checkSuperchainConfig({ _contracts: _proxiesUnstrict(), _cfg: cfg, _isPaused: false });
@@ -783,6 +786,7 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.CHUGSPLASH)) {
@@ -793,15 +797,16 @@ contract Deploy is Deployer {
         }
         require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
 
-        _callViaSafe({
-            _target: address(proxyAdmin),
-            _data: abi.encodeCall(ProxyAdmin.upgrade, (payable(l1StandardBridgeProxy), l1StandardBridge))
+        _upgradeAndCallViaSafe({
+            _proxy: payable(l1StandardBridgeProxy),
+            _implementation: l1StandardBridge,
+            _innerCallData: abi.encodeCall(L1StandardBridge.initialize, (SuperchainConfig(superchainConfigProxy)))
         });
 
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        ChainAssertions.checkL1StandardBridge(_proxies());
+        ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true });
     }
 
     /// @notice Initialize the L1ERC721Bridge
@@ -810,17 +815,19 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1ERC721BridgeProxy = mustGetAddress("L1ERC721BridgeProxy");
         address l1ERC721Bridge = mustGetAddress("L1ERC721Bridge");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
-        _callViaSafe({
-            _target: address(proxyAdmin),
-            _data: abi.encodeCall(ProxyAdmin.upgrade, (payable(l1ERC721BridgeProxy), l1ERC721Bridge))
+        _upgradeAndCallViaSafe({
+            _proxy: payable(l1ERC721BridgeProxy),
+            _implementation: l1ERC721Bridge,
+            _innerCallData: abi.encodeCall(L1ERC721Bridge.initialize, (SuperchainConfig(superchainConfigProxy)))
         });
 
         L1ERC721Bridge bridge = L1ERC721Bridge(l1ERC721BridgeProxy);
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
-        ChainAssertions.checkL1ERC721Bridge(_proxies());
+        ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxies(), _isProxy: true });
     }
 
     /// @notice Ininitialize the OptimismMintableERC20Factory
@@ -985,12 +992,9 @@ contract Deploy is Deployer {
         }
     }
 
-    /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
-        console.log("Setting Cannon FaultDisputeGame implementation");
-        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-
-        Claim mipsAbsolutePrestate;
+    /// @notice Loads the mips absolute prestate from the prestate-proof for devnets otherwise
+    ///         from the config.
+    function loadMipsAbsolutePrestate() internal returns (Claim mipsAbsolutePrestate_) {
         if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             // Fetch the absolute prestate dump
             string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
@@ -1002,53 +1006,77 @@ contract Deploy is Deployer {
                 revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
             }
             commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
-            mipsAbsolutePrestate = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
+            mipsAbsolutePrestate_ = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
             console.log(
                 "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
-                vm.toString(Claim.unwrap(mipsAbsolutePrestate))
+                vm.toString(Claim.unwrap(mipsAbsolutePrestate_))
             );
         } else {
             console.log(
                 "[Cannon Dispute Game] Using absolute prestate from config: %s", cfg.faultGameAbsolutePrestate()
             );
-            mipsAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+            mipsAbsolutePrestate_ = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         }
-
-        // Set the Cannon FaultDisputeGame implementation in the factory.
-        _setFaultGameImplementation(
-            factory, GameTypes.FAULT, mipsAbsolutePrestate, IBigStepper(mustGetAddress("Mips")), cfg.faultGameMaxDepth()
-        );
     }
 
-    /// @notice Sets the implementation for the output bisection game type (254) in the `DisputeGameFactory`
-    function setOutputBisectionImplementation() public onlyDevnet broadcast {
-        console.log("Setting OutputBisectionGame implementation");
+    /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
+    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Cannon FaultDisputeGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        // Set the Cannon FaultDisputeGame implementation in the factory.
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.CANNON,
+            _absolutePrestate: loadMipsAbsolutePrestate(),
+            _faultVm: IBigStepper(mustGetAddress("Mips")),
+            _maxGameDepth: 30 // Hard code depth for legacy game to keep e2e tests fast
+         });
+    }
+
+    /// @notice Sets the implementation for the `OUTPUT_CANNON` game type in the `DisputeGameFactory`
+    function setCannonOutputBisectionGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Cannon OutputBisectionGame implementation");
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.OUTPUT_CANNON,
+            _absolutePrestate: loadMipsAbsolutePrestate(),
+            _faultVm: IBigStepper(mustGetAddress("Mips")),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
+    }
+
+    /// @notice Sets the implementation for the `OUTPUT_ALPHABET` game type in the `DisputeGameFactory`
+    function setAlphabetOutputBisectionGameImplementation() public onlyDevnet broadcast {
+        console.log("Setting Alphabet OutputBisectionGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         _setFaultGameImplementation({
             _factory: factory,
-            _gameType: GameType.wrap(254),
+            _gameType: GameTypes.OUTPUT_ALPHABET,
             _absolutePrestate: outputAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _faultVm: IBigStepper(new AlphabetVM2(outputAbsolutePrestate)),
             _maxGameDepth: cfg.faultGameMaxDepth()
         });
     }
 
-    /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
+    /// @notice Sets the implementation for the `ALPHABET` game type in the `DisputeGameFactory`
     function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
         console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         // Set the Alphabet FaultDisputeGame implementation in the factory.
         Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        _setFaultGameImplementation(
-            factory,
-            GameType.wrap(255),
-            alphabetAbsolutePrestate,
-            IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
-            4 // The max game depth of the alphabet game is always 4.
-        );
+        _setFaultGameImplementation({
+            _factory: factory,
+            _gameType: GameTypes.ALPHABET,
+            _absolutePrestate: alphabetAbsolutePrestate,
+            _faultVm: IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
+            _maxGameDepth: 4 // The max game depth of the alphabet game is always 4.
+         });
     }
 
     /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
@@ -1070,7 +1098,10 @@ contract Deploy is Deployer {
         }
 
         string memory deployed;
-        if (GameType.unwrap(_gameType) == 254) {
+        if (
+            GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.OUTPUT_ALPHABET)
+                || GameType.unwrap(_gameType) == GameType.unwrap(GameTypes.OUTPUT_CANNON)
+        ) {
             deployed = "OutputBisectionGame";
             _factory.setImplementation(
                 _gameType,
@@ -1078,6 +1109,7 @@ contract Deploy is Deployer {
                     _gameType: _gameType,
                     _absolutePrestate: _absolutePrestate,
                     _genesisBlockNumber: cfg.outputBisectionGameGenesisBlock(),
+                    _genesisOutputRoot: Hash.wrap(cfg.outputBisectionGameGenesisOutputRoot()),
                     _maxGameDepth: _maxGameDepth,
                     _splitDepth: cfg.outputBisectionGameSplitDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
@@ -1102,11 +1134,13 @@ contract Deploy is Deployer {
 
         uint8 rawGameType = GameType.unwrap(_gameType);
         string memory gameTypeString;
-        if (rawGameType == 0) {
+        if (rawGameType == GameType.unwrap(GameTypes.CANNON)) {
             gameTypeString = "Cannon";
-        } else if (rawGameType == 254) {
+        } else if (rawGameType == GameType.unwrap(GameTypes.OUTPUT_CANNON)) {
+            gameTypeString = "OutputBisectionCannon";
+        } else if (rawGameType == GameType.unwrap(GameTypes.OUTPUT_ALPHABET)) {
             gameTypeString = "OutputBisectionAlphabet";
-        } else if (rawGameType == 255) {
+        } else if (rawGameType == GameType.unwrap(GameTypes.ALPHABET)) {
             gameTypeString = "Alphabet";
         } else {
             gameTypeString = "Unknown";

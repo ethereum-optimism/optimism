@@ -8,6 +8,7 @@ import { ISemver } from "src/universal/ISemver.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { Constants } from "src/libraries/Constants.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
@@ -18,14 +19,29 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
+    /// @notice Address of the SuperchainConfig contract.
+    SuperchainConfig public superchainConfig;
+
     /// @notice Semantic version.
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 2.0.0
+    string public constant version = "2.0.0";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge) ERC721Bridge(_messenger, _otherBridge) { }
+    constructor(address _messenger) ERC721Bridge(_messenger, Predeploys.L2_ERC721_BRIDGE) {
+        initialize(SuperchainConfig(address(0)));
+    }
+
+    /// @notice Initializes the contract.
+    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    function initialize(SuperchainConfig _superchainConfig) public initializer {
+        superchainConfig = _superchainConfig;
+    }
+
+    /// @inheritdoc ERC721Bridge
+    function paused() public view override returns (bool) {
+        return superchainConfig.paused();
+    }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
@@ -48,6 +64,7 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
         external
         onlyOtherBridge
     {
+        require(paused() == false, "L1ERC721Bridge: paused");
         require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.

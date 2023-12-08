@@ -168,7 +168,8 @@ func (s *Service) initGameLoader(cfg *config.Config) error {
 
 func (s *Service) initScheduler(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.txMgr, s.l1Client)
+	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.txMgr, caller)
 	if err != nil {
 		return err
 	}
@@ -227,6 +228,9 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.txMgr.Close()
 	}
 
+	if s.pollClient != nil {
+		s.pollClient.Close()
+	}
 	if s.l1Client != nil {
 		s.l1Client.Close()
 	}

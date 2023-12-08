@@ -29,7 +29,7 @@ the binary to be rebuilt before executing the tests.
 ## Arguments
 
 *--config <path>* The config path is a required argument, it points to a JSON
-file which contains details of the L2 environment to bring up (including the
+file that contains details of the L2 environment to bring up (including the
 `genesis.json` path, the chain ID, the JWT path, and a ready file path).  See
 the data structures in `op-e2e/external/config.go` for more details.
 
@@ -53,7 +53,7 @@ details.
 
 ## Generalization
 
-This shim is included to help document an demonstrate the usage of the
+This shim is included to help document and demonstrates the usage of the
 external ethereum process e2e test execution.  It is configured to execute in
 CI to help ensure that the tests remain compatible with external clients.
 

@@ -28,6 +28,12 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(address(l2StandardBridge.OTHER_BRIDGE()), address(l1StandardBridge));
     }
 
+    /// @dev Ensures that the L2StandardBridge is always not paused. The pausability
+    ///      happens on L1 and not L2.
+    function test_paused_succeeds() external {
+        assertFalse(l2StandardBridge.paused());
+    }
+
     /// @dev Tests that the bridge receives ETH and successfully initiates a withdrawal.
     function test_receive_succeeds() external {
         assertEq(address(l2ToL1MessagePasser).balance, 0);

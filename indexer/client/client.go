@@ -125,7 +125,7 @@ func (c *Client) HealthCheck() error {
 
 // GetDepositsByAddress ... Gets a deposit response object provided an L1 address and cursor
 func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (*models.DepositResponse, error) {
-	var dResponse *models.DepositResponse
+	var response models.DepositResponse
 	url := c.cfg.BaseURL + api.DepositsPath + l1Address.String() + urlParams
 	endpoint := fmt.Sprintf(url, cursor, c.cfg.PaginationLimit)
 
@@ -134,11 +134,11 @@ func (c *Client) GetDepositsByAddress(l1Address common.Address, cursor string) (
 		return nil, err
 	}
 
-	if err := json.Unmarshal(resp, &dResponse); err != nil {
+	if err := json.Unmarshal(resp, &response); err != nil {
 		return nil, err
 	}
 
-	return dResponse, nil
+	return &response, nil
 }
 
 // GetAllDepositsByAddress ... Gets all deposits provided a L1 address
