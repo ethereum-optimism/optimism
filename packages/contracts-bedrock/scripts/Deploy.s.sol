@@ -651,14 +651,6 @@ contract Deploy is Deployer {
         require(address(bridge.MESSENGER()) == address(0));
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
 
-        // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
-        // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
-        // are always proxies.
-        Types.ContractSet memory contracts = _proxiesUnstrict();
-        contracts.L1ERC721Bridge = address(bridge);
-
-        ChainAssertions.checkL1ERC721Bridge({ _contracts: contracts, _isProxy: false });
-
         addr_ = address(bridge);
     }
 
