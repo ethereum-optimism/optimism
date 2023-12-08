@@ -54,5 +54,12 @@
     "offset": 0,
     "slot": "6",
     "type": "uint256"
+  },
+  {
+    "bytes": "2097152",
+    "label": "hashes",
+    "offset": 0,
+    "slot": "7",
+    "type": "bytes32[65536]"
   }
 ]

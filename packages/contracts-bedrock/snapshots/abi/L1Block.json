@@ -39,6 +39,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "_number",
+        "type": "uint64"
+      }
+    ],
+    "name": "getL1BlockHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "hash_",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "hash",
     "outputs": [
