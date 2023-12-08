@@ -7,8 +7,11 @@ import (
 	"math/big"
 	"strings"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -50,7 +53,12 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 	if traceIndex.Cmp(big.NewInt(int64(len(ap.state)))) >= 0 {
 		return ap.GetStepData(ctx, types.NewPosition(int(ap.depth), big.NewInt(int64(len(ap.state)))))
 	}
-	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, nil, nil
+	key := preimage.LocalIndexKey(4).PreimageKey()
+	// For alphabet output bisection, the state is the local context - that is, the
+	// pre-state l2 block number. So we can just use [ap.state] as the localContext.
+	localContext := common.HexToHash(strings.Join(ap.state, ""))
+	localContextData := types.NewPreimageOracleData(localContext, key[:], nil, 0)
+	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, localContextData, nil
 }
 
 // Get returns the claim value at the given index in the trace.
