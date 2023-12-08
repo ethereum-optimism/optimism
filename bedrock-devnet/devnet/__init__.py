@@ -287,6 +287,9 @@ def convert_anvil_dump(dump):
     accounts = dump['accounts']
 
     for account in accounts.values():
+        bal = account['balance']
+        account['balance'] = str(int(bal, 16))
+
         if 'storage' in account:
             storage = account['storage']
             storage_keys = list(storage.keys())
