@@ -40,7 +40,12 @@ library ChainAssertions {
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
         checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
-        checkL2OutputOracle(_prox, _cfg, _l2OutputOracleStartingTimestamp, _l2OutputOracleStartingBlockNumber);
+        checkL2OutputOracle({
+            _contracts: _prox,
+            _cfg: _cfg,
+            _l2OutputOracleStartingBlockNumber: _l2OutputOracleStartingBlockNumber,
+            _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp
+        });
         checkOptimismMintableERC20Factory(_prox);
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
