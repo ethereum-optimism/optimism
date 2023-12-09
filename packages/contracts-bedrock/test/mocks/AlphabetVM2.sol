@@ -34,7 +34,7 @@ contract AlphabetVM2 is IBigStepper {
             (bytes32 dat,) = oracle.readPreimage(PreimageKeyLib.localizeIdent(4, _localContext), 0);
             uint256 startingL2BlockNumber = (uint256(dat) >> 128) & 0xFFFFFFFF;
             traceIndex = (2 ** 4) * startingL2BlockNumber;
-            claim = traceIndex - 1;
+            claim = traceIndex == 0 ? 0 : traceIndex - 1;
         } else {
             // Otherwise, decode the state data.
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
