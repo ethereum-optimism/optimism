@@ -261,7 +261,7 @@ const getContractConfigs = (filterDuplicates = false) => {
         .filter(([_, implementation]) => implementation)
         .forEach(([chain, implementation], i) => {
           if (implementation) {
-            // make the first one cannonical.  This will be mainnet or op mainnet if they exist
+            // make the first one canonical.  This will be mainnet or op mainnet if they exist
             const name =
               i === 0 ? contract.name : `${contract.name}_${chains[chain]}`
             const nextConfig = {
