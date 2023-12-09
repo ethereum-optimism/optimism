@@ -33,7 +33,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 		return nil, err
 	}
 
-	immutable, err := NewL2ImmutableConfig(config, l1StartBlock)
+	immutableConfig, err := NewL2ImmutableConfig(config, l1StartBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +44,8 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 		return nil, err
 	}
 
-	// Set up the implementations
-	deployResults, err := immutables.BuildOptimism(immutable)
+	// Set up the implementations that contain immutables
+	deployResults, err := immutables.Deploy(immutableConfig)
 	if err != nil {
 		return nil, err
 	}

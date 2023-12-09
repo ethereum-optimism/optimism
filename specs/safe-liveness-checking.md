@@ -25,7 +25,7 @@
 
 ## Liveness checking Mechanism
 
-The Security Security Council uses a specially extended Safe multisig contract to ensure that
+The Security Council uses a specially extended Safe multisig contract to ensure that
 any loss of access to a signer's keys is identified and addressed within a predictable period of
 time.
 
@@ -52,7 +52,7 @@ signer. This time is made publicly available by calling a `lastLive(address)(Tim
 Owners are recorded in this mapping in one of 4 ways:
 
 1. Upon deployment, the guard reads the current set of owners from the Safe contract.
-1. When a new owner is added to the safe. Similarly, when an owner is removed from the Safe, it's
+1. When a new owner is added to the safe. Similarly, when an owner is removed from the Safe, its
    entry is deleted from the mapping.
 1. When a transaction is executed, the signatures on that transaction are passed to the guard and
    used to identify the signers. If more than the required number of signatures is provided, they

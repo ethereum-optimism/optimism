@@ -15,9 +15,24 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 
 contract SuperchainConfig_Init_Test is CommonTest {
     /// @dev Tests that initialization sets the correct values. These are defined in CommonTest.sol.
-    function test_initialize_values_succeeds() external {
+    function test_initialize_unpaused_succeeds() external {
         assertFalse(superchainConfig.paused());
         assertEq(superchainConfig.guardian(), deploy.cfg().superchainConfigGuardian());
+    }
+
+    /// @dev Tests that it can be intialized as paused.
+    function test_initialize_paused_succeeds() external {
+        Proxy newProxy = new Proxy(alice);
+        SuperchainConfig newImpl = new SuperchainConfig();
+
+        vm.startPrank(alice);
+        newProxy.upgradeToAndCall(
+            address(newImpl),
+            abi.encodeWithSelector(SuperchainConfig.initialize.selector, deploy.cfg().superchainConfigGuardian(), true)
+        );
+
+        assertTrue(SuperchainConfig(address(newProxy)).paused());
+        assertEq(SuperchainConfig(address(newProxy)).guardian(), deploy.cfg().superchainConfigGuardian());
     }
 }
 

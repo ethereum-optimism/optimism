@@ -87,7 +87,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon
+          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -161,6 +161,8 @@ jobs:
           command: forge --version
       - run:
           name: Build monorepo
+          environment:
+            FOUNDRY_PROFILE: ci
           command: pnpm build
       - persist_to_workspace:
           root: "."
@@ -432,12 +434,7 @@ jobs:
       - run:
           name: snapshots
           command: |
-            pnpm snapshots
-            if git diff --exit-code snapshots > /dev/null; then
-              [ -z "$(git ls-files --others --exclude-standard snapshots)" ] || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
-            else
-              echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
-            fi
+            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check statuses
@@ -480,8 +477,8 @@ jobs:
           patterns: contracts-bedrock
       - run:
           name: slither
-          command: |
-            pnpm slither:check || echo "Slither failed"
+          command: pnpm slither:check
+          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -887,6 +884,7 @@ jobs:
         default: this-package-does-not-exist
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
@@ -895,14 +893,14 @@ jobs:
           name: Lint
           command: make lint
           working_directory: <<parameters.working_directory>>
-      - store_test_results:
-          path: /test-results
       - run:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum --junitfile /test-results/tests.xml
+            gotestsum  --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=2
           working_directory: <<parameters.working_directory>>
+      - store_test_results:
+          path: /test-results
       - when:
           condition:
             equal: [ true, <<parameters.build>> ]
@@ -927,7 +925,7 @@ jobs:
           working_directory: indexer
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate cannon prestate
           command: make cannon-prestate
@@ -1002,7 +1000,7 @@ jobs:
           key: golang-build-cache
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate devnet allocs
           command: make devnet-allocs
@@ -1023,7 +1021,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages,ops-bedrock
+          patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
           name: Install latest golang
           command: |
@@ -1061,7 +1059,7 @@ jobs:
             npm i pnpm --global
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: Install and build
           command: |
@@ -1340,6 +1338,45 @@ jobs:
           name: Verify Values Match
           command: |
             ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
+
+  kontrol-tests:
+    docker:
+      - image: << pipeline.parameters.ci_builder_image >>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: Checkout Submodule
+          command: |
+            git submodule update --init --recursive
+      - check-changed:
+          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Install Docker CLI
+          command: |
+            # Add Docker's official GPG key:
+            apt-get update
+            apt-get install ca-certificates curl gnupg
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            chmod a+r /etc/apt/keyrings/docker.gpg
+            # Add the repository to Apt sources:
+            echo \
+              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
+              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+              tee /etc/apt/sources.list.d/docker.list > /dev/null
+            apt-get update
+            apt-get install -y docker-ce-cli
+      - run:
+          name: Run Kontrol Tests
+          command: |
+            pnpm test:kontrol
+          working_directory: ./packages/contracts-bedrock
+      - store_artifacts:
+          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+
 workflows:
   main:
     when:
@@ -1592,6 +1629,7 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
+      - kontrol-tests
   release:
     when:
       not:

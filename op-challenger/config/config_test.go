@@ -35,7 +35,7 @@ func validConfig(traceType TraceType) Config {
 		cfg.CannonL2 = validCannonL2
 		cfg.CannonNetwork = validCannonNetwork
 	}
-	if traceType == TraceTypeOutputCannon {
+	if traceType == TraceTypeOutputCannon || traceType == TraceTypeOutputAlphabet {
 		cfg.RollupRpc = validRollupRpc
 	}
 	return cfg
@@ -84,6 +84,12 @@ func TestAlphabetTraceRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingAlphabetTrace)
 }
 
+func TestAlphabetTraceNotRequiredForOutputAlphabet(t *testing.T) {
+	config := validConfig(TraceTypeOutputAlphabet)
+	config.AlphabetTrace = ""
+	require.NoError(t, config.Check())
+}
+
 func TestCannonBinRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.CannonBin = ""
@@ -128,16 +134,16 @@ func TestHttpPollInterval(t *testing.T) {
 	})
 }
 
-func TestRollupRpcRequired(t *testing.T) {
+func TestRollupRpcRequired_OutputCannon(t *testing.T) {
 	config := validConfig(TraceTypeOutputCannon)
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
 
-func TestCannotEnableBothCannonAndOutputCannonTraceTypes(t *testing.T) {
-	config := validConfig(TraceTypeOutputCannon)
-	config.TraceTypes = append(config.TraceTypes, TraceTypeCannon)
-	require.ErrorIs(t, config.Check(), ErrCannonAndOutputCannonConflict)
+func TestRollupRpcRequired_OutputAlphabet(t *testing.T) {
+	config := validConfig(TraceTypeOutputAlphabet)
+	config.RollupRpc = ""
+	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
 
 func TestCannonL2Required(t *testing.T) {
@@ -202,7 +208,7 @@ func TestNetworkMustBeValid(t *testing.T) {
 
 func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet, TraceTypeOutputCannon}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	cfg.AlphabetTrace = validAlphabetTrace
@@ -216,4 +222,9 @@ func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	// Require alphabet specific args
 	cfg.AlphabetTrace = ""
 	require.ErrorIs(t, cfg.Check(), ErrMissingAlphabetTrace)
+	cfg.AlphabetTrace = validAlphabetTrace
+
+	// Require output cannon specific args
+	cfg.RollupRpc = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingRollupRpc)
 }

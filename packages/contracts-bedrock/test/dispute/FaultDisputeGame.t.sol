@@ -152,7 +152,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         if (vmStatus == 1 || vmStatus == 2) rootClaim = changeClaimStatus(rootClaim, VMStatuses.VALID);
 
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, rootClaim));
-        factory.create(GameTypes.FAULT, rootClaim, extraData);
+        factory.create(GameTypes.CANNON, rootClaim, extraData);
     }
 
     /// @dev Tests that the game is initialized with the correct data.

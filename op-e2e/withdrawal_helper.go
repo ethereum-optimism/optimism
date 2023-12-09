@@ -18,9 +18,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
+
+type ClientProvider interface {
+	NodeClient(name string) *ethclient.Client
+}
 
 func SendWithdrawal(t *testing.T, cfg SystemConfig, l2Client *ethclient.Client, privKey *ecdsa.PrivateKey, applyOpts WithdrawalTxOptsFn) (*types.Transaction, *types.Receipt) {
 	opts := defaultWithdrawalTxOpts()
@@ -79,24 +82,23 @@ func defaultWithdrawalTxOpts() *WithdrawalTxOpts {
 	}
 }
 
-func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l2Node EthInstance, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (*types.Receipt, *types.Receipt) {
-	params, proveReceipt := ProveWithdrawal(t, cfg, l1Client, l2Node, ethPrivKey, l2WithdrawalReceipt)
-	finalizeReceipt := FinalizeWithdrawal(t, cfg, l1Client, ethPrivKey, proveReceipt, params)
+func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (*types.Receipt, *types.Receipt) {
+	params, proveReceipt := ProveWithdrawal(t, cfg, clients, l2NodeName, ethPrivKey, l2WithdrawalReceipt)
+	finalizeReceipt := FinalizeWithdrawal(t, cfg, clients.NodeClient("l1"), ethPrivKey, proveReceipt, params)
 	return proveReceipt, finalizeReceipt
 }
 
-func ProveWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l2Node EthInstance, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
+func ProveWithdrawal(t *testing.T, cfg SystemConfig, clients ClientProvider, l2NodeName string, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (withdrawals.ProvenWithdrawalParameters, *types.Receipt) {
 	// Get l2BlockNumber for proof generation
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 
+	l1Client := clients.NodeClient("l1")
 	blockNumber, err := wait.ForOutputRootPublished(ctx, l1Client, config.L1Deployments.L2OutputOracleProxy, l2WithdrawalReceipt.BlockNumber)
 	require.Nil(t, err)
 
-	rpcClient, err := rpc.Dial(l2Node.WSEndpoint())
-	require.Nil(t, err)
-	proofCl := gethclient.New(rpcClient)
-	receiptCl := ethclient.NewClient(rpcClient)
+	receiptCl := clients.NodeClient(l2NodeName)
+	proofCl := gethclient.New(receiptCl.Client())
 
 	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()

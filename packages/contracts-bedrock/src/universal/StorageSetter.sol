@@ -16,8 +16,8 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice Stores a bytes32 `_value` at `_slot`. Any storage slots that
     ///         are packed should be set through this interface.
@@ -34,8 +34,8 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Retrieves a bytes32 value from `_slot`.
-    function getBytes32(bytes32 _slot) external view returns (bytes32) {
-        return Storage.getBytes32(_slot);
+    function getBytes32(bytes32 _slot) external view returns (bytes32 value_) {
+        value_ = Storage.getBytes32(_slot);
     }
 
     /// @notice Stores a uint256 `_value` at `_slot`.
@@ -44,8 +44,8 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Retrieves a uint256 value from `_slot`.
-    function getUint(bytes32 _slot) external view returns (uint256) {
-        return Storage.getUint(_slot);
+    function getUint(bytes32 _slot) external view returns (uint256 value_) {
+        value_ = Storage.getUint(_slot);
     }
 
     /// @notice Stores an address `_value` at `_slot`.
@@ -54,7 +54,17 @@ contract StorageSetter is ISemver {
     }
 
     /// @notice Retrieves an address value from `_slot`.
-    function getAddress(bytes32 _slot) external view returns (address) {
-        return Storage.getAddress(_slot);
+    function getAddress(bytes32 _slot) external view returns (address addr_) {
+        addr_ = Storage.getAddress(_slot);
+    }
+
+    /// @notice Stores a bool `_value` at `_slot`.
+    function setBool(bytes32 _slot, bool _value) public {
+        Storage.setBool(_slot, _value);
+    }
+
+    /// @notice Retrieves a bool value from `_slot`.
+    function getBool(bytes32 _slot) external view returns (bool value_) {
+        value_ = Storage.getBool(_slot);
     }
 }

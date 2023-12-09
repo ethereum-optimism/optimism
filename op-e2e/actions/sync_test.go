@@ -171,7 +171,7 @@ func TestEngineP2PSync(gt *testing.T) {
 
 	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
 	// Enable engine P2P sync
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{EngineSync: true})
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{SyncMode: sync.ELSync})
 
 	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)

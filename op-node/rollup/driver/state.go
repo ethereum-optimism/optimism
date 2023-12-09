@@ -324,7 +324,7 @@ func (s *Driver) eventLoop() {
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
-			} else if err != nil && errors.Is(err, derive.EngineP2PSyncing) {
+			} else if err != nil && errors.Is(err, derive.EngineELSyncing) {
 				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "sync_target", s.derivation.EngineSyncTarget(), "err", err)
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)

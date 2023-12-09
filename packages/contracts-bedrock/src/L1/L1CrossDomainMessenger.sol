@@ -18,12 +18,12 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @custom:legacy
     OptimismPortal public immutable PORTAL;
 
-    /// @notice Address of the other SuperchainConfig contract.
+    /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
-    /// @custom:semver 2.1.0
-    string public constant version = "2.1.0";
+    /// @custom:semver 2.1.1
+    string public constant version = "2.1.1";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
     /// @param _portal Address of the OptimismPortal contract on this network.

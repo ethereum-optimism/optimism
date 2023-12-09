@@ -1,10 +1,10 @@
 language: "en"
 early_access: false
 reviews:
-  high_level_summary: true
-  poem: true
-  review_status: true
-  collapse_walkthrough: false
+  high_level_summary: false
+  poem: false
+  review_status: false
+  collapse_walkthrough: true
   path_filters:
     - "!**/*.json"
     - "!op-bindings/bindings/**"

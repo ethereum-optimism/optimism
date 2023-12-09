@@ -151,11 +151,22 @@ type L1EndpointConfig struct {
 	// BatchSize specifies the maximum batch-size, which also applies as L1 rate-limit burst amount (if set).
 	BatchSize int
 
+	// MaxConcurrency specifies the maximum number of concurrent requests to the L1 RPC.
+	MaxConcurrency int
+
 	// HttpPollInterval specifies the interval between polling for the latest L1 block,
 	// when the RPC is detected to be an HTTP type.
 	// It is recommended to use websockets or IPC for efficient following of the changing block.
 	// Setting this to 0 disables polling.
 	HttpPollInterval time.Duration
+
+	// PrefetchingWindow specifies the number of blocks to prefetch from the L1 RPC.
+	// Setting this to 0 disables prefetching.
+	PrefetchingWindow uint64
+
+	// PrefetchingTimeout specifies the timeout for prefetching from the L1 RPC.
+	// Setting this to 0 disables prefetching.
+	PrefetchingTimeout time.Duration
 }
 
 var _ L1EndpointSetup = (*L1EndpointConfig)(nil)
@@ -166,6 +177,9 @@ func (cfg *L1EndpointConfig) Check() error {
 	}
 	if cfg.RateLimit < 0 {
 		return fmt.Errorf("rate limit cannot be negative")
+	}
+	if cfg.MaxConcurrency < 1 {
+		return fmt.Errorf("max concurrent requests cannot be less than 1, was %d", cfg.MaxConcurrency)
 	}
 	return nil
 }
@@ -185,6 +199,9 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	}
 	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
 	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize
+	rpcCfg.MaxConcurrentRequests = cfg.MaxConcurrency
+	rpcCfg.PrefetchingWindow = cfg.PrefetchingWindow
+	rpcCfg.PrefetchingTimeout = cfg.PrefetchingTimeout
 	return l1Node, rpcCfg, nil
 }
 

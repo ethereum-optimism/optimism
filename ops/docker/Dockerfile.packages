@@ -81,6 +81,8 @@ COPY .git/ ./.git
 COPY .gitmodules ./.gitmodules
 RUN git submodule update --init --recursive
 
+COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
+
 RUN pnpm build
 
 ENTRYPOINT ["pnpm", "run"]

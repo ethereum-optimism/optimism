@@ -59,7 +59,7 @@ Starting from left to right in the above diagram:
         - `PROMETHEUS_SERVER_URL` and `PROMETHEUS_PUSHGATEWAY_URL`
 3. You'll need to setup some sort of scheduler to run your Test Services at specific time intervals
     - For Linux/MacOS this can be accomplished using `cron`
-        - Edit your `cron` job file using `crontrab -e`
+        - Edit your `cron` job file using `crontab -e`
         - Here is some example code to get you started, also found in `crontab.example` file:
             ```bash
             # Needs to point to docker, otherwise you'll get the error: exec: "docker": executable file not found in $PATH
@@ -84,4 +84,4 @@ Starting from left to right in the above diagram:
 
 ## Test Services
 
-If you're trying to run a specific Test Service, make sure to check our their `README.md`s, as they may have some required prerequisites to setup before they'll run as expected
+If you're trying to run a specific Test Service, make sure to check out their `README.md`s, as they may have some required prerequisites to setup before they'll run as expected

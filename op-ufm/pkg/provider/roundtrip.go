@@ -58,7 +58,6 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		}
 
 		tx, err := p.createTx(ctx, client, nonce)
-		nonce = tx.Nonce()
 		if err != nil {
 			log.Error("cant create tx",
 				"provider", p.name,
@@ -66,6 +65,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				"err", err)
 			return
 		}
+		nonce = tx.Nonce()
 
 		signedTx, err := p.sign(ctx, tx)
 		if err != nil {
