@@ -7,7 +7,7 @@ import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 
-import {Counter} from "src/L1/Counter.sol";
+import {Counter} from "./Counter.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
