@@ -20,6 +20,7 @@ CONTRACT_NAMES=deployments/hardhat/.deploy
 python3 reverse_key_values.py ${CONTRACT_NAMES} ${CONTRACT_NAMES}Reversed
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 
-STATEDIFF_CONTRACT=test/kontrol/state-change/StateDiffCheatcode.sol
-kontrol summary StateDiffCheatcode snapshots/state-diff/${STATEDIFF} ${CONTRACT_NAMES} > ${STATEDIFF_CONTRACT}
+STATEDIFF_CONTRACT=test/kontrol/state-change
+#/StateDiffCheatcode.sol
+kontrol summary StateDiffCheatcode snapshots/state-diff/${STATEDIFF} --contract-names ${CONTRACT_NAMES} --output-dir ${STATEDIFF_CONTRACT}
 echo "Added State Updates to ${STATEDIFF_CONTRACT}"
