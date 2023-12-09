@@ -73,3 +73,9 @@ src = 'src/L1'
 out = 'kout'
 test = 'test/kontrol'
 script = 'scripts-kontrol'
+
+[profile.stategen]
+src = 'test/kontrol/state-change'
+out = 'state-out'
+test = 'test/kontrol/state-change'
+script = 'scripts-kontrol'

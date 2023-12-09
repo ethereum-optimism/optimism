@@ -15,7 +15,7 @@ SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 notif "Script Home: $SCRIPT_HOME"
 blank_line
 
-# Set Run Directory <root>/packages/contracts-bedrock 
+# Set Run Directory <root>/packages/contracts-bedrock
 WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
 notif "Run Directory: ${WORKSPACE_DIR}"
 blank_line
@@ -85,12 +85,12 @@ dump_log_results(){
   notif "Copying Tests Results to Host"
   docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz "${RESULTS_LOG}"
   if [ -f "${RESULTS_LOG}" ]; then
-    cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz 
+    cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz
   else
     notif "Results Log: ${RESULTS_LOG} not found, did not pull from container."
   fi
   blank_line
-  
+
   notif "Dump RUN Logs"
   RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
   docker logs ${CONTAINER_NAME} > "${RUN_LOG}"
@@ -127,7 +127,9 @@ lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
 module=CounterTest:${base_module}
 rekompile=--rekompile
+regen=--regen
 rekompile=
+regen=
 
 #########################
 # kontrol prove options #
@@ -152,7 +154,10 @@ use_booster=--use-booster
 # List of tests to symbolically execute #
 #########################################
 tests=""
-tests+="--match-test CounterTest.test_SetNumber "
+#tests+="--match-test CounterTest.test_SetNumber "
+#tests+="--match-test StateDiffTest.setUp "
+tests+="--match-test StateDiffCheatcode.recreateDeployment "
+# tests+="--match-test StateDiffTest.testVerifyStateChange "
 
 #############
 # RUN TESTS #
