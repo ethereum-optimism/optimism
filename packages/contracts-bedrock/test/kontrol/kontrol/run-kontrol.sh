@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-export FOUNDRY_PROFILE=kontrol
+export FOUNDRY_PROFILE=stategen
 
 # Create a log file to store standard out and standard error
 LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
@@ -30,7 +30,8 @@ kontrol_prove() {
             ${break_on_calls}                  \
             ${auto_abstract}                   \
             ${tests}                           \
-            ${use_booster}
+            ${use_booster} # \
+             # --kore-rpc-command="kore-rpc-booster -l Rewrite"
 }
 
 ###
@@ -39,7 +40,7 @@ kontrol_prove() {
 # NOTE: This script should be executed from the `contracts-bedrock` directory
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=StateDiffCheatcode:${base_module}
+module=StateDiffTest:${base_module}
 
 rekompile=--rekompile
 regen=--regen
@@ -49,15 +50,15 @@ regen=
 ###
 # kontrol prove options
 ###
-max_depth=10000
+max_depth=1000000
 
-max_iterations=10000
+max_iterations=1000000
 
 smt_timeout=100000
 
 # bmc_depth=10
 
-workers=2
+workers=1
 
 reinit=--reinit
 reinit=
