@@ -812,7 +812,7 @@
     "type": "contract",
     "name": "OutputBisectionGame",
     "start": 1092,
-    "length": 28651,
+    "length": 28660,
     "filename_relative": "src/dispute/OutputBisectionGame.sol"
   },
   {
@@ -895,7 +895,7 @@
     "description": "Contract locking ether found:\n\tContract OutputBisectionGame (src/dispute/OutputBisectionGame.sol#24-612) has payable functions:\n\t - IOutputBisectionGame.attack(uint256,Claim) (src/dispute/interfaces/IOutputBisectionGame.sol#30)\n\t - IOutputBisectionGame.defend(uint256,Claim) (src/dispute/interfaces/IOutputBisectionGame.sol#35)\n\t - IOutputBisectionGame.resolveClaim(uint256) (src/dispute/interfaces/IOutputBisectionGame.sol#62)\n\t - OutputBisectionGame.move(uint256,Claim,bool) (src/dispute/OutputBisectionGame.sol#200-281)\n\t - OutputBisectionGame.attack(uint256,Claim) (src/dispute/OutputBisectionGame.sol#284-286)\n\t - OutputBisectionGame.defend(uint256,Claim) (src/dispute/OutputBisectionGame.sol#289-291)\n\t - OutputBisectionGame.resolveClaim(uint256) (src/dispute/OutputBisectionGame.sol#361-411)\n\tBut does not have a function to withdraw the ether\n",
     "type": "function",
     "name": "resolveClaim",
-    "start": 17921,
+    "start": 17930,
     "length": 2043,
     "filename_relative": "src/dispute/OutputBisectionGame.sol"
   },
@@ -1303,7 +1303,7 @@
     "description": "OutputBisectionGame.findStartingAndDisputedOutputs(uint256).currentDepth (src/dispute/OutputBisectionGame.sol#534) is a local variable never initialized\n",
     "type": "variable",
     "name": "currentDepth",
-    "start": 25470,
+    "start": 25479,
     "length": 20,
     "filename_relative": "src/dispute/OutputBisectionGame.sol"
   },

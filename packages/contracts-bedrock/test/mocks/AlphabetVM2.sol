@@ -5,8 +5,6 @@ import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper
 import { PreimageOracle, PreimageKeyLib } from "src/cannon/PreimageOracle.sol";
 import "src/libraries/DisputeTypes.sol";
 
-import { console2 as console } from "forge-std/console2.sol";
-
 /// @title AlphabetVM2
 /// @dev A mock VM for the purpose of testing the dispute game infrastructure. Note that this only works
 ///      for games with an execution trace subgame max depth of 3 (8 instructions per subgame).
