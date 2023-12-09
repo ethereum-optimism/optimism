@@ -317,7 +317,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             // we add the index at depth + 1 to the genesis block number to get the L2 block number.
             uint256 l2Number = Position.unwrap(startingPos) == 0
                 ? GENESIS_BLOCK_NUMBER
-                : GENESIS_BLOCK_NUMBER + startingPos.indexAtDepth() + 1;
+                : GENESIS_BLOCK_NUMBER + startingPos.traceIndex(SPLIT_DEPTH) + 1;
 
             oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {

@@ -2,11 +2,12 @@
 pragma solidity ^0.8.15;
 
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
-import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { PreimageOracle, PreimageKeyLib } from "src/cannon/PreimageOracle.sol";
 import "src/libraries/DisputeTypes.sol";
 
 /// @title AlphabetVM2
-/// @dev A mock VM for the purpose of testing the dispute game infrastructure.
+/// @dev A mock VM for the purpose of testing the dispute game infrastructure. Note that this only works
+///      for games with an execution trace subgame max depth of 3 (8 instructions per subgame).
 contract AlphabetVM2 is IBigStepper {
     Claim internal immutable ABSOLUTE_PRESTATE;
     IPreimageOracle public oracle;
@@ -23,17 +24,17 @@ contract AlphabetVM2 is IBigStepper {
         bytes32 _localContext
     )
         external
+        view
         returns (bytes32 postState_)
     {
         uint256 traceIndex;
         uint256 claim;
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
             // If the state data is empty, then the absolute prestate is the claim.
-            // NOTE: this is wrong, need to fix. Pad to current trace index + claim.
-            // right now this adds local data into the oracle for whatever reason.
-            traceIndex = 0;
-            (claim) = abi.decode(_stateData, (uint256));
-            claim = claim + uint256(oracle.loadLocalData(4, _localContext, 0, 8, 0));
+            (bytes32 dat,) = oracle.readPreimage(PreimageKeyLib.localizeIdent(4, _localContext), 0);
+            uint256 startingL2BlockNumber = (uint256(dat) >> 128) & 0xFFFFFFFF;
+            traceIndex = (2 ** 4) * startingL2BlockNumber;
+            claim = traceIndex - 1;
         } else {
             // Otherwise, decode the state data.
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
