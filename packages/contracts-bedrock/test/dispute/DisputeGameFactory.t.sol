@@ -116,17 +116,17 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `setImplementation` function properly sets the implementation for a given `GameType`.
     function test_setImplementation_succeeds() public {
-        // There should be no implementation for the `GameTypes.FAULT` enum value, it has not been set.
-        assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(0));
+        // There should be no implementation for the `GameTypes.CANNON` enum value, it has not been set.
+        assertEq(address(factory.gameImpls(GameTypes.CANNON)), address(0));
 
         vm.expectEmit(true, true, true, true, address(factory));
-        emit ImplementationSet(address(1), GameTypes.FAULT);
+        emit ImplementationSet(address(1), GameTypes.CANNON);
 
-        // Set the implementation for the `GameTypes.FAULT` enum value.
-        factory.setImplementation(GameTypes.FAULT, IDisputeGame(address(1)));
+        // Set the implementation for the `GameTypes.CANNON` enum value.
+        factory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
 
-        // Ensure that the implementation for the `GameTypes.FAULT` enum value is set.
-        assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(1));
+        // Ensure that the implementation for the `GameTypes.CANNON` enum value is set.
+        assertEq(address(factory.gameImpls(GameTypes.CANNON)), address(1));
     }
 
     /// @dev Tests that the `setImplementation` function reverts when called by a non-owner.
@@ -134,7 +134,7 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
         // Ensure that the `setImplementation` function reverts when called by a non-owner.
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
-        factory.setImplementation(GameTypes.FAULT, IDisputeGame(address(1)));
+        factory.setImplementation(GameTypes.CANNON, IDisputeGame(address(1)));
     }
 }
 

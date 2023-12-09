@@ -48,6 +48,7 @@ type AbiSpecStorageLayoutEntry = {
   slot: number
   offset: number
   bytes: number
+  type: string
 }
 const sortKeys = (obj: any) => {
   if (typeof obj !== 'object' || obj === null) {
@@ -122,6 +123,7 @@ const main = async () => {
           bytes: typ.numberOfBytes,
           offset: storageEntry.offset,
           slot: storageEntry.slot,
+          type: typ.label,
         })
       }
 

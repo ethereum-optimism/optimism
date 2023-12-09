@@ -14,6 +14,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
 
+type txTypeTest struct {
+	name   string
+	mkTx   func(rng *rand.Rand, signer types.Signer) *types.Transaction
+	signer types.Signer
+}
+
 func TestSpanBatchTxsContractCreationBits(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x1234567))
 	chainID := big.NewInt(rng.Int63n(1000))
@@ -54,7 +60,8 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
 
 	contractCreationBits := rawSpanBatch.txs.contractCreationBits
-	contractCreationCount := rawSpanBatch.txs.contractCreationCount()
+	contractCreationCount, err := rawSpanBatch.txs.contractCreationCount()
+	require.NoError(t, err)
 	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
 
 	var sbt spanBatchTxs
@@ -62,7 +69,7 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 	sbt.totalBlockTxCount = totalBlockTxCount
 
 	var buf bytes.Buffer
-	err := sbt.encodeContractCreationBits(&buf)
+	err = sbt.encodeContractCreationBits(&buf)
 	require.NoError(t, err)
 
 	result := buf.Bytes()
@@ -72,7 +79,10 @@ func TestSpanBatchTxsContractCreationCount(t *testing.T) {
 	err = sbt.decodeContractCreationBits(r)
 	require.NoError(t, err)
 
-	require.Equal(t, contractCreationCount, sbt.contractCreationCount())
+	contractCreationCount2, err := sbt.contractCreationCount()
+	require.NoError(t, err)
+
+	require.Equal(t, contractCreationCount, contractCreationCount2)
 }
 
 func TestSpanBatchTxsYParityBits(t *testing.T) {
@@ -106,6 +116,44 @@ func TestSpanBatchTxsYParityBits(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, yParityBits, sbt.yParityBits)
+}
+
+func TestSpanBatchTxsProtectedBits(t *testing.T) {
+	rng := rand.New(rand.NewSource(0x7331))
+	chainID := big.NewInt(rng.Int63n(1000))
+
+	rawSpanBatch := RandomRawSpanBatch(rng, chainID)
+	protectedBits := rawSpanBatch.txs.protectedBits
+	txTypes := rawSpanBatch.txs.txTypes
+	totalBlockTxCount := rawSpanBatch.txs.totalBlockTxCount
+	totalLegacyTxCount := rawSpanBatch.txs.totalLegacyTxCount
+
+	var sbt spanBatchTxs
+	sbt.protectedBits = protectedBits
+	sbt.totalBlockTxCount = totalBlockTxCount
+	sbt.txTypes = txTypes
+	sbt.totalLegacyTxCount = totalLegacyTxCount
+
+	var buf bytes.Buffer
+	err := sbt.encodeProtectedBits(&buf)
+	require.NoError(t, err)
+
+	// protectedBit field is fixed length: single bit
+	protectedBitBufferLen := totalLegacyTxCount / 8
+	require.NoError(t, err)
+	if totalLegacyTxCount%8 != 0 {
+		protectedBitBufferLen++
+	}
+	require.Equal(t, buf.Len(), int(protectedBitBufferLen))
+
+	result := buf.Bytes()
+	sbt.protectedBits = nil
+
+	r := bytes.NewReader(result)
+	err = sbt.decodeProtectedBits(r)
+	require.NoError(t, err)
+
+	require.Equal(t, protectedBits, sbt.protectedBits)
 }
 
 func TestSpanBatchTxsTxSigs(t *testing.T) {
@@ -259,40 +307,64 @@ func TestSpanBatchTxsRecoverV(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x123))
 
 	chainID := big.NewInt(rng.Int63n(1000))
-	signer := types.NewLondonSigner(chainID)
-	totalblockTxCount := rng.Intn(100)
+	londonSigner := types.NewLondonSigner(chainID)
+	totalblockTxCount := 20 + rng.Intn(100)
 
-	var spanBatchTxs spanBatchTxs
-	var txTypes []int
-	var txSigs []spanBatchSignature
-	var originalVs []uint64
-	yParityBits := new(big.Int)
-	for idx := 0; idx < totalblockTxCount; idx++ {
-		tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
-		txTypes = append(txTypes, int(tx.Type()))
-		var txSig spanBatchSignature
-		v, r, s := tx.RawSignatureValues()
-		// Do not fill in txSig.V
-		txSig.r, _ = uint256.FromBig(r)
-		txSig.s, _ = uint256.FromBig(s)
-		txSigs = append(txSigs, txSig)
-		originalVs = append(originalVs, v.Uint64())
-		yParityBit := convertVToYParity(v.Uint64(), int(tx.Type()))
-		yParityBits.SetBit(yParityBits, idx, yParityBit)
+	cases := []txTypeTest{
+		{"unprotected legacy tx", testutils.RandomLegacyTx, types.HomesteadSigner{}},
+		{"legacy tx", testutils.RandomLegacyTx, londonSigner},
+		{"access list tx", testutils.RandomAccessListTx, londonSigner},
+		{"dynamic fee tx", testutils.RandomDynamicFeeTx, londonSigner},
 	}
 
-	spanBatchTxs.yParityBits = yParityBits
-	spanBatchTxs.txSigs = txSigs
-	spanBatchTxs.txTypes = txTypes
-	// recover txSig.v
-	spanBatchTxs.recoverV(chainID)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			var spanBatchTxs spanBatchTxs
+			var txTypes []int
+			var txSigs []spanBatchSignature
+			var originalVs []uint64
+			yParityBits := new(big.Int)
+			protectedBits := new(big.Int)
+			totalLegacyTxCount := 0
+			for idx := 0; idx < totalblockTxCount; idx++ {
+				tx := testCase.mkTx(rng, testCase.signer)
+				txType := tx.Type()
+				txTypes = append(txTypes, int(txType))
+				var txSig spanBatchSignature
+				v, r, s := tx.RawSignatureValues()
+				if txType == types.LegacyTxType {
+					protectedBit := uint(0)
+					if tx.Protected() {
+						protectedBit = uint(1)
+					}
+					protectedBits.SetBit(protectedBits, int(totalLegacyTxCount), protectedBit)
+					totalLegacyTxCount++
+				}
+				// Do not fill in txSig.V
+				txSig.r, _ = uint256.FromBig(r)
+				txSig.s, _ = uint256.FromBig(s)
+				txSigs = append(txSigs, txSig)
+				originalVs = append(originalVs, v.Uint64())
+				yParityBit, err := convertVToYParity(v.Uint64(), int(tx.Type()))
+				require.NoError(t, err)
+				yParityBits.SetBit(yParityBits, idx, yParityBit)
+			}
 
-	var recoveredVs []uint64
-	for _, txSig := range spanBatchTxs.txSigs {
-		recoveredVs = append(recoveredVs, txSig.v)
+			spanBatchTxs.yParityBits = yParityBits
+			spanBatchTxs.txSigs = txSigs
+			spanBatchTxs.txTypes = txTypes
+			spanBatchTxs.protectedBits = protectedBits
+			// recover txSig.v
+			err := spanBatchTxs.recoverV(chainID)
+			require.NoError(t, err)
+
+			var recoveredVs []uint64
+			for _, txSig := range spanBatchTxs.txSigs {
+				recoveredVs = append(recoveredVs, txSig.v)
+			}
+			require.Equal(t, originalVs, recoveredVs, "recovered v mismatch")
+		})
 	}
-
-	require.Equal(t, originalVs, recoveredVs, "recovered v mismatch")
 }
 
 func TestSpanBatchTxsRoundTrip(t *testing.T) {
@@ -315,7 +387,9 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 		sbt2.totalBlockTxCount = totalBlockTxCount
 		err = sbt2.decode(r)
 		require.NoError(t, err)
-		sbt2.recoverV(chainID)
+
+		err = sbt2.recoverV(chainID)
+		require.NoError(t, err)
 
 		require.Equal(t, sbt, &sbt2)
 	}
@@ -324,33 +398,39 @@ func TestSpanBatchTxsRoundTrip(t *testing.T) {
 func TestSpanBatchTxsRoundTripFullTxs(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x13377331))
 	chainID := big.NewInt(rng.Int63n(1000))
-	signer := types.NewLondonSigner(chainID)
+	londonSigner := types.NewLondonSigner(chainID)
 
-	for i := 0; i < 4; i++ {
-		totalblockTxCounts := uint64(1 + rng.Int()&0xFF)
-		var txs [][]byte
-		for i := 0; i < int(totalblockTxCounts); i++ {
-			tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
-			rawTx, err := tx.MarshalBinary()
-			require.NoError(t, err)
-			txs = append(txs, rawTx)
-		}
-		sbt, err := newSpanBatchTxs(txs, chainID)
-		require.NoError(t, err)
+	cases := []txTypeTest{
+		{"unprotected legacy tx", testutils.RandomLegacyTx, types.HomesteadSigner{}},
+		{"legacy tx", testutils.RandomLegacyTx, londonSigner},
+		{"access list tx", testutils.RandomAccessListTx, londonSigner},
+		{"dynamic fee tx", testutils.RandomDynamicFeeTx, londonSigner},
+	}
 
-		txs2, err := sbt.fullTxs(chainID)
-		require.NoError(t, err)
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			for i := 0; i < 4; i++ {
+				totalblockTxCounts := uint64(1 + rng.Int()&0xFF)
+				var txs [][]byte
+				for i := 0; i < int(totalblockTxCounts); i++ {
+					tx := testCase.mkTx(rng, testCase.signer)
+					rawTx, err := tx.MarshalBinary()
+					require.NoError(t, err)
+					txs = append(txs, rawTx)
+				}
+				sbt, err := newSpanBatchTxs(txs, chainID)
+				require.NoError(t, err)
 
-		require.Equal(t, txs, txs2)
+				txs2, err := sbt.fullTxs(chainID)
+				require.NoError(t, err)
+
+				require.Equal(t, txs, txs2)
+			}
+		})
 	}
 }
 
 func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Errorf("The code did not panic")
-		}
-	}()
 	rng := rand.New(rand.NewSource(0x321))
 	chainID := big.NewInt(rng.Int63n(1000))
 
@@ -359,32 +439,44 @@ func TestSpanBatchTxsRecoverVInvalidTxType(t *testing.T) {
 	sbt.txTypes = []int{types.DepositTxType}
 	sbt.txSigs = []spanBatchSignature{{v: 0, r: nil, s: nil}}
 	sbt.yParityBits = new(big.Int)
+	sbt.protectedBits = new(big.Int)
 
-	// expect panic
-	sbt.recoverV(chainID)
+	err := sbt.recoverV(chainID)
+	require.ErrorContains(t, err, "invalid tx type")
 }
 
 func TestSpanBatchTxsFullTxNotEnoughTxTos(t *testing.T) {
 	rng := rand.New(rand.NewSource(0x13572468))
 	chainID := big.NewInt(rng.Int63n(1000))
-	signer := types.NewLondonSigner(chainID)
+	londonSigner := types.NewLondonSigner(chainID)
 
-	totalblockTxCounts := uint64(1 + rng.Int()&0xFF)
-	var txs [][]byte
-	for i := 0; i < int(totalblockTxCounts); i++ {
-		tx := testutils.RandomTx(rng, new(big.Int).SetUint64(rng.Uint64()), signer)
-		rawTx, err := tx.MarshalBinary()
-		require.NoError(t, err)
-		txs = append(txs, rawTx)
+	cases := []txTypeTest{
+		{"unprotected legacy tx", testutils.RandomLegacyTx, types.HomesteadSigner{}},
+		{"legacy tx", testutils.RandomLegacyTx, londonSigner},
+		{"access list tx", testutils.RandomAccessListTx, londonSigner},
+		{"dynamic fee tx", testutils.RandomDynamicFeeTx, londonSigner},
 	}
-	sbt, err := newSpanBatchTxs(txs, chainID)
-	require.NoError(t, err)
 
-	// drop single to field
-	sbt.txTos = sbt.txTos[:len(sbt.txTos)-2]
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			totalblockTxCounts := uint64(1 + rng.Int()&0xFF)
+			var txs [][]byte
+			for i := 0; i < int(totalblockTxCounts); i++ {
+				tx := testCase.mkTx(rng, testCase.signer)
+				rawTx, err := tx.MarshalBinary()
+				require.NoError(t, err)
+				txs = append(txs, rawTx)
+			}
+			sbt, err := newSpanBatchTxs(txs, chainID)
+			require.NoError(t, err)
 
-	_, err = sbt.fullTxs(chainID)
-	require.EqualError(t, err, "tx to not enough")
+			// drop single to field
+			sbt.txTos = sbt.txTos[:len(sbt.txTos)-2]
+
+			_, err = sbt.fullTxs(chainID)
+			require.EqualError(t, err, "tx to not enough")
+		})
+	}
 }
 
 func TestSpanBatchTxsMaxContractCreationBitsLength(t *testing.T) {
@@ -402,5 +494,15 @@ func TestSpanBatchTxsMaxYParityBitsLength(t *testing.T) {
 
 	r := bytes.NewReader([]byte{})
 	err := sb.decodeOriginBits(r)
+	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
+}
+
+func TestSpanBatchTxsMaxProtectedBitsLength(t *testing.T) {
+	var sb RawSpanBatch
+	sb.txs = &spanBatchTxs{}
+	sb.txs.totalLegacyTxCount = 0xFFFFFFFFFFFFFFFF
+
+	r := bytes.NewReader([]byte{})
+	err := sb.txs.decodeProtectedBits(r)
 	require.ErrorIs(t, err, ErrTooBigSpanBatchSize)
 }

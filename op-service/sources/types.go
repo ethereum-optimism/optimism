@@ -190,6 +190,13 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (eth.BlockInfo
 	return &headerInfo{hdr.Hash, hdr.createGethHeader()}, nil
 }
 
+func (hdr *rpcHeader) BlockID() eth.BlockID {
+	return eth.BlockID{
+		Hash:   hdr.Hash,
+		Number: uint64(hdr.Number),
+	}
+}
+
 type rpcBlock struct {
 	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`

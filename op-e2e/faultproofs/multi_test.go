@@ -22,9 +22,9 @@ func TestMultipleCannonGames(t *testing.T) {
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Start a challenger with the correct alphabet trace
-	challenger := gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
+	challenger := gameFactory.StartChallenger(ctx, "TowerDefense",
 		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 	)
@@ -78,12 +78,12 @@ func TestMultipleGameTypes(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(0))
 
 	ctx := context.Background()
-	sys, l1Client := startFaultDisputeSystem(t)
+	sys, _ := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 	// Start a challenger with both cannon and alphabet support
-	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
+	gameFactory.StartChallenger(ctx, "TowerDefense",
 		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
 		challenger.WithAlphabet(disputegame.CorrectAlphabet),
 		challenger.WithPrivKey(sys.Cfg.Secrets.Alice),

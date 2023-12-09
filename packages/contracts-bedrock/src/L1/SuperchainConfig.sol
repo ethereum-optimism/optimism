@@ -33,18 +33,22 @@ contract SuperchainConfig is Initializable, ISemver {
     event ConfigUpdate(UpdateType indexed updateType, bytes data);
 
     /// @notice Semantic version.
-    /// @custom:semver 1.0.0
-    string public constant version = "1.0.0";
+    /// @custom:semver 1.1.0
+    string public constant version = "1.1.0";
 
     /// @notice Constructs the SuperchainConfig contract.
     constructor() {
-        initialize({ _guardian: address(0) });
+        initialize({ _guardian: address(0), _paused: false });
     }
 
     /// @notice Initializer.
     /// @param _guardian    Address of the guardian, can pause the OptimismPortal.
-    function initialize(address _guardian) public initializer {
+    /// @param _paused      Initial paused status.
+    function initialize(address _guardian, bool _paused) public initializer {
         _setGuardian(_guardian);
+        if (_paused) {
+            _pause("Initializer paused");
+        }
     }
 
     /// @notice Getter for the guardian address.
@@ -54,21 +58,27 @@ contract SuperchainConfig is Initializable, ISemver {
 
     /// @notice Getter for the current paused status.
     function paused() public view returns (bool paused_) {
-        paused_ = (Storage.getUint(PAUSED_SLOT) == 1);
+        paused_ = Storage.getBool(PAUSED_SLOT);
     }
 
     /// @notice Pauses withdrawals.
     /// @param _identifier (Optional) A string to identify provenance of the pause transaction.
     function pause(string memory _identifier) external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can pause");
-        Storage.setUint(PAUSED_SLOT, 1);
+        _pause(_identifier);
+    }
+
+    /// @notice Pauses withdrawals.
+    /// @param _identifier (Optional) A string to identify provenance of the pause transaction.
+    function _pause(string memory _identifier) internal {
+        Storage.setBool(PAUSED_SLOT, true);
         emit Paused(_identifier);
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
         require(msg.sender == guardian(), "SuperchainConfig: only guardian can unpause");
-        Storage.setUint(PAUSED_SLOT, 0);
+        Storage.setBool(PAUSED_SLOT, false);
         emit Unpaused();
     }
 

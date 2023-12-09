@@ -3,6 +3,8 @@ artifacts
 forge-artifacts
 cache
 broadcast
+kout
+test/kontrol/kontrol/logs
 
 # Metrics
 coverage.out

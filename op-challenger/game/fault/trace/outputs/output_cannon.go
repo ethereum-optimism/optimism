@@ -22,20 +22,17 @@ func NewOutputCannonTraceAccessor(
 	m metrics.Metricer,
 	cfg *config.Config,
 	l2Client cannon.L2HeaderSource,
-	contract *contracts.FaultDisputeGameContract,
+	contract cannon.L1HeadSource,
+	prestateProvider types.PrestateProvider,
+	rollupClient OutputRollupClient,
 	dir string,
 	gameDepth uint64,
+	splitDepth uint64,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
-	// TODO(client-pod#43): Load depths from the contract
-	topDepth := gameDepth / 2
-	bottomDepth := gameDepth - topDepth
-	outputProvider, err := NewTraceProvider(ctx, logger, cfg.RollupRpc, topDepth, prestateBlock, poststateBlock)
-	if err != nil {
-		return nil, err
-	}
-
+	bottomDepth := gameDepth - splitDepth
+	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 	cannonCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
@@ -48,6 +45,6 @@ func NewOutputCannonTraceAccessor(
 	}
 
 	cache := NewProviderCache(m, "output_cannon_provider", cannonCreator)
-	selector := split.NewSplitProviderSelector(outputProvider, int(topDepth), OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
+	selector := split.NewSplitProviderSelector(outputProvider, int(splitDepth), OutputRootSplitAdapter(outputProvider, cache.GetOrCreate))
 	return trace.NewAccessor(selector), nil
 }

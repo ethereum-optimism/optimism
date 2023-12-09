@@ -5,11 +5,6 @@
         "internalType": "address",
         "name": "_messenger",
         "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "_otherBridge",
-        "type": "address"
       }
     ],
     "stateMutability": "nonpayable",
@@ -99,6 +94,19 @@
       }
     ],
     "name": "ERC721BridgeInitiated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
     "type": "event"
   },
   {
@@ -266,6 +274,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "contract SuperchainConfig",
+        "name": "_superchainConfig",
+        "type": "address"
+      }
+    ],
+    "name": "initialize",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "messenger",
     "outputs": [
@@ -284,6 +305,32 @@
     "outputs": [
       {
         "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "paused",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "superchainConfig",
+    "outputs": [
+      {
+        "internalType": "contract SuperchainConfig",
         "name": "",
         "type": "address"
       }

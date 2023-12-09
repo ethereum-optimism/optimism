@@ -1,34 +1,14 @@
-package routes
+package service
 
 import (
-	"strconv"
-
 	"errors"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 )
 
 // Validator ... Validates API user request parameters
 type Validator struct{}
-
-// ParseValidateLimit ... Validates and parses the limit query parameters
-func (v *Validator) ParseValidateLimit(limit string) (int, error) {
-	if limit == "" {
-		return defaultPageLimit, nil
-	}
-
-	val, err := strconv.Atoi(limit)
-	if err != nil {
-		return 0, errors.New("limit must be an integer value")
-	}
-
-	if val <= 0 {
-		return 0, errors.New("limit must be greater than 0")
-	}
-
-	// TODO - Add a check against a max limit value
-	return val, nil
-}
 
 // ParseValidateAddress ... Validates and parses the address query parameter
 func (v *Validator) ParseValidateAddress(addr string) (common.Address, error) {
@@ -59,4 +39,23 @@ func (v *Validator) ValidateCursor(cursor string) error {
 	}
 
 	return nil
+}
+
+// ParseValidateLimit ... Validates and parses the limit query parameters
+func (v *Validator) ParseValidateLimit(limit string) (int, error) {
+	if limit == "" {
+		return 100, nil
+	}
+
+	val, err := strconv.Atoi(limit)
+	if err != nil {
+		return 0, errors.New("limit must be an integer value")
+	}
+
+	if val <= 0 {
+		return 0, errors.New("limit must be greater than 0")
+	}
+
+	// TODO - Add a check against a max limit value
+	return val, nil
 }

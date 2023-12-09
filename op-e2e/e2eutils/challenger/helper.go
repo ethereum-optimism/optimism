@@ -119,6 +119,14 @@ func WithOutputCannon(
 	}
 }
 
+func WithOutputAlphabet(alphabet string, rollupEndpoint string) Option {
+	return func(c *config.Config) {
+		c.TraceTypes = append(c.TraceTypes, config.TraceTypeOutputAlphabet)
+		c.RollupRpc = rollupEndpoint
+		c.AlphabetTrace = alphabet
+	}
+}
+
 func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
 	log := testlog.Logger(t, log.LvlDebug).New("role", name)
 	log.Info("Creating challenger", "l1", l1Endpoint)

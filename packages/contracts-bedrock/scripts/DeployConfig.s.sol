@@ -51,6 +51,7 @@ contract DeployConfig is Script {
     uint256 public faultGameMaxDepth;
     uint256 public faultGameMaxDuration;
     uint256 public outputBisectionGameGenesisBlock;
+    bytes32 public outputBisectionGameGenesisOutputRoot;
     uint256 public outputBisectionGameSplitDepth;
     uint256 public systemConfigStartBlock;
     uint256 public requiredProtocolVersion;
@@ -107,6 +108,7 @@ contract DeployConfig is Script {
             faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
             outputBisectionGameGenesisBlock = stdJson.readUint(_json, "$.outputBisectionGameGenesisBlock");
+            outputBisectionGameGenesisOutputRoot = stdJson.readBytes32(_json, "$.outputBisectionGameGenesisOutputRoot");
             outputBisectionGameSplitDepth = stdJson.readUint(_json, "$.outputBisectionGameSplitDepth");
         }
     }

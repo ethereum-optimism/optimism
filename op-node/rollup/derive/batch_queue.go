@@ -86,6 +86,7 @@ func (bq *BatchQueue) popNextBatch(parent eth.L2BlockRef) *SingularBatch {
 	bq.nextSpan = bq.nextSpan[1:]
 	// Must set ParentHash before return. we can use parent because the parentCheck is verified in CheckBatch().
 	nextBatch.ParentHash = parent.Hash
+	bq.log.Debug("pop next batch from the cached span batch")
 	return nextBatch
 }
 
@@ -103,6 +104,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		} else {
 			// Given parent block does not match the next batch. It means the previously returned batch is invalid.
 			// Drop cached batches and find another batch.
+			bq.log.Warn("parent block does not match the next batch. dropped cached batches", "parent", parent.ID(), "nextBatchTime", bq.nextSpan[0].GetTimestamp())
 			bq.nextSpan = bq.nextSpan[:0]
 		}
 	}
@@ -115,6 +117,11 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, parent eth.L2BlockRef) (*Si
 		for i, l1Block := range bq.l1Blocks {
 			if parent.L1Origin.Number == l1Block.Number {
 				bq.l1Blocks = bq.l1Blocks[i:]
+				if len(bq.l1Blocks) > 0 {
+					bq.log.Debug("Advancing internal L1 blocks", "next_epoch", bq.l1Blocks[0].ID(), "next_epoch_time", bq.l1Blocks[0].Time)
+				} else {
+					bq.log.Debug("Advancing internal L1 blocks. No L1 blocks left")
+				}
 				break
 			}
 		}

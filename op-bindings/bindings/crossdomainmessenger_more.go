@@ -15,6 +15,7 @@ var CrossDomainMessengerStorageLayout = new(solc.StorageLayout)
 
 var CrossDomainMessengerDeployedBin = "0x"
 
+
 func init() {
 	if err := json.Unmarshal([]byte(CrossDomainMessengerStorageLayoutJSON), CrossDomainMessengerStorageLayout); err != nil {
 		panic(err)
@@ -22,4 +23,5 @@ func init() {
 
 	layouts["CrossDomainMessenger"] = CrossDomainMessengerStorageLayout
 	deployedBytecodes["CrossDomainMessenger"] = CrossDomainMessengerDeployedBin
+	immutableReferences["CrossDomainMessenger"] = false
 }

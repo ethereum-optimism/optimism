@@ -29,6 +29,7 @@ contract AlphabetVM is IBigStepper {
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
             traceIndex++;
         }
+
         // STF: n -> n + 1
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
         assembly {

@@ -27,6 +27,7 @@ type OutputRollupClient interface {
 // OutputTraceProvider is a [types.TraceProvider] implementation that uses
 // output roots for given L2 Blocks as a trace.
 type OutputTraceProvider struct {
+	types.PrestateProvider
 	logger         log.Logger
 	rollupClient   OutputRollupClient
 	prestateBlock  uint64
@@ -39,16 +40,18 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, rollupRpc string, 
 	if err != nil {
 		return nil, err
 	}
-	return NewTraceProviderFromInputs(logger, rollupClient, gameDepth, prestateBlock, poststateBlock), nil
+	prestateProvider := NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
+	return NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, gameDepth, prestateBlock, poststateBlock), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, rollupClient OutputRollupClient, gameDepth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, prestateProvider types.PrestateProvider, rollupClient OutputRollupClient, gameDepth, prestateBlock, poststateBlock uint64) *OutputTraceProvider {
 	return &OutputTraceProvider{
-		logger:         logger,
-		rollupClient:   rollupClient,
-		prestateBlock:  prestateBlock,
-		poststateBlock: poststateBlock,
-		gameDepth:      gameDepth,
+		PrestateProvider: prestateProvider,
+		logger:           logger,
+		rollupClient:     rollupClient,
+		prestateBlock:    prestateBlock,
+		poststateBlock:   poststateBlock,
+		gameDepth:        gameDepth,
 	}
 }
 
@@ -70,11 +73,6 @@ func (o *OutputTraceProvider) Get(ctx context.Context, pos types.Position) (comm
 		return common.Hash{}, err
 	}
 	return o.outputAtBlock(ctx, outputBlock)
-}
-
-// AbsolutePreStateCommitment returns the absolute prestate at the configured prestateBlock.
-func (o *OutputTraceProvider) AbsolutePreStateCommitment(ctx context.Context) (hash common.Hash, err error) {
-	return o.outputAtBlock(ctx, o.prestateBlock)
 }
 
 // GetStepData is not supported in the [OutputTraceProvider].

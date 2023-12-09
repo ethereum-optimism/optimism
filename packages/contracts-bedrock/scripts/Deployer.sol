@@ -4,8 +4,9 @@ pragma solidity ^0.8.0;
 import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { console2 as console } from "forge-std/console2.sol";
-import { Executables } from "./Executables.sol";
-import { Chains } from "./Chains.sol";
+import { Executables } from "scripts/Executables.sol";
+import { Chains } from "scripts/Chains.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -115,6 +116,32 @@ abstract contract Deployer is Script {
             vm.writeJson("{}", tempDeploymentsPath);
         }
         console.log("Storing temp deployment data in %s", tempDeploymentsPath);
+
+        // Load addresses from a JSON file if the CONTRACT_ADDRESSES_PATH environment variable
+        // is set. Great for loading addresses from `superchain-registry`.
+        string memory addresses = vm.envOr("CONTRACT_ADDRESSES_PATH", string(""));
+        if (bytes(addresses).length > 0) {
+            console.log("Loading addresses from %s", addresses);
+            _loadAddresses(addresses);
+        }
+    }
+
+    /// @notice Populates the addresses to be used in a script based on a JSON file.
+    ///         The format of the JSON file is the same that it output by this script
+    ///         as well as the JSON files that contain addresses in the `superchain-ops`
+    ///         repo. The JSON key is the name of the contract and the value is an address.
+    function _loadAddresses(string memory _path) internal {
+        string[] memory commands = new string[](3);
+        commands[0] = "bash";
+        commands[1] = "-c";
+        commands[2] = string.concat("jq -cr < ", _path);
+        string memory json = string(vm.ffi(commands));
+        string[] memory keys = vm.parseJsonKeys(json, "");
+        for (uint256 i; i < keys.length; i++) {
+            string memory key = keys[i];
+            address addr = stdJson.readAddress(json, string.concat("$.", key));
+            save(key, addr);
+        }
     }
 
     /// @notice Call this function to sync the deployment artifacts such that
@@ -197,7 +224,7 @@ abstract contract Deployer is Script {
         return _getExistingDeploymentAddress(_name) != address(0);
     }
 
-    /// @notice Returns the address of a deployment.
+    /// @notice Returns the address of a deployment. Also handles the predeploys.
     /// @param _name The name of the deployment.
     /// @return The address of the deployment. May be `address(0)` if the deployment does not
     ///         exist.
@@ -209,7 +236,54 @@ abstract contract Deployer is Script {
             }
             return existing.addr;
         }
-        return _getExistingDeploymentAddress(_name);
+        address addr = _getExistingDeploymentAddress(_name);
+        if (addr != address(0)) return payable(addr);
+
+        bytes32 digest = keccak256(bytes(_name));
+        if (digest == keccak256(bytes("L2CrossDomainMessenger"))) {
+            return payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        } else if (digest == keccak256(bytes("L2ToL1MessagePasser"))) {
+            return payable(Predeploys.L2_TO_L1_MESSAGE_PASSER);
+        } else if (digest == keccak256(bytes("L2StandardBridge"))) {
+            return payable(Predeploys.L2_STANDARD_BRIDGE);
+        } else if (digest == keccak256(bytes("L2ERC721Bridge"))) {
+            return payable(Predeploys.L2_ERC721_BRIDGE);
+        } else if (digest == keccak256(bytes("SequencerFeeWallet"))) {
+            return payable(Predeploys.SEQUENCER_FEE_WALLET);
+        } else if (digest == keccak256(bytes("OptimismMintableERC20Factory"))) {
+            return payable(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
+        } else if (digest == keccak256(bytes("OptimismMintableERC721Factory"))) {
+            return payable(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
+        } else if (digest == keccak256(bytes("L1Block"))) {
+            return payable(Predeploys.L1_BLOCK_ATTRIBUTES);
+        } else if (digest == keccak256(bytes("GasPriceOracle"))) {
+            return payable(Predeploys.GAS_PRICE_ORACLE);
+        } else if (digest == keccak256(bytes("L1MessageSender"))) {
+            return payable(Predeploys.L1_MESSAGE_SENDER);
+        } else if (digest == keccak256(bytes("DeployerWhitelist"))) {
+            return payable(Predeploys.DEPLOYER_WHITELIST);
+        } else if (digest == keccak256(bytes("WETH9"))) {
+            return payable(Predeploys.WETH9);
+        } else if (digest == keccak256(bytes("LegacyERC20ETH"))) {
+            return payable(Predeploys.LEGACY_ERC20_ETH);
+        } else if (digest == keccak256(bytes("L1BlockNumber"))) {
+            return payable(Predeploys.L1_BLOCK_NUMBER);
+        } else if (digest == keccak256(bytes("LegacyMessagePasser"))) {
+            return payable(Predeploys.LEGACY_MESSAGE_PASSER);
+        } else if (digest == keccak256(bytes("ProxyAdmin"))) {
+            return payable(Predeploys.PROXY_ADMIN);
+        } else if (digest == keccak256(bytes("BaseFeeVault"))) {
+            return payable(Predeploys.BASE_FEE_VAULT);
+        } else if (digest == keccak256(bytes("L1FeeVault"))) {
+            return payable(Predeploys.L1_FEE_VAULT);
+        } else if (digest == keccak256(bytes("GovernanceToken"))) {
+            return payable(Predeploys.GOVERNANCE_TOKEN);
+        } else if (digest == keccak256(bytes("SchemaRegistry"))) {
+            return payable(Predeploys.SCHEMA_REGISTRY);
+        } else if (digest == keccak256(bytes("EAS"))) {
+            return payable(Predeploys.EAS);
+        }
+        return payable(address(0));
     }
 
     /// @notice Returns the address of a deployment and reverts if the deployment
@@ -348,25 +422,43 @@ abstract contract Deployer is Script {
         return string.concat(sanitized, ".sol:", _name);
     }
 
-    /// @notice Returns the filesystem path to the artifact path. Assumes that the name of the
-    ///         file matches the name of the contract.
-    function _getForgeArtifactPath(string memory _name) internal returns (string memory) {
+    function _getForgeArtifactDirectory(string memory _name) internal returns (string memory dir_) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
         bytes memory res = vm.ffi(cmd);
         string memory contractName = _stripSemver(_name);
-        string memory forgeArtifactPath =
-            string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol/", _name, ".json");
-        return forgeArtifactPath;
+        dir_ = string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol");
+    }
+
+    /// @notice Returns the filesystem path to the artifact path. If the contract was compiled
+    ///         with multiple solidity versions then return the first one based on the result of `ls`.
+    function _getForgeArtifactPath(string memory _name) internal returns (string memory) {
+        string memory directory = _getForgeArtifactDirectory(_name);
+        string memory path = string.concat(directory, "/", _name, ".json");
+        if (vm.exists(path)) return path;
+
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(
+            Executables.ls,
+            " -1 --color=never ",
+            directory,
+            " | ",
+            Executables.jq,
+            " -R -s -c 'split(\"\n\") | map(select(length > 0))'"
+        );
+        bytes memory res = vm.ffi(cmd);
+        string[] memory files = stdJson.readStringArray(string(res), "");
+        return string.concat(directory, "/", files[0]);
     }
 
     /// @notice Returns the forge artifact given a contract name.
     function _getForgeArtifact(string memory _name) internal returns (string memory) {
         string memory forgeArtifactPath = _getForgeArtifactPath(_name);
-        string memory forgeArtifact = vm.readFile(forgeArtifactPath);
-        return forgeArtifact;
+        return vm.readFile(forgeArtifactPath);
     }
 
     /// @notice Returns the receipt of a deployment transaction.
@@ -416,6 +508,16 @@ abstract contract Deployer is Script {
         cmd[2] = string.concat(Executables.jq, " -r '.abi' < ", _getForgeArtifactPath(_name));
         bytes memory res = vm.ffi(cmd);
         abi_ = string(res);
+    }
+
+    /// @notice
+    function getMethodIdentifiers(string memory _name) public returns (string[] memory ids_) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(Executables.jq, " '.methodIdentifiers | keys' < ", _getForgeArtifactPath(_name));
+        bytes memory res = vm.ffi(cmd);
+        ids_ = stdJson.readStringArray(string(res), "");
     }
 
     /// @notice Returns the userdoc for a deployed contract.

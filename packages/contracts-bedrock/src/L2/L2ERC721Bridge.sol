@@ -20,13 +20,18 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.5.0
-    string public constant version = "1.5.0";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice Constructs the L2ERC721Bridge contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge) ERC721Bridge(_messenger, _otherBridge) { }
+    constructor(address _otherBridge) ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, _otherBridge) {
+        initialize();
+    }
+
+    /// @notice Initializes the contract. This is a noop in the implementation but included to ensure that
+    ///         the contract cannot be initialized a second time.
+    function initialize() public initializer { }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.

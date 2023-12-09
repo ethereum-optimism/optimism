@@ -88,7 +88,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			sys, l1Client := startFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 			game := disputeGameFactory.StartAlphabetGame(ctx, test.rootClaimAlphabet)
 			require.NotNil(t, game)
 			gameDuration := game.GameDuration(ctx)
@@ -123,7 +123,7 @@ func TestChallengerCompleteExhaustiveDisputeGame(t *testing.T) {
 		sys, l1Client := startFaultDisputeSystem(t)
 		t.Cleanup(sys.Close)
 
-		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.Cfg.L1Deployments, l1Client)
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
 		rootClaimedAlphabet := disputegame.CorrectAlphabet
 		if !isRootCorrect {
 			rootClaimedAlphabet = "abcdexyz"

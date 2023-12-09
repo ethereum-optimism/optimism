@@ -12,8 +12,8 @@ else
     MOD_TIME_FMT="-c %Y"
 fi
 
-FILE_1_AGE=$(stat $MOD_TIME_FMT "$1")
-FILE_2_AGE=$(stat $MOD_TIME_FMT "$2")
+FILE_1_AGE=$(stat "$MOD_TIME_FMT" "$1")
+FILE_2_AGE=$(stat "$MOD_TIME_FMT" "$2")
 
 if [ "$FILE_1_AGE" -gt "$FILE_2_AGE" ]; then
   exit 0
