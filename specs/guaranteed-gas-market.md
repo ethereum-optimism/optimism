@@ -12,7 +12,7 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-[Deposited transaction](./glossary.md#deposited-transaction) are transactions on L2 that are
+[Deposited transactions](./glossary.md#deposited-transaction) are transactions on L2 that are
 initiated on L1. The gas that they use on L2 is bought on L1 via a gas burn (or a direct payment
 in the future). We maintain a fee market and hard cap on the amount of gas provided to all deposits
 in a single L1 block.
@@ -145,7 +145,7 @@ An attacker would observe a deposit in the mempool and frontrun it with a deposi
 that purchases enough gas such that the other deposit reverts.
 The smaller the max resource limit is, the easier this attack is to pull off.
 This attack is mitigated by having a large resource limit as well as a large
-elastcity multiplier. This means that the target resource usage is kept small,
+elasticity multiplier. This means that the target resource usage is kept small,
 giving a lot of room for the deposit base fee to rise when the max resource limit
 is being purchased.
 
