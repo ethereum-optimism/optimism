@@ -1087,7 +1087,7 @@ func TestResetLoop(t *testing.T) {
 	eq.safeHead = refA1
 	eq.finalized = refA0
 
-	// Qeueue up the safe attributes
+	// Queue up the safe attributes
 	require.Nil(t, eq.safeAttributes)
 	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData)
 	require.NotNil(t, eq.safeAttributes)
