@@ -1092,7 +1092,7 @@ func TestResetLoop(t *testing.T) {
 	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData)
 	require.NotNil(t, eq.safeAttributes)
 
-	// Peform the reset
+	// Perform the reset
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	// Expect a FCU after the reset
