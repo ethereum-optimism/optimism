@@ -34,7 +34,7 @@ fundamental difference.
   - All existing Ethereum tooling works - all you have to do is change the chain ID.
 - **Maximal compatibility with ETH1 nodes:** The implementation should minimize any differences with a vanilla Geth
 node, and leverage as many existing L1 standards as possible.
-  - The execution engine/rollup node use the ETH2 Engine API to build the canonical L2 chain.
+  - The execution engine/rollup node uses the ETH2 Engine API to build the canonical L2 chain.
   - The execution engine leverages Geth's existing mempool and sync implementations, including snap sync.
 - **Minimize state and complexity:**
   - Whenever possible, services contributing to the rollup infrastructure are stateless.
@@ -149,7 +149,7 @@ the epoch's sequencing window (i.e. the batch must land before L1 block `n + SEQ
 (along with the `TransactionDeposited` L1 events) what allows the derivation of the L2 chain from the L1 chain.
 
 The sequencer does not need for a L2 block to be batch-submitted to L1 in order to build on top of it. In fact, batches
-typically contain multiple L2 blocks worth of sequenced transaction. This is what enables
+typically contain multiple L2 blocks worth of sequenced transactions. This is what enables
 _fast transaction confirmations_ on the sequencer.
 
 Since transaction batches for a given epoch can be submitted anywhere within the sequencing window, verifiers must
@@ -183,7 +183,7 @@ This process is then repeated with incrementing epochs until the tip of L1 is re
 The rollup driver doesn't actually create blocks. Instead, it directs the execution engine to do so via the Engine API.
 For each iteration of the block derivation loop described above, the rollup driver will craft a _payload attributes_
 object and send it to the execution engine. The execution engine will then convert the payload attributes object into a
-block, and add it to the chain. The basic sequence the rollup driver is as follows:
+block, and add it to the chain. The basic sequence of the rollup driver is as follows:
 
 1. Call `engine_forkchoiceUpdatedV2` with the payload attributes object. We'll skip over the details of the fork choice
 state parameter for now - just know that one of its fields is the L2 chain's `headBlockHash`, and that it is set to the
