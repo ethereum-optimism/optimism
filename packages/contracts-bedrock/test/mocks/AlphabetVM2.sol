@@ -5,6 +5,8 @@ import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper
 import { PreimageOracle, PreimageKeyLib } from "src/cannon/PreimageOracle.sol";
 import "src/libraries/DisputeTypes.sol";
 
+import { console2 as console } from "forge-std/console2.sol";
+
 /// @title AlphabetVM2
 /// @dev A mock VM for the purpose of testing the dispute game infrastructure. Note that this only works
 ///      for games with an execution trace subgame max depth of 3 (8 instructions per subgame).
@@ -33,16 +35,18 @@ contract AlphabetVM2 is IBigStepper {
             // If the state data is empty, then the absolute prestate is the claim.
             (bytes32 dat,) = oracle.readPreimage(PreimageKeyLib.localizeIdent(4, _localContext), 0);
             uint256 startingL2BlockNumber = (uint256(dat) >> 128) & 0xFFFFFFFF;
-            traceIndex = (2 ** 4) * startingL2BlockNumber;
-            claim = traceIndex == 0 ? 0 : traceIndex - 1;
+            traceIndex = startingL2BlockNumber << 4;
+            (uint256 absolutePrestateClaim) = abi.decode(_stateData, (uint256));
+            claim = absolutePrestateClaim + traceIndex;
         } else {
             // Otherwise, decode the state data.
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
             traceIndex++;
+            claim++;
         }
 
         // STF: n -> n + 1
-        postState_ = keccak256(abi.encode(traceIndex, claim + 1));
+        postState_ = keccak256(abi.encode(traceIndex, claim));
         assembly {
             postState_ := or(and(postState_, not(shl(248, 0xFF))), shl(248, 1))
         }

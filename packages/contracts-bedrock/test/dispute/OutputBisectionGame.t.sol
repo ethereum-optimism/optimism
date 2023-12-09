@@ -655,6 +655,82 @@ contract OutputBisection_1v1_Actors_Test is OutputBisectionGame_Init {
     }
 
     /// @notice Static unit test for a 1v1 output bisection dispute.
+    function test_static_1v1honestRootGenesisAbsolutePrestate_succeeds() public {
+        // The honest l2 outputs are from [1, 16] in this game.
+        uint256[] memory honestL2Outputs = new uint256[](16);
+        for (uint256 i; i < honestL2Outputs.length; i++) {
+            honestL2Outputs[i] = i + 1;
+        }
+        // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of bytes [0, 255].
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+
+        // The dishonest l2 outputs are from [2, 17] in this game.
+        uint256[] memory dishonestL2Outputs = new uint256[](16);
+        for (uint256 i; i < dishonestL2Outputs.length; i++) {
+            dishonestL2Outputs[i] = i + 2;
+        }
+        // The dishonest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of all set bits.
+        bytes memory dishonestTrace = new bytes(256);
+        for (uint256 i; i < dishonestTrace.length; i++) {
+            dishonestTrace[i] = bytes1(0xFF);
+        }
+
+        // Run the actor test
+        _actorTest({
+            _rootClaim: 16,
+            _absolutePrestateData: 0,
+            _honestTrace: honestTrace,
+            _honestL2Outputs: honestL2Outputs,
+            _dishonestTrace: dishonestTrace,
+            _dishonestL2Outputs: dishonestL2Outputs,
+            _expectedStatus: GameStatus.DEFENDER_WINS
+        });
+    }
+
+    /// @notice Static unit test for a 1v1 output bisection dispute.
+    function test_static_1v1dishonestRootGenesisAbsolutePrestate_succeeds() public {
+        // The honest l2 outputs are from [1, 16] in this game.
+        uint256[] memory honestL2Outputs = new uint256[](16);
+        for (uint256 i; i < honestL2Outputs.length; i++) {
+            honestL2Outputs[i] = i + 1;
+        }
+        // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of bytes [0, 255].
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+
+        // The dishonest l2 outputs are from [2, 17] in this game.
+        uint256[] memory dishonestL2Outputs = new uint256[](16);
+        for (uint256 i; i < dishonestL2Outputs.length; i++) {
+            dishonestL2Outputs[i] = i + 2;
+        }
+        // The dishonest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of all set bits.
+        bytes memory dishonestTrace = new bytes(256);
+        for (uint256 i; i < dishonestTrace.length; i++) {
+            dishonestTrace[i] = bytes1(0xFF);
+        }
+
+        // Run the actor test
+        _actorTest({
+            _rootClaim: 17,
+            _absolutePrestateData: 0,
+            _honestTrace: honestTrace,
+            _honestL2Outputs: honestL2Outputs,
+            _dishonestTrace: dishonestTrace,
+            _dishonestL2Outputs: dishonestL2Outputs,
+            _expectedStatus: GameStatus.CHALLENGER_WINS
+        });
+    }
+
+    /// @notice Static unit test for a 1v1 output bisection dispute.
     function test_static_1v1honestRoot_succeeds() public {
         // The honest l2 outputs are from [1, 16] in this game.
         uint256[] memory honestL2Outputs = new uint256[](16);
