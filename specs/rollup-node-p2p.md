@@ -142,7 +142,7 @@ other than filtering for the basic network participation requirement.
 
 Peers may be banned if their performance score is too low, or if an objectively malicious action was detected.
 
-Banned peers will be persisted to the same data-store as the peerstore records.
+Banned peers will be persisted in the same data-store as the peerstore records.
 
 TODO: the connection gater does currently not gate by IP address on the dial Accept-callback.
 
