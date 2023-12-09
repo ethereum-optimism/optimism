@@ -29,6 +29,8 @@ contract AlphabetVM2 is IBigStepper {
         uint256 claim;
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
             // If the state data is empty, then the absolute prestate is the claim.
+            // NOTE: this is wrong, need to fix. Pad to current trace index + claim.
+            // right now this adds local data into the oracle for whatever reason.
             traceIndex = 0;
             (claim) = abi.decode(_stateData, (uint256));
             claim = claim + uint256(oracle.loadLocalData(4, _localContext, 0, 8, 0));

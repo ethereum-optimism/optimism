@@ -154,18 +154,8 @@ library LibPosition {
         // This function only works for positions that are below the upper bound.
         if (_position.depth() <= _upperBoundExclusive) revert ClaimAboveSplit();
 
-        // Create a field with only the lowest unset bit of `_position` set.
-        Position lsb;
-        assembly {
-            lsb := and(not(_position), add(_position, 1))
-        }
-        // Find the index of the lowest unset bit within the field.
-        uint256 msb = lsb.depth();
-        assembly {
-            let a := shr(msb, _position)
-            // Bound the ancestor to the minimum gindex, 1.
-            ancestor_ := or(a, iszero(a))
-        }
+        // Grab the global trace ancestor.
+        ancestor_ = traceAncestor(_position);
 
         // If the ancestor is above or at the upper bound, shift it to be below the upper bound.
         // This should be a special case that only covers positions that commit to the final leaf

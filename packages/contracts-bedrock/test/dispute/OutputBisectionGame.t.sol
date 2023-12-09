@@ -742,6 +742,98 @@ contract OutputBisection_1v1_Actors_Test is OutputBisectionGame_Init {
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
     }
 
+    /// @notice Static unit test for a 1v1 output bisection dispute.
+    function test_static_1v1correctRootHalfWay_succeeds() public {
+        // Create the dispute game with an honest `ROOT_CLAIM`
+        bytes memory absolutePrestateData = _setup({ _absolutePrestateData: 0, _rootClaim: 16 });
+
+        // The honest l2 outputs are from [1, 16] in this game.
+        uint256[] memory honestL2Outputs = new uint256[](16);
+        for (uint256 i; i < honestL2Outputs.length; i++) {
+            honestL2Outputs[i] = i + 1;
+        }
+        // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of bytes [0, 255].
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+
+        // The dishonest l2 outputs are half correct, half incorrect.
+        uint256[] memory dishonestL2Outputs = new uint256[](16);
+        for (uint256 i; i < dishonestL2Outputs.length; i++) {
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+        }
+        // The dishonest trace is half correct, half (- 1/2 of an exec trace subgame after the midpoint) incorrect.
+        bytes memory dishonestTrace = new bytes(256);
+        for (uint256 i; i < dishonestTrace.length; i++) {
+            dishonestTrace[i] = i > (127 + 4) ? bytes1(0xFF) : bytes1(uint8(i));
+        }
+
+        // Create actors
+        _createActors({
+            _honestTrace: honestTrace,
+            _honestPreStateData: absolutePrestateData,
+            _honestL2Outputs: honestL2Outputs,
+            _dishonestTrace: dishonestTrace,
+            _dishonestPreStateData: absolutePrestateData,
+            _dishonestL2Outputs: dishonestL2Outputs
+        });
+
+        // Exhaust all moves from both actors
+        _exhaustMoves();
+
+        // Resolve the game and assert that the defender won
+        _warpAndResolve();
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
+    }
+
+    /// @notice Static unit test for a 1v1 output bisection dispute.
+    function test_static_1v1dishonestRootHalfWay_succeeds() public {
+        // Create the dispute game with a dishonest root claim
+        bytes memory absolutePrestateData = _setup({ _absolutePrestateData: 0, _rootClaim: 0xFF });
+
+        // The honest l2 outputs are from [1, 16] in this game.
+        uint256[] memory honestL2Outputs = new uint256[](16);
+        for (uint256 i; i < honestL2Outputs.length; i++) {
+            honestL2Outputs[i] = i + 1;
+        }
+        // The honest trace covers all block -> block + 1 transitions, and is 256 bytes long, consisting
+        // of bytes [0, 255].
+        bytes memory honestTrace = new bytes(256);
+        for (uint256 i; i < honestTrace.length; i++) {
+            honestTrace[i] = bytes1(uint8(i));
+        }
+
+        // The dishonest l2 outputs are half correct, half incorrect.
+        uint256[] memory dishonestL2Outputs = new uint256[](16);
+        for (uint256 i; i < dishonestL2Outputs.length; i++) {
+            dishonestL2Outputs[i] = i > 7 ? 0xFF : i + 1;
+        }
+        // The dishonest trace is half correct, half (- 1/2 of an exec trace subgame after the midpoint) incorrect.
+        bytes memory dishonestTrace = new bytes(256);
+        for (uint256 i; i < dishonestTrace.length; i++) {
+            dishonestTrace[i] = i > (127 + 4) ? bytes1(0xFF) : bytes1(uint8(i));
+        }
+
+        // Create actors
+        _createActors({
+            _honestTrace: honestTrace,
+            _honestPreStateData: absolutePrestateData,
+            _honestL2Outputs: honestL2Outputs,
+            _dishonestTrace: dishonestTrace,
+            _dishonestPreStateData: absolutePrestateData,
+            _dishonestL2Outputs: dishonestL2Outputs
+        });
+
+        // Exhaust all moves from both actors
+        _exhaustMoves();
+
+        // Resolve the game and assert that the defender won
+        _warpAndResolve();
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
+    }
+
     ////////////////////////////////////////////////////////////////
     //                          HELPERS                           //
     ////////////////////////////////////////////////////////////////
