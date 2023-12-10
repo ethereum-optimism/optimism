@@ -63,6 +63,16 @@ func TestExitWhenContextDoneWhileSchedulingJob(t *testing.T) {
 	require.Empty(t, workQueue, "should not have been able to schedule game")
 }
 
+func TestSchedule_PrestateValidationErrors(t *testing.T) {
+	c, _, _, games, _ := setupCoordinatorTest(t, 10)
+	games.PrestateErr = fmt.Errorf("prestate error")
+	gameAddr1 := common.Address{0xaa}
+	ctx := context.Background()
+
+	err := c.schedule(ctx, asGames(gameAddr1))
+	require.Error(t, err)
+}
+
 func TestScheduleGameAgainAfterCompletion(t *testing.T) {
 	c, workQueue, _, _, _ := setupCoordinatorTest(t, 10)
 	gameAddr1 := common.Address{0xaa}
@@ -246,6 +256,7 @@ type createdGames struct {
 	createCompleted common.Address
 	creationFails   common.Address
 	created         map[common.Address]*test.StubGamePlayer
+	PrestateErr     error
 }
 
 func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlayer, error) {
@@ -264,6 +275,9 @@ func (c *createdGames) CreateGame(fdg types.GameMetadata, dir string) (GamePlaye
 		Addr:        addr,
 		StatusValue: status,
 		Dir:         dir,
+	}
+	if c.PrestateErr != nil {
+		game.PrestateErr = c.PrestateErr
 	}
 	c.created[addr] = game
 	return game, nil

@@ -9,6 +9,7 @@ import (
 )
 
 type GamePlayer interface {
+	ValidatePrestate(ctx context.Context) error
 	ProgressGame(ctx context.Context) types.GameStatus
 	Status() types.GameStatus
 }
