@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources/batching"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -40,6 +39,7 @@ func RegisterGameTypes(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
+	rollupClient outputs.OutputRollupClient,
 	txMgr txmgr.TxManager,
 	caller *batching.MultiCaller,
 ) (CloseFunc, error) {
@@ -54,16 +54,16 @@ func RegisterGameTypes(
 		closer = l2Client.Close
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeOutputCannon) {
-		registerOutputCannon(registry, ctx, logger, m, cfg, txMgr, caller, l2Client)
+		registerOutputCannon(registry, ctx, logger, m, cfg, rollupClient, txMgr, caller, l2Client)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeOutputAlphabet) {
-		registerOutputAlphabet(registry, ctx, logger, m, cfg, txMgr, caller)
+		registerOutputAlphabet(registry, ctx, logger, m, rollupClient, txMgr, caller)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeCannon) {
 		registerCannon(registry, ctx, logger, m, cfg, txMgr, caller, l2Client)
 	}
 	if cfg.TraceTypeEnabled(config.TraceTypeAlphabet) {
-		registerAlphabet(registry, ctx, logger, m, cfg, txMgr, caller)
+		registerAlphabet(registry, ctx, logger, m, cfg.AlphabetTrace, txMgr, caller)
 	}
 	return closer, nil
 }
@@ -73,7 +73,7 @@ func registerOutputAlphabet(
 	ctx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg *config.Config,
+	rollupClient outputs.OutputRollupClient,
 	txMgr txmgr.TxManager,
 	caller *batching.MultiCaller) {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
@@ -85,17 +85,13 @@ func registerOutputAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.RollupRpc)
-		if err != nil {
-			return nil, err
-		}
 		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
 			splitDepth, err := contract.GetSplitDepth(ctx)
 			if err != nil {
 				return nil, err
 			}
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, m, cfg, prestateProvider, rollupClient, gameDepth, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, m, prestateProvider, rollupClient, gameDepth, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -114,6 +110,7 @@ func registerOutputCannon(
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
+	rollupClient outputs.OutputRollupClient,
 	txMgr txmgr.TxManager,
 	caller *batching.MultiCaller,
 	l2Client cannon.L2HeaderSource) {
@@ -123,10 +120,6 @@ func registerOutputCannon(
 			return nil, err
 		}
 		prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
-		if err != nil {
-			return nil, err
-		}
-		rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, logger, cfg.RollupRpc)
 		if err != nil {
 			return nil, err
 		}
@@ -163,7 +156,7 @@ func registerCannon(
 		if err != nil {
 			return nil, err
 		}
-		prestateProvider := cannon.NewPrestateProvider(cfg)
+		prestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
 			localInputs, err := cannon.FetchLocalInputs(ctx, contract, l2Client)
 			if err != nil {
@@ -183,7 +176,7 @@ func registerAlphabet(
 	ctx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
-	cfg *config.Config,
+	alphabetTrace string,
 	txMgr txmgr.TxManager,
 	caller *batching.MultiCaller) {
 	playerCreator := func(game types.GameMetadata, dir string) (scheduler.GamePlayer, error) {
@@ -193,7 +186,7 @@ func registerAlphabet(
 		}
 		prestateProvider := &alphabet.AlphabetPrestateProvider{}
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			traceProvider := alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
+			traceProvider := alphabet.NewTraceProvider(alphabetTrace, gameDepth)
 			return trace.NewSimpleTraceAccessor(traceProvider), nil
 		}
 		validator := NewPrestateValidator(contract.GetAbsolutePrestateHash, prestateProvider)
