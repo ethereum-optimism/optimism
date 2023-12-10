@@ -330,7 +330,7 @@ func ReorgFlipFlop(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 //  12. Sync the verifier and assert that the L2 safe head L1 origin has caught up with chain B
 //  13. Ensure that the parent L2 block of the block that contains Alice's transaction still exists
 //     after the L2 has re-derived from chain B.
-//  14. Ensure that the L2 block that contained Alice's transction before the reorg no longer exists.
+//  14. Ensure that the L2 block that contained Alice's transaction before the reorg no longer exists.
 //
 // Chain A
 // - 61 blocks total
