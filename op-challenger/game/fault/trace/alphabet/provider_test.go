@@ -5,7 +5,10 @@ import (
 	"math/big"
 	"testing"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +61,9 @@ func TestGetStepData_Succeeds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
 	require.Empty(t, proof)
-	require.Nil(t, data)
+	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	expectedLocalContextData := types.NewPreimageOracleData(key[:], nil, 0)
+	require.Equal(t, expectedLocalContextData, data)
 }
 
 // TestGetPreimage_TooLargeIndex_Fails tests the GetPreimage

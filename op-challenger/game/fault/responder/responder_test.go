@@ -179,8 +179,7 @@ func TestPerformAction(t *testing.T) {
 			PreState:  []byte{1, 2, 3},
 			ProofData: []byte{4, 5, 6},
 			OracleData: &types.PreimageOracleData{
-				IsLocal:      true,
-				LocalContext: common.Hash{0x06},
+				IsLocal: true,
 			},
 		}
 		err := responder.PerformAction(context.Background(), action)

@@ -60,7 +60,6 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 		stubRpc, game := setupFaultDisputeGameTest(t)
 		data := &faultTypes.PreimageOracleData{
 			IsLocal:      true,
-			LocalContext: common.Hash{0x02},
 			OracleKey:    common.Hash{0xbc}.Bytes(),
 			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
 			OracleOffset: 16,
@@ -68,7 +67,7 @@ func TestFaultDisputeGame_UpdateOracleTx(t *testing.T) {
 		claimIdx := uint64(6)
 		stubRpc.SetResponse(fdgAddr, methodAddLocalData, batching.BlockLatest, []interface{}{
 			data.GetIdent(),
-			data.LocalContext,
+			faultTypes.NoLocalContext,
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
 		}, nil)
 		tx, err := game.UpdateOracleTx(context.Background(), claimIdx, data)

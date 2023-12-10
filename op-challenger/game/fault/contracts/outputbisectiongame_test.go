@@ -55,7 +55,6 @@ func TestOutputBisectionGame_UpdateOracleTx(t *testing.T) {
 		stubRpc, game := setupOutputBisectionGameTest(t)
 		data := &faultTypes.PreimageOracleData{
 			IsLocal:      true,
-			LocalContext: common.Hash{0x02},
 			OracleKey:    common.Hash{0xbc}.Bytes(),
 			OracleData:   []byte{1, 2, 3, 4, 5, 6, 7},
 			OracleOffset: 16,
