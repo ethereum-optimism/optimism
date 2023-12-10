@@ -7,13 +7,13 @@ import (
 	"io"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/contracts"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/loader"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/registry"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/scheduler"
@@ -41,7 +41,7 @@ type Service struct {
 
 	loader *loader.GameLoader
 
-	rollupClient outputs.OutputRollupClient
+	rollupClient *sources.RollupClient
 
 	l1Client   *ethclient.Client
 	pollClient client.RPC
@@ -246,6 +246,9 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.txMgr.Close()
 	}
 
+	if s.rollupClient != nil {
+		s.rollupClient.Close()
+	}
 	if s.pollClient != nil {
 		s.pollClient.Close()
 	}
