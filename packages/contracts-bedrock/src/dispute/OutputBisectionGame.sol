@@ -201,11 +201,6 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
-        // INVARIANT: A defense can never be made against the root claim. This is because the root
-        //            claim commits to the entire state. Therefore, the only valid defense is to
-        //            do nothing if it is agreed with.
-        if (_challengeIndex == 0 && !_isAttack) revert CannotDefendRootClaim();
-
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
 
@@ -213,16 +208,24 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // known, we can compute the next position by moving left or right depending on whether
         // or not the move is an attack or defense.
         Position nextPosition = parent.position.move(_isAttack);
+        uint256 nextPositionDepth = nextPosition.depth();
+
+        // INVARIANT: A defense can never be made against the root claim of either the output root game or any
+        //            of the execution trace bisection subgames. This is because the root claim commits to the
+        //            entire state. Therefore, the only valid defense is to do nothing if it is agreed with.
+        if ((_challengeIndex == 0 || nextPositionDepth == SPLIT_DEPTH + 2) && !_isAttack) {
+            revert CannotDefendRootClaim();
+        }
 
         // INVARIANT: A move can never surpass the `MAX_GAME_DEPTH`. The only option to counter a
         //            claim at this depth is to perform a single instruction step on-chain via
         //            the `step` function to prove that the state transition produces an unexpected
         //            post-state.
-        if (nextPosition.depth() > MAX_GAME_DEPTH) revert GameDepthExceeded();
+        if (nextPositionDepth > MAX_GAME_DEPTH) revert GameDepthExceeded();
 
         // When the next position surpasses the split depth (i.e., it is the root claim of an execution
         // trace bisection sub-game), we need to perform some extra verification steps.
-        if (nextPosition.depth() == SPLIT_DEPTH + 1) verifyExecBisectionRoot(_claim);
+        if (nextPositionDepth == SPLIT_DEPTH + 1) verifyExecBisectionRoot(_claim);
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
@@ -496,12 +499,12 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         returns (ClaimData storage ancestor_)
     {
         // Grab the trace ancestor's expected position.
-        Position preStateTraceAncestor = _global ? _pos.traceAncestor() : _pos.traceAncestorBounded(SPLIT_DEPTH);
+        Position traceAncestorPos = _global ? _pos.traceAncestor() : _pos.traceAncestorBounded(SPLIT_DEPTH);
 
         // Walk up the DAG to find a claim that commits to the same trace index as `_pos`. It is
         // guaranteed that such a claim exists.
         ancestor_ = claimData[_start];
-        while (Position.unwrap(ancestor_.position) != Position.unwrap(preStateTraceAncestor)) {
+        while (Position.unwrap(ancestor_.position) != Position.unwrap(traceAncestorPos)) {
             ancestor_ = claimData[ancestor_.parentIndex];
         }
     }
