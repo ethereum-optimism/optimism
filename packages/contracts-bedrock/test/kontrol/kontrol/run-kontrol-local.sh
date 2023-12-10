@@ -50,9 +50,9 @@ regen=
 ###
 # kontrol prove options
 ###
-max_depth=1000000
+max_depth=10000000
 
-max_iterations=1000000
+max_iterations=10000000
 
 smt_timeout=100000
 
