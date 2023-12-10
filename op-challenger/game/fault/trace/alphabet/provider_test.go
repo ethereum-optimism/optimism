@@ -61,9 +61,8 @@ func TestGetStepData_Succeeds(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
 	require.Empty(t, proof)
-	localContext := common.HexToHash("abc")
-	key := preimage.LocalIndexKey(4).PreimageKey()
-	expectedLocalContextData := types.NewPreimageOracleData(localContext, key[:], nil, 0)
+	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	expectedLocalContextData := types.NewPreimageOracleData(key[:], nil, 0)
 	require.Equal(t, expectedLocalContextData, data)
 }
 

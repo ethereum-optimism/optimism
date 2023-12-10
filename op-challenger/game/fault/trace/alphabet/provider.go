@@ -16,6 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+const (
+	L2ClaimBlockNumberLocalIndex = 4
+)
+
 var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
@@ -53,12 +57,9 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 	if traceIndex.Cmp(big.NewInt(int64(len(ap.state)))) >= 0 {
 		return ap.GetStepData(ctx, types.NewPosition(int(ap.depth), big.NewInt(int64(len(ap.state)))))
 	}
-	key := preimage.LocalIndexKey(4).PreimageKey()
-	// For alphabet output bisection, the state is the local context - that is, the
-	// pre-state l2 block number. So we can just use [ap.state] as the localContext.
-	localContext := common.HexToHash(strings.Join(ap.state, ""))
-	localContextData := types.NewPreimageOracleData(localContext, key[:], nil, 0)
-	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, localContextData, nil
+	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	preimageData := types.NewPreimageOracleData(key[:], nil, 0)
+	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, preimageData, nil
 }
 
 // Get returns the claim value at the given index in the trace.
