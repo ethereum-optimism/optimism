@@ -4,6 +4,20 @@ export PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f
 export ETH_RPC_URL=
 export PRIVATE_KEY=
 
+# create deployments/hardhat/.deploy and snapshots/state-diff/Deploy.json if necessary
+if [ ! -d "deployments/hardhat" ]; then
+  mkdir deployments/hardhat;
+fi
+if [ ! -f "deployments/hardhat/.deploy" ]; then
+  touch deployments/hardhat/.deploy;
+fi
+if [ ! -d "snapshots/state-diff" ]; then
+  mkdir snapshots/state-diff;
+fi
+if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
+  touch snapshots/state-diff/Deploy.json;
+fi
+
 FOUNDRY_PROFILE=kontrol forge script -vvvvv test/kontrol/StateDiff.sol:MakeStateDiff --sig 'testStateDiff()' # --broadcast # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
 # forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'runWithStateDiff()' # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
 echo "Created state diff json"
