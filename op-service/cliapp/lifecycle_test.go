@@ -129,7 +129,7 @@ func TestLifecycleCmd(t *testing.T) {
 	})
 	t.Run("failed init", func(t *testing.T) {
 		_, initCh, _, _, resultCh, _ := appSetup(t)
-		v := errors.New("TEST INIT ERRROR")
+		v := errors.New("TEST INIT ERROR")
 		initCh <- v
 		res := <-resultCh
 		require.ErrorIs(t, res, v)

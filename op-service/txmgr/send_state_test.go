@@ -187,5 +187,5 @@ func TestSendStateTimeoutAbort(t *testing.T) {
 func TestSendStateNoTimeoutAbortIfPublishedTx(t *testing.T) {
 	sendState := newSendStateWithTimeout(10*time.Millisecond, stepClock(20*time.Millisecond))
 	sendState.ProcessSendError(nil)
-	require.False(t, sendState.ShouldAbortImmediately(), "Should not abort if published transcation successfully")
+	require.False(t, sendState.ShouldAbortImmediately(), "Should not abort if published transaction successfully")
 }
