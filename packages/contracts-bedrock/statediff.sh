@@ -18,6 +18,9 @@ if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
   touch snapshots/state-diff/Deploy.json;
 fi
 
+# replace mustGetAddress by getAddress in Deploy.s.sol
+sed -i 's/mustGetAddress/getAddress/g' ./scripts/Deploy.s.sol
+
 FOUNDRY_PROFILE=kontrol forge script -vvvvv test/kontrol/StateDiff.sol:MakeStateDiff --sig 'testStateDiff()' # --broadcast # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
 # forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'runWithStateDiff()' # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
 echo "Created state diff json"
