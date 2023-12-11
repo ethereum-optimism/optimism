@@ -20,8 +20,6 @@ type L1ClientConfig struct {
 	EthClientConfig
 
 	L1BlockRefsCacheSize int
-	PrefetchingWindow    uint64
-	PrefetchingTimeout   time.Duration
 }
 
 func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProviderKind) *L1ClientConfig {
@@ -47,8 +45,6 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 		},
 		// Not bounded by span, to cover find-sync-start range fully for speedy recovery after errors.
 		L1BlockRefsCacheSize: fullSpan,
-		PrefetchingWindow:    0, // no prefetching by default
-		PrefetchingTimeout:   0, // no prefetching by default
 	}
 }
 
@@ -56,7 +52,7 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 // with optimized batch requests, cached results, and flag to not trust the RPC
 // (i.e. to verify all returned contents against corresponding block hashes).
 type L1Client struct {
-	EthClientInterface
+	*EthClient
 
 	// cache L1BlockRef by hash
 	// common.Hash -> eth.L1BlockRef
@@ -70,23 +66,10 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 		return nil, err
 	}
 
-	var clientToUse EthClientInterface
-
-	if config.PrefetchingTimeout > 0 && config.PrefetchingWindow > 0 {
-		prefetchingEthClient, err := NewPrefetchingEthClient(ethClient, config.PrefetchingWindow, config.PrefetchingTimeout)
-		if err != nil {
-			return nil, err
-		}
-		clientToUse = prefetchingEthClient
-	} else {
-		clientToUse = ethClient
-	}
-
 	return &L1Client{
-		EthClientInterface: clientToUse,
-		l1BlockRefsCache:   caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.L1BlockRefsCacheSize),
+		EthClient:        ethClient,
+		l1BlockRefsCache: caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.L1BlockRefsCacheSize),
 	}, nil
-
 }
 
 // L1BlockRefByLabel returns the [eth.L1BlockRef] for the given block label.

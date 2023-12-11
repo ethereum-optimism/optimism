@@ -124,18 +124,6 @@ var (
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
 	}
-	L1PrefetchingWindow = &cli.Uint64Flag{
-		Name:    "l1.prefetching-window",
-		Usage:   "Number of L1 blocks to prefetch in the background. Disabled if 0.",
-		EnvVars: prefixEnvVars("L1_PREFETCHING_WINDOW"),
-		Value:   0,
-	}
-	L1PrefetchingTimeout = &cli.DurationFlag{
-		Name:    "l1.prefetching-timeout",
-		Usage:   "Timeout for L1 prefetching. Disabled if 0.",
-		EnvVars: prefixEnvVars("L1_PREFETCHING_TIMEOUT"),
-		Value:   time.Second * 30,
-	}
 	L2EngineJWTSecret = &cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -321,8 +309,6 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxBatchSize,
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
-	L1PrefetchingWindow,
-	L1PrefetchingTimeout,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
