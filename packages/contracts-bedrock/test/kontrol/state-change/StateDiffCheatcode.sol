@@ -9,22 +9,22 @@ contract StateDiffCheatcode is StateDiffCheatcodeCode {
 	address internal constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
 	Vm internal constant vm = Vm(VM_ADDRESS);
 
-	address public AddressManagerAddress = 0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3;
-	address public L2OutputOracleAddress = 0x1B9F0e648A0A4780120A6Cd07B952F76560c8F8b;
-	address public L2OutputOracleProxyAddress = 0x8B71b41D4dBEb2b6821d44692d3fACAAf77480Bb;
-	address public OptimismPortalAddress = 0xF0A8903b331864E0Caf270C6DaDfBCa74Cb0b78A;
-	address public OptimismPortalProxyAddress = 0x978e3286EB805934215a88694d80b09aDed68D90;
-	address public ProtocolVersionsAddress = 0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F;
-	address public ProtocolVersionsProxyAddress = 0x416C42991d05b31E9A6dC209e91AD22b79D87Ae6;
-	address public ProxyAdminAddress = 0xDB8cFf278adCCF9E9b5da745B44E754fC4EE3C76;
-	address public SafeProxyFactoryAddress = 0x34A1D3fff3958843C43aD80F30b94c510645C316;
-	address public SafeSingletonAddress = 0x90193C961A926261B756D1E5bb255e67ff9498A1;
-	address public SuperchainConfigAddress = 0x068E44eB31e111028c41598E4535be7468674D0A;
-	address public SuperchainConfigProxyAddress = 0xDEb1E9a6Be7Baf84208BB6E10aC9F9bbE1D70809;
-	address public SystemConfigAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
-	address public SystemConfigProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
-	address public SystemOwnerSafeAddress = 0x2601573C28B77dea6C8B73385c25024A28a00C3F;
-	address public acc15Address = 0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f;
+	address internal constant AddressManagerAddress = 0xBb2180ebd78ce97360503434eD37fcf4a1Df61c3;
+	address internal constant L2OutputOracleAddress = 0x1B9F0e648A0A4780120A6Cd07B952F76560c8F8b;
+	address internal constant L2OutputOracleProxyAddress = 0x8B71b41D4dBEb2b6821d44692d3fACAAf77480Bb;
+	address internal constant OptimismPortalAddress = 0xF0A8903b331864E0Caf270C6DaDfBCa74Cb0b78A;
+	address internal constant OptimismPortalProxyAddress = 0x978e3286EB805934215a88694d80b09aDed68D90;
+	address internal constant ProtocolVersionsAddress = 0xfbfD64a6C0257F613feFCe050Aa30ecC3E3d7C3F;
+	address internal constant ProtocolVersionsProxyAddress = 0x416C42991d05b31E9A6dC209e91AD22b79D87Ae6;
+	address internal constant ProxyAdminAddress = 0xDB8cFf278adCCF9E9b5da745B44E754fC4EE3C76;
+	address internal constant SafeProxyFactoryAddress = 0x34A1D3fff3958843C43aD80F30b94c510645C316;
+	address internal constant SafeSingletonAddress = 0x90193C961A926261B756D1E5bb255e67ff9498A1;
+	address internal constant SuperchainConfigAddress = 0x068E44eB31e111028c41598E4535be7468674D0A;
+	address internal constant SuperchainConfigProxyAddress = 0xDEb1E9a6Be7Baf84208BB6E10aC9F9bbE1D70809;
+	address internal constant SystemConfigAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
+	address internal constant SystemConfigProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
+	address internal constant SystemOwnerSafeAddress = 0x2601573C28B77dea6C8B73385c25024A28a00C3F;
+	address internal constant acc15Address = 0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f;
 
 
 	function recreateDeployment() public {
