@@ -160,7 +160,7 @@ equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch 
 `MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
 to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
 limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
-decoding. For example, lets say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return using
+decoding. For example, let's say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return using
 the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for decoding
 because we know the upper limit of memory usage.
 
@@ -203,7 +203,7 @@ This adds more complexity, but organizes data for improved compression by groupi
 ### RLP encoding for only variable length fields
 
 Further size optimization can be done by packing variable length fields, such as `access_list`.
-However, doing this will introduce much more code complexity, comparing to benefiting by size reduction.
+However, doing this will introduce much more code complexity, compared to benefiting from size reduction.
 
 Our goal is to find the sweet spot on code complexity - span batch size tradeoff.
 I decided that using RLP for all variable length fields will be the best option,

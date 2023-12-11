@@ -104,7 +104,7 @@ The major/minor/patch versions should align with that of the upstream protocol t
 Users of the protocol can choose to implement custom support for the alternative `<build>`,
 but may work out of the box if the major features are consistent with that of the upstream protocol version.
 
-The 8 byte `<build>` identifier may be presented as string for human readability if the contents are alpha-numeric,
+The 8 byte `<build>` identifier may be presented as a string for human readability if the contents are alpha-numeric,
 including `-` and `.`, as outlined in the [Semver] format specs. Trailing `0` bytes can be used for padding.
 It may be presented as `0x`-prefixed hex string otherwise.
 
@@ -137,7 +137,7 @@ The `<pre-release>` `0`-value is reserved for non-prereleases, i.e. `v3.1.0` is 
 Node-software may support a pre-release, but must not activate any protocol changes without the user explicitly
 opting in through the means of a feature-flag or configuration change.
 
-A pre-release is not an official version, and meant for protocol developers to communicate an experimental changeset
+A pre-release is not an official version and is meant for protocol developers to communicate an experimental changeset
 before the changeset is reviewed by governance. Pre-releases are subject to change.
 
 ### Protocol Version Exposure
@@ -290,7 +290,7 @@ The Canyon upgrade contains the Shapella upgrade from L1 and some minor protocol
   - [EIP-3855: PUSH0 instruction](https://eips.ethereum.org/EIPS/eip-3855)
   - [EIP-3860: Limit and meter initcode](https://eips.ethereum.org/EIPS/eip-3860)
   - [EIP-4895: Beacon chain push withdrawals as operations](https://eips.ethereum.org/EIPS/eip-4895)
-    - [Withdrawlas are prohibited in P2P Blocks](./rollup-node-p2p.md#block-validation)
+    - [Withdrawals are prohibited in P2P Blocks](./rollup-node-p2p.md#block-validation)
     - [Withdrawals should be set to the empty array with Canyon](./derivation.md#building-individual-payload-attributes)
   - [EIP-6049: Deprecate SELFDESTRUCT](https://eips.ethereum.org/EIPS/eip-6049)
 - [Modifies the EIP-1559 Denominator](./exec-engine.md#1559-parameters)

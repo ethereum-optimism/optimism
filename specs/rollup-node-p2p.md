@@ -132,7 +132,7 @@ The default is to maintain a peer count with a tide-system based on active peer 
   except those that are marked as trusted or have a grace period.
 
 Peers will have a grace period for a configurable amount of time after joining.
-In emergency, when memory runs low, the node should start pruning more aggressively.
+In an emergency, when memory runs low, the node should start pruning more aggressively.
 
 Peer records can be persisted to disk to quickly reconnect with known peers after restarting the rollup node.
 
@@ -398,7 +398,7 @@ A `res = 0` response should be verified to:
       override any previous chain, until the final L2 chain can be reproduced from L1 data.
 
 A `res > 0` response code should not be accepted. The result code is helpful for debugging,
-but the client should regard any error like any any other unanswered request, as the responding peer cannot be trusted.
+but the client should regard any error like any other unanswered request, as the responding peer cannot be trusted.
 
 ----
 

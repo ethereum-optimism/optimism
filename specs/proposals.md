@@ -43,13 +43,13 @@ submits it to the `L2OutputOracle` contract on the settlement layer (L1).
 ### L2OutputOracle v1.0.0
 
 The submission of output proposals is permissioned to a single account. It is expected that this
-account continues to submit output proposals over time to ensure that user withdrawals do not halt.
+account will continue to submit output proposals over time to ensure that user withdrawals do not halt.
 
 The [L2 output proposer](../op-proposer) is expected to submit output roots on a deterministic
 interval based on the configured `SUBMISSION_INTERVAL` in the `L2OutputOracle`. The larger
 the `SUBMISSION_INTERVAL`, the less often L1 transactions need to be sent to the `L2OutputOracle`
 contract, but L2 users will need to wait a bit longer for an output root to be included in L1 (the settlement layer)
-that includes their intention to withdrawal from the system.
+that includes their intention to withdraw from the system.
 
 The honest `op-proposer` algorithm assumes a connection to the `L2OutputOracle` contract to know
 the L2 block number that corresponds to the next output proposal that must be submitted. It also
