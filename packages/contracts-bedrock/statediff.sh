@@ -4,7 +4,7 @@ export PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f
 export ETH_RPC_URL=
 export PRIVATE_KEY=
 
-forge script -vvvvv test/kontrol/StateDiff.sol:MakeStateDiff --sig 'testStateDiff()' # --broadcast # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
+FOUNDRY_PROFILE=kontrol forge script -vvvvv test/kontrol/StateDiff.sol:MakeStateDiff --sig 'testStateDiff()' # --broadcast # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
 # forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'runWithStateDiff()' # --rpc-url $ETH_RPC_URL --private-key $PRIVATE_KEY
 echo "Created state diff json"
 
