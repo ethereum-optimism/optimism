@@ -1,57 +1,5 @@
 [
   {
-    "inputs": [],
-    "name": "AlreadyExists",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "uid",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "registerer",
-        "type": "address"
-      },
-      {
-        "components": [
-          {
-            "internalType": "bytes32",
-            "name": "uid",
-            "type": "bytes32"
-          },
-          {
-            "internalType": "contract ISchemaResolver",
-            "name": "resolver",
-            "type": "address"
-          },
-          {
-            "internalType": "bool",
-            "name": "revocable",
-            "type": "bool"
-          },
-          {
-            "internalType": "string",
-            "name": "schema",
-            "type": "string"
-          }
-        ],
-        "indexed": false,
-        "internalType": "struct SchemaRecord",
-        "name": "schema",
-        "type": "tuple"
-      }
-    ],
-    "name": "Registered",
-    "type": "event"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -133,5 +81,57 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "uid",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "registerer",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "bytes32",
+            "name": "uid",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "contract ISchemaResolver",
+            "name": "resolver",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "revocable",
+            "type": "bool"
+          },
+          {
+            "internalType": "string",
+            "name": "schema",
+            "type": "string"
+          }
+        ],
+        "indexed": false,
+        "internalType": "struct SchemaRecord",
+        "name": "schema",
+        "type": "tuple"
+      }
+    ],
+    "name": "Registered",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyExists",
+    "type": "error"
   }
 ]

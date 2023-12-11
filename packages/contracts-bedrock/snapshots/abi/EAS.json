@@ -5,241 +5,6 @@
     "type": "constructor"
   },
   {
-    "inputs": [],
-    "name": "AccessDenied",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "AlreadyRevoked",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "AlreadyRevokedOffchain",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "AlreadyTimestamped",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "DeadlineExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InsufficientValue",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAttestation",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidAttestations",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidExpirationTime",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidLength",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidNonce",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidOffset",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidRegistry",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidRevocation",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidRevocations",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidSchema",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidSignature",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidVerifier",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "Irrevocable",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotFound",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "NotPayable",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "WrongSchema",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "attester",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "uid",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "schemaUID",
-        "type": "bytes32"
-      }
-    ],
-    "name": "Attested",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "oldNonce",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newNonce",
-        "type": "uint256"
-      }
-    ],
-    "name": "NonceIncreased",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "recipient",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "attester",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "uid",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "schemaUID",
-        "type": "bytes32"
-      }
-    ],
-    "name": "Revoked",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "revoker",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "data",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint64",
-        "name": "timestamp",
-        "type": "uint64"
-      }
-    ],
-    "name": "RevokedOffchain",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "data",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint64",
-        "name": "timestamp",
-        "type": "uint64"
-      }
-    ],
-    "name": "Timestamped",
-    "type": "event"
-  },
-  {
     "inputs": [
       {
         "components": [
@@ -1085,5 +850,240 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "attester",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "uid",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "schemaUID",
+        "type": "bytes32"
+      }
+    ],
+    "name": "Attested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "oldNonce",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "newNonce",
+        "type": "uint256"
+      }
+    ],
+    "name": "NonceIncreased",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "attester",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "uid",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "schemaUID",
+        "type": "bytes32"
+      }
+    ],
+    "name": "Revoked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "revoker",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "data",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "timestamp",
+        "type": "uint64"
+      }
+    ],
+    "name": "RevokedOffchain",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "data",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint64",
+        "name": "timestamp",
+        "type": "uint64"
+      }
+    ],
+    "name": "Timestamped",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "AccessDenied",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyRevoked",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyRevokedOffchain",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyTimestamped",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "DeadlineExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InsufficientValue",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAttestation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidAttestations",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidExpirationTime",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidLength",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidNonce",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidOffset",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRegistry",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRevocation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidRevocations",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSchema",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVerifier",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "Irrevocable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotFound",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NotPayable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "WrongSchema",
+    "type": "error"
   }
 ]

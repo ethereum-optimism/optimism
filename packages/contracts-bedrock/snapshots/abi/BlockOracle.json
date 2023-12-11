@@ -1,36 +1,6 @@
 [
   {
     "inputs": [],
-    "name": "BlockHashNotPresent",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "blockNumber",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "Hash",
-        "name": "blockHash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "Timestamp",
-        "name": "childTimestamp",
-        "type": "uint64"
-      }
-    ],
-    "name": "Checkpoint",
-    "type": "event"
-  },
-  {
-    "inputs": [],
     "name": "checkpoint",
     "outputs": [
       {
@@ -85,5 +55,35 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "blockNumber",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "Hash",
+        "name": "blockHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "Timestamp",
+        "name": "childTimestamp",
+        "type": "uint64"
+      }
+    ],
+    "name": "Checkpoint",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "BlockHashNotPresent",
+    "type": "error"
   }
 ]

@@ -1,10 +1,5 @@
 [
   {
-    "inputs": [],
-    "name": "PartOffsetOOB",
-    "type": "error"
-  },
-  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -156,5 +151,10 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PartOffsetOOB",
+    "type": "error"
   }
 ]
