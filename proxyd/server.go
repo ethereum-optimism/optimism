@@ -677,7 +677,7 @@ func (s *Server) isGlobalLimit(method string) bool {
 func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 	var params []string
 	if err := json.Unmarshal(req.Params, &params); err != nil {
-		log.Debug("error unmarshaling raw transaction params", "err", err, "req_Id", GetReqID(ctx))
+		log.Debug("error unmarshalling raw transaction params", "err", err, "req_Id", GetReqID(ctx))
 		return ErrParseErr
 	}
 
