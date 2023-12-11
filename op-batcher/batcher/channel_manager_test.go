@@ -121,7 +121,7 @@ func ChannelManager_Clear(t *testing.T, batchType uint) {
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
-		// clearing confirmed transactions, and reseting the pendingChannels map
+		// clearing confirmed transactions, and resetting the pendingChannels map
 		ChannelTimeout: 10,
 		// Have to set the max frame size here otherwise the channel builder would not
 		// be able to output any frames

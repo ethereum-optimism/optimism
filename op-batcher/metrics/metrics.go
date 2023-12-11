@@ -61,7 +61,7 @@ type Metrics struct {
 	info prometheus.GaugeVec
 	up   prometheus.Gauge
 
-	// label by openend, closed, fully_submitted, timed_out
+	// label by opened, closed, fully_submitted, timed_out
 	channelEvs opmetrics.EventVec
 
 	pendingBlocksCount        prometheus.GaugeVec
