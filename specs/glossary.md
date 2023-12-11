@@ -195,7 +195,7 @@ pre-confirm the transactions before the L1 confirms the data.
 
 A sequencer is either a [rollup node][rollup-node] ran in sequencer mode, or the operator of this rollup node.
 
-The sequencer is a priviledged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
+The sequencer is a privileged actor, which receives L2 transactions from L2 users, creates L2 blocks using them, which
 it then submits to [data availability provider][avail-provider] (via a [batcher]). It also submits [output
 roots][l2-output] to L1.
 
@@ -455,7 +455,7 @@ batcher transaction.
 
 [batcher]: glossary.md#batcher
 
-A batcher is a software component (independant program) that is responsible to make channels available on a data
+A batcher is a software component (independent program) that is responsible to make channels available on a data
 availability provider. The batcher communicates with the rollup node in order to retrieve the channels. The channels are
 then made available using [batcher transactions][batcher-transaction].
 
