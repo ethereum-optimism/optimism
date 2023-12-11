@@ -180,7 +180,7 @@ func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
 	// dynamic value 2: Transactions
 	marshalTransactions(buf[offset:offset+transactionSize], payload.Transactions)
 	offset += transactionSize
-	// dyanmic value 3: Withdrawals
+	// dynamic value 3: Withdrawals
 	if payload.Withdrawals != nil {
 		marshalWithdrawals(buf[offset:], *payload.Withdrawals)
 	}
