@@ -7,6 +7,17 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
+const (
+	// safeCompressionOverhead is the largest potential blow-up in bytes we expect to see when
+	// compressing arbitrary (e.g. random) data.  Here we account for a 2 byte header, 4 byte
+	// digest, 5 byte EOF indicator, and then 5 byte flate block header for each 16k of potential
+	// data. Assuming frames are max 128k size (the current max blob size) this is 2+4+5+(5*8) = 51
+	// bytes.  If we start using larger frames (e.g. should max blob size increase) a larger blowup
+	// might be possible, but it would be highly unlikely, and the system still works if our
+	// estimate is wrong -- we just end up writing one more tx for the overflow.
+	safeCompressionOverhead = 51
+)
+
 type ShadowCompressor struct {
 	config Config
 
@@ -17,6 +28,8 @@ type ShadowCompressor struct {
 	shadowCompress *zlib.Writer
 
 	fullErr error
+
+	bound uint64 // best known upperbound on the size of the compressed output
 }
 
 // NewShadowCompressor creates a new derive.Compressor implementation that contains two
@@ -41,26 +54,39 @@ func NewShadowCompressor(config Config) (derive.Compressor, error) {
 		return nil, err
 	}
 
+	c.bound = safeCompressionOverhead
 	return c, nil
 }
 
 func (t *ShadowCompressor) Write(p []byte) (int, error) {
+	if t.fullErr != nil {
+		return 0, t.fullErr
+	}
 	_, err := t.shadowCompress.Write(p)
 	if err != nil {
 		return 0, err
 	}
-	err = t.shadowCompress.Flush()
-	if err != nil {
-		return 0, err
-	}
-	if uint64(t.shadowBuf.Len()) > t.config.TargetFrameSize*uint64(t.config.TargetNumFrames) {
-		t.fullErr = derive.CompressorFullErr
-		if t.Len() > 0 {
-			// only return an error if we've already written data to this compressor before
-			// (otherwise individual blocks over the target would never be written)
-			return 0, t.fullErr
+	newBound := t.bound + uint64(len(p))
+	cap := t.config.TargetFrameSize * uint64(t.config.TargetNumFrames)
+	if newBound > cap {
+		// Do not flush the buffer unless there's some chance we will be over the size limit.
+		// This reduces CPU but more importantly it makes the shadow compression ratio more
+		// closely reflect the ultimate compression ratio.
+		err = t.shadowCompress.Flush()
+		if err != nil {
+			return 0, err
+		}
+		newBound = uint64(t.shadowBuf.Len()) + 4 // + 4 is to account for the digest written on close()
+		if newBound > cap {
+			t.fullErr = derive.CompressorFullErr
+			if t.Len() > 0 {
+				// only return an error if we've already written data to this compressor before
+				// (otherwise individual blocks over the target would never be written)
+				return 0, t.fullErr
+			}
 		}
 	}
+	t.bound = newBound
 	return t.compress.Write(p)
 }
 
@@ -78,6 +104,7 @@ func (t *ShadowCompressor) Reset() {
 	t.shadowBuf.Reset()
 	t.shadowCompress.Reset(&t.shadowBuf)
 	t.fullErr = nil
+	t.bound = safeCompressionOverhead
 }
 
 func (t *ShadowCompressor) Len() int {
