@@ -28,33 +28,41 @@ func TestOutputCannonGame(t *testing.T) {
 	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
 
 	game.LogGameData(ctx)
+
 	// Challenger should post an output root to counter claims down to the leaf level of the top game
-	splitDepth := game.SplitDepth(ctx)
-	for i := int64(1); i < splitDepth; i += 2 {
-		game.WaitForCorrectOutputRoot(ctx, i)
-		game.Attack(ctx, i, common.Hash{0xaa})
-		game.LogGameData(ctx)
+	claim := game.RootClaim(ctx)
+	for claim.IsOutputRoot(ctx) && !claim.IsOutputRootLeaf(ctx) {
+		if claim.AgreesWithOutputRoot() {
+			// If the latest claim agrees with the output root, expect the honest challenger to counter it
+			claim = claim.WaitForCounterClaim(ctx)
+			game.LogGameData(ctx)
+			claim.RequireCorrectOutputRoot(ctx)
+		} else {
+			// Otherwise we should counter
+			claim = claim.Attack(ctx, common.Hash{0xaa})
+			game.LogGameData(ctx)
+		}
 	}
 
 	// Wait for the challenger to post the first claim in the cannon trace
-	game.WaitForClaimAtDepth(ctx, int(splitDepth+1))
+	claim = claim.WaitForCounterClaim(ctx)
 	game.LogGameData(ctx)
 
-	game.Attack(ctx, splitDepth+1, common.Hash{0x00, 0xcc})
-	gameDepth := game.MaxDepth(ctx)
-	for i := splitDepth + 3; i < gameDepth; i += 2 {
-		// Wait for challenger to respond
-		game.WaitForClaimAtDepth(ctx, int(i))
-		game.LogGameData(ctx)
-
-		// Respond to push the game down to the max depth
-		game.Defend(ctx, i, common.Hash{0x00, 0xdd})
-		game.LogGameData(ctx)
+	// Attack the root of the cannon trace subgame
+	claim = claim.Attack(ctx, common.Hash{0x00, 0xcc})
+	for !claim.IsMaxDepth(ctx) {
+		if claim.AgreesWithOutputRoot() {
+			// If the latest claim supports the output root, wait for the honest challenger to respond
+			claim = claim.WaitForCounterClaim(ctx)
+			game.LogGameData(ctx)
+		} else {
+			// Otherwise we need to counter the honest claim
+			claim = claim.Defend(ctx, common.Hash{0x00, 0xdd})
+			game.LogGameData(ctx)
+		}
 	}
-	game.LogGameData(ctx)
-
 	// Challenger should be able to call step and counter the leaf claim.
-	game.WaitForClaimAtMaxDepth(ctx, true)
+	claim.WaitForCountered(ctx)
 	game.LogGameData(ctx)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))

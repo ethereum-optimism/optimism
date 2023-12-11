@@ -57,32 +57,39 @@ func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
 // DisputeLastBlock posts claims from both the honest and dishonest actor to progress the output root part of the game
 // through to the split depth and the claims are setup such that the last block in the game range is the block
 // to execute cannon on. ie the first block the honest and dishonest actors disagree about is the l2 block of the game.
-func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) {
+func (g *OutputGameHelper) DisputeLastBlock(ctx context.Context) *ClaimHelper {
 	rootClaim := g.GetClaimValue(ctx, 0)
 	disputeBlockNum := g.L2BlockNum(ctx)
-	splitDepth := int(g.SplitDepth(ctx))
 	pos := types.NewPositionFromGIndex(big.NewInt(1))
-	getClaimValue := func(parentClaimIdx int, claimPos types.Position) common.Hash {
+	getClaimValue := func(parentClaim *ClaimHelper, claimPos types.Position) common.Hash {
 		claimBlockNum, err := g.correctOutputProvider.BlockNumber(claimPos)
 		g.require.NoError(err, "failed to calculate claim block number")
 		// Use the correct output root for the challenger and incorrect for the defender
-		if parentClaimIdx%2 == 0 || claimBlockNum < disputeBlockNum {
+		if parentClaim.AgreesWithOutputRoot() || claimBlockNum < disputeBlockNum {
 			return g.correctOutputRoot(ctx, claimPos)
 		} else {
 			return rootClaim
 		}
 	}
-	for i := 0; i < splitDepth; i++ {
+
+	claim := g.RootClaim(ctx)
+	for !claim.IsOutputRootLeaf(ctx) {
 		parentClaimBlockNum, err := g.correctOutputProvider.BlockNumber(pos)
 		g.require.NoError(err, "failed to calculate parent claim block number")
 		if parentClaimBlockNum >= disputeBlockNum {
 			pos = pos.Attack()
-			g.Attack(ctx, int64(i), getClaimValue(i, pos))
+			claim = claim.Attack(ctx, getClaimValue(claim, pos))
 		} else {
 			pos = pos.Defend()
-			g.Defend(ctx, int64(i), getClaimValue(i, pos))
+			claim = claim.Defend(ctx, getClaimValue(claim, pos))
 		}
 	}
+	return claim
+}
+
+func (g *OutputGameHelper) RootClaim(ctx context.Context) *ClaimHelper {
+	claim := g.getClaim(ctx, 0)
+	return newClaimHelper(g, 0, claim)
 }
 
 func (g *OutputGameHelper) WaitForCorrectOutputRoot(ctx context.Context, claimIdx int64) {
@@ -138,9 +145,11 @@ func (g *OutputGameHelper) MaxDepth(ctx context.Context) int64 {
 	return depth.Int64()
 }
 
-func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
+func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) (int64, ContractClaim) {
 	timedCtx, cancel := context.WithTimeout(ctx, defaultTimeout)
 	defer cancel()
+	var matchedClaim ContractClaim
+	var matchClaimIdx int64
 	err := wait.For(timedCtx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: timedCtx})
 		if err != nil {
@@ -153,6 +162,8 @@ func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, pr
 				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
 			}
 			if predicate(claimData) {
+				matchClaimIdx = i
+				matchedClaim = claimData
 				return true, nil
 			}
 		}
@@ -161,6 +172,7 @@ func (g *OutputGameHelper) waitForClaim(ctx context.Context, errorMsg string, pr
 	if err != nil { // Avoid waiting time capturing game data when there's no error
 		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.gameData(ctx))
 	}
+	return matchClaimIdx, matchedClaim
 }
 
 func (g *OutputGameHelper) waitForNoClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
