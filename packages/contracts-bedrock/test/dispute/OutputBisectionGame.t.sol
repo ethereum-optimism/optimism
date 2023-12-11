@@ -55,8 +55,8 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
             _absolutePrestate: absolutePrestate,
             _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
             _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
-            _maxGameDepth: 2**3,
-            _splitDepth: 2**2,
+            _maxGameDepth: 2 ** 3,
+            _splitDepth: 2 ** 2,
             _gameDuration: Duration.wrap(7 days),
             _vm: _vm
         });
@@ -111,7 +111,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
             _absolutePrestate: ABSOLUTE_PRESTATE,
             _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
             _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
-            _maxGameDepth: 2**3,
+            _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM
@@ -127,7 +127,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
             _absolutePrestate: ABSOLUTE_PRESTATE,
             _genesisBlockNumber: GENESIS_BLOCK_NUMBER,
             _genesisOutputRoot: GENESIS_OUTPUT_ROOT,
-            _maxGameDepth: 2**3,
+            _maxGameDepth: 2 ** 3,
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM

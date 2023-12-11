@@ -71,7 +71,7 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         new L2OutputOracle({
             _submissionInterval: 0,
             _l2BlockTime: l2BlockTime,
-            _startingBlockNumber:  startingBlockNumber,
+            _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp,
             _proposer: proposer,
             _challenger: challenger,

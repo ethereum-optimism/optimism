@@ -137,7 +137,7 @@
   },
   "src/universal/OptimismMintableERC20Factory.sol": {
     "initCodeHash": "0x786f4d03cf19cf3af728966a8b22385e178e2021f20b410032c195bbc57e1e7c",
-    "sourceCodeHash": "0x723c294abec447081df4a87104e9ae6c0a1f14cc76499be734008d850eae3a0f"
+    "sourceCodeHash": "0x76556319925ee2bbec0eeaddcce8904b602507ed5edbcc82a1afe920b46f1840"
   },
   "src/universal/OptimismMintableERC721.sol": {
     "initCodeHash": "0xb400f430acf4d65bee9635e4935a6e1e3a0284fc50aea40ad8b7818dc826f31c",
@@ -145,7 +145,7 @@
   },
   "src/universal/OptimismMintableERC721Factory.sol": {
     "initCodeHash": "0x5504069cb1377405bf5c6f1b37ea02057fdb452cf85922cc83dffd5390cad7da",
-    "sourceCodeHash": "0x89cab3bfb4a6a6146336585216c78f20733219ac6973e7fc1cb49c43c060662d"
+    "sourceCodeHash": "0xf8f2f0f6bc3cdbacbb1ef8b3fa31897a1eb749af0ba14b19b0cbc1cf0e6271f8"
   },
   "src/universal/StorageSetter.sol": {
     "initCodeHash": "0xb656d2aa6aff3e6435e747a0c23236d1b66f1f5c0b45e4b1a10d290a90223c5a",

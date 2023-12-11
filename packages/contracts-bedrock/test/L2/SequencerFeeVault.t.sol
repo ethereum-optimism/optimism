@@ -103,7 +103,11 @@ contract SequencerFeeVault_L2Withdrawal_Test is CommonTest {
         vm.etch(
             EIP1967Helper.getImplementation(Predeploys.SEQUENCER_FEE_WALLET),
             address(
-                new SequencerFeeVault(deploy.cfg().sequencerFeeVaultRecipient(), deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(), FeeVault.WithdrawalNetwork.L2)
+                new SequencerFeeVault(
+                    deploy.cfg().sequencerFeeVaultRecipient(),
+                    deploy.cfg().sequencerFeeVaultMinimumWithdrawalAmount(),
+                    FeeVault.WithdrawalNetwork.L2
+                )
             ).code
         );
 

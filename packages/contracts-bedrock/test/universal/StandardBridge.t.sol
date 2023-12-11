@@ -60,10 +60,7 @@ contract StandardBridge_Stateless_Test is CommonTest {
     function setUp() public override {
         super.setUp();
 
-        bridge = new StandardBridgeTester({
-            _messenger: payable(address(0)),
-            _otherBridge: payable(address(0))
-        });
+        bridge = new StandardBridgeTester({ _messenger: payable(address(0)), _otherBridge: payable(address(0)) });
 
         mintable = new OptimismMintableERC20({
             _bridge: address(0),

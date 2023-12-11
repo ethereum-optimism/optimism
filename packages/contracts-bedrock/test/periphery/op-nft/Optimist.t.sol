@@ -173,10 +173,8 @@ contract Optimist_Initializer is Test {
         vm.expectEmit(true, true, false, false);
         emit Initialized(1);
 
-        optimistInviter = new OptimistInviter({
-            _inviteGranter: eve_inviteGranter,
-            _attestationStation: attestationStation
-        });
+        optimistInviter =
+            new OptimistInviter({ _inviteGranter: eve_inviteGranter, _attestationStation: attestationStation });
 
         optimistInviter.initialize("OptimistInviter");
 
