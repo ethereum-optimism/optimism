@@ -271,6 +271,10 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 			return nil, fmt.Errorf("invalid type for superchain postie address")
 		}
 		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend, superchainPostie)
+	case "InteropL2CrossDomainMessenger":
+		_, tx, _, err = bindings.DeployInteropL2CrossDomainMessenger(opts, backend)
+	case "InteropL2StandardBridge":
+		_, tx, _, err = bindings.DeployInteropL2StandardBridge(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

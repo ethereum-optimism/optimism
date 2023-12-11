@@ -121,6 +121,14 @@ func init() {
 		},
 	}
 
+	Predeploys["InteropL2StandardBridge"] = &Predeploy{
+		Address: InteropL2StandardBridgeAddr,
+		Enabled: func(config DeployConfig) bool {
+			interopTime := config.InteropTime(0)
+			return interopTime != nil && *interopTime == 0
+		},
+	}
+
 	for _, predeploy := range Predeploys {
 		PredeploysByAddress[predeploy.Address] = predeploy
 	}
