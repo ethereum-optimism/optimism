@@ -79,8 +79,9 @@ use_booster=--use-booster
 tests=""
 #tests+="--match-test CounterTest.test_SetNumber "
 #tests+="--match-test StateDiffTest.setUp "
-tests+="--match-test StateDiffCheatcode.recreateDeployment "
+# tests+="--match-test StateDiffCheatcode.recreateDeployment "
 # tests+="--match-test StateDiffTest.testVerifyStateChange "
+tests+="--match-test StateDiffTest.test_proveWithdrawalTransaction_paused "
 
 kontrol_build
 kontrol_prove
