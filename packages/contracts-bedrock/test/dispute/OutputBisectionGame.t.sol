@@ -593,7 +593,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         for (uint256 i; i < 4; i++) {
             gameProxy.attack(i, Claim.wrap(bytes32(i)));
         }
-        gameProxy.defend(4, ROOT_CLAIM);
+        gameProxy.defend(4, _changeClaimStatus(ROOT_CLAIM, VMStatuses.VALID));
 
         // Expected start/disputed claims
         bytes32 startingClaim = bytes32(uint256(3));

@@ -151,7 +151,7 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
             //       the remainder of the index at depth divided by 2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH),
             //       which is the number of leaves in each execution trace subgame. This is so that we can
             //       determine whether or not the step position is represents the `ABSOLUTE_PRESTATE`.
-            preStateClaim = (stepPos.indexAtDepth() % (2 ** (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
+            preStateClaim = (stepPos.indexAtDepth() % (1 << (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
                 ? ABSOLUTE_PRESTATE
                 : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex, false).claim;
             // For all attacks, the poststate is the parent claim.
@@ -207,7 +207,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
         // or not the move is an attack or defense.
-        Position nextPosition = parent.position.move(_isAttack);
+        Position parentPos = parent.position;
+        Position nextPosition = parentPos.move(_isAttack);
         uint256 nextPositionDepth = nextPosition.depth();
 
         // INVARIANT: A defense can never be made against the root claim of either the output root game or any
@@ -225,7 +226,9 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
 
         // When the next position surpasses the split depth (i.e., it is the root claim of an execution
         // trace bisection sub-game), we need to perform some extra verification steps.
-        if (nextPositionDepth == SPLIT_DEPTH + 1) verifyExecBisectionRoot(_claim);
+        if (nextPositionDepth == SPLIT_DEPTH + 1) {
+            verifyExecBisectionRoot(_claim, _challengeIndex, parentPos, _isAttack);
+        }
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
@@ -474,11 +477,37 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice Verifies the integrity of an execution bisection subgame's root claim. Reverts if the claim
     ///         is invalid.
     /// @param _rootClaim The root claim of the execution bisection subgame.
-    function verifyExecBisectionRoot(Claim _rootClaim) internal pure {
-        // The VMStatus must indicate 'invalid' (1), to argue that disputed thing is invalid.
-        // Games that agree with the existing outcome are not allowed.
+    function verifyExecBisectionRoot(
+        Claim _rootClaim,
+        uint256 _parentIdx,
+        Position _parentPos,
+        bool _isAttack
+    )
+        internal
+        view
+    {
+        // The root claim of an execution trace bisection sub-game must:
+        // 1. Signal that the VM panicked or resulted in an invalid transition if the disputed output root
+        //    was made by the opposing party.
+        // 2. Signal that the VM resulted in a valid transition if the disputed output root was made by the same party.
+
+        // If the move is a defense, the disputed output could have been made by either party. In this case, we
+        // need to search for the parent output to determine what the expected status byte should be.
+        Position disputedLeafPos = Position.wrap(Position.unwrap(_parentPos) + 1);
+        ClaimData storage disputed = findTraceAncestor({ _pos: disputedLeafPos, _start: _parentIdx, _global: true });
         uint8 vmStatus = uint8(Claim.unwrap(_rootClaim)[0]);
-        if (!(vmStatus == VMStatus.unwrap(VMStatuses.INVALID) || vmStatus == VMStatus.unwrap(VMStatuses.PANIC))) {
+
+        if (_isAttack || disputed.position.depth() % 2 == SPLIT_DEPTH % 2) {
+            // If the move is an attack, the parent output is always deemed to be disputed. In this case, we only need
+            // to check that the root claim signals that the VM panicked or resulted in an invalid transition.
+            // If the move is a defense, and the disputed output and creator of the execution trace subgame disagree,
+            // the root claim should also signal that the VM panicked or resulted in an invalid transition.
+            if (!(vmStatus == VMStatus.unwrap(VMStatuses.INVALID) || vmStatus == VMStatus.unwrap(VMStatuses.PANIC))) {
+                revert UnexpectedRootClaim(_rootClaim);
+            }
+        } else if (vmStatus != VMStatus.unwrap(VMStatuses.VALID)) {
+            // The disputed output and the creator of the execution trace subgame agree. The status byte should
+            // have signaled that the VM succeeded.
             revert UnexpectedRootClaim(_rootClaim);
         }
     }
