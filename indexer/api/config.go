@@ -24,7 +24,7 @@ type DBConfigConnector struct {
 func (cfg *DBConfigConnector) OpenDB(ctx context.Context, log log.Logger) (*DB, error) {
 	db, err := database.NewDB(ctx, log, cfg.DBConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to databse: %w", err)
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 	return &DB{
 		BridgeTransfers: db.BridgeTransfers,
