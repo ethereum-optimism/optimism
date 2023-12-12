@@ -19,7 +19,6 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -49,9 +48,9 @@ type ProposerService struct {
 
 	ProposerConfig
 
-	TxManager    txmgr.TxManager
-	L1Client     *ethclient.Client
-	RollupClient *sources.RollupClient
+	TxManager      txmgr.TxManager
+	L1Client       *ethclient.Client
+	RollupProvider dial.RollupProvider
 
 	driver *L2OutputSubmitter
 
@@ -122,11 +121,11 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	}
 	ps.L1Client = l1Client
 
-	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, ps.Log, cfg.RollupRpc)
+	rollupProvider, err := dial.NewStaticL2RollupProvider(ctx, ps.Log, cfg.RollupRpc)
 	if err != nil {
-		return fmt.Errorf("failed to dial L2 rollup-client RPC: %w", err)
+		return fmt.Errorf("failed to build L2 endpoint provider: %w", err)
 	}
-	ps.RollupClient = rollupClient
+	ps.RollupProvider = rollupProvider
 	return nil
 }
 
@@ -199,12 +198,12 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 
 func (ps *ProposerService) initDriver() error {
 	driver, err := NewL2OutputSubmitter(DriverSetup{
-		Log:          ps.Log,
-		Metr:         ps.Metrics,
-		Cfg:          ps.ProposerConfig,
-		Txmgr:        ps.TxManager,
-		L1Client:     ps.L1Client,
-		RollupClient: ps.RollupClient,
+		Log:            ps.Log,
+		Metr:           ps.Metrics,
+		Cfg:            ps.ProposerConfig,
+		Txmgr:          ps.TxManager,
+		L1Client:       ps.L1Client,
+		RollupProvider: ps.RollupProvider,
 	})
 	if err != nil {
 		return err
@@ -298,8 +297,8 @@ func (ps *ProposerService) Stop(ctx context.Context) error {
 		ps.L1Client.Close()
 	}
 
-	if ps.RollupClient != nil {
-		ps.RollupClient.Close()
+	if ps.RollupProvider != nil {
+		ps.RollupProvider.Close()
 	}
 
 	if result == nil {
