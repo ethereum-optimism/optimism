@@ -52,11 +52,25 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (*ethclient.Cl
 }
 
 func (p *ActiveL2EndpointProvider) RollupClient(ctx context.Context) (*sources.RollupClient, error) {
-	return p.ActiveL2RollupProvider.RollupClient(ctx)
+	err := p.ensureActiveEndpoint(ctx)
+	if err != nil {
+		return nil, err
+	}
+	p.clientLock.Lock()
+	defer p.clientLock.Unlock()
+	return p.currentRollupClient, nil
 }
 
 func (p *ActiveL2EndpointProvider) ensureActiveEndpoint(ctx context.Context) error {
-	return p.ActiveL2RollupProvider.ensureActiveEndpoint(ctx)
+	if !p.shouldCheck() {
+		return nil
+	}
+
+	if err := p.findActiveEndpoints(ctx); err != nil {
+		return err
+	}
+	p.activeTimeout = time.Now().Add(p.checkDuration)
+	return nil
 }
 
 func (p *ActiveL2EndpointProvider) shouldCheck() bool {
@@ -64,7 +78,35 @@ func (p *ActiveL2EndpointProvider) shouldCheck() bool {
 }
 
 func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) error {
-	return p.ActiveL2RollupProvider.findActiveEndpoints(ctx)
+	// If current is not active, dial new sequencers until finding an active one.
+	ts := time.Now()
+	for i := 0; ; i++ {
+		active, err := p.checkCurrentSequencer(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				p.log.Warn("Error querying active sequencer, trying next.", "err", err, "try", i)
+				return fmt.Errorf("querying active sequencer: %w", err)
+			}
+			p.log.Warn("Error querying active sequencer, trying next.", "err", err, "try", i)
+		} else if active {
+			p.log.Debug("Current sequencer active.", "try", i)
+			return nil
+		} else {
+			p.log.Info("Current sequencer inactive, trying next.", "try", i)
+		}
+
+		// After iterating over all endpoints, sleep if all were just inactive,
+		// to avoid spamming the sequencers in a loop.
+		if (i+1)%p.NumEndpoints() == 0 {
+			d := ts.Add(p.checkDuration).Sub(time.Now())
+			time.Sleep(d) // accepts negative
+			ts = time.Now()
+		}
+
+		if err := p.dialNextSequencer(ctx, i); err != nil {
+			return fmt.Errorf("dialing next sequencer: %w", err)
+		}
+	}
 }
 
 func (p *ActiveL2EndpointProvider) checkCurrentSequencer(ctx context.Context) (bool, error) {
