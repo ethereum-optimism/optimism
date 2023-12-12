@@ -120,8 +120,8 @@ target "op-program" {
 }
 
 target "op-ufm" {
-  dockerfile = "Dockerfile"
-  context = "./op-ufm"
+  dockerfile = "./op-ufm/Dockerfile"
+  context = "./"
   args = {
     // op-ufm dockerfile has no _ in the args
     GITCOMMIT = "${GIT_COMMIT}"
@@ -133,8 +133,8 @@ target "op-ufm" {
 }
 
 target "proxyd" {
-  dockerfile = "Dockerfile"
-  context = "./proxyd"
+  dockerfile = "./proxyd/Dockerfile"
+  context = "./"
   args = {
     // proxyd dockerfile has no _ in the args
     GITCOMMIT = "${GIT_COMMIT}"
