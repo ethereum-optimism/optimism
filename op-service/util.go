@@ -62,6 +62,7 @@ func validateEnvVars(prefix string, providedEnvVars []string, definedEnvVars map
 	return out
 }
 
+// WarnOnDeprecatedFlags iterates through the provided deprecatedFlags and logs a warning for each that is set.
 func WarnOnDeprecatedFlags(ctx *cli.Context, deprecatedFlags []cli.Flag, log log.Logger) {
 	for _, flag := range deprecatedFlags {
 		if ctx.IsSet(flag.Names()[0]) {
