@@ -133,8 +133,8 @@ target "op-ufm" {
 }
 
 target "proxyd" {
-  dockerfile = "Dockerfile"
-  context = "./proxyd"
+  dockerfile = "./proxyd/Dockerfile"
+  context = "./"
   args = {
     // proxyd dockerfile has no _ in the args
     GITCOMMIT = "${GIT_COMMIT}"
