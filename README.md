@@ -15,7 +15,8 @@ In this repository, you'll find numerous core components of the OP Stack, the de
 
 ## Documentation
 
-- If you want to build on top of OP Mainnet or build your own OP Stack based blockchain, refer to the [Optimism Documentation](https://docs.optimism.io)
+- If you want to build on top of OP Mainnet, refer to the [Optimism Documentation](https://docs.optimism.io)
+- If you want to build your own OP Stack based blockchain, refer to the [OP Stack Guide](https://docs.optimism.io/stack/getting-started)
 - If you want to contribute to the OP Stack, check out the [Protocol Specs](./specs)
 
 ## Community
