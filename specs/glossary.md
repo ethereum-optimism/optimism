@@ -749,7 +749,7 @@ of even benign consensus issues.
 
 The L2 block time is 2 second, meaning there is an L2 block at every 2s [time slot][time-slot].
 
-Post-[merge], it could be said the that L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
+Post-[merge], it could be said that the L1 block time is 12s as that is the L1 [time slot][time-slot]. However, in
 reality the block time is variable as some time slots might be skipped.
 
 Pre-merge, the L1 block time is variable, though it is on average 13s.
