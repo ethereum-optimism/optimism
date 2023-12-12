@@ -107,7 +107,21 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy)
+	var l1CrossDomainMessengerOptimismPortal common.Address
+	if config != nil {
+		l1CrossDomainMessengerOptimismPortal = common.HexToAddress(list.OptimismPortalProxy.String())
+	} else {
+		l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.HexToAddress(list.L1CrossDomainMessengerProxy.String()), backend)
+		if err != nil {
+			return err
+		}
+		l1CrossDomainMessengerOptimismPortal, err = l1CrossDomainMessenger.PORTAL(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+	}
+
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", l1CrossDomainMessengerOptimismPortal, superchainConfigProxy)
 	if err != nil {
 		return err
 	}
