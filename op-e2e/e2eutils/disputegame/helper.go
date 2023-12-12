@@ -18,6 +18,7 @@ import (
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
@@ -156,11 +157,11 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	}
 }
 
-func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, rootClaim common.Hash) *OutputCannonGameHelper {
+func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputCannonGameHelper {
 	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
-	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
+	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -201,11 +202,11 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	}
 }
 
-func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, claimedAlphabet string) *OutputAlphabetGameHelper {
+func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node string, l2BlockNumber uint64, claimedAlphabet string) *OutputAlphabetGameHelper {
 	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputAlphabetGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
 
-	extraData, _ := h.createBisectionGameExtraData(ctx, rollupClient)
+	extraData := h.createBisectionGameExtraData(l2Node, l2BlockNumber)
 
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
@@ -351,24 +352,14 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.H
 	}
 }
 
-func (h *FactoryHelper) createBisectionGameExtraData(ctx context.Context, client *sources.RollupClient) (extraData []byte, l2BlockNumber uint64) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-	err := wait.For(timeoutCtx, time.Second, func() (bool, error) {
-		status, err := client.SyncStatus(ctx)
-		if err != nil {
-			return false, err
-		}
-		return status.SafeL2.Number > 0, nil
-	})
-	h.require.NoError(err, "Safe head did not progress past genesis")
-	syncStatus, err := client.SyncStatus(ctx)
-	h.require.NoError(err, "failed to get sync status")
-	l2BlockNumber = syncStatus.SafeL2.Number
+func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumber uint64) []byte {
+	l2Client := h.system.NodeClient(l2Node)
+	_, err := geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
+	h.require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
 	h.t.Logf("Creating game with l2 block number: %v", l2BlockNumber)
-	extraData = make([]byte, 32)
+	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
-	return
+	return extraData
 }
 
 func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraData []byte, l1Head *big.Int, l2BlockNumber uint64) {

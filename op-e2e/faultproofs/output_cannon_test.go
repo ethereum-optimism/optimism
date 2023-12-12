@@ -2,6 +2,7 @@ package faultproofs
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
@@ -21,7 +22,7 @@ func TestOutputCannonGame(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01})
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 4, common.Hash{0x01})
 	game.LogGameData(ctx)
 
 	game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
@@ -61,6 +62,42 @@ func TestOutputCannonGame(t *testing.T) {
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
+func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
+	// TODO(client-pod#336) Reduce the number of cases and enable this tests
+	t.Skip("Contracts always require VM status to indicate the post-state output root is invalid")
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+	tests := []struct {
+		disputeL2BlockNumber uint64
+	}{
+		{1},
+		{2},
+		{3},
+		{4},
+		{5},
+		{6},
+		{7},
+		{8},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(fmt.Sprintf("Dispute_%v", test.disputeL2BlockNumber), func(t *testing.T) {
+			op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+			ctx := context.Background()
+			sys, _ := startFaultDisputeSystem(t)
+
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", test.disputeL2BlockNumber, common.Hash{0x01})
+			game.DisputeLastBlock(ctx)
+			game.LogGameData(ctx)
+
+			game.StartChallenger(ctx, "sequencer", "Challenger", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+			splitDepth := game.SplitDepth(ctx)
+			game.WaitForClaimAtDepth(ctx, int(splitDepth)+1)
+		})
+	}
+}
+
 func TestOutputCannonDisputeGame(t *testing.T) {
 	// TODO(client-pod#247): Fix and enable this.
 	t.Skip("Currently failing because of invalid pre-state")
@@ -84,7 +121,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 			t.Cleanup(sys.Close)
 
 			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01, 0xaa})
+			game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
@@ -122,7 +159,7 @@ func TestOutputCannonDefendStep(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", common.Hash{0x01, 0xaa})
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0x01, 0xaa})
 	require.NotNil(t, game)
 	game.DisputeLastBlock(ctx)
 	game.LogGameData(ctx)
