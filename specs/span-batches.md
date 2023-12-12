@@ -106,7 +106,7 @@ Where:
   - `block_tx_counts`: for each block, a `uvarint` of `len(block.transactions)`.
   - `txs`: L2 transactions which is reorganized and encoded as below.
 - `txs = contract_creation_bits ++ y_parity_bits ++
-        tx_sigs ++ tx_tos ++ tx_data ++ tx_nonces ++ tx_gases ++ protected_bits`
+        tx_sigs ++ tx_tos ++ tx_datas ++ tx_nonces ++ tx_gases ++ protected_bits`
   - `contract_creation_bits`: standard bitlist of `sum(block_tx_counts)` bits:
     1 bit per L2 transactions, indicating if transaction is a contract creation transaction.
   - `y_parity_bits`: standard bitlist of `sum(block_tx_counts)` bits:
@@ -115,7 +115,7 @@ Where:
     - `r` is encoded as big-endian `uint256`
     - `s` is encoded as big-endian `uint256`
   - `tx_tos`: concatenated list of `to` field. `to` field in contract creation transaction will be `nil` and ignored.
-  - `tx_data`: concatenated list of variable length rlp encoded data,
+  - `tx_datas`: concatenated list of variable length rlp encoded data,
     matching the encoding of the fields as in the [EIP-2718] format of the `TransactionType`.
     - `legacy`: `rlp_encode(value, gasPrice, data)`
     - `1`: ([EIP-2930]): `0x01 ++ rlp_encode(value, gasPrice, data, accessList)`
@@ -186,7 +186,7 @@ The following fields stores truncated data:
 
 ### `tx_data_headers` removal from initial specs
 
-We do not need to store length per each `tx_data` elements even if those are variable length,
+We do not need to store length per each `tx_datas` elements even if those are variable length,
 because the elements itself is RLP encoded, containing their length in RLP prefix.
 
 ### `Chain ID` removal from initial specs
@@ -225,7 +225,7 @@ Deposit transactions are excluded in batches and are never written at L1 so excl
 There are (7 choose 2) * 5! = 2520 permutations of ordering fields of `txs`.
 It is not 7! because `contract_creation_bits` must be first decoded in order to decode `tx_tos`.
 We experimented to find out the best layout for compression.
-It turned out placing random data together(`TxSigs`, `TxTos`, `TxData`),
+It turned out placing random data together(`TxSigs`, `TxTos`, `TxDatas`),
 then placing leftovers helped gzip to gain more size reduction.
 
 ### `fee_recipients` Encoding Scheme
@@ -347,7 +347,7 @@ Span-batch rules, in validation order:
         - `len(block_input.transactions) > 0`: -> `drop`:
           when exceeding the sequencer time drift, never allow the sequencer to include transactions.
 - And for all transactions:
-  - `drop` if the `batch.tx_data` list contains a transaction
+  - `drop` if the `batch.tx_datas` list contains a transaction
     that is invalid or derived by other means exclusively:
     - any transaction that is empty (zero length `tx_data`)
     - any [deposited transactions][g-deposit-tx-type] (identified by the transaction type prefix byte in `tx_data`)
