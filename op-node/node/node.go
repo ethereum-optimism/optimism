@@ -47,7 +47,6 @@ type OpNode struct {
 	l1Source  *sources.L1Client     // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
-	rpcSync   *sources.SyncClient   // Alt-sync RPC client, optional (may be nil)
 	server    *rpcServer            // RPC server hosting the rollup-node API
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
@@ -120,9 +119,6 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil { // depends on L2, to signal initial runtime values to
 		return fmt.Errorf("failed to init the runtime config: %w", err)
-	}
-	if err := n.initRPCSync(ctx, cfg); err != nil {
-		return fmt.Errorf("failed to init RPC sync: %w", err)
 	}
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init the P2P signer: %w", err)
@@ -314,22 +310,6 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	return nil
 }
 
-func (n *OpNode) initRPCSync(ctx context.Context, cfg *Config) error {
-	rpcSyncClient, rpcCfg, err := cfg.L2Sync.Setup(ctx, n.log, &cfg.Rollup)
-	if err != nil {
-		return fmt.Errorf("failed to setup L2 execution-engine RPC client for backup sync: %w", err)
-	}
-	if rpcSyncClient == nil { // if no RPC client is configured to sync from, then don't add the RPC sync client
-		return nil
-	}
-	syncClient, err := sources.NewSyncClient(n.OnUnsafeL2Payload, rpcSyncClient, n.log, n.metrics.L2SourceCache, rpcCfg)
-	if err != nil {
-		return fmt.Errorf("failed to create sync client: %w", err)
-	}
-	n.rpcSync = syncClient
-	return nil
-}
-
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
 	if err != nil {
@@ -432,22 +412,11 @@ func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) Start(ctx context.Context) error {
 	n.log.Info("Starting execution engine driver")
-
 	// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
 	if err := n.l2Driver.Start(); err != nil {
 		n.log.Error("Could not start a rollup node", "err", err)
 		return err
 	}
-
-	// If the backup unsafe sync client is enabled, start its event loop
-	if n.rpcSync != nil {
-		if err := n.rpcSync.Start(); err != nil {
-			n.log.Error("Could not start the backup sync client", "err", err)
-			return err
-		}
-		n.log.Info("Started L2-RPC sync service")
-	}
-
 	log.Info("Rollup node started")
 	return nil
 }
@@ -527,9 +496,6 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *e
 }
 
 func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
-	if n.rpcSync != nil {
-		return n.rpcSync.RequestL2Range(ctx, start, end)
-	}
 	if n.p2pNode != nil && n.p2pNode.AltSyncEnabled() {
 		if unixTimeStale(start.Time, 12*time.Hour) {
 			n.log.Debug("ignoring request to sync L2 range, timestamp is too old for p2p", "start", start, "end", end, "start_time", start.Time)
@@ -600,13 +566,6 @@ func (n *OpNode) Stop(ctx context.Context) error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
-		}
-
-		// If the L2 sync client is present & running, close it.
-		if n.rpcSync != nil {
-			if err := n.rpcSync.Close(); err != nil {
-				result = multierror.Append(result, fmt.Errorf("failed to close L2 engine backup sync client cleanly: %w", err))
-			}
 		}
 	}
 
