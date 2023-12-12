@@ -31,7 +31,7 @@ cleanup() {
 wait_l2_outfile() {
   i=1
   while [ $i -le "$2" ]; do
-    i=$(($i + 1))
+    i=$((i + 1))
 
     if [ ! -f "$OUTFILE_L2" ]; then
       sleep "$1"

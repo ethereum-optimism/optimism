@@ -57,7 +57,7 @@ fi
 # Findings to keep are output to the slither-report.json output file.
 # Checking in a json file is cleaner than adding slither-disable comments throughout the codebase.
 # See slither.config.json for slither settings and to disable specific detectors.
-if [[ ! -z "$TRIAGE_MODE" ]]; then
+if [[ -n "$TRIAGE_MODE" ]]; then
   echo "Running slither in triage mode"
   SLITHER_OUTPUT=$(slither . --triage-mode --json $SLITHER_REPORT || true)
 

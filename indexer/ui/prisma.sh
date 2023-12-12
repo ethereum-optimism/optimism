@@ -18,8 +18,8 @@ function check_prisma() {
     echo "Checking Prisma Schema..."
     cp "$PRISMA_FILE" "$TEMP_FILE"
     npx prisma db pull --url "$DATABASE_URL" --schema "$TEMP_FILE"
-    diff "$PRISMA_FILE" "$TEMP_FILE" > /dev/null
-    if [ $? -eq 0 ]; then
+
+    if diff "$PRISMA_FILE" "$TEMP_FILE" > /dev/null; then
         echo "Prisma Schema is up-to-date."
         rm "$TEMP_FILE"
     else
