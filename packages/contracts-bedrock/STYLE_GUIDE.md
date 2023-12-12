@@ -1,6 +1,6 @@
 # Smart Contract Style Guide
 
-This document providing guidance on how we organize and write our smart contracts. For cases where
+This document provides guidance on how we organize and write our smart contracts. For cases where
 this document does not provide guidance, please refer to existing contracts for guidance,
 with priority on the `L2OutputOracle` and `OptimismPortal`.
 
