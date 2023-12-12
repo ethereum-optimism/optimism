@@ -782,6 +782,10 @@ jobs:
       module:
         description: Go Module Name
         type: string
+      race_detector:
+        description: Enable or disable the race detector
+        type: boolean
+        default: false
     docker:
       - image: <<pipeline.parameters.ci_builder_image>> # only used to enable codecov.
     resource_class: xlarge
@@ -801,7 +805,7 @@ jobs:
           name: run tests
           command: |
             gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
-            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+            -- -race=<<parameters.race_detector>> -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - save_cache:
           key: golang-build-cache-<<parameters.module>>
@@ -859,7 +863,7 @@ jobs:
           name: run tests
           command: |
             mkdir -p /testlogs
-            
+
             export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
@@ -1509,6 +1513,7 @@ workflows:
       - go-test:
           name: op-challenger-tests
           module: op-challenger
+          race_detector: true
           requires: ["op-stack-go-lint"]
       - go-test:
           name: op-program-tests
