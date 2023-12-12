@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -28,21 +29,21 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 		player: &test.StubGamePlayer{StatusValue: types.GameStatusInProgress},
 	}
 	waitErr := wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
-		return ms.activeCalls >= 1, nil
+		return ms.activeCalls.Load() >= 1, nil
 	})
 	require.NoError(t, waitErr)
-	require.Equal(t, ms.activeCalls, 1)
-	require.Equal(t, ms.idleCalls, 1)
+	require.EqualValues(t, ms.activeCalls.Load(), 1)
+	require.EqualValues(t, ms.idleCalls.Load(), 1)
 
 	in <- job{
 		player: &test.StubGamePlayer{StatusValue: types.GameStatusDefenderWon},
 	}
 	waitErr = wait.For(context.Background(), 100*time.Millisecond, func() (bool, error) {
-		return ms.activeCalls >= 2, nil
+		return ms.activeCalls.Load() >= 2, nil
 	})
 	require.NoError(t, waitErr)
-	require.Equal(t, ms.activeCalls, 2)
-	require.Equal(t, ms.idleCalls, 2)
+	require.EqualValues(t, ms.activeCalls.Load(), 2)
+	require.EqualValues(t, ms.idleCalls.Load(), 2)
 
 	result1 := readWithTimeout(t, out)
 	result2 := readWithTimeout(t, out)
@@ -56,16 +57,16 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 }
 
 type metricSink struct {
-	activeCalls int
-	idleCalls   int
+	activeCalls atomic.Int32
+	idleCalls   atomic.Int32
 }
 
 func (m *metricSink) ThreadActive() {
-	m.activeCalls++
+	m.activeCalls.Add(1)
 }
 
 func (m *metricSink) ThreadIdle() {
-	m.idleCalls++
+	m.idleCalls.Add(1)
 }
 
 func readWithTimeout[T any](t *testing.T, ch <-chan T) T {
