@@ -58,15 +58,15 @@ const knownChains = [
 type ClientOptions =
   // for known chains like base don't require an rpcUrl
   | {
-      chainId: typeof knownChains[number]
-      rpcUrl?: string
-      nativeCurrency?: chains.Chain['nativeCurrency']
-    }
+    chainId: typeof knownChains[number]
+    rpcUrl?: string
+    nativeCurrency?: chains.Chain['nativeCurrency']
+  }
   | {
-      chainId: number
-      rpcUrl: string
-      nativeCurrency?: chains.Chain['nativeCurrency']
-    }
+    chainId: number
+    rpcUrl: string
+    nativeCurrency?: chains.Chain['nativeCurrency']
+  }
   | PublicClient
 
 /**
@@ -221,10 +221,52 @@ export const gasPrice = async ({
 }
 
 /**
+ * Computes the basefeeScalar value
+ * @example
+ * const basefeeScalarValue = await basefeeScalar(params);
+ */
+export const basefeeScalar: GasPriceOracleEstimator = async (options) => {
+  const data = transactionSerializer(options)
+  const contract = getGasPriceOracleContract(options.client)
+  return contract.read.basefeeScalar([data], {
+    blockNumber: options.blockNumber,
+    blockTag: options.blockTag,
+  })
+}
+
+/**
+ * Computes the blobBasefeeScalar value
+ * @example
+ * const blobBasefeeScalarValue = await blobBasefeeScalar(params);
+ */
+export const blobBasefeeScalar: GasPriceOracleEstimator = async (options) => {
+  const data = transactionSerializer(options)
+  const contract = getGasPriceOracleContract(options.client)
+  return contract.read.blobBasefeeScalar([data], {
+    blockNumber: options.blockNumber,
+    blockTag: options.blockTag,
+  })
+}
+
+/**
+ * Computes the blobBasefee value
+ * @example
+ * const blobBasefeeValue = await blobBasefee(params);
+ */
+export const blobBasefee: GasPriceOracleEstimator = async (options) => {
+  const data = transactionSerializer(options)
+  const contract = getGasPriceOracleContract(options.client)
+  return contract.read.blobBasefee([data], {
+    blockNumber: options.blockNumber,
+    blockTag: options.blockTag,
+  })
+}
+
+/**
  * Computes the L1 portion of the fee based on the size of the rlp encoded input
  * transaction, the current L1 base fee, and the various dynamic parameters.
  * @example
- * const L1FeeValue = await getL1Fee(data, params);
+ * const L1FeeValue = await getL1Fee(params);
  */
 export const getL1Fee: GasPriceOracleEstimator = async (options) => {
   const data = transactionSerializer(options)

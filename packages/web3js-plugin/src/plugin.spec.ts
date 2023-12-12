@@ -321,6 +321,24 @@ describe('OptimismPlugin', () => {
         ).toBeTypeOf('bigint')
       })
 
+      test('basefeeScalar', async () => {
+        expect(
+          await web3.op.basefeeScalar()
+        ).toBeTypeOf('bigint')
+      })
+
+      test('blobBasefeeScalar', async () => {
+        expect(
+          await web3.op.blobBasefeeScalar()
+        ).toBeTypeOf('bigint')
+      })
+
+      test('blobBasefee', async () => {
+        expect(
+          await web3.op.blobBasefee()
+        ).toBeTypeOf('bigint')
+      })
+
       test('getL1GasUsed should return 2592n', async () =>
         expect(
           await web3.op.getL1GasUsed({

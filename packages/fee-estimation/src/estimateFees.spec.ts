@@ -5,6 +5,9 @@ import { vi, test, expect, beforeEach } from 'vitest'
 import { formatEther } from 'viem/utils'
 import {
   baseFee,
+  basefeeScalar,
+  blobBasefee,
+  blobBasefeeScalar,
   decimals,
   estimateFees,
   gasPrice,
@@ -245,4 +248,16 @@ test('scalar should return the correct result', async () => {
 test('version should return the correct result', async () => {
   expect(await version(paramsWithRpcUrl)).toMatchInlineSnapshot('"1.0.0"')
   expect(await version(paramsWithViemClient)).toMatchInlineSnapshot('"1.0.0"')
+})
+
+test('basefeeScalar should return the correct result', async () => {
+  expect(await basefeeScalar({ ...paramsWithRpcUrl, ...functionDataBurn })).toMatchInlineSnapshot('1n')
+})
+
+test('blobBasefeeScalar should return the correct result', async () => {
+  expect(await blobBasefeeScalar({ ...paramsWithRpcUrl, ...functionDataBurn })).toMatchInlineSnapshot('1n')
+})
+
+test('blobBasefee should return the correct result', async () => {
+  expect(await blobBasefee({ ...paramsWithRpcUrl, ...functionDataBurn })).toMatchInlineSnapshot('0n')
 })

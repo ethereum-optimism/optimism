@@ -59,6 +59,36 @@ export const getL1GasPrice = async (
 }
 
 /**
+ * Gets the basefee scalar
+ */
+export const basefeeScalar = async (
+  l2Provider: ProviderLike
+): Promise<number> => {
+  const gpo = connectGasPriceOracle(l2Provider)
+  return gpo.basefeeScalar()
+}
+
+/**
+ * Gets the blob basefee scalar
+ */
+export const blobBasefeeScalar = async (
+  l2Provider: ProviderLike
+): Promise<number> => {
+  const gpo = connectGasPriceOracle(l2Provider)
+  return gpo.blobBasefeeScalar()
+}
+
+/**
+ * Gets the blob basefee
+ */
+export const blobBasefee = async (
+  l2Provider: ProviderLike
+): Promise<BigNumber> => {
+  const gpo = connectGasPriceOracle(l2Provider)
+  return gpo.blobBasefee()
+}
+
+/**
  * Estimates the amount of L1 gas required for a given L2 transaction.
  *
  * @param l2Provider L2 provider to query the gas usage from.

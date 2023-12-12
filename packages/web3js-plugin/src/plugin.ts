@@ -25,6 +25,46 @@ export class OptimismPlugin extends Web3PluginBase {
     | undefined
 
   /**
+   * Retrieves the basefee scalar
+   */
+  public async getBaseFeeScalar<
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+  >(returnFormat?: ReturnFormat) {
+    return Web3.utils.format(
+      { format: 'uint' },
+      await this._getPriceOracleContractInstance().methods.baseFeeScalar().call(),
+      returnFormat ?? DEFAULT_RETURN_FORMAT
+    )
+  }
+
+  /**
+   * Retrieves the blob basefee Scalar
+   */
+  public async getBlobBaseFeeScalar<
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+  >(returnFormat?: ReturnFormat) {
+    return Web3.utils.format(
+      { format: 'uint' },
+      await this._getPriceOracleContractInstance().methods.blobBaseFeeScalar().call(),
+      returnFormat ?? DEFAULT_RETURN_FORMAT
+    )
+  }
+
+  /**
+   * Retrieves the blob basefee
+   */
+  public async getBlobBaseFee<
+    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
+  >(returnFormat?: ReturnFormat) {
+    return Web3.utils.format(
+      { format: 'uint' },
+      await this._getPriceOracleContractInstance().methods.blobBaseFee().call(),
+      returnFormat ?? DEFAULT_RETURN_FORMAT
+    )
+  }
+
+
+  /**
    * Retrieves the current L2 base fee
    * @param {DataFormat} [returnFormat=DEFAULT_RETURN_FORMAT] - The web3.js format object that specifies how to format number and bytes values
    * @returns {Promise<bigint>} - The L2 base fee as a BigInt by default, but {returnFormat} determines type
