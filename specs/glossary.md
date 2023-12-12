@@ -483,7 +483,7 @@ The channel timeout is a duration (in L1 blocks) during which [channel frames][c
 
 The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +
 CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
-time range. (Note that `channel_id.timetamp` must be lower than the L1 block timestamp of any L1 block in which frames
+time range. (Note that `channel_id.timestamp` must be lower than the L1 block timestamp of any L1 block in which frames
 of the channel are seen, or else these frames are ignored.)
 
 The purpose of channel timeouts is dual:
