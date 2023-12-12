@@ -91,7 +91,7 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 		default:
 			// NOTE: We explicitly fail here since the presence of a new version means finalization
 			// logic needs to be updated to ensure L1 finalization can run from genesis and handle
-			// the changing version formats. Any unrelayed OVM1 messages that have been harcoded with
+			// the changing version formats. Any unrelayed OVM1 messages that have been hardcoded with
 			// the v1 hash format also need to be updated. This failure is a serving indicator
 			return nil, fmt.Errorf("expected cross domain version 0 or version 1: %d", version)
 		}
