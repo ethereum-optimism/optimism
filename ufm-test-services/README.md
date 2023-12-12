@@ -12,9 +12,9 @@ Starting from left to right in the above diagram:
 
 1. Github Workflow files are created for each time interval Test Services should be ran
     - All Test Services that should be ran for a specific time interval (e.g. 1 hour) should be defined in the same Github Workflow file
-2. Github will run a workflow at it's specified time interval, triggering all of it's defined Test Services to run
+2. Github will run a workflow at its specified time interval, triggering all of it's defined Test Services to run
 3. `docker-compose.yml` builds and runs each Test Service, setting any environment variables that can be sourced from Github secrets
-4. Each Test Service will run it's defined tasks, generate it's metrics, and push them to an already deployed instance of Prometheus Pushgateway
+4. Each Test Service will run its defined tasks, generate its metrics, and push them to an already deployed instance of Prometheus Pushgateway
 5. An already deployed instance of Prometheus will scrape the Pushgateway for metrics
 6. An already deployed Grafana dashboard will query Prometheus for metric data to display
 
@@ -71,7 +71,7 @@ Starting from left to right in the above diagram:
             # Runs every 1 day
             0 12 * * * /usr/local/bin/docker-compose -f /path/to/docker-compose.yml --profile 1day up -d
 
-            # Runs every 7 day
+            # Runs every 7 days
             0 12 */7 * * /usr/local/bin/docker-compose -f /path/to/docker-compose.yml --profile 7day up -d
             ```
 
