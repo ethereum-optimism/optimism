@@ -18,7 +18,7 @@ eth_chainId = "main"
 eth_sendRawTransaction = "main"
 
 [sender_rate_limit]
+allowed_chain_ids = [0, 420] # adding 0 allows pre-EIP-155 transactions
 enabled = true
 interval = "1s"
 limit = 1
-allowed_chain_ids = [420]

@@ -135,6 +135,7 @@ type BatchConfig struct {
 
 // SenderRateLimitConfig configures the sender-based rate limiter
 // for eth_sendRawTransaction requests.
+// To enable pre-eip155 transactions, add '0' to allowed_chain_ids.
 type SenderRateLimitConfig struct {
 	Enabled         bool
 	Interval        TOMLDuration
