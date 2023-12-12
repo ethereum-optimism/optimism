@@ -211,6 +211,9 @@ func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (ui
 	if b.g.err != nil {
 		return 0, b.g.err
 	}
+	if msg.GasFeeCap.Cmp(msg.GasTipCap) < 0 {
+		return 0, core.ErrTipAboveFeeCap
+	}
 	return b.g.basefee().Uint64(), nil
 }
 

@@ -228,8 +228,8 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
 			From:      m.cfg.From,
 			To:        candidate.To,
-			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
 			Data:      rawTx.Data,
 			Value:     rawTx.Value,
 		})
