@@ -29,7 +29,7 @@ var (
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node",
+		Usage:   "HTTP provider URL for the rollup node. A comma-separated list enables the active rollup provider.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	L2OOAddressFlag = &cli.StringFlag{

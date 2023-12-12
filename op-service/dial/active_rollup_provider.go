@@ -88,7 +88,7 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 		// After iterating over all endpoints, sleep if all were just inactive,
 		// to avoid spamming the sequencers in a loop.
 		if (i+1)%p.NumEndpoints() == 0 {
-			d := ts.Add(p.checkDuration).Sub(time.Now())
+			d := time.Until(ts.Add(p.checkDuration))
 			time.Sleep(d) // accepts negative
 			ts = time.Now()
 		}

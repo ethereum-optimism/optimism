@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const DefaultActiveSequencerFollowerCheckDuration = 2 * DefaultDialTimeout
+
 type ActiveL2EndpointProvider struct {
 	ActiveL2RollupProvider
 	ethEndpoints     []string
@@ -98,7 +100,7 @@ func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) erro
 		// After iterating over all endpoints, sleep if all were just inactive,
 		// to avoid spamming the sequencers in a loop.
 		if (i+1)%p.NumEndpoints() == 0 {
-			d := ts.Add(p.checkDuration).Sub(time.Now())
+			d := time.Until(ts.Add(p.checkDuration))
 			time.Sleep(d) // accepts negative
 			ts = time.Now()
 		}

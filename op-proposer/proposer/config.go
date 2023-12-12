@@ -22,7 +22,7 @@ type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// RollupRpc is the HTTP provider URL for the rollup node.
+	// RollupRpc is the HTTP provider URL for the rollup node. A comma-separated list enables the active rollup provider.
 	RollupRpc string
 
 	// L2OOAddress is the L2OutputOracle contract address.
