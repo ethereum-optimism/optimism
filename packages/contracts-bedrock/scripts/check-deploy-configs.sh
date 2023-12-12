@@ -4,7 +4,7 @@
 # It should check all configs and return a non-zero exit code if any of them are invalid.
 # getting-started.json isn't valid JSON so its skipped.
 
-code=$?
+code=0
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 CONTRACTS_BASE=$(dirname "$SCRIPT_DIR")
