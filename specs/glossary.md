@@ -492,7 +492,7 @@ The purpose of channel timeouts is dual:
   sent).
 - Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
   channels. This is particularly relevant during L1 re-orgs, see the [Resetting Channel Buffering][reset-channel-buffer]
-  section of the L2 Chain Derivation specifiction for more information.
+  section of the L2 Chain Derivation specification for more information.
 
 [reset-channel-buffer]: derivation.md#resetting-channel-buffering
 
