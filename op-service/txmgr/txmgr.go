@@ -27,8 +27,10 @@ const (
 )
 
 // new = old * (100 + priceBump) / 100
-var priceBumpPercent = big.NewInt(100 + priceBump)
-var oneHundred = big.NewInt(100)
+var (
+	priceBumpPercent = big.NewInt(100 + priceBump)
+	oneHundred       = big.NewInt(100)
+)
 
 // TxManager is an interface that allows callers to reliably publish txs,
 // bumping the gas price if needed, and obtain the receipt of the resulting tx.
@@ -503,7 +505,7 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 // doesn't linger in the mempool. Finally to avoid runaway price increases, fees are capped at a
 // `feeLimitMultiplier` multiple of the suggested values.
 func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
-	m.l.Info("bumping gas price for tx", "hash", tx.Hash(), "tip", tx.GasTipCap(), "fee", tx.GasFeeCap(), "gaslimit", tx.Gas())
+	m.l.Info("bumping gas price for tx", "hash", tx.Hash(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap(), "gaslimit", tx.Gas())
 	tip, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		m.l.Warn("failed to get suggested gas tip and basefee", "err", err)
@@ -514,11 +516,11 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	// Make sure increase is at most [FeeLimitMultiplier] the suggested values
 	maxTip := new(big.Int).Mul(tip, big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
 	if bumpedTip.Cmp(maxTip) > 0 {
-		return nil, fmt.Errorf("bumped tip 0x%s is over %dx multiple of the suggested value", bumpedTip.Text(16), m.cfg.FeeLimitMultiplier)
+		return nil, fmt.Errorf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, m.cfg.FeeLimitMultiplier)
 	}
 	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, big.NewInt(int64(m.cfg.FeeLimitMultiplier))), maxTip)
 	if bumpedFee.Cmp(maxFee) > 0 {
-		return nil, fmt.Errorf("bumped fee 0x%s is over %dx multiple of the suggested value", bumpedFee.Text(16), m.cfg.FeeLimitMultiplier)
+		return nil, fmt.Errorf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedFee, m.cfg.FeeLimitMultiplier)
 	}
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
@@ -535,8 +537,8 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
 		From:      m.cfg.From,
 		To:        rawTx.To,
-		GasFeeCap: bumpedTip,
-		GasTipCap: bumpedFee,
+		GasTipCap: bumpedTip,
+		GasFeeCap: bumpedFee,
 		Data:      rawTx.Data,
 	})
 	if err != nil {
@@ -544,11 +546,13 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		// original tx can get included in a block just before the above call. In this case the
 		// error is due to the tx reverting with message "block number must be equal to next
 		// expected block number"
-		m.l.Warn("failed to re-estimate gas", "err", err, "gaslimit", tx.Gas())
+		m.l.Warn("failed to re-estimate gas", "err", err, "gaslimit", tx.Gas(),
+			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 		return nil, err
 	}
 	if tx.Gas() != gas {
-		m.l.Info("re-estimated gas differs", "oldgas", tx.Gas(), "newgas", gas)
+		m.l.Info("re-estimated gas differs", "oldgas", tx.Gas(), "newgas", gas,
+			"gasFeeCap", bumpedFee, "gasTipCap", bumpedTip)
 	}
 	rawTx.Gas = gas
 
@@ -600,7 +604,9 @@ func calcThresholdValue(x *big.Int) *big.Int {
 //	(c) gasFeeCap is no less than calcGasFee(newBaseFee, newTip)
 func updateFees(oldTip, oldFeeCap, newTip, newBaseFee *big.Int, lgr log.Logger) (*big.Int, *big.Int) {
 	newFeeCap := calcGasFeeCap(newBaseFee, newTip)
-	lgr = lgr.New("old_tip", oldTip, "old_feecap", oldFeeCap, "new_tip", newTip, "new_feecap", newFeeCap)
+	lgr = lgr.New("old_gasTipCap", oldTip, "old_gasFeeCap", oldFeeCap,
+		"new_gasTipCap", newTip, "new_gasFeeCap", newFeeCap,
+		"new_basefee", newBaseFee)
 	thresholdTip := calcThresholdValue(oldTip)
 	thresholdFeeCap := calcThresholdValue(oldFeeCap)
 	if newTip.Cmp(thresholdTip) >= 0 && newFeeCap.Cmp(thresholdFeeCap) >= 0 {
