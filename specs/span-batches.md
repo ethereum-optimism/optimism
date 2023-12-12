@@ -225,7 +225,7 @@ Deposit transactions are excluded in batches and are never written at L1 so excl
 There are (7 choose 2) * 5! = 2520 permutations of ordering fields of `txs`.
 It is not 7! because `contract_creation_bits` must be first decoded in order to decode `tx_tos`.
 We experimented to find out the best layout for compression.
-It turned out placing random data together(`TxSigs`, `TxTos`, `TxDatas`),
+It turned out placing random data together(`TxSigs`, `TxTos`, `TxData`),
 then placing leftovers helped gzip to gain more size reduction.
 
 ### `fee_recipients` Encoding Scheme
