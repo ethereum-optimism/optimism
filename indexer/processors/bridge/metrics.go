@@ -227,11 +227,11 @@ func (m *bridgeMetrics) RecordL1CrossDomainRelayedMessages(size int) {
 }
 
 func (m *bridgeMetrics) RecordL1SkippedOVM1ProvenWithdrawals(size int) {
-	m.skippedOVM1Withdrawals.WithLabelValues("stage", "proven").Add(float64(size))
+	m.skippedOVM1Withdrawals.WithLabelValues("proven").Add(float64(size))
 }
 
 func (m *bridgeMetrics) RecordL1SkippedOVM1FinalizedWithdrawals(size int) {
-	m.skippedOVM1Withdrawals.WithLabelValues("stage", "finalized").Add(float64(size))
+	m.skippedOVM1Withdrawals.WithLabelValues("finalized").Add(float64(size))
 }
 
 func (m *bridgeMetrics) RecordL1SkippedOVM1CrossDomainRelayedMessages(size int) {
