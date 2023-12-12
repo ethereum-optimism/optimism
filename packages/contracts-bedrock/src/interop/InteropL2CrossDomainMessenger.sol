@@ -50,6 +50,10 @@ contract InteropL2CrossDomainMessenger is ISemver {
     /// @notice Mapping of delivered messages in a failed state
     mapping(bytes32 => bool) public failedMessages;
 
+    constructor() {
+        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
+    }
+
     /// @notice Emitted whenever a message is sent to the other chain.
     event SentMessage(
         uint256 indexed messageNonce,

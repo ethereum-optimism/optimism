@@ -48,5 +48,6 @@
   "CrossL2Inbox",
   "CrossL2Outbox",
   "InteropL2CrossDomainMessenger",
-  "InteropL2StandardBridge"
+  "InteropL2StandardBridge",
+  "InteropOptimismMintableERC20"
 ]

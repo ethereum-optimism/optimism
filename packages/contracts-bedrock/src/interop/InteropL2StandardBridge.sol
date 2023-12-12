@@ -14,8 +14,8 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 /// @title InteropL2StandardBridge
-/// @notice InteropL2StandardBridge is a replacement of the L2StandardBridge that supports
-///         both L2-L2 and L2-L1 bridging.
+/// @notice InteropL2StandardBridge is a replacement of the L2StandardBridge
+///         predeploy that supports both L2-L2 and L2-L1 bridging.
 contract InteropL2StandardBridge is ISemver {
     /// @custom:semver 0.0.1
     string public constant version = "0.0.1";
@@ -23,8 +23,11 @@ contract InteropL2StandardBridge is ISemver {
     // StandardBridge: copied internals & updated dispatch/message spec
 
     /// @notice Interop enabled L2CrossDomainMessenger
-    InteropL2CrossDomainMessenger immutable MESSENGER =
-        InteropL2CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER));
+    InteropL2CrossDomainMessenger public immutable MESSENGER;
+
+    constructor(address payable _messenger) {
+        MESSENGER = InteropL2CrossDomainMessenger(_messenger);
+    }
 
     /// @notice emitted whenever ETH is bridged to a destination
     event ETHBridgeInitiated(
@@ -105,6 +108,7 @@ contract InteropL2StandardBridge is ISemver {
     function bridgeERC20To(
         bytes32 targetChain,
         address _localToken,
+        address _remoteToken,
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
@@ -118,32 +122,28 @@ contract InteropL2StandardBridge is ISemver {
             "InteropL2StandardBridge: can only bridge the IOptimismMintableERC20 interface"
         );
 
-        address remoteToken = IOptimismMintableERC20(_localToken).remoteToken();
-
         // L2->L1 Support: Utilize the old pathway for now
         if (targetChain == InteropConstants.ETH_MAINNET_ID) {
             LegacyL2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeERC20To(
-                _localToken, remoteToken, _to, _amount, _minGasLimit, _extraData
+                _localToken, _remoteToken, _to, _amount, _minGasLimit, _extraData
             );
             return;
         }
 
+        require(
+            _remoteToken == IOptimismMintableERC20(_localToken).remoteToken(),
+            "InteropL2StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
+        );
+
         IOptimismMintableERC20(_localToken).burn(msg.sender, _amount);
-        emit ERC20BridgeInitiated(targetChain, _localToken, remoteToken, msg.sender, _to, _amount, _extraData);
+        emit ERC20BridgeInitiated(targetChain, _localToken, _remoteToken, msg.sender, _to, _amount, _extraData);
 
         MESSENGER.sendMessage(
             targetChain,
             address(this),
-            abi.encodeWithSelector(
-                this.finalizeBridgeERC20.selector,
-                // local & remote stay the same as a cross L2 transfer
-                _localToken,
-                remoteToken,
-                msg.sender,
-                _to,
-                _amount,
-                _extraData
-            ),
+            // _localToken & _remoteToken stay in the same order cross-l2
+            abi.encodeWithSelector(this.finalizeBridgeERC20.selector,
+                _localToken, _remoteToken, msg.sender, _to, _amount, _extraData),
             _minGasLimit
         );
     }
@@ -188,11 +188,9 @@ contract InteropL2StandardBridge is ISemver {
         //  chain and "lost" until the token is deployed on this destination chain and
         //  this message replayed via the InteropL2CDM.
 
-        // As a safety check, we just ensure the _remoteToken address remains the same
-        // when completing a cross L2 transfer.
         require(
-            IOptimismMintableERC20(_localToken).remoteToken() == _remoteToken,
-            "InteropL2StandardBridge: remote token mismatch"
+            _remoteToken == IOptimismMintableERC20(_localToken).remoteToken(),
+            "InteropL2StandardBridge: wrong remote token for Optimism Mintable ERC20 local token"
         );
 
         IOptimismMintableERC20(_localToken).mint(_to, _amount);
