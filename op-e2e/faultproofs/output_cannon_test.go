@@ -72,7 +72,7 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 	}{
 		{"StepFirst", 0},
 		{"StepMiddle", 28},
-		{"StepInExtension", 2},
+		{"StepInExtension", 1},
 	}
 	for _, test := range tests {
 		test := test

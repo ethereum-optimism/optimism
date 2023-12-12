@@ -17,7 +17,6 @@ import (
 )
 
 func NewOutputCannonTraceAccessor(
-	ctx context.Context,
 	logger log.Logger,
 	m metrics.Metricer,
 	cfg *config.Config,
@@ -26,21 +25,19 @@ func NewOutputCannonTraceAccessor(
 	prestateProvider types.PrestateProvider,
 	rollupClient OutputRollupClient,
 	dir string,
-	gameDepth uint64,
 	splitDepth uint64,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
-	bottomDepth := gameDepth - splitDepth
 	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
-	cannonCreator := func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+	cannonCreator := func(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		logger := logger.New("pre", agreed.OutputRoot, "post", claimed.OutputRoot, "localContext", localContext)
 		subdir := filepath.Join(dir, localContext.Hex())
 		localInputs, err := cannon.FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
 		}
-		provider := cannon.NewTraceProvider(logger, m, cfg, localContext, localInputs, subdir, bottomDepth)
+		provider := cannon.NewTraceProvider(logger, m, cfg, localContext, localInputs, subdir, depth)
 		return provider, nil
 	}
 

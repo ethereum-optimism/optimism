@@ -56,12 +56,11 @@ func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node s
 	prestateBlock, poststateBlock, err := contract.GetBlockRange(ctx)
 	g.require.NoError(err, "Failed to load block range")
 	dir := filepath.Join(cfg.Datadir, "honest")
-	maxDepth := uint64(g.MaxDepth(ctx))
 	splitDepth := uint64(g.SplitDepth(ctx))
 	rollupClient := g.system.RollupClient(l2Node)
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
 	accessor, err := outputs.NewOutputCannonTraceAccessor(
-		ctx, logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, rollupClient, dir, maxDepth, splitDepth, prestateBlock, poststateBlock)
+		logger, metrics.NoopMetrics, cfg, l2Client, contract, prestateProvider, rollupClient, dir, splitDepth, prestateBlock, poststateBlock)
 	g.require.NoError(err, "Failed to create output cannon trace accessor")
 	return &OutputHonestHelper{
 		t:            g.t,
