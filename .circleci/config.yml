@@ -817,6 +817,7 @@ jobs:
           #command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /tmp/test-results
+      - notify-failures-on-develop
 
   go-e2e-test:
     parameters:
@@ -1856,6 +1857,65 @@ workflows:
     jobs:
       - bedrock-markdown-links:
           context: slack
+
+  scheduled-race-detector:
+#    when:
+#      equal: [ build_daily, <<pipeline.schedule.name>> ]
+    jobs:
+      - go-test:
+          name: op-heartbeat-tests
+          module: op-heartbeat
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-batcher-tests
+          module: op-batcher
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-bindings-tests
+          module: op-bindings
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-chain-ops-tests
+          module: op-chain-ops
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-node-tests
+          module: op-node
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-proposer-tests
+          module: op-proposer
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-challenger-tests
+          module: op-challenger
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-program-tests
+          module: op-program
+          race_detector: true
+          context:
+            - slack
+      - go-test:
+          name: op-service-tests
+          module: op-service
+          race_detector: true
+          context:
+            - slack
 
   scheduled-docker-publish:
     when:
