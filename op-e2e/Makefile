@@ -2,10 +2,10 @@
 ifdef JUNIT_FILE
 	go_test = OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false gotestsum --format=standard-verbose --junitfile=$(JUNIT_FILE) --
   # Note: -parallel must be set to match the number of cores in the resource class
-	go_test_flags = -timeout=20m -parallel=8
+	go_test_flags = -timeout=20m -parallel=8 -race
 else
 	go_test = go test
-	go_test_flags = -v
+	go_test_flags = -v -race
 endif
 
 test: pre-test test-ws
