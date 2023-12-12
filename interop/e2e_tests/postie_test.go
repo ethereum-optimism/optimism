@@ -97,7 +97,6 @@ func TestPostieInboxRelay(t *testing.T) {
 	}, nil, nil, nil)
 	require.NoError(t, err)
 	require.True(t, msgPassIter.Next())
-	t.Log("passed message:", msgPassIter.Event)
 
 	require.NoError(t, wait.For(context.Background(), time.Second/2, func() (bool, error) {
 		return testSuite.PostieA.OutboxStorageRoot(testSuite.ChainIdB) != oldStorageRoot, nil

@@ -87,5 +87,9 @@ func TestL2Interop(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "0.0.1", sbVersion, "Interop SB contract is available")
 
+	messenger, err := sb.MESSENGER(nil)
+	require.NoError(t, err)
+	require.Equal(t, predeploys.InteropL2CrossDomainMessengerAddr, messenger, "Interop SB Messenger contract misconfigured")
+
 	// This test can be extended with batch-submission, and replication by a verifier
 }
