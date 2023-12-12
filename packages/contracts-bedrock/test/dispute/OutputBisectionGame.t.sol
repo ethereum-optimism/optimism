@@ -1157,7 +1157,9 @@ contract OutputBisection_1v1_Actors_Test is OutputBisectionGame_Init {
         while (true) {
             // Allow the dishonest actor to make their moves, and then the honest actor.
             (uint256 numMovesA,) = dishonest.move();
-            (uint256 numMovesB,) = honest.move();
+            (uint256 numMovesB, bool success) = honest.move();
+
+            require(success, "Honest actor's moves should always be successful");
 
             // If both actors have run out of moves, we're done.
             if (numMovesA == 0 && numMovesB == 0) break;

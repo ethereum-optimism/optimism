@@ -31,7 +31,9 @@ contract AlphabetVM2 is IBigStepper {
         uint256 claim;
         if ((keccak256(_stateData) << 8) == (Claim.unwrap(ABSOLUTE_PRESTATE) << 8)) {
             // If the state data is empty, then the absolute prestate is the claim.
-            (bytes32 dat,) = oracle.readPreimage(PreimageKeyLib.localizeIdent(4, _localContext), 0);
+            (bytes32 dat,) = oracle.readPreimage(
+                PreimageKeyLib.localizeIdent(LocalPreimageKey.STARTING_L2_BLOCK_NUMBER, _localContext), 0
+            );
             uint256 startingL2BlockNumber = (uint256(dat) >> 128) & 0xFFFFFFFF;
             traceIndex = startingL2BlockNumber << 4;
             (uint256 absolutePrestateClaim) = abi.decode(_stateData, (uint256));
