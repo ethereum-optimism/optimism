@@ -564,7 +564,7 @@ The state of the L2 genesis block comprises:
     how native ETH balances were stored in the storage trie.
 - [Predeployed contracts][predeploy]
 
-The timestap of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
+The timestamp of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
 block time is 2 seconds).
 
 When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
