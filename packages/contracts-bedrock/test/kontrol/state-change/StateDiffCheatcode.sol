@@ -2,7 +2,7 @@ pragma solidity ^0.8.13;
 
 import { Vm } from "forge-std/Vm.sol";
 
-import 'test/kontrol/state-change/StateDiffCheatcodeCode.sol';
+import { StateDiffCheatcodeCode } from "./StateDiffCheatcodeCode.sol";
 
 contract StateDiffCheatcode is StateDiffCheatcodeCode {
 	// Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D
@@ -24,7 +24,6 @@ contract StateDiffCheatcode is StateDiffCheatcodeCode {
 	address internal constant SystemConfigAddress = 0xc7B87b2b892EA5C3CfF47168881FE168C00377FB;
 	address internal constant SystemConfigProxyAddress = 0x1c23A6d89F95ef3148BCDA8E242cAb145bf9c0E4;
 	address internal constant SystemOwnerSafeAddress = 0x2601573C28B77dea6C8B73385c25024A28a00C3F;
-	address internal constant acc15Address = 0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f;
 
 
 	function recreateDeployment() public {
