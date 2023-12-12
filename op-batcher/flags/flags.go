@@ -30,12 +30,12 @@ var (
 	}
 	L2EthRpcFlag = &cli.StringFlag{
 		Name:    "l2-eth-rpc",
-		Usage:   "HTTP provider URL for L2 execution engine",
+		Usage:   "HTTP provider URL for L2 execution engine. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of rollup-rpcs provided.",
 		EnvVars: prefixEnvVars("L2_ETH_RPC"),
 	}
 	RollupRpcFlag = &cli.StringFlag{
 		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for Rollup node",
+		Usage:   "HTTP provider URL for Rollup node. A comma-separated list enables the active L2 endpoint provider. Such a list needs to match the number of l2-eth-rpcs provided.",
 		EnvVars: prefixEnvVars("ROLLUP_RPC"),
 	}
 	// Optional flags
