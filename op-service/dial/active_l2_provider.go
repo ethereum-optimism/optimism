@@ -37,19 +37,24 @@ func NewActiveL2EndpointProvider(
 	networkTimeout time.Duration,
 	logger log.Logger,
 ) (*ActiveL2EndpointProvider, error) {
-	if len(ethUrls) == 0 || len(rollupUrls) == 0 {
-		return nil, errors.New("empty urls list")
+	if len(rollupUrls) == 0 {
+		return nil, errors.New("empty rollup urls list")
 	}
-	if len(ethUrls) != len(rollupUrls) {
-		return nil, errors.New("number of eth and rollup urls mismatch")
+	useEthClients := len(ethUrls) > 0
+	if useEthClients && len(ethUrls) != len(rollupUrls) {
+		return nil, errors.New("eth urls provided, but number of eth urls and rollup urls mismatch")
 	}
 
-	n := len(ethUrls)
+	n := len(rollupUrls)
+	if !useEthClients {
+		ethUrls = make([]string, n)
+	}
+
 	eps := make([]endpointUrls, 0, n)
 	for i := 0; i < n; i++ {
 		eps = append(eps, endpointUrls{
-			ethUrl:    ethUrls[0],
-			rollupUrl: rollupUrls[0],
+			ethUrl:    ethUrls[i],
+			rollupUrl: rollupUrls[i],
 		})
 	}
 
@@ -142,10 +147,15 @@ func (p *ActiveL2EndpointProvider) dialNextSequencer(ctx context.Context, idx in
 	defer cancel()
 	ep := p.endpoints[idx]
 
-	ethClient, err := DialEthClientWithTimeout(cctx, p.networkTimeout, p.log, ep.ethUrl)
-	if err != nil {
-		return fmt.Errorf("dialing eth client: %w", err)
+	var ethClient *ethclient.Client
+	var err error
+	if ep.ethUrl != "" {
+		ethClient, err = DialEthClientWithTimeout(cctx, p.networkTimeout, p.log, ep.ethUrl)
+		if err != nil {
+			return fmt.Errorf("dialing eth client: %w", err)
+		}
 	}
+
 	rollupClient, err := DialRollupClientWithTimeout(cctx, p.networkTimeout, p.log, ep.rollupUrl)
 	if err != nil {
 		return fmt.Errorf("dialing rollup client: %w", err)
@@ -158,4 +168,13 @@ func (p *ActiveL2EndpointProvider) dialNextSequencer(ctx context.Context, idx in
 
 func (p *ActiveL2EndpointProvider) NumEndpoints() int {
 	return len(p.endpoints)
+}
+
+func (p *ActiveL2EndpointProvider) Close() {
+	if p.currentEthClient != nil {
+		p.currentEthClient.Close()
+	}
+	if p.currentRollupClient != nil {
+		p.currentRollupClient.Close()
+	}
 }
