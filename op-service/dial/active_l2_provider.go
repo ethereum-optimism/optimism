@@ -75,10 +75,6 @@ func (p *ActiveL2EndpointProvider) ensureActiveEndpoint(ctx context.Context) err
 	return nil
 }
 
-func (p *ActiveL2EndpointProvider) shouldCheck() bool {
-	return p.ActiveL2RollupProvider.shouldCheck()
-}
-
 func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) error {
 	// If current is not active, dial new sequencers until finding an active one.
 	ts := time.Now()
@@ -111,10 +107,6 @@ func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) erro
 	}
 }
 
-func (p *ActiveL2EndpointProvider) checkCurrentSequencer(ctx context.Context) (bool, error) {
-	return p.ActiveL2RollupProvider.checkCurrentSequencer(ctx)
-}
-
 func (p *ActiveL2EndpointProvider) dialNextSequencer(ctx context.Context, idx int) error {
 	cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 	defer cancel()
@@ -132,10 +124,6 @@ func (p *ActiveL2EndpointProvider) dialNextSequencer(ctx context.Context, idx in
 	defer p.clientLock.Unlock()
 	p.currentEthClient, p.currentRollupClient = ethClient, rollupClient
 	return nil
-}
-
-func (p *ActiveL2EndpointProvider) NumEndpoints() int {
-	return len(p.ethEndpoints)
 }
 
 func (p *ActiveL2EndpointProvider) Close() {
