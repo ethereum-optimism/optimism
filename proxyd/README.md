@@ -9,7 +9,7 @@ This tool implements `proxyd`, an RPC request router and proxy. It does the foll
 5. Re-write requests and responses to enforce consensus.
 6. Load balance requests across backend services.
 7. Cache immutable responses from backends.
-8. Provides metrics the measure request latency, error rates, and the like.
+8. Provides metrics to measure request latency, error rates, and the like.
 
 
 ## Usage
