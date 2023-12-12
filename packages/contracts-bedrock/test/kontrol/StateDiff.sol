@@ -10,6 +10,7 @@ import { stdJson } from "forge-std/StdJson.sol";
 import {Counter} from "./Counter.sol";
 import { LibStateDiff } from "scripts/libraries/LibStateDiff.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
 
 contract MakeStateDiff is Deploy {
@@ -40,5 +41,8 @@ contract MakeStateDiff is Deploy {
         /* initializeImplementations(); */
         initializeSystemConfig();
         initializeOptimismPortal();
+
+        address guardian = SuperchainConfig(getAddress("SuperchainConfigProxy")).guardian();
+        save("Guardian", guardian);
     }
 }
