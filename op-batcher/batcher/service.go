@@ -23,7 +23,6 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -40,12 +39,11 @@ type BatcherConfig struct {
 // BatcherService represents a full batch-submitter instance and its resources,
 // and conforms to the op-service CLI Lifecycle interface.
 type BatcherService struct {
-	Log        log.Logger
-	Metrics    metrics.Metricer
-	L1Client   *ethclient.Client
-	L2Client   *ethclient.Client
-	RollupNode *sources.RollupClient
-	TxManager  txmgr.TxManager
+	Log              log.Logger
+	Metrics          metrics.Metricer
+	L1Client         *ethclient.Client
+	EndpointProvider dial.L2EndpointProvider
+	TxManager        txmgr.TxManager
 
 	BatcherConfig
 
@@ -127,17 +125,12 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 	}
 	bs.L1Client = l1Client
 
-	l2Client, err := dial.DialEthClientWithTimeout(ctx, dial.DefaultDialTimeout, bs.Log, cfg.L2EthRpc)
+	endpointProvider, err := dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
 	if err != nil {
-		return fmt.Errorf("failed to dial L2 engine RPC: %w", err)
+		return fmt.Errorf("failed to create L2 endpoint provider: %w", err)
 	}
-	bs.L2Client = l2Client
+	bs.EndpointProvider = endpointProvider
 
-	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, bs.Log, cfg.RollupRpc)
-	if err != nil {
-		return fmt.Errorf("failed to dial L2 rollup-client RPC: %w", err)
-	}
-	bs.RollupNode = rollupClient
 	return nil
 }
 
@@ -158,7 +151,11 @@ func (bs *BatcherService) initBalanceMonitor(cfg *CLIConfig) {
 }
 
 func (bs *BatcherService) initRollupConfig(ctx context.Context) error {
-	rollupConfig, err := bs.RollupNode.RollupConfig(ctx)
+	rollupNode, err := bs.EndpointProvider.RollupClient(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve rollup client: %w", err)
+	}
+	rollupConfig, err := rollupNode.RollupConfig(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve rollup config: %w", err)
 	}
@@ -229,15 +226,14 @@ func (bs *BatcherService) initMetricsServer(cfg *CLIConfig) error {
 
 func (bs *BatcherService) initDriver() {
 	bs.driver = NewBatchSubmitter(DriverSetup{
-		Log:           bs.Log,
-		Metr:          bs.Metrics,
-		RollupConfig:  bs.RollupConfig,
-		Config:        bs.BatcherConfig,
-		Txmgr:         bs.TxManager,
-		L1Client:      bs.L1Client,
-		L2Client:      bs.L2Client,
-		RollupClient:  bs.RollupNode,
-		ChannelConfig: bs.ChannelConfig,
+		Log:              bs.Log,
+		Metr:             bs.Metrics,
+		RollupConfig:     bs.RollupConfig,
+		Config:           bs.BatcherConfig,
+		Txmgr:            bs.TxManager,
+		L1Client:         bs.L1Client,
+		EndpointProvider: bs.EndpointProvider,
+		ChannelConfig:    bs.ChannelConfig,
 	})
 }
 
@@ -329,11 +325,8 @@ func (bs *BatcherService) Stop(ctx context.Context) error {
 	if bs.L1Client != nil {
 		bs.L1Client.Close()
 	}
-	if bs.L2Client != nil {
-		bs.L2Client.Close()
-	}
-	if bs.RollupNode != nil {
-		bs.RollupNode.Close()
+	if bs.EndpointProvider != nil {
+		bs.EndpointProvider.Close()
 	}
 
 	if result == nil {

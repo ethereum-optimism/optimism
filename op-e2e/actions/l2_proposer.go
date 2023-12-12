@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -64,13 +65,15 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
 	}
+	rollupProvider, err := dial.NewStaticL2RollupProviderFromExistingRollup(rollupCl)
+	require.NoError(t, err)
 	driverSetup := proposer.DriverSetup{
-		Log:          log,
-		Metr:         metrics.NoopMetrics,
-		Cfg:          proposerConfig,
-		Txmgr:        fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)},
-		L1Client:     l1,
-		RollupClient: rollupCl,
+		Log:            log,
+		Metr:           metrics.NoopMetrics,
+		Cfg:            proposerConfig,
+		Txmgr:          fakeTxMgr{from: crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)},
+		L1Client:       l1,
+		RollupProvider: rollupProvider,
 	}
 
 	dr, err := proposer.NewL2OutputSubmitter(driverSetup)
