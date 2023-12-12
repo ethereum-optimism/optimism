@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	topDepth    = 3
-	bottomDepth = 4
+	gameDepth  = 7
+	splitDepth = 3
 )
 
 func TestUseTopProvider(t *testing.T) {
@@ -25,7 +25,7 @@ func TestUseTopProvider(t *testing.T) {
 	ref := gameBuilder.Game.Claims()[0]
 
 	pos := ref.Position
-	for pos.Depth() <= topDepth {
+	for pos.Depth() <= splitDepth {
 		provider, err := selector(ctx, gameBuilder.Game, ref, ref.Position)
 		require.NoError(t, err)
 		require.Same(t, topProvider, provider)
@@ -40,9 +40,9 @@ func TestErrorWhenRefAboveTopGameLeafButPositionInBottom(t *testing.T) {
 	_, selector, gameBuilder := setupAlphabetSplitSelector(t)
 
 	// Generate claims at depths up to but not including the leaf of the top providers
-	createClaimsToDepth(gameBuilder, topDepth-1)
+	createClaimsToDepth(gameBuilder, splitDepth-1)
 	for _, ref := range gameBuilder.Game.Claims() {
-		pos := types.NewPosition(topDepth+1, big.NewInt(0))
+		pos := types.NewPosition(splitDepth+1, big.NewInt(0))
 		provider, err := selector(ctx, gameBuilder.Game, ref, pos)
 		require.ErrorIsf(t, err, errRefClaimNotDeepEnough, "should not get provider with ref claim at depth: %v", ref.Depth())
 		require.Nil(t, provider)
@@ -140,18 +140,18 @@ func TestBottomProviderAttackingTopLeaf(t *testing.T) {
 				runTest(ref, pos)
 				runTest(ref, pos.Attack())
 				runTest(ref, pos.Defend())
-				if pos.Depth() >= topDepth+bottomDepth {
+				if pos.Depth() >= gameDepth {
 					return
 				}
 
 				// If the ref is the leaf of the top claim, ensure we respect whether the test is setup
 				// to attack or defend the top leaf claim.
-				if ref.Depth() != topDepth || !pos.RightOf(ref.Position) {
+				if ref.Depth() != splitDepth || !pos.RightOf(ref.Position) {
 					gameBuilder.SeqFrom(ref).AttackCorrect()
 					attackRef := latestClaim(gameBuilder)
 					testDescendantClaims(attackRef, attackRef.Position)
 				}
-				if ref.Depth() != topDepth || pos.RightOf(ref.Position) {
+				if ref.Depth() != splitDepth || pos.RightOf(ref.Position) {
 					gameBuilder.SeqFrom(ref).DefendCorrect()
 					defendRef := latestClaim(gameBuilder)
 					testDescendantClaims(defendRef, defendRef.Position)
@@ -284,8 +284,8 @@ func createClaimsToDepth(gameBuilder *test.GameBuilder, depth int) {
 func requireBottomProviderForClaims(t *testing.T, actual types.TraceProvider, expectedPre types.Claim, expectedPost types.Claim) {
 	if expectedPre != (types.Claim{}) {
 		require.Equal(t,
-			new(big.Int).Add(expectedPre.TraceIndex(topDepth), big.NewInt(1)),
-			expectedPost.TraceIndex(topDepth),
+			new(big.Int).Add(expectedPre.TraceIndex(splitDepth), big.NewInt(1)),
+			expectedPost.TraceIndex(splitDepth),
 			"should expect adjacent top level trace indices")
 	}
 
@@ -303,17 +303,17 @@ func asBottomTraceProvider(t *testing.T, actual types.TraceProvider) *bottomTrac
 }
 
 func setupAlphabetSplitSelector(t *testing.T) (*alphabet.AlphabetTraceProvider, trace.ProviderSelector, *test.GameBuilder) {
-	top := alphabet.NewTraceProvider("abcdef", topDepth)
-	bottomCreator := func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
+	top := alphabet.NewTraceProvider("abcdef", splitDepth)
+	bottomCreator := func(ctx context.Context, depth uint64, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		return &bottomTraceProvider{
 			pre:                   pre,
 			post:                  post,
-			AlphabetTraceProvider: alphabet.NewTraceProvider(post.Value.Hex(), bottomDepth),
+			AlphabetTraceProvider: alphabet.NewTraceProvider(post.Value.Hex(), depth),
 		}, nil
 	}
-	selector := NewSplitProviderSelector(top, topDepth, bottomCreator)
+	selector := NewSplitProviderSelector(top, splitDepth, bottomCreator)
 
-	claimBuilder := test.NewAlphabetClaimBuilder(t, topDepth+bottomDepth)
+	claimBuilder := test.NewAlphabetClaimBuilder(t, gameDepth)
 	gameBuilder := claimBuilder.GameBuilder(true)
 	return top, selector, gameBuilder
 }

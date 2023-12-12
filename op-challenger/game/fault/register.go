@@ -86,12 +86,12 @@ func registerOutputAlphabet(
 			return nil, err
 		}
 		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
+		splitDepth, err := contract.GetSplitDepth(ctx)
+		if err != nil {
+			return nil, err
+		}
 		creator := func(ctx context.Context, logger log.Logger, gameDepth uint64, dir string) (faultTypes.TraceAccessor, error) {
-			splitDepth, err := contract.GetSplitDepth(ctx)
-			if err != nil {
-				return nil, err
-			}
-			accessor, err := outputs.NewOutputAlphabetTraceAccessor(ctx, logger, m, prestateProvider, rollupClient, gameDepth, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}
@@ -129,7 +129,7 @@ func registerOutputCannon(
 			if err != nil {
 				return nil, fmt.Errorf("failed to load split depth: %w", err)
 			}
-			accessor, err := outputs.NewOutputCannonTraceAccessor(ctx, logger, m, cfg, l2Client, contract, prestateProvider, rollupClient, dir, gameDepth, splitDepth, prestateBlock, poststateBlock)
+			accessor, err := outputs.NewOutputCannonTraceAccessor(logger, m, cfg, l2Client, contract, prestateProvider, rollupClient, dir, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
 			}

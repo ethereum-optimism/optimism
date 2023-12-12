@@ -12,10 +12,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type ProposalTraceProviderCreator func(ctx context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error)
+type ProposalTraceProviderCreator func(ctx context.Context, localContext common.Hash, depth uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error)
 
 func OutputRootSplitAdapter(topProvider *OutputTraceProvider, creator ProposalTraceProviderCreator) split.ProviderCreator {
-	return func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
+	return func(ctx context.Context, depth uint64, pre types.Claim, post types.Claim) (types.TraceProvider, error) {
 		localContext := createLocalContext(pre, post)
 		usePrestateBlock := pre == (types.Claim{})
 		var agreed contracts.Proposal
@@ -47,7 +47,7 @@ func OutputRootSplitAdapter(topProvider *OutputTraceProvider, creator ProposalTr
 			OutputRoot:    post.Value,
 		}
 
-		return creator(ctx, localContext, agreed, claimed)
+		return creator(ctx, localContext, depth, agreed, claimed)
 	}
 }
 
