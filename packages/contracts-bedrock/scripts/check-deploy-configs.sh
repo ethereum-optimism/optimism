@@ -7,12 +7,14 @@
 code=$?
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-CONTRACTS_BASE=$(dirname $SCRIPT_DIR)
-MONOREPO_BASE=$(dirname $(dirname $CONTRACTS_BASE))
+CONTRACTS_BASE=$(dirname "$SCRIPT_DIR")
+MONOREPO_BASE=$(dirname "$(dirname "$CONTRACTS_BASE")")
 
-for config in $CONTRACTS_BASE/deploy-config/*.json; do
-    go run $MONOREPO_BASE/op-chain-ops/cmd/check-deploy-config/main.go --path $config
-    [ $? -eq 0 ]  || code=$?
+for config in "$CONTRACTS_BASE"/deploy-config/*.json; do
+    # shellcheck disable=SC2086
+    if ! go run "$MONOREPO_BASE/op-chain-ops/cmd/check-deploy-config/main.go" --path $config; then
+        code=1
+    fi
 done
 
 exit $code
