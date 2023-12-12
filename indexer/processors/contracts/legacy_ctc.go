@@ -39,7 +39,7 @@ func LegacyCTCDepositEvents(contractAddress common.Address, db *database.DB, fro
 			return nil, err
 		}
 
-		// Enqueued Deposits do not carry a `msg.value` amount. ETH is only minted on L2 via the L1StandardBrige
+		// Enqueued Deposits do not carry a `msg.value` amount. ETH is only minted on L2 via the L1StandardBridge
 		ctcTxDeposits[i] = LegacyCTCDepositEvent{
 			Event:    &events[i].ContractEvent,
 			GasLimit: txEnqueued.GasLimit,
