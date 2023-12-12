@@ -126,7 +126,7 @@ Where:
     - `1`: ([EIP-2930]): `gasLimit`
     - `2`: ([EIP-1559]): `gas_limit`
   - `protected_bits`: standard bitlist of length of number of legacy transactions:
-    1 bit per L2 legacy transactions, indicating if transacion is protected([EIP-155]) or not.
+    1 bit per L2 legacy transactions, indicating if transaction is protected([EIP-155]) or not.
 
 Introduce version `2` to the [batch-format](./derivation.md#batch-format) table:
 
