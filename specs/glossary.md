@@ -483,7 +483,7 @@ The channel timeout is a duration (in L1 blocks) during which [channel frames][c
 
 The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +
 CHANNEL_TIMEOUT]`. The acceptable L1 block range for these frames are any L1 block whose timestamp falls inside this
-time range. (Note that `channel_id.timetamp` must be lower than the L1 block timestamp of any L1 block in which frames
+time range. (Note that `channel_id.timestamp` must be lower than the L1 block timestamp of any L1 block in which frames
 of the channel are seen, or else these frames are ignored.)
 
 The purpose of channel timeouts is dual:
@@ -492,7 +492,7 @@ The purpose of channel timeouts is dual:
   sent).
 - Bound the number of L1 blocks we have to look back in order to decode [sequencer batches][sequencer-batch] from
   channels. This is particularly relevant during L1 re-orgs, see the [Resetting Channel Buffering][reset-channel-buffer]
-  section of the L2 Chain Derivation specifiction for more information.
+  section of the L2 Chain Derivation specification for more information.
 
 [reset-channel-buffer]: derivation.md#resetting-channel-buffering
 
@@ -564,7 +564,7 @@ The state of the L2 genesis block comprises:
     how native ETH balances were stored in the storage trie.
 - [Predeployed contracts][predeploy]
 
-The timestap of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
+The timestamp of the L2 genesis block must be a multiple of the [block time][block-time] (i.e. a even number, since the
 block time is 2 seconds).
 
 When updating the rollup protocol to a new version, we may perform a *squash fork*, a process that entails the creation
