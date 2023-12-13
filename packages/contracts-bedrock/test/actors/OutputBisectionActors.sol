@@ -16,12 +16,20 @@ import "src/libraries/DisputeTypes.sol";
 abstract contract GameSolver is CommonBase {
     /// @notice The `OutputBisectionGame` proxy that the `GameSolver` will be solving.
     OutputBisectionGame public immutable GAME;
-    /// @notice The maximum length of the execution trace, in bytes. Enforced by the depth of the
-    ///         execution trace bisection game.
-    uint256 internal immutable MAX_TRACE_LENGTH;
+    /// @notice The split depth of the game
+    uint256 internal immutable SPLIT_DEPTH;
+    /// @notice The max depth of the game
+    uint256 internal immutable MAX_DEPTH;
+    /// @notice The maximum L2 block number that the output bisection portion of the position tree
+    ///         can handle.
+    uint256 internal immutable MAX_L2_BLOCK_NUMBER;
 
+    /// @notice The L2 outputs that the `GameSolver` will be representing, keyed by L2 block number - 1.
+    uint256[] public l2Outputs;
     /// @notice The execution trace that the `GameSolver` will be representing.
     bytes public trace;
+    /// @notice The raw absolute prestate data.
+    bytes public absolutePrestateData;
     /// @notice The offset of previously processed claims in the `GAME` contract's `claimData` array.
     ///         Starts at 0 and increments by 1 for each claim processed.
     uint256 public processedBuf;
@@ -34,9 +42,7 @@ abstract contract GameSolver is CommonBase {
         Attack,
         Defend,
         Step,
-        AddLocalData,
-        ResolveLocal,
-        ResolveGlobal
+        AddLocalData
     }
 
     /// @notice The `Move` struct represents a move in the game, and contains information
@@ -44,14 +50,23 @@ abstract contract GameSolver is CommonBase {
     ///         to the `OutputBisectionGame` contract by a consumer of this contract.
     struct Move {
         MoveKind kind;
-        address sender;
         bytes data;
     }
 
-    constructor(OutputBisectionGame _gameProxy, bytes memory _trace) {
+    constructor(
+        OutputBisectionGame _gameProxy,
+        uint256[] memory _l2Outputs,
+        bytes memory _trace,
+        bytes memory _preStateData
+    ) {
         GAME = _gameProxy;
-        MAX_TRACE_LENGTH = 2 ** (_gameProxy.MAX_GAME_DEPTH() - _gameProxy.SPLIT_DEPTH());
+        SPLIT_DEPTH = GAME.SPLIT_DEPTH();
+        MAX_DEPTH = GAME.MAX_GAME_DEPTH();
+        MAX_L2_BLOCK_NUMBER = 2 ** (MAX_DEPTH - SPLIT_DEPTH);
+
+        l2Outputs = _l2Outputs;
         trace = _trace;
+        absolutePrestateData = _preStateData;
     }
 
     /// @notice Returns an array of `Move`s that can be taken from the perspective of an honest
@@ -72,12 +87,17 @@ contract HonestGameSolver is GameSolver {
         Noop
     }
 
-    constructor(OutputBisectionGame _gameProxy, bytes memory _trace) GameSolver(_gameProxy, _trace) {
+    constructor(
+        OutputBisectionGame _gameProxy,
+        uint256[] memory _l2Outputs,
+        bytes memory _trace,
+        bytes memory _preStateData
+    )
+        GameSolver(_gameProxy, _l2Outputs, _trace, _preStateData)
+    {
         // Mark agreement with the root claim if the local opinion of the root claim is the same as the
         // observed root claim.
-        if (Claim.unwrap(outputAt(MAX_TRACE_LENGTH)) == Claim.unwrap(_gameProxy.rootClaim())) {
-            agreeWithRoot = true;
-        }
+        agreeWithRoot = Claim.unwrap(outputAt(MAX_L2_BLOCK_NUMBER)) == Claim.unwrap(_gameProxy.rootClaim());
     }
 
     ////////////////////////////////////////////////////////////////
@@ -91,9 +111,9 @@ contract HonestGameSolver is GameSolver {
 
         // Pre-allocate the `moves_` array to the maximum possible length. Test environment, so
         // over-allocation is fine, and more easy to read than making a linked list in asm.
-        uint256 movesLen = 0;
         moves_ = new Move[](numClaims - processedBuf);
 
+        uint256 numMoves = 0;
         for (uint256 i = processedBuf; i < numClaims; i++) {
             // Grab the observed claim.
             IOutputBisectionGame.ClaimData memory observed = getClaimData(i);
@@ -104,21 +124,19 @@ contract HonestGameSolver is GameSolver {
             // Continue if there is no move to be taken against the observed claim.
             if (moveDirection == Direction.Noop) continue;
 
-            if (movePos.depth() <= GAME.SPLIT_DEPTH()) {
-                // output bisection
-                moves_[movesLen++] = handleOutputBisectionMove(moveDirection, movePos, i);
-            } else if (movePos.depth() <= GAME.MAX_GAME_DEPTH()) {
-                // execution trace bisection
-                moves_[movesLen++] = handleExecutionTraceBisectionMove(moveDirection, movePos, i);
+            if (movePos.depth() <= MAX_DEPTH) {
+                // bisection
+                moves_[numMoves++] = handleBisectionMove(moveDirection, movePos, i);
             } else {
                 // instruction step
-                moves_[movesLen++] = handleStepMove(moveDirection, movePos, i);
+                moves_[numMoves++] = handleStepMove(moveDirection, observed.position, movePos, i);
             }
         }
 
-        // Update the length of the `moves_` array to the number of moves that were added.
+        // Update the length of the `moves_` array to the number of moves that were added. This is
+        // always a no-op or a truncation operation.
         assembly {
-            mstore(moves_, movesLen)
+            mstore(moves_, numMoves)
         }
 
         // Increment `processedBuf` by the number of claims processed, so that next time around,
@@ -136,9 +154,11 @@ contract HonestGameSolver is GameSolver {
         view
         returns (Direction direction_, Position movePos_)
     {
+        bool rightLevel = isRightLevel(_claimData.position);
+        bool localAgree = Claim.unwrap(claimAt(_claimData.position)) == Claim.unwrap(_claimData.claim);
         if (_claimData.parentIndex == type(uint32).max) {
             // If we agree with the parent claim and it is on a level we agree with, ignore it.
-            if (Claim.unwrap(claimAt(_claimData.position)) == Claim.unwrap(_claimData.claim)) {
+            if (localAgree && rightLevel) {
                 return (Direction.Noop, Position.wrap(0));
             }
 
@@ -146,42 +166,46 @@ contract HonestGameSolver is GameSolver {
             direction_ = Direction.Attack;
             movePos_ = _claimData.position.move(true);
         } else {
-            // If the parent claim is not the root claim, check if we disagree with it and/or its grandparent
-            // to determine our next move.
+            // Never attempt to defend an execution trace subgame root. Only attack if we disagree with it,
+            // otherwise do nothing.
+            // NOTE: This is not correct behavior in the context of the honest actor; The alphabet game has
+            //       a constant status byte, and is not safe from someone being dishonest in output bisection
+            //       and then posting a correct execution trace bisection root claim.
+            if (_claimData.position.depth() == SPLIT_DEPTH + 1 && localAgree) {
+                return (Direction.Noop, Position.wrap(0));
+            }
 
-            // Fetch the local opinion of the parent claim.
-            Claim localParent = claimAt(_claimData.position);
+            // If the parent claim is not the root claim, first check if the observed claim is on a level that
+            // agrees with the local view of the root claim. If it is, noop. If it is not, perform an attack or
+            // defense depending on the local view of the observed claim.
+            if (rightLevel) {
+                // Never move against a claim on the right level. Even if it's wrong, if it's uncountered, it furthers
+                // our goals.
+                return (Direction.Noop, Position.wrap(0));
+            } else {
+                // Fetch the local opinion of the parent claim.
+                Claim localParent = claimAt(_claimData.position);
 
-            // Fetch the local opinion of the grandparent claim and the grandparent claim's metadata.
-            IOutputBisectionGame.ClaimData memory grandparentClaimData = getClaimData(_claimData.parentIndex);
-            Claim localGrandparent = claimAt(grandparentClaimData.position);
-
-            if (Claim.unwrap(localParent) != Claim.unwrap(_claimData.claim)) {
-                // If we disagree with the observed claim, we must attack it.
-                movePos_ = _claimData.position.move(true);
-                direction_ = Direction.Attack;
-            } else if (
-                Claim.unwrap(localParent) == Claim.unwrap(_claimData.claim)
-                    && Claim.unwrap(localGrandparent) != Claim.unwrap(grandparentClaimData.claim)
-            ) {
-                // Never defend a claim that the solver would have made.
-                if (isRightLevel(_claimData.position)) {
-                    return (Direction.Noop, Position.wrap(0));
+                // NOTE: Poison not handled.
+                if (Claim.unwrap(localParent) != Claim.unwrap(_claimData.claim)) {
+                    // If we disagree with the observed claim, we must attack it.
+                    movePos_ = _claimData.position.move(true);
+                    direction_ = Direction.Attack;
+                } else {
+                    // If we agree with the observed claim, we must defend the observed claim.
+                    movePos_ = _claimData.position.move(false);
+                    direction_ = Direction.Defend;
                 }
-
-                // If we agree with the observed claim, but disagree with the grandparent claim, we must defend
-                // the observed claim.
-                movePos_ = _claimData.position.move(false);
-                direction_ = Direction.Defend;
             }
         }
     }
 
-    /// @notice Returns a `Move` struct that represents an attack or defense move in the output bisection
-    ///         portion of the dispute game.
+    /// @notice Returns a `Move` struct that represents an attack or defense move in the bisection portion
+    ///         of the game.
+    ///
     /// @dev Note: This function assumes that the `movePos` and `challengeIndex` are valid within the
     ///            output bisection context. This is enforced by the `solveGame` function.
-    function handleOutputBisectionMove(
+    function handleBisectionMove(
         Direction _direction,
         Position _movePos,
         uint256 _challengeIndex
@@ -193,28 +217,6 @@ contract HonestGameSolver is GameSolver {
         bool isAttack = _direction == Direction.Attack;
         move_ = Move({
             kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
-            sender: address(this), // TODO: Change to allow for alt actors?
-            data: abi.encodeCall(OutputBisectionGame.move, (_challengeIndex, outputAt(_movePos), isAttack))
-        });
-    }
-
-    /// @notice Returns a `Move` struct that represents an attack or defense move in the execution trace
-    ///         bisection portion of the dispute game.
-    /// @dev Note: This function assumes that the `movePos` and `challengeIndex` are valid within the
-    ///            execution trace bisection context. This is enforced by the `solveGame` function.
-    function handleExecutionTraceBisectionMove(
-        Direction _direction,
-        Position _movePos,
-        uint256 _challengeIndex
-    )
-        internal
-        view
-        returns (Move memory move_)
-    {
-        bool isAttack = _direction == Direction.Attack;
-        move_ = Move({
-            kind: isAttack ? MoveKind.Attack : MoveKind.Defend,
-            sender: address(this), // TODO: Change to allow for alt actors?
             data: abi.encodeCall(OutputBisectionGame.move, (_challengeIndex, claimAt(_movePos), isAttack))
         });
     }
@@ -223,9 +225,9 @@ contract HonestGameSolver is GameSolver {
     ///         bisection portion of the dispute game.
     /// @dev Note: This function assumes that the `movePos` and `challengeIndex` are valid within the
     ///            execution trace bisection context. This is enforced by the `solveGame` function.
-    /// @dev TODO: Handle new format for `AlphabetVM` once it's been refactored for Output Bisection.
     function handleStepMove(
         Direction _direction,
+        Position _parentPos,
         Position _movePos,
         uint256 _challengeIndex
     )
@@ -234,32 +236,26 @@ contract HonestGameSolver is GameSolver {
         returns (Move memory move_)
     {
         bool isAttack = _direction == Direction.Attack;
-        Position parentPos = _movePos.parent();
         bytes memory preStateTrace;
 
         // First, we need to find the pre/post state index depending on whether we
-        // are making an attack step or a defense step. If the index at depth of the
+        // are making an attack step or a defense step. If the relative index at depth of the
         // move position is 0, the prestate is the absolute prestate and we need to
         // do nothing.
-        if (_movePos.indexAtDepth() > 0) {
-            Position leafPos =
-                isAttack ? Position.wrap(Position.unwrap(parentPos) - 1) : Position.wrap(Position.unwrap(parentPos) + 1);
-            Position statePos = leafPos.traceAncestor();
-
+        if ((_movePos.indexAtDepth() % (2 ** (MAX_DEPTH - SPLIT_DEPTH))) != 0) {
             // Grab the trace up to the prestate's trace index.
             if (isAttack) {
-                preStateTrace = abi.encode(statePos.traceIndex(GAME.MAX_GAME_DEPTH()), traceAt(statePos));
+                Position leafPos = Position.wrap(Position.unwrap(_parentPos) - 1);
+                preStateTrace = abi.encode(leafPos.traceIndex(MAX_DEPTH), stateAt(leafPos));
             } else {
-                preStateTrace = abi.encode(parentPos.traceIndex(GAME.MAX_GAME_DEPTH()), traceAt(parentPos));
+                preStateTrace = abi.encode(_parentPos.traceIndex(MAX_DEPTH), stateAt(_parentPos));
             }
         } else {
-            // TODO: Prestate trace value.
-            preStateTrace = abi.encode(0xdead);
+            preStateTrace = absolutePrestateData;
         }
 
         move_ = Move({
             kind: MoveKind.Step,
-            sender: address(this), // TODO: Change to allow for alt actors?
             data: abi.encodeCall(OutputBisectionGame.step, (_challengeIndex, isAttack, preStateTrace, hex""))
         });
     }
@@ -286,56 +282,121 @@ contract HonestGameSolver is GameSolver {
         });
     }
 
+    /// @notice Returns the player's claim that commits to a given position, swapping between
+    ///         output bisection claims and execution trace bisection claims depending on the depth.
+    /// @dev Prefer this function over `outputAt` or `statehashAt` directly.
+    function claimAt(Position _position) internal view returns (Claim claim_) {
+        return _position.depth() > SPLIT_DEPTH ? statehashAt(_position) : outputAt(_position);
+    }
+
     /// @notice Returns the mock output at the given position.
-    /// @dev TODO: Variability for malicious actors?
-    function outputAt(Position _position) public view returns (Claim claim_) {
+    function outputAt(Position _position) internal view returns (Claim claim_) {
         // Don't allow for positions that are deeper than the split depth.
-        if (_position.depth() > GAME.SPLIT_DEPTH()) {
+        if (_position.depth() > SPLIT_DEPTH) {
             revert("GameSolver: invalid position depth");
         }
 
-        return outputAt(_position.traceIndex(GAME.SPLIT_DEPTH()));
+        return outputAt(_position.traceIndex(SPLIT_DEPTH) + 1);
     }
 
     /// @notice Returns the mock output at the given L2 block number.
-    /// @dev TODO: Variability for malicious actors?
-    function outputAt(uint256 _l2BlockNumber) public pure returns (Claim claim_) {
-        return Claim.wrap(bytes32(_l2BlockNumber));
-    }
-
-    /// @notice Returns the state at the trace index within the player's trace.
-    /// @dev TODO: Separate traces per execution trace game.
-    function traceAt(Position _position) public view returns (uint256 state_) {
-        return traceAt(_position.traceIndex(GAME.MAX_GAME_DEPTH()));
-    }
-
-    /// @notice Returns the state at the trace index within the player's trace.
-    /// @dev TODO: Separate traces per execution trace game.
-    function traceAt(uint256 _traceIndex) public view returns (uint256 state_) {
-        return uint256(uint8(_traceIndex >= trace.length ? trace[trace.length - 1] : trace[_traceIndex]));
+    function outputAt(uint256 _l2BlockNumber) internal view returns (Claim claim_) {
+        return Claim.wrap(bytes32(l2Outputs[_l2BlockNumber - 1]));
     }
 
     /// @notice Returns the player's claim that commits to a given trace index.
-    function claimAt(uint256 _traceIndex) public view returns (Claim claim_) {
+    function statehashAt(uint256 _traceIndex) internal view returns (Claim claim_) {
         bytes32 hash =
-            keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, traceAt(_traceIndex)));
+            keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, stateAt(_traceIndex)));
         assembly {
             claim_ := or(and(hash, not(shl(248, 0xFF))), shl(248, 1))
         }
     }
 
     /// @notice Returns the player's claim that commits to a given trace index.
-    function claimAt(Position _position) public view returns (Claim claim_) {
-        return claimAt(_position.traceIndex(GAME.MAX_GAME_DEPTH()));
+    function statehashAt(Position _position) internal view returns (Claim claim_) {
+        return statehashAt(_position.traceIndex(MAX_DEPTH));
+    }
+
+    /// @notice Returns the state at the trace index within the player's trace.
+    function stateAt(Position _position) internal view returns (uint256 state_) {
+        return stateAt(_position.traceIndex(MAX_DEPTH));
+    }
+
+    /// @notice Returns the state at the trace index within the player's trace.
+    function stateAt(uint256 _traceIndex) internal view returns (uint256 state_) {
+        return uint256(uint8(_traceIndex >= trace.length ? trace[trace.length - 1] : trace[_traceIndex]));
     }
 
     /// @notice Returns whether or not the position is on a level which opposes the local opinion of the
     ///         root claim.
-    function isRightLevel(Position _position) public view returns (bool isRightLevel_) {
-        return _position.depth() % 2 == 0 && agreeWithRoot;
+    function isRightLevel(Position _position) internal view returns (bool isRightLevel_) {
+        isRightLevel_ = agreeWithRoot == (_position.depth() % 2 == 0);
     }
 }
 
-// TODO: `DishonestGameSolver`. Can remove a lot of the cruft and just throw bad claims
-//        at the wall.
-// TODO: Actors that utilize the `HonestGameSolver`
+/// @title DisputeActor
+/// @notice The `DisputeActor` contract is an abstract contract that represents an actor
+///         that consumes the suggested moves from a `GameSolver` contract.
+abstract contract DisputeActor {
+    /// @notice The `GameSolver` contract used to determine the moves to be taken.
+    GameSolver public solver;
+
+    /// @notice Performs all available moves deemed by the attached solver.
+    /// @return numMoves_ The number of moves that the actor took.
+    /// @return success_ True if all moves were successful, false otherwise.
+    function move() external virtual returns (uint256 numMoves_, bool success_);
+}
+
+/// @title HonestDisputeActor
+/// @notice An actor that consumes the suggested moves from an `HonestGameSolver` contract. Note
+///         that this actor *can* be dishonest if the trace is faulty, but it will always follow
+///         the rules of the honest actor.
+contract HonestDisputeActor is DisputeActor {
+    OutputBisectionGame public immutable GAME;
+
+    constructor(
+        OutputBisectionGame _gameProxy,
+        uint256[] memory _l2Outputs,
+        bytes memory _trace,
+        bytes memory _preStateData
+    ) {
+        GAME = _gameProxy;
+        solver = GameSolver(new HonestGameSolver(_gameProxy, _l2Outputs, _trace, _preStateData));
+    }
+
+    /// @inheritdoc DisputeActor
+    function move() external override returns (uint256 numMoves_, bool success_) {
+        GameSolver.Move[] memory moves = solver.solveGame();
+        numMoves_ = moves.length;
+
+        // Optimistically assume success, will be set to false if any move fails.
+        success_ = true;
+
+        // Perform all available moves given to the actor by the solver.
+        for (uint256 i = 0; i < moves.length; i++) {
+            GameSolver.Move memory localMove = moves[i];
+
+            // If the move is a step, we first need to add the starting L2 block number to the `PreimageOracle`
+            // via the `OutputBisectionGame` contract.
+            // TODO: This is leaky. Could be another move kind.
+            if (localMove.kind == GameSolver.MoveKind.Step) {
+                bytes memory moveData = localMove.data;
+                uint256 challengeIndex;
+                assembly {
+                    challengeIndex := mload(add(moveData, 0x24))
+                }
+                GAME.addLocalData({
+                    _ident: LocalPreimageKey.STARTING_L2_BLOCK_NUMBER,
+                    _execLeafIdx: challengeIndex,
+                    _partOffset: 0
+                });
+            }
+
+            (bool innerSuccess,) = address(GAME).call(localMove.data);
+            assembly {
+                success_ := and(success_, innerSuccess)
+            }
+        }
+    }
+}
