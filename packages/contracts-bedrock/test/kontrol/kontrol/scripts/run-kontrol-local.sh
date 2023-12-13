@@ -40,7 +40,7 @@ kontrol_prove() {
 # NOTE: This script should be executed from the `contracts-bedrock` directory
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=StateDiffTest:${base_module}
+module=OptimismPortalKontrol:${base_module}
 
 rekompile=--rekompile
 regen=--regen
