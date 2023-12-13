@@ -65,13 +65,6 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				"err", err)
 			return
 		}
-		if from == nil {
-			log.Error("from address cannot be nil",
-				"provider", p.name,
-				"nonce", nonce,
-				"err", err)
-			return
-		}
 		nonce = tx.Nonce()
 
 		signedTx, err := p.sign(ctx, from, tx)
