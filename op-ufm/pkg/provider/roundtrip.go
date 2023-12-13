@@ -212,8 +212,12 @@ func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEt
 			"err", err)
 		return nil, nil, err
 	}
-	gasTipCap = new(big.Int).Mul(gasTipCap, big.NewInt(110))
-	gasTipCap = new(big.Int).Div(gasTipCap, big.NewInt(100))
+
+	// adjust gas tip cap by 110%
+	const GasTipCapAdjustmentMultiplier = 110
+	const GasTipCapAdjustmentDivisor = 100
+	gasTipCap = new(big.Int).Mul(gasTipCap, big.NewInt(GasTipCapAdjustmentMultiplier))
+	gasTipCap = new(big.Int).Div(gasTipCap, big.NewInt(GasTipCapAdjustmentDivisor))
 
 	head, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
