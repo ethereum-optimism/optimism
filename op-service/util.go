@@ -32,6 +32,11 @@ func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
 	}
 }
 
+func FlagNameToEnvVarName(f string, prefix string) string {
+	f = strings.ReplaceAll(strings.ReplaceAll(strings.ToUpper(f), ".", "_"), "-", "_")
+	return fmt.Sprintf("%s_%s", prefix, f)
+}
+
 func cliFlagsToEnvVars(flags []cli.Flag) map[string]struct{} {
 	definedEnvVars := make(map[string]struct{})
 	for _, flag := range flags {
