@@ -105,9 +105,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     ////////////////////////////////////////////////////////////////
 
     /// @dev Tests that the constructor of the `OutputBisectionGame` reverts when the `_splitDepth`
-    ///      parameter is either:
-    ///      1. Greater than or equal to the `MAX_GAME_DEPTH`
-    ///      2. Odd
+    ///      parameter is greater than or equal to the `MAX_GAME_DEPTH`
     function test_constructor_wrongArgs_reverts(uint256 _splitDepth) public {
         AlphabetVM2 alphabetVM = new AlphabetVM2(ABSOLUTE_PRESTATE);
 
@@ -121,22 +119,6 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
             _genesisBlockNumber: 0,
             _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _maxGameDepth: 2 ** 3,
-            _splitDepth: _splitDepth,
-            _gameDuration: Duration.wrap(7 days),
-            _vm: alphabetVM
-        });
-
-        // Test that the constructor reverts when the `_splitDepth` parameter is odd.
-        _splitDepth = bound(_splitDepth, 0, 2 ** 3 - 1);
-        if (_splitDepth % 2 == 0) _splitDepth += 1;
-
-        vm.expectRevert(InvalidSplitDepth.selector);
-        new OutputBisectionGame({
-            _gameType: GAME_TYPE,
-            _absolutePrestate: ABSOLUTE_PRESTATE,
-            _maxGameDepth: 2 ** 3,
-            _genesisBlockNumber: 0,
-            _genesisOutputRoot: Hash.wrap(bytes32(0)),
             _splitDepth: _splitDepth,
             _gameDuration: Duration.wrap(7 days),
             _vm: alphabetVM
@@ -175,6 +157,16 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     ////////////////////////////////////////////////////////////////
     //          `IOutputBisectionGame` Implementation Tests       //
     ////////////////////////////////////////////////////////////////
+
+    /// @dev Tests that the game cannot be initialized with an output root that commits to <= the configured genesis
+    ///      block number
+    function testFuzz_initialize_cannotProposeGenesis_reverts(uint256 _blockNumber) public {
+        _blockNumber = bound(_blockNumber, 0, gameProxy.GENESIS_BLOCK_NUMBER());
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
+        gameProxy = OutputBisectionGame(address(factory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
+    }
 
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
