@@ -5,7 +5,7 @@ import { KontrolUtils } from "./utils/KontrolUtils.sol";
 import { Types } from "src/libraries/Types.sol";
 import { OptimismPortalInterface as OptimismPortal, SuperchainConfigInterface as SuperchainConfig} from "./interfaces/KontrolInterfaces.sol";
 
-contract StateDiffTest is DeploymentSummary, KontrolUtils {
+contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     OptimismPortal optimismPortal;
     SuperchainConfig superchainConfig;
