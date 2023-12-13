@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -43,7 +42,7 @@ func NewActiveL2EndpointProvider(
 	}, nil
 }
 
-func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (*ethclient.Client, error) {
+func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (ClientInterface, error) {
 	err := p.ensureActiveEndpoint(ctx)
 	if err != nil {
 		return nil, err
@@ -51,16 +50,6 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (*ethclient.Cl
 	p.clientLock.Lock()
 	defer p.clientLock.Unlock()
 	return p.currentEthClient, nil
-}
-
-func (p *ActiveL2EndpointProvider) RollupClient(ctx context.Context) (*sources.RollupClient, error) {
-	err := p.ensureActiveEndpoint(ctx)
-	if err != nil {
-		return nil, err
-	}
-	p.clientLock.Lock()
-	defer p.clientLock.Unlock()
-	return p.currentRollupClient, nil
 }
 
 func (p *ActiveL2EndpointProvider) ensureActiveEndpoint(ctx context.Context) error {

@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -199,14 +200,19 @@ func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*e
 	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
-	rollupClient, err := l.RollupProvider.RollupClient(ctx)
+	rollupInterface, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
-		l.Log.Error("proposer unable to get rollup client", "err", err)
+		l.Log.Error("proposer unable to get rollup interface", "err", err)
+		return nil, false, err
+	}
+	rollupClient, ok := rollupInterface.(*sources.RollupClient)
+	if !ok {
+		l.Log.Error("proposer unable to get rollup client", "block", block, "err", err)
 		return nil, false, err
 	}
 	output, err := rollupClient.OutputAtBlock(ctx, block.Uint64())
 	if err != nil {
-		l.Log.Error("failed to fetch output at block %d: %w", block, err)
+		l.Log.Error("failed to fetch output at block", "block", block, "err", err)
 		return nil, false, err
 	}
 	if output.Version != supportedL2OutputVersion {

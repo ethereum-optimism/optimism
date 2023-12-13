@@ -41,7 +41,7 @@ func NewActiveL2RollupProvider(
 	}, nil
 }
 
-func (p *ActiveL2RollupProvider) RollupClient(ctx context.Context) (*sources.RollupClient, error) {
+func (p *ActiveL2RollupProvider) RollupClient(ctx context.Context) (sources.RollupClientInterface, error) {
 	err := p.ensureActiveEndpoint(ctx)
 	if err != nil {
 		return nil, err
