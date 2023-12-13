@@ -66,7 +66,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	require.Equal(t, aliceAddr, sentMessage.Tx.ToAddress)
 	require.ElementsMatch(t, calldata, sentMessage.Tx.Data)
 
-	// (2) Process RelayedMesssage on inclusion
+	// (2) Process RelayedMessage on inclusion
 	//   - We dont assert that `RelayedMessageEventGUID` is nil prior to inclusion since there isn't a
 	//   a straightforward way of pausing/resuming the processors at the right time. The codepath is the
 	//   same for L2->L1 messages which does check for this so we are still covered
