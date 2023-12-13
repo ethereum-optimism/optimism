@@ -22,7 +22,7 @@ blank_line
 
 export FOUNDRY_PROFILE=kontrol
 export CONTAINER_NAME=kontrol-tests
-KONTROLRC=$(cat "${WORKSPACE_DIR}/../../.kontrolrc")
+KONTROLRC=$(cat "${WORKSPACE_DIR}/../../../.kontrolrc")
 export KONTROL_RELEASE=${KONTROLRC}
 
 
@@ -125,7 +125,7 @@ trap on_failure ERR INT
 # empty assignment to activate/deactivate the corresponding flag
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=CounterTest:${base_module}
+module=OptimismPortalKontrol:${base_module}
 rekompile=--rekompile
 regen=--regen
 rekompile=
@@ -155,9 +155,7 @@ use_booster=--use-booster
 #########################################
 tests=""
 #tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test StateDiffTest.setUp "
-tests+="--match-test StateDiffCheatcode.recreateDeployment "
-# tests+="--match-test StateDiffTest.testVerifyStateChange "
+tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
 
 #############
 # RUN TESTS #
