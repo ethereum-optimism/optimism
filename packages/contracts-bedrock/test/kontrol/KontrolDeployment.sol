@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 import { Deploy } from "scripts/Deploy.s.sol";
 
 contract KontrolDeployment is Deploy {
@@ -24,8 +23,5 @@ contract KontrolDeployment is Deploy {
         /* initializeImplementations(); */
         initializeSystemConfig();
         initializeOptimismPortal();
-
-        address guardian = SuperchainConfig(getAddress("SuperchainConfigProxy")).guardian();
-        save("Guardian", guardian);
     }
 }
