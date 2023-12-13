@@ -130,7 +130,7 @@ func (a *APIService) Addr() string {
 func (a *APIService) initDB(ctx context.Context, connector DBConnector) error {
 	db, err := connector.OpenDB(ctx, a.log)
 	if err != nil {
-		return fmt.Errorf("failed to connect to databse: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	a.dbClose = db.Closer
 	a.bv = db.BridgeTransfers
