@@ -98,9 +98,6 @@ func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) erro
 		}
 
 		totalAttempts++
-		if p.currentIndex >= p.numEndpoints() {
-			p.currentIndex = 0
-		}
 	}
 	return fmt.Errorf("failed to find an active sequencer after %d retries", maxRetries)
 }
@@ -108,7 +105,7 @@ func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) erro
 func (p *ActiveL2EndpointProvider) dialNextSequencer(ctx context.Context) error {
 	cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 	defer cancel()
-	p.currentIndex++
+	p.currentIndex = (p.currentIndex + 1) % p.numEndpoints()
 	ep := p.rollupUrls[p.currentIndex]
 	p.log.Debug("Dialing next sequencer.", "url", ep)
 	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
