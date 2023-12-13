@@ -16,6 +16,10 @@ interface OptimismPortalInterface {
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
     ) external;
+
+    function finalizeWithdrawalTransaction(
+        Types.WithdrawalTransaction memory _tx
+    ) external;
 }
 
 interface SuperchainConfigInterface {
