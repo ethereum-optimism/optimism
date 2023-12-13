@@ -35,6 +35,13 @@ var (
 		Usage:   "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
 		EnvVars: prefixEnvVars("L2_ENGINE_RPC"),
 	}
+	L2EngineJWTSecret = &cli.StringFlag{
+		Name:        "l2.jwt-secret",
+		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if the file is empty.",
+		EnvVars:     prefixEnvVars("L2_ENGINE_AUTH"),
+		Value:       "",
+		Destination: new(string),
+	}
 	RollupConfig = &cli.StringFlag{
 		Name:    "rollup.config",
 		Usage:   "Rollup chain parameters",
@@ -94,11 +101,10 @@ var (
 		}(),
 	}
 	L1RethDBPath = &cli.StringFlag{
-		Name:     "l1.rethdb",
-		Usage:    "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
-		EnvVars:  prefixEnvVars("L1_RETHDB"),
-		Required: false,
-		Hidden:   true,
+		Name:    "l1.rethdb",
+		Usage:   "The L1 RethDB path, used to fetch receipts for L1 blocks. Only applicable when using the `reth_db` RPC kind with `l1.rpckind`.",
+		EnvVars: prefixEnvVars("L1_RETHDB"),
+		Hidden:  true,
 	}
 	L1RPCMaxConcurrency = &cli.IntFlag{
 		Name:    "l1.max-concurrency",
@@ -124,20 +130,11 @@ var (
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
 	}
-	L2EngineJWTSecret = &cli.StringFlag{
-		Name:        "l2.jwt-secret",
-		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
-		EnvVars:     prefixEnvVars("L2_ENGINE_AUTH"),
-		Required:    false,
-		Value:       "",
-		Destination: new(string),
-	}
 	VerifierL1Confs = &cli.Uint64Flag{
-		Name:     "verifier.l1-confs",
-		Usage:    "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",
-		EnvVars:  prefixEnvVars("VERIFIER_L1_CONFS"),
-		Required: false,
-		Value:    0,
+		Name:    "verifier.l1-confs",
+		Usage:   "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",
+		EnvVars: prefixEnvVars("VERIFIER_L1_CONFS"),
+		Value:   0,
 	}
 	SequencerEnabledFlag = &cli.BoolFlag{
 		Name:    "sequencer.enabled",
@@ -150,32 +147,28 @@ var (
 		EnvVars: prefixEnvVars("SEQUENCER_STOPPED"),
 	}
 	SequencerMaxSafeLagFlag = &cli.Uint64Flag{
-		Name:     "sequencer.max-safe-lag",
-		Usage:    "Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.",
-		EnvVars:  prefixEnvVars("SEQUENCER_MAX_SAFE_LAG"),
-		Required: false,
-		Value:    0,
+		Name:    "sequencer.max-safe-lag",
+		Usage:   "Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.",
+		EnvVars: prefixEnvVars("SEQUENCER_MAX_SAFE_LAG"),
+		Value:   0,
 	}
 	SequencerL1Confs = &cli.Uint64Flag{
-		Name:     "sequencer.l1-confs",
-		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
-		EnvVars:  prefixEnvVars("SEQUENCER_L1_CONFS"),
-		Required: false,
-		Value:    4,
+		Name:    "sequencer.l1-confs",
+		Usage:   "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
+		EnvVars: prefixEnvVars("SEQUENCER_L1_CONFS"),
+		Value:   4,
 	}
 	L1EpochPollIntervalFlag = &cli.DurationFlag{
-		Name:     "l1.epoch-poll-interval",
-		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
-		EnvVars:  prefixEnvVars("L1_EPOCH_POLL_INTERVAL"),
-		Required: false,
-		Value:    time.Second * 12 * 32,
+		Name:    "l1.epoch-poll-interval",
+		Usage:   "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
+		EnvVars: prefixEnvVars("L1_EPOCH_POLL_INTERVAL"),
+		Value:   time.Second * 12 * 32,
 	}
 	RuntimeConfigReloadIntervalFlag = &cli.DurationFlag{
-		Name:     "l1.runtime-config-reload-interval",
-		Usage:    "Poll interval for reloading the runtime config, useful when config events are not being picked up. Disabled if 0 or negative.",
-		EnvVars:  prefixEnvVars("L1_RUNTIME_CONFIG_RELOAD_INTERVAL"),
-		Required: false,
-		Value:    time.Minute * 10,
+		Name:    "l1.runtime-config-reload-interval",
+		Usage:   "Poll interval for reloading the runtime config, useful when config events are not being picked up. Disabled if 0 or negative.",
+		EnvVars: prefixEnvVars("L1_RUNTIME_CONFIG_RELOAD_INTERVAL"),
+		Value:   time.Minute * 10,
 	}
 	MetricsEnabledFlag = &cli.BoolFlag{
 		Name:    "metrics.enabled",
@@ -233,41 +226,17 @@ var (
 		Value:   "https://heartbeat.optimism.io",
 	}
 	BackupL2UnsafeSyncRPC = &cli.StringFlag{
-		Name:     "l2.backup-unsafe-sync-rpc",
-		Usage:    "Set the backup L2 unsafe sync RPC endpoint.",
-		EnvVars:  prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC"),
-		Required: false,
+		Name:    "l2.backup-unsafe-sync-rpc",
+		Usage:   "Set the backup L2 unsafe sync RPC endpoint.",
+		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC"),
 	}
 	BackupL2UnsafeSyncRPCTrustRPC = &cli.StringFlag{
 		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
 		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
 			"This does not include checks if the blockhash is part of the canonical chain.",
-		EnvVars:  prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
-		Required: false,
+		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
 	}
-	// Delete this flag at a later date.
-	L2EngineSyncEnabled = &cli.BoolFlag{
-		Name:     "l2.engine-sync",
-		Usage:    "WARNING: Deprecated. Use --syncmode=execution-layer instead",
-		EnvVars:  prefixEnvVars("L2_ENGINE_SYNC_ENABLED"),
-		Required: false,
-		Value:    false,
-		Hidden:   true,
-	}
-	SkipSyncStartCheck = &cli.BoolFlag{
-		Name: "l2.skip-sync-start-check",
-		Usage: "Skip sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point. " +
-			"This defers the L1-origin verification, and is recommended to use in when utilizing l2.engine-sync",
-		EnvVars:  prefixEnvVars("L2_SKIP_SYNC_START_CHECK"),
-		Required: false,
-		Value:    false,
-	}
-	BetaExtraNetworks = &cli.BoolFlag{
-		Name:    "beta.extra-networks",
-		Usage:   "Legacy flag, ignored, all superchain-registry networks are enabled by default.",
-		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
-		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
-	}
+
 	RollupHalt = &cli.StringFlag{
 		Name:    "rollup.halt",
 		Usage:   "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
@@ -290,11 +259,34 @@ var (
 		EnvVars: prefixEnvVars("OVERRIDE_DELTA"),
 		Hidden:  false,
 	}
+	/* Deprecated Flags */
+	L2EngineSyncEnabled = &cli.BoolFlag{
+		Name:    "l2.engine-sync",
+		Usage:   "WARNING: Deprecated. Use --syncmode=execution-layer instead",
+		EnvVars: prefixEnvVars("L2_ENGINE_SYNC_ENABLED"),
+		Value:   false,
+		Hidden:  true,
+	}
+	SkipSyncStartCheck = &cli.BoolFlag{
+		Name: "l2.skip-sync-start-check",
+		Usage: "Skip sanity check of consistency of L1 origins of the unsafe L2 blocks when determining the sync-starting point. " +
+			"This defers the L1-origin verification, and is recommended to use in when utilizing l2.engine-sync",
+		EnvVars: prefixEnvVars("L2_SKIP_SYNC_START_CHECK"),
+		Value:   false,
+		Hidden:  true,
+	}
+	BetaExtraNetworks = &cli.BoolFlag{
+		Name:    "beta.extra-networks",
+		Usage:   "Legacy flag, ignored, all superchain-registry networks are enabled by default.",
+		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
+		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
+	}
 )
 
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddr,
+	L2EngineJWTSecret,
 }
 
 var optionalFlags = []cli.Flag{
@@ -309,7 +301,6 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxBatchSize,
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
-	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
@@ -331,29 +322,55 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	BackupL2UnsafeSyncRPC,
 	BackupL2UnsafeSyncRPCTrustRPC,
+	RollupHalt,
+	RollupLoadProtocolVersions,
+	L1RethDBPath,
+	CanyonOverrideFlag,
+	DeltaOverrideFlag,
+}
+
+var DeprecatedFlags = []cli.Flag{
 	L2EngineSyncEnabled,
 	SkipSyncStartCheck,
 	BetaExtraNetworks,
-	RollupHalt,
-	RollupLoadProtocolVersions,
-	CanyonOverrideFlag,
-	L1RethDBPath,
-	DeltaOverrideFlag,
+	// Deprecated P2P Flags are added at the init step
 }
 
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
 func init() {
+	DeprecatedFlags = append(DeprecatedFlags, deprecatedP2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, DeprecatedFlags...)
 	Flags = append(requiredFlags, optionalFlags...)
+}
+
+// This checks flags that are exclusive & required. Specifically for each
+// set of flags, exactly one flag must be set.
+var requiredXorFlags = [][]string{
+	{
+		RollupConfig.Name,
+		Network.Name,
+	},
 }
 
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
+		}
+	}
+	for _, flagNames := range requiredXorFlags {
+		setCount := 0
+		for _, f := range flagNames {
+			if ctx.IsSet(f) {
+				setCount += 1
+			}
+		}
+		if setCount != 1 {
+			return fmt.Errorf("exactly one of the flags %v is required", flagNames)
 		}
 	}
 	return nil
