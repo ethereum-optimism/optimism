@@ -16,13 +16,13 @@ notif "Script Home: $SCRIPT_HOME"
 blank_line
 
 # Set Run Directory <root>/packages/contracts-bedrock
-WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
+WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../../.." >/dev/null 2>&1 && pwd )
 notif "Run Directory: ${WORKSPACE_DIR}"
 blank_line
 
-export FOUNDRY_PROFILE=kontrol
+export FOUNDRY_PROFILE=kprove
 export CONTAINER_NAME=kontrol-tests
-KONTROLRC=$(cat "${WORKSPACE_DIR}/../../../.kontrolrc")
+KONTROLRC=$(cat "${WORKSPACE_DIR}/../../.kontrolrc")
 export KONTROL_RELEASE=${KONTROLRC}
 
 
@@ -70,7 +70,7 @@ start_docker () {
 }
 
 docker_exec () {
-    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
+    docker exec --user user --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
 }
 
 dump_log_results(){
@@ -134,8 +134,8 @@ regen=
 #########################
 # kontrol prove options #
 #########################
-max_depth=10000
-max_iterations=10000
+max_depth=1000000
+max_iterations=1000000
 smt_timeout=100000
 bmc_depth=10
 workers=2
