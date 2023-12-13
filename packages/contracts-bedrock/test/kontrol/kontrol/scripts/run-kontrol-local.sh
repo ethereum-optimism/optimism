@@ -30,8 +30,7 @@ kontrol_prove() {
             ${break_on_calls}                  \
             ${auto_abstract}                   \
             ${tests}                           \
-            ${use_booster} # \
-             # --kore-rpc-command="kore-rpc-booster -l Rewrite"
+            ${use_booster}
 }
 
 ###
@@ -77,10 +76,6 @@ use_booster=--use-booster
 
 # List of tests to symbolically execute
 tests=""
-#tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test OptimismPortalKontrol.setUp "
-# tests+="--match-test DeploymentSummary.recreateDeployment "
-# tests+="--match-test OptimismPortalKontrol.testVerifyStateChange "
 tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
 
 kontrol_build
