@@ -73,7 +73,8 @@ fi
 
 # If slither failed to generate a report, exit with an error.
 if [ ! -f "$SLITHER_REPORT" ]; then
-  printf "Slither output:\n%s\n" "$SLITHER_OUTPUT"
+  echo "Slither output:"
+  echo "$SLITHER_OUTPUT"
   echo "Slither failed to generate a report."
   if [ -e "$SLITHER_REPORT_BACKUP" ]; then
       mv $SLITHER_REPORT_BACKUP $SLITHER_REPORT
