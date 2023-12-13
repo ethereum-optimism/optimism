@@ -14,8 +14,8 @@ WS_PORT="${WS_PORT:-8546}"
 
 if [ ! -d "$GETH_KEYSTORE_DIR" ]; then
 	echo "$GETH_KEYSTORE_DIR missing, running account import"
-	echo -n "%s" "pwd" > "$GETH_DATA_DIR"/password
-  echo -n "%s" "$BLOCK_SIGNER_PRIVATE_KEY" | sed 's/0x//' > "$GETH_DATA_DIR"/block-signer-key
+	echo -n "pwd" > "$GETH_DATA_DIR"/password
+  echo -n "$BLOCK_SIGNER_PRIVATE_KEY" | sed 's/0x//' > "$GETH_DATA_DIR"/block-signer-key
   geth account import \
 		--datadir="$GETH_DATA_DIR" \
 		--password="$GETH_DATA_DIR"/password \
