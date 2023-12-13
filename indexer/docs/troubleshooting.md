@@ -20,7 +20,7 @@ Header traversal is a client abstraction that allows the indexer to sequentially
 * This error occurs when the indexer is operating on a different block state than the node. This is typically caused by network reorgs and is the result of `l1-confirmation-count` or `l2-confirmation-count` values being set too low. To resolve this issue, increase the confirmation count values and restart the indexer service.
 
 2. `the HeaderTraversal's internal state is ahead of the provider`
-* This error occurs when the indexer is operating on a block that the upstream provider does not have. This is typically occurs when resyncing upstream node services. This issue typically resolves itself once the upstream node service is fully synced. If the problem persists, please file an issue.
+* This error occurs when the indexer is operating on a block that the upstream provider does not have. This typically occurs when resyncing upstream node services. This issue typically resolves itself once the upstream node service is fully synced. If the problem persists, please file an issue.
 
 ### L1/L2 Processor Failures
 The L1 and L2 processors are responsible for processing new blocks and system txs. Processor failures can spread and contaminate other downstream processors (i.e, bridge) as well. For example, if a L2 processor misses a block and fails to index a `MessagePassed` event, the bridge processor will fail to index the corresponding `WithdrawalProven` event and halt progress. The following are some common failure modes and how to resolve them:

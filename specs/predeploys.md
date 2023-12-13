@@ -286,7 +286,7 @@ used for depositing native L1 tokens into. These ERC20 contracts can be created 
 and implement the interface required by the `StandardBridge` to just work with deposits and withdrawals.
 
 Each ERC20 contract that is created by the `OptimismMintableERC20Factory` allows for the `L2StandardBridge` to mint
-and burn tokens, depending on if the user is depositing from L1 to L2 or withdrawaing from L2 to L1.
+and burn tokens, depending on if the user is depositing from L1 to L2 or withdrawing from L2 to L1.
 
 ## OptimismMintableERC721Factory
 
