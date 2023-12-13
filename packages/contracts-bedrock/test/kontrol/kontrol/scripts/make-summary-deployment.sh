@@ -15,7 +15,7 @@ fi
 # replace mustGetAddress by getAddress in Deploy.s.sol
 sed -i 's/mustGetAddress/getAddress/g' ./scripts/Deploy.s.sol
 
-FOUNDRY_PROFILE=kontrol forge script -vvv test/kontrol/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
+FOUNDRY_PROFILE=kdeploy forge script -vvv test/kontrol/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
 
 JSON_SCRIPTS=test/kontrol/kontrol/scripts/json

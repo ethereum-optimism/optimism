@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-export FOUNDRY_PROFILE=stategen
+export FOUNDRY_PROFILE=kprove
 
 # Create a log file to store standard out and standard error
 LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
