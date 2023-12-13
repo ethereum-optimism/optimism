@@ -6,8 +6,6 @@ import { IOutputBisectionGame } from "src/dispute/interfaces/IOutputBisectionGam
 import { IInitializable } from "src/dispute/interfaces/IInitializable.sol";
 import { IBondManager } from "src/dispute/interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
-import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { BlockOracle } from "src/dispute/BlockOracle.sol";
 
 import { Clone } from "src/libraries/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
@@ -83,8 +81,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.15
-    string public constant version = "0.0.15";
+    /// @custom:semver 0.0.16
+    string public constant version = "0.0.16";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -105,9 +103,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         Duration _gameDuration,
         IBigStepper _vm
     ) {
-        // The split depth cannot be greater than or equal to the max game depth, and it must
-        // be even due to the constraint laid out in `verifyExecBisectionRoot`
-        if (_splitDepth >= _maxGameDepth || _splitDepth % 2 != 0) revert InvalidSplitDepth();
+        // The split depth cannot be greater than or equal to the max game depth.
+        if (_splitDepth >= _maxGameDepth) revert InvalidSplitDepth();
 
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
@@ -446,6 +443,13 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         //
         // Implicit assumptions:
         // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
+        //
+        // Explicit checks:
+        // - An output root cannot be proposed at or before the genesis block.
+
+        // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
+        // configured genesis block number.
+        if (l2BlockNumber() <= GENESIS_BLOCK_NUMBER) revert UnexpectedRootClaim(rootClaim());
 
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
