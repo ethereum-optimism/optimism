@@ -686,7 +686,7 @@ func NewL1Deployments(path string) (*L1Deployments, error) {
 
 	var deployments L1Deployments
 	if err := json.Unmarshal(file, &deployments); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal L1 deployements: %w", err)
+		return nil, fmt.Errorf("cannot unmarshal L1 deployments: %w", err)
 	}
 
 	return &deployments, nil
