@@ -19,7 +19,7 @@ the ability to replay cross domain messages and sit directly on top of the lower
 level system contracts responsible for cross domain messaging on L1 and L2.
 
 The `CrossDomainMessenger` is extended to create both an
-`L1CrossDomainMessenger` and well as a `L2CrossDomainMessenger`.
+`L1CrossDomainMessenger` as well as a `L2CrossDomainMessenger`.
 These contracts are then extended with their legacy APIs to provide backwards
 compatibility for applications that integrated before the Bedrock system
 upgrade.

@@ -55,7 +55,7 @@ Immutable variables:
 - should have a hand written getter function
 
 This approach clearly indicates to the developer that the value is immutable, without exposing
-the non-standard casing to the interface. It also ensure that we don’t need to break the ABIs if
+the non-standard casing to the interface. It also ensures that we don’t need to break the ABIs if
 we switch between values being in storage and immutable.
 
 #### Spacers

@@ -24,7 +24,7 @@ DATABASE_URL=postgresql://db_username:db_password@postgres:5432/db_name
 
 ## Other functionality
 
-We mostly just use prisma as a UI. But brisma provides much other functionality that can be useful including.
+We mostly just use prisma as a UI. But prisma provides much other functionality that can be useful including.
 
 - Ability to change the [db schema](https://www.prisma.io/docs/reference/api-reference/command-reference#db-push) direction from modifying the [schema.prisma](./schema.prisma) in place. This can be a fast way to [start prototyping](https://www.prisma.io/docs/guides/migrate/prototyping-schema-db-push)
 - Ability to [seed the database](https://www.prisma.io/docs/guides/migrate/seed-database)
