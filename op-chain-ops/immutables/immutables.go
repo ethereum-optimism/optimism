@@ -73,6 +73,9 @@ type PredeploysImmutableConfig struct {
 	}
 	CrossL2Outbox                 *struct{} // optional, only there in interop
 	InteropL2CrossDomainMessenger *struct{} // optional, only there in interop
+	InteropL2StandardBridge       *struct { // optional, only there in interop
+		Messenger common.Address
+	}
 }
 
 // Check will ensure that the required fields are set on the config.
@@ -270,6 +273,12 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 			return nil, fmt.Errorf("invalid type for superchain postie address")
 		}
 		_, tx, _, err = bindings.DeployCrossL2Inbox(opts, backend, superchainPostie)
+	case "InteropL2StandardBridge":
+		messenger, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for messenger")
+		}
+		_, tx, _, err = bindings.DeployInteropL2StandardBridge(opts, backend, messenger)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

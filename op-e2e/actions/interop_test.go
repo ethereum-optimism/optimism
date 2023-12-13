@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestL2Interop_CrossL2Inbox(gt *testing.T) {
+func TestL2Interop(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	interopAtGenesis := hexutil.Uint64(0)
@@ -80,6 +80,16 @@ func TestL2Interop_CrossL2Inbox(gt *testing.T) {
 	cdmVersion, err := cdm.Version(nil)
 	require.NoError(t, err)
 	require.Equal(t, "0.0.1", cdmVersion, "Interop CDM contract is available")
+
+	sb, err := bindings.NewInteropL2StandardBridge(predeploys.InteropL2StandardBridgeAddr, cl)
+	require.NoError(t, err)
+	sbVersion, err := sb.Version(nil)
+	require.NoError(t, err)
+	require.Equal(t, "0.0.1", sbVersion, "Interop SB contract is available")
+
+	messenger, err := sb.MESSENGER(nil)
+	require.NoError(t, err)
+	require.Equal(t, predeploys.InteropL2CrossDomainMessengerAddr, messenger, "Interop SB Messenger contract misconfigured")
 
 	// This test can be extended with batch-submission, and replication by a verifier
 }

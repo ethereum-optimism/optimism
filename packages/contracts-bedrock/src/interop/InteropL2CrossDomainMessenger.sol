@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { L2CrossDomainMessenger as LegacyL2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { CrossL2Outbox } from "src/interop/CrossL2Outbox.sol";
+import { InteropConstants } from "src/interop/InteropConstants.sol";
 
 import { Constants } from "src/libraries/Constants.sol";
 import { Encoding } from "src/libraries/Encoding.sol";
@@ -40,11 +41,18 @@ contract InteropL2CrossDomainMessenger is ISemver {
     /// @notice Address of the sender of the currently executing message
     address internal xDomainMsgSender;
 
+    /// @notice Identifier of the source chain of the currently executing message
+    bytes32 internal xDomainChain;
+
     /// @notice Mapping of succesfully delivered messages
     mapping(bytes32 => bool) public successfulMessages;
 
     /// @notice Mapping of delivered messages in a failed state
     mapping(bytes32 => bool) public failedMessages;
+
+    constructor() {
+        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
+    }
 
     /// @notice Emitted whenever a message is sent to the other chain.
     event SentMessage(
@@ -67,6 +75,21 @@ contract InteropL2CrossDomainMessenger is ISemver {
     function sourceChainID() internal view returns (bytes32) {
         // cannot be an immutable value due to op-chain-ops genesis setup limitations.
         return bytes32(uint256(block.chainid));
+    }
+
+    /// @notice Retrieves the address of the currently executing message
+    function xDomainMessageSender() external view returns (address) {
+        require(
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER,
+            "InteropL2CrossDomainMessenger: xDomainMessageSender is not set"
+        );
+        return xDomainMsgSender;
+    }
+
+    /// @notice Retrieves the chain id of the source chain for the currently executing message
+    function xDomainChainId() external view returns (bytes32) {
+        require(xDomainChain != bytes32(0), "InteropL2CrossDomainMessenger: xDomainChain is not set");
+        return xDomainChain;
     }
 
     /// @notice Checks if the call target is a blocked system address
@@ -96,8 +119,7 @@ contract InteropL2CrossDomainMessenger is ISemver {
         payable
     {
         // L2->L1 Support: Utilize the old pathway for now
-        bytes32 ETH_MAINNET_ID = bytes32(uint256(1));
-        if (_destination == ETH_MAINNET_ID) {
+        if (_destination == InteropConstants.ETH_MAINNET_ID) {
             LegacyL2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER).sendMessage(
                 _target, _message, _minGasLimit
             );
@@ -181,6 +203,7 @@ contract InteropL2CrossDomainMessenger is ISemver {
 
         // (2) Relay Message
         xDomainMsgSender = _sender;
+        xDomainChain = _source;
         bool success = SafeCall.call({
             _target: _target,
             _gas: gasleft() - RELAY_RESERVED_GAS,
@@ -189,6 +212,7 @@ contract InteropL2CrossDomainMessenger is ISemver {
         });
 
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
+        xDomainChain = bytes32(0);
         if (success) {
             successfulMessages[msgHash] = true;
             emit RelayedMessage(_nonce, _source, msgHash);
