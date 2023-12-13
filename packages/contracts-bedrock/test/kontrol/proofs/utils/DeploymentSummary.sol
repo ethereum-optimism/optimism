@@ -2,7 +2,7 @@ pragma solidity ^0.8.13;
 
 import { Vm } from "forge-std/Vm.sol";
 
-import { DeploymentSummary } from "./DeploymentSummaryCode.sol";
+import { DeploymentSummaryCode } from "./DeploymentSummaryCode.sol";
 
 contract DeploymentSummary is DeploymentSummaryCode {
 	// Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D
