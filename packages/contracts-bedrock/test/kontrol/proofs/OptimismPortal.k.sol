@@ -96,7 +96,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         );
     }
 
-    function test_finalizeWithdrawalTransaction_paused_reverts(
+    function test_finalizeWithdrawalTransaction_paused(
        address _tx1,
        address _tx2,
        uint256 _tx0,

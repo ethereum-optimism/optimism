@@ -72,6 +72,7 @@ use_booster=--use-booster
 #########################################
 tests=""
 tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
+tests+="--match-test OptimismPortalKontrol.test_finalizeWithdrawalTransaction_paused "
 
 kontrol_build
 kontrol_prove
