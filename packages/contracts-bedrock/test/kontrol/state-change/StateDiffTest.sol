@@ -1,11 +1,11 @@
 pragma solidity ^0.8.13;
 
-import { StateDiffCheatcode } from "./StateDiffCheatcode.sol";
-import { KontrolUtils } from "./KontrolUtils.sol";
+import { StateDiffCheatcode } from "./utils/DeploymentSummary.sol";
+import { KontrolUtils } from "./utils/KontrolUtils.sol";
 import { Types } from "src/libraries/Types.sol";
 import { OptimismPortalInterface as OptimismPortal, SuperchainConfigInterface as SuperchainConfig} from "./interfaces/KontrolInterfaces.sol";
 
-contract StateDiffTest is StateDiffCheatcode, KontrolUtils {
+contract StateDiffTest is DeploymentSummary, KontrolUtils {
 
     OptimismPortal optimismPortal;
     SuperchainConfig superchainConfig;
