@@ -137,3 +137,11 @@ func (m *MockEthClient) BlockByNumber(ctx context.Context, number *big.Int) (*ty
 func (m *MockEthClient) ExpectBlockByNumber(number *big.Int, block *types.Block, err error) {
 	m.Mock.On("BlockByNumber", number).Once().Return(block, &err)
 }
+
+func (m *MockEthClient) ExpectClose() {
+	m.Mock.On("Close").Once()
+}
+
+func (m *MockEthClient) Close() {
+	m.Mock.MethodCalled("Close")
+}
