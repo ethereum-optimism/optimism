@@ -62,6 +62,14 @@ func validateEnvVars(prefix string, providedEnvVars []string, definedEnvVars map
 	return out
 }
 
+func WarnOnDeprecatedFlags(ctx *cli.Context, deprecatedFlags []cli.Flag, log log.Logger) {
+	for _, flag := range deprecatedFlags {
+		if ctx.IsSet(flag.Names()[0]) {
+			log.Warn("Found a deprecated flag which will be removed in a future version", "flag_name", flag.Names()[0])
+		}
+	}
+}
+
 // ParseAddress parses an ETH address from a hex string. This method will fail if
 // the address is not a valid hexadecimal address.
 func ParseAddress(address string) (common.Address, error) {
