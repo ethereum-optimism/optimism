@@ -27,7 +27,7 @@ python3 reverse_key_values.py ${CONTRACT_NAMES} ${CONTRACT_NAMES}Reversed
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 
 PROOFS_DIR=test/kontrol/proofs
-SUMMARY_NAME=SummaryDeployment
+SUMMARY_NAME=DeploymentSummary
 #/StateDiffCheatcode.sol
 kontrol summary ${SUMMARY_NAME} snapshots/state-diff/${STATEDIFF} --contract-names ${CONTRACT_NAMES} --output-dir ${PROOFS_DIR}
 echo "Added State Updates to ${PROOFS_DIR}/${SUMMARY_NAME}"
