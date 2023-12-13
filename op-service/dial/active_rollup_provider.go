@@ -90,12 +90,14 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 	for totalAttempts < maxRetries {
 		active, err := p.checkCurrentSequencer(ctx)
 		if err != nil {
-			p.log.Warn("Error querying active sequencer, trying next.", "err", err, "try", totalAttempts)
+			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "try", totalAttempts)
+			p.currentRollupClient.Close()
 		} else if active {
 			p.log.Debug("Current sequencer active.", "try", totalAttempts)
 			return nil
 		} else {
-			p.log.Info("Current sequencer inactive, trying next.", "try", totalAttempts)
+			p.log.Info("Current sequencer inactive, closing connection and trying next.", "try", totalAttempts)
+			p.currentRollupClient.Close()
 		}
 		if err := p.dialNextSequencer(ctx); err != nil {
 			return fmt.Errorf("dialing next sequencer: %w", err)

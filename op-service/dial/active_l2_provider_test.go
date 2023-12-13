@@ -19,6 +19,7 @@ func TestActiveSequencerFailoverBehavior_RollupProviders(t *testing.T) {
 	primarySequencer := testutils.MockRollupClient{}
 	primarySequencer.ExpectSequencerActive(true, nil)
 	primarySequencer.ExpectSequencerActive(false, nil)
+	primarySequencer.ExpectClose()
 	secondarySequencer := testutils.MockRollupClient{}
 	secondarySequencer.ExpectSequencerActive(true, nil)
 
@@ -58,6 +59,7 @@ func TestActiveSequencerFailoverBehavior_L2Providers(t *testing.T) {
 	primarySequencer := testutils.MockRollupClient{}
 	primarySequencer.ExpectSequencerActive(true, nil)
 	primarySequencer.ExpectSequencerActive(false, nil)
+	primarySequencer.ExpectClose()
 	secondarySequencer := testutils.MockRollupClient{}
 	secondarySequencer.ExpectSequencerActive(true, nil)
 
@@ -71,6 +73,7 @@ func TestActiveSequencerFailoverBehavior_L2Providers(t *testing.T) {
 		}
 	}
 	primaryEthClient := testutils.MockEthClient{}
+	primaryEthClient.ExpectClose()
 	secondaryEthClient := testutils.MockEthClient{}
 	mockEthDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error) {
 		if url == "primary" {

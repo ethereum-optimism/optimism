@@ -20,7 +20,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -200,14 +199,9 @@ func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*e
 	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
 
-	rollupInterface, err := l.RollupProvider.RollupClient(ctx)
+	rollupClient, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
-		l.Log.Error("proposer unable to get rollup interface", "err", err)
-		return nil, false, err
-	}
-	rollupClient, ok := rollupInterface.(*sources.RollupClient)
-	if !ok {
-		l.Log.Error("proposer unable to get rollup client", "block", block, "err", err)
+		l.Log.Error("proposer unable to get rollup client", "err", err)
 		return nil, false, err
 	}
 	output, err := rollupClient.OutputAtBlock(ctx, block.Uint64())

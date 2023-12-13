@@ -13,6 +13,15 @@ type MockRollupClient struct {
 	mock.Mock
 }
 
+func (m *MockRollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
+	out := m.Mock.MethodCalled("OutputAtBlock", blockNum)
+	return out[0].(*eth.OutputResponse), *out[1].(*error)
+}
+
+func (m *MockRollupClient) ExpectOutputAtBlock(blockNum uint64, response *eth.OutputResponse, err error) {
+	m.Mock.On("OutputAtBlock", blockNum).Once().Return(response, &err)
+}
+
 func (m *MockRollupClient) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	out := m.Mock.MethodCalled("SyncStatus")
 	return out[0].(*eth.SyncStatus), *out[1].(*error)
