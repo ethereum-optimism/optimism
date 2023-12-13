@@ -157,6 +157,13 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	}
 }
 
+func (h *FactoryHelper) StartOutputCannonGameWithCorrectRoot(ctx context.Context, l2Node string, l2BlockNumber uint64) *OutputCannonGameHelper {
+	h.waitForBlockToBeSafe(l2Node, l2BlockNumber)
+	output, err := h.system.RollupClient(l2Node).OutputAtBlock(ctx, l2BlockNumber)
+	h.require.NoErrorf(err, "Failed to get output at block %v", l2BlockNumber)
+	return h.StartOutputCannonGame(ctx, l2Node, l2BlockNumber, common.Hash(output.OutputRoot))
+}
+
 func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string, l2BlockNumber uint64, rootClaim common.Hash) *OutputCannonGameHelper {
 	logger := testlog.Logger(h.t, log.LvlInfo).New("role", "OutputCannonGameHelper")
 	rollupClient := h.system.RollupClient(l2Node)
@@ -353,13 +360,17 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.H
 }
 
 func (h *FactoryHelper) createBisectionGameExtraData(l2Node string, l2BlockNumber uint64) []byte {
-	l2Client := h.system.NodeClient(l2Node)
-	_, err := geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
-	h.require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
+	h.waitForBlockToBeSafe(l2Node, l2BlockNumber)
 	h.t.Logf("Creating game with l2 block number: %v", l2BlockNumber)
 	extraData := make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	return extraData
+}
+
+func (h *FactoryHelper) waitForBlockToBeSafe(l2Node string, l2BlockNumber uint64) {
+	l2Client := h.system.NodeClient(l2Node)
+	_, err := geth.WaitForBlockToBeSafe(new(big.Int).SetUint64(l2BlockNumber), l2Client, 1*time.Minute)
+	h.require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
 }
 
 func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraData []byte, l1Head *big.Int, l2BlockNumber uint64) {
