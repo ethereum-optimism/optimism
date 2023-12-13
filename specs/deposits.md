@@ -34,6 +34,7 @@ with the authorization and validation conditions on L2.
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
     - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract-reference-implementation)
+    - [Eclipse L1Block upgrade](#eclipse-l1block-upgrade)
 - [User-Deposited Transactions](#user-deposited-transactions)
   - [Deposit Contract](#deposit-contract)
     - [Address Aliasing](#address-aliasing)
@@ -103,6 +104,8 @@ The `sourceHash` of a deposit transaction is computed based on the origin:
   And `seqNumber = l2BlockNum - l2EpochStartBlockNum`,
   where `l2BlockNum` is the L2 block number of the inclusion of the deposit tx in L2,
   and `l2EpochStartBlockNum` is the L2 block number of the first L2 block in the epoch.
+- Upgrade-deposited: `keccak256(bytes32(uint256(2)), keccak256(intent))`.
+  Where `intent` is a UTF-8 byte string, identifying the upgrade intent.
 
 Without a `sourceHash` in a deposit, two different deposited transactions could have the same exact hash.
 
@@ -312,6 +315,16 @@ A reference implementation of the L1 Attributes predeploy contract can be found 
 After running `pnpm build` in the `packages/contracts-bedrock` directory, the bytecode to add to
 the genesis file will be located in the `deployedBytecode` field of the build artifacts file at
 `/packages/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json`.
+
+#### Eclipse L1Block upgrade
+
+The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded in the Eclipse upgrade.
+
+- `overhead`: this getter function now reverts (TBD). Storage remains the same.
+- `scalar`: this getter function now reverts (TBD). Storage remains the same.
+- `x` (TBD): base-fee component scalar
+- `y` (TBD): DA-base-fee component scalar (blob base fee when operating with L1 DA)
+- `daBasefee`: the DA-base-fee.
 
 ## User-Deposited Transactions
 

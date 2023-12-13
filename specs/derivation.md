@@ -64,6 +64,7 @@
   - [L2 Chain Derivation Pipeline](#l2-chain-derivation-pipeline)
     - [L1 Traversal](#l1-traversal)
     - [L1 Retrieval](#l1-retrieval)
+      - [Eclipse: Blob Retrieval](#eclipse-blob-retrieval)
     - [Frame Queue](#frame-queue)
     - [Channel Bank](#channel-bank)
       - [Pruning](#pruning)
@@ -85,6 +86,9 @@
       - [About reorgs Post-Merge](#about-reorgs-post-merge)
 - [Deriving Payload Attributes](#deriving-payload-attributes)
   - [Deriving the Transaction List](#deriving-the-transaction-list)
+    - [Network upgrade automation transactions](#network-upgrade-automation-transactions)
+      - [Eclipse: L1Block predeploy upgrade](#eclipse-l1block-predeploy-upgrade)
+      - [Eclipse: Beacon block roots contract deployment (EIP-4788)](#eclipse-beacon-block-roots-contract-deployment-eip-4788)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -478,6 +482,27 @@ for each transaction:
 
 Each data-transaction is versioned and contains a series of [channel frames][g-channel-frame] to be read by the
 Frame Queue, see [Batch Submission Wire Format][wire-format].
+
+#### Eclipse: Blob Retrieval
+
+With the Eclipse upgrade the retrieval stage is extended to support an additional DA source: [EIP-4844] blobs.
+Upon each traversed transaction in the batch inbox:
+
+- The receiver must be the configured batcher inbox address.
+- The sender must match the batcher address loaded from the system config matching the L1 block of the data.
+- Calldata is utilized, even if contained in a blob tx, and passed on to the next stage before any blob-data is.
+- If the transaction-type is `0x03` (`BLOB_TX_TYPE`): retrieve the blobs that match the `blob_versioned_hashes`.
+  - Blobs may be retrieved from different sources. Retrieval from a local beacon-node,
+    through the `/eth/v1/beacon/blob_sidecars/` endpoint, with `indices` filter to skip unrelated blobs, is recommended.
+  - The rollup node SHOULD cryptographically verify if the retrieved blobs match the versioned hashes.
+
+On L1, the blob data is represented as a polynomial of points, each in range `[0, BLS_MODULUS)`,
+just below the capacity of a `uint256`: approximately `254.857` bits of data.
+Before proceeding with processing, the data is transformed to turn it into a continuous byte string.
+
+TODO: blob encoding format. Version + length-prefix + maximize utilization of the data.
+
+[EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
 
 ### Frame Queue
 
@@ -929,6 +954,7 @@ Therefore, a [`PayloadAttributesV2`][expanded-payload] object must include the f
   - a single *[L1 attributes deposited transaction][g-l1-attr-deposit]*, derived from the L1 origin.
   - for the first L2 block in the epoch, zero or more *[user-deposited transactions][g-user-deposited]*, derived from
     the [receipts][g-receipts] of the L1 origin.
+- zero or more [network upgrade automation transactions]: special transactions to perform network upgrades.
 - zero or more *[sequenced transactions][g-sequencing]*: regular transactions signed by L2 users, included in the
   sequencer batch.
 
@@ -939,6 +965,114 @@ Refer to the [**deposit contract specification**][deposit-contract-spec] for det
 entries.
 
 [deposit-contract-spec]: deposits.md#deposit-contract
+
+### Network upgrade automation transactions
+
+[network upgrade automation transactions]: #network-upgrade-automation-transactions
+
+Some network upgrades require automated contract changes or deployments at specific blocks.
+To automate these, without adding persistent changes to the execution-layer,
+special transactions may be inserted as part of the derivation process.
+
+#### Eclipse: L1Block predeploy upgrade
+
+The `L1Block` contract is upgraded to process the new Eclipse L1-data-fee parameters and L1 blob base-fee.
+
+The `L1Block` is called in the very first transaction of the block,
+and parsed to retrieve the L1 block attributes.
+
+To not modify or interrupt the above system transaction behavior,
+the `L1Block` contract upgrade is executed in the last block *before* the scheduled update.
+
+A deposit transaction is derived with the following attributes:
+
+- `from`: `ProxyAdmin` owner
+- `to`: TBD (depending on multi-call approach)
+- `mint`: `0`
+- `value`: `0`
+- `gasLimit`: gas limit TBD
+- `isCreation`: `false`
+- `data`: bytecode TBD, a multi-call:
+  - deploy new contract implementation
+  - upgrade of `L1Block` through `ProxyAdmin`
+- `sourceHash`: `0x7dc74874297a8937186fdbec57ad344647a522de456088557e5fdeda88f66ddd`,
+  computed with the "Upgrade-deposited" type, with `intent = "Eclipse: L1Block upgrade"`
+
+Verify `sourceHash`:
+
+```bash
+# compute intent hash:
+cast keccak "Eclipse: L1Block upgrade"
+# 0x831b745c7397f93704ae55eb0100bf3c56fe9e304d3f21c1a93ec25f736fea26
+
+# source hash type:
+# 0x0000000000000000000000000000000000000000000000000000000000000002
+
+# compute source hash:
+cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002831b745c7397f93704ae55eb0100bf3c56fe9e304d3f21c1a93ec25f736fea26
+# 0x7dc74874297a8937186fdbec57ad344647a522de456088557e5fdeda88f66ddd
+```
+
+#### Eclipse: Beacon block roots contract deployment (EIP-4788)
+
+[EIP-4788] introduces a "Beacon block roots" contract, that processes and exposes the beacon-block-root values.
+at address `BEACON_ROOTS_ADDRESS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`.
+
+For deployment, [EIP-4788] defines a pre-[EIP-155] legacy transaction, sent from a key that is derived such that the
+transaction signature validity is bound to message-hash, which is bound to the input-data, containing the init-code.
+
+However, this type of transaction requires manual deployment and gas-payments.
+And since the processing is an integral part of the chain processing, and has to be repeated for every OP-Stack chain,
+the deployment is approached differently here.
+
+Some chains may already have a user-submitted instance of the [EIP-4788] transaction.
+This is cryptographically guaranteed to be correct, but may result in the upgrade transaction
+deploying a second contract, with the next nonce. The result of this deployment can be ignored.
+
+A Deposit transaction is derived with the following attributes:
+
+- `from`: `0x0B799C86a49DEeb90402691F1041aa3AF2d3C875`, as specified in the EIP.
+- `to`: null
+- `mint`: `0`
+- `value`: `0`
+- `gasLimit`: `0x3d090`, as specified in the EIP.
+- `isCreation`: `true`
+- `data`:
+  `0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500`
+- `isSystemTx`: `false`, as per the Regolith upgrade, even the system-generated transactions spend gas.
+- `sourceHash`: `0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f`,
+  computed with the "Upgrade-deposited" type, with `intent = "Eclipse: beacon block roots contract deployment"`
+
+The contract address upon deployment is computed as `rlp([sender, nonce])`, which will equal:
+
+- `BEACON_ROOTS_ADDRESS` if deployed
+- a different address (`0xE3aE1Ae551eeEda337c0BfF6C4c7cbA98dce353B`) if `nonce = 1`:
+  when a user already submitted the EIP transaction before the upgrade.
+
+Verify `BEACON_ROOTS_ADDRESS`:
+
+```bash
+cast compute-address --nonce=0 0x0B799C86a49DEeb90402691F1041aa3AF2d3C875
+# Computed Address: 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02
+```
+
+Verify `sourceHash`:
+
+```bash
+# compute intent hash:
+cast keccak "Eclipse: beacon block roots contract deployment"
+# 0x4e73a20ffe4a8330eb1f726862f4b062301e73d081c6d3824a6e0bd6428697fe
+
+# source hash type:
+# 0x0000000000000000000000000000000000000000000000000000000000000002
+
+# compute source hash:
+cast keccak 0x00000000000000000000000000000000000000000000000000000000000000024e73a20ffe4a8330eb1f726862f4b062301e73d081c6d3824a6e0bd6428697fe
+# 0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f
+```
+
+[EIP-4788]: https://eips.ethereum.org/EIPS/eip-4788
+[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
 
 ## Building Individual Payload Attributes
 

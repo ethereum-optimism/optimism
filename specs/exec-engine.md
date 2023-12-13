@@ -12,6 +12,7 @@
   - [Priority fees (Sequencer Fee Vault)](#priority-fees-sequencer-fee-vault)
   - [Base fees (Base Fee Vault)](#base-fees-base-fee-vault)
   - [L1-Cost fees (L1 Fee Vault)](#l1-cost-fees-l1-fee-vault)
+    - [Eclipse L1-Cost fee changes (EIP-4844 DA)](#eclipse-l1-cost-fee-changes-eip-4844-da)
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceupdatedv2)
     - [Extended PayloadAttributesV2](#extended-payloadattributesv2)
@@ -22,6 +23,8 @@
 - [Sync](#sync)
   - [Happy-path sync](#happy-path-sync)
   - [Worst-case sync](#worst-case-sync)
+- [Eclipse: disable Blob-transactions](#eclipse-disable-blob-transactions)
+- [Eclipse: Beacon Block Root](#eclipse-beacon-block-root)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -128,6 +131,10 @@ can be accessed in two interchangeable ways:
     - L1 basefee as big-endian `uint256` in slot `1`
     - Overhead as big-endian `uint256` in slot `5`
     - Scalar as big-endian `uint256` in slot `6`
+
+#### Eclipse L1-Cost fee changes (EIP-4844 DA)
+
+TBD.
 
 ## Engine API
 
@@ -305,6 +312,39 @@ the operation within the engine is the exact same as with L1 (although with an E
 
 [rollup node spec]: rollup-node.md
 
+## Eclipse: disable Blob-transactions
+
+[EIP-4844] introduces Blob transactions: featuring all the functionality of an [EIP-1559] transaction,
+plus a list of "blobs": "Binary Large Object", i.e. a dedicated data type for serving Data-Availability as base-layer.
+
+With the Eclipse upgrade, all Cancun L1 execution features are enabled, with [EIP-4844] as exception:
+as a L2, the OP-Stack does not serve blobs, and thus disables this new transaction type.
+
+EIP-4844 is disabled as following:
+
+- Transaction network-layer announcements, announcing blob-type transactions, are ignored.
+- Transactions of the blob-type, through the RPC or otherwise, are not allowed into the transaction pool.
+- Block-building code does not select EIP-4844 transactions.
+- An L2 block state-transition with EIP-4844 transactions is invalid.
+
+## Eclipse: Beacon Block Root
+
+[EIP-4788] introduces a "beacon block root" into the execution-layer block-header and EVM.
+This block root is an [SSZ hash-tree-root] of the consensus-layer contents of the previous consensus block.
+
+With the adoption of [EIP-4399] in the Bedrock upgrade the OP-Stack already includes the `PREVRANDAO` of L1.
+And thus with [EIP-4788] the L1 beacon block root is made available.
+
+For the Eclipse upgrade, this entails that:
+
+- The `parent_beacon_block_root` of the L1 origin is now embedded in the L2 block header.
+- The "Beacon roots contract" is deployed at Eclipse upgrade-time, or embedded at genesis if activated at genesis.
+- The block state-transition process now includes the same special beacon-block-root EVM processing as L1 ethereum.
+
+[SSZ hash-tree-root]: https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md#merkleization
+[EIP-4399]: https://eips.ethereum.org/EIPS/eip-4399
+[EIP-4788]: https://eips.ethereum.org/EIPS/eip-4788
+[EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
 [eip-1559]: https://eips.ethereum.org/EIPS/eip-1559
 [eip-2028]: https://eips.ethereum.org/EIPS/eip-2028
 [eip-2718]: https://eips.ethereum.org/EIPS/eip-2718
