@@ -20,14 +20,6 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
                                          Types.OutputRootProof memory _outputRootProof,
                                          uint256 _l2OutputIndex,
                                          Types.WithdrawalTransaction memory _tx) external {
-        /* _defaultTx = Types.WithdrawalTransaction({ */
-        /*     nonce: 0, */
-        /*     sender: alice, */
-        /*     target: bob, */
-        /*     value: 100, */
-        /*     gasLimit: 100_000, */
-        /*     data: hex"" */
-        /*     }); */
 
             assert(optimismPortal.paused() == false);
 
@@ -51,11 +43,11 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
 
     function test_proveWithdrawalTransaction_paused(
                                 /* WithdrawalTransaction args */
-								/* uint256 _tx0, */
+								uint256 _tx0,
 								address _tx1,
 								address _tx2,
-								/* uint256 _tx3, */
-								/* uint256 _tx4, */
+								uint256 _tx3,
+								uint256 _tx4,
 								/* bytes   memory _tx5, */
                                 uint256 _l2OutputIndex,
                                 /* OutputRootProof args */
@@ -65,14 +57,9 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
                                 bytes32 _outputRootProof3
                                 /* bytes[] calldata _withdrawalProof */
     ) external {
-        uint256 _tx0 = kevm.freshUInt(32);
-        uint256 _tx3 = kevm.freshUInt(32);
-        uint256 _tx4 = kevm.freshUInt(32);
         bytes memory _tx5 = abi.encode(kevm.freshUInt(32));
 
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
-        /* bytes[] memory _withdrawalProof = new bytes[](1); */
-        /* _withdrawalProof[0] = abi.encode(kevm.freshUInt(32)); */
 
         Types.WithdrawalTransaction memory _tx = createWithdrawalTransaction (
             _tx0,
@@ -100,13 +87,12 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         assert(optimismPortal.paused() == true);
 
         /* No one can call proveWithdrawalTransaction */
-        /* vm.prank(address(uint160(kevm.freshUInt(20)))); */
         vm.expectRevert("OptimismPortal: paused");
         optimismPortal.proveWithdrawalTransaction(
-                                                  _tx,
-                                                  _l2OutputIndex,
-                                                  _outputRootProof,
-                                                  _withdrawalProof
+            _tx,
+            _l2OutputIndex,
+            _outputRootProof,
+            _withdrawalProof
         );
     }
 
