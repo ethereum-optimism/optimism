@@ -65,6 +65,13 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				"err", err)
 			return
 		}
+		if from == nil {
+			log.Error("from address cannot be nil",
+				"provider", p.name,
+				"nonce", nonce,
+				"err", err)
+			return
+		}
 		nonce = tx.Nonce()
 
 		signedTx, err := p.sign(ctx, from, tx)
@@ -197,7 +204,7 @@ func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEt
 	if nonce == 0 {
 		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
 		if err != nil {
-			log.Error("cant get nounce",
+			log.Error("cant get nonce",
 				"provider", p.name,
 				"nonce", nonce,
 				"err", err)
@@ -276,6 +283,7 @@ func (p *Provider) sign(ctx context.Context, from *common.Address, tx *types.Tra
 		log.Debug("using static signer")
 		privateKey, err := crypto.HexToECDSA(p.walletConfig.PrivateKey)
 		if err != nil {
+			log.Error("failed to parse private key", "err", err)
 			return nil, err
 		}
 		return types.SignTx(tx, types.LatestSignerForChainID(&p.walletConfig.ChainID), privateKey)
@@ -286,11 +294,8 @@ func (p *Provider) sign(ctx context.Context, from *common.Address, tx *types.Tra
 			TLSKey:    p.signerConfig.TLSKey,
 		}
 		client, err := iclients.NewSignerClient(p.name, log.Root(), p.signerConfig.URL, tlsConfig)
-		log.Debug("signerclient",
-			"client", client,
-			"err", err)
-		if err != nil {
-			return nil, err
+		if err != nil || client == nil {
+			log.Error("failed to create signer client", "err", err)
 		}
 
 		if client == nil {
