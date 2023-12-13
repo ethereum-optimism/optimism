@@ -63,20 +63,12 @@ func TestOutputCannonGame(t *testing.T) {
 }
 
 func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
-	// TODO(client-pod#336) Reduce the number of cases and enable this tests
-	t.Skip("Contracts always require VM status to indicate the post-state output root is invalid")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 	tests := []struct {
 		disputeL2BlockNumber uint64
 	}{
-		{1},
-		{2},
-		{3},
-		{4},
-		{5},
-		{6},
-		{7},
-		{8},
+		{7}, // Post-state output root is invalid
+		{8}, // Post-state output root is valid
 	}
 	for _, test := range tests {
 		test := test
@@ -99,8 +91,6 @@ func TestOutputCannon_PublishCannonRootClaim(t *testing.T) {
 }
 
 func TestOutputCannonDisputeGame(t *testing.T) {
-	// TODO(client-pod#247): Fix and enable this.
-	t.Skip("Currently failing because of invalid pre-state")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 
 	tests := []struct {
@@ -150,8 +140,6 @@ func TestOutputCannonDisputeGame(t *testing.T) {
 }
 
 func TestOutputCannonDefendStep(t *testing.T) {
-	// TODO(client-pod#247): Fix and enable this.
-	t.Skip("Currently failing because of invalid pre-state")
 	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
 
 	ctx := context.Background()
