@@ -36,14 +36,6 @@ Please refer to the canonical [Security Policy](https://github.com/ethereum-opti
 Bounty hunters are encouraged to check out [the Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
 The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
 
-## The Bedrock Upgrade
-
-OP Mainnet is currently preparing for [its next major upgrade, Bedrock](https://dev.optimism.io/introducing-optimism-bedrock/).
-You can find detailed specifications for the Bedrock upgrade within the [specs folder](./specs) in this repository.
-
-Please note that a significant number of packages and folders within this repository are part of the Bedrock upgrade and are NOT currently running in production.
-Refer to the Directory Structure section below to understand which packages are currently running in production and which are intended for use as part of the Bedrock upgrade.
-
 ## Directory Structure
 
 <pre>
