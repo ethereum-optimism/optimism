@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/stretchr/testify/mock"
 
@@ -127,4 +128,12 @@ func (m *MockEthClient) ReadStorageAt(ctx context.Context, address common.Addres
 
 func (m *MockEthClient) ExpectReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash, result common.Hash, err error) {
 	m.Mock.On("ReadStorageAt", address, storageSlot, blockHash).Once().Return(result, &err)
+}
+
+func (m *MockEthClient) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
+	return m.Mock.MethodCalled(("BlockByNumber"), number).Get(0).(*types.Block), nil
+}
+
+func (m *MockEthClient) ExpectBlockByNumber(number *big.Int, block *types.Block, err error) {
+	m.Mock.On("BlockByNumber", number).Once().Return(block, &err)
 }

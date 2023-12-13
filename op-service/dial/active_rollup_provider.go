@@ -19,7 +19,7 @@ type ActiveL2RollupProvider struct {
 
 	activeTimeout time.Time
 
-	currentRollupClient *sources.RollupClient
+	currentRollupClient sources.RollupClientInterface
 	clientLock          *sync.Mutex
 }
 

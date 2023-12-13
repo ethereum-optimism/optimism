@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -15,7 +14,7 @@ const DefaultActiveSequencerFollowerCheckDuration = 2 * DefaultDialTimeout
 type ActiveL2EndpointProvider struct {
 	ActiveL2RollupProvider
 	ethEndpoints     []string
-	currentEthClient *ethclient.Client
+	currentEthClient ClientInterface
 }
 
 func NewActiveL2EndpointProvider(
