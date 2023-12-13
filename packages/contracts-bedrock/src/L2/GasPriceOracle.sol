@@ -24,8 +24,8 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
 
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
     ///         transaction, the current L1 base fee, and the various dynamic parameters.
@@ -33,9 +33,10 @@ contract GasPriceOracle is ISemver {
     /// @return L1 fee that should be paid for the tx
     function getL1Fee(bytes memory _data) external view returns (uint256) {
         uint256 l1GasUsed = getL1GasUsed(_data);
-        uint256 l1Fee = l1GasUsed * l1BaseFee();
+        uint256 scaledBaseFee = baseFeeScalar() * l1BaseFee();
+        uint256 scaledBlobBaseFee = blobBaseFeeScalar() * blobBaseFee();
         uint256 divisor = 10 ** DECIMALS;
-        uint256 unscaled = l1Fee * scalar();
+        uint256 unscaled = l1GasUsed * (scaledBaseFee + scaledBlobBaseFee);
         uint256 scaled = unscaled / divisor;
         return scaled;
     }
@@ -52,12 +53,14 @@ contract GasPriceOracle is ISemver {
         return block.basefee;
     }
 
+    /// @custom:legacy
     /// @notice Retrieves the current fee overhead.
     /// @return Current fee overhead.
     function overhead() public view returns (uint256) {
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
     }
 
+    /// @custom:legacy
     /// @notice Retrieves the current fee scalar.
     /// @return Current fee scalar.
     function scalar() public view returns (uint256) {
@@ -70,6 +73,24 @@ contract GasPriceOracle is ISemver {
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
+    /// @notice Retrieves the current blob base fee.
+    /// @return Current blob base fee.
+    function blobBaseFee() public view returns (uint256) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFee();
+    }
+
+    /// @notice Retrieves the current base fee scalar.
+    /// @return Current base fee scalar.
+    function baseFeeScalar() public view returns (uint64) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).baseFeeScalar();
+    }
+
+    /// @notice Retrieves the current blob base fee scalar.
+    /// @return Current blob base fee scalar.
+    function blobBaseFeeScalar() public view returns (uint64) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBaseFeeScalar();
+    }
+
     /// @custom:legacy
     /// @notice Retrieves the number of decimals used in the scalar.
     /// @return Number of decimals used in the scalar.
@@ -77,10 +98,8 @@ contract GasPriceOracle is ISemver {
         return DECIMALS;
     }
 
-    /// @notice Computes the amount of L1 gas used for a transaction. Adds the overhead which
-    ///         represents the per-transaction gas overhead of posting the transaction and state
-    ///         roots to L1. Adds 68 bytes of padding to account for the fact that the input does
-    ///         not have a signature.
+    /// @notice Computes the amount of L1 gas used for a transaction. Adds 68 bytes
+    ///         of padding to account for the fact that the input does not have a signature.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
     function getL1GasUsed(bytes memory _data) public view returns (uint256) {
@@ -93,7 +112,7 @@ contract GasPriceOracle is ISemver {
                 total += 16;
             }
         }
-        uint256 unsigned = total + overhead();
-        return unsigned + (68 * 16);
+        uint256 compressedTxSize = total / 16;
+        return compressedTxSize + (68 * 16);
     }
 }
