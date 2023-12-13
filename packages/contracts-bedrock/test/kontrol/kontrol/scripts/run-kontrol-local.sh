@@ -78,10 +78,10 @@ use_booster=--use-booster
 # List of tests to symbolically execute
 tests=""
 #tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test StateDiffTest.setUp "
-# tests+="--match-test StateDiffCheatcode.recreateDeployment "
-# tests+="--match-test StateDiffTest.testVerifyStateChange "
-tests+="--match-test StateDiffTest.test_proveWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.setUp "
+# tests+="--match-test DeploymentSummary.recreateDeployment "
+# tests+="--match-test OptimismPortalKontrol.testVerifyStateChange "
+tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
 
 kontrol_build
 kontrol_prove
