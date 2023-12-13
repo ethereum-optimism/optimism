@@ -8,14 +8,13 @@ import { ProtocolVersions } from "src/L1/ProtocolVersions.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 
-/// @title Authorization_Test
-/// @dev Specify access requirements of all entrypoints to L1 contracts.
-///      When adding new functions, make sure to update the `setUp` function to document if
-///      the function should be authorized or not. The `Spec` struct reppresents this
-///      documentation, where `auth` is `true` if the function requires authorization and
-///      `false` otherwise. However, this contract does not test for authorization, only that
-///      an auth spec is defined for every L1 function.
-contract Authorization_Test is CommonTest {
+/// @title Specification_Test
+/// @dev Specifies common security properties of entrypoints to L1 contracts, including authorization and
+///      pausability.
+///      When adding new functions to the L1 system, the `setUp` function must be updated to document the security
+///      properties of the new function. The `Spec` struct reppresents this documentation. However, this contract does
+///      not actually test to verify these properties, only that a spec is defined.
+contract Specification_Test is CommonTest {
     struct AbiEntry {
         string fnName;
         bytes4 sel;
@@ -451,7 +450,7 @@ contract Authorization_Test is CommonTest {
         for (uint256 i = 0; i < abis.length; i++) {
             string memory contractName = abis[i].contractName;
             assertEq(
-                abis[i].entries.length, numEntries[contractName], "Authorization_Test: invalid number of ABI entries"
+                abis[i].entries.length, numEntries[contractName], "Specification_Test: invalid number of ABI entries"
             );
 
             for (uint256 j = 0; j < abis[i].entries.length; j++) {
@@ -460,8 +459,8 @@ contract Authorization_Test is CommonTest {
                     "Checking auth spec for %s: %s(%x)", contractName, abiEntry.fnName, uint256(uint32(abiEntry.sel))
                 );
                 Spec memory spec = specs[contractName][abiEntry.sel];
-                assertTrue(spec.sel != bytes4(0), "Authorization_Test: missing spec definition");
-                assertEq(abiEntry.sel, spec.sel, "Authorization_Test: invalid ABI");
+                assertTrue(spec.sel != bytes4(0), "Specification_Test: missing spec definition");
+                assertEq(abiEntry.sel, spec.sel, "Specification_Test: invalid ABI");
             }
         }
     }
