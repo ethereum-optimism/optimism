@@ -323,9 +323,7 @@ type Stepper func(parentClaimIdx int64)
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
 func (g *OutputGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
 	maxDepth := g.MaxDepth(ctx)
-	claimCount, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err, "Failed to get current claim count")
-	for claimCount := claimCount.Int64(); claimCount < maxDepth; {
+	for claimCount := g.getClaimCount(ctx); claimCount < maxDepth; {
 		g.LogGameData(ctx)
 		claimCount++
 		// Wait for the challenger to counter
@@ -348,7 +346,8 @@ func (g *OutputGameHelper) DefendRootClaim(ctx context.Context, performMove Move
 // Since the output root is invalid, it should not be possible for the Stepper to call step successfully.
 func (g *OutputGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mover, attemptStep Stepper) {
 	maxDepth := g.MaxDepth(ctx)
-	for claimCount := int64(1); claimCount < maxDepth; {
+
+	for claimCount := g.getClaimCount(ctx); claimCount < maxDepth; {
 		g.LogGameData(ctx)
 		// Perform our move
 		performMove(claimCount - 1)
@@ -366,6 +365,12 @@ func (g *OutputGameHelper) ChallengeRootClaim(ctx context.Context, performMove M
 
 	// It's on us to call step if we want to win but shouldn't be possible
 	attemptStep(maxDepth)
+}
+
+func (g *OutputGameHelper) getClaimCount(ctx context.Context) int64 {
+	claimCount, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to get current claim count")
+	return claimCount.Int64()
 }
 
 func (g *OutputGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
