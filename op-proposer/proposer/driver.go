@@ -206,15 +206,15 @@ func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*e
 	}
 	output, err := rollupClient.OutputAtBlock(ctx, block.Uint64())
 	if err != nil {
-		l.Log.Error("failed to fetch output at block %d: %w", block, err)
+		l.Log.Error("failed to fetch output at block", "block", block, "err", err)
 		return nil, false, err
 	}
 	if output.Version != supportedL2OutputVersion {
-		l.Log.Error("unsupported l2 output version: %s", output.Version)
+		l.Log.Error("unsupported l2 output version", "output_version", output.Version, "supported_version", supportedL2OutputVersion)
 		return nil, false, errors.New("unsupported l2 output version")
 	}
 	if output.BlockRef.Number != block.Uint64() { // sanity check, e.g. in case of bad RPC caching
-		l.Log.Error("invalid blockNumber: next blockNumber is %v, blockNumber of block is %v", block, output.BlockRef.Number)
+		l.Log.Error("invalid blockNumber", "next_block", block, "output_block", output.BlockRef.Number)
 		return nil, false, errors.New("invalid blockNumber")
 	}
 
