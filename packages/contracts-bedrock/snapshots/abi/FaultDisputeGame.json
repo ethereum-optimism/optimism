@@ -42,115 +42,6 @@
   },
   {
     "inputs": [],
-    "name": "CannotDefendRootClaim",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClaimAlreadyExists",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClaimAlreadyResolved",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClockNotExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClockTimeExceeded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "GameDepthExceeded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "GameNotInProgress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidParent",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidPrestate",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "L1HeadTooOld",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OutOfOrderResolution",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "Claim",
-        "name": "rootClaim",
-        "type": "bytes32"
-      }
-    ],
-    "name": "UnexpectedRootClaim",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ValidStep",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "parentIndex",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "Claim",
-        "name": "claim",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "claimant",
-        "type": "address"
-      }
-    ],
-    "name": "Move",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "enum GameStatus",
-        "name": "status",
-        "type": "uint8"
-      }
-    ],
-    "name": "Resolved",
-    "type": "event"
-  },
-  {
-    "inputs": [],
     "name": "ABSOLUTE_PRESTATE",
     "outputs": [
       {
@@ -626,5 +517,114 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "parentIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "Claim",
+        "name": "claim",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "claimant",
+        "type": "address"
+      }
+    ],
+    "name": "Move",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum GameStatus",
+        "name": "status",
+        "type": "uint8"
+      }
+    ],
+    "name": "Resolved",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "CannotDefendRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAlreadyResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClockNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClockTimeExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameDepthExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameNotInProgress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidParent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPrestate",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "L1HeadTooOld",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutOfOrderResolution",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      }
+    ],
+    "name": "UnexpectedRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ValidStep",
+    "type": "error"
   }
 ]
