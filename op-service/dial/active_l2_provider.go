@@ -77,10 +77,12 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 		defer cancel()
 		ep := p.ethUrls[p.currentIndex]
+		log.Info("sequencer changed, dialing new eth client", "new_index", p.currentIndex, "new_url", ep)
 		ethClient, err := p.ethDialer(cctx, p.networkTimeout, p.log, ep)
 		if err != nil {
 			return nil, fmt.Errorf("dialing eth client: %w", err)
 		}
+		p.currentEthClient.Close()
 		p.currentEthClient = ethClient
 	}
 	return p.currentEthClient, nil

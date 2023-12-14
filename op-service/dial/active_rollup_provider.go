@@ -97,16 +97,17 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 }
 
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
-	for attempt := range p.rollupUrls {
+	for index := range p.rollupUrls {
 		active, err := p.checkCurrentSequencer(ctx)
+		ep := p.rollupUrls[p.currentIndex]
 		if err != nil {
-			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "try", attempt)
+			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "index", index, "url", ep)
 			p.currentRollupClient.Close()
 		} else if active {
-			p.log.Debug("Current sequencer active.", "try", attempt)
+			p.log.Debug("Current sequencer active.", "index", index, "url", ep)
 			return nil
 		} else {
-			p.log.Info("Current sequencer inactive, closing connection and trying next.", "try", attempt)
+			p.log.Info("Current sequencer inactive, closing connection and trying next.", "index", index, "url", ep)
 			p.currentRollupClient.Close()
 		}
 		if err := p.dialNextSequencer(ctx); err != nil {
@@ -132,7 +133,7 @@ func (p *ActiveL2RollupProvider) dialNextSequencer(ctx context.Context) error {
 
 	p.currentIndex = (p.currentIndex + 1) % p.numEndpoints()
 	ep := p.rollupUrls[p.currentIndex]
-
+	p.log.Info("Dialing next sequencer.", "index", p.currentIndex, "url", ep)
 	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
 	if err != nil {
 		return fmt.Errorf("dialing rollup client: %w", err)
