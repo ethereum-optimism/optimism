@@ -371,12 +371,22 @@ func (s *channelManager) Close() error {
 		return nil
 	}
 
-	// Force-close the remaining open channel early (if not already closed):
-	// it will be marked as "full" due to service termination.
-	s.currentChannel.Close()
+	// If the channel is already full, we don't need to close it or output frames.
+	// This would already have happened in TxData.
+	if !s.currentChannel.IsFull() {
+		// Force-close the remaining open channel early (if not already closed):
+		// it will be marked as "full" due to service termination.
+		s.currentChannel.Close()
 
-	// We do not s.outputFrames():
-	// this will only error if we cannot submit it in one go due to channel limits.
-	// Instead, make it clear to the caller that there is remaining pending work.
-	return ErrPendingAfterClose
+		// Final outputFrames call in case there was unflushed data in the compressor.
+		if err := s.outputFrames(); err != nil {
+			return fmt.Errorf("outputting frames during close: %w", err)
+		}
+	}
+
+	if s.currentChannel.HasFrame() {
+		// Make it clear to the caller that there is remaining pending work.
+		return ErrPendingAfterClose
+	}
+	return nil
 }
