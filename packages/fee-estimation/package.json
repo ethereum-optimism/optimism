@@ -37,7 +37,7 @@
     "@eth-optimism/contracts-ts": "workspace:^",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react-hooks": "^8.0.1",
-    "@vitest/coverage-istanbul": "^1.0.2",
+    "@vitest/coverage-istanbul": "^1.0.4",
     "abitype": "^0.10.3",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
