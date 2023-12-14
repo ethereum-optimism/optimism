@@ -20,6 +20,20 @@ contract GhostBytes10 {
     bytes public ghostBytes7;
     bytes public ghostBytes8;
     bytes public ghostBytes9;
+
+    function getGhostBytesArray() public view returns (bytes[] memory _arr) {
+        _arr = new bytes[](10);
+        _arr[0] = ghostBytes0;
+        _arr[1] = ghostBytes1;
+        _arr[2] = ghostBytes2;
+        _arr[3] = ghostBytes3;
+        _arr[4] = ghostBytes4;
+        _arr[5] = ghostBytes5;
+        _arr[6] = ghostBytes6;
+        _arr[7] = ghostBytes7;
+        _arr[8] = ghostBytes8;
+        _arr[9] = ghostBytes9;
+    }
 }
 
 /// @notice tests inheriting this contract cannot be run with forge
@@ -89,10 +103,8 @@ abstract contract KontrolUtils is KontrolCheats {
     /// Each element is 17 * 32 = 544 bytes long, plus ~10% margin for RLP encoding: each element is 600 bytes
     /// The length of the array to 10 or fewer elements
     function freshWithdrawalProof() public returns (bytes[] memory withdrawalProof) {
-        /* Assuming arrayLength = 2 for faster proof speeds. For full generality replace with the code below */
+        /* Assume arrayLength = 2 for faster proof speeds */
         uint256 arrayLength = 10;
-        /* uint256 arrayLength = kevm.freshUInt(32); */
-        /* vm.assume(arrayLength <= 10); */
 
         withdrawalProof = new bytes[](arrayLength);
 
@@ -117,20 +129,27 @@ abstract contract KontrolUtils is KontrolCheats {
         vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue));
         vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue));
 
-        withdrawalProof[0] = ghostBytes10.ghostBytes0();
-        withdrawalProof[1] = ghostBytes10.ghostBytes1();
-        withdrawalProof[2] = ghostBytes10.ghostBytes2();
-        withdrawalProof[3] = ghostBytes10.ghostBytes3();
-        withdrawalProof[4] = ghostBytes10.ghostBytes4();
-        withdrawalProof[5] = ghostBytes10.ghostBytes5();
-        withdrawalProof[6] = ghostBytes10.ghostBytes6();
-        withdrawalProof[7] = ghostBytes10.ghostBytes7();
-        withdrawalProof[8] = ghostBytes10.ghostBytes8();
-        withdrawalProof[9] = ghostBytes10.ghostBytes9();
+        /* Current approach */
+
+        withdrawalProof = ghostBytes10.getGhostBytesArray();
+
+        /* Second approach */
+
+        /* withdrawalProof[0] = ghostBytes10.ghostBytes0(); */
+        /* withdrawalProof[1] = ghostBytes10.ghostBytes1(); */
+        /* withdrawalProof[2] = ghostBytes10.ghostBytes2(); */
+        /* withdrawalProof[3] = ghostBytes10.ghostBytes3(); */
+        /* withdrawalProof[4] = ghostBytes10.ghostBytes4(); */
+        /* withdrawalProof[5] = ghostBytes10.ghostBytes5(); */
+        /* withdrawalProof[6] = ghostBytes10.ghostBytes6(); */
+        /* withdrawalProof[7] = ghostBytes10.ghostBytes7(); */
+        /* withdrawalProof[8] = ghostBytes10.ghostBytes8(); */
+        /* withdrawalProof[9] = ghostBytes10.ghostBytes9(); */
+
+        /* First approach */
 
         /* for (uint256 i = 0; i < withdrawalProof.length; ++i) { */
-        /*     withdrawalProof[i] = freshBigBytes(600); // abi.encodePacked(freshBytes32());  //
-        abi.encodePacked(kevm.freshUInt(32)); */
+        /*     withdrawalProof[i] = freshBigBytes(600);
         /* } */
     }
 }
