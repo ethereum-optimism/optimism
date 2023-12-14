@@ -38,7 +38,7 @@ test/kontrol
 
 ### [`proofs`](./proofs) folder
 
-- [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol)
+- [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol): Symbolic property tests
 - [`interfaces`](./proofs/interfaces): Files with the signature of the functions involved in the verification effort
 - [`utils`](./proofs/utils): Dependencies for `OptimismPortal.k.sol`
 
@@ -51,7 +51,18 @@ test/kontrol
     - [`run-kontrol-local.sh`](./kontrol/scrpts/run-kontrol-local.sh): Local execution script
     - [`json`](./kontrol/scripts/json): Data cleaning scripts for the output of [`KontrolDeployment.sol`](./KontrolDeployment.sol)
 
+## Local verification exeuction
 
+The verification execution consists of two steps and there's one script to run per step. These commands should be run from the [`contracts-bedrock`](../../) directory.
+
+1. Generate a deployment summary contract from [`KontrolDeployment.sol`](./KontrolDeployment.sol)
+```bash
+  bash test/kontrol/kontrol/scripts/make-summary-deployment.sh
+```
+2. Execute the tests in [`OptimismPortal.k.sol`](./proofs/OptimismPortal.k.sol)
+```bash
+  ./test/kontrol/kontrol/scripts/run-kontrol-local.sh
+```
 
 ## References
 
