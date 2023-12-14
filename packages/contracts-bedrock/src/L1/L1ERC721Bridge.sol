@@ -22,10 +22,9 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
 
-    // TODO: should semver version be updated?
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Constructs the L1ERC721Bridge contract.
     constructor() ERC721Bridge() {
@@ -37,9 +36,9 @@ contract L1ERC721Bridge is ERC721Bridge, ISemver {
     }
 
     /// @notice Initializes the contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
     function initialize(
         CrossDomainMessenger _messenger,
         address _otherBridge,
