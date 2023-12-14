@@ -131,11 +131,12 @@ func (m *MockEthClient) ExpectReadStorageAt(ctx context.Context, address common.
 }
 
 func (m *MockEthClient) BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error) {
-	return m.Mock.MethodCalled(("BlockByNumber"), number).Get(0).(*types.Block), nil
+	out := m.Mock.Called(number)
+	return out.Get(0).(*types.Block), out.Error(1)
 }
 
 func (m *MockEthClient) ExpectBlockByNumber(number *big.Int, block *types.Block, err error) {
-	m.Mock.On("BlockByNumber", number).Once().Return(block, &err)
+	m.Mock.On("BlockByNumber", number).Once().Return(block, err)
 }
 
 func (m *MockEthClient) ExpectClose() {
@@ -143,5 +144,5 @@ func (m *MockEthClient) ExpectClose() {
 }
 
 func (m *MockEthClient) Close() {
-	m.Mock.MethodCalled("Close")
+	m.Mock.Called()
 }

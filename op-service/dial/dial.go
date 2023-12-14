@@ -33,10 +33,6 @@ func DialEthClientWithTimeout(ctx context.Context, timeout time.Duration, log lo
 	return ethclient.NewClient(c), nil
 }
 
-func DialEthClientInterfaceWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error) {
-	return DialEthClientWithTimeout(ctx, timeout, log, url)
-}
-
 // DialRollupClientWithTimeout attempts to dial the RPC provider using the provided URL.
 // If the dial doesn't complete within timeout seconds, this method will return an error.
 func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string) (*sources.RollupClient, error) {
@@ -49,10 +45,6 @@ func DialRollupClientWithTimeout(ctx context.Context, timeout time.Duration, log
 	}
 
 	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
-}
-
-func DialRollupClientInterfaceWithTimeout(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
-	return DialRollupClientWithTimeout(ctx, timeout, log, url)
 }
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.

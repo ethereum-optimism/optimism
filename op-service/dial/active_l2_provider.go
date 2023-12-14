@@ -17,9 +17,20 @@ type ActiveL2EndpointProvider struct {
 	ActiveL2RollupProvider
 	currentEthClient EthClientInterface
 	ethDialer        ethDialer
+	ethUrls          []string
 }
 
-func NewActiveL2EndpointProvider(
+func NewActiveL2EndpointProvider(ctx context.Context, ethUrls, rollupUrls []string, checkDuration time.Duration, networkTimeout time.Duration, logger log.Logger) (*ActiveL2EndpointProvider, error) {
+	dialEthClientInterfaceWithTimeout := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error) {
+		return DialEthClientWithTimeout(ctx, timeout, log, url)
+	}
+	dialRollupClientInterfaceWithTimeout := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
+		return DialRollupClientWithTimeout(ctx, timeout, log, url)
+	}
+	return newActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, checkDuration, networkTimeout, logger, dialEthClientInterfaceWithTimeout, dialRollupClientInterfaceWithTimeout)
+}
+
+func newActiveL2EndpointProvider(
 	ctx context.Context,
 	ethUrls, rollupUrls []string,
 	checkDuration time.Duration,
@@ -35,7 +46,7 @@ func NewActiveL2EndpointProvider(
 		return nil, errors.New("number of eth urls and rollup urls mismatch")
 	}
 
-	rollupProvider, err := NewActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
+	rollupProvider, err := newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
 	if err != nil {
 		return nil, err
 	}
@@ -49,77 +60,30 @@ func NewActiveL2EndpointProvider(
 		ActiveL2RollupProvider: *rollupProvider,
 		currentEthClient:       ethClient,
 		ethDialer:              ethDialer,
+		ethUrls:                ethUrls,
 	}, nil
 }
 
 func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInterface, error) {
 	p.clientLock.Lock()
 	defer p.clientLock.Unlock()
+	indexBeforeCheck := p.currentIndex
 	err := p.ensureActiveEndpoint(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	return p.currentEthClient, nil
-}
-
-func (p *ActiveL2EndpointProvider) ensureActiveEndpoint(ctx context.Context) error {
-	if !p.shouldCheck() {
-		return nil
-	}
-
-	if err := p.findActiveEndpoints(ctx); err != nil {
-		return err
-	}
-	p.activeTimeout = time.Now().Add(p.checkDuration)
-	return nil
-}
-
-func (p *ActiveL2EndpointProvider) findActiveEndpoints(ctx context.Context) error {
-	const maxRetries = 20
-	totalAttempts := 0
-
-	for totalAttempts < maxRetries {
-		active, err := p.checkCurrentSequencer(ctx)
+	if indexBeforeCheck != p.currentIndex {
+		// we changed sequencers, dial a new EthClient
+		cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
+		defer cancel()
+		ep := p.ethUrls[p.currentIndex]
+		ethClient, err := p.ethDialer(cctx, p.networkTimeout, p.log, ep)
 		if err != nil {
-			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "try", totalAttempts)
-			p.currentRollupClient.Close()
-			p.currentEthClient.Close()
-		} else if active {
-			p.log.Debug("Current sequencer active.", "try", totalAttempts)
-			return nil
-		} else {
-			p.log.Info("Current sequencer inactive, closing connection and trying next.", "try", totalAttempts)
-			p.currentRollupClient.Close()
-			p.currentEthClient.Close()
+			return nil, fmt.Errorf("dialing eth client: %w", err)
 		}
-		if err := p.dialNextSequencer(ctx); err != nil {
-			return fmt.Errorf("dialing next sequencer: %w", err)
-		}
-
-		totalAttempts++
+		p.currentEthClient = ethClient
 	}
-	return fmt.Errorf("failed to find an active sequencer after %d retries", maxRetries)
-}
-
-func (p *ActiveL2EndpointProvider) dialNextSequencer(ctx context.Context) error {
-	cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
-	defer cancel()
-	p.currentIndex = (p.currentIndex + 1) % p.numEndpoints()
-	ep := p.rollupUrls[p.currentIndex]
-	p.log.Debug("Dialing next sequencer.", "url", ep)
-	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
-	if err != nil {
-		return fmt.Errorf("dialing rollup client: %w", err)
-	}
-	ethClient, err := p.ethDialer(cctx, p.networkTimeout, p.log, ep)
-	if err != nil {
-		return fmt.Errorf("dialing eth client: %w", err)
-	}
-
-	p.currentRollupClient = rollupClient
-	p.currentEthClient = ethClient
-	return nil
+	return p.currentEthClient, nil
 }
 
 func (p *ActiveL2EndpointProvider) Close() {

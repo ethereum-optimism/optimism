@@ -16,26 +16,26 @@ import (
 // will failover to the next provider if the current one is not active.
 func TestActiveSequencerFailoverBehavior_RollupProviders(t *testing.T) {
 	// Create two mock rollup clients, one of which will declare itself inactive after first check.
-	primarySequencer := testutils.MockRollupClient{}
+	primarySequencer := new(testutils.MockRollupClient)
 	primarySequencer.ExpectSequencerActive(true, nil)
 	primarySequencer.ExpectSequencerActive(false, nil)
 	primarySequencer.ExpectClose()
-	secondarySequencer := testutils.MockRollupClient{}
+	secondarySequencer := new(testutils.MockRollupClient)
 	secondarySequencer.ExpectSequencerActive(true, nil)
 
 	mockRollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
-		if url == "primary" {
-			return &primarySequencer, nil
-		} else if url == "secondary" {
-			return &secondarySequencer, nil
+		if url == "primaryRollup" {
+			return primarySequencer, nil
+		} else if url == "secondaryRollup" {
+			return secondarySequencer, nil
 		} else {
 			return nil, fmt.Errorf("unknown test url: %s", url)
 		}
 	}
 
-	endpointProvider, err := NewActiveL2RollupProvider(
+	endpointProvider, err := newActiveL2RollupProvider(
 		context.Background(),
-		[]string{"primary", "secondary"},
+		[]string{"primaryRollup", "secondaryRollup"},
 		1*time.Microsecond,
 		1*time.Minute,
 		testlog.Logger(t, log.LvlDebug),
@@ -45,10 +45,10 @@ func TestActiveSequencerFailoverBehavior_RollupProviders(t *testing.T) {
 	// Check that the first client is used, then the second once the first declares itself inactive.
 	firstSequencerUsed, err := endpointProvider.RollupClient(context.Background())
 	require.NoError(t, err)
-	require.True(t, &primarySequencer == firstSequencerUsed) // avoids copying the struct (and its mutex, etc.)
+	require.Same(t, primarySequencer, firstSequencerUsed)
 	secondSequencerUsed, err := endpointProvider.RollupClient(context.Background())
 	require.NoError(t, err)
-	require.True(t, &secondarySequencer == secondSequencerUsed)
+	require.Same(t, secondarySequencer, secondSequencerUsed)
 }
 
 // TestActiveSequencerFailoverBehavior_L2Providers tests that the ActiveL2EndpointProvider
@@ -56,38 +56,38 @@ func TestActiveSequencerFailoverBehavior_RollupProviders(t *testing.T) {
 func TestActiveSequencerFailoverBehavior_L2Providers(t *testing.T) {
 	// as TestActiveSequencerFailoverBehavior_RollupProviders,
 	// but ensure the added `EthClient()` method also triggers the failover.
-	primarySequencer := testutils.MockRollupClient{}
+	primarySequencer := new(testutils.MockRollupClient)
 	primarySequencer.ExpectSequencerActive(true, nil)
 	primarySequencer.ExpectSequencerActive(false, nil)
 	primarySequencer.ExpectClose()
-	secondarySequencer := testutils.MockRollupClient{}
+	secondarySequencer := new(testutils.MockRollupClient)
 	secondarySequencer.ExpectSequencerActive(true, nil)
 
 	mockRollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
-		if url == "primary" {
-			return &primarySequencer, nil
-		} else if url == "secondary" {
-			return &secondarySequencer, nil
+		if url == "primaryRollup" {
+			return primarySequencer, nil
+		} else if url == "secondaryRollup" {
+			return secondarySequencer, nil
 		} else {
 			return nil, fmt.Errorf("unknown test url: %s", url)
 		}
 	}
-	primaryEthClient := testutils.MockEthClient{}
+	primaryEthClient := new(testutils.MockEthClient)
 	primaryEthClient.ExpectClose()
-	secondaryEthClient := testutils.MockEthClient{}
+	secondaryEthClient := new(testutils.MockEthClient)
 	mockEthDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error) {
-		if url == "primary" {
-			return &primaryEthClient, nil
-		} else if url == "secondary" {
-			return &secondaryEthClient, nil
+		if url == "primaryEth" {
+			return primaryEthClient, nil
+		} else if url == "secondaryEth" {
+			return secondaryEthClient, nil
 		} else {
 			return nil, fmt.Errorf("unknown test url: %s", url)
 		}
 	}
-	endpointProvider, err := NewActiveL2EndpointProvider(
+	endpointProvider, err := newActiveL2EndpointProvider(
 		context.Background(),
-		[]string{"primary", "secondary"},
-		[]string{"primary", "secondary"},
+		[]string{"primaryEth", "secondaryEth"},
+		[]string{"primaryRollup", "secondaryRollup"},
 		1*time.Microsecond,
 		1*time.Minute,
 		testlog.Logger(t, log.LvlDebug),
@@ -97,8 +97,8 @@ func TestActiveSequencerFailoverBehavior_L2Providers(t *testing.T) {
 	require.NoError(t, err)
 	firstClientUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
-	require.True(t, &primaryEthClient == firstClientUsed) // avoids copying the struct (and its mutex, etc.)
+	require.Same(t, primaryEthClient, firstClientUsed) // avoids copying the struct (and its mutex, etc.)
 	secondClientUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
-	require.True(t, &secondaryEthClient == secondClientUsed)
+	require.Same(t, secondaryEthClient, secondClientUsed)
 }
