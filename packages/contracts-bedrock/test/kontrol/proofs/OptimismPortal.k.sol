@@ -57,7 +57,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
                                 bytes32 _outputRootProof3
                                 /* bytes[] calldata _withdrawalProof */
     ) external {
-        bytes memory _tx5 = abi.encode(kevm.freshUInt(32));
+        bytes memory _tx5 = freshBigBytes(320);
 
         bytes[] memory _withdrawalProof = freshWithdrawalProof();
 
@@ -103,7 +103,7 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
        uint256 _tx3,
        uint256 _tx4
     ) external {
-        bytes memory _tx5 = abi.encode(kevm.freshUInt(32));
+        bytes memory _tx5 = freshBigBytes(320);
 
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction(
             _tx0,
