@@ -95,7 +95,6 @@ abstract contract KontrolUtils is KontrolCheats {
         /* Load the size encoding into the first slot of ghostBytes*/
         vm.store(address(ghostBytes), bytes32(uint256(0)), bytes32(bytesSlotValue));
 
-        /* vm.assume(ghostBytes.bytesLength() == bytesLength); */
         sBytes = ghostBytes.ghostBytes();
     }
 
