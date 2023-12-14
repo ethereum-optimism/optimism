@@ -113,8 +113,8 @@ abstract contract StandardBridge is Initializable {
     }
 
     /// @notice Initializer.
-    /// @param _messenger   Address of CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the other StandardBridge contract.
+    /// @param _messenger   Contract for CrossDomainMessenger on this network.
+    /// @param _otherBridge Contract for the other StandardBridge contract.
     // solhint-disable-next-line func-name-mixedcase
     function __StandardBridge_init(
         CrossDomainMessenger _messenger,
@@ -123,14 +123,6 @@ abstract contract StandardBridge is Initializable {
         internal
         onlyInitializing
     {
-        require(
-            _messenger != CrossDomainMessenger(address(0)), "StandardBridge: address of messenger cannot be address(0)"
-        );
-        require(
-            _otherBridge != StandardBridge(payable(address(0))),
-            "StandardBridge: address of other bridge cannot be address(0)"
-        );
-
         messenger = _messenger;
         otherBridge = _otherBridge;
     }
