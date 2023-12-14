@@ -37,7 +37,7 @@ fs_permissions = [
   { access='read', path = './forge-artifacts/' },
   { access='write', path='./semver-lock.json' },
   { access='read-write', path='./.testdata/' },
-  { access='read', path='./kout' }
+  { access='read', path='./kout-deployment' }
 ]
 libs = ["node_modules", "lib"]
 
@@ -70,14 +70,14 @@ optimizer = false
 #                         PROFILE: KONTROL                     #
 ################################################################
 
-[profile.kontrol]
+[profile.kdeploy]
 src = 'src/L1'
-out = 'kout'
+out = 'kout-deployment'
 test = 'test/kontrol'
 script = 'scripts-kontrol'
 
-[profile.stategen]
-src = 'test/kontrol/state-change'
-out = 'state-out'
-test = 'test/kontrol/state-change'
+[profile.kprove]
+src = 'test/kontrol/proofs'
+out = 'kout-proofs'
+test = 'test/kontrol/proofs'
 script = 'scripts-kontrol'

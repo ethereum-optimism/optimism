@@ -16,11 +16,11 @@ notif "Script Home: $SCRIPT_HOME"
 blank_line
 
 # Set Run Directory <root>/packages/contracts-bedrock
-WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
+WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../../.." >/dev/null 2>&1 && pwd )
 notif "Run Directory: ${WORKSPACE_DIR}"
 blank_line
 
-export FOUNDRY_PROFILE=kontrol
+export FOUNDRY_PROFILE=kprove
 export CONTAINER_NAME=kontrol-tests
 KONTROLRC=$(cat "${WORKSPACE_DIR}/../../.kontrolrc")
 export KONTROL_RELEASE=${KONTROLRC}
@@ -70,7 +70,7 @@ start_docker () {
 }
 
 docker_exec () {
-    docker exec --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
+    docker exec --user user --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
 }
 
 dump_log_results(){
@@ -125,7 +125,7 @@ trap on_failure ERR INT
 # empty assignment to activate/deactivate the corresponding flag
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=CounterTest:${base_module}
+module=OptimismPortalKontrol:${base_module}
 rekompile=--rekompile
 regen=--regen
 rekompile=
@@ -134,11 +134,11 @@ regen=
 #########################
 # kontrol prove options #
 #########################
-max_depth=10000
-max_iterations=10000
+max_depth=1000000
+max_iterations=1000000
 smt_timeout=100000
 bmc_depth=10
-workers=2
+workers=1
 reinit=--reinit
 reinit=
 break_on_calls=--no-break-on-calls
@@ -154,10 +154,9 @@ use_booster=--use-booster
 # List of tests to symbolically execute #
 #########################################
 tests=""
-#tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test StateDiffTest.setUp "
-tests+="--match-test StateDiffCheatcode.recreateDeployment "
-# tests+="--match-test StateDiffTest.testVerifyStateChange "
+tests+="--match-test CounterTest.test_SetNumber "
+#tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.test_finalizeWithdrawalTransaction_paused "
 
 #############
 # RUN TESTS #

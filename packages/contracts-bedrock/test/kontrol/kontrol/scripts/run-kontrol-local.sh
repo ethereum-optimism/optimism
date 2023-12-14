@@ -2,7 +2,7 @@
 
 set -euxo pipefail
 
-export FOUNDRY_PROFILE=stategen
+export FOUNDRY_PROFILE=kprove
 
 # Create a log file to store standard out and standard error
 LOG_FILE="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
@@ -17,7 +17,7 @@ kontrol_build() {
             ${regen}                  \
             ${rekompile}
 }
-  # --bmc-depth ${bmc_depth}           \
+
 kontrol_prove() {
     kontrol prove                              \
             --verbose                          \
@@ -30,58 +30,49 @@ kontrol_prove() {
             ${break_on_calls}                  \
             ${auto_abstract}                   \
             ${tests}                           \
-            ${use_booster} # \
-             # --kore-rpc-command="kore-rpc-booster -l Rewrite"
+            ${use_booster}
 }
 
-###
-# kontrol build options
-###
-# NOTE: This script should be executed from the `contracts-bedrock` directory
+#########################
+# kontrol build options #
+#########################
+# NOTE: This script has a recurring pattern of setting and unsetting variables,
+# such as `rekompile`. Such a pattern is intended for easy use while locally
+# developing and executing the proofs via this script. Comment/uncomment the
+# empty assignment to activate/deactivate the corresponding flag
 lemmas=test/kontrol/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
-module=StateDiffTest:${base_module}
+module=OptimismPortalKontrol:${base_module}
 
 rekompile=--rekompile
 regen=--regen
 rekompile=
 regen=
 
-###
-# kontrol prove options
-###
+#########################
+# kontrol prove options #
+#########################
 max_depth=10000000
-
 max_iterations=10000000
-
 smt_timeout=100000
-
-# bmc_depth=10
-
 workers=1
-
 reinit=--reinit
 reinit=
-
 break_on_calls=--no-break-on-calls
 # break_on_calls=
-
 auto_abstract=--auto-abstract-gas
 # auto_abstract=
-
 bug_report=--bug-report
 bug_report=
-
 use_booster=--use-booster
 # use_booster=
 
-# List of tests to symbolically execute
+#########################################
+# List of tests to symbolically execute #
+#########################################
 tests=""
-#tests+="--match-test CounterTest.test_SetNumber "
-#tests+="--match-test StateDiffTest.setUp "
-# tests+="--match-test StateDiffCheatcode.recreateDeployment "
-# tests+="--match-test StateDiffTest.testVerifyStateChange "
-tests+="--match-test StateDiffTest.test_proveWithdrawalTransaction_paused "
+tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
+tests+="--match-test OptimismPortalKontrol.test_finalizeWithdrawalTransaction_paused "
 
 kontrol_build
 kontrol_prove
