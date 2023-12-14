@@ -155,7 +155,7 @@ jobs:
             - "node_modules"
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --offline
+          command: pnpm install:ci:offline
       - run:
           name: print forge version
           command: forge --version
@@ -367,7 +367,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: print forge version
           command: forge --version
@@ -399,7 +399,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       # Note: this step needs to come first because one of the later steps modifies the cache & forces a contracts rebuild
       - run:
           name: semver lock
@@ -493,7 +493,7 @@ jobs:
       - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - check-changed:
           patterns: contracts-bedrock
       - run:
@@ -539,7 +539,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
@@ -568,7 +568,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: Check generated and build
           command: pnpm generate:check
@@ -590,7 +590,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: anvil-l1
           background: true
@@ -654,7 +654,7 @@ jobs:
             npm i pnpm --global
       - run:
           name: pnpm dev deps
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: specs toc
           command: pnpm lint:specs:toc && git diff --exit-code ./specs
@@ -674,7 +674,7 @@ jobs:
       - run:
           name: Install node_modules
           command: |
-            pnpm install --frozen-lockfile --prefer-offline
+            pnpm install:ci
       - run:
           name: Lint check
           command: |
@@ -859,7 +859,7 @@ jobs:
           name: run tests
           command: |
             mkdir -p /testlogs
-            
+
             export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
@@ -951,7 +951,7 @@ jobs:
           working_directory: indexer
       - run:
           name: Install node_modules
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
           working_directory: indexer/api-ts
       - run:
           name: Install tygo
@@ -1068,7 +1068,7 @@ jobs:
       - run:
           name: Install and build
           command: |
-            pnpm install --frozen-lockfile --prefer-offline && pnpm build
+            pnpm install:ci && pnpm build
       - attach_workspace:
           at: /tmp/workspace
       - run:
