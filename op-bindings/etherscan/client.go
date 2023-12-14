@@ -120,7 +120,7 @@ func (c *client) fetchEtherscanRpc(ctx context.Context, url string) (rpcResponse
 		}
 
 		var resultString string
-		_ = json.Unmarshal(response.Result, &resultString)
+		err = json.Unmarshal(response.Result, &resultString)
 		if err != nil {
 			return rpcResponse{}, fmt.Errorf("failed to unmarshal response.Result as a string: %w", err)
 		}
