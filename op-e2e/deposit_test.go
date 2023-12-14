@@ -2,10 +2,11 @@ package op_e2e
 
 import (
 	"context"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
