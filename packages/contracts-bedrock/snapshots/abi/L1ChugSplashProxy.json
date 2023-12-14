@@ -15,6 +15,10 @@
     "type": "fallback"
   },
   {
+    "stateMutability": "payable",
+    "type": "receive"
+  },
+  {
     "inputs": [],
     "name": "getImplementation",
     "outputs": [
@@ -83,9 +87,5 @@
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
-  },
-  {
-    "stateMutability": "payable",
-    "type": "receive"
   }
 ]
