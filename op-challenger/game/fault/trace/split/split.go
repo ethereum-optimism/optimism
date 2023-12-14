@@ -14,7 +14,7 @@ var (
 	errRefClaimNotDeepEnough = errors.New("reference claim is not deep enough")
 )
 
-type ProviderCreator func(ctx context.Context, pre types.Claim, post types.Claim) (types.TraceProvider, error)
+type ProviderCreator func(ctx context.Context, depth uint64, pre types.Claim, post types.Claim) (types.TraceProvider, error)
 
 func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
 	return func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error) {
@@ -56,7 +56,10 @@ func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth int, bot
 				}
 			}
 		}
-		provider, err := bottomProviderCreator(ctx, pre, post)
+		// The top game runs from depth 0 to split depth *inclusive*.
+		// The - 1 here accounts for the fact that the split depth is included in the top game.
+		bottomDepth := game.MaxDepth() - uint64(topDepth) - 1
+		provider, err := bottomProviderCreator(ctx, bottomDepth, pre, post)
 		if err != nil {
 			return nil, err
 		}

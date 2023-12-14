@@ -27,7 +27,7 @@ func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64) {
 
 	game, claim := h.loadState(ctx, claimIdx)
 	attackPos := claim.Position.Attack()
-	h.t.Logf("Attacking at position %v with g index %v", attackPos, attackPos.ToGIndex())
+	h.t.Logf("Attacking claim %v at position %v with g index %v", claimIdx, attackPos, attackPos.ToGIndex())
 	value, err := h.correctTrace.Get(ctx, game, claim, attackPos)
 	h.require.NoErrorf(err, "Get correct claim at position %v with g index %v", attackPos, attackPos.ToGIndex())
 	h.t.Log("Performing attack")

@@ -18,6 +18,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -48,8 +49,8 @@ type DriverSetup struct {
 	Txmgr    txmgr.TxManager
 	L1Client L1Client
 
-	// RollupClient is used to retrieve output roots from
-	RollupClient RollupClient
+	// RollupProvider's RollupClient() is used to retrieve output roots from
+	RollupProvider dial.RollupProvider
 }
 
 // L2OutputSubmitter is responsible for proposing outputs
@@ -167,7 +168,12 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	// Fetch the current L2 heads
 	cCtx, cancel = context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	status, err := l.RollupClient.SyncStatus(cCtx)
+	rollupClient, err := l.RollupProvider.RollupClient(cCtx)
+	if err != nil {
+		l.Log.Error("proposer unable to get rollup client", "err", err)
+		return nil, false, err
+	}
+	status, err := rollupClient.SyncStatus(cCtx)
 	if err != nil {
 		l.Log.Error("proposer unable to get sync status", "err", err)
 		return nil, false, err
@@ -192,17 +198,23 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.Cfg.NetworkTimeout)
 	defer cancel()
-	output, err := l.RollupClient.OutputAtBlock(ctx, block.Uint64())
+
+	rollupClient, err := l.RollupProvider.RollupClient(ctx)
 	if err != nil {
-		l.Log.Error("failed to fetch output at block %d: %w", block, err)
+		l.Log.Error("proposer unable to get rollup client", "err", err)
+		return nil, false, err
+	}
+	output, err := rollupClient.OutputAtBlock(ctx, block.Uint64())
+	if err != nil {
+		l.Log.Error("failed to fetch output at block", "block", block, "err", err)
 		return nil, false, err
 	}
 	if output.Version != supportedL2OutputVersion {
-		l.Log.Error("unsupported l2 output version: %s", output.Version)
+		l.Log.Error("unsupported l2 output version", "output_version", output.Version, "supported_version", supportedL2OutputVersion)
 		return nil, false, errors.New("unsupported l2 output version")
 	}
 	if output.BlockRef.Number != block.Uint64() { // sanity check, e.g. in case of bad RPC caching
-		l.Log.Error("invalid blockNumber: next blockNumber is %v, blockNumber of block is %v", block, output.BlockRef.Number)
+		l.Log.Error("invalid blockNumber", "next_block", block, "output_block", output.BlockRef.Number)
 		return nil, false, errors.New("invalid blockNumber")
 	}
 

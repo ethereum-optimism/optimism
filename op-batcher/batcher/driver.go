@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/dial"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -37,15 +38,14 @@ type RollupClient interface {
 
 // DriverSetup is the collection of input/output interfaces and configuration that the driver operates on.
 type DriverSetup struct {
-	Log           log.Logger
-	Metr          metrics.Metricer
-	RollupConfig  *rollup.Config
-	Config        BatcherConfig
-	Txmgr         txmgr.TxManager
-	L1Client      L1Client
-	L2Client      L2Client
-	RollupClient  RollupClient
-	ChannelConfig ChannelConfig
+	Log              log.Logger
+	Metr             metrics.Metricer
+	RollupConfig     *rollup.Config
+	Config           BatcherConfig
+	Txmgr            txmgr.TxManager
+	L1Client         L1Client
+	EndpointProvider dial.L2EndpointProvider
+	ChannelConfig    ChannelConfig
 }
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -185,7 +185,11 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) error {
 func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
-	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
+	l2Client, err := l.EndpointProvider.EthClient(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("getting L2 client: %w", err)
+	}
+	block, err := l2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
 		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
@@ -203,7 +207,11 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.Config.NetworkTimeout)
 	defer cancel()
-	syncStatus, err := l.RollupClient.SyncStatus(ctx)
+	rollupClient, err := l.EndpointProvider.RollupClient(ctx)
+	if err != nil {
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("getting rollup client: %w", err)
+	}
+	syncStatus, err := rollupClient.SyncStatus(ctx)
 	// Ensure that we have the sync status
 	if err != nil {
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)

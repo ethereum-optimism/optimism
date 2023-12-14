@@ -9,7 +9,7 @@ import (
 
 // Artifact represents a foundry compilation artifact.
 // The Abi is specifically left as a json.RawMessage because
-// round trip marshaling/unmarshaling of the abi.ABI type
+// round trip marshaling/unmarshalling of the abi.ABI type
 // causes issues.
 type Artifact struct {
 	Abi              json.RawMessage    `json:"abi"`

@@ -19,7 +19,7 @@ func TestOutputAlphabetGame(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
-	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", "abcdexyz")
+	game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, "abcdexyz")
 	game.LogGameData(ctx)
 
 	opts := challenger.WithPrivKey(sys.Cfg.Secrets.Alice)

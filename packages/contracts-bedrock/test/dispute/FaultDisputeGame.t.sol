@@ -992,11 +992,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRootFuzz is OneVsOne_Arena 
             uint256 snapshot = vm.snapshot();
 
             GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-            GamePlayer dishonest = new VariableDivergentPlayer(
-                ABSOLUTE_PRESTATE,
-                _dishonestTraceLength,
-                i
-            );
+            GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, _dishonestTraceLength, i);
             super.init(dishonest, honest, _dishonestTraceLength - 1);
 
             // Play the game until a step is forced.
@@ -1023,11 +1019,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRootFuzz is OneVsOne_Arena {
             uint256 snapshot = vm.snapshot();
 
             GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-            GamePlayer dishonest = new VariableDivergentPlayer(
-                ABSOLUTE_PRESTATE,
-                _dishonestTraceLength,
-                i
-            );
+            GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, _dishonestTraceLength, i);
             super.init(honest, dishonest, 15);
 
             // Play the game until a step is forced.

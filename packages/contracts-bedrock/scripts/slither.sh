@@ -57,13 +57,12 @@ fi
 # Findings to keep are output to the slither-report.json output file.
 # Checking in a json file is cleaner than adding slither-disable comments throughout the codebase.
 # See slither.config.json for slither settings and to disable specific detectors.
-if [[ ! -z "$TRIAGE_MODE" ]]; then
+if [[ -n "$TRIAGE_MODE" ]]; then
   echo "Running slither in triage mode"
   SLITHER_OUTPUT=$(slither . --triage-mode --json $SLITHER_REPORT || true)
 
   # If the slither report was generated successfully, and the slither triage exists, clean up the triaged output.
   if [ -f "$SLITHER_REPORT" ] && [ -f  "$SLITHER_TRIAGE_REPORT" ]; then
-    json=$(cat $SLITHER_TRIAGE_REPORT)
     # The following jq command selects a subset of fields in each of the slither triage report description and element objects.
     # This significantly slims down the output json, on the order of 100 magnitudes smaller.
     updated_json=$(cat $SLITHER_TRIAGE_REPORT | jq -r '[.[] | .id as $id | .description as $description | .check as $check | .impact as $impact | .confidence as $confidence | (.elements[] | .type as $type | .name as $name | (.source_mapping | { "id": $id, "impact": $impact, "confidence": $confidence, "check": $check, "description": $description, "type": $type, "name": $name, start, length, filename_relative } ))]')
@@ -74,7 +73,8 @@ fi
 
 # If slither failed to generate a report, exit with an error.
 if [ ! -f "$SLITHER_REPORT" ]; then
-  echo "Slither output:\n$SLITHER_OUTPUT"
+  echo "Slither output:"
+  echo "$SLITHER_OUTPUT"
   echo "Slither failed to generate a report."
   if [ -e "$SLITHER_REPORT_BACKUP" ]; then
       mv $SLITHER_REPORT_BACKUP $SLITHER_REPORT
@@ -88,7 +88,6 @@ fi
 # The following jq command selects a subset of fields in each of the slither triage report description and element objects.
 # This significantly slims down the output json, on the order of 100 magnitudes smaller.
 echo "Slither ran successfully, generating minimzed report..."
-json=$(cat $SLITHER_REPORT)
 updated_json=$(cat $SLITHER_REPORT | jq -r '[.results.detectors[] | .id as $id | .description as $description | .check as $check | .impact as $impact | .confidence as $confidence | (.elements[] | .type as $type | .name as $name | (.source_mapping | { "id": $id, "impact": $impact, "confidence": $confidence, "check": $check, "description": $description, "type": $type, "name": $name, start, length, filename_relative } ))]')
 echo "$updated_json" > $SLITHER_REPORT
 echo "Slither report stored at $DIR/$SLITHER_REPORT"

@@ -12,6 +12,11 @@ type StubGamePlayer struct {
 	ProgressCount int
 	StatusValue   types.GameStatus
 	Dir           string
+	PrestateErr   error
+}
+
+func (g *StubGamePlayer) ValidatePrestate(_ context.Context) error {
+	return g.PrestateErr
 }
 
 func (g *StubGamePlayer) ProgressGame(_ context.Context) types.GameStatus {

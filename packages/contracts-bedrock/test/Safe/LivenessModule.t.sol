@@ -371,12 +371,12 @@ contract LivenessModule_RemoveOwnersFuzz_Test is LivenessModule_TestInit {
         safeInstance = _setupSafe(keys, threshold);
         livenessGuard = new LivenessGuard(safeInstance.safe);
         livenessModule = new LivenessModule({
-                    _safe: safeInstance.safe,
-                    _livenessGuard: livenessGuard,
-                    _livenessInterval: livenessInterval,
-                    _minOwners: minOwners_,
-                    _fallbackOwner: fallbackOwner
-                });
+            _safe: safeInstance.safe,
+            _livenessGuard: livenessGuard,
+            _livenessInterval: livenessInterval,
+            _minOwners: minOwners_,
+            _fallbackOwner: fallbackOwner
+        });
         safeInstance.setGuard(address(livenessGuard));
         safeInstance.enableModule(address(livenessModule));
 

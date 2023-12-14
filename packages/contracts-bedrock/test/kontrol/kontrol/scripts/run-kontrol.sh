@@ -31,6 +31,7 @@ export KONTROL_RELEASE=${KONTROLRC}
 #############
 kontrol_build() {
     notif "Kontrol Build"
+    # shellcheck disable=SC2086
     docker_exec kontrol build                       \
                         --verbose                   \
                         --require ${lemmas}         \
@@ -40,6 +41,7 @@ kontrol_build() {
 
 kontrol_prove() {
     notif "Kontrol Prove"
+    # shellcheck disable=SC2086
     docker_exec kontrol prove                              \
                         --max-depth ${max_depth}           \
                         --max-iterations ${max_iterations} \

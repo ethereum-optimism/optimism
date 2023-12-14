@@ -82,7 +82,7 @@ func TestOutputRootSplitAdapter(t *testing.T) {
 				OutputRoot:    postClaim.Value,
 			}
 
-			_, err := adapter(context.Background(), preClaim, postClaim)
+			_, err := adapter(context.Background(), 5, preClaim, postClaim)
 			require.ErrorIs(t, err, creatorError)
 			require.Equal(t, createLocalContext(preClaim, postClaim), creator.localContext)
 			require.Equal(t, expectedAgreed, creator.agreed)
@@ -113,7 +113,7 @@ func TestOutputRootSplitAdapter_FromAbsolutePrestate(t *testing.T) {
 		OutputRoot:    postClaim.Value,
 	}
 
-	_, err := adapter(context.Background(), types.Claim{}, postClaim)
+	_, err := adapter(context.Background(), 5, types.Claim{}, postClaim)
 	require.ErrorIs(t, err, creatorError)
 	require.Equal(t, createLocalContext(types.Claim{}, postClaim), creator.localContext)
 	require.Equal(t, expectedAgreed, creator.agreed)
@@ -145,7 +145,7 @@ type capturingCreator struct {
 	claimed      contracts.Proposal
 }
 
-func (c *capturingCreator) Create(_ context.Context, localContext common.Hash, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+func (c *capturingCreator) Create(_ context.Context, localContext common.Hash, _ uint64, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 	c.localContext = localContext
 	c.agreed = agreed
 	c.claimed = claimed

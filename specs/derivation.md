@@ -130,8 +130,8 @@ Each L2 `block` with origin `l1_origin` is subject to the following constraints 
 denominated in seconds):
 
 - `block.timestamp = prev_l2_timestamp + l2_block_time`
-  - `prev_l2_timestamp` is the timestamp of the L2 block immediately preceeding this one. If there
-    is no preceeding block, then this is the genesis block, and its timestamp is explicitly
+  - `prev_l2_timestamp` is the timestamp of the L2 block immediately preceding this one. If there
+    is no preceding block, then this is the genesis block, and its timestamp is explicitly
     specified.
   - `l2_block_time` is a configurable parameter of the time between L2 blocks (2s on Optimism).
 

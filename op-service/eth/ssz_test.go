@@ -190,7 +190,7 @@ func FuzzOBP01(f *testing.F) {
 	})
 }
 
-// TestOPB01 verifies that the SSZ unmarshaling code
+// TestOPB01 verifies that the SSZ unmarshalling code
 // properly checks for the transactionOffset being larger
 // than the extraDataOffset.
 func TestOPB01(t *testing.T) {

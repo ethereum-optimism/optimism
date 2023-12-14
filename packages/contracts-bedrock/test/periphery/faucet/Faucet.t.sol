@@ -50,11 +50,7 @@ contract Faucet_Initializer is Test {
         vm.deal(address(faucetContractAdmin), 5 ether);
         vm.deal(address(nonAdmin), 5 ether);
 
-        optimistNftFam = new AdminFaucetAuthModule(
-            faucetAuthAdmin,
-            optimistNftFamName,
-            optimistNftFamVersion
-        );
+        optimistNftFam = new AdminFaucetAuthModule(faucetAuthAdmin, optimistNftFamName, optimistNftFamVersion);
         githubFam = new AdminFaucetAuthModule(faucetAuthAdmin, githubFamName, githubFamVersion);
 
         faucetHelper = new FaucetHelper();

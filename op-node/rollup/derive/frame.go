@@ -108,7 +108,7 @@ func (f *Frame) UnmarshalBinary(r ByteReader) error {
 
 // eofAsUnexpectedMissing converts an io.EOF in the error chain of err into an
 // io.ErrUnexpectedEOF. It should be used to convert intermediate io.EOF errors
-// in unmarshaling code to achieve idiomatic error behavior.
+// in unmarshalling code to achieve idiomatic error behavior.
 // Other errors are passed through unchanged.
 func eofAsUnexpectedMissing(err error) error {
 	if errors.Is(err, io.EOF) {

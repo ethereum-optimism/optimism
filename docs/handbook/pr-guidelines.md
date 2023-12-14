@@ -14,7 +14,7 @@
 
 ## Overview
 
-This document contains guidelines best practices in PRs that should be enforced as much as possible. The motivations and goals behind these best practices are:
+This document contains guidelines and best practices in PRs that should be enforced as much as possible. The motivations and goals behind these best practices are:
 
 - **Ensure thorough reviews**: By the time the PR is merged, at least one other person—because there is always at least one reviewer—should understand the PR’s changes just as well as the PR author. This helps improve security by reducing bugs and single points of failure (i.e. there should never be only one person who understands certain code).
 - **Reduce PR churn**: PRs should be quickly reviewable and mergeable without much churn (both in terms of code rewrites and comment cycles). This saves time by reducing the need for rebases due to conflicts. Similarly, too many review cycles are a burden for both PR authors and reviewers, and results in “review fatigue” where reviews become less careful and thorough, increasing the likelihood of bugs.

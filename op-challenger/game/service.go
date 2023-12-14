@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync/atomic"
 
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -40,6 +41,8 @@ type Service struct {
 
 	loader *loader.GameLoader
 
+	rollupClient *sources.RollupClient
+
 	l1Client   *ethclient.Client
 	pollClient client.RPC
 
@@ -71,6 +74,9 @@ func (s *Service) initFromConfig(ctx context.Context, cfg *config.Config) error 
 		return err
 	}
 	if err := s.initL1Client(ctx, cfg); err != nil {
+		return err
+	}
+	if err := s.initRollupClient(ctx, cfg); err != nil {
 		return err
 	}
 	if err := s.initPollClient(ctx, cfg); err != nil {
@@ -166,10 +172,22 @@ func (s *Service) initGameLoader(cfg *config.Config) error {
 	return nil
 }
 
+func (s *Service) initRollupClient(ctx context.Context, cfg *config.Config) error {
+	if cfg.RollupRpc == "" {
+		return nil
+	}
+	rollupClient, err := dial.DialRollupClientWithTimeout(ctx, dial.DefaultDialTimeout, s.logger, cfg.RollupRpc)
+	if err != nil {
+		return err
+	}
+	s.rollupClient = rollupClient
+	return nil
+}
+
 func (s *Service) initScheduler(ctx context.Context, cfg *config.Config) error {
 	gameTypeRegistry := registry.NewGameTypeRegistry()
 	caller := batching.NewMultiCaller(s.l1Client.Client(), batching.DefaultBatchSize)
-	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.txMgr, caller)
+	closer, err := fault.RegisterGameTypes(gameTypeRegistry, ctx, s.logger, s.metrics, cfg, s.rollupClient, s.txMgr, caller)
 	if err != nil {
 		return err
 	}
@@ -228,6 +246,9 @@ func (s *Service) Stop(ctx context.Context) error {
 		s.txMgr.Close()
 	}
 
+	if s.rollupClient != nil {
+		s.rollupClient.Close()
+	}
 	if s.pollClient != nil {
 		s.pollClient.Close()
 	}

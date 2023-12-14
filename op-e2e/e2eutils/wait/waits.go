@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -52,6 +53,9 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 			case <-ticker.C:
 				continue
 			}
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			continue
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to get receipt: %w", err)

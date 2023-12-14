@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.30.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.33.0
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
@@ -858,11 +858,16 @@ jobs:
       - run:
           name: run tests
           command: |
+            mkdir -p /testlogs
+
             export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>>
+            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>> 2>&1 | tee /testlogs/test.log
           working_directory: <<parameters.module>>
+      - store_artifacts:
+          path: /testlogs
+          when: always
       - store_test_results:
           path: /tmp/test-results
 

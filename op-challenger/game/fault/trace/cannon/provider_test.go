@@ -124,7 +124,7 @@ func TestGetStepData(t *testing.T) {
 
 		require.EqualValues(t, generator.proof.StateData, preimage)
 		require.EqualValues(t, generator.proof.ProofData, proof)
-		expectedData := types.NewPreimageOracleData(common.Hash{}, generator.proof.OracleKey, generator.proof.OracleValue, generator.proof.OracleOffset)
+		expectedData := types.NewPreimageOracleData(generator.proof.OracleKey, generator.proof.OracleValue, generator.proof.OracleOffset)
 		require.EqualValues(t, expectedData, data)
 	})
 

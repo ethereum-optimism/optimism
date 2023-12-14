@@ -62,6 +62,7 @@ var mainnetCfg = rollup.Config{
 	DepositContractAddress:  common.HexToAddress("0xbEb5Fc579115071764c7423A4f12eDde41f106Ed"),
 	L1SystemConfigAddress:   common.HexToAddress("0x229047fed2591dbec1eF1118d64F7aF3dB9EB290"),
 	RegolithTime:            u64Ptr(0),
+	CanyonTime:              u64Ptr(1704992401),
 	ProtocolVersionsAddress: common.HexToAddress("0x8062AbC286f5e7D9428a0Ccb9AbD71e50d93b935"),
 }
 
@@ -94,6 +95,7 @@ var goerliCfg = rollup.Config{
 	L1SystemConfigAddress:   common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
 	RegolithTime:            u64Ptr(1679079600),
 	CanyonTime:              u64Ptr(1699981200),
+	DeltaTime:               u64Ptr(1703116800),
 	ProtocolVersionsAddress: common.HexToAddress("0x0C24F5098774aA366827D667494e9F889f7cFc08"),
 }
 
@@ -126,6 +128,7 @@ var sepoliaCfg = rollup.Config{
 	L1SystemConfigAddress:   common.HexToAddress("0x034edd2a225f7f429a63e0f1d2084b9e0a93b538"),
 	RegolithTime:            u64Ptr(0),
 	CanyonTime:              u64Ptr(1699981200),
+	DeltaTime:               u64Ptr(1703203200),
 	ProtocolVersionsAddress: common.HexToAddress("0x79ADD5713B383DAa0a138d3C4780C7A1804a8090"),
 }
 

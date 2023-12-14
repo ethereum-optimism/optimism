@@ -211,6 +211,9 @@ func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (ui
 	if b.g.err != nil {
 		return 0, b.g.err
 	}
+	if msg.GasFeeCap.Cmp(msg.GasTipCap) < 0 {
+		return 0, core.ErrTipAboveFeeCap
+	}
 	return b.g.basefee().Uint64(), nil
 }
 
@@ -239,7 +242,7 @@ func (*mockBackend) ChainID(ctx context.Context) (*big.Int, error) {
 }
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is
-// found, nil is returned for both return values. Otherwise, it retruns a
+// found, nil is returned for both return values. Otherwise, it returns a
 // receipt containing the txHash and the gasFeeCap used in the GasUsed to make
 // the value accessible from our test framework.
 func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {

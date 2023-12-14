@@ -11,7 +11,7 @@ finalized and may change without notice.
 
 * [Architecture Overview Video](https://www.youtube.com/watch?v=nIN5sNc6nQM)
 * [Fault Proof Alpha Deployment Information (Goerli)](./deployments.md)
-* [Security Reseachers - Bug Bounty Program](./immunefi.md)
+* [Security Researchers - Bug Bounty Program](./immunefi.md)
 
 ### Contents
 

@@ -5,6 +5,7 @@
   "license": "MIT",
   "files": [
     "forge-artifacts/**/*.json",
+    "!forge-artifacts/**/*.t.sol/*.json",
     "deployments/**/*.json",
     "src/**/*.sol"
   ],

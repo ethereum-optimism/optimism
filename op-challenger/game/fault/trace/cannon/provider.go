@@ -105,7 +105,7 @@ func (p *CannonTraceProvider) GetStepData(ctx context.Context, pos types.Positio
 	}
 	var oracleData *types.PreimageOracleData
 	if len(proof.OracleKey) > 0 {
-		oracleData = types.NewPreimageOracleData(p.localContext, proof.OracleKey, proof.OracleValue, proof.OracleOffset)
+		oracleData = types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	}
 	return value, data, oracleData, nil
 }

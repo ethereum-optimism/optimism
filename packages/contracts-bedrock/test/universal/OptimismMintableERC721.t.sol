@@ -23,13 +23,7 @@ contract OptimismMintableERC721_Test is Bridge_Initializer {
 
         // Set up the token pair.
         L1NFT = new ERC721("L1NFT", "L1T");
-        L2NFT = new OptimismMintableERC721(
-            address(l2ERC721Bridge),
-            1,
-            address(L1NFT),
-            "L2NFT",
-            "L2T"
-        );
+        L2NFT = new OptimismMintableERC721(address(l2ERC721Bridge), 1, address(L1NFT), "L2NFT", "L2T");
 
         // Label the addresses for nice traces.
         vm.label(address(L1NFT), "L1ERC721Token");

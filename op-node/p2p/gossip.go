@@ -601,7 +601,6 @@ func MakeSubscriber(log log.Logger, msgHandler MessageHandler) TopicSubscriber {
 }
 
 func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.TopicEventHandler) {
-	defer evHandler.Cancel()
 	for {
 		ev, err := evHandler.NextPeerEvent(ctx)
 		if err != nil {

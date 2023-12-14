@@ -7,7 +7,7 @@ by looking at what batches were submitted on L1.
 
 The `batch_decoder` tool is designed to be simple & flexible. It offloads as much data analysis
 as possible to other tools. It is built around manipulating JSON on disk. The first stage is to
-fetch all transaction which are sent to a batch inbox address. Those transactions are decoded into
+fetch all transactions which are sent to a batch inbox address. Those transactions are decoded into
 frames in that step & information about them is recorded. After transactions are fetched the frames
 are re-assembled into channels in a second step that does not touch the network.
 
@@ -35,7 +35,7 @@ If the batch is a singular batch, `batch_decoder` does not derive and stores the
 
 `batch_decoder force-close` will create a transaction data that can be sent from the batcher address to
 the batch inbox address which will force close the given channels. This will allow future channels to
-be read without waiting for the channel timeout. It uses uses the results from `batch_decoder fetch` to
+be read without waiting for the channel timeout. It uses the results from `batch_decoder fetch` to
 create the close transaction because the transaction it creates for a specific channel requires information
 about if the channel has been closed or not. If it has been closed already but is missing specific frames
 those frames need to be generated differently than simply closing the channel.

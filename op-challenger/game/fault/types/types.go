@@ -20,7 +20,6 @@ var (
 // to load into the onchain oracle.
 type PreimageOracleData struct {
 	IsLocal      bool
-	LocalContext common.Hash
 	OracleKey    []byte
 	OracleData   []byte
 	OracleOffset uint32
@@ -37,10 +36,9 @@ func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
-func NewPreimageOracleData(lctx common.Hash, key []byte, data []byte, offset uint32) *PreimageOracleData {
+func NewPreimageOracleData(key []byte, data []byte, offset uint32) *PreimageOracleData {
 	return &PreimageOracleData{
 		IsLocal:      len(key) > 0 && key[0] == byte(1),
-		LocalContext: lctx,
 		OracleKey:    key,
 		OracleData:   data,
 		OracleOffset: offset,
