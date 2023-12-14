@@ -1,5 +1,7 @@
 {
+  "$schema": "./node_modules/nx/schemas/nx-schema.json",
   "defaultBase": "develop",
+  "neverConnectToCloud": true,
   "affected": {
     "defaultBase": "develop"
   },
