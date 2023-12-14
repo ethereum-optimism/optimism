@@ -14,6 +14,8 @@
     "build": "npx nx run-many --target=build",
     "test": "npx nx run-many --target=test",
     "issues": "./ops/scripts/todo-checker.sh",
+    "install:ci": "pnpm install --ignore-scripts --frozen-lockfile && pnpm postinstall && pnpm rebuild nx",
+    "install:ci:offline": "pnpm install --ignore-scripts --offline --frozen-lockfile && pnpm postinstall && pnpm rebuild nx",
     "lint": "npx nx run-many --target=lint",
     "test:coverage": "npx nx run-many --target=test:coverage",
     "lint:ts:check": "npx nx run-many --target=lint:ts:check",

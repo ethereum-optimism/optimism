@@ -73,7 +73,7 @@ WORKDIR /opt/optimism
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install:ci
 
 COPY ./packages ./packages
 
