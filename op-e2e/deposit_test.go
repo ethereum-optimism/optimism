@@ -2,6 +2,7 @@ package op_e2e
 
 import (
 	"context"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"math/big"
 	"testing"
 	"time"
@@ -51,14 +52,15 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	})
 
 	// Confirm balance
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	endBalance, err := wait.ForBalanceChange(ctx, l2Verif, fromAddr, startBalance)
 	cancel()
 	require.Nil(t, err)
+
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	toAddrBalance, err := l2Verif.BalanceAt(ctx, toAddr, nil)
-	require.NoError(t, err)
 	cancel()
+	require.NoError(t, err)
 
 	diff := new(big.Int)
 	diff = diff.Sub(endBalance, startBalance)
