@@ -24,29 +24,24 @@ contract GhostBytes10 {
 
 /// @notice tests inheriting this contract cannot be run with forge
 abstract contract KontrolUtils is KontrolCheats {
-
     /// @dev we only care about the vm signature
     // Cheat code address, 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D.
     address private constant VM_ADDRESS = address(uint160(uint256(keccak256("hevm cheat code"))));
     Vm private constant vm = Vm(VM_ADDRESS);
 
-
     function createWithdrawalTransaction(
-      uint256 _tx0,
-      address _tx1,
-      address _tx2,
-      uint256 _tx3,
-      uint256 _tx4,
-      bytes   memory _tx5
-    ) internal pure returns (Types.WithdrawalTransaction memory _tx) {
-        _tx = Types.WithdrawalTransaction (
-                                           _tx0,
-                                           _tx1,
-                                           _tx2,
-                                           _tx3,
-                                           _tx4,
-                                           _tx5
-        );
+        uint256 _tx0,
+        address _tx1,
+        address _tx2,
+        uint256 _tx3,
+        uint256 _tx4,
+        bytes memory _tx5
+    )
+        internal
+        pure
+        returns (Types.WithdrawalTransaction memory _tx)
+    {
+        _tx = Types.WithdrawalTransaction(_tx0, _tx1, _tx2, _tx3, _tx4, _tx5);
     }
 
     function freshBytesArray(uint256 symbolicArrayLength) public returns (bytes[] memory symbolicArray) {
@@ -134,7 +129,8 @@ abstract contract KontrolUtils is KontrolCheats {
         withdrawalProof[9] = ghostBytes10.ghostBytes9();
 
         /* for (uint256 i = 0; i < withdrawalProof.length; ++i) { */
-        /*     withdrawalProof[i] = freshBigBytes(600); // abi.encodePacked(freshBytes32());  // abi.encodePacked(kevm.freshUInt(32)); */
+        /*     withdrawalProof[i] = freshBigBytes(600); // abi.encodePacked(freshBytes32());  //
+        abi.encodePacked(kevm.freshUInt(32)); */
         /* } */
     }
 }

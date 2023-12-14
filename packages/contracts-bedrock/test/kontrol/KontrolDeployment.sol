@@ -4,7 +4,6 @@ pragma solidity ^0.8.0;
 import { Deploy } from "scripts/Deploy.s.sol";
 
 contract KontrolDeployment is Deploy {
-
     function runKontrolDeployment() public stateDiff {
         deploySafe();
         setupSuperchain();
