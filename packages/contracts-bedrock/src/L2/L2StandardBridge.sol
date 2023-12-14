@@ -57,16 +57,17 @@ contract L2StandardBridge is StandardBridge, ISemver {
     string public constant version = "1.6.0";
 
     /// @notice Constructs the L2StandardBridge contract.
-    constructor() StandardBridge() {
+    /// @param _otherBridgeAddr Address of the L1StandardBridge.
+    constructor(address payable _otherBridgeAddr) StandardBridge() {
         initialize({
-            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
-            _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE))
+            _messenger: CrossDomainMessenger(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER)),
+            _otherBridge: StandardBridge(_otherBridgeAddr)
         });
     }
 
     /// @notice Initializer.
-    /// @param _messenger   Address of CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the other StandardBridge contract.
+    /// @param _messenger Contract for the CrossDomainMessenger on this chain.
+    /// @param _otherBridge Contract for the corresponding bridge on the other chain.
     function initialize(CrossDomainMessenger _messenger, StandardBridge _otherBridge) public initializer {
         __StandardBridge_init({ _messenger: _messenger, _otherBridge: _otherBridge });
     }
