@@ -18,6 +18,7 @@ type extendedStore struct {
 	*scoreBook
 	*peerBanBook
 	*ipBanBook
+	*metadataBook
 }
 
 func NewExtendedPeerstore(ctx context.Context, logger log.Logger, clock clock.Clock, ps peerstore.Peerstore, store ds.Batching, scoreRetention time.Duration) (ExtendedPeerstore, error) {
@@ -40,17 +41,26 @@ func NewExtendedPeerstore(ctx context.Context, logger log.Logger, clock clock.Cl
 		return nil, fmt.Errorf("create IP ban book: %w", err)
 	}
 	ib.startGC()
+	md, err := newMetadataBook(ctx, logger, clock, store)
+	if err != nil {
+		return nil, fmt.Errorf("create metadata book: %w", err)
+	}
+	md.startGC()
 	return &extendedStore{
 		Peerstore:         ps,
 		CertifiedAddrBook: cab,
 		scoreBook:         sb,
 		peerBanBook:       pb,
 		ipBanBook:         ib,
+		metadataBook:      md,
 	}, nil
 }
 
 func (s *extendedStore) Close() error {
 	s.scoreBook.Close()
+	s.peerBanBook.Close()
+	s.ipBanBook.Close()
+	s.metadataBook.Close()
 	return s.Peerstore.Close()
 }
 
