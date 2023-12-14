@@ -9,6 +9,19 @@ contract GhostBytes {
     bytes public ghostBytes;
 }
 
+contract GhostBytes10 {
+    bytes public ghostBytes0;
+    bytes public ghostBytes1;
+    bytes public ghostBytes2;
+    bytes public ghostBytes3;
+    bytes public ghostBytes4;
+    bytes public ghostBytes5;
+    bytes public ghostBytes6;
+    bytes public ghostBytes7;
+    bytes public ghostBytes8;
+    bytes public ghostBytes9;
+}
+
 /// @notice tests inheriting this contract cannot be run with forge
 abstract contract KontrolUtils is KontrolCheats {
 
@@ -82,14 +95,46 @@ abstract contract KontrolUtils is KontrolCheats {
     /// The length of the array to 10 or fewer elements
     function freshWithdrawalProof() public returns (bytes[] memory withdrawalProof) {
         /* Assuming arrayLength = 2 for faster proof speeds. For full generality replace with the code below */
-        uint256 arrayLength = 2;
+        uint256 arrayLength = 10;
         /* uint256 arrayLength = kevm.freshUInt(32); */
         /* vm.assume(arrayLength <= 10); */
 
         withdrawalProof = new bytes[](arrayLength);
 
-        for (uint256 i = 0; i < withdrawalProof.length; ++i) {
-            withdrawalProof[i] = freshBigBytes(60); // abi.encodePacked(freshBytes32());  // abi.encodePacked(kevm.freshUInt(32));
-        }
+        /* Deploy ghost contract */
+        GhostBytes10 ghostBytes10 = new GhostBytes10();
+
+        /* Make the storage of the ghost contract symbolic */
+        kevm.symbolicStorage(address(ghostBytes10));
+
+        /* Each bytes element will have a length of 600 */
+        uint256 bytesSlotValue = 600 * 2 + 1;
+
+        /* Load the size encoding into the first slot of ghostBytes*/
+        vm.store(address(ghostBytes10), bytes32(uint256(0)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(1)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(2)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(3)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(4)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(5)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(6)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(7)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue));
+        vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue));
+
+        withdrawalProof[0] = ghostBytes10.ghostBytes0();
+        withdrawalProof[1] = ghostBytes10.ghostBytes1();
+        withdrawalProof[2] = ghostBytes10.ghostBytes2();
+        withdrawalProof[3] = ghostBytes10.ghostBytes3();
+        withdrawalProof[4] = ghostBytes10.ghostBytes4();
+        withdrawalProof[5] = ghostBytes10.ghostBytes5();
+        withdrawalProof[6] = ghostBytes10.ghostBytes6();
+        withdrawalProof[7] = ghostBytes10.ghostBytes7();
+        withdrawalProof[8] = ghostBytes10.ghostBytes8();
+        withdrawalProof[9] = ghostBytes10.ghostBytes9();
+
+        /* for (uint256 i = 0; i < withdrawalProof.length; ++i) { */
+        /*     withdrawalProof[i] = freshBigBytes(600); // abi.encodePacked(freshBytes32());  // abi.encodePacked(kevm.freshUInt(32)); */
+        /* } */
     }
 }
