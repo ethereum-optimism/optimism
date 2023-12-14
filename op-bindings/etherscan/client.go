@@ -14,7 +14,7 @@ import (
 )
 
 type client struct {
-	baseUrl string
+	baseUrl    string
 	httpClient *http.Client
 }
 
