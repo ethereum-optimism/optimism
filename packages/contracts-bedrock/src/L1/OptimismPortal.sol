@@ -53,16 +53,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     /// @notice Spacer for backwards compatibility.
     bool private spacer_53_0_1;
 
-    /// @notice Address of the L2OutputOracle contract.
+    /// @notice Contract of the Superchain Config.
+    SuperchainConfig public superchainConfig;
+
+    /// @notice Contract of the L2OutputOracle.
     /// @custom:network-specific
     L2OutputOracle public l2Oracle;
 
-    /// @notice Address of the SystemConfig contract.
+    /// @notice Contract of the SystemConfig.
     /// @custom:network-specific
     SystemConfig public systemConfig;
-
-    /// @notice The address of the Superchain Config contract.
-    SuperchainConfig public superchainConfig;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -90,7 +90,6 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         _;
     }
 
-    // TODO: should semver version be updated?
     /// @notice Semantic version.
     /// @custom:semver 2.4.0
     string public constant version = "2.4.0";
@@ -105,9 +104,9 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Initializer.
-    /// @param _l2Oracle Address of the L2OutputOracle contract.
-    /// @param _systemConfig Address of the SystemConfig contract.
-    /// @param _superchainConfig Address of the SuperchainConfig contract.
+    /// @param _l2Oracle Contract of the L2OutputOracle.
+    /// @param _systemConfig Contract of the SystemConfig.
+    /// @param _superchainConfig Contract of the SuperchainConfig.
     function initialize(
         L2OutputOracle _l2Oracle,
         SystemConfig _systemConfig,
@@ -126,16 +125,15 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         __ResourceMetering_init();
     }
 
-    /// @notice Getter function for the address of the L2OutputOracle on this chain.
-    /// @return Address of the L2OutputOracle on this chain.
-    // TODO: check that @custom:legacy makes sense here and below
+    /// @notice Getter function for the contract of the L2OutputOracle on this chain.
+    /// @return Contract of the L2OutputOracle on this chain.
     /// @custom:legacy
     function L2_ORACLE() external view returns (L2OutputOracle) {
         return l2Oracle;
     }
 
-    /// @notice Getter function for the address of the SystemConfig on this chain.
-    /// @return Address of the SystemConfig on this chain.
+    /// @notice Getter function for the contract of the SystemConfig on this chain.
+    /// @return Contract of the SystemConfig on this chain.
     /// @custom:legacy
     function SYSTEM_CONFIG() external view returns (SystemConfig) {
         return systemConfig;
