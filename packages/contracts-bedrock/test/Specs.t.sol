@@ -209,7 +209,7 @@ contract Specification_Test is CommonTest {
         });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("finalizedWithdrawals(bytes32)") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("guardian()") });
-        _addSpec({ _name: "OptimismPortal", _sel: _getSel("initialize(address)") });
+        _addSpec({ _name: "OptimismPortal", _sel: _getSel("initialize(address,address,address)") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("isOutputFinalized(uint256)") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("l2Oracle()") });
         _addSpec({ _name: "OptimismPortal", _sel: _getSel("l2Sender()") });
