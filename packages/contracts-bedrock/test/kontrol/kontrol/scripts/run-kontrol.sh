@@ -138,7 +138,7 @@ max_depth=1000000
 max_iterations=1000000
 smt_timeout=100000
 bmc_depth=10
-workers=2
+workers=1
 reinit=--reinit
 reinit=
 break_on_calls=--no-break-on-calls
@@ -154,8 +154,9 @@ use_booster=--use-booster
 # List of tests to symbolically execute #
 #########################################
 tests=""
-#tests+="--match-test CounterTest.test_SetNumber "
-tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
+tests+="--match-test CounterTest.test_SetNumber "
+#tests+="--match-test OptimismPortalKontrol.test_proveWithdrawalTransaction_paused "
+#tests+="--match-test OptimismPortalKontrol.test_finalizeWithdrawalTransaction_paused "
 
 #############
 # RUN TESTS #
