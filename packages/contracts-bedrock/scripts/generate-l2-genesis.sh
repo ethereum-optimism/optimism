@@ -31,14 +31,14 @@ cleanup() {
 wait_l2_outfile() {
   i=1
   while [ $i -le "$2" ]; do
-    i=$(($i + 1))
+    i=$((i + 1))
 
     if [ ! -f "$OUTFILE_L2" ]; then
       sleep "$1"
       continue
     fi
 
-    if [ $(du -m "$OUTFILE_L2" | cut -f1) -lt 8 ]; then
+    if [ "$(du -m "$OUTFILE_L2" | cut -f1)" -lt 8 ]; then
       sleep "$1"
       continue
     fi

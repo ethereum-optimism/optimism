@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-SOURCE_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
+SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$SOURCE_DIR"
 export ETH_RPC_URL=https://ethereum-goerli-rpc.allthatnode.com
 

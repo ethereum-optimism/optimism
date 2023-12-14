@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
-CHALLENGER_DIR=$(echo "${SOURCE_DIR%/*/*}")
-MONOREPO_DIR=$(echo "${SOURCE_DIR%/*/*/*}")
+SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+CHALLENGER_DIR="${SOURCE_DIR%/*/*}"
+MONOREPO_DIR="${SOURCE_DIR%/*/*/*}"
 
 # Check that the fault game address file exists
 FAULT_GAME_ADDR_FILE="$CHALLENGER_DIR/.fault-game-address"

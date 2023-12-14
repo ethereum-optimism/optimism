@@ -6,7 +6,7 @@ RPC="${1:?Must specify RPC address}"
 FAULT_GAME_ADDRESS="${2:?Must specify game address}"
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DIR=$(echo "${DIR%/*/*}")
+DIR="${DIR%/*/*}"
 cd "$DIR"/packages/contracts-bedrock
 
 forge script scripts/FaultDisputeGameViz.s.sol \
