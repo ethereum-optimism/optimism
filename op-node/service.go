@@ -63,8 +63,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
 	}
 
-	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
-
 	syncConfig, err := NewSyncConfig(ctx, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the sync config: %w", err)
@@ -78,7 +76,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
-		L2Sync: l2SyncEndpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
@@ -161,15 +158,6 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
 	}, nil
-}
-
-// NewL2SyncEndpointConfig returns a pointer to a L2SyncEndpointConfig if the
-// flag is set, otherwise nil.
-func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
-	return &node.L2SyncEndpointConfig{
-		L2NodeAddr: ctx.String(flags.BackupL2UnsafeSyncRPC.Name),
-		TrustRPC:   ctx.Bool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
-	}
 }
 
 func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {

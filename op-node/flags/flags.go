@@ -225,18 +225,6 @@ var (
 		EnvVars: prefixEnvVars("HEARTBEAT_URL"),
 		Value:   "https://heartbeat.optimism.io",
 	}
-	BackupL2UnsafeSyncRPC = &cli.StringFlag{
-		Name:    "l2.backup-unsafe-sync-rpc",
-		Usage:   "Set the backup L2 unsafe sync RPC endpoint.",
-		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC"),
-	}
-	BackupL2UnsafeSyncRPCTrustRPC = &cli.StringFlag{
-		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
-		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
-			"This does not include checks if the blockhash is part of the canonical chain.",
-		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
-	}
-
 	RollupHalt = &cli.StringFlag{
 		Name:    "rollup.halt",
 		Usage:   "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
@@ -281,6 +269,19 @@ var (
 		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
 		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
 	}
+	BackupL2UnsafeSyncRPC = &cli.StringFlag{
+		Name:    "l2.backup-unsafe-sync-rpc",
+		Usage:   "Set the backup L2 unsafe sync RPC endpoint.",
+		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC"),
+		Hidden:  true,
+	}
+	BackupL2UnsafeSyncRPCTrustRPC = &cli.StringFlag{
+		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
+		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
+			"This does not include checks if the blockhash is part of the canonical chain.",
+		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
+		Hidden:  true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -320,8 +321,6 @@ var optionalFlags = []cli.Flag{
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
-	BackupL2UnsafeSyncRPC,
-	BackupL2UnsafeSyncRPCTrustRPC,
 	RollupHalt,
 	RollupLoadProtocolVersions,
 	L1RethDBPath,
@@ -333,6 +332,8 @@ var DeprecatedFlags = []cli.Flag{
 	L2EngineSyncEnabled,
 	SkipSyncStartCheck,
 	BetaExtraNetworks,
+	BackupL2UnsafeSyncRPC,
+	BackupL2UnsafeSyncRPCTrustRPC,
 	// Deprecated P2P Flags are added at the init step
 }
 
