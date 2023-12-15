@@ -20,13 +20,14 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @notice Constructs the L2CrossDomainMessenger contract.
     /// @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
-    constructor(address _l1CrossDomainMessenger) CrossDomainMessenger(_l1CrossDomainMessenger) {
-        initialize();
+    constructor(address _l1CrossDomainMessenger) CrossDomainMessenger() {
+        initialize({ _otherMessenger: _l1CrossDomainMessenger });
     }
 
     /// @notice Initializer.
-    function initialize() public initializer {
-        __CrossDomainMessenger_init();
+    /// @param _otherMessenger Address of the L1CrossDomainMessenger contract.
+    function initialize(address _otherMessenger) public initializer {
+        __CrossDomainMessenger_init({ _otherMessenger: _otherMessenger });
     }
 
     /// @custom:legacy
@@ -34,7 +35,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
     ///         Use otherMessenger going forward.
     /// @return Address of the L1CrossDomainMessenger contract.
     function l1CrossDomainMessenger() public view returns (address) {
-        return OTHER_MESSENGER;
+        return otherMessenger;
     }
 
     /// @inheritdoc CrossDomainMessenger
@@ -46,7 +47,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
-        return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == OTHER_MESSENGER;
+        return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
     }
 
     /// @inheritdoc CrossDomainMessenger
