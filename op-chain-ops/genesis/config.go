@@ -729,12 +729,10 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	}
 
 	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser: struct{}{},
-		DeployerWhitelist:   struct{}{},
-		WETH9:               struct{}{},
-		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
-			OtherMessenger: config.L1CrossDomainMessengerProxy,
-		},
+		L2ToL1MessagePasser:    struct{}{},
+		DeployerWhitelist:      struct{}{},
+		WETH9:                  struct{}{},
+		L2CrossDomainMessenger: struct{}{},
 		L2StandardBridge: struct {
 			OtherBridge common.Address
 			Messenger   common.Address

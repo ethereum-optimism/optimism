@@ -24,10 +24,8 @@ type PredeploysImmutableConfig struct {
 	L2ToL1MessagePasser    struct{}
 	DeployerWhitelist      struct{}
 	WETH9                  struct{}
-	L2CrossDomainMessenger struct {
-		OtherMessenger common.Address
-	}
-	L2StandardBridge struct {
+	L2CrossDomainMessenger struct{}
+	L2StandardBridge       struct {
 		OtherBridge common.Address
 		Messenger   common.Address
 	}
