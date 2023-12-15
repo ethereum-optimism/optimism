@@ -159,19 +159,14 @@ contract GasPriceOracle is ISemver {
         return total + (68 * 16);
     }
 
-    /// @notice LZ77 implementation based on FastLZ.
-    ///         Equivalent to level 1 compression and decompression at the following commit:
-    ///         https://github.com/ariya/FastLZ/commit/344eb4025f9ae866ebf7a2ec48850f7113a97a42
-    ///         Decompression is backwards compatible.
-    /// @dev Returns the compressed `data`.
-    /// @custom:attribution Solady <https://github.com/Vectorized/Solady>
-    function flzCompress(bytes memory data) internal pure returns (bytes memory result) {
+    /// @notice Version of https://github.com/Vectorized/solady/blob/main/src/utils/LibZip.sol
+    ///         that only returns the length of the data if it were to be compressed. This saves
+    ///         gas over actually compressing the data, given we only need the length.
+    /// @dev Returns the length of the compressed data.
+    /// @custom:attribution Solady <https://github.com/Vectorized/solady>
+    function flzCompressLen(bytes memory data) internal pure returns (uint256 n) {
         /// @solidity memory-safe-assembly
         assembly {
-            function ms8(d_, v_) -> _d {
-                mstore8(d_, v_)
-                _d := add(d_, 1)
-            }
             function u24(p_) -> _u {
                 let w := mload(p_)
                 _u := or(shl(16, byte(2, w)), or(shl(8, byte(1, w)), byte(0, w)))
@@ -181,25 +176,21 @@ contract GasPriceOracle is ISemver {
                     e_ := mul(iszero(byte(0, xor(mload(add(p_, _l)), mload(add(q_, _l))))), e_)
                 }
             }
-            function literals(runs_, src_, dest_) -> _o {
-                for { _o := dest_ } iszero(lt(runs_, 0x20)) { runs_ := sub(runs_, 0x20) } {
-                    mstore(ms8(_o, 31), mload(src_))
-                    _o := add(_o, 0x21)
-                    src_ := add(src_, 0x20)
-                }
+            function literals(runs_, n_) -> _n {
+                let d := div(runs_, 0x20)
+                runs_ := mod(runs_, 0x20)
+                _n := add(n_, mul(0x21, d))
                 if iszero(runs_) { leave }
-                mstore(ms8(_o, sub(runs_, 1)), mload(src_))
-                _o := add(1, add(_o, runs_))
+                _n := add(1, add(_n, runs_))
             }
-            function match(l_, d_, o_) -> _o {
-                for { d_ := sub(d_, 1) } iszero(lt(l_, 263)) { l_ := sub(l_, 262) } {
-                    o_ := ms8(ms8(ms8(o_, add(224, shr(8, d_))), 253), and(0xff, d_))
-                }
+            function match(l_, n_) -> _n {
+                let d := div(sub(l_, 1), 262)
+                n_ := add(n_, mul(3, d))
                 if iszero(lt(l_, 7)) {
-                    _o := ms8(ms8(ms8(o_, add(224, shr(8, d_))), sub(l_, 7)), and(0xff, d_))
+                    _n := add(n_, 3)
                     leave
                 }
-                _o := ms8(ms8(o_, add(shl(5, l_), shr(8, d_))), and(0xff, d_))
+                _n := add(n_, 2)
             }
             function setHash(i_, v_) {
                 let p := add(mload(0x40), shl(2, i_))
@@ -216,7 +207,7 @@ contract GasPriceOracle is ISemver {
                 _ip := add(ip_, 1)
             }
             codecopy(mload(0x40), codesize(), 0x8000) // Zeroize the hashmap.
-            let op := add(mload(0x40), 0x8000)
+            n := 0
             let a := add(data, 0x20)
             let ipStart := a
             let ipLimit := sub(add(ipStart, mload(data)), 13)
@@ -235,22 +226,13 @@ contract GasPriceOracle is ISemver {
                 }
                 if iszero(lt(ip, ipLimit)) { break }
                 ip := sub(ip, 1)
-                if gt(ip, a) { op := literals(sub(ip, a), a, op) }
+                if gt(ip, a) { n := literals(sub(ip, a), n) }
                 let l := cmp(add(r, 3), add(ip, 3), add(ipLimit, 9))
-                op := match(l, d, op)
+                n := match(l, n)
                 ip := setNextHash(setNextHash(add(ip, l), ipStart), ipStart)
                 a := ip
             }
-            op := literals(sub(add(ipStart, mload(data)), a), a, op)
-            result := mload(0x40)
-            let t := add(result, 0x8000)
-            let n := sub(op, t)
-            mstore(result, n) // Store the length.
-            // Copy the result to compact the memory, overwriting the hashmap.
-            let o := add(result, 0x20)
-            for { let i } lt(i, n) { i := add(i, 0x20) } { mstore(add(o, i), mload(add(t, i))) }
-            mstore(add(o, n), 0) // Zeroize the slot after the string.
-            mstore(0x40, add(add(o, n), 0x20)) // Allocate the memory.
+            n := literals(sub(add(ipStart, mload(data)), a), n)
         }
     }
 }
