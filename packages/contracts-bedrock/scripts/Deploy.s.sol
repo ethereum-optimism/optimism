@@ -466,11 +466,6 @@ contract Deploy is Deployer {
         require(messenger.PORTAL() == address(0));
         require(address(messenger.portal()) == address(0));
 
-        // TODO: check that the lines below make sense
-        //       (gotten from https://github.com/ethereum-optimism/optimism/pull/6574)
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
-
         save("L1CrossDomainMessenger", address(messenger));
         console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
 
@@ -829,6 +824,7 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
+        address l2CrossDomainMessenger = mustGetAddress("L2CrossDomainMessenger");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
         SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
 
@@ -858,7 +854,9 @@ contract Deploy is Deployer {
         _upgradeAndCallViaSafe({
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
-            _innerCallData: abi.encodeCall(L1CrossDomainMessenger.initialize, (portal, superchainConfigProxy))
+            _innerCallData: abi.encodeCall(
+                L1CrossDomainMessenger.initialize, (portal, l2CrossDomainMessenger, superchainConfigProxy)
+                )
         });
 
         L1CrossDomainMessenger messenger = L1CrossDomainMessenger(l1CrossDomainMessengerProxy);
@@ -866,18 +864,6 @@ contract Deploy is Deployer {
         console.log("L1CrossDomainMessenger version: %s", version);
 
         ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
-
-        require(
-            loadInitializedSlot("L1CrossDomainMessengerProxy") == 1, "L1CrossDomainMessengerProxy is not initialized"
-        );
-
-        // TODO: address inconsistency in variable names vs. type below
-        require(messenger.PORTAL() == optimismPortalProxy); // returns address
-        require(messenger.portal() == portal); // returns contract
-        // TODO: check that the lines below make sense
-        //       (gotten from https://github.com/ethereum-optimism/optimism/pull/6574)
-        bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
-        require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
     }
 
     /// @notice Initialize the L2OutputOracle
