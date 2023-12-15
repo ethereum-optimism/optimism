@@ -15,12 +15,10 @@ import (
 
 func TestBuildOptimism(t *testing.T) {
 	cfg := immutables.PredeploysImmutableConfig{
-		L2ToL1MessagePasser: struct{}{},
-		DeployerWhitelist:   struct{}{},
-		WETH9:               struct{}{},
-		L2CrossDomainMessenger: struct{ OtherMessenger common.Address }{
-			OtherMessenger: common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		},
+		L2ToL1MessagePasser:    struct{}{},
+		DeployerWhitelist:      struct{}{},
+		WETH9:                  struct{}{},
+		L2CrossDomainMessenger: struct{}{},
 		L2StandardBridge: struct {
 			OtherBridge common.Address
 			Messenger   common.Address
