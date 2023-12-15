@@ -25,17 +25,29 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     string public constant version = "2.2.0";
 
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor() CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
-        initialize({ _portal: OptimismPortal(payable(address(0))), _superchainConfig: SuperchainConfig(address(0)) });
+    constructor() CrossDomainMessenger() {
+        initialize({
+            _portal: OptimismPortal(payable(address(0))),
+            _otherMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            _superchainConfig: SuperchainConfig(address(0))
+        });
     }
 
     /// @notice Initializes the contract.
-    /// @param _portal Address of the OptimismPortal contract on this network.
-    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
-    function initialize(OptimismPortal _portal, SuperchainConfig _superchainConfig) public initializer {
+    /// @param _portal Contract of the OptimismPortal contract on this network.
+    /// @param _otherMessenger Address of the L2CrossDomainMessenger contract on the other network.
+    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
+    function initialize(
+        OptimismPortal _portal,
+        address _otherMessenger,
+        SuperchainConfig _superchainConfig
+    )
+        public
+        initializer
+    {
         portal = _portal;
         superchainConfig = _superchainConfig;
-        __CrossDomainMessenger_init();
+        __CrossDomainMessenger_init({ _otherMessenger: _otherMessenger });
     }
 
     /// @notice Getter function for the address of the OptimismPortal on this chain.
@@ -54,7 +66,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
 
     /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
-        return msg.sender == address(portal) && portal.l2Sender() == OTHER_MESSENGER;
+        return msg.sender == address(portal) && portal.l2Sender() == otherMessenger;
     }
 
     /// @inheritdoc CrossDomainMessenger
