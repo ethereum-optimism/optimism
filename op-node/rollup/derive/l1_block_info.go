@@ -270,6 +270,7 @@ func L1InfoDeposit(rollupCfg *rollup.Config, sysCfg eth.SystemConfig, seqNumber 
 		BatcherAddr:    sysCfg.BatcherAddr,
 	}
 	var data []byte
+
 	if isEcotoneButNotFirstBlock(rollupCfg, l2BlockTime) {
 		l1BlockInfo.BlobBaseFee = block.BlobBaseFee()
 		if l1BlockInfo.BlobBaseFee == nil {

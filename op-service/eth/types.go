@@ -28,7 +28,7 @@ const (
 
 var ErrBedrockScalarPaddingNotEmpty = errors.New("version 0 scalar value has non-empty padding")
 
-// InputError distinguishes an user-input error from regular rpc errors,
+// InputError distinguishes a user-input error from regular rpc errors,
 // to help the (Engine) API user divert from accidental input mistakes.
 type InputError struct {
 	Inner error
@@ -391,47 +391,96 @@ const (
 	L1ScalarBedrock = byte(0)
 	// L1ScalarEcotone is new in Ecotone, allowing configuration of both a regular and a blobs scalar.
 	L1ScalarEcotone = byte(1)
+	// L1ScalarFjord is new in Fjord, allowing the configuration of the linear regression formula.
+	L1ScalarFjord = byte(2)
 )
 
-type EcostoneScalars struct {
+type EcotoneScalars struct {
 	BlobBaseFeeScalar uint32
 	BaseFeeScalar     uint32
 }
 
-func (sysCfg *SystemConfig) EcotoneScalars() (EcostoneScalars, error) {
+type FjordScalars struct {
+	BlobBaseFeeScalar uint32
+	BaseFeeScalar     uint32
+	CostIntercept     int32
+	CostFastLzCoef    int32
+	CostTxSizeCoef    int32
+}
+
+func (sysCfg *SystemConfig) FjordScalars() (FjordScalars, error) {
+	if err := CheckFjordL1SystemConfigScalar(sysCfg.Scalar); err != nil {
+		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
+			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
+			// the padding area.
+			return FjordScalars{
+				BlobBaseFeeScalar: 0,
+				BaseFeeScalar:     math.MaxUint32,
+				CostIntercept:     0,
+				CostFastLzCoef:    0,
+				CostTxSizeCoef:    0,
+			}, nil
+		}
+		return FjordScalars{}, err
+	}
+	if sysCfg.Scalar[0] == L1ScalarFjord {
+		return FjordScalars{
+			CostTxSizeCoef:    int32(binary.BigEndian.Uint32(sysCfg.Scalar[12:16])),
+			CostFastLzCoef:    int32(binary.BigEndian.Uint32(sysCfg.Scalar[16:20])),
+			CostIntercept:     int32(binary.BigEndian.Uint32(sysCfg.Scalar[20:24])),
+			BlobBaseFeeScalar: binary.BigEndian.Uint32(sysCfg.Scalar[24:28]),
+			BaseFeeScalar:     binary.BigEndian.Uint32(sysCfg.Scalar[28:32]),
+		}, nil
+	} else {
+		ecotoneScalars, err := sysCfg.EcotoneScalars()
+		if err != nil {
+			return FjordScalars{}, err
+		}
+
+		return FjordScalars{
+			BlobBaseFeeScalar: ecotoneScalars.BlobBaseFeeScalar,
+			BaseFeeScalar:     ecotoneScalars.BaseFeeScalar,
+			CostIntercept:     0,
+			CostFastLzCoef:    0,
+			CostTxSizeCoef:    1_000_000,
+		}, nil
+	}
+}
+
+func (sysCfg *SystemConfig) EcotoneScalars() (EcotoneScalars, error) {
 	if err := CheckEcotoneL1SystemConfigScalar(sysCfg.Scalar); err != nil {
 		if errors.Is(err, ErrBedrockScalarPaddingNotEmpty) {
 			// L2 spec mandates we set baseFeeScalar to MaxUint32 if there are non-zero bytes in
 			// the padding area.
-			return EcostoneScalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
+			return EcotoneScalars{BlobBaseFeeScalar: 0, BaseFeeScalar: math.MaxUint32}, nil
 		}
-		return EcostoneScalars{}, err
+		return EcotoneScalars{}, err
 	}
 	return DecodeScalar(sysCfg.Scalar)
 }
 
 // DecodeScalar decodes the blobBaseFeeScalar and baseFeeScalar from a 32-byte scalar value.
 // It uses the first byte to determine the scalar format.
-func DecodeScalar(scalar [32]byte) (EcostoneScalars, error) {
+func DecodeScalar(scalar [32]byte) (EcotoneScalars, error) {
 	switch scalar[0] {
 	case L1ScalarBedrock:
-		return EcostoneScalars{
+		return EcotoneScalars{
 			BlobBaseFeeScalar: 0,
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
 	case L1ScalarEcotone:
-		return EcostoneScalars{
+		return EcotoneScalars{
 			BlobBaseFeeScalar: binary.BigEndian.Uint32(scalar[24:28]),
 			BaseFeeScalar:     binary.BigEndian.Uint32(scalar[28:32]),
 		}, nil
 	default:
-		return EcostoneScalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
+		return EcotoneScalars{}, fmt.Errorf("unexpected system config scalar: %x", scalar)
 	}
 }
 
-// EncodeScalar encodes the EcostoneScalars into a 32-byte scalar value
+// EncodeScalar encodes the EcotoneScalars into a 32-byte scalar value
 // for the Ecotone serialization format.
-func EncodeScalar(scalars EcostoneScalars) (scalar [32]byte) {
+func EncodeScalar(scalars EcotoneScalars) (scalar [32]byte) {
 	scalar[0] = L1ScalarEcotone
 	binary.BigEndian.PutUint32(scalar[24:28], scalars.BlobBaseFeeScalar)
 	binary.BigEndian.PutUint32(scalar[28:32], scalars.BaseFeeScalar)
@@ -455,6 +504,17 @@ func CheckEcotoneL1SystemConfigScalar(scalar [32]byte) error {
 		// ignore the event if it's an unknown scalar format
 		return fmt.Errorf("unrecognized scalar version: %d", versionByte)
 	}
+}
+
+func CheckFjordL1SystemConfigScalar(scalar [32]byte) error {
+	versionByte := scalar[0]
+	if versionByte == L1ScalarFjord {
+		if ([11]byte)(scalar[1:12]) != ([11]byte{}) { // check padding
+			return fmt.Errorf("invalid version 2 scalar padding: %x", scalar[1:12])
+		}
+		return nil
+	}
+	return CheckEcotoneL1SystemConfigScalar(scalar)
 }
 
 type Bytes48 [48]byte
