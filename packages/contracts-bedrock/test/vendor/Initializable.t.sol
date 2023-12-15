@@ -64,8 +64,10 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l1CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l1CrossDomainMessenger.initialize, (optimismPortal, superchainConfig)),
-                initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessengerProxy")
+                initCalldata: abi.encodeCall(
+                    l1CrossDomainMessenger.initialize, (optimismPortal, address(l2CrossDomainMessenger), superchainConfig)
+                    ),
+                initializedSlotVal: deploy.loadInitializedSlot("L1CrossDomainMessenger", true)
             })
         );
         // L2OutputOracleImpl
@@ -176,7 +178,7 @@ contract Initializer_Test is Bridge_Initializer {
         contracts.push(
             InitializeableContract({
                 target: address(l2CrossDomainMessenger),
-                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, ()),
+                initCalldata: abi.encodeCall(l2CrossDomainMessenger.initialize, (address(l1CrossDomainMessenger))),
                 initializedSlotVal: deploy.loadInitializedSlot("L2CrossDomainMessenger")
             })
         );
