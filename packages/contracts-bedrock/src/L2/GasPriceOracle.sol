@@ -94,7 +94,8 @@ contract GasPriceOracle is ISemver {
                 total += 16;
             }
         }
-        return total + overhead();
+        uint256 unsigned = total + overhead();
+        return unsigned + (68 * 16);
     }
 
     /// @notice LZ77 implementation based on FastLZ.
