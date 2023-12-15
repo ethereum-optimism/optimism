@@ -115,7 +115,8 @@ abstract contract CrossDomainMessenger is
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
     /// @notice Address of the paired CrossDomainMessenger contract on the other chain.
-    address public immutable OTHER_MESSENGER;
+    /// @custom:network-specific
+    address public otherMessenger;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
@@ -165,11 +166,6 @@ abstract contract CrossDomainMessenger is
     /// @param msgHash Hash of the message that failed to be relayed.
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    /// @param _otherMessenger Address of the messenger on the paired chain.
-    constructor(address _otherMessenger) {
-        OTHER_MESSENGER = _otherMessenger;
-    }
-
     /// @notice Sends a message to some target address on the other chain. Note that if the call
     ///         always reverts, then the message will be unrelayable, and any ETH sent will be
     ///         permanently locked. The same will occur if the target on the other chain is
@@ -183,7 +179,7 @@ abstract contract CrossDomainMessenger is
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
         _sendMessage(
-            OTHER_MESSENGER,
+            otherMessenger,
             baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
@@ -320,6 +316,14 @@ abstract contract CrossDomainMessenger is
         return xDomainMsgSender;
     }
 
+    /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other
+    ///         chain.
+    /// @return Address of the paired CrossDomainMessenger contract on the other chain.
+    /// @custom:legacy
+    function OTHER_MESSENGER() public view returns (address) {
+        return otherMessenger;
+    }
+
     /// @notice Retrieves the next message nonce. Message version will be added to the upper two
     ///         bytes of the message nonce. Message version allows us to treat messages as having
     ///         different structures.
@@ -356,7 +360,7 @@ abstract contract CrossDomainMessenger is
 
     /// @notice Initializer.
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init() internal onlyInitializing {
+    function __CrossDomainMessenger_init(address _otherMessenger) internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
         // meaning that this is a fresh contract deployment.
         // This prevents resetting the xDomainMsgSender to the default value during an upgrade, which would enable
@@ -364,6 +368,7 @@ abstract contract CrossDomainMessenger is
         if (xDomainMsgSender == address(0)) {
             xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         }
+        otherMessenger = _otherMessenger;
     }
 
     /// @notice Sends a low-level message to the other messenger. Needs to be implemented by child
