@@ -93,8 +93,8 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Semantic version.
-    /// @custom:semver 2.2.0
-    string public constant version = "2.2.0";
+    /// @custom:semver 2.3.0
+    string public constant version = "2.3.0";
 
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
