@@ -22,7 +22,7 @@ type ActiveL2RollupProvider struct {
 	rollupUrls          []string
 	rollupDialer        rollupDialer
 	currentRollupClient RollupClientInterface
-	currentIndex        int
+	rollupIndex         int
 	clientLock          *sync.Mutex
 }
 
@@ -33,10 +33,11 @@ func NewActiveL2RollupProvider(
 	networkTimeout time.Duration,
 	logger log.Logger,
 ) (*ActiveL2RollupProvider, error) {
-	dialRollupClientInterfaceWithTimeout := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
+	rollupDialer := func(ctx context.Context, timeout time.Duration,
+		log log.Logger, url string) (RollupClientInterface, error) {
 		return DialRollupClientWithTimeout(ctx, timeout, log, url)
 	}
-	return newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, dialRollupClientInterfaceWithTimeout)
+	return newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
 }
 
 func newActiveL2RollupProvider(
@@ -50,29 +51,36 @@ func newActiveL2RollupProvider(
 	if len(rollupUrls) == 0 {
 		return nil, errors.New("empty rollup urls list")
 	}
-
+	rp := &ActiveL2RollupProvider{
+		checkDuration:  checkDuration,
+		networkTimeout: networkTimeout,
+		log:            logger,
+		rollupUrls:     rollupUrls,
+		rollupDialer:   dialer,
+		clientLock:     &sync.Mutex{},
+	}
 	cctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-
-	rollupClient, err := dialer(cctx, networkTimeout, logger, rollupUrls[0])
+	_, err := rp.RollupClient(cctx)
 	if err != nil {
 		return nil, fmt.Errorf("dialing rollup client: %w", err)
 	}
-
-	return &ActiveL2RollupProvider{
-		checkDuration:       checkDuration,
-		networkTimeout:      networkTimeout,
-		log:                 logger,
-		rollupUrls:          rollupUrls,
-		rollupDialer:        dialer,
-		currentRollupClient: rollupClient,
-		clientLock:          &sync.Mutex{},
-	}, nil
+	return rp, nil
 }
 
 func (p *ActiveL2RollupProvider) RollupClient(ctx context.Context) (RollupClientInterface, error) {
 	p.clientLock.Lock()
 	defer p.clientLock.Unlock()
+	if p.currentRollupClient == nil {
+		cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
+		defer cancel()
+		ep := p.rollupUrls[p.rollupIndex]
+		rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
+		if err != nil {
+			return nil, fmt.Errorf("dialing rollup client: %w", err)
+		}
+		p.currentRollupClient = rollupClient
+	}
 	err := p.ensureActiveEndpoint(ctx)
 	if err != nil {
 		return nil, err
@@ -84,7 +92,6 @@ func (p *ActiveL2RollupProvider) ensureActiveEndpoint(ctx context.Context) error
 	if !p.shouldCheck() {
 		return nil
 	}
-
 	if err := p.findActiveEndpoints(ctx); err != nil {
 		return err
 	}
@@ -97,18 +104,16 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 }
 
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
-	for index := range p.rollupUrls {
+	for range p.rollupUrls {
 		active, err := p.checkCurrentSequencer(ctx)
-		ep := p.rollupUrls[p.currentIndex]
+		ep := p.rollupUrls[p.rollupIndex]
 		if err != nil {
-			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "index", index, "url", ep)
-			p.currentRollupClient.Close()
+			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "offset", p.rollupIndex, "url", ep)
 		} else if active {
-			p.log.Debug("Current sequencer active.", "index", index, "url", ep)
+			p.log.Debug("Current sequencer active.", "offset", p.rollupIndex, "url", ep)
 			return nil
 		} else {
-			p.log.Info("Current sequencer inactive, closing connection and trying next.", "index", index, "url", ep)
-			p.currentRollupClient.Close()
+			p.log.Info("Current sequencer inactive, closing connection and trying next.", "offset", p.rollupIndex, "url", ep)
 		}
 		if err := p.dialNextSequencer(ctx); err != nil {
 			return fmt.Errorf("dialing next sequencer: %w", err)
@@ -131,13 +136,14 @@ func (p *ActiveL2RollupProvider) dialNextSequencer(ctx context.Context) error {
 	cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 	defer cancel()
 
-	p.currentIndex = (p.currentIndex + 1) % p.numEndpoints()
-	ep := p.rollupUrls[p.currentIndex]
-	p.log.Info("Dialing next sequencer.", "index", p.currentIndex, "url", ep)
+	p.rollupIndex = (p.rollupIndex + 1) % p.numEndpoints()
+	ep := p.rollupUrls[p.rollupIndex]
+	p.log.Info("Dialing next sequencer.", "index", p.rollupIndex, "url", ep)
 	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
 	if err != nil {
 		return fmt.Errorf("dialing rollup client: %w", err)
 	}
+	p.currentRollupClient.Close()
 	p.currentRollupClient = rollupClient
 	return nil
 }

@@ -75,12 +75,8 @@ func (c *CLIConfig) Check() error {
 	if c.RollupRpc == "" {
 		return errors.New("empty rollup RPC URL")
 	}
-	if strings.Contains(c.RollupRpc, ",") || strings.Contains(c.L2EthRpc, ",") {
-		rollupUrls := strings.Split(c.RollupRpc, ",")
-		ethUrls := strings.Split(c.L2EthRpc, ",")
-		if len(rollupUrls) != len(ethUrls) {
-			return errors.New("number of rollup and eth URLs must match")
-		}
+	if strings.Count(c.RollupRpc, ",") != strings.Count(c.L2EthRpc, ",") {
+		return errors.New("number of rollup and eth URLs must match")
 	}
 	if c.PollInterval == 0 {
 		return errors.New("must set PollInterval")
