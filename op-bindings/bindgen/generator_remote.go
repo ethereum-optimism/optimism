@@ -27,7 +27,7 @@ type contractDataClient interface {
 	FetchAbi(ctx context.Context, address string) (string, error)
 	FetchDeployedBytecode(ctx context.Context, address string) (string, error)
 	FetchDeploymentTxHash(ctx context.Context, address string) (string, error)
-	FetchDeploymentTx(ctx context.Context, txHash string) (etherscan.TxInfo, error)
+	FetchDeploymentTx(ctx context.Context, txHash string) (etherscan.Transaction, error)
 }
 
 type deployments struct {
