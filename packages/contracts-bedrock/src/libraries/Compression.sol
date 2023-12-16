@@ -29,9 +29,9 @@ library Compression {
                 _n := add(1, add(_n, runs_))
             }
             function match(l_, n_) -> _n {
-                let d := div(sub(l_, 1), 262)
-                n_ := add(n_, mul(3, d))
-                if iszero(lt(l_, 7)) {
+                l_ := sub(l_, 1)
+                n_ := add(n_, mul(3, div(l_, 262)))
+                if iszero(lt(mod(l_, 262), 6)) {
                     _n := add(n_, 3)
                     leave
                 }
