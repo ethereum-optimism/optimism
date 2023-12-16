@@ -3,6 +3,11 @@
 //////////
 // source: models.go
 
+export interface QueryParams {
+  Address: any /* common.Address */;
+  Limit: number /* int */;
+  Cursor: string;
+}
 /**
  * DepositItem ... Deposit item model for API responses
  */
@@ -54,4 +59,6 @@ export interface WithdrawalResponse {
 export interface BridgeSupplyView {
   l1DepositSum: number /* float64 */;
   l2WithdrawalSum: number /* float64 */;
+  provenSum: number /* float64 */;
+  finalizedSum: number /* float64 */;
 }

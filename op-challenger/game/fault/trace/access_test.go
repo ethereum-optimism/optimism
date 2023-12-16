@@ -18,7 +18,7 @@ func TestAccessor_UsesSelector(t *testing.T) {
 	provider1 := test.NewAlphabetWithProofProvider(t, int(depth), nil)
 	provider2 := alphabet.NewTraceProvider("qrstuv", depth)
 	claim := types.Claim{}
-	game := types.NewGameState(true, []types.Claim{claim}, depth)
+	game := types.NewGameState([]types.Claim{claim}, depth)
 	pos1 := types.NewPositionFromGIndex(big.NewInt(4))
 	pos2 := types.NewPositionFromGIndex(big.NewInt(6))
 

@@ -36,8 +36,8 @@ type StorageSetterSlot struct {
 
 // StorageSetterMetaData contains all meta data concerning the StorageSetter contract.
 var StorageSetterMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getBytes32\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"}],\"name\":\"getUint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"_address\",\"type\":\"address\"}],\"name\":\"setAddress\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"value\",\"type\":\"bytes32\"}],\"internalType\":\"structStorageSetter.Slot[]\",\"name\":\"slots\",\"type\":\"tuple[]\"}],\"name\":\"setBytes32\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"_value\",\"type\":\"bytes32\"}],\"name\":\"setBytes32\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_slot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"setUint\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b506103de806100206000396000f3fe608060405234801561001057600080fd5b50600436106100885760003560e01c8063a6ed563e1161005b578063a6ed563e1461013a578063bd02d0f51461013a578063ca446dd914610156578063e2a4853a146100df57600080fd5b80630528afe21461008d57806321f8a721146100a25780634e91db08146100df57806354fd4d50146100f1575b600080fd5b6100a061009b3660046101d7565b610164565b005b6100b56100b036600461024c565b6101c7565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100a06100ed366004610265565b9055565b61012d6040518060400160405280600581526020017f312e312e3000000000000000000000000000000000000000000000000000000081525081565b6040516100d69190610287565b6101486100b036600461024c565b6040519081526020016100d6565b6100a06100ed3660046102fa565b8060005b818110156101c1576101af84848381811061018557610185610343565b905060400201600001358585848181106101a1576101a1610343565b905060400201602001359055565b806101b981610372565b915050610168565b50505050565b60006101d1825490565b92915050565b600080602083850312156101ea57600080fd5b823567ffffffffffffffff8082111561020257600080fd5b818501915085601f83011261021657600080fd5b81358181111561022557600080fd5b8660208260061b850101111561023a57600080fd5b60209290920196919550909350505050565b60006020828403121561025e57600080fd5b5035919050565b6000806040838503121561027857600080fd5b50508035926020909101359150565b600060208083528351808285015260005b818110156102b457858101830151858201604001528201610298565b818111156102c6576000604083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016929092016040019392505050565b6000806040838503121561030d57600080fd5b82359150602083013573ffffffffffffffffffffffffffffffffffffffff8116811461033857600080fd5b809150509250929050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036103ca577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea164736f6c634300080f000a",
+	ABI: "[{\"type\":\"function\",\"name\":\"getAddress\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"addr_\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getBool\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"value_\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getBytes32\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"value_\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getUint\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"value_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setAddress\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_address\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setBool\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_value\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setBytes32\",\"inputs\":[{\"name\":\"slots\",\"type\":\"tuple[]\",\"internalType\":\"structStorageSetter.Slot[]\",\"components\":[{\"name\":\"key\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"value\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setBytes32\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_value\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setUint\",\"inputs\":[{\"name\":\"_slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"}]",
+	Bin: "0x608060405234801561001057600080fd5b5061046a806100206000396000f3fe608060405234801561001057600080fd5b50600436106100be5760003560e01c8063a6ed563e11610076578063bd02d0f51161005b578063bd02d0f51461018e578063ca446dd9146101b8578063e2a4853a1461011557600080fd5b8063a6ed563e1461018e578063abfdcced146101aa57600080fd5b80634e91db08116100a75780634e91db081461011557806354fd4d50146101275780637ae1cfca1461017057600080fd5b80630528afe2146100c357806321f8a721146100d8575b600080fd5b6100d66100d1366004610239565b6101c6565b005b6100eb6100e63660046102ae565b610229565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100d66101233660046102c7565b9055565b6101636040518060400160405280600581526020017f312e322e3000000000000000000000000000000000000000000000000000000081525081565b60405161010c91906102e9565b61017e6100e63660046102ae565b604051901515815260200161010c565b61019c6100e63660046102ae565b60405190815260200161010c565b6100d661012336600461035c565b6100d6610123366004610391565b8060005b81811015610223576102118484838181106101e7576101e76103cf565b90506040020160000135858584818110610203576102036103cf565b905060400201602001359055565b8061021b816103fe565b9150506101ca565b50505050565b6000610233825490565b92915050565b6000806020838503121561024c57600080fd5b823567ffffffffffffffff8082111561026457600080fd5b818501915085601f83011261027857600080fd5b81358181111561028757600080fd5b8660208260061b850101111561029c57600080fd5b60209290920196919550909350505050565b6000602082840312156102c057600080fd5b5035919050565b600080604083850312156102da57600080fd5b50508035926020909101359150565b600060208083528351808285015260005b81811015610316578581018301518582016040015282016102fa565b81811115610328576000604083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016929092016040019392505050565b6000806040838503121561036f57600080fd5b823591506020830135801515811461038657600080fd5b809150509250929050565b600080604083850312156103a457600080fd5b82359150602083013573ffffffffffffffffffffffffffffffffffffffff8116811461038657600080fd5b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203610456577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea164736f6c634300080f000a",
 }
 
 // StorageSetterABI is the input ABI used to generate the binding from.
@@ -209,7 +209,7 @@ func (_StorageSetter *StorageSetterTransactorRaw) Transact(opts *bind.TransactOp
 
 // GetAddress is a free data retrieval call binding the contract method 0x21f8a721.
 //
-// Solidity: function getAddress(bytes32 _slot) view returns(address)
+// Solidity: function getAddress(bytes32 _slot) view returns(address addr_)
 func (_StorageSetter *StorageSetterCaller) GetAddress(opts *bind.CallOpts, _slot [32]byte) (common.Address, error) {
 	var out []interface{}
 	err := _StorageSetter.contract.Call(opts, &out, "getAddress", _slot)
@@ -226,21 +226,52 @@ func (_StorageSetter *StorageSetterCaller) GetAddress(opts *bind.CallOpts, _slot
 
 // GetAddress is a free data retrieval call binding the contract method 0x21f8a721.
 //
-// Solidity: function getAddress(bytes32 _slot) view returns(address)
+// Solidity: function getAddress(bytes32 _slot) view returns(address addr_)
 func (_StorageSetter *StorageSetterSession) GetAddress(_slot [32]byte) (common.Address, error) {
 	return _StorageSetter.Contract.GetAddress(&_StorageSetter.CallOpts, _slot)
 }
 
 // GetAddress is a free data retrieval call binding the contract method 0x21f8a721.
 //
-// Solidity: function getAddress(bytes32 _slot) view returns(address)
+// Solidity: function getAddress(bytes32 _slot) view returns(address addr_)
 func (_StorageSetter *StorageSetterCallerSession) GetAddress(_slot [32]byte) (common.Address, error) {
 	return _StorageSetter.Contract.GetAddress(&_StorageSetter.CallOpts, _slot)
 }
 
+// GetBool is a free data retrieval call binding the contract method 0x7ae1cfca.
+//
+// Solidity: function getBool(bytes32 _slot) view returns(bool value_)
+func (_StorageSetter *StorageSetterCaller) GetBool(opts *bind.CallOpts, _slot [32]byte) (bool, error) {
+	var out []interface{}
+	err := _StorageSetter.contract.Call(opts, &out, "getBool", _slot)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// GetBool is a free data retrieval call binding the contract method 0x7ae1cfca.
+//
+// Solidity: function getBool(bytes32 _slot) view returns(bool value_)
+func (_StorageSetter *StorageSetterSession) GetBool(_slot [32]byte) (bool, error) {
+	return _StorageSetter.Contract.GetBool(&_StorageSetter.CallOpts, _slot)
+}
+
+// GetBool is a free data retrieval call binding the contract method 0x7ae1cfca.
+//
+// Solidity: function getBool(bytes32 _slot) view returns(bool value_)
+func (_StorageSetter *StorageSetterCallerSession) GetBool(_slot [32]byte) (bool, error) {
+	return _StorageSetter.Contract.GetBool(&_StorageSetter.CallOpts, _slot)
+}
+
 // GetBytes32 is a free data retrieval call binding the contract method 0xa6ed563e.
 //
-// Solidity: function getBytes32(bytes32 _slot) view returns(bytes32)
+// Solidity: function getBytes32(bytes32 _slot) view returns(bytes32 value_)
 func (_StorageSetter *StorageSetterCaller) GetBytes32(opts *bind.CallOpts, _slot [32]byte) ([32]byte, error) {
 	var out []interface{}
 	err := _StorageSetter.contract.Call(opts, &out, "getBytes32", _slot)
@@ -257,21 +288,21 @@ func (_StorageSetter *StorageSetterCaller) GetBytes32(opts *bind.CallOpts, _slot
 
 // GetBytes32 is a free data retrieval call binding the contract method 0xa6ed563e.
 //
-// Solidity: function getBytes32(bytes32 _slot) view returns(bytes32)
+// Solidity: function getBytes32(bytes32 _slot) view returns(bytes32 value_)
 func (_StorageSetter *StorageSetterSession) GetBytes32(_slot [32]byte) ([32]byte, error) {
 	return _StorageSetter.Contract.GetBytes32(&_StorageSetter.CallOpts, _slot)
 }
 
 // GetBytes32 is a free data retrieval call binding the contract method 0xa6ed563e.
 //
-// Solidity: function getBytes32(bytes32 _slot) view returns(bytes32)
+// Solidity: function getBytes32(bytes32 _slot) view returns(bytes32 value_)
 func (_StorageSetter *StorageSetterCallerSession) GetBytes32(_slot [32]byte) ([32]byte, error) {
 	return _StorageSetter.Contract.GetBytes32(&_StorageSetter.CallOpts, _slot)
 }
 
 // GetUint is a free data retrieval call binding the contract method 0xbd02d0f5.
 //
-// Solidity: function getUint(bytes32 _slot) view returns(uint256)
+// Solidity: function getUint(bytes32 _slot) view returns(uint256 value_)
 func (_StorageSetter *StorageSetterCaller) GetUint(opts *bind.CallOpts, _slot [32]byte) (*big.Int, error) {
 	var out []interface{}
 	err := _StorageSetter.contract.Call(opts, &out, "getUint", _slot)
@@ -288,14 +319,14 @@ func (_StorageSetter *StorageSetterCaller) GetUint(opts *bind.CallOpts, _slot [3
 
 // GetUint is a free data retrieval call binding the contract method 0xbd02d0f5.
 //
-// Solidity: function getUint(bytes32 _slot) view returns(uint256)
+// Solidity: function getUint(bytes32 _slot) view returns(uint256 value_)
 func (_StorageSetter *StorageSetterSession) GetUint(_slot [32]byte) (*big.Int, error) {
 	return _StorageSetter.Contract.GetUint(&_StorageSetter.CallOpts, _slot)
 }
 
 // GetUint is a free data retrieval call binding the contract method 0xbd02d0f5.
 //
-// Solidity: function getUint(bytes32 _slot) view returns(uint256)
+// Solidity: function getUint(bytes32 _slot) view returns(uint256 value_)
 func (_StorageSetter *StorageSetterCallerSession) GetUint(_slot [32]byte) (*big.Int, error) {
 	return _StorageSetter.Contract.GetUint(&_StorageSetter.CallOpts, _slot)
 }
@@ -350,6 +381,27 @@ func (_StorageSetter *StorageSetterSession) SetAddress(_slot [32]byte, _address 
 // Solidity: function setAddress(bytes32 _slot, address _address) returns()
 func (_StorageSetter *StorageSetterTransactorSession) SetAddress(_slot [32]byte, _address common.Address) (*types.Transaction, error) {
 	return _StorageSetter.Contract.SetAddress(&_StorageSetter.TransactOpts, _slot, _address)
+}
+
+// SetBool is a paid mutator transaction binding the contract method 0xabfdcced.
+//
+// Solidity: function setBool(bytes32 _slot, bool _value) returns()
+func (_StorageSetter *StorageSetterTransactor) SetBool(opts *bind.TransactOpts, _slot [32]byte, _value bool) (*types.Transaction, error) {
+	return _StorageSetter.contract.Transact(opts, "setBool", _slot, _value)
+}
+
+// SetBool is a paid mutator transaction binding the contract method 0xabfdcced.
+//
+// Solidity: function setBool(bytes32 _slot, bool _value) returns()
+func (_StorageSetter *StorageSetterSession) SetBool(_slot [32]byte, _value bool) (*types.Transaction, error) {
+	return _StorageSetter.Contract.SetBool(&_StorageSetter.TransactOpts, _slot, _value)
+}
+
+// SetBool is a paid mutator transaction binding the contract method 0xabfdcced.
+//
+// Solidity: function setBool(bytes32 _slot, bool _value) returns()
+func (_StorageSetter *StorageSetterTransactorSession) SetBool(_slot [32]byte, _value bool) (*types.Transaction, error) {
+	return _StorageSetter.Contract.SetBool(&_StorageSetter.TransactOpts, _slot, _value)
 }
 
 // SetBytes32 is a paid mutator transaction binding the contract method 0x0528afe2.

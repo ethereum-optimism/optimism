@@ -21,7 +21,7 @@ type GameContract interface {
 	AttackTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	DefendTx(parentContractIndex uint64, pivot common.Hash) (txmgr.TxCandidate, error)
 	StepTx(claimIdx uint64, isAttack bool, stateData []byte, proof []byte) (txmgr.TxCandidate, error)
-	UpdateOracleTx(ctx context.Context, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
+	UpdateOracleTx(ctx context.Context, claimIdx uint64, data *types.PreimageOracleData) (txmgr.TxCandidate, error)
 }
 
 // FaultResponder implements the [Responder] interface to send onchain transactions.
@@ -75,7 +75,7 @@ func (r *FaultResponder) ResolveClaim(ctx context.Context, claimIdx uint64) erro
 func (r *FaultResponder) PerformAction(ctx context.Context, action types.Action) error {
 	if action.OracleData != nil {
 		r.log.Info("Updating oracle data", "key", action.OracleData.OracleKey)
-		candidate, err := r.contract.UpdateOracleTx(ctx, action.OracleData)
+		candidate, err := r.contract.UpdateOracleTx(ctx, uint64(action.ParentIdx), action.OracleData)
 		if err != nil {
 			return fmt.Errorf("failed to create pre-image oracle tx: %w", err)
 		}

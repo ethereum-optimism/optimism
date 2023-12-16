@@ -18,7 +18,7 @@ var (
 )
 
 func TestDisputeGameFactorySimpleGetters(t *testing.T) {
-	blockNum := uint64(23)
+	blockHash := common.Hash{0xbb, 0xcd}
 	tests := []struct {
 		method   string
 		args     []interface{}
@@ -31,7 +31,7 @@ func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 			result:   big.NewInt(9876),
 			expected: uint64(9876),
 			call: func(game *DisputeGameFactoryContract) (any, error) {
-				return game.GetGameCount(context.Background(), blockNum)
+				return game.GetGameCount(context.Background(), blockHash)
 			},
 		},
 	}
@@ -39,7 +39,7 @@ func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 		test := test
 		t.Run(test.method, func(t *testing.T) {
 			stubRpc, factory := setupDisputeGameFactoryTest(t)
-			stubRpc.SetResponse(factoryAddr, test.method, batching.BlockByNumber(blockNum), nil, []interface{}{test.result})
+			stubRpc.SetResponse(factoryAddr, test.method, batching.BlockByHash(blockHash), nil, []interface{}{test.result})
 			status, err := test.call(factory)
 			require.NoError(t, err)
 			expected := test.expected
@@ -52,7 +52,7 @@ func TestDisputeGameFactorySimpleGetters(t *testing.T) {
 }
 
 func TestLoadGame(t *testing.T) {
-	blockNum := uint64(23)
+	blockHash := common.Hash{0xbb, 0xce}
 	stubRpc, factory := setupDisputeGameFactoryTest(t)
 	game0 := types.GameMetadata{
 		GameType:  0,
@@ -71,18 +71,18 @@ func TestLoadGame(t *testing.T) {
 	}
 	expectedGames := []types.GameMetadata{game0, game1, game2}
 	for idx, expected := range expectedGames {
-		expectGetGame(stubRpc, idx, blockNum, expected)
-		actual, err := factory.GetGame(context.Background(), uint64(idx), blockNum)
+		expectGetGame(stubRpc, idx, blockHash, expected)
+		actual, err := factory.GetGame(context.Background(), uint64(idx), blockHash)
 		require.NoError(t, err)
 		require.Equal(t, expected, actual)
 	}
 }
 
-func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockNum uint64, game types.GameMetadata) {
+func expectGetGame(stubRpc *batchingTest.AbiBasedRpc, idx int, blockHash common.Hash, game types.GameMetadata) {
 	stubRpc.SetResponse(
 		factoryAddr,
 		methodGameAtIndex,
-		batching.BlockByNumber(blockNum),
+		batching.BlockByHash(blockHash),
 		[]interface{}{big.NewInt(int64(idx))},
 		[]interface{}{
 			game.GameType,

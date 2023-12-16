@@ -14,11 +14,11 @@ import (
 )
 
 type hardforkScheduledTest struct {
-	name              string
-	regolithTime      *hexutil.Uint64
-	spanBatchTime     *hexutil.Uint64
-	activateRegolith  bool
-	activateSpanBatch bool
+	name             string
+	regolithTime     *hexutil.Uint64
+	deltaTime        *hexutil.Uint64
+	activateRegolith bool
+	activateDelta    bool
 }
 
 // TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various regolith configurations:
@@ -34,17 +34,17 @@ func TestCrossLayerUser(t *testing.T) {
 	futureTime := hexutil.Uint64(20)
 	farFutureTime := hexutil.Uint64(2000)
 	tests := []hardforkScheduledTest{
-		{name: "NoRegolith", regolithTime: nil, activateRegolith: false, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "NoSpanBatch", regolithTime: &zeroTime, activateRegolith: true, spanBatchTime: nil, activateSpanBatch: false},
-		{name: "NotYetSpanBatch", regolithTime: &zeroTime, activateRegolith: true,
-			spanBatchTime: &farFutureTime, activateSpanBatch: false},
-		{name: "SpanBatchAtGenesis", regolithTime: &zeroTime, activateRegolith: true,
-			spanBatchTime: &zeroTime, activateSpanBatch: true},
-		{name: "SpanBatchAfterGenesis", regolithTime: &zeroTime, activateRegolith: true,
-			spanBatchTime: &futureTime, activateSpanBatch: true},
+		{name: "NoRegolith", regolithTime: nil, activateRegolith: false, deltaTime: nil, activateDelta: false},
+		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false, deltaTime: nil, activateDelta: false},
+		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
+		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
+		{name: "NoDelta", regolithTime: &zeroTime, activateRegolith: true, deltaTime: nil, activateDelta: false},
+		{name: "NotYetDelta", regolithTime: &zeroTime, activateRegolith: true,
+			deltaTime: &farFutureTime, activateDelta: false},
+		{name: "DeltaAtGenesis", regolithTime: &zeroTime, activateRegolith: true,
+			deltaTime: &zeroTime, activateDelta: true},
+		{name: "DeltaAfterGenesis", regolithTime: &zeroTime, activateRegolith: true,
+			deltaTime: &futureTime, activateDelta: true},
 	}
 	for _, test := range tests {
 		test := test // Use a fixed reference as the tests run in parallel
@@ -58,7 +58,7 @@ func runCrossLayerUserTest(gt *testing.T, test hardforkScheduledTest) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
-	dp.DeployConfig.L2GenesisSpanBatchTimeOffset = test.spanBatchTime
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = test.deltaTime
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 

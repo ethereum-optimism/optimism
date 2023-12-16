@@ -3,7 +3,10 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.29.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.34.0
+  base_image:
+    type: string
+    default: ubuntu-2204:2022.07.1
 
 orbs:
   go: circleci/go@1.8.0
@@ -84,7 +87,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/src/cannon
+          patterns: cannon,packages/contracts-bedrock/src/cannon,op-preimage
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -127,8 +130,11 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
       - check-changed:
-          patterns: op-chain-ops,packages/
+          patterns: op-chain-ops,packages/,op-node
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -149,12 +155,14 @@ jobs:
             - "node_modules"
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --offline
+          command: pnpm install:ci:offline
       - run:
           name: print forge version
           command: forge --version
       - run:
           name: Build monorepo
+          environment:
+            FOUNDRY_PROFILE: ci
           command: pnpm build
       - persist_to_workspace:
           root: "."
@@ -206,7 +214,7 @@ jobs:
         type: string
         default: medium
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
       resource_class: "<<parameters.resource_class>>"
       docker_layer_caching: true  # we rely on this for faster builds, and actively warm it up for builds with common stages
     steps:
@@ -317,12 +325,16 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
       - check-changed:
           patterns: contracts-bedrock,op-node
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
+      # We do not use the pre-built contracts becuase forge coverage uses different optimizer settings
       - run:
           name: test and generate coverage
           command: pnpm coverage:lcov
@@ -342,8 +354,20 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install:ci
       - run:
           name: print forge version
           command: forge --version
@@ -362,19 +386,30 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
+      - run:
+          name: git submodules
+          command: make submodules
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,op-node
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
+      # Note: this step needs to come first because one of the later steps modifies the cache & forces a contracts rebuild
       - run:
-          name: build contracts
-          command: pnpm build
+          name: semver lock
+          command: |
+            pnpm semver-lock
+            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: check deploy configs
+          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: lint
@@ -391,26 +426,15 @@ jobs:
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
       - run:
-          name: storage snapshot
-          command: |
-            pnpm storage-snapshot
-            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: semver lock
-          command: |
-            pnpm semver-lock
-            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
           name: invariant docs
           command: |
             pnpm autogen:invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
-          name: check deploy configs
-          command: pnpm validate-deploy-configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
+          name: snapshots
+          command: |
+            pnpm snapshots:check || echo "export SNAPSHOTS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: check statuses
@@ -422,10 +446,6 @@ jobs:
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
               FAILED=1
               echo "Gas snapshot failed, see job output for details."
-            fi
-            if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
-              echo "Storage snapshot failed, see job output for details."
-              FAILED=1
             fi
             if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
               echo "Semver lock failed, see job output for details."
@@ -439,6 +459,10 @@ jobs:
               echo "Deploy config check failed, see job output for details."
               FAILED=1
             fi
+            if [[ "$SNAPSHOTS_STATUS" -ne 0 ]]; then
+              echo "Snapshots check failed, see job output for details."
+              FAILED=1
+            fi
             if [[ "$FAILED" -ne 0 ]]; then
               exit 1
             fi
@@ -446,15 +470,15 @@ jobs:
   contracts-bedrock-slither:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
           patterns: contracts-bedrock
       - run:
           name: slither
-          command: |
-            slither --version && pnpm slither || echo "Slither failed"
+          command: pnpm slither:check
+          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -469,7 +493,7 @@ jobs:
       - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - check-changed:
           patterns: contracts-bedrock
       - run:
@@ -515,7 +539,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
@@ -544,7 +568,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: Check generated and build
           command: pnpm generate:check
@@ -566,7 +590,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: anvil-l1
           background: true
@@ -606,7 +630,7 @@ jobs:
 
   todo-issues:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - run:
@@ -619,7 +643,7 @@ jobs:
 
   bedrock-markdown:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - check-changed:
@@ -630,7 +654,7 @@ jobs:
             npm i pnpm --global
       - run:
           name: pnpm dev deps
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: specs toc
           command: pnpm lint:specs:toc && git diff --exit-code ./specs
@@ -640,7 +664,7 @@ jobs:
 
   bedrock-markdown-links:
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: <<pipeline.parameters.base_image>>
     steps:
       - checkout
       - run:
@@ -650,7 +674,7 @@ jobs:
       - run:
           name: Install node_modules
           command: |
-            pnpm install --frozen-lockfile --prefer-offline
+            pnpm install:ci
       - run:
           name: Lint check
           command: |
@@ -834,11 +858,16 @@ jobs:
       - run:
           name: run tests
           command: |
+            mkdir -p /testlogs
+
             export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>>
+            JUNIT_FILE=/tmp/test-results/<<parameters.module>>_<<parameters.target>>.xml make <<parameters.target>> 2>&1 | tee /testlogs/test.log
           working_directory: <<parameters.module>>
+      - store_artifacts:
+          path: /testlogs
+          when: always
       - store_test_results:
           path: /tmp/test-results
 
@@ -860,6 +889,7 @@ jobs:
         default: this-package-does-not-exist
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: medium
     steps:
       - checkout
       - check-changed:
@@ -868,14 +898,14 @@ jobs:
           name: Lint
           command: make lint
           working_directory: <<parameters.working_directory>>
-      - store_test_results:
-          path: /test-results
       - run:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum --junitfile /test-results/tests.xml
+            gotestsum  --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=2
           working_directory: <<parameters.working_directory>>
+      - store_test_results:
+          path: /test-results
       - when:
           condition:
             equal: [ true, <<parameters.build>> ]
@@ -900,7 +930,7 @@ jobs:
           working_directory: indexer
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate cannon prestate
           command: make cannon-prestate
@@ -921,8 +951,7 @@ jobs:
           working_directory: indexer
       - run:
           name: Install node_modules
-          command: pnpm install --frozen-lockfile --prefer-offline
-          working_directory: indexer/api-ts
+          command: pnpm install:ci
       - run:
           name: Install tygo
           command: go install github.com/gzuidhof/tygo@latest
@@ -975,7 +1004,7 @@ jobs:
           key: golang-build-cache
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: generate devnet allocs
           command: make devnet-allocs
@@ -989,14 +1018,14 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2204:2022.10.2
+      image: <<pipeline.parameters.base_image>>
     environment:
       DOCKER_BUILDKIT: 1
       DEVNET_NO_BUILD: 'true'
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages,ops-bedrock
+          patterns: op-(.+),packages,ops-bedrock,bedrock-devnet
       - run:
           name: Install latest golang
           command: |
@@ -1034,11 +1063,11 @@ jobs:
             npm i pnpm --global
       - run:
           name: git submodules
-          command: git submodule update --init --recursive
+          command: make submodules
       - run:
           name: Install and build
           command: |
-            pnpm install --frozen-lockfile --prefer-offline && pnpm build
+            pnpm install:ci && pnpm build
       - attach_workspace:
           at: /tmp/workspace
       - run:
@@ -1195,6 +1224,45 @@ jobs:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
 
+  op-service-rethdb-tests:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-service,op-node
+      - restore_cache:
+          name: Restore Go modules cache
+          key: gomod-{{ checksum "go.sum" }}
+      - run:
+          name: Cargo fmt + clippy
+          command: |
+            cargo +nightly fmt -- --check
+            cargo +nightly clippy --all --all-features -- -D warnings
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Generate testdata db
+          command: cargo test
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Build dylib
+          command: cargo build --release
+          working_directory: op-service/rethdb-reader
+      - run:
+          name: Update LD_LIBRARY_PATH
+          command: echo 'export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/root/project/op-service/rethdb-reader/target/release"' >> $BASH_ENV
+      - run:
+          name: Run op-service RethDB tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/op-service.xml \
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out \
+            -run TestRethDB -tags rethdb -v
+          working_directory: op-service/sources
+      # TODO(CLI-148): Fix codecov
+      #- run:
+          #name: upload coverage
+          #command: codecov --verbose --clean --flags bedrock-rethdb-go-tests
+
   bedrock-go-tests:  # just a helper, that depends on all the actual test jobs
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1274,6 +1342,29 @@ jobs:
           name: Verify Values Match
           command: |
             ./ops/scripts/ci-match-values-between-files.sh "<< parameters.file1_path >>" "<< parameters.pattern_file1 >>" "<< parameters.file2_path >>" "<< parameters.pattern_file2 >>"
+
+  kontrol-tests:
+    docker:
+      - image: << pipeline.parameters.ci_builder_image >>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: Checkout Submodule
+          command: |
+            git submodule update --init --recursive
+      - check-changed:
+          patterns: contracts-bedrock/test/kontrol,contracts-bedrock/src/L1/OptimismPortal\.sol
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Run Kontrol Tests
+          command: |
+            pnpm test:kontrol
+          working_directory: ./packages/contracts-bedrock
+      - store_artifacts:
+          path: ./packages/contracts-bedrock/kontrol-results_latest.tar.gz
+
 workflows:
   main:
     when:
@@ -1293,7 +1384,9 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-tests
+      - contracts-bedrock-tests:
+          requires:
+            - pnpm-monorepo
       - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
@@ -1408,6 +1501,9 @@ workflows:
           name: op-service-tests
           module: op-service
           requires: ["op-stack-go-lint"]
+      - op-service-rethdb-tests:
+          requires:
+            - op-stack-go-lint
       - go-e2e-test:
           name: op-e2e-WS-tests
           module: op-e2e
@@ -1457,6 +1553,7 @@ workflows:
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
             - op-e2e-ext-geth-tests
+            - op-service-rethdb-tests
       - docker-build: # just to warm up the cache (other jobs run in parallel)
           name: op-stack-go-docker-build
           docker_name: op-stack-go
@@ -1520,11 +1617,7 @@ workflows:
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
       - cannon-build-test-vectors
-      - check-values-match:
-          pattern_file1: "uint8 internal constant INITIALIZER ="
-          pattern_file2: "const InitializedValue ="
-          file1_path: "packages/contracts-bedrock/src/libraries/Constants.sol"
-          file2_path: "op-chain-ops/genesis/config.go"
+      - kontrol-tests
   release:
     when:
       not:
@@ -1828,6 +1921,16 @@ workflows:
           docker_name: chain-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           resource_class: xlarge
+          publish: true
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
+          name: contracts-bedrock-docker-publish
+          docker_name: contracts-bedrock
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          resource_class: xlarge
+          requires: [ 'chain-mon-docker-publish' ] # use the cached base image
           publish: true
           context:
             - oplabs-gcr

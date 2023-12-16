@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/indexer/api/routes"
+	"github.com/ethereum-optimism/optimism/indexer/api/service"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
@@ -129,7 +130,7 @@ func (a *APIService) Addr() string {
 func (a *APIService) initDB(ctx context.Context, connector DBConnector) error {
 	db, err := connector.OpenDB(ctx, a.log)
 	if err != nil {
-		return fmt.Errorf("failed to connect to databse: %w", err)
+		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 	a.dbClose = db.Closer
 	a.bv = db.BridgeTransfers
@@ -137,8 +138,11 @@ func (a *APIService) initDB(ctx context.Context, connector DBConnector) error {
 }
 
 func (a *APIService) initRouter(apiConfig config.ServerConfig) {
+	v := new(service.Validator)
+
+	svc := service.New(v, a.bv, a.log)
 	apiRouter := chi.NewRouter()
-	h := routes.NewRoutes(a.log, a.bv, apiRouter)
+	h := routes.NewRoutes(a.log, apiRouter, svc)
 
 	promRecorder := metrics.NewPromHTTPRecorder(a.metricsRegistry, MetricsNamespace)
 

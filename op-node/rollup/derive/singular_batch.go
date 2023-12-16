@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"errors"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -44,6 +45,7 @@ func (b *SingularBatch) GetEpochNum() rollup.Epoch {
 // LogContext creates a new log context that contains information of the batch
 func (b *SingularBatch) LogContext(log log.Logger) log.Logger {
 	return log.New(
+		"batch_type", "SingularBatch",
 		"batch_timestamp", b.Timestamp,
 		"parent_hash", b.ParentHash,
 		"batch_epoch", b.Epoch(),
@@ -64,4 +66,13 @@ func (b *SingularBatch) encode(w io.Writer) error {
 // decode reads the byte encoding of SingularBatch from Reader stream
 func (b *SingularBatch) decode(r *bytes.Reader) error {
 	return rlp.Decode(r, b)
+}
+
+// GetSingularBatch retrieves SingularBatch from batchData
+func GetSingularBatch(batchData *BatchData) (*SingularBatch, error) {
+	singularBatch, ok := batchData.inner.(*SingularBatch)
+	if !ok {
+		return nil, NewCriticalError(errors.New("failed type assertion to SingularBatch"))
+	}
+	return singularBatch, nil
 }

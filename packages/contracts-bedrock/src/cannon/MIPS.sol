@@ -143,7 +143,7 @@ contract MIPS {
     /// @notice Handles a syscall.
     /// @param _localContext The local key context for the preimage oracle.
     /// @return out_ The hashed MIPS state.
-    function handleSyscall(uint256 _localContext) internal returns (bytes32 out_) {
+    function handleSyscall(bytes32 _localContext) internal returns (bytes32 out_) {
         unchecked {
             // Load state from memory
             State memory state;
@@ -626,7 +626,7 @@ contract MIPS {
     /// @param _proof The encoded proof data for leaves within the MIPS VM's memory.
     /// @param _localContext The local key context for the preimage oracle. Optional, can be set as a constant
     ///                      if the caller only requires one set of local keys.
-    function step(bytes calldata _stateData, bytes calldata _proof, uint256 _localContext) public returns (bytes32) {
+    function step(bytes calldata _stateData, bytes calldata _proof, bytes32 _localContext) public returns (bytes32) {
         unchecked {
             State memory state;
 

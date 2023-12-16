@@ -57,8 +57,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 			}
 		}
 
-		tx, err := p.createTx(ctx, client, nonce)
-		nonce = tx.Nonce()
+		from, tx, err := p.createTx(ctx, client, nonce)
 		if err != nil {
 			log.Error("cant create tx",
 				"provider", p.name,
@@ -66,8 +65,9 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				"err", err)
 			return
 		}
+		nonce = tx.Nonce()
 
-		signedTx, err := p.sign(ctx, tx)
+		signedTx, err := p.sign(ctx, from, tx)
 		if err != nil {
 			log.Error("cant sign tx",
 				"provider", p.name,
@@ -192,16 +192,16 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		"gasUsed", receipt.GasUsed)
 }
 
-func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEthClient, nonce uint64) (*types.Transaction, error) {
+func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEthClient, nonce uint64) (*common.Address, *types.Transaction, error) {
 	var err error
 	if nonce == 0 {
 		nonce, err = client.PendingNonceAt(ctx, p.walletConfig.Address)
 		if err != nil {
-			log.Error("cant get nounce",
+			log.Error("cant get nonce",
 				"provider", p.name,
 				"nonce", nonce,
 				"err", err)
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -210,17 +210,21 @@ func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEt
 		log.Error("cant get gas tip cap",
 			"provider", p.name,
 			"err", err)
-		return nil, err
+		return nil, nil, err
 	}
-	gasTipCap = new(big.Int).Mul(gasTipCap, big.NewInt(110))
-	gasTipCap = new(big.Int).Div(gasTipCap, big.NewInt(100))
+
+	// adjust gas tip cap by 110%
+	const GasTipCapAdjustmentMultiplier = 110
+	const GasTipCapAdjustmentDivisor = 100
+	gasTipCap = new(big.Int).Mul(gasTipCap, big.NewInt(GasTipCapAdjustmentMultiplier))
+	gasTipCap = new(big.Int).Div(gasTipCap, big.NewInt(GasTipCapAdjustmentDivisor))
 
 	head, err := client.HeaderByNumber(ctx, nil)
 	if err != nil {
 		log.Error("cant get base fee from head",
 			"provider", p.name,
 			"err", err)
-		return nil, err
+		return nil, nil, err
 	}
 	baseFee := head.BaseFee
 
@@ -252,7 +256,7 @@ func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEt
 		log.Error("cant estimate gas",
 			"provider", p.name,
 			"err", err)
-		return nil, err
+		return nil, nil, err
 	}
 	dynamicTx.Gas = gas
 	tx := types.NewTx(dynamicTx)
@@ -268,14 +272,15 @@ func (p *Provider) createTx(ctx context.Context, client *iclients.InstrumentedEt
 		"gasFeeCap", dynamicTx.GasFeeCap,
 	)
 
-	return tx, nil
+	return &addr, tx, nil
 }
 
-func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+func (p *Provider) sign(ctx context.Context, from *common.Address, tx *types.Transaction) (*types.Transaction, error) {
 	if p.walletConfig.SignerMethod == "static" {
 		log.Debug("using static signer")
 		privateKey, err := crypto.HexToECDSA(p.walletConfig.PrivateKey)
 		if err != nil {
+			log.Error("failed to parse private key", "err", err)
 			return nil, err
 		}
 		return types.SignTx(tx, types.LatestSignerForChainID(&p.walletConfig.ChainID), privateKey)
@@ -286,18 +291,15 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 			TLSKey:    p.signerConfig.TLSKey,
 		}
 		client, err := iclients.NewSignerClient(p.name, log.Root(), p.signerConfig.URL, tlsConfig)
-		log.Debug("signerclient",
-			"client", client,
-			"err", err)
-		if err != nil {
-			return nil, err
+		if err != nil || client == nil {
+			log.Error("failed to create signer client", "err", err)
 		}
 
 		if client == nil {
 			return nil, errors.New("could not initialize signer client")
 		}
 
-		signedTx, err := client.SignTransaction(ctx, &p.walletConfig.ChainID, tx)
+		signedTx, err := client.SignTransaction(ctx, &p.walletConfig.ChainID, from, tx)
 		if err != nil {
 			return nil, err
 		}

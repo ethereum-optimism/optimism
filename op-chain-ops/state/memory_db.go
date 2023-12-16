@@ -61,6 +61,10 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
 
+	db.createAccount(addr)
+}
+
+func (db *MemoryStateDB) createAccount(addr common.Address) {
 	if _, ok := db.genesis.Alloc[addr]; !ok {
 		db.genesis.Alloc[addr] = core.GenesisAccount{
 			Code:    []byte{},
@@ -69,7 +73,6 @@ func (db *MemoryStateDB) CreateAccount(addr common.Address) {
 			Nonce:   0,
 		}
 	}
-
 }
 
 func (db *MemoryStateDB) SubBalance(addr common.Address, amount *big.Int) {
@@ -164,6 +167,8 @@ func (db *MemoryStateDB) GetCode(addr common.Address) []byte {
 func (db *MemoryStateDB) SetCode(addr common.Address, code []byte) {
 	db.rw.Lock()
 	defer db.rw.Unlock()
+
+	db.createAccount(addr)
 
 	account, ok := db.genesis.Alloc[addr]
 	if !ok {

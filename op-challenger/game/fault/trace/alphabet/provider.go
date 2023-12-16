@@ -7,20 +7,27 @@ import (
 	"math/big"
 	"strings"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+const (
+	L2ClaimBlockNumberLocalIndex = 4
+)
+
 var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
-	absolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 )
 
 // AlphabetTraceProvider is a [TraceProvider] that provides claims for specific
 // indices in the given trace.
 type AlphabetTraceProvider struct {
+	AlphabetPrestateProvider
 	state  []string
 	depth  uint64
 	maxLen uint64
@@ -50,7 +57,9 @@ func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i types.Positi
 	if traceIndex.Cmp(big.NewInt(int64(len(ap.state)))) >= 0 {
 		return ap.GetStepData(ctx, types.NewPosition(int(ap.depth), big.NewInt(int64(len(ap.state)))))
 	}
-	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, nil, nil
+	key := preimage.LocalIndexKey(L2ClaimBlockNumberLocalIndex).PreimageKey()
+	preimageData := types.NewPreimageOracleData(key[:], nil, 0)
+	return BuildAlphabetPreimage(traceIndex, ap.state[traceIndex.Uint64()]), []byte{}, preimageData, nil
 }
 
 // Get returns the claim value at the given index in the trace.
@@ -66,12 +75,6 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i types.Position) (com
 		return common.Hash{}, err
 	}
 	return alphabetStateHash(claimBytes), nil
-}
-
-func (ap *AlphabetTraceProvider) AbsolutePreStateCommitment(_ context.Context) (common.Hash, error) {
-	hash := common.BytesToHash(crypto.Keccak256(absolutePrestate))
-	hash[0] = mipsevm.VMStatusUnfinished
-	return hash, nil
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.

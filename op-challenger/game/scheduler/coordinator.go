@@ -63,7 +63,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 	// Otherwise, results may start being processed before all games are recorded, resulting in existing
 	// data directories potentially being deleted for games that are required.
 	for _, game := range games {
-		if j, err := c.createJob(game); err != nil {
+		if j, err := c.createJob(ctx, game); err != nil {
 			errs = append(errs, fmt.Errorf("failed to create job for game %v: %w", game.Proxy, err))
 		} else if j != nil {
 			jobs = append(jobs, *j)
@@ -96,14 +96,14 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 
 // createJob updates the state for the specified game and returns the job to enqueue for it, if any
 // Returns (nil, nil) when there is no error and no job to enqueue
-func (c *coordinator) createJob(game types.GameMetadata) (*job, error) {
+func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata) (*job, error) {
 	state, ok := c.states[game.Proxy]
 	if !ok {
 		state = &gameState{}
 		c.states[game.Proxy] = state
 	}
 	if state.inflight {
-		c.logger.Debug("Not rescheduling already in-flight game", "game", game)
+		c.logger.Debug("Not rescheduling already in-flight game", "game", game.Proxy)
 		return nil, nil
 	}
 	// Create the player separately to the state so we retry creating it if it fails on the first attempt.
@@ -112,12 +112,15 @@ func (c *coordinator) createJob(game types.GameMetadata) (*job, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to create game player: %w", err)
 		}
+		if err := player.ValidatePrestate(ctx); err != nil {
+			return nil, fmt.Errorf("failed to validate prestate: %w", err)
+		}
 		state.player = player
 		state.status = player.Status()
 	}
 	state.inflight = true
 	if state.status != types.GameStatusInProgress {
-		c.logger.Debug("Not rescheduling resolved game", "game", game, "status", state.status)
+		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
 		return nil, nil
 	}
 	return &job{addr: game.Proxy, player: state.player, status: state.status}, nil

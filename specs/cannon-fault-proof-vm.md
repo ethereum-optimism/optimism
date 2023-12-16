@@ -24,7 +24,7 @@
 
 This is a description of the Cannon Fault Proof Virtual Machine (FPVM). The Cannon FPVM emulates
 a minimal Linux-based system running on big-endian 32-bit MIPS32 architecture.
-Alot of its behaviors are copied from Linux/MIPS with a few tweaks made for fault proofs.
+A lot of its behaviors are copied from Linux/MIPS with a few tweaks made for fault proofs.
 For the rest of this doc, we refer to the Cannon FPVM as simply the FPVM.
 
 Operationally, the FPVM is a state transition function. This state transition is referred to as a *Step*,
@@ -150,14 +150,14 @@ The VM does not support Linux open(2). However, the VM can read from and write t
 | Name | File descriptor | Description |
 | ---- | --------------- | ----------- |
 | stdin | 0 | read-only standard input stream. |
-| stdout | 1 | write-only standaard output stream. |
+| stdout | 1 | write-only standard output stream. |
 | stderr | 2 | write-only standard error stream. |
 | hint response | 3 | read-only. Used to read the status of [pre-image hinting](./fault-proof.md#hinting). |
 | hint request | 4 | write-only. Used to provide [pre-image hints](./fault-proof.md#hinting) |
 | pre-image response | 5 | read-only. Used to [read pre-images](./fault-proof.md#pre-image-communication). |
 | pre-image request | 6 | write-only. Used to [request pre-images](./fault-proof.md#pre-image-communication). |
 
-Syscalls referencing unnkown file descriptors fail with an `EBADF` errno as done on Linux.
+Syscalls referencing unknown file descriptors fail with an `EBADF` errno as done on Linux.
 
 Writing to and reading from standard output, input and error streams have no effect on the FPVM state.
 FPVM implementations may use them for debugging purposes as long as I/O is stateless.
@@ -183,13 +183,13 @@ VM implementations may utilize hints to setup subsequent pre-image requests.
 The `preimageKey` and `preimageOffset` state are updated via read/write syscalls to the pre-image
 read and write file descriptors (see [I/O](#io)).
 The `preimageKey` buffers the stream of bytes written to the pre-image write fd.
-The `preimageKey` buffer is shifted to accomodate new bytes written to the end of it.
+The `preimageKey` buffer is shifted to accommodate new bytes written to the end of it.
 A write also resets the `preimageOffset` to 0, indicating the intent to read a new pre-image.
 
 When handling pre-image reads, the `preimageKey` is used to lookup the pre-image data from an Oracle.
 A max 4-byte chunk of the pre-image at the `preimageOffset` is read to the specified address.
 Each read operation increases the `preimageOffset` by the number of bytes requested
-(truncated to 4 bytes and subject to alignment contraints).
+(truncated to 4 bytes and subject to alignment constraints).
 
 #### Pre-image I/O Alignment
 

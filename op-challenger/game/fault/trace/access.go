@@ -11,10 +11,14 @@ func NewSimpleTraceAccessor(trace types.TraceProvider) *Accessor {
 	selector := func(_ context.Context, _ types.Game, _ types.Claim, _ types.Position) (types.TraceProvider, error) {
 		return trace, nil
 	}
-	return &Accessor{selector}
+	return NewAccessor(selector)
 }
 
 type ProviderSelector func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error)
+
+func NewAccessor(selector ProviderSelector) *Accessor {
+	return &Accessor{selector}
+}
 
 type Accessor struct {
 	selector ProviderSelector

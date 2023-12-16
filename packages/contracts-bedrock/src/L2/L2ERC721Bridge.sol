@@ -20,19 +20,18 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, ISemver {
-    /// @custom:semver 1.4.0
-    string public constant version = "1.4.0";
+    /// @custom:semver 1.6.0
+    string public constant version = "1.6.0";
 
     /// @notice Constructs the L2ERC721Bridge contract.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) ERC721Bridge(_otherBridge) {
+    constructor(address _otherBridge) ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, _otherBridge) {
         initialize();
     }
 
-    /// @notice Initializes the contract.
-    function initialize() public reinitializer(Constants.INITIALIZER) {
-        __ERC721Bridge_init({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) });
-    }
+    /// @notice Initializes the contract. This is a noop in the implementation but included to ensure that
+    ///         the contract cannot be initialized a second time.
+    function initialize() public initializer { }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
@@ -114,7 +113,7 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);

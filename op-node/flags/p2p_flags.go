@@ -55,6 +55,30 @@ var (
 	SyncReqRespName        = "p2p.sync.req-resp"
 )
 
+func deprecatedP2PFlags(envPrefix string) []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:     PeerScoringName,
+			Usage:    fmt.Sprintf("Deprecated: Use %v instead", ScoringName),
+			Required: false,
+			Hidden:   true,
+		},
+		&cli.StringFlag{
+			Name:     PeerScoreBandsName,
+			Usage:    "Deprecated. This option is ignored and is only present for backwards compatibility.",
+			Required: false,
+			Value:    "",
+			Hidden:   true,
+		},
+		&cli.StringFlag{
+			Name:     TopicScoringName,
+			Usage:    fmt.Sprintf("Deprecated: Use %v instead", ScoringName),
+			Required: false,
+			Hidden:   true,
+		},
+	}
+}
+
 // None of these flags are strictly required.
 // Some are hidden if they are too technical, or not recommended.
 func P2PFlags(envPrefix string) []cli.Flag {
@@ -78,19 +102,6 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			Value:    "light",
 			EnvVars:  p2pEnv(envPrefix, "PEER_SCORING"),
 		},
-		&cli.StringFlag{
-			Name:     PeerScoringName,
-			Usage:    fmt.Sprintf("Deprecated: Use %v instead", ScoringName),
-			Required: false,
-			Hidden:   true,
-		},
-		&cli.StringFlag{
-			Name:     PeerScoreBandsName,
-			Usage:    "Deprecated. This option is ignored and is only present for backwards compatibility.",
-			Required: false,
-			Value:    "",
-			Hidden:   true,
-		},
 		&cli.BoolFlag{
 			// Banning Flag - whether or not we want to act on the scoring
 			Name:     BanningName,
@@ -112,12 +123,6 @@ func P2PFlags(envPrefix string) []cli.Flag {
 			Required: false,
 			Value:    1 * time.Hour,
 			EnvVars:  p2pEnv(envPrefix, "PEER_BANNING_DURATION"),
-		},
-		&cli.StringFlag{
-			Name:     TopicScoringName,
-			Usage:    fmt.Sprintf("Deprecated: Use %v instead", ScoringName),
-			Required: false,
-			Hidden:   true,
 		},
 		&cli.StringFlag{
 			Name: P2PPrivPathName,

@@ -32,6 +32,11 @@ type Constructor struct {
 	Args []interface{}
 }
 
+type SuperchainPredeploy struct {
+	Name     string
+	CodeHash common.Hash
+}
+
 type Deployment struct {
 	Name     string
 	Bytecode hexutil.Bytes
@@ -70,6 +75,8 @@ func NewBackendWithGenesisTimestamp(ts uint64, shanghai bool) *backends.Simulate
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
+		ShanghaiTime:        nil,
+		CancunTime:          nil,
 		// Activated proof of stake. We manually build/commit blocks in the simulator anyway,
 		// and the timestamp verification of PoS is not against the wallclock,
 		// preventing blocks from getting stuck temporarily in the future-blocks queue, decreasing setup time a lot.

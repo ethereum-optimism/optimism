@@ -4,6 +4,7 @@ import (
 	"context"
 	crand "crypto/rand"
 	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/mock"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/sources/caching"
 )
 
 type mockRPC struct {
@@ -176,4 +178,46 @@ func TestEthClient_WrongInfoByHash(t *testing.T) {
 	_, err = s.InfoByHash(ctx, k)
 	require.Error(t, err, "cannot accept the wrong block")
 	m.Mock.AssertExpectations(t)
+}
+
+func TestEthClient_validateReceipts(t *testing.T) {
+	require := require.New(t)
+	mrpc := new(mockRPC)
+	mrp := new(mockReceiptsProvider)
+	const numTxs = 4
+	block, receipts := randomRpcBlockAndReceipts(rand.New(rand.NewSource(420)), numTxs)
+	txHashes := receiptTxHashes(receipts)
+	ctx := context.Background()
+
+	// mutate a field to make validation fail.
+	receipts[2].Bloom[0] = 1
+
+	mrpc.On("CallContext", ctx, mock.AnythingOfType("**sources.rpcBlock"),
+		"eth_getBlockByHash", []any{block.Hash, true}).
+		Run(func(args mock.Arguments) {
+			*(args[1].(**rpcBlock)) = block
+		}).
+		Return([]error{nil}).Once()
+
+	mrp.On("FetchReceipts", ctx, block.BlockID(), txHashes).
+		Return(types.Receipts(receipts), error(nil)).Once()
+
+	ethcl := newEthClientWithCaches(nil, numTxs)
+	ethcl.client = mrpc
+	ethcl.recProvider = mrp
+	ethcl.trustRPC = false
+
+	_, _, err := ethcl.FetchReceipts(ctx, block.Hash)
+	require.ErrorContains(err, "invalid receipts")
+
+	mrpc.AssertExpectations(t)
+	mrp.AssertExpectations(t)
+}
+
+func newEthClientWithCaches(metrics caching.Metrics, cacheSize int) *EthClient {
+	return &EthClient{
+		transactionsCache: caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", cacheSize),
+		headersCache:      caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", cacheSize),
+		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayload](metrics, "payloads", cacheSize),
+	}
 }

@@ -80,13 +80,13 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 
 	if stepWitness.HasPreimage() {
 		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
-		poInput, err := encodePreimageOracleInput(t, stepWitness, 0)
+		poInput, err := encodePreimageOracleInput(t, stepWitness, LocalContext{})
 		require.NoError(t, err, "encode preimage oracle input")
 		_, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.Oracle, poInput, startingGas, big.NewInt(0))
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
 	}
 
-	input := encodeStepInput(t, stepWitness, 0)
+	input := encodeStepInput(t, stepWitness, LocalContext{})
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, big.NewInt(0))
 	require.NoError(t, err, "evm should not fail")
 	require.Len(t, ret, 32, "expecting 32-byte state hash")
@@ -109,7 +109,7 @@ func encodeStepInput(t *testing.T, wit *StepWitness, localContext LocalContext) 
 	mipsAbi, err := bindings.MIPSMetaData.GetAbi()
 	require.NoError(t, err)
 
-	input, err := mipsAbi.Pack("step", wit.State, wit.MemProof, new(big.Int).SetUint64(uint64(localContext)))
+	input, err := mipsAbi.Pack("step", wit.State, wit.MemProof, localContext)
 	require.NoError(t, err)
 	return input
 }
@@ -132,7 +132,7 @@ func encodePreimageOracleInput(t *testing.T, wit *StepWitness, localContext Loca
 		copy(tmp[:], preimagePart)
 		input, err := preimageAbi.Pack("loadLocalData",
 			new(big.Int).SetBytes(wit.PreimageKey[1:]),
-			new(big.Int).SetUint64(uint64(localContext)),
+			localContext,
 			tmp,
 			new(big.Int).SetUint64(uint64(len(preimagePart))),
 			new(big.Int).SetUint64(uint64(wit.PreimageOffset)),
@@ -292,7 +292,7 @@ func TestEVMFault(t *testing.T) {
 				State:    initialState.EncodeWitness(),
 				MemProof: insnProof[:],
 			}
-			input := encodeStepInput(t, stepWitness, 0)
+			input := encodeStepInput(t, stepWitness, LocalContext{})
 			startingGas := uint64(30_000_000)
 
 			_, _, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, big.NewInt(0))

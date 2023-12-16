@@ -91,9 +91,7 @@ contract DeployPeriphery is Deployer {
             save("ProxyAdmin", preComputedAddress);
             addr_ = preComputedAddress;
         } else {
-            ProxyAdmin admin = new ProxyAdmin{ salt: salt }({
-              _owner: msg.sender
-            });
+            ProxyAdmin admin = new ProxyAdmin{ salt: salt }({ _owner: msg.sender });
             require(admin.owner() == msg.sender);
 
             save("ProxyAdmin", address(admin));
@@ -114,9 +112,7 @@ contract DeployPeriphery is Deployer {
             save("FaucetProxy", preComputedAddress);
             addr_ = preComputedAddress;
         } else {
-            Proxy proxy = new Proxy{ salt: salt }({
-              _admin: proxyAdmin
-            });
+            Proxy proxy = new Proxy{ salt: salt }({ _admin: proxyAdmin });
             address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
             require(admin == proxyAdmin);
 

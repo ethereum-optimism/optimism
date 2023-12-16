@@ -1,0 +1,58 @@
+[
+  {
+    "bytes": "1",
+    "label": "_initialized",
+    "offset": 0,
+    "slot": "0",
+    "type": "uint8"
+  },
+  {
+    "bytes": "1",
+    "label": "_initializing",
+    "offset": 1,
+    "slot": "0",
+    "type": "bool"
+  },
+  {
+    "bytes": "1600",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "1",
+    "type": "uint256[50]"
+  },
+  {
+    "bytes": "20",
+    "label": "_owner",
+    "offset": 0,
+    "slot": "51",
+    "type": "address"
+  },
+  {
+    "bytes": "1568",
+    "label": "__gap",
+    "offset": 0,
+    "slot": "52",
+    "type": "uint256[49]"
+  },
+  {
+    "bytes": "32",
+    "label": "gameImpls",
+    "offset": 0,
+    "slot": "101",
+    "type": "mapping(GameType => contract IDisputeGame)"
+  },
+  {
+    "bytes": "32",
+    "label": "_disputeGames",
+    "offset": 0,
+    "slot": "102",
+    "type": "mapping(Hash => GameId)"
+  },
+  {
+    "bytes": "32",
+    "label": "_disputeGameList",
+    "offset": 0,
+    "slot": "103",
+    "type": "GameId[]"
+  }
+]

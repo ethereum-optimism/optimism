@@ -6,7 +6,8 @@ GAME_ADDR=${2:?Must specify game address}
 ACTION=${3:?Must specify attack or defend}
 PARENT_INDEX=${4:?Must specify parent index. Use latest to counter the latest claim added to the game.}
 CLAIM=${5:?Must specify claim hash}
-SIGNER_ARGS="${@:6}"
+SIGNER_ARGS=("${@:6}")
+
 
 if [[ "${ACTION}" != "attack" && "${ACTION}" != "defend" ]]
 then
@@ -22,4 +23,4 @@ then
 fi
 
 # Perform the move.
-cast send --rpc-url "${RPC}" ${SIGNER_ARGS} "${GAME_ADDR}" "$ACTION(uint256,bytes32)" "${PARENT_INDEX}" "${CLAIM}"
+cast send --rpc-url "${RPC}" "${SIGNER_ARGS[@]}" "${GAME_ADDR}" "$ACTION(uint256,bytes32)" "${PARENT_INDEX}" "${CLAIM}"

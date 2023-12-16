@@ -110,7 +110,7 @@ func ParseRPCRes(r io.Reader) (*RPCRes, error) {
 
 	res := new(RPCRes)
 	if err := json.Unmarshal(body, res); err != nil {
-		return nil, wrapErr(err, "error unmarshaling RPC response")
+		return nil, wrapErr(err, "error unmarshalling RPC response")
 	}
 
 	return res, nil

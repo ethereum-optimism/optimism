@@ -160,7 +160,7 @@ func TestAttemptStep(t *testing.T) {
 	for _, tableTest := range tests {
 		tableTest := tableTest
 		t.Run(tableTest.name, func(t *testing.T) {
-			builder := claimBuilder.GameBuilder(tableTest.agreeWithOutputRoot, !tableTest.agreeWithOutputRoot)
+			builder := claimBuilder.GameBuilder(!tableTest.agreeWithOutputRoot)
 			tableTest.setupGame(builder)
 			alphabetSolver := newClaimSolver(maxDepth, trace.NewSimpleTraceAccessor(claimBuilder.CorrectTraceProvider()))
 			game := builder.Game

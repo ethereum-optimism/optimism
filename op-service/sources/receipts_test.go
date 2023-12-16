@@ -171,15 +171,13 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 	for i, req := range requests {
 		info, result, err := ethCl.FetchReceipts(context.Background(), block.Hash)
 		if err == nil {
-			require.Nil(t, req.err, "error")
+			require.NoError(t, req.err, "error")
 			require.Equal(t, block.Hash, info.Hash(), fmt.Sprintf("req %d blockhash", i))
-			expectedJson, err := json.MarshalIndent(req.result, "", "  ")
-			require.NoError(t, err)
-			gotJson, err := json.MarshalIndent(result, "", "  ")
-			require.NoError(t, err)
-			require.Equal(t, string(expectedJson), string(gotJson), fmt.Sprintf("req %d result", i))
+			for j, rec := range req.result {
+				requireEqualReceipt(t, rec, result[j], "req %d result %d", i, j)
+			}
 		} else {
-			require.NotNil(t, req.err, "error")
+			require.Error(t, req.err, "error")
 			require.Equal(t, req.err.Error(), err.Error(), fmt.Sprintf("req %d err", i))
 		}
 	}
@@ -569,4 +567,13 @@ func TestVerifyReceipts(t *testing.T) {
 		err := validateReceipts(block, receiptHash, txHashes, receipts)
 		require.ErrorContains(t, err, "must never be removed due to reorg")
 	})
+}
+
+func requireEqualReceipt(t *testing.T, exp, act *types.Receipt, msgAndArgs ...any) {
+	t.Helper()
+	expJson, err := json.MarshalIndent(exp, "", "  ")
+	require.NoError(t, err, msgAndArgs...)
+	actJson, err := json.MarshalIndent(act, "", "  ")
+	require.NoError(t, err, msgAndArgs...)
+	require.Equal(t, string(expJson), string(actJson), msgAndArgs...)
 }

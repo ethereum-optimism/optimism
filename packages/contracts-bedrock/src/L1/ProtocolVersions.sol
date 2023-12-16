@@ -55,14 +55,7 @@ contract ProtocolVersions is OwnableUpgradeable, ISemver {
     /// @param _owner             Initial owner of the contract.
     /// @param _required          Required protocol version to operate on this chain.
     /// @param _recommended       Recommended protocol version to operate on thi chain.
-    function initialize(
-        address _owner,
-        ProtocolVersion _required,
-        ProtocolVersion _recommended
-    )
-        public
-        reinitializer(Constants.INITIALIZER)
-    {
+    function initialize(address _owner, ProtocolVersion _required, ProtocolVersion _recommended) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
         _setRequired(_required);

@@ -9,9 +9,6 @@ import (
 )
 
 var (
-	// ErrClaimExists is returned when a claim already exists in the game state.
-	ErrClaimExists = errors.New("claim exists in game state")
-
 	// ErrClaimNotFound is returned when a claim does not exist in the game state.
 	ErrClaimNotFound = errors.New("claim not found in game state")
 )
@@ -33,7 +30,7 @@ type Game interface {
 	IsDuplicate(claim Claim) bool
 
 	// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
-	AgreeWithClaimLevel(claim Claim) bool
+	AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool
 
 	MaxDepth() uint64
 }
@@ -51,7 +48,6 @@ func computeClaimID(claim Claim) claimID {
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
-	agreeWithProposedOutput bool
 	// claims is the list of claims in the same order as the contract
 	claims   []Claim
 	claimIDs map[claimID]bool
@@ -60,28 +56,27 @@ type gameState struct {
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
-func NewGameState(agreeWithProposedOutput bool, claims []Claim, depth uint64) *gameState {
+func NewGameState(claims []Claim, depth uint64) *gameState {
 	claimIDs := make(map[claimID]bool)
 	for _, claim := range claims {
 		claimIDs[computeClaimID(claim)] = true
 	}
 	return &gameState{
-		agreeWithProposedOutput: agreeWithProposedOutput,
-		claims:                  claims,
-		claimIDs:                claimIDs,
-		depth:                   depth,
+		claims:   claims,
+		claimIDs: claimIDs,
+		depth:    depth,
 	}
 }
 
 // AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
-func (g *gameState) AgreeWithClaimLevel(claim Claim) bool {
+func (g *gameState) AgreeWithClaimLevel(claim Claim, agreeWithRootClaim bool) bool {
 	isOddLevel := claim.Depth()%2 == 1
 	// If we agree with the proposed output, we agree with odd levels
 	// If we disagree with the proposed output, we agree with the root claim level & even levels
-	if g.agreeWithProposedOutput {
-		return isOddLevel
-	} else {
+	if agreeWithRootClaim {
 		return !isOddLevel
+	} else {
+		return isOddLevel
 	}
 }
 

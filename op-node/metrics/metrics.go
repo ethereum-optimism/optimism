@@ -46,6 +46,7 @@ type Metricer interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+	RecordDerivedBatches(batchType string)
 	CountSequencedTxs(count int)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
@@ -92,6 +93,8 @@ type Metrics struct {
 	DerivationErrors *metrics.Event
 	SequencingErrors *metrics.Event
 	PublishingErrors *metrics.Event
+
+	DerivedBatches metrics.EventVec
 
 	P2PReqDurationSeconds *prometheus.HistogramVec
 	P2PReqTotal           *prometheus.CounterVec
@@ -192,6 +195,8 @@ func NewMetrics(procName string) *Metrics {
 		SequencingErrors: metrics.NewEvent(factory, ns, "", "sequencing_errors", "sequencing errors"),
 		PublishingErrors: metrics.NewEvent(factory, ns, "", "publishing_errors", "p2p publishing errors"),
 
+		DerivedBatches: metrics.NewEventVec(factory, ns, "", "derived_batches", "derived batches", []string{"type"}),
+
 		SequencerInconsistentL1Origin: metrics.NewEvent(factory, ns, "", "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
 		SequencerResets:               metrics.NewEvent(factory, ns, "", "sequencer_resets", "sequencer resets"),
 
@@ -230,7 +235,7 @@ func NewMetrics(procName string) *Metrics {
 		PeerScores: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "peer_scores",
-			Help:      "Histogram of currrently connected peer scores",
+			Help:      "Histogram of currently connected peer scores",
 			Buckets:   []float64{-100, -40, -20, -10, -5, -2, -1, -0.5, -0.05, 0, 0.05, 0.5, 1, 2, 5, 10, 20, 40},
 		}, []string{"type"}),
 		StreamCount: factory.NewGauge(prometheus.GaugeOpts{
@@ -449,6 +454,10 @@ func (m *Metrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next
 	m.UnsafePayloadsBufferMemSize.Set(float64(memSize))
 }
 
+func (m *Metrics) RecordDerivedBatches(batchType string) {
+	m.DerivedBatches.Record(batchType)
+}
+
 func (m *Metrics) CountSequencedTxs(count int) {
 	m.TransactionsSequencedTotal.Add(float64(count))
 }
@@ -644,6 +653,9 @@ func (n *noopMetricer) RecordL2Ref(name string, ref eth.L2BlockRef) {
 }
 
 func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+}
+
+func (n *noopMetricer) RecordDerivedBatches(batchType string) {
 }
 
 func (n *noopMetricer) CountSequencedTxs(count int) {

@@ -12,6 +12,7 @@ import (
 
 func TestMainShouldReturnErrorWhenConfigInvalid(t *testing.T) {
 	cfg := &config.Config{}
-	err := Main(context.Background(), testlog.Logger(t, log.LvlInfo), cfg)
+	app, err := Main(context.Background(), testlog.Logger(t, log.LvlInfo), cfg)
 	require.ErrorIs(t, err, cfg.Check())
+	require.Nil(t, app)
 }

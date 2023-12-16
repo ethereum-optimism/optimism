@@ -17,12 +17,10 @@ func TestFetchLocalInputs(t *testing.T) {
 	contract := &mockGameInputsSource{
 		l1Head: common.Hash{0xcc},
 		starting: contracts.Proposal{
-			Index:         big.NewInt(6),
 			L2BlockNumber: big.NewInt(2222),
 			OutputRoot:    common.Hash{0xdd},
 		},
 		disputed: contracts.Proposal{
-			Index:         big.NewInt(7),
 			L2BlockNumber: big.NewInt(3333),
 			OutputRoot:    common.Hash{0xee},
 		},
@@ -34,7 +32,7 @@ func TestFetchLocalInputs(t *testing.T) {
 		},
 	}
 
-	inputs, err := fetchLocalInputs(ctx, contract, l2Client)
+	inputs, err := FetchLocalInputs(ctx, contract, l2Client)
 	require.NoError(t, err)
 
 	require.Equal(t, contract.l1Head, inputs.L1Head)
@@ -42,6 +40,36 @@ func TestFetchLocalInputs(t *testing.T) {
 	require.EqualValues(t, contract.starting.OutputRoot, inputs.L2OutputRoot)
 	require.EqualValues(t, contract.disputed.OutputRoot, inputs.L2Claim)
 	require.Equal(t, contract.disputed.L2BlockNumber, inputs.L2BlockNumber)
+}
+
+func TestFetchLocalInputsFromProposals(t *testing.T) {
+	ctx := context.Background()
+	agreed := contracts.Proposal{
+		L2BlockNumber: big.NewInt(2222),
+		OutputRoot:    common.Hash{0xdd},
+	}
+	claimed := contracts.Proposal{
+		L2BlockNumber: big.NewInt(3333),
+		OutputRoot:    common.Hash{0xee},
+	}
+	contract := &mockGameInputsSource{
+		l1Head: common.Hash{0xcc},
+	}
+	l2Client := &mockL2DataSource{
+		chainID: big.NewInt(88422),
+		header: ethtypes.Header{
+			Number: agreed.L2BlockNumber,
+		},
+	}
+
+	inputs, err := FetchLocalInputsFromProposals(ctx, contract, l2Client, agreed, claimed)
+	require.NoError(t, err)
+
+	require.Equal(t, contract.l1Head, inputs.L1Head)
+	require.Equal(t, l2Client.header.Hash(), inputs.L2Head)
+	require.EqualValues(t, agreed.OutputRoot, inputs.L2OutputRoot)
+	require.EqualValues(t, claimed.OutputRoot, inputs.L2Claim)
+	require.Equal(t, claimed.L2BlockNumber, inputs.L2BlockNumber)
 }
 
 type mockGameInputsSource struct {
@@ -63,11 +91,11 @@ type mockL2DataSource struct {
 	header  ethtypes.Header
 }
 
-func (s *mockL2DataSource) ChainID(ctx context.Context) (*big.Int, error) {
+func (s *mockL2DataSource) ChainID(_ context.Context) (*big.Int, error) {
 	return s.chainID, nil
 }
 
-func (s *mockL2DataSource) HeaderByNumber(ctx context.Context, num *big.Int) (*ethtypes.Header, error) {
+func (s *mockL2DataSource) HeaderByNumber(_ context.Context, num *big.Int) (*ethtypes.Header, error) {
 	if s.header.Number.Cmp(num) == 0 {
 		return &s.header, nil
 	}

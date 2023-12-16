@@ -43,6 +43,11 @@ func (_m *TxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return r0, r1
 }
 
+// Close provides a mock function with given fields:
+func (_m *TxManager) Close() {
+	_m.Called()
+}
+
 // From provides a mock function with given fields:
 func (_m *TxManager) From() common.Address {
 	ret := _m.Called()

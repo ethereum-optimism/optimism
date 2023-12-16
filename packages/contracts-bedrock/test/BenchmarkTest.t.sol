@@ -201,7 +201,7 @@ contract GasBenchMark_L2OutputOracle is CommonTest {
         super.setUp();
         nextBlockNumber = l2OutputOracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        address proposer = cfg.l2OutputOracleProposer();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
         vm.startPrank(proposer);
     }
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-SOURCE_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
+SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$SOURCE_DIR"
 export ETH_RPC_URL=https://ethereum-goerli-rpc.allthatnode.com
 
@@ -56,10 +56,10 @@ generate_test_vector() {
 
     echo "{\"name\": \"$name\"}" > "$metadata_file"
 
-    cast rpc eth_getBlockByHash $blockhash $fulltxs > $data_file
+    cast rpc eth_getBlockByHash "$blockhash" "$fulltxs" > "$data_file"
 
     # Mutate data using the provided function
-    $mutation_func "$data_file" $metadata_file
+    $mutation_func "$data_file" "$metadata_file"
 }
 
 mkdir -p data/headers

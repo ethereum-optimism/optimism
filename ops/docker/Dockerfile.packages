@@ -57,6 +57,10 @@ RUN apt-get update && apt-get install -y \
   libudev-dev \
   --no-install-recommends
 
+COPY /ops/docker/oplabs.crt /usr/local/share/ca-certificates/oplabs.crt
+RUN chmod 644 /usr/local/share/ca-certificates/oplabs.crt \
+  && update-ca-certificates
+
 RUN npm install pnpm --global
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
@@ -69,13 +73,15 @@ WORKDIR /opt/optimism
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install:ci
 
 COPY ./packages ./packages
 
 COPY .git/ ./.git
 COPY .gitmodules ./.gitmodules
 RUN git submodule update --init --recursive
+
+COPY --from=1password/op:2 /usr/local/bin/op /usr/local/bin/op
 
 RUN pnpm build
 
@@ -114,4 +120,6 @@ FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
 CMD ["start:wd-mon"]
 
-
+FROM base as contracts-bedrock
+WORKDIR /opt/optimism/packages/contracts-bedrock
+CMD ["deploy"]

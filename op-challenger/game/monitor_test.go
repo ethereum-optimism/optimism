@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"sync"
 	"testing"
 	"time"
 
@@ -60,15 +61,16 @@ func TestMonitorGames(t *testing.T) {
 		go func() {
 			headerNotSent := true
 			for {
-				if len(sched.scheduled) >= 1 {
+				if len(sched.Scheduled()) >= 1 {
 					break
 				}
-				if mockHeadSource.sub == nil {
+				sub := mockHeadSource.Sub()
+				if sub == nil {
 					continue
 				}
 				if headerNotSent {
 					select {
-					case mockHeadSource.sub.headers <- &ethtypes.Header{
+					case sub.headers <- &ethtypes.Header{
 						Number: big.NewInt(1),
 					}:
 						headerNotSent = false
@@ -80,14 +82,15 @@ func TestMonitorGames(t *testing.T) {
 				// Just to avoid a tight loop
 				time.Sleep(100 * time.Millisecond)
 			}
-			mockHeadSource.err = fmt.Errorf("eth subscribe test error")
+			mockHeadSource.SetErr(fmt.Errorf("eth subscribe test error"))
 			cancel()
 		}()
 
-		err := monitor.MonitorGames(ctx)
-		require.NoError(t, err)
-		require.Len(t, sched.scheduled, 1)
-		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
+		monitor.StartMonitoring()
+		<-ctx.Done()
+		monitor.StopMonitoring()
+		require.Len(t, sched.Scheduled(), 1)
+		require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
 	})
 
 	t.Run("Resubscribes on error", func(t *testing.T) {
@@ -102,19 +105,20 @@ func TestMonitorGames(t *testing.T) {
 		go func() {
 			// Wait for the subscription to be created
 			waitErr := wait.For(context.Background(), 5*time.Second, func() (bool, error) {
-				return mockHeadSource.sub != nil, nil
+				return mockHeadSource.Sub() != nil, nil
 			})
 			require.NoError(t, waitErr)
-			mockHeadSource.sub.errChan <- fmt.Errorf("test error")
+			mockHeadSource.Sub().errChan <- fmt.Errorf("test error")
 			for {
-				if len(sched.scheduled) >= 1 {
+				if len(sched.Scheduled()) >= 1 {
 					break
 				}
-				if mockHeadSource.sub == nil {
+				sub := mockHeadSource.Sub()
+				if sub == nil {
 					continue
 				}
 				select {
-				case mockHeadSource.sub.headers <- &ethtypes.Header{
+				case sub.headers <- &ethtypes.Header{
 					Number: big.NewInt(1),
 				}:
 				case <-ctx.Done():
@@ -125,14 +129,15 @@ func TestMonitorGames(t *testing.T) {
 				time.Sleep(100 * time.Millisecond)
 			}
 			require.NoError(t, waitErr)
-			mockHeadSource.err = fmt.Errorf("eth subscribe test error")
+			mockHeadSource.SetErr(fmt.Errorf("eth subscribe test error"))
 			cancel()
 		}()
 
-		err := monitor.MonitorGames(ctx)
-		require.NoError(t, err)
-		require.NotEmpty(t, sched.scheduled) // We might get more than one update scheduled.
-		require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
+		monitor.StartMonitoring()
+		<-ctx.Done()
+		monitor.StopMonitoring()
+		require.NotEmpty(t, sched.Scheduled()) // We might get more than one update scheduled.
+		require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
 	})
 }
 
@@ -143,10 +148,10 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	addr2 := common.Address{0xbb}
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}))
 
-	require.Len(t, sched.scheduled, 1)
-	require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
+	require.Len(t, sched.Scheduled(), 1)
+	require.Equal(t, []common.Address{addr1, addr2}, sched.Scheduled()[0])
 }
 
 func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
@@ -155,10 +160,10 @@ func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	monitor, source, sched, _ := setupMonitorTest(t, []common.Address{addr2})
 	source.games = []types.GameMetadata{newFDG(addr1, 9999), newFDG(addr2, 9999)}
 
-	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
+	require.NoError(t, monitor.progressGames(context.Background(), common.Hash{0x01}))
 
-	require.Len(t, sched.scheduled, 1)
-	require.Equal(t, []common.Address{addr2}, sched.scheduled[0])
+	require.Len(t, sched.Scheduled(), 1)
+	require.Equal(t, []common.Address{addr2}, sched.Scheduled()[0])
 }
 
 func newFDG(proxy common.Address, timestamp uint64) types.GameMetadata {
@@ -195,15 +200,36 @@ func setupMonitorTest(
 }
 
 type mockNewHeadSource struct {
+	sync.Mutex
 	sub *mockSubscription
 	err error
 }
 
+func (m *mockNewHeadSource) Sub() *mockSubscription {
+	m.Lock()
+	defer m.Unlock()
+	return m.sub
+}
+
+func (m *mockNewHeadSource) SetSub(sub *mockSubscription) {
+	m.Lock()
+	defer m.Unlock()
+	m.sub = sub
+}
+
+func (m *mockNewHeadSource) SetErr(err error) {
+	m.Lock()
+	defer m.Unlock()
+	m.err = err
+}
+
 func (m *mockNewHeadSource) EthSubscribe(
-	ctx context.Context,
+	_ context.Context,
 	ch any,
-	args ...any,
+	_ ...any,
 ) (ethereum.Subscription, error) {
+	m.Lock()
+	defer m.Unlock()
 	errChan := make(chan error)
 	m.sub = &mockSubscription{errChan, (ch).(chan<- *ethtypes.Header)}
 	if m.err != nil {
@@ -228,18 +254,26 @@ type stubGameSource struct {
 }
 
 func (s *stubGameSource) FetchAllGamesAtBlock(
-	ctx context.Context,
-	earliest uint64,
-	blockNumber uint64,
+	_ context.Context,
+	_ uint64,
+	_ common.Hash,
 ) ([]types.GameMetadata, error) {
 	return s.games, nil
 }
 
 type stubScheduler struct {
+	sync.Mutex
 	scheduled [][]common.Address
 }
 
+func (s *stubScheduler) Scheduled() [][]common.Address {
+	s.Lock()
+	defer s.Unlock()
+	return s.scheduled
+}
 func (s *stubScheduler) Schedule(games []types.GameMetadata) error {
+	s.Lock()
+	defer s.Unlock()
 	var addrs []common.Address
 	for _, game := range games {
 		addrs = append(addrs, game.Proxy)

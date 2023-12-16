@@ -20,7 +20,7 @@
   "batchInboxAddress": "0xcF628E24aC574866D3d0a7CFE4e9DA7278b7ef13",
   "batchSenderAddress": "0x427c9a666d3b27873111cE3894712Bf64C6343A0",
   "l2GenesisRegolithTimeOffset": "0x0",
-  "portalGuardian": "0x45eFFbD799Ab49122eeEAB75B78D9C56A187F9A7",
+  "superchainConfigGuardian": "0x45eFFbD799Ab49122eeEAB75B78D9C56A187F9A7",
   "l2OutputOracleSubmissionInterval": 180,
   "l2OutputOracleStartingTimestamp": 0,
   "l2OutputOracleProposer": "0xa98B585654fC03E2fEa3FAB56E1C851E4f5c2B54",
