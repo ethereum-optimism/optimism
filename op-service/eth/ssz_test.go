@@ -250,21 +250,21 @@ func TestOPB04(t *testing.T) {
 
 func createPayloadWithWithdrawals(w *types.Withdrawals) *ExecutionPayload {
 	return &ExecutionPayload{
-		ParentHash:    common.HexToHash("0x123"),
-		FeeRecipient:  common.HexToAddress("0x456"),
-		StateRoot:     Bytes32(common.HexToHash("0x789")),
-		ReceiptsRoot:  Bytes32(common.HexToHash("0xabc")),
+		ParentHash:    common.HexToHash("0x1234"),
+		FeeRecipient:  common.HexToAddress("0x4567"),
+		StateRoot:     Bytes32(common.HexToHash("0x6789")),
+		ReceiptsRoot:  Bytes32(common.HexToHash("0xabcd")),
 		LogsBloom:     Bytes256{byte(13), byte(14), byte(15)},
-		PrevRandao:    Bytes32(common.HexToHash("0x111")),
+		PrevRandao:    Bytes32(common.HexToHash("0x1111")),
 		BlockNumber:   Uint64Quantity(222),
 		GasLimit:      Uint64Quantity(333),
 		GasUsed:       Uint64Quantity(444),
 		Timestamp:     Uint64Quantity(555),
-		ExtraData:     common.Hex2Bytes("0x666"),
+		ExtraData:     common.Hex2Bytes("0x6666"),
 		BaseFeePerGas: *uint256.NewInt(777),
-		BlockHash:     common.HexToHash("0x888"),
+		BlockHash:     common.HexToHash("0x8888"),
 		Withdrawals:   w,
-		Transactions:  []Data{common.Hex2Bytes("0x999")},
+		Transactions:  []Data{common.Hex2Bytes("0x9999")},
 	}
 }
 
@@ -274,7 +274,7 @@ func TestMarshalUnmarshalWithdrawals(t *testing.T) {
 		{
 			Index:     987,
 			Validator: 654,
-			Address:   common.HexToAddress("0x898"),
+			Address:   common.HexToAddress("0x8989"),
 			Amount:    321,
 		},
 	}
@@ -283,7 +283,7 @@ func TestMarshalUnmarshalWithdrawals(t *testing.T) {
 		maxWithdrawals[i] = &types.Withdrawal{
 			Index:     987,
 			Validator: 654,
-			Address:   common.HexToAddress("0x898"),
+			Address:   common.HexToAddress("0x8989"),
 			Amount:    321,
 		}
 	}
@@ -292,7 +292,7 @@ func TestMarshalUnmarshalWithdrawals(t *testing.T) {
 		tooManyWithdrawals[i] = &types.Withdrawal{
 			Index:     987,
 			Validator: 654,
-			Address:   common.HexToAddress("0x898"),
+			Address:   common.HexToAddress("0x8989"),
 			Amount:    321,
 		}
 	}
@@ -330,6 +330,8 @@ func TestMarshalUnmarshalWithdrawals(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, input, output)
+				require.Equal(t, output.ParentHash, common.HexToHash("0x1234"))
+				require.Equal(t, output.ExtraData, BytesMax32(common.Hex2Bytes("0x6666")))
 				if test.withdrawals != nil {
 					require.Equal(t, len(*test.withdrawals), len(*output.Withdrawals))
 				}
