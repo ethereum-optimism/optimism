@@ -7,6 +7,8 @@ contracts-list := ./artifacts.json
 log-level := info
 ETHERSCAN_APIKEY_ETH ?=
 ETHERSCAN_APIKEY_OP ?=
+RPC_URL_ETH ?=
+RPC_URL_OP ?=
 
 all: version mkdir bindings
 
@@ -36,7 +38,9 @@ bindgen-generate-all:
 		--source-maps-list MIPS,PreimageOracle \
 		--forge-artifacts $(contracts-dir)/forge-artifacts \
 		--etherscan.apikey.eth $(ETHERSCAN_APIKEY_ETH) \
-		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP)
+		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP) \
+		--rpc.url.eth $(RPC_URL_ETH) \
+		--rpc.url.op $(RPC_URL_OP)
 
 bindgen-local: compile bindgen-generate-local
 
@@ -60,7 +64,9 @@ bindgen-remote:
 		--log.level $(log-level) \
 		remote \
 		--etherscan.apikey.eth $(ETHERSCAN_APIKEY_ETH) \
-		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP)
+		--etherscan.apikey.op $(ETHERSCAN_APIKEY_OP) \
+		--rpc.url.eth $(RPC_URL_ETH) \
+		--rpc.url.op $(RPC_URL_OP)
 
 mkdir:
 	mkdir -p $(pkg)
