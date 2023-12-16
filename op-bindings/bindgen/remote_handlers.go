@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -298,6 +299,15 @@ func (generator *bindGenGeneratorRemote) writeAllOutputs(contractMetadata *remot
 
 func (generator *bindGenGeneratorRemote) writeContractMetadata(contractMetadata *remoteContractMetadata, fileTemplate *template.Template) error {
 	metadataFilePath := filepath.Join(generator.metadataOut, strings.ToLower(contractMetadata.Name)+"_more.go")
+
+	var existingOutput []byte
+	if _, err := os.Stat(metadataFilePath); err == nil {
+		existingOutput, err = os.ReadFile(metadataFilePath)
+		if err != nil {
+			return fmt.Errorf("error reading existing metadata output file, metadataFilePath: %s err: %w", metadataFilePath, err)
+		}
+	}
+
 	metadataFile, err := os.OpenFile(
 		metadataFilePath,
 		os.O_RDWR|os.O_CREATE|os.O_TRUNC,
@@ -310,6 +320,22 @@ func (generator *bindGenGeneratorRemote) writeContractMetadata(contractMetadata 
 
 	if err := fileTemplate.Execute(metadataFile, contractMetadata); err != nil {
 		return fmt.Errorf("error writing %s's contract metadata at %s: %w", contractMetadata.Name, metadataFilePath, err)
+	}
+
+	if len(existingOutput) != 0 {
+		var newOutput []byte
+		newOutput, err = os.ReadFile(metadataFilePath)
+		if err != nil {
+			return fmt.Errorf("error reading new file: %w", err)
+		}
+
+		if bytes.Equal(existingOutput, newOutput) {
+			generator.logger.Debug("No changes detected in the contract metadata", "contract", contractMetadata.Name)
+		} else {
+			generator.logger.Warn("Changes detected in the contract metadata, old metadata has been overwritten", "contract", contractMetadata.Name)
+		}
+	} else {
+		generator.logger.Debug("No existing contract metadata found, skipping comparison", "contract", contractMetadata.Name)
 	}
 
 	generator.logger.Debug("Successfully wrote contract metadata", "contract", contractMetadata.Name, "path", metadataFilePath)
