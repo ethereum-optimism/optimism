@@ -114,10 +114,6 @@ abstract contract CrossDomainMessenger is
     ///         call in `relayMessage`.
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
-    /// @notice Address of the paired CrossDomainMessenger contract on the other chain.
-    /// @custom:network-specific
-    address public otherMessenger;
-
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
     ///         be present in this mapping if it has successfully been relayed on this chain, and
     ///         can therefore not be relayed again.
@@ -138,6 +134,10 @@ abstract contract CrossDomainMessenger is
     ///         executed at least once. A message will not be present in this mapping if it
     ///         successfully executed on the first attempt.
     mapping(bytes32 => bool) public failedMessages;
+
+    /// @notice Address of the paired CrossDomainMessenger contract on the other chain.
+    /// @custom:network-specific
+    address public otherMessenger;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
     ///         A gap size of 44 was chosen here, so that the first slot used in a child contract
