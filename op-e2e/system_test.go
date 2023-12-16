@@ -1157,8 +1157,6 @@ func testFees(t *testing.T, cfg SystemConfig) {
 		client: l2Seq,
 	}
 
-	l1CostFn := types.NewL1CostFunc(config, sga)
-
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
@@ -1268,7 +1266,9 @@ func testFees(t *testing.T, cfg SystemConfig) {
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
 
-	l1Fee := l1CostFn(tx.RollupCostData(), header.Time)
+	l1CostFn := types.NewL1CostFunc(config, sga, header.Time)
+
+	l1Fee := l1CostFn(tx.L1CostData())
 	require.Equalf(t, l1Fee, l1FeeRecipientDiff, "L1 fee mismatch: start balance %v, end balance %v", l1FeeRecipientStartBalance, l1FeeRecipientEndBalance)
 
 	gpoEcotone, err := gpoContract.IsEcotone(nil)
