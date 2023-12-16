@@ -67,17 +67,10 @@ func (ds *CallDataSource) Next(ctx context.Context) (eth.Data, error) {
 // This will return an empty array if no valid transactions are found.
 func CallDataFromEVMTransactions(dsCfg DataSourceConfig, batcherAddr common.Address, txs types.Transactions, log log.Logger) []eth.Data {
 	var out []eth.Data
-	for j, tx := range txs {
+	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == dsCfg.batchInboxAddress {
-			seqDataSubmitter, err := dsCfg.l1Signer.Sender(tx) // optimization: only derive sender if To is correct
-			if err != nil {
-				log.Warn("tx in inbox with invalid signature", "index", j, "txHash", tx.Hash(), "err", err)
-				continue // bad signature, ignore
-			}
-			// some random L1 user might have sent a transaction to our batch inbox, ignore them
-			if seqDataSubmitter != batcherAddr {
-				log.Warn("tx in inbox with unauthorized submitter", "index", j, "txHash", tx.Hash(), "err", err)
-				continue // not an authorized batch submitter, ignore
+			if !isValidBatchTx(tx, dsCfg.l1Signer, batcherAddr) {
+				continue
 			}
 			out = append(out, tx.Data())
 		}

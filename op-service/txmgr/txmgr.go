@@ -31,12 +31,13 @@ const (
 	blobPriceBump int64 = 100
 )
 
-// new = old * (100 + priceBump) / 100
 var (
+	// new = old * (100 + [blob]priceBump) / 100
 	priceBumpPercent     = big.NewInt(100 + priceBump)
-	oneHundred           = big.NewInt(100)
 	blobPriceBumpPercent = big.NewInt(100 + blobPriceBump)
-	two                  = big.NewInt(2)
+
+	oneHundred = big.NewInt(100)
+	two        = big.NewInt(2)
 )
 
 // TxManager is an interface that allows callers to reliably publish txs,

@@ -57,3 +57,17 @@ type DataSourceConfig struct {
 	batchInboxAddress       common.Address
 	blobsEnabledL1Timestamp *uint64
 }
+
+func isValidBatchTx(tx *types.Transaction, l1Signer types.Signer, batcherAddr common.Address) bool {
+	seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
+	if err != nil {
+		log.Warn("tx in inbox with invalid signature", "hash", tx.Hash(), "err", err)
+		return false
+	}
+	// some random L1 user might have sent a transaction to our batch inbox, ignore them
+	if seqDataSubmitter != batcherAddr {
+		log.Warn("tx in inbox with unauthorized submitter", "hash", tx.Hash(), "err", err)
+		return false
+	}
+	return true
+}

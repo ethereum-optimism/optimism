@@ -17,7 +17,6 @@ import (
 // BlobDataSource fetches both call-data (backup) and blobs and transforms them into usable rollup data.
 type BlobDataSource struct {
 	open           bool
-	callData       []eth.Data
 	blobDataHashes []eth.IndexedDataHash
 
 	blobs []*eth.Blob
@@ -52,7 +51,7 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 	if !ds.open {
 		if _, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.ref.Hash); err == nil {
 			ds.open = true
-			ds.callData, ds.blobDataHashes = BlobDataFromEVMTransactions(ds.dsCfg, ds.batcherAddr, txs, ds.log)
+			ds.blobDataHashes = BlobDataFromEVMTransactions(ds.dsCfg, ds.batcherAddr, txs, ds.log)
 		} else if errors.Is(err, ethereum.NotFound) {
 			return nil, NewResetError(fmt.Errorf("failed to open blob-data source: %w", err))
 		} else {
@@ -60,11 +59,6 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 		}
 	}
 	// prioritize call-data
-	if len(ds.callData) != 0 {
-		data := ds.callData[0]
-		ds.callData = ds.callData[1:]
-		return data, nil
-	}
 	if len(ds.blobDataHashes) > 0 { // check if there is any blob data in this block we have opened.
 		if ds.blobs == nil { // fetch blobs if we haven't already
 			blobs, err := ds.blobsFetcher.BlobsByRefAndIndexedDataHashes(ctx, ds.ref, ds.blobDataHashes)
@@ -93,26 +87,17 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 // from transactions that are sent to the batch inbox address from the batch sender address.
 // This will return an empty array if no valid transactions are found.
 // Call-data can be used as fallback in case blobs are overpriced or unstable.
-func BlobDataFromEVMTransactions(dsCfg DataSourceConfig, batcherAddr common.Address, txs types.Transactions, log log.Logger) ([]eth.Data, []eth.IndexedDataHash) {
-	var callData []eth.Data
+func BlobDataFromEVMTransactions(dsCfg DataSourceConfig, batcherAddr common.Address, txs types.Transactions, log log.Logger) []eth.IndexedDataHash {
 	var indexedDataHashes []eth.IndexedDataHash
 	blobIndex := uint64(0)
-	for j, tx := range txs {
+	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == dsCfg.batchInboxAddress {
-			seqDataSubmitter, err := dsCfg.l1Signer.Sender(tx) // optimization: only derive sender if To is correct
-			if err != nil {
-				log.Warn("tx in inbox with invalid signature", "index", j, "err", err)
+			if !isValidBatchTx(tx, dsCfg.l1Signer, batcherAddr) {
 				blobIndex += uint64(len(tx.BlobHashes()))
-				continue // bad signature, ignore
+				continue
 			}
-			// some random L1 user might have sent a transaction to our batch inbox, ignore them
-			if seqDataSubmitter != batcherAddr {
-				log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
-				blobIndex += uint64(len(tx.BlobHashes()))
-				continue // not an authorized batch submitter, ignore
-			}
-			if len(tx.Data()) > 0 { // ignore empty calldata
-				callData = append(callData, tx.Data())
+			if len(tx.Data()) > 0 { // ignore calldata since
+				log.Warn("blob tx has calldata, which will be ignored")
 			}
 			for _, h := range tx.BlobHashes() {
 				indexedDataHashes = append(indexedDataHashes, eth.IndexedDataHash{
@@ -125,5 +110,5 @@ func BlobDataFromEVMTransactions(dsCfg DataSourceConfig, batcherAddr common.Addr
 			blobIndex += uint64(len(tx.BlobHashes()))
 		}
 	}
-	return callData, indexedDataHashes
+	return indexedDataHashes
 }
