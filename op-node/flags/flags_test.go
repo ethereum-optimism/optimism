@@ -54,7 +54,7 @@ func TestBetaFlags(t *testing.T) {
 
 // TestFlagsHaveCorrespondingEnvVars test that all flags have a corresponding env-var.
 func TestFlagsHaveCorrespondingEnvVars(t *testing.T) {
-	var skipFlags = map[string]bool{ // flags with no know env var
+	var skipFlags = map[string]bool{ // flags with no known env var
 		PeerScoringName:    true,
 		PeerScoreBandsName: true,
 		TopicScoringName:   true,
