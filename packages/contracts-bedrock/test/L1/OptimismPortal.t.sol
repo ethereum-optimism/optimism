@@ -34,8 +34,11 @@ contract OptimismPortal_Test is CommonTest {
         address guardian = deploy.cfg().superchainConfigGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
+        assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
+        assertEq(address(optimismPortal.systemConfig()), address(systemConfig));
         assertEq(optimismPortal.GUARDIAN(), guardian);
         assertEq(optimismPortal.guardian(), guardian);
+        assertEq(address(optimismPortal.superchainConfig()), address(superchainConfig));
         assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(optimismPortal.paused(), false);
     }
