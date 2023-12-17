@@ -51,3 +51,16 @@ func TestBetaFlags(t *testing.T) {
 		}
 	}
 }
+
+// TestFlagsHaveCorrespondingEnvVars test that all flags have a corresponding env-var.
+func TestFlagsHaveCorrespondingEnvVars(t *testing.T) {
+	for _, flag := range Flags {
+		envFlag, ok := flag.(interface {
+			GetEnvVars() []string
+		})
+
+		if !ok || len(envFlag.GetEnvVars()) == 0 {
+			assert.True(t, false, "%q flag must have corresponding env var", flag.Names()[0])
+		}
+	}
+}
