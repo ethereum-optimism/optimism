@@ -483,8 +483,9 @@ contract Deploy is Deployer {
 
         OptimismPortal portal = new OptimismPortal{ salt: _implSalt() }();
 
-        require(address(portal.L2_ORACLE()) == address(0));
-        require(address(portal.SYSTEM_CONFIG()) == address(0));
+        require(address(portal.superchainConfig()) == address(0), "SuperchainConfig is not address(0)");
+        require(address(portal.l2Oracle()) == address(0), "L2Oracle is not address(0)");
+        require(address(portal.systemConfig()) == address(0), "SystemConfig is not address(0)");
 
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
