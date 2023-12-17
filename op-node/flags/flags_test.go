@@ -63,7 +63,7 @@ func TestFlagsHaveCorrespondingEnvVars(t *testing.T) {
 			GetEnvVars() []string
 		})
 		if !ok || len(envFlag.GetEnvVars()) == 0 {
-			assert.True(t, false, "%q flag must have a corresponding env var", name)
+			t.Errorf("%q flag must have corresponding env var", name)
 		}
 	}
 }
