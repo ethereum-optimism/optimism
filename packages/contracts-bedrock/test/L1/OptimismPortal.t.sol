@@ -928,8 +928,7 @@ contract OptimismPortalUpgradeable_Test is CommonTest {
         // The value passed to the initialize must be larger than the last value
         // that initialize was called with.
         Proxy(payable(address(optimismPortal))).upgradeToAndCall(
-            address(nextImpl),
-            abi.encodeWithSelector(NextImpl.initialize.selector, 3) // TODO: check that this change makes sense
+            address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 2)
         );
         assertEq(Proxy(payable(address(optimismPortal))).implementation(), address(nextImpl));
 
