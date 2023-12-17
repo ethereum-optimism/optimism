@@ -54,9 +54,15 @@ func TestBetaFlags(t *testing.T) {
 
 // TestFlagsHaveCorrespondingEnvVars test that all flags have a corresponding env-var.
 func TestFlagsHaveCorrespondingEnvVars(t *testing.T) {
+	var skipFlags = map[string]bool{ // flags with no know env var
+		PeerScoringName:    true,
+		PeerScoreBandsName: true,
+		TopicScoringName:   true,
+	}
+
 	for _, flag := range Flags {
 		name := flag.Names()[0]
-		if name == PeerScoringName || name == PeerScoreBandsName || name == TopicScoringName { // skip p2p flags with no known env-vars
+		if _, skip := skipFlags[name]; skip { // skip flags with no known env-vars
 			continue
 		}
 		envFlag, ok := flag.(interface {
