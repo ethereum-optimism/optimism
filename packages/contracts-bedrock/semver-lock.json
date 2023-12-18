@@ -100,8 +100,8 @@
     "sourceCodeHash": "0xa995b54dce03ddf5c9c47451bd7181996b91398ad66b54ab0b8cbf582863a33e"
   },
   "src/dispute/OutputBisectionGame.sol": {
-    "initCodeHash": "0xe5799a4c06cf02fa1fba61129bd32d1a4b07df737a1f2b429b1acd7160093f0a",
-    "sourceCodeHash": "0xf95c7b1575988853b10d4ad2219a6031be27278add5073f3e96854f41f75ba62"
+    "initCodeHash": "0x3cd9ccf3f89ffa72b2e6c5dba4f211acfd900ea81776f95ce77cc985473e1a27",
+    "sourceCodeHash": "0xbe0614fda4c2c3f4305ce7181a68607fe8be670e17f79f2054d55d541bff6c2b"
   },
   "src/legacy/DeployerWhitelist.sol": {
     "initCodeHash": "0x8de80fb23b26dd9d849f6328e56ea7c173cd9e9ce1f05c9beea559d1720deb3d",

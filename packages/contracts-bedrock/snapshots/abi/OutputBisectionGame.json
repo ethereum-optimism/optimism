@@ -47,90 +47,12 @@
   },
   {
     "inputs": [],
-    "name": "ABSOLUTE_PRESTATE",
+    "name": "absolutePrestate",
     "outputs": [
       {
         "internalType": "Claim",
-        "name": "",
+        "name": "absolutePrestate_",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GAME_DURATION",
-    "outputs": [
-      {
-        "internalType": "Duration",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GENESIS_BLOCK_NUMBER",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GENESIS_OUTPUT_ROOT",
-    "outputs": [
-      {
-        "internalType": "Hash",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_GAME_DEPTH",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "SPLIT_DEPTH",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "VM",
-    "outputs": [
-      {
-        "internalType": "contract IBigStepper",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -311,12 +233,51 @@
   },
   {
     "inputs": [],
+    "name": "gameDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "gameDuration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gameType",
     "outputs": [
       {
         "internalType": "GameType",
         "name": "gameType_",
         "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "genesisBlockNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "genesisBlockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "genesisOutputRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "genesisOutputRoot_",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -353,6 +314,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxGameDepth",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "maxGameDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -432,6 +406,19 @@
   },
   {
     "inputs": [],
+    "name": "splitDepth",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "splitDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "status",
     "outputs": [
       {
@@ -479,6 +466,19 @@
         "internalType": "string",
         "name": "",
         "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "vm",
+    "outputs": [
+      {
+        "internalType": "contract IBigStepper",
+        "name": "vm_",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
