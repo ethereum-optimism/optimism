@@ -165,5 +165,7 @@ func (p *ActiveL2RollupProvider) dialNextSequencer(ctx context.Context) error {
 }
 
 func (p *ActiveL2RollupProvider) Close() {
-	p.currentRollupClient.Close()
+	if p.currentRollupClient != nil {
+		p.currentRollupClient.Close()
+	}
 }
