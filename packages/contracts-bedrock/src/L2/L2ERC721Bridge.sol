@@ -24,8 +24,8 @@ contract L2ERC721Bridge is ERC721Bridge, ISemver {
     string public constant version = "1.7.0";
 
     /// @notice Constructs the L2ERC721Bridge contract.
-    constructor() ERC721Bridge() {
-        initialize({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge: address(0) });
+    constructor(address _otherBridge) ERC721Bridge() {
+        initialize({ _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge: _otherBridge });
     }
 
     /// @notice Initializes the contract.
