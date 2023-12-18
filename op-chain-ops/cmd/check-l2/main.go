@@ -873,7 +873,7 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 	if err != nil {
 		return err
 	}
-	calldata, err := abi.Pack("initialize")
+	calldata, err := abi.Pack("initialize", l1CrossDomainMessenger)
 	if err != nil {
 		return err
 	}
