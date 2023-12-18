@@ -601,16 +601,18 @@ func TestRollupProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t *t
 
 	// Primary sequencer becomes inactive, but the provider won't check immediately due to longCheckDuration
 	primarySequencer.ExpectSequencerActive(false, nil)
-
 	firstSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, firstSequencerUsed)
 
+	active, err := primarySequencer.SequencerActive(context.Background())
+	require.NoError(t, err)
+	require.False(t, active)
+
 	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, secondSequencerUsed)
-	// we do not assertAllExpectations here because we are expecting exactly that the provider _doesn't_
-	// call `SequencerActive()` again, which would cause the expectations to fail.
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration verifies that the ActiveL2EndpointProvider
@@ -627,14 +629,16 @@ func TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t 
 
 	// Primary sequencer becomes inactive, but the provider won't check immediately due to longCheckDuration
 	primarySequencer.ExpectSequencerActive(false, nil)
-
 	firstEthClientUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstEthClientUsed)
 
+	active, err := primarySequencer.SequencerActive(context.Background())
+	require.NoError(t, err)
+	require.False(t, active)
+
 	secondEthClientUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], secondEthClientUsed)
-	// we do not assertAllExpectations here because we are expecting exactly that the provider _doesn't_
-	// call `SequencerActive()` again, which would cause the expectations to fail.
+	ept.assertAllExpectations(t)
 }
