@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -24,8 +25,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/xaionaro-go/weightedshuffle"
 	"golang.org/x/sync/semaphore"
-
-	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 )
 
 const (
@@ -284,6 +283,8 @@ type indexedReqRes struct {
 	req   *RPCReq
 	res   *RPCRes
 }
+
+const proxydHealthzMethod = "proxyd_healthz"
 
 const ConsensusGetReceiptsMethod = "consensus_getReceipts"
 
