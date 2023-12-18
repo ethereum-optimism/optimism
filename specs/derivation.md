@@ -65,6 +65,7 @@
     - [L1 Traversal](#l1-traversal)
     - [L1 Retrieval](#l1-retrieval)
       - [Eclipse: Blob Retrieval](#eclipse-blob-retrieval)
+        - [Blob encoding](#blob-encoding)
     - [Frame Queue](#frame-queue)
     - [Channel Bank](#channel-bank)
       - [Pruning](#pruning)
@@ -500,7 +501,51 @@ On L1, the blob data is represented as a polynomial of points, each in range `[0
 just below the capacity of a `uint256`: approximately `254.857` bits of data.
 Before proceeding with processing, the data is transformed to turn it into a continuous byte string.
 
-TODO: blob encoding format. Version + length-prefix + maximize utilization of the data.
+##### Blob encoding
+
+Each blob in a [EIP-4844] transaction really consists of `FIELD_ELEMENTS_PER_BLOB = 4096` field elements.
+
+Each field element is a number in a prime field of
+`BLS_MODULUS = 52435875175126190479447740508185965837690552500527637822603658699938581184513`.
+This number does not represent a full `uin256`: `math.log2(BLS_MODULUS) = 254.8570894...`
+
+The [L1 consensus-specs](https://github.com/ethereum/consensus-specs/blob/dev/specs/deneb/polynomial-commitments.md)
+describe the encoding of this polynomial.
+The field elements are encoded as big-endian integers (`KZG_ENDIANNESS = big`).
+
+To save computational overhead, only `254` bits per field element are used for rollup data.
+
+Data is encoded, 4 field elements, `127` bytes of rollup data, at a time:
+
+```text
+# Allocate 4 field elements (big-endian).
+# Read 31 bytes into the low 31 bytes of each.
+<----- element 0 -----><----- element 1 -----><----- element 2 -----><----- element 3 ----->
+| byte A |  read(31)  || byte B |  read(31)  || byte C |  read(31)  || byte D |  read(31)  |
+# Read 3 more bytes after the above.
+byte x = read(1)
+byte y = read(1)
+byte z = read(1)
+# Split the 24 bits into 4 x 6 bits, to write into the leading (highest) byte of each element:
+byte A = x & 0b0011_1111
+byte B = y & 0b0011_1111
+byte C = z & 0b0011_1111
+byte D = ((x & 0b1100_0000) >> 2) | ((y & 0b1100_0000) >> 4) | ((z & 0b1100_0000) >> 6)
+```
+
+The above is repeated 1024 times, to fill all `4096` elements,
+with a total of `(4 * 31 + 3) * 1024 = 130048` bytes of data.
+
+When decoding a blob, the top-most two bits of each field-element must be 0,
+to make the encoding/decoding bijective.
+
+The first byte of rollup-data (second byte in first field element) is used as a version-byte.
+
+In version `0`, the next 3 bytes of data are used to encode the length of the rollup-data, as big-endian `uint24`.
+Any trailing data, past the length delimiter, must be 0, to keep the encoding/decoding bijective.
+If the length is larger than `130048 - 4`, the blob is invalid.
+
+If any of the encoding is invalid, the blob as whole must be ignored.
 
 [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
 
