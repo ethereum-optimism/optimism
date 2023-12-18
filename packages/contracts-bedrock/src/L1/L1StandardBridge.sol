@@ -69,10 +69,9 @@ contract L1StandardBridge is StandardBridge, ISemver {
         bytes extraData
     );
 
-    // TODO: should semver version be updated?
     /// @notice Semantic version.
-    /// @custom:semver 2.0.0
-    string public constant version = "2.0.0";
+    /// @custom:semver 2.1.0
+    string public constant version = "2.1.0";
 
     /// @notice Address of the SuperchainConfig contract.
     SuperchainConfig public superchainConfig;
@@ -80,17 +79,16 @@ contract L1StandardBridge is StandardBridge, ISemver {
     /// @notice Constructs the L1StandardBridge contract.
     constructor() StandardBridge() {
         initialize({
-            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER),
+            _messenger: CrossDomainMessenger(address(0)),
             _otherBridge: StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)),
             _superchainConfig: SuperchainConfig(address(0))
         });
     }
 
-    // TODO: does it make sense to also make otherBridge non-immutable? unlike in the PR
     /// @notice Initializer.
-    /// @param _messenger        Address of CrossDomainMessenger on this network.
-    /// @param _otherBridge      Address of the other StandardBridge contract.
-    /// @param _superchainConfig Address of the SuperchainConfig contract on this network.
+    /// @param _messenger        Contract for the CrossDomainMessenger on this network.
+    /// @param _otherBridge      Contract for the StandardBridge on the other network.
+    /// @param _superchainConfig Contract for the SuperchainConfig on this network.
     function initialize(
         CrossDomainMessenger _messenger,
         StandardBridge _otherBridge,
