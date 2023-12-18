@@ -58,7 +58,7 @@ func newActiveL2EndpointProvider(
 		return nil, errors.New("empty rollup urls list, expected at least one URL")
 	}
 	if len(ethUrls) != len(rollupUrls) {
-		return nil, errors.New(fmt.Sprintf("number of eth urls (%d) and rollup urls (%d) mismatch", len(ethUrls), len(rollupUrls)))
+		return nil, fmt.Errorf("number of eth urls (%d) and rollup urls (%d) mismatch", len(ethUrls), len(rollupUrls))
 	}
 
 	rollupProvider, err := newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
