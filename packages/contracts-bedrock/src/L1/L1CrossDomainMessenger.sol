@@ -13,12 +13,12 @@ import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
-    /// @notice Address of the OptimismPortal.
+    /// @notice Contract of the SuperchainConfig contract.
+    SuperchainConfig public superchainConfig;
+
+    /// @notice Contract of the OptimismPortal.
     /// @custom:network-specific
     OptimismPortal public portal;
-
-    /// @notice Address of the SuperchainConfig contract.
-    SuperchainConfig public superchainConfig;
 
     /// @notice Semantic version.
     /// @custom:semver 2.2.0
@@ -27,33 +27,31 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
     /// @notice Constructs the L1CrossDomainMessenger contract.
     constructor() CrossDomainMessenger() {
         initialize({
+            _superchainConfig: SuperchainConfig(address(0)),
             _portal: OptimismPortal(payable(address(0))),
-            _otherMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            _superchainConfig: SuperchainConfig(address(0))
+            _otherMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER
         });
     }
 
     /// @notice Initializes the contract.
+    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
     /// @param _portal Contract of the OptimismPortal contract on this network.
     /// @param _otherMessenger Address of the L2CrossDomainMessenger contract on the other network.
-    /// @param _superchainConfig Contract of the SuperchainConfig contract on this network.
     function initialize(
+        SuperchainConfig _superchainConfig,
         OptimismPortal _portal,
-        address _otherMessenger,
-        SuperchainConfig _superchainConfig
+        address _otherMessenger
     )
         public
         initializer
     {
-        portal = _portal;
         superchainConfig = _superchainConfig;
+        portal = _portal;
         __CrossDomainMessenger_init({ _otherMessenger: _otherMessenger });
     }
 
     /// @notice Getter function for the address of the OptimismPortal on this chain.
     /// @return Address of the OptimismPortal on this chain.
-    // TODO: check that @custom:legacy makes sense here
-    // TODO: return type & description is not consistent with return types of other getters in OptimismPortal
     /// @custom:legacy
     function PORTAL() external view returns (address) {
         return address(portal);
