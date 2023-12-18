@@ -5,13 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-
-	"github.com/urfave/cli/v2"
 )
 
 // Flags
@@ -345,33 +346,14 @@ func init() {
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
+	optionalFlags = append(optionalFlags, opflags.Flags...)
 	Flags = append(requiredFlags, optionalFlags...)
-}
-
-// This checks flags that are exclusive & required. Specifically for each
-// set of flags, exactly one flag must be set.
-var requiredXorFlags = [][]string{
-	{
-		RollupConfig.Name,
-		Network.Name,
-	},
 }
 
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
-		}
-	}
-	for _, flagNames := range requiredXorFlags {
-		setCount := 0
-		for _, f := range flagNames {
-			if ctx.IsSet(f) {
-				setCount += 1
-			}
-		}
-		if setCount != 1 {
-			return fmt.Errorf("exactly one of the flags %v is required", flagNames)
 		}
 	}
 	return nil

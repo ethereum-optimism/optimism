@@ -3,10 +3,11 @@ package flags
 import (
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -33,7 +34,7 @@ var (
 		Usage:   "Unique ID for this server used by raft consensus",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_SERVER_ID"),
 	}
-	RaftStorageDIR = &cli.StringFlag{
+	RaftStorageDir = &cli.StringFlag{
 		Name:    "raft.storage.dir",
 		Usage:   "Directory to store raft data",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "RAFT_STORAGE_DIR"),
@@ -49,7 +50,7 @@ var requiredFlags = []cli.Flag{
 	ConsensusAddr,
 	ConsensusPort,
 	RaftServerID,
-	RaftStorageDIR,
+	RaftStorageDir,
 	NodeRPC,
 }
 
@@ -60,7 +61,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, flags.RollupConfig)
+	optionalFlags = append(optionalFlags, opflags.Flags...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -68,6 +69,10 @@ func init() {
 var Flags []cli.Flag
 
 func CheckRequired(ctx *cli.Context) error {
+	if err := opflags.CheckRequired(ctx); err != nil {
+		return errors.Wrap(err, "missing required flags for opservice")
+	}
+
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])

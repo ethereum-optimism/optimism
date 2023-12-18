@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/flags"
@@ -25,8 +26,8 @@ type Config struct {
 	// RaftServerID is the unique ID for this server used by raft consensus.
 	RaftServerID string
 
-	// RaftStorageDIR is the directory to store raft data.
-	RaftStorageDIR string
+	// RaftStorageDir is the directory to store raft data.
+	RaftStorageDir string
 
 	// RaftBootstrap is true if this node should bootstrap a new raft cluster.
 	RaftBootstrap bool
@@ -53,39 +54,43 @@ func (c *Config) Check() error {
 	if c.RaftServerID == "" {
 		return fmt.Errorf("missing raft server ID")
 	}
-	if c.RaftStorageDIR == "" {
+	if c.RaftStorageDir == "" {
 		return fmt.Errorf("missing raft storage directory")
 	}
 	if c.NodeRPC == "" {
 		return fmt.Errorf("missing node RPC")
 	}
 	if err := c.RollupCfg.Check(); err != nil {
-		return err
+		return errors.Wrap(err, "invalid rollup config")
 	}
 	if err := c.MetricsConfig.Check(); err != nil {
-		return err
+		return errors.Wrap(err, "invalid metrics config")
 	}
 	if err := c.PprofConfig.Check(); err != nil {
-		return err
+		return errors.Wrap(err, "invalid pprof config")
 	}
 	if err := c.RPC.Check(); err != nil {
-		return err
+		return errors.Wrap(err, "invalid rpc config")
 	}
 	return nil
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
+	if err := flags.CheckRequired(ctx); err != nil {
+		return nil, errors.Wrap(err, "missing required flags")
+	}
+
 	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to load rollup config")
 	}
 
 	return &Config{
 		ConsensusAddr:  ctx.String(flags.ConsensusAddr.Name),
 		ConsensusPort:  ctx.Int(flags.ConsensusPort.Name),
 		RaftServerID:   ctx.String(flags.RaftServerID.Name),
-		RaftStorageDIR: ctx.String(flags.RaftStorageDIR.Name),
+		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
 		NodeRPC:        ctx.String(flags.NodeRPC.Name),
 		RollupCfg:      *rollupCfg,
 		LogConfig:      oplog.ReadCLIConfig(ctx),

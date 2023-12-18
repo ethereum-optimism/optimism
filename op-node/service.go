@@ -9,21 +9,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/urfave/cli/v2"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	serviceflags "github.com/ethereum-optimism/optimism/op-service/flags"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -149,7 +149,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return nil, fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
-		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0o600); err != nil {
 			return nil, err
 		}
 	}
@@ -179,8 +179,16 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 }
 
 func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
-	network := ctx.String(flags.Network.Name)
-	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+	var network, rollupConfigPath string
+	if network = ctx.String(serviceflags.Network.Name); network == "" {
+		// fallback to old flag name
+		network = ctx.String(flags.Network.Name)
+	}
+	if rollupConfigPath = ctx.String(serviceflags.RollupConfig.Name); rollupConfigPath == "" {
+		// fallback to old flag name
+		rollupConfigPath = ctx.String(flags.RollupConfig.Name)
+	}
+
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
@@ -214,11 +222,18 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 }
 
 func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
-	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
+	if ctx.IsSet(serviceflags.CanyonOverrideFlag.Name) {
+		canyon := ctx.Uint64(serviceflags.CanyonOverrideFlag.Name)
+		rollupConfig.CanyonTime = &canyon
+	} else if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
 		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
 		rollupConfig.CanyonTime = &canyon
 	}
-	if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
+
+	if ctx.IsSet(serviceflags.DeltaOverrideFlag.Name) {
+		delta := ctx.Uint64(serviceflags.DeltaOverrideFlag.Name)
+		rollupConfig.DeltaTime = &delta
+	} else if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
 		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
 		rollupConfig.DeltaTime = &delta
 	}
