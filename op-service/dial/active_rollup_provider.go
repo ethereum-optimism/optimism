@@ -102,12 +102,17 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 	return time.Now().After(p.activeTimeout)
 }
 
+func (p *ActiveL2RollupProvider) ensureClientInitialized(ctx context.Context) error {
+	if p.currentRollupClient != nil {
+		return nil
+	}
+	return p.dialNextSequencer(ctx)
+}
+
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
-	if p.currentRollupClient == nil {
-		err := p.dialNextSequencer(ctx)
-		if err != nil {
-			return fmt.Errorf("dialing first sequencer: %w", err)
-		}
+	err := p.ensureClientInitialized(ctx)
+	if err != nil {
+		return fmt.Errorf("initializing rollup client: %w", err)
 	}
 	for range p.rollupUrls {
 		active, err := p.checkCurrentSequencer(ctx)
