@@ -64,16 +64,11 @@ func newActiveL2RollupProvider(
 		rollupUrls:     rollupUrls,
 		rollupDialer:   dialer,
 		clientLock:     &sync.Mutex{},
+		rollupIndex:    -1,
 	}
 	cctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	ep := p.rollupUrls[p.rollupIndex]
-	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
-	if err != nil {
-		return nil, fmt.Errorf("dialing rollup client: %w", err)
-	}
-	p.currentRollupClient = rollupClient
-	_, err = p.RollupClient(cctx)
+	_, err := p.RollupClient(cctx)
 	if err != nil {
 		return nil, fmt.Errorf("setting provider rollup client: %w", err)
 	}
@@ -105,10 +100,23 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 	return time.Now().After(p.activeTimeout)
 }
 
+func (p *ActiveL2RollupProvider) currentEndpoint() string {
+	if p.rollupIndex < 0 {
+		return "no endpoint set"
+	}
+	return p.rollupUrls[p.rollupIndex]
+}
+
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
+	if p.currentRollupClient == nil {
+		err := p.dialNextSequencer(ctx)
+		if err != nil {
+			return fmt.Errorf("dialing first sequencer: %w", err)
+		}
+	}
 	for range p.rollupUrls {
 		active, err := p.checkCurrentSequencer(ctx)
-		ep := p.rollupUrls[p.rollupIndex]
+		ep := p.currentEndpoint()
 		if err != nil {
 			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "index", p.rollupIndex, "url", ep)
 		} else if active {
@@ -139,13 +147,15 @@ func (p *ActiveL2RollupProvider) dialNextSequencer(ctx context.Context) error {
 	defer cancel()
 
 	p.rollupIndex = (p.rollupIndex + 1) % p.numEndpoints()
-	ep := p.rollupUrls[p.rollupIndex]
+	ep := p.currentEndpoint()
 	p.log.Info("Dialing next sequencer.", "index", p.rollupIndex, "url", ep)
 	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
 	if err != nil {
 		return fmt.Errorf("dialing rollup client: %w", err)
 	}
-	p.currentRollupClient.Close()
+	if p.currentRollupClient != nil {
+		p.currentRollupClient.Close()
+	}
 	p.currentRollupClient = rollupClient
 	return nil
 }

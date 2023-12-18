@@ -403,6 +403,41 @@ func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *test
 	ept.assertAllExpectations(t)
 }
 
+// TestRollupProvider_ConstructorErrorOnFirstSequencerOffline verifies that the ActiveL2RollupProvider
+// constructor handles the case where the first sequencer (index 0) is offline at startup.
+func TestRollupProvider_ConstructorErrorOnFirstSequencerOffline(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 2)
+
+	// First sequencer is dead, second sequencer is active
+	ept.rollupClients[0].ExpectSequencerActive(false, fmt.Errorf("I am offline"))
+	ept.rollupClients[0].ExpectClose()
+	ept.rollupClients[1].ExpectSequencerActive(true, nil)
+
+	rollupProvider, err := ept.newActiveL2RollupProvider(0)
+	require.NoError(t, err)
+
+	require.Same(t, ept.rollupClients[1], rollupProvider.currentRollupClient)
+	ept.assertAllExpectations(t)
+}
+
+// TestEndpointProvider_ConstructorErrorOnFirstSequencerOffline verifies that the ActiveL2EndpointProvider
+// constructor handles the case where the first sequencer (index 0) is offline at startup.
+func TestEndpointProvider_ConstructorErrorOnFirstSequencerOffline(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 2)
+
+	// First sequencer is dead, second sequencer is active
+	ept.rollupClients[0].ExpectSequencerActive(false, fmt.Errorf("I am offline"))
+	ept.rollupClients[0].ExpectClose()
+	ept.rollupClients[1].ExpectSequencerActive(true, nil)
+	ept.rollupClients[1].ExpectSequencerActive(true, nil) // see comment in other tests about why we expect this twice
+
+	endpointProvider, err := ept.newActiveL2EndpointProvider(0)
+	require.NoError(t, err)
+
+	require.Same(t, ept.ethClients[1], endpointProvider.currentEthClient)
+	ept.assertAllExpectations(t)
+}
+
 // TestRollupProvider_FailOnAllInactiveSequencers verifies that the ActiveL2RollupProvider
 // fails to be created when all sequencers are inactive.
 func TestRollupProvider_FailOnAllInactiveSequencers(t *testing.T) {
