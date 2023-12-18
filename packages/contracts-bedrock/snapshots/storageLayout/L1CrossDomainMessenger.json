@@ -112,17 +112,31 @@
     "type": "mapping(bytes32 => bool)"
   },
   {
+    "bytes": "20",
+    "label": "otherMessenger",
+    "offset": 0,
+    "slot": "207",
+    "type": "address"
+  },
+  {
     "bytes": "1408",
     "label": "__gap",
     "offset": 0,
-    "slot": "207",
+    "slot": "208",
     "type": "uint256[44]"
   },
   {
     "bytes": "20",
     "label": "superchainConfig",
     "offset": 0,
-    "slot": "251",
+    "slot": "252",
     "type": "contract SuperchainConfig"
+  },
+  {
+    "bytes": "20",
+    "label": "portal",
+    "offset": 0,
+    "slot": "253",
+    "type": "contract OptimismPortal"
   }
 ]
