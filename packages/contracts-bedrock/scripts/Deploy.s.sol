@@ -627,13 +627,15 @@ contract Deploy is Deployer {
 
         L1StandardBridge bridge = new L1StandardBridge{ salt: _implSalt() }();
 
-        require(address(bridge.MESSENGER()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        require(address(bridge.messenger()) == Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
+
+        // Override the `L1StandardBridge` contract to the deployed implementation. This is necessary
+        // to check the `L1StandardBridge` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L1StandardBridge = address(bridge);
+        ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false, _isInitialized: false });
 
         addr_ = address(bridge);
     }
@@ -774,7 +776,7 @@ contract Deploy is Deployer {
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true });
+        ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true, _isInitialized: true });
     }
 
     /// @notice Initialize the L1ERC721Bridge
