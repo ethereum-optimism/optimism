@@ -39,7 +39,7 @@ library ChainAssertions {
 
         checkSystemConfig({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkL1CrossDomainMessenger({ _contracts: _prox, _vm: _vm, _isProxy: true });
-        checkL1StandardBridge({ _contracts: _prox, _isProxy: true });
+        checkL1StandardBridge({ _contracts: _prox, _isProxy: true, _isInitialized: true });
         checkL2OutputOracle({
             _contracts: _prox,
             _cfg: _cfg,
@@ -103,17 +103,33 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1StandardBridge is setup correctly
-    function checkL1StandardBridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
+    function checkL1StandardBridge(
+        Types.ContractSet memory _contracts,
+        bool _isProxy,
+        bool _isInitialized
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the L1StandardBridge");
         L1StandardBridge bridge = L1StandardBridge(payable(_contracts.L1StandardBridge));
-        require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
-        require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
-        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
-        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
-        if (_isProxy) {
-            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
-        } else {
+
+        if (!_isInitialized) {
+            require(address(bridge.MESSENGER()) == address(0));
+            require(address(bridge.messenger()) == address(0));
+            require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+            require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
             require(address(bridge.superchainConfig()) == address(0));
+        } else {
+            require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
+            require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
+            require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+            require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
+            if (_isProxy) {
+                require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
+            } else {
+                require(address(bridge.superchainConfig()) == address(0));
+            }
         }
     }
 
