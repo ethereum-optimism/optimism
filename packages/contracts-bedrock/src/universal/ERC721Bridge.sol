@@ -62,7 +62,7 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /// @notice Initializer.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    /// @param _messenger   Contract of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
     // solhint-disable-next-line func-name-mixedcase
     function __ERC721Bridge_init(CrossDomainMessenger _messenger, address _otherBridge) internal onlyInitializing {
