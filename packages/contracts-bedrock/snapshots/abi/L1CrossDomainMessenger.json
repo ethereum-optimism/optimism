@@ -1,12 +1,6 @@
 [
   {
-    "inputs": [
-      {
-        "internalType": "contract OptimismPortal",
-        "name": "_portal",
-        "type": "address"
-      }
-    ],
+    "inputs": [],
     "stateMutability": "nonpayable",
     "type": "constructor"
   },
@@ -80,7 +74,7 @@
     "name": "PORTAL",
     "outputs": [
       {
-        "internalType": "contract OptimismPortal",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }
@@ -189,6 +183,16 @@
         "internalType": "contract SuperchainConfig",
         "name": "_superchainConfig",
         "type": "address"
+      },
+      {
+        "internalType": "contract OptimismPortal",
+        "name": "_portal",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_otherMessenger",
+        "type": "address"
       }
     ],
     "name": "initialize",
@@ -204,6 +208,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "otherMessenger",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -227,7 +244,7 @@
     "name": "portal",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract OptimismPortal",
         "name": "",
         "type": "address"
       }
