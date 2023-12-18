@@ -81,7 +81,7 @@ func newActiveL2EndpointProvider(
 	p.currentEthClient = ethClient
 	_, err = p.EthClient(cctx)
 	if err != nil {
-		return nil, fmt.Errorf("dialing eth client: %w", err)
+		return nil, fmt.Errorf("setting provider eth client: %w", err)
 	}
 	return p, nil
 }

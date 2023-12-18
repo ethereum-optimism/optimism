@@ -75,7 +75,7 @@ func newActiveL2RollupProvider(
 	p.currentRollupClient = rollupClient
 	_, err = p.RollupClient(cctx)
 	if err != nil {
-		return nil, fmt.Errorf("dialing rollup client: %w", err)
+		return nil, fmt.Errorf("setting provider rollup client: %w", err)
 	}
 	return p, nil
 }
