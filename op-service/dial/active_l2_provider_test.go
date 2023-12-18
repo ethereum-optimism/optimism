@@ -14,22 +14,28 @@ import (
 
 // endpointProviderTest is a test harness for setting up endpoint provider tests.
 type endpointProviderTest struct {
-	t             *testing.T
-	rollupClients []*testutils.MockRollupClient
-	ethClients    []*testutils.MockEthClient
+	t                  *testing.T
+	rollupClients      []*testutils.MockRollupClient
+	ethClients         []*testutils.MockEthClient
+	rollupDialOutcomes map[int]bool // true for success, false for failure
+	ethDialOutcomes    map[int]bool // true for success, false for failure
 }
 
 // setupEndpointProviderTest sets up the basic structure of the endpoint provider tests.
 func setupEndpointProviderTest(t *testing.T, numSequencers int) *endpointProviderTest {
 	ept := &endpointProviderTest{
-		t:             t,
-		rollupClients: make([]*testutils.MockRollupClient, numSequencers),
-		ethClients:    make([]*testutils.MockEthClient, numSequencers),
+		t:                  t,
+		rollupClients:      make([]*testutils.MockRollupClient, numSequencers),
+		ethClients:         make([]*testutils.MockEthClient, numSequencers),
+		rollupDialOutcomes: make(map[int]bool),
+		ethDialOutcomes:    make(map[int]bool),
 	}
 
 	for i := 0; i < numSequencers; i++ {
 		ept.rollupClients[i] = new(testutils.MockRollupClient)
 		ept.ethClients[i] = new(testutils.MockEthClient)
+		ept.rollupDialOutcomes[i] = true // by default, all dials succeed
+		ept.ethDialOutcomes[i] = true    // by default, all dials succeed
 	}
 
 	return ept
@@ -37,9 +43,12 @@ func setupEndpointProviderTest(t *testing.T, numSequencers int) *endpointProvide
 
 // newActiveL2EndpointProvider constructs a new ActiveL2RollupProvider using the test harness setup.
 func (et *endpointProviderTest) newActiveL2RollupProvider(checkDuration time.Duration) (*ActiveL2RollupProvider, error) {
-	rollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
+	mockRollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
 		for i, client := range et.rollupClients {
 			if url == fmt.Sprintf("rollup%d", i) {
+				if !et.rollupDialOutcomes[i] {
+					return nil, fmt.Errorf("simulated dial failure for rollup %d", i)
+				}
 				return client, nil
 			}
 		}
@@ -59,7 +68,7 @@ func (et *endpointProviderTest) newActiveL2RollupProvider(checkDuration time.Dur
 		checkDuration,
 		1*time.Minute,
 		testlog.Logger(et.t, log.LvlDebug),
-		rollupDialer,
+		mockRollupDialer,
 	)
 }
 
@@ -68,6 +77,9 @@ func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.D
 	mockRollupDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (RollupClientInterface, error) {
 		for i, client := range et.rollupClients {
 			if url == fmt.Sprintf("rollup%d", i) {
+				if !et.rollupDialOutcomes[i] {
+					return nil, fmt.Errorf("simulated dial failure for rollup %d", i)
+				}
 				return client, nil
 			}
 		}
@@ -77,6 +89,9 @@ func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.D
 	mockEthDialer := func(ctx context.Context, timeout time.Duration, log log.Logger, url string) (EthClientInterface, error) {
 		for i, client := range et.ethClients {
 			if url == fmt.Sprintf("eth%d", i) {
+				if !et.ethDialOutcomes[i] {
+					return nil, fmt.Errorf("simulated dial failure for eth %d", i)
+				}
 				return client, nil
 			}
 		}
@@ -114,6 +129,10 @@ func (et *endpointProviderTest) assertAllExpectations(t *testing.T) {
 	for _, ethClient := range et.ethClients {
 		ethClient.AssertExpectations(t)
 	}
+}
+
+func (ept *endpointProviderTest) setRollupDialOutcome(index int, success bool) {
+	ept.rollupDialOutcomes[index] = success
 }
 
 // TestRollupProvider_FailoverOnInactiveSequencer verifies that the ActiveL2RollupProvider
@@ -385,15 +404,14 @@ func TestRollupProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *testin
 	ept.assertAllExpectations(t)
 }
 
-// TestRollupProvider_SelectLastSequencerIManyInactiveAtCreation verifies that if all but the last sequencer
-// are inactive at the time of ActiveL2RollupProvider creation, the last active sequencer is chosen.
-func TestRollupProvider_SelectLastSequencerIfManyInactiveAtCreation(t *testing.T) {
+// TestRollupProvider_SelectLastSequencerIfManyOfflineAtCreation verifies that if all but the last sequencer
+// are offline at the time of ActiveL2RollupProvider creation, the last active sequencer is chosen.
+func TestRollupProvider_SelectLastSequencerIfManyOfflineAtCreation(t *testing.T) {
 	ept := setupEndpointProviderTest(t, 5)
 
-	// First four sequencers are inactive, last sequencer is active
+	// First four sequencers are dead, last sequencer is active
 	for i := 0; i < 4; i++ {
-		ept.rollupClients[i].ExpectSequencerActive(false, nil)
-		ept.rollupClients[i].ExpectClose()
+		ept.setRollupDialOutcome(i, false)
 	}
 	ept.rollupClients[4].ExpectSequencerActive(true, nil)
 
@@ -404,9 +422,9 @@ func TestRollupProvider_SelectLastSequencerIfManyInactiveAtCreation(t *testing.T
 	ept.assertAllExpectations(t)
 }
 
-// TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation verifies that if the first sequencer
+// TestEndpointProvider_SelectSecondSequencerIfFirstOfflineAtCreation verifies that if the first sequencer
 // is inactive at the time of ActiveL2EndpointProvider creation, the second active sequencer is chosen.
-func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *testing.T) {
+func TestEndpointProvider_SelectSecondSequencerIfFirstOfflineAtCreation(t *testing.T) {
 	ept := setupEndpointProviderTest(t, 2)
 
 	// First sequencer is inactive, second sequencer is active
@@ -427,10 +445,9 @@ func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *test
 func TestEndpointProvider_SelectLastSequencerIfManyInactiveAtCreation(t *testing.T) {
 	ept := setupEndpointProviderTest(t, 5)
 
-	// First four sequencers are inactive, last sequencer is active
+	// First four sequencers are dead, last sequencer is active
 	for i := 0; i < 4; i++ {
-		ept.rollupClients[i].ExpectSequencerActive(false, nil)
-		ept.rollupClients[i].ExpectClose()
+		ept.setRollupDialOutcome(i, false)
 	}
 	ept.rollupClients[4].ExpectSequencerActive(true, nil)
 	ept.rollupClients[4].ExpectSequencerActive(true, nil) // Double check due to embedded call of `EthClient()`

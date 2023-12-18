@@ -70,7 +70,7 @@ func newActiveL2RollupProvider(
 	defer cancel()
 	err := p.ensureClientInitialized(cctx)
 	if err != nil {
-		return nil, fmt.Errorf("dialing initial rollup client: %w", err)
+		p.log.Warn("Error dialing initial rollup client.", "err", err)
 	}
 	_, err = p.RollupClient(cctx)
 	if err != nil {
