@@ -486,12 +486,20 @@ contract Deploy is Deployer {
         console.log("Deploying L1CrossDomainMessenger implementation");
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger{ salt: _implSalt() }();
 
-        // TODO: address inconsistency in variable names vs. type in PORTAL() vs. portal() in L1CrossDomainMessenger
-        require(messenger.PORTAL() == address(0));
-        require(address(messenger.portal()) == address(0));
-
         save("L1CrossDomainMessenger", address(messenger));
         console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
+
+        // Override the `L1CrossDomainMessenger` contract to the deployed implementation. This is necessary
+        // to check the `L1CrossDomainMessenger` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L1CrossDomainMessenger = address(messenger);
+        ChainAssertions.checkL1CrossDomainMessenger({
+            _contracts: contracts,
+            _vm: vm,
+            _isProxy: false,
+            _isInitialized: false
+        });
 
         require(loadInitializedSlot("L1CrossDomainMessenger") == 1, "L1CrossDomainMessenger is not initialized");
 
@@ -845,9 +853,9 @@ contract Deploy is Deployer {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
         address l1CrossDomainMessenger = mustGetAddress("L1CrossDomainMessenger");
-        address l2CrossDomainMessenger = mustGetAddress("L2CrossDomainMessenger");
+        address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
         address optimismPortalProxy = mustGetAddress("OptimismPortalProxy");
-        SuperchainConfig superchainConfigProxy = SuperchainConfig(mustGetAddress("SuperchainConfigProxy"));
+        address l2CrossDomainMessenger = mustGetAddress("L2CrossDomainMessenger");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy));
         if (proxyType != uint256(ProxyAdmin.ProxyType.RESOLVED)) {
@@ -871,12 +879,16 @@ contract Deploy is Deployer {
                 == keccak256(bytes(contractName))
         );
 
-        OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));
         _upgradeAndCallViaSafe({
             _proxy: payable(l1CrossDomainMessengerProxy),
             _implementation: l1CrossDomainMessenger,
             _innerCallData: abi.encodeCall(
-                L1CrossDomainMessenger.initialize, (portal, l2CrossDomainMessenger, superchainConfigProxy)
+                L1CrossDomainMessenger.initialize,
+                (
+                    SuperchainConfig(superchainConfigProxy),
+                    OptimismPortal(payable(optimismPortalProxy)),
+                    l2CrossDomainMessenger
+                )
                 )
         });
 
@@ -884,7 +896,16 @@ contract Deploy is Deployer {
         string memory version = messenger.version();
         console.log("L1CrossDomainMessenger version: %s", version);
 
-        ChainAssertions.checkL1CrossDomainMessenger({ _contracts: _proxies(), _vm: vm, _isProxy: true });
+        ChainAssertions.checkL1CrossDomainMessenger({
+            _contracts: _proxies(),
+            _vm: vm,
+            _isProxy: true,
+            _isInitialized: true
+        });
+
+        require(
+            loadInitializedSlot("L1CrossDomainMessenger", true) == 1, "L1CrossDomainMessengerProxy is not initialized"
+        );
     }
 
     /// @notice Initialize the L2OutputOracle
