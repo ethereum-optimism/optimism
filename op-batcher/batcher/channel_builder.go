@@ -333,7 +333,11 @@ func (c *channelBuilder) setFullErr(err error) {
 // frames will be created, possibly with a small leftover frame.
 func (c *channelBuilder) OutputFrames() error {
 	if c.IsFull() {
-		return c.closeAndOutputAllFrames()
+		err := c.closeAndOutputAllFrames()
+		if err != nil {
+			return fmt.Errorf("error while closing full channel (full reason: %w): %w", c.FullErr(), err)
+		}
+		return nil
 	}
 	return c.outputReadyFrames()
 }
