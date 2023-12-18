@@ -34,11 +34,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const alphabetGameType uint8 = 255
-const cannonGameType uint8 = 0
-const outputCannonGameType uint8 = 1
-const outputAlphabetGameType uint8 = 254
-const alphabetGameDepth = 4
+const (
+	alphabetGameType       uint8 = 255
+	cannonGameType         uint8 = 0
+	outputCannonGameType   uint8 = 1
+	outputAlphabetGameType uint8 = 254
+	alphabetGameDepth            = 4
+)
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
 
@@ -185,11 +187,11 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
-	prestateBlock, err := game.GENESISBLOCKNUMBER(&bind.CallOpts{Context: ctx})
+	prestateBlock, err := game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load genesis block number")
 	poststateBlock, err := game.L2BlockNumber(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load l2 block number")
-	splitDepth, err := game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
+	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock.Uint64())
 	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth.Uint64(), prestateBlock.Uint64(), poststateBlock.Uint64())
@@ -234,11 +236,11 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
-	prestateBlock, err := game.GENESISBLOCKNUMBER(&bind.CallOpts{Context: ctx})
+	prestateBlock, err := game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load genesis block number")
 	poststateBlock, err := game.L2BlockNumber(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load l2 block number")
-	splitDepth, err := game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
+	splitDepth, err := game.SplitDepth(&bind.CallOpts{Context: ctx})
 	h.require.NoError(err, "Failed to load split depth")
 	prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock.Uint64())
 	provider := outputs.NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth.Uint64(), prestateBlock.Uint64(), poststateBlock.Uint64())
