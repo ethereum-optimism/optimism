@@ -132,14 +132,14 @@ abstract contract StandardBridge is Initializable {
     receive() external payable virtual;
 
     /// @notice Getter for messenger contract.
-    /// @return Messenger contract on this domain.
+    /// @return Contract of the messenger on this domain.
     /// @custom:legacy
     function MESSENGER() external view returns (CrossDomainMessenger) {
         return messenger;
     }
 
-    /// @notice Getter for the remote domain bridge contract.
-    /// @return The bridge contract on the other network.
+    /// @notice Getter for the other bridge contract.
+    /// @return Contract of the bridge on the other network.
     /// @custom:legacy
     function OTHER_BRIDGE() external view returns (StandardBridge) {
         return otherBridge;
