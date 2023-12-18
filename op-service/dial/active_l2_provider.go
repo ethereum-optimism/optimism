@@ -55,10 +55,10 @@ func newActiveL2EndpointProvider(
 	rollupDialer rollupDialer,
 ) (*ActiveL2EndpointProvider, error) {
 	if len(rollupUrls) == 0 {
-		return nil, errors.New("empty rollup urls list")
+		return nil, errors.New("empty rollup urls list, expected at least one URL")
 	}
 	if len(ethUrls) != len(rollupUrls) {
-		return nil, errors.New("number of eth urls and rollup urls mismatch")
+		return nil, errors.New(fmt.Sprintf("number of eth urls (%d) and rollup urls (%d) mismatch", len(ethUrls), len(rollupUrls)))
 	}
 
 	rollupProvider, err := newActiveL2RollupProvider(ctx, rollupUrls, checkDuration, networkTimeout, logger, rollupDialer)
