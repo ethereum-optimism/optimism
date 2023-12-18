@@ -385,6 +385,25 @@ func TestRollupProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *testin
 	ept.assertAllExpectations(t)
 }
 
+// TestRollupProvider_SelectLastSequencerIManyInactiveAtCreation verifies that if all but the last sequencer
+// are inactive at the time of ActiveL2RollupProvider creation, the last active sequencer is chosen.
+func TestRollupProvider_SelectLastSequencerIfManyInactiveAtCreation(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 5)
+
+	// First four sequencers are inactive, last sequencer is active
+	for i := 0; i < 4; i++ {
+		ept.rollupClients[i].ExpectSequencerActive(false, nil)
+		ept.rollupClients[i].ExpectClose()
+	}
+	ept.rollupClients[4].ExpectSequencerActive(true, nil)
+
+	rollupProvider, err := ept.newActiveL2RollupProvider(0)
+	require.NoError(t, err)
+
+	require.Same(t, ept.rollupClients[4], rollupProvider.currentRollupClient)
+	ept.assertAllExpectations(t)
+}
+
 // TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation verifies that if the first sequencer
 // is inactive at the time of ActiveL2EndpointProvider creation, the second active sequencer is chosen.
 func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *testing.T) {
@@ -400,6 +419,26 @@ func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *test
 	require.NoError(t, err)
 
 	require.Same(t, ept.ethClients[1], endpointProvider.currentEthClient)
+	ept.assertAllExpectations(t)
+}
+
+// TestEndpointProvider_SelectLastSequencerIfManyInactiveAtCreation verifies that if all but the last sequencer
+// are inactive at the time of ActiveL2EndpointProvider creation, the last active sequencer is chosen.
+func TestEndpointProvider_SelectLastSequencerIfManyInactiveAtCreation(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 5)
+
+	// First four sequencers are inactive, last sequencer is active
+	for i := 0; i < 4; i++ {
+		ept.rollupClients[i].ExpectSequencerActive(false, nil)
+		ept.rollupClients[i].ExpectClose()
+	}
+	ept.rollupClients[4].ExpectSequencerActive(true, nil)
+	ept.rollupClients[4].ExpectSequencerActive(true, nil) // Double check due to embedded call of `EthClient()`
+
+	endpointProvider, err := ept.newActiveL2EndpointProvider(0)
+	require.NoError(t, err)
+
+	require.Same(t, ept.ethClients[4], endpointProvider.currentEthClient)
 	ept.assertAllExpectations(t)
 }
 
