@@ -27,4 +27,4 @@ On a high level, op-conductor serves the following functions:
 3. monitor sequencer (op-node) health
 4. control loop => control sequencer (op-node) status (start / stop) based on different scenarios
 
-This is initial version of the README, more details to be added later.
+This is initial version of the README, more details will be added later.
