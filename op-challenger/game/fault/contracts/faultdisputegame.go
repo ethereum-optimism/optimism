@@ -30,6 +30,7 @@ func NewFaultDisputeGameContract(addr common.Address, caller *batching.MultiCall
 		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(fdgAbi, addr),
+			version:     0,
 		},
 	}, nil
 }

@@ -62,14 +62,14 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 			},
 		},
 		{
-			method: methodGameDuration,
+			method: methodGameDurationV0,
 			result: uint64(5566),
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetGameDuration(context.Background())
 			},
 		},
 		{
-			method:   methodMaxGameDepth,
+			method:   methodMaxGameDepthV0,
 			result:   big.NewInt(128),
 			expected: uint64(128),
 			call: func(game *disputeGameContract) (any, error) {
@@ -77,7 +77,7 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 			},
 		},
 		{
-			method: methodAbsolutePrestate,
+			method: methodAbsolutePrestateV0,
 			result: common.Hash{0xab},
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetAbsolutePrestateHash(context.Background())

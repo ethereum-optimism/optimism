@@ -33,6 +33,7 @@ func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiC
 		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
+			version:     1,
 		},
 	}, nil
 }

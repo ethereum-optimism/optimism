@@ -37,7 +37,7 @@ func (g *OutputGameHelper) Addr() common.Address {
 }
 
 func (g *OutputGameHelper) SplitDepth(ctx context.Context) int64 {
-	splitDepth, err := g.game.SPLITDEPTH(&bind.CallOpts{Context: ctx})
+	splitDepth, err := g.game.SplitDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load split depth")
 	return splitDepth.Int64()
 }
@@ -49,7 +49,7 @@ func (g *OutputGameHelper) L2BlockNum(ctx context.Context) uint64 {
 }
 
 func (g *OutputGameHelper) GenesisBlockNum(ctx context.Context) uint64 {
-	blockNum, err := g.game.GENESISBLOCKNUMBER(&bind.CallOpts{Context: ctx})
+	blockNum, err := g.game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to load genesis block number")
 	return blockNum.Uint64()
 }
@@ -99,7 +99,7 @@ func (g *OutputGameHelper) correctOutputRoot(ctx context.Context, pos types.Posi
 }
 
 func (g *OutputGameHelper) GameDuration(ctx context.Context) time.Duration {
-	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
+	duration, err := g.game.GameDuration(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
 	return time.Duration(duration) * time.Second
 }
@@ -133,7 +133,7 @@ type ContractClaim struct {
 }
 
 func (g *OutputGameHelper) MaxDepth(ctx context.Context) int64 {
-	depth, err := g.game.MAXGAMEDEPTH(&bind.CallOpts{Context: ctx})
+	depth, err := g.game.MaxGameDepth(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "Failed to load game depth")
 	return depth.Int64()
 }
@@ -376,6 +376,7 @@ func (g *OutputGameHelper) getClaimCount(ctx context.Context) int64 {
 func (g *OutputGameHelper) WaitForNewClaim(ctx context.Context, checkPoint int64) (int64, error) {
 	return g.waitForNewClaim(ctx, checkPoint, defaultTimeout)
 }
+
 func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64, timeout time.Duration) (int64, error) {
 	timedCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()

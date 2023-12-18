@@ -34,9 +34,12 @@ const (
 )
 
 type disputeGameContract struct {
-	multiCaller     *batching.MultiCaller
-	contract        *batching.BoundContract
-	outputBisection bool
+	multiCaller *batching.MultiCaller
+	contract    *batching.BoundContract
+	// The version byte signifies the version of the dispute game contract due to mismatching function selectors.
+	// 0 = `FaultDisputeGame`
+	// 1 = `OutputBisectionGame`
+	version uint8
 }
 
 // contractProposal matches the structure for output root proposals used by the contracts.
@@ -62,7 +65,7 @@ func asProposal(p contractProposal) Proposal {
 
 func (f *disputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
 	var methodGameDuration string
-	if f.outputBisection {
+	if f.version == 1 {
 		methodGameDuration = methodGameDurationV1
 	} else {
 		methodGameDuration = methodGameDurationV0
@@ -77,7 +80,7 @@ func (f *disputeGameContract) GetGameDuration(ctx context.Context) (uint64, erro
 
 func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
 	var methodMaxGameDepth string
-	if f.outputBisection {
+	if f.version == 1 {
 		methodMaxGameDepth = methodMaxGameDepthV1
 	} else {
 		methodMaxGameDepth = methodMaxGameDepthV0
@@ -92,7 +95,7 @@ func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, erro
 
 func (f *disputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	var methodAbsolutePrestate string
-	if f.outputBisection {
+	if f.version == 1 {
 		methodAbsolutePrestate = methodAbsolutePrestateV1
 	} else {
 		methodAbsolutePrestate = methodAbsolutePrestateV0
@@ -162,7 +165,7 @@ func (f *disputeGameContract) GetAllClaims(ctx context.Context) ([]types.Claim, 
 
 func (f *disputeGameContract) vm(ctx context.Context) (*VMContract, error) {
 	var methodVM string
-	if f.outputBisection {
+	if f.version == 1 {
 		methodVM = methodVMV1
 	} else {
 		methodVM = methodVMV0
