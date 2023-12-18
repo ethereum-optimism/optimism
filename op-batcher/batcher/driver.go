@@ -265,7 +265,7 @@ func (l *BatchSubmitter) loop() {
 				err := l.state.Close()
 				if err != nil {
 					if errors.Is(err, ErrPendingAfterClose) {
-						l.Log.Warn("Closed channel manager to handle L2 reorg, but pending channel(s) remain to be submitted")
+						l.Log.Warn("Closed channel manager to handle L2 reorg with pending channel(s) remaining - submitting")
 					} else {
 						l.Log.Error("Error closing the channel manager to handle a L2 reorg", "err", err)
 					}
@@ -283,9 +283,9 @@ func (l *BatchSubmitter) loop() {
 			err := l.state.Close()
 			if err != nil {
 				if errors.Is(err, ErrPendingAfterClose) {
-					l.Log.Warn("Closed channel manager, but pending channel(s) remain to be submitted")
+					l.Log.Warn("Closed channel manager on shutdown with pending channel(s) remaining - submitting")
 				} else {
-					l.Log.Error("Error closing the channel manager", "err", err)
+					l.Log.Error("Error closing the channel manager on shutdown", "err", err)
 				}
 			}
 			l.publishStateToL1(queue, receiptsCh, true)
