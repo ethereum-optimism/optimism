@@ -511,7 +511,7 @@ See the [L2 chain derivation specification][derivation-spec] for more details.
 
 ## L2 Derivation Inputs
 
-[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
+[deriv-inputs]: glossary.md#l2-derivation-inputs
 
 This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
 attributes][payload-attr].
