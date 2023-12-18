@@ -190,26 +190,26 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	var l1ERC721BridgeMessenger, l1ERC721BridgeOtherBridge common.Address
+	var messenger, otherBridge common.Address
 	if config != nil {
-		l1ERC721BridgeMessenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
-		l1ERC721BridgeOtherBridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
+		messenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
+		otherBridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
 	} else {
 		l1ERC721Bridge, err := bindings.NewL1ERC721BridgeCaller(common.HexToAddress(list.L1ERC721BridgeProxy.String()), backend)
 		if err != nil {
 			return err
 		}
-		l1ERC721BridgeMessenger, err = l1ERC721Bridge.MESSENGER(&bind.CallOpts{})
+		messenger, err = l1ERC721Bridge.Messenger(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
-		l1ERC721BridgeOtherBridge, err = l1ERC721Bridge.OTHERBRIDGE(&bind.CallOpts{})
+		otherBridge, err = l1ERC721Bridge.OtherBridge(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
 	}
 
-	calldata, err := l1ERC721BridgeABI.Pack("initialize", l1ERC721BridgeMessenger, l1ERC721BridgeOtherBridge, superchainConfigProxy)
+	calldata, err := l1ERC721BridgeABI.Pack("initialize", messenger, otherBridge, superchainConfigProxy)
 	if err != nil {
 		return err
 	}
