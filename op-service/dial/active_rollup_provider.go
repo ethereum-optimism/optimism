@@ -127,7 +127,7 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 			p.log.Info("Current sequencer inactive, closing connection and trying next.", "index", p.rollupIndex, "url", ep)
 		}
 		if err := p.dialNextSequencer(ctx); err != nil {
-			return fmt.Errorf("dialing next sequencer: %w", err)
+			p.log.Warn("Error dialing next sequencer.", "err", err, "index", p.rollupIndex)
 		}
 	}
 	return fmt.Errorf("failed to find an active sequencer, tried following urls: %v", p.rollupUrls)
