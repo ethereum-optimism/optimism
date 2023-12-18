@@ -68,7 +68,11 @@ func newActiveL2RollupProvider(
 	}
 	cctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	_, err := p.RollupClient(cctx)
+	err := p.ensureClientInitialized(cctx)
+	if err != nil {
+		return nil, fmt.Errorf("dialing initial rollup client: %w", err)
+	}
+	_, err = p.RollupClient(cctx)
 	if err != nil {
 		return nil, fmt.Errorf("setting provider rollup client: %w", err)
 	}
@@ -110,10 +114,6 @@ func (p *ActiveL2RollupProvider) ensureClientInitialized(ctx context.Context) er
 }
 
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
-	err := p.ensureClientInitialized(ctx)
-	if err != nil {
-		return fmt.Errorf("initializing rollup client: %w", err)
-	}
 	for range p.rollupUrls {
 		active, err := p.checkCurrentSequencer(ctx)
 		if errors.Is(err, errSeqUnset) {
