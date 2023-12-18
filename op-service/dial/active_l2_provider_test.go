@@ -107,6 +107,15 @@ func (et *endpointProviderTest) newActiveL2EndpointProvider(checkDuration time.D
 	)
 }
 
+func (et *endpointProviderTest) assertAllExpectations(t *testing.T) {
+	for _, sequencer := range et.rollupClients {
+		sequencer.AssertExpectations(t)
+	}
+	for _, ethClient := range et.ethClients {
+		ethClient.AssertExpectations(t)
+	}
+}
+
 // TestRollupProvider_FailoverOnInactiveSequencer verifies that the ActiveL2RollupProvider
 // will switch to the next provider if the current one becomes inactive.
 func TestRollupProvider_FailoverOnInactiveSequencer(t *testing.T) {
@@ -129,6 +138,7 @@ func TestRollupProvider_FailoverOnInactiveSequencer(t *testing.T) {
 	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, secondarySequencer, secondSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_FailoverOnInactiveSequencer verifies that the ActiveL2EndpointProvider
@@ -156,6 +166,7 @@ func TestEndpointProvider_FailoverOnInactiveSequencer(t *testing.T) {
 	secondSequencerUsed, err := activeProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[1], secondSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_FailoverOnErroredSequencer verifies that the ActiveL2RollupProvider
@@ -180,6 +191,7 @@ func TestRollupProvider_FailoverOnErroredSequencer(t *testing.T) {
 	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, secondarySequencer, secondSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_FailoverOnErroredSequencer verifies that the ActiveL2EndpointProvider
@@ -208,6 +220,7 @@ func TestEndpointProvider_FailoverOnErroredSequencer(t *testing.T) {
 	secondSequencerUsed, err := activeProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, secondaryEthClient, secondSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_NoExtraCheckOnActiveSequencer verifies that the ActiveL2RollupProvider
@@ -227,6 +240,7 @@ func TestRollupProvider_NoExtraCheckOnActiveSequencer(t *testing.T) {
 	firstSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, firstSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_NoExtraCheckOnActiveSequencer verifies that the ActiveL2EndpointProvider
@@ -247,6 +261,7 @@ func TestEndpointProvider_NoExtraCheckOnActiveSequencer(t *testing.T) {
 	firstEthClientUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], firstEthClientUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_FailoverAndReturn verifies the ActiveL2RollupProvider's ability to
@@ -279,6 +294,7 @@ func TestRollupProvider_FailoverAndReturn(t *testing.T) {
 	thirdSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, thirdSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_FailoverAndReturn verifies the ActiveL2EndpointProvider's ability to
@@ -314,6 +330,7 @@ func TestEndpointProvider_FailoverAndReturn(t *testing.T) {
 	thirdSequencerUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], thirdSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_InitialActiveSequencerSelection verifies that the ActiveL2RollupProvider
@@ -330,6 +347,7 @@ func TestRollupProvider_InitialActiveSequencerSelection(t *testing.T) {
 
 	// Check immediately after creation without additional Active check
 	require.Same(t, primarySequencer, rollupProvider.currentRollupClient)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_InitialActiveSequencerSelection verifies that the ActiveL2EndpointProvider
@@ -347,6 +365,7 @@ func TestEndpointProvider_InitialActiveSequencerSelection(t *testing.T) {
 
 	// Check immediately after creation without additional Active check
 	require.Same(t, primarySequencer, rollupProvider.currentRollupClient)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_SelectSecondSequencerIfFirstInactiveAtCreation verifies that if the first sequencer
@@ -363,6 +382,7 @@ func TestRollupProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *testin
 	require.NoError(t, err)
 
 	require.Same(t, ept.rollupClients[1], rollupProvider.currentRollupClient)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation verifies that if the first sequencer
@@ -372,7 +392,6 @@ func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *test
 
 	// First sequencer is inactive, second sequencer is active
 	ept.rollupClients[0].ExpectSequencerActive(false, nil)
-	ept.rollupClients[0].ExpectSequencerActive(false, nil) // see comment in other tests about why we expect this twice
 	ept.rollupClients[0].ExpectClose()
 	ept.rollupClients[1].ExpectSequencerActive(true, nil)
 	ept.rollupClients[1].ExpectSequencerActive(true, nil) // see comment in other tests about why we expect this twice
@@ -381,6 +400,7 @@ func TestEndpointProvider_SelectSecondSequencerIfFirstInactiveAtCreation(t *test
 	require.NoError(t, err)
 
 	require.Same(t, ept.ethClients[1], endpointProvider.currentEthClient)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_FailOnAllInactiveSequencers verifies that the ActiveL2RollupProvider
@@ -396,13 +416,13 @@ func TestRollupProvider_FailOnAllInactiveSequencers(t *testing.T) {
 
 	_, err := ept.newActiveL2RollupProvider(0)
 	require.Error(t, err) // Expect an error as all sequencers are inactive
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_FailOnAllInactiveSequencers verifies that the ActiveL2EndpointProvider
 // fails to be created when all sequencers are inactive.
 func TestEndpointProvider_FailOnAllInactiveSequencers(t *testing.T) {
 	ept := setupEndpointProviderTest(t, 2)
-	ept.rollupClients[0].ExpectSequencerActive(false, nil) // see comment in other tests about why we expect this an extra time
 
 	// All sequencers are inactive
 	for _, sequencer := range ept.rollupClients {
@@ -412,6 +432,7 @@ func TestEndpointProvider_FailOnAllInactiveSequencers(t *testing.T) {
 
 	_, err := ept.newActiveL2EndpointProvider(0)
 	require.Error(t, err) // Expect an error as all sequencers are inactive
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_FailOnAllErroredSequencers verifies that the ActiveL2RollupProvider
@@ -427,13 +448,13 @@ func TestRollupProvider_FailOnAllErroredSequencers(t *testing.T) {
 
 	_, err := ept.newActiveL2RollupProvider(0)
 	require.Error(t, err) // Expect an error as all sequencers are inactive
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_FailOnAllErroredSequencers verifies that the ActiveL2EndpointProvider
 // fails to create when all sequencers return an error.
 func TestEndpointProvider_FailOnAllErroredSequencers(t *testing.T) {
 	ept := setupEndpointProviderTest(t, 2)
-	ept.rollupClients[0].ExpectSequencerActive(true, fmt.Errorf("a test error")) // see comment in other tests about why we expect this an extra time
 
 	// All sequencers are inactive
 	for _, sequencer := range ept.rollupClients {
@@ -443,6 +464,7 @@ func TestEndpointProvider_FailOnAllErroredSequencers(t *testing.T) {
 
 	_, err := ept.newActiveL2EndpointProvider(0)
 	require.Error(t, err) // Expect an error as all sequencers are inactive
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_LongCheckDuration verifies the behavior of ActiveL2RollupProvider with a long check duration.
@@ -464,6 +486,7 @@ func TestRollupProvider_LongCheckDuration(t *testing.T) {
 	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, secondSequencerUsed)
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_LongCheckDuration verifies the behavior of ActiveL2EndpointProvider with a long check duration.
@@ -485,6 +508,7 @@ func TestEndpointProvider_LongCheckDuration(t *testing.T) {
 	secondEthClient, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], secondEthClient)
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_ErrorWhenAllSequencersInactive verifies that RollupClient() returns an error
@@ -504,6 +528,7 @@ func TestRollupProvider_ErrorWhenAllSequencersInactive(t *testing.T) {
 
 	_, err = rollupProvider.RollupClient(context.Background())
 	require.Error(t, err) // Expect an error as all sequencers are inactive
+	ept.assertAllExpectations(t)
 }
 
 // TestEndpointProvider_ErrorWhenAllSequencersInactive verifies that EthClient() returns an error
@@ -524,6 +549,7 @@ func TestEndpointProvider_ErrorWhenAllSequencersInactive(t *testing.T) {
 
 	_, err = endpointProvider.EthClient(context.Background())
 	require.Error(t, err) // Expect an error as all sequencers are inactive
+	ept.assertAllExpectations(t)
 }
 
 // TestRollupProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration verifies that the ActiveL2RollupProvider
@@ -548,6 +574,8 @@ func TestRollupProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t *t
 	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, primarySequencer, secondSequencerUsed)
+	// we do not assertAllExpectations here because we are expecting exactly that the provider _doesn't_
+	// call `SequencerActive()` again, which would cause the expectations to fail.
 }
 
 // TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration verifies that the ActiveL2EndpointProvider
@@ -572,4 +600,6 @@ func TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t 
 	secondEthClientUsed, err := endpointProvider.EthClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], secondEthClientUsed)
+	// we do not assertAllExpectations here because we are expecting exactly that the provider _doesn't_
+	// call `SequencerActive()` again, which would cause the expectations to fail.
 }
