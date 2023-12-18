@@ -26,3 +26,5 @@ On a high level, op-conductor serves the following functions:
    2. health rpc for op-node to determine if it should allow publish txs / unsafe blocks
 3. monitor sequencer (op-node) health
 4. control loop => control sequencer (op-node) status (start / stop) based on different scenarios
+
+This is initial version of the README, more details to be added later.
