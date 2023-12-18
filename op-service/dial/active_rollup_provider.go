@@ -75,6 +75,8 @@ func newActiveL2RollupProvider(
 	return p, nil
 }
 
+var errSeqUnset = errors.New("sequencer unset")
+
 func (p *ActiveL2RollupProvider) RollupClient(ctx context.Context) (RollupClientInterface, error) {
 	p.clientLock.Lock()
 	defer p.clientLock.Unlock()
@@ -100,13 +102,6 @@ func (p *ActiveL2RollupProvider) shouldCheck() bool {
 	return time.Now().After(p.activeTimeout)
 }
 
-func (p *ActiveL2RollupProvider) currentEndpoint() string {
-	if p.rollupIndex < 0 {
-		return "no endpoint set"
-	}
-	return p.rollupUrls[p.rollupIndex]
-}
-
 func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error {
 	if p.currentRollupClient == nil {
 		err := p.dialNextSequencer(ctx)
@@ -116,8 +111,9 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 	}
 	for range p.rollupUrls {
 		active, err := p.checkCurrentSequencer(ctx)
-		ep := p.currentEndpoint()
-		if err != nil {
+		if errors.Is(err, errSeqUnset) {
+			log.Debug("Current sequencer unset.")
+		} else if ep := p.rollupUrls[p.rollupIndex]; err != nil {
 			p.log.Warn("Error querying active sequencer, closing connection and trying next.", "err", err, "index", p.rollupIndex, "url", ep)
 		} else if active {
 			p.log.Debug("Current sequencer active.", "index", p.rollupIndex, "url", ep)
@@ -133,6 +129,9 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 }
 
 func (p *ActiveL2RollupProvider) checkCurrentSequencer(ctx context.Context) (bool, error) {
+	if p.currentRollupClient == nil {
+		return false, errSeqUnset
+	}
 	cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 	defer cancel()
 	return p.currentRollupClient.SequencerActive(cctx)
@@ -147,7 +146,7 @@ func (p *ActiveL2RollupProvider) dialNextSequencer(ctx context.Context) error {
 	defer cancel()
 
 	p.rollupIndex = (p.rollupIndex + 1) % p.numEndpoints()
-	ep := p.currentEndpoint()
+	ep := p.rollupUrls[p.rollupIndex]
 	p.log.Info("Dialing next sequencer.", "index", p.rollupIndex, "url", ep)
 	rollupClient, err := p.rollupDialer(cctx, p.networkTimeout, p.log, ep)
 	if err != nil {
