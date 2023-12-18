@@ -648,8 +648,13 @@ contract Deploy is Deployer {
         save("L1ERC721Bridge", address(bridge));
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
 
-        require(address(bridge.MESSENGER()) == address(0));
-        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+        // Override the `L1ERC721Bridge` contract to the deployed implementation. This is necessary
+        // to check the `L1ERC721Bridge` implementation alongside dependent contracts, which
+        // are always proxies.
+        Types.ContractSet memory contracts = _proxiesUnstrict();
+        contracts.L1ERC721Bridge = address(bridge);
+
+        ChainAssertions.checkL1ERC721Bridge({ _contracts: contracts, _isProxy: false, _isInitialized: false });
 
         addr_ = address(bridge);
     }
@@ -794,7 +799,7 @@ contract Deploy is Deployer {
         string memory version = bridge.version();
         console.log("L1ERC721Bridge version: %s", version);
 
-        ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxies(), _isProxy: true });
+        ChainAssertions.checkL1ERC721Bridge({ _contracts: _proxies(), _isProxy: true, _isInitialized: true });
     }
 
     /// @notice Ininitialize the OptimismMintableERC20Factory

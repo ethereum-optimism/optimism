@@ -179,17 +179,33 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
-    function checkL1ERC721Bridge(Types.ContractSet memory _contracts, bool _isProxy) internal view {
+    function checkL1ERC721Bridge(
+        Types.ContractSet memory _contracts,
+        bool _isProxy,
+        bool _isInitialized
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the L1ERC721Bridge");
         L1ERC721Bridge bridge = L1ERC721Bridge(_contracts.L1ERC721Bridge);
-        require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
-        require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
-        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
-        require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
-        if (_isProxy) {
-            require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
-        } else {
+
+        if (!_isInitialized) {
+            require(address(bridge.MESSENGER()) == address(0));
+            require(address(bridge.messenger()) == address(0));
+            require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+            require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
             require(address(bridge.superchainConfig()) == address(0));
+        } else {
+            require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
+            require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
+            require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+            require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
+            if (_isProxy) {
+                require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
+            } else {
+                require(address(bridge.superchainConfig()) == address(0));
+            }
         }
     }
 
