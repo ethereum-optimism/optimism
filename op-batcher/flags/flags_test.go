@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
@@ -54,31 +55,12 @@ func TestBetaFlags(t *testing.T) {
 	}
 }
 
-func TestDeprecatedFlagsAreHidden(t *testing.T) {
-	for _, flag := range DeprecatedFlags {
-		flag := flag
-		flagName := flag.Names()[0]
-
-		t.Run(flagName, func(t *testing.T) {
-
-			visibleFlag, ok := flag.(interface {
-				IsVisible() bool
-			})
-			require.True(t, ok, "Need to case the flag to the correct format")
-			require.False(t, visibleFlag.IsVisible())
-		})
-	}
-}
-
 func TestHasEnvVar(t *testing.T) {
 	for _, flag := range Flags {
 		flag := flag
 		flagName := flag.Names()[0]
 
 		t.Run(flagName, func(t *testing.T) {
-			if flagName == PeerScoringName || flagName == PeerScoreBandsName || flagName == TopicScoringName {
-				t.Skipf("Skipping flag %v which is known to have no env vars", flagName)
-			}
 			envFlagGetter, ok := flag.(interface {
 				GetEnvVars() []string
 			})
@@ -95,32 +77,14 @@ func TestEnvVarFormat(t *testing.T) {
 		flagName := flag.Names()[0]
 
 		skippedFlags := []string{
-			L1NodeAddr.Name,
-			L2EngineAddr.Name,
-			L2EngineJWTSecret.Name,
-			L1TrustRPC.Name,
-			L1RPCProviderKind.Name,
-			SnapshotLog.Name,
-			BackupL2UnsafeSyncRPC.Name,
-			BackupL2UnsafeSyncRPCTrustRPC.Name,
-			"p2p.scoring",
-			"p2p.ban.peers",
-			"p2p.ban.threshold",
-			"p2p.ban.duration",
-			"p2p.listen.tcp",
-			"p2p.listen.udp",
-			"p2p.useragent",
-			"p2p.gossip.mesh.lo",
-			"p2p.gossip.mesh.floodpublish",
-			"l2.engine-sync",
+			txmgr.FeeLimitMultiplierFlagName,
+			txmgr.TxSendTimeoutFlagName,
+			txmgr.TxNotInMempoolTimeoutFlagName,
 		}
 
 		t.Run(flagName, func(t *testing.T) {
 			if slices.Contains(skippedFlags, flagName) {
 				t.Skipf("Skipping flag %v which is known to not have a standard flag name <-> env var conversion", flagName)
-			}
-			if flagName == PeerScoringName || flagName == PeerScoreBandsName || flagName == TopicScoringName {
-				t.Skipf("Skipping flag %v which is known to have no env vars", flagName)
 			}
 			envFlagGetter, ok := flag.(interface {
 				GetEnvVars() []string
@@ -128,7 +92,7 @@ func TestEnvVarFormat(t *testing.T) {
 			envFlags := envFlagGetter.GetEnvVars()
 			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
 			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
-			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_NODE")
+			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_BATCHER")
 			require.Equal(t, expectedEnvVar, envFlags[0])
 		})
 	}
