@@ -256,26 +256,26 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 		return err
 	}
 
-	var L1StandardBridgeMessenger, L1StandardBridgeOtherBridge common.Address
+	var messenger, otherBridge common.Address
 	if config != nil {
-		L1StandardBridgeMessenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
-		L1StandardBridgeOtherBridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
+		messenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
+		otherBridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
 	} else {
 		l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.HexToAddress(list.L1StandardBridgeProxy.String()), backend)
 		if err != nil {
 			return err
 		}
-		L1StandardBridgeMessenger, err = l1StandardBridge.MESSENGER(&bind.CallOpts{})
+		messenger, err = l1StandardBridge.Messenger(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
-		L1StandardBridgeOtherBridge, err = l1StandardBridge.OTHERBRIDGE(&bind.CallOpts{})
+		otherBridge, err = l1StandardBridge.OtherBridge(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
 	}
 
-	calldata, err := l1StandardBridgeABI.Pack("initialize", L1StandardBridgeMessenger, L1StandardBridgeOtherBridge, superchainConfigProxy)
+	calldata, err := l1StandardBridgeABI.Pack("initialize", messenger, otherBridge, superchainConfigProxy)
 	if err != nil {
 		return err
 	}
