@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/btcsuite/btcd v0.23.3
-	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.3
+	github.com/btcsuite/btcd/chaincfg/chainhash v1.1.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20231211205419-ff2e152c624f
