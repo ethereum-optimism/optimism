@@ -1,6 +1,7 @@
 package proposer
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -45,6 +46,9 @@ type CLIConfig struct {
 	MetricsConfig opmetrics.CLIConfig
 
 	PprofConfig oppprof.CLIConfig
+
+	// DGFAddress is the DisputeGameFactory contract address.
+	DGFAddress string
 }
 
 func (c *CLIConfig) Check() error {
@@ -59,6 +63,9 @@ func (c *CLIConfig) Check() error {
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
+	}
+	if c.DGFAddress != "" && c.L2OOAddress != "" {
+		return fmt.Errorf("both the `DisputeGameFactory` and `L2OutputOracle` addresses were provided")
 	}
 	return nil
 }
@@ -78,5 +85,6 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		LogConfig:         oplog.ReadCLIConfig(ctx),
 		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:       oppprof.ReadCLIConfig(ctx),
+		DGFAddress:        ctx.String(flags.DisputeGameFactoryAddress.Name),
 	}
 }

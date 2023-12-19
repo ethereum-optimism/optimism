@@ -26,9 +26,10 @@ import (
 )
 
 type ProposerCfg struct {
-	OutputOracleAddr  common.Address
-	ProposerKey       *ecdsa.PrivateKey
-	AllowNonFinalized bool
+	OutputOracleAddr       common.Address
+	DisputeGameFactoryAddr *common.Address
+	ProposerKey            *ecdsa.PrivateKey
+	AllowNonFinalized      bool
 }
 
 type L2Proposer struct {
@@ -49,21 +50,25 @@ type fakeTxMgr struct {
 func (f fakeTxMgr) From() common.Address {
 	return f.from
 }
+
 func (f fakeTxMgr) BlockNumber(_ context.Context) (uint64, error) {
 	panic("unimplemented")
 }
+
 func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt, error) {
 	panic("unimplemented")
 }
+
 func (f fakeTxMgr) Close() {
 }
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	proposerConfig := proposer.ProposerConfig{
-		PollInterval:       time.Second,
-		NetworkTimeout:     time.Second,
-		L2OutputOracleAddr: cfg.OutputOracleAddr,
-		AllowNonFinalized:  cfg.AllowNonFinalized,
+		PollInterval:           time.Second,
+		NetworkTimeout:         time.Second,
+		L2OutputOracleAddr:     cfg.OutputOracleAddr,
+		DisputeGameFactoryAddr: cfg.DisputeGameFactoryAddr,
+		AllowNonFinalized:      cfg.AllowNonFinalized,
 	}
 	rollupProvider, err := dial.NewStaticL2RollupProviderFromExistingRollup(rollupCl)
 	require.NoError(t, err)

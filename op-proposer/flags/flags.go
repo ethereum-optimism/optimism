@@ -50,6 +50,11 @@ var (
 		Usage:   "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
 		EnvVars: prefixEnvVars("ALLOW_NON_FINALIZED"),
 	}
+	DisputeGameFactoryAddress = &cli.StringFlag{
+		Name:    "dgf-address",
+		Usage:   "Address of the DisputeGameFactory contract",
+		EnvVars: prefixEnvVars("DGF_ADDRESS"),
+	}
 	// Legacy Flags
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
 )
@@ -64,6 +69,7 @@ var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	AllowNonFinalizedFlag,
 	L2OutputHDPathFlag,
+	DisputeGameFactoryAddress,
 }
 
 func init() {

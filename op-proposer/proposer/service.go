@@ -26,16 +26,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var (
-	ErrAlreadyStopped = errors.New("already stopped")
-)
+var ErrAlreadyStopped = errors.New("already stopped")
 
 type ProposerConfig struct {
 	// How frequently to poll L2 for new finalized outputs
 	PollInterval   time.Duration
 	NetworkTimeout time.Duration
 
-	L2OutputOracleAddr common.Address
+	L2OutputOracleAddr     common.Address
+	DisputeGameFactoryAddr *common.Address
+
 	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
 	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
 	// is never valid on an alternative L1 chain that would produce different L2 data.
@@ -101,6 +101,9 @@ func (ps *ProposerService) initFromCLIConfig(ctx context.Context, version string
 		return fmt.Errorf("failed to start pprof server: %w", err)
 	}
 	if err := ps.initL2ooAddress(cfg); err != nil {
+		return fmt.Errorf("failed to init L2ooAddress: %w", err)
+	}
+	if err := ps.initDGFAddress(cfg); err != nil {
 		return fmt.Errorf("failed to init L2ooAddress: %w", err)
 	}
 	if err := ps.initDriver(); err != nil {
@@ -200,6 +203,15 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 		return nil
 	}
 	ps.L2OutputOracleAddr = l2ooAddress
+	return nil
+}
+
+func (ps *ProposerService) initDGFAddress(cfg *CLIConfig) error {
+	l2ooAddress, err := opservice.ParseAddress(cfg.DGFAddress)
+	if err != nil {
+		return nil
+	}
+	ps.DisputeGameFactoryAddr = &l2ooAddress
 	return nil
 }
 

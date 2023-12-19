@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -23,8 +24,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var supportedL2OutputVersion = eth.Bytes32{}
-var ErrProposerNotRunning = errors.New("proposer is not running")
+var (
+	supportedL2OutputVersion = eth.Bytes32{}
+	ErrProposerNotRunning    = errors.New("proposer is not running")
+)
 
 type L1Client interface {
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
@@ -68,42 +71,78 @@ type L2OutputSubmitter struct {
 
 	l2ooContract *bindings.L2OutputOracleCaller
 	l2ooABI      *abi.ABI
+
+	dgfContract *bindings.DisputeGameFactoryCaller
+	dgfABI      *abi.ABI
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
 func NewL2OutputSubmitter(setup DriverSetup) (*L2OutputSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	l2ooContract, err := bindings.NewL2OutputOracleCaller(setup.Cfg.L2OutputOracleAddr, setup.L1Client)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to create L2OO at address %s: %w", setup.Cfg.L2OutputOracleAddr, err)
+	if setup.Cfg.DisputeGameFactoryAddr != nil {
+		dgfCaller, err := bindings.NewDisputeGameFactoryCaller(*setup.Cfg.DisputeGameFactoryAddr, setup.L1Client)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to create DGF at address %s: %w", setup.Cfg.DisputeGameFactoryAddr, err)
+		}
+
+		cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
+		defer cCancel()
+		version, err := dgfCaller.Version(&bind.CallOpts{Context: cCtx})
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		log.Info("Connected to DisputeGameFactory", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
+
+		parsed, err := bindings.DisputeGameFactoryMetaData.GetAbi()
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+
+		return &L2OutputSubmitter{
+			DriverSetup: setup,
+			done:        make(chan struct{}),
+			ctx:         ctx,
+			cancel:      cancel,
+
+			dgfContract: dgfCaller,
+			dgfABI:      parsed,
+		}, nil
+	} else {
+		l2ooContract, err := bindings.NewL2OutputOracleCaller(setup.Cfg.L2OutputOracleAddr, setup.L1Client)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to create L2OO at address %s: %w", setup.Cfg.L2OutputOracleAddr, err)
+		}
+
+		cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
+		defer cCancel()
+		version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		log.Info("Connected to L2OutputOracle", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
+
+		parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+
+		return &L2OutputSubmitter{
+			DriverSetup: setup,
+			done:        make(chan struct{}),
+			ctx:         ctx,
+			cancel:      cancel,
+
+			l2ooContract: l2ooContract,
+			l2ooABI:      parsed,
+		}, nil
 	}
-
-	cCtx, cCancel := context.WithTimeout(ctx, setup.Cfg.NetworkTimeout)
-	defer cCancel()
-	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-	log.Info("Connected to L2OutputOracle", "address", setup.Cfg.L2OutputOracleAddr, "version", version)
-
-	parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	return &L2OutputSubmitter{
-		DriverSetup: setup,
-		done:        make(chan struct{}),
-		ctx:         ctx,
-		cancel:      cancel,
-
-		l2ooContract: l2ooContract,
-		l2ooABI:      parsed,
-	}, nil
 }
 
 func (l *L2OutputSubmitter) StartL2OutputSubmitting() error {
@@ -160,6 +199,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 		From:    l.Txmgr.From(),
 		Context: cCtx,
 	}
+	// TODO: Redefine submission interval for fault proof output submissions.
 	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
 	if err != nil {
 		l.Log.Error("proposer unable to get next block number", "err", err)
@@ -245,6 +285,15 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
 }
 
+func (l *L2OutputSubmitter) ProposeL2OutputDGFTxData(output *eth.OutputResponse) ([]byte, error) {
+	return proposeL2OutputDGFTxData(l.dgfABI, output)
+}
+
+// proposeL2OutputDGFTxData creates the transaction data for the DisputeGameFactory's `create` function
+func proposeL2OutputDGFTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, error) {
+	return abi.Pack("create", uint8(0), output.OutputRoot, math.U256Bytes(new(big.Int).SetUint64(output.BlockRef.Number)))
+}
+
 // We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't
 // immediately fail when checking the l1 blockhash. Note that EstimateGas uses "latest" state to
 // execute the transaction by default, meaning inside the call, the head block is considered
@@ -280,18 +329,36 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	if err != nil {
 		return err
 	}
-	data, err := l.ProposeL2OutputTxData(output)
-	if err != nil {
-		return err
+
+	var receipt *types.Receipt
+	if l.Cfg.DisputeGameFactoryAddr != nil {
+		data, err := l.ProposeL2OutputDGFTxData(output)
+		if err != nil {
+			return err
+		}
+		receipt, err = l.Txmgr.Send(ctx, txmgr.TxCandidate{
+			TxData:   data,
+			To:       l.Cfg.DisputeGameFactoryAddr,
+			GasLimit: 0,
+		})
+		if err != nil {
+			return err
+		}
+	} else {
+		data, err := l.ProposeL2OutputTxData(output)
+		if err != nil {
+			return err
+		}
+		receipt, err = l.Txmgr.Send(ctx, txmgr.TxCandidate{
+			TxData:   data,
+			To:       &l.Cfg.L2OutputOracleAddr,
+			GasLimit: 0,
+		})
+		if err != nil {
+			return err
+		}
 	}
-	receipt, err := l.Txmgr.Send(ctx, txmgr.TxCandidate{
-		TxData:   data,
-		To:       &l.Cfg.L2OutputOracleAddr,
-		GasLimit: 0,
-	})
-	if err != nil {
-		return err
-	}
+
 	if receipt.Status == types.ReceiptStatusFailed {
 		l.Log.Error("proposer tx successfully published but reverted", "tx_hash", receipt.TxHash)
 	} else {
