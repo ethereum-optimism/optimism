@@ -26,7 +26,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Hidden:  false,
 		},
 		&cli.Uint64Flag{
-			Name:    "override.delta",
+			Name:    DeltaOverrideFlagName,
 			Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_DELTA"),
 			Hidden:  false,
