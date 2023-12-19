@@ -1,40 +1,12 @@
 name: Tag Service GITM
 
 on:
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: 'How much to bump the version by'
-        required: true
-        type: choice
-        options:
-          - major
-          - minor
-          - patch
-          - prerelease
-          - finalize-prerelease
-      service:
-        description: 'Which service to releases'
-        required: true
-        type: choice
-        options:
-          - ci-builder
-          - indexer
-          - op-heartbeat
-          - chain-mon
-          - op-node
-          - op-batcher
-          - op-proposer
-          - op-challenger
-          - op-ufm
-          - proxyd
-          - ufm-metamask
-      prerelease:
-        description: Increment major/minor/patch as prerelease?
-        required: false
-        type: boolean
-        default: false
-
+  pull_request:
+    types:
+      - opened
+      - synchronize
+    paths:
+      - '**/*'
 jobs:
   release:
     runs-on: ubuntu-latest
