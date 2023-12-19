@@ -10,6 +10,9 @@ parameters:
   repo:
     type: string
     default: ${GCP_PROJECT_ID}/${GCP_ARTIFACT_REPOSITORY}/images
+  base_image:
+    type: string
+    default: ubuntu-2204:2022.07.1
 
 orbs:
   go: circleci/go@1.8.0
