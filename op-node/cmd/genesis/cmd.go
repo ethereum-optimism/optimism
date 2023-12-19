@@ -167,7 +167,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			return writeGenesisFile(ctx.String("outfile.l1"), l1Genesis)
+			return writeJSONFile(ctx.String("outfile.l1"), l1Genesis)
 		},
 	},
 	{
