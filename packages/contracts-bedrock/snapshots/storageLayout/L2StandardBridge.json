@@ -35,10 +35,24 @@
     "type": "mapping(address => mapping(address => uint256))"
   },
   {
+    "bytes": "20",
+    "label": "messenger",
+    "offset": 0,
+    "slot": "3",
+    "type": "contract CrossDomainMessenger"
+  },
+  {
+    "bytes": "20",
+    "label": "otherBridge",
+    "offset": 0,
+    "slot": "4",
+    "type": "contract StandardBridge"
+  },
+  {
     "bytes": "1504",
     "label": "__gap",
     "offset": 0,
-    "slot": "3",
+    "slot": "5",
     "type": "uint256[47]"
   }
 ]
