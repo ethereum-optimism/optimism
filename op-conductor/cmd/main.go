@@ -32,9 +32,7 @@ func main() {
 	app.Usage = "Optimism Sequencer Conductor Service"
 	app.Description = "op-conductor help sequencer to run in highly available mode"
 	app.Action = cliapp.LifecycleCmd(OpConductorMain)
-	app.Commands = []*cli.Command{
-		// TODO: add doc command
-	}
+	app.Commands = []*cli.Command{}
 
 	ctx := opio.WithInterruptBlocker(context.Background())
 	err := app.RunContext(ctx, os.Args)
