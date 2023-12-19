@@ -3,7 +3,6 @@ package flags
 import (
 	"fmt"
 
-	"github.com/pkg/errors"
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -61,7 +60,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
-	optionalFlags = append(optionalFlags, opflags.Flags...)
+	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -69,14 +68,10 @@ func init() {
 var Flags []cli.Flag
 
 func CheckRequired(ctx *cli.Context) error {
-	if err := opflags.CheckRequired(ctx); err != nil {
-		return errors.Wrap(err, "missing required flags for opservice")
-	}
-
 	for _, f := range requiredFlags {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	return nil
+	return opflags.CheckRequiredXor(ctx)
 }

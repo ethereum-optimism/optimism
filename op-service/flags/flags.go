@@ -10,73 +10,67 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
-const EnvVarPrefix = "SUPERCHAIN"
-
-var (
-	RollupConfig = &cli.StringFlag{
-		Name:    "superchain.rollup.config",
-		Usage:   "Rollup chain parameters",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_CONFIG"),
-	}
-	Network = &cli.StringFlag{
-		Name:    "superchain.network",
-		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "NETWORK"),
-	}
-	CanyonOverrideFlag = &cli.Uint64Flag{
-		Name:    "superchain.override.canyon",
-		Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "OVERRIDE_CANYON"),
-		Hidden:  false,
-	}
-	DeltaOverrideFlag = &cli.Uint64Flag{
-		Name:    "superchain.override.delta",
-		Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
-		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "OVERRIDE_DELTA"),
-		Hidden:  false,
-	}
+const (
+	RollupConfigFlagName   = "rollup.config"
+	NetworkFlagName        = "network"
+	CanyonOverrideFlagName = "override.canyon"
+	DeltaOverrideFlagName  = "override.delta"
 )
 
-var requiredFlags = []cli.Flag{}
-
-var optionalFlags = []cli.Flag{
-	RollupConfig,
-	Network,
-	CanyonOverrideFlag,
-	DeltaOverrideFlag,
+func CLIFlags(envPrefix string) []cli.Flag {
+	return []cli.Flag{
+		&cli.Uint64Flag{
+			Name:    CanyonOverrideFlagName,
+			Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_CANYON"),
+			Hidden:  false,
+		},
+		&cli.Uint64Flag{
+			Name:    "override.delta",
+			Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "OVERRIDE_DELTA"),
+			Hidden:  false,
+		},
+		CLINetworkFlag(envPrefix),
+		CLIRollupConfigFlag(envPrefix),
+	}
 }
 
-// Flags contains the list of configuration options available to the service.
-var Flags []cli.Flag
+func CLINetworkFlag(envPrefix string) cli.Flag {
+	return &cli.StringFlag{
+		Name:    NetworkFlagName,
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "NETWORK"),
+	}
+}
 
-func init() {
-	Flags = append(requiredFlags, optionalFlags...)
+func CLIRollupConfigFlag(envPrefix string) cli.Flag {
+	return &cli.StringFlag{
+		Name:    RollupConfigFlagName,
+		Usage:   "Rollup chain parameters",
+		EnvVars: opservice.PrefixEnvVar(envPrefix, "ROLLUP_CONFIG"),
+	}
 }
 
 // This checks flags that are exclusive & required. Specifically for each
 // set of flags, exactly one flag must be set.
 var requiredXorFlags = [][]string{
 	{
-		RollupConfig.Name,
-		Network.Name,
+		RollupConfigFlagName,
+		NetworkFlagName,
 	},
 }
 
-func CheckRequired(ctx *cli.Context) error {
-	for _, f := range requiredFlags {
-		if !ctx.IsSet(f.Names()[0]) {
-			return fmt.Errorf("flag %s is required", f.Names()[0])
-		}
-	}
-	for _, flags := range requiredXorFlags {
-		var count int
-		for _, flag := range flags {
-			if ctx.IsSet(flag) {
-				count++
+func CheckRequiredXor(ctx *cli.Context) error {
+	for _, flagSet := range requiredXorFlags {
+		var setCount int
+		for _, flagName := range flagSet {
+			if ctx.IsSet(flagName) {
+				setCount++
 			}
 		}
-		if count != 1 {
-			return fmt.Errorf("exactly one of the flags in the set [%s] must be set", strings.Join(flags, ", "))
+		if setCount != 1 {
+			return fmt.Errorf("exactly one of the following flags must be set: %s", strings.Join(flagSet, ", "))
 		}
 	}
 	return nil

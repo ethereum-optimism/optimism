@@ -21,7 +21,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	serviceflags "github.com/ethereum-optimism/optimism/op-service/flags"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
@@ -179,16 +179,8 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 }
 
 func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
-	var network, rollupConfigPath string
-	if network = ctx.String(serviceflags.Network.Name); network == "" {
-		// fallback to old flag name
-		network = ctx.String(flags.Network.Name)
-	}
-	if rollupConfigPath = ctx.String(serviceflags.RollupConfig.Name); rollupConfigPath == "" {
-		// fallback to old flag name
-		rollupConfigPath = ctx.String(flags.RollupConfig.Name)
-	}
-
+	network := ctx.String(opflags.NetworkFlagName)
+	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
@@ -222,19 +214,12 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 }
 
 func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
-	if ctx.IsSet(serviceflags.CanyonOverrideFlag.Name) {
-		canyon := ctx.Uint64(serviceflags.CanyonOverrideFlag.Name)
-		rollupConfig.CanyonTime = &canyon
-	} else if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
-		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+	if ctx.IsSet(opflags.CanyonOverrideFlagName) {
+		canyon := ctx.Uint64(opflags.CanyonOverrideFlagName)
 		rollupConfig.CanyonTime = &canyon
 	}
-
-	if ctx.IsSet(serviceflags.DeltaOverrideFlag.Name) {
-		delta := ctx.Uint64(serviceflags.DeltaOverrideFlag.Name)
-		rollupConfig.DeltaTime = &delta
-	} else if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
-		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+	if ctx.IsSet(opflags.DeltaOverrideFlagName) {
+		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
 		rollupConfig.DeltaTime = &delta
 	}
 }
