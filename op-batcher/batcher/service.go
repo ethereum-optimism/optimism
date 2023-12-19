@@ -34,6 +34,7 @@ type BatcherConfig struct {
 	NetworkTimeout         time.Duration
 	PollInterval           time.Duration
 	MaxPendingTransactions uint64
+	DrainOnShutdown        bool
 }
 
 // BatcherService represents a full batch-submitter instance and its resources,
@@ -88,6 +89,7 @@ func (bs *BatcherService) initFromCLIConfig(ctx context.Context, version string,
 	bs.PollInterval = cfg.PollInterval
 	bs.MaxPendingTransactions = cfg.MaxPendingTransactions
 	bs.NetworkTimeout = cfg.TxMgrConfig.NetworkTimeout
+	bs.DrainOnShutdown = cfg.DrainOnShutdown
 
 	if err := bs.initRPCClients(ctx, cfg); err != nil {
 		return err

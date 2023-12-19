@@ -260,43 +260,53 @@ func (l *BatchSubmitter) loop() {
 
 	for {
 		select {
+		// once per polling-interval, attempt to publish to L1
 		case <-ticker.C:
+			// if we are in a reorg, we close down the existing work and start over
 			if err := l.loadBlocksIntoState(l.shutdownCtx); errors.Is(err, ErrReorg) {
-				err := l.state.Close()
-				if err != nil {
-					if errors.Is(err, ErrPendingAfterClose) {
-						l.Log.Warn("Closed channel manager to handle L2 reorg with pending channel(s) remaining - submitting")
-					} else {
-						l.Log.Error("Error closing the channel manager to handle a L2 reorg", "err", err)
-					}
-				}
+				l.close("L2 reorg")
 				l.publishStateToL1(queue, receiptsCh, true)
 				l.state.Clear()
 				continue
 			}
+			// if we are not in a reorg, we attempt to publish the current state
+			// note: drain is always false here, as this select loop will handle the receipts as they arrive
 			l.publishStateToL1(queue, receiptsCh, false)
+		// as they come in, we handle receipts from the txmgr
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
+		// on shutdown signal, we close down the existing work and return
 		case <-l.shutdownCtx.Done():
 			// This removes any never-submitted pending channels, so these do not have to be drained with transactions.
 			// Any remaining unfinished channel is terminated, so its data gets submitted.
-			err := l.state.Close()
-			if err != nil {
-				if errors.Is(err, ErrPendingAfterClose) {
-					l.Log.Warn("Closed channel manager on shutdown with pending channel(s) remaining - submitting")
-				} else {
-					l.Log.Error("Error closing the channel manager on shutdown", "err", err)
-				}
-			}
-			l.publishStateToL1(queue, receiptsCh, true)
+			l.close("shutdown")
+			l.publishStateToL1(queue, receiptsCh, l.Config.DrainOnShutdown)
 			l.Log.Info("Finished publishing all remaining channel data")
 			return
 		}
 	}
 }
 
+// close is an internal method which uses the public Close and logs errors.
+// takes a reason, which is included in logging to give context to the reason for closing.
+func (l *BatchSubmitter) close(reason string) {
+	err := l.state.Close()
+	if err != nil {
+		if errors.Is(err, ErrPendingAfterClose) {
+			l.Log.Warn("Closed channel manager (for %s) with pending channel(s) remaining - submitting")
+		} else {
+			msg := fmt.Sprintf("Error closing the channel manager (for %s)", reason)
+			l.Log.Error(msg, "err", err)
+		}
+	}
+
+}
+
 // publishStateToL1 loops through the block data loaded into `state` and
 // submits the associated data to the L1 in the form of channel frames.
+// queue is used to send transactions to the txmgr
+// receiptsCh is the return channel for the txmgr to give results to the batcher
+// drain is a flag to indicate whether the batcher should wait for all transactions to complete before returning
 func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData], drain bool) {
 	txDone := make(chan struct{})
 	// send/wait and receipt reading must be on a separate goroutines to avoid deadlocks

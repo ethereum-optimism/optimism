@@ -82,6 +82,13 @@ var (
 		Value:   0,
 		EnvVars: prefixEnvVars("BATCH_TYPE"),
 	}
+	DrainQueueOnShutdown = &cli.BoolFlag{
+		Name: "drainOnShutdown",
+		Usage: "Whether to drain the queue on shutdown. " +
+			"If set to false, the batcher will not wait for the underlying queue to drain when shutting down.",
+		Value:   true,
+		EnvVars: prefixEnvVars("DRAIN_ON_SHUTDOWN"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -101,6 +108,7 @@ var optionalFlags = []cli.Flag{
 	StoppedFlag,
 	SequencerHDPathFlag,
 	BatchTypeFlag,
+	DrainQueueOnShutdown,
 }
 
 func init() {

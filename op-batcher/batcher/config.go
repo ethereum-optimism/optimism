@@ -56,6 +56,8 @@ type CLIConfig struct {
 
 	BatchType uint
 
+	DrainOnShutdown bool
+
 	TxMgrConfig      txmgr.CLIConfig
 	LogConfig        oplog.CLIConfig
 	MetricsConfig    opmetrics.CLIConfig
