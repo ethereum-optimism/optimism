@@ -64,6 +64,16 @@ The verification execution consists of two steps and there's one script to run p
   ./test/kontrol/kontrol/scripts/run-kontrol-local.sh
 ```
 
+## Kontrol Foundry profiles
+
+This project uses two different [Foundry profiles](../../foundry.toml), `kdeploy` and `kprove`.
+
+- `kdeploy`: This profile is used to generate the deployment summary solidity contract, which is used by the `kprove` profile to load the post-setUp state directly into kontrol. We don't need the output artifacts from this step, so we save them to the `kout-deployment` directory, which is not used elsewhere. We also point the script path to the `scripts-kontrol` directory, which does not exist, to avoid compiling scripts we don't need which reduces execution time.
+
+- `kprove`: This profile is used after running `bash test/kontrol/kontrol/script/make-summary-deployment`, which uses the `kdeploy` profile. The proofs are executed using the `kprove` profile. The `src` directory points to a test folder because we only want to compile what is in the `test/kontrol/proofs` folder since it contains all the deployed code and the proofs. We similarly point the script path to a non-existent directory for the same reason as above.
+
+Note that the compilation of the necessary `src/L1` files is done with the `kdeploy` profile, and the results are saved into `test/kontrol/proofs/utils`. So, when running the `kprove` profile, the compiled `src/L1` files are in the automatically generated file `test/kontrol/proofs/utils/DeploymentSummaryCode.sol`.
+
 ## References
 
 [Kontrol docs](https://docs.runtimeverification.com/kontrol/overview/readme)

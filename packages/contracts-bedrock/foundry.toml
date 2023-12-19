@@ -69,6 +69,7 @@ optimizer = false
 ################################################################
 #                         PROFILE: KONTROL                     #
 ################################################################
+# See test/kontrol/README.md for an explanation of how the profiles are configured
 
 [profile.kdeploy]
 src = 'src/L1'
