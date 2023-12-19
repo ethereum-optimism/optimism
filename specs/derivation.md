@@ -64,7 +64,8 @@
   - [L2 Chain Derivation Pipeline](#l2-chain-derivation-pipeline)
     - [L1 Traversal](#l1-traversal)
     - [L1 Retrieval](#l1-retrieval)
-      - [Eclipse: Blob Retrieval](#eclipse-blob-retrieval)
+      - [Ecotone: Blob Retrieval](#ecotone-blob-retrieval)
+      - [Blob Encoding](#blob-encoding)
     - [Frame Queue](#frame-queue)
     - [Channel Bank](#channel-bank)
       - [Pruning](#pruning)
@@ -87,8 +88,8 @@
 - [Deriving Payload Attributes](#deriving-payload-attributes)
   - [Deriving the Transaction List](#deriving-the-transaction-list)
     - [Network upgrade automation transactions](#network-upgrade-automation-transactions)
-      - [Eclipse: L1Block predeploy upgrade](#eclipse-l1block-predeploy-upgrade)
-      - [Eclipse: Beacon block roots contract deployment (EIP-4788)](#eclipse-beacon-block-roots-contract-deployment-eip-4788)
+      - [Ecotone: L1Block predeploy upgrade](#ecotone-l1block-predeploy-upgrade)
+      - [Ecotone: Beacon block roots contract deployment (EIP-4788)](#ecotone-beacon-block-roots-contract-deployment-eip-4788)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -473,36 +474,48 @@ updated, such that the batch-sender authentication is always accurate to the exa
 
 ### L1 Retrieval
 
-In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and extract data from it.
-By default, the rollup operates on calldata retrieved from [batcher transactions][g-batcher-transaction] in the block,
-for each transaction:
+In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and
+extract data from its [batcher transactions][g-batcher-transaction]. A batcher
+transaction is one with the following properties:
 
-- The receiver must be the configured batcher inbox address.
-- The sender must match the batcher address loaded from the system config matching the L1 block of the data.
+- The [`to`] field is equal to the configured batcher inbox address.
 
-Each data-transaction is versioned and contains a series of [channel frames][g-channel-frame] to be read by the
-Frame Queue, see [Batch Submission Wire Format][wire-format].
+- The sender, as recovered from the transaction signature (`v`, `r`, and `s`), is the batcher
+  address loaded from the system config matching the L1 block of the data.
 
-#### Eclipse: Blob Retrieval
+Each batcher transaction is versioned and contains a series of [channel frames][g-channel-frame] to
+be read by the Frame Queue, see [Batch Submission Wire Format][wire-format]. Each batcher
+transaction in the block is processed in the order they appear in the block by passing its calldata
+on to the next phase.
 
-With the Eclipse upgrade the retrieval stage is extended to support an additional DA source: [EIP-4844] blobs.
-Upon each traversed transaction in the batch inbox:
+[`to`]: https://github.com/ethereum/execution-specs/blob/3fe6514f2d9d234e760d11af883a47c1263eff51/src/ethereum/frontier/fork_types.py#L52C31-L52C31
 
-- The receiver must be the configured batcher inbox address.
-- The sender must match the batcher address loaded from the system config matching the L1 block of the data.
-- Calldata is utilized, even if contained in a blob tx, and passed on to the next stage before any blob-data is.
-- If the transaction-type is `0x03` (`BLOB_TX_TYPE`): retrieve the blobs that match the `blob_versioned_hashes`.
-  - Blobs may be retrieved from different sources. Retrieval from a local beacon-node,
-    through the `/eth/v1/beacon/blob_sidecars/` endpoint, with `indices` filter to skip unrelated blobs, is recommended.
-  - The rollup node SHOULD cryptographically verify if the retrieved blobs match the versioned hashes.
+#### Ecotone: Blob Retrieval
 
-On L1, the blob data is represented as a polynomial of points, each in range `[0, BLS_MODULUS)`,
-just below the capacity of a `uint256`: approximately `254.857` bits of data.
-Before proceeding with processing, the data is transformed to turn it into a continuous byte string.
+With the Ecotone upgrade the retrieval stage is extended to support an additional DA source:
+[EIP-4844] blobs. After the Ecotone upgrade we modify the iteration over batcher transactions to
+treat transactions of transaction-type == `0x03` (`BLOB_TX_TYPE`) differently. If the batcher
+transaction is a blob transaction, then its calldata MUST be ignored should it be present. Instead:
 
-TODO: blob encoding format. Version + length-prefix + maximize utilization of the data.
+- For each blob hash in `blob_versioned_hashes`, retrieve the blob that matches it. A blob may be
+    retrieved from any of a number different sources. Retrieval from a local beacon-node, through
+    the `/eth/v1/beacon/blob_sidecars/` endpoint, with `indices` filter to skip unrelated blobs, is
+    recommended.  For each retrieved blob:
+  - The blob SHOULD (MUST, if the source is untrusted) be cryptographically verified against its
+    versioned hash.
+  - If the blob has a [valid encoding][#blob-encoding], decode it into its continuous byte-string
+    and pass that on to the next phase. Otherwise the blob is ignored.
+
+Note that batcher transactions of type blob must be processed in the same loop as other batcher
+transactions to preserve the invariant that batches are always processed in the order they appear
+in the block. We ignore calldata in blob transactions so that it may be used in the future for
+batch metadata or other purposes.
 
 [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
+
+#### Blob Encoding
+
+<!-- https://github.com/ethereum-optimism/optimism/pull/8657 -->
 
 ### Frame Queue
 
@@ -974,9 +987,9 @@ Some network upgrades require automated contract changes or deployments at speci
 To automate these, without adding persistent changes to the execution-layer,
 special transactions may be inserted as part of the derivation process.
 
-#### Eclipse: L1Block predeploy upgrade
+#### Ecotone: L1Block predeploy upgrade
 
-The `L1Block` contract is upgraded to process the new Eclipse L1-data-fee parameters and L1 blob base-fee.
+The `L1Block` contract is upgraded to process the new Ecotone L1-data-fee parameters and L1 blob base-fee.
 
 The `L1Block` is called in the very first transaction of the block,
 and parsed to retrieve the L1 block attributes.
@@ -996,14 +1009,14 @@ A deposit transaction is derived with the following attributes:
   - deploy new contract implementation
   - upgrade of `L1Block` through `ProxyAdmin`
 - `sourceHash`: `0x7dc74874297a8937186fdbec57ad344647a522de456088557e5fdeda88f66ddd`,
-  computed with the "Upgrade-deposited" type, with `intent = "Eclipse: L1Block upgrade"`
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1Block upgrade"`
 
 Verify `sourceHash`:
 
 ```bash
 # compute intent hash:
-cast keccak "Eclipse: L1Block upgrade"
-# 0x831b745c7397f93704ae55eb0100bf3c56fe9e304d3f21c1a93ec25f736fea26
+cast keccak "Ecotone: L1Block upgrade"
+# 0xaf2b20ee05be9fc3f0712050591a5f8988f94b56cdf48842863a773b76634fde
 
 # source hash type:
 # 0x0000000000000000000000000000000000000000000000000000000000000002
@@ -1013,7 +1026,7 @@ cast keccak 0x000000000000000000000000000000000000000000000000000000000000000283
 # 0x7dc74874297a8937186fdbec57ad344647a522de456088557e5fdeda88f66ddd
 ```
 
-#### Eclipse: Beacon block roots contract deployment (EIP-4788)
+#### Ecotone: Beacon block roots contract deployment (EIP-4788)
 
 [EIP-4788] introduces a "Beacon block roots" contract, that processes and exposes the beacon-block-root values.
 at address `BEACON_ROOTS_ADDRESS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`.
@@ -1041,7 +1054,7 @@ A Deposit transaction is derived with the following attributes:
   `0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500`
 - `isSystemTx`: `false`, as per the Regolith upgrade, even the system-generated transactions spend gas.
 - `sourceHash`: `0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f`,
-  computed with the "Upgrade-deposited" type, with `intent = "Eclipse: beacon block roots contract deployment"`
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: beacon block roots contract deployment"`
 
 The contract address upon deployment is computed as `rlp([sender, nonce])`, which will equal:
 
@@ -1060,15 +1073,15 @@ Verify `sourceHash`:
 
 ```bash
 # compute intent hash:
-cast keccak "Eclipse: beacon block roots contract deployment"
-# 0x4e73a20ffe4a8330eb1f726862f4b062301e73d081c6d3824a6e0bd6428697fe
+cast keccak "Ecotone: beacon block roots contract deployment"
+# 0xab0dfc96b47739a0ae1d415bbfaae79ebb1111861a3b7cfbbaa6ca4a9e618357
 
 # source hash type:
 # 0x0000000000000000000000000000000000000000000000000000000000000002
 
 # compute source hash:
-cast keccak 0x00000000000000000000000000000000000000000000000000000000000000024e73a20ffe4a8330eb1f726862f4b062301e73d081c6d3824a6e0bd6428697fe
-# 0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f
+cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002ab0dfc96b47739a0ae1d415bbfaae79ebb1111861a3b7cfbbaa6ca4a9e618357
+0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c
 ```
 
 [EIP-4788]: https://eips.ethereum.org/EIPS/eip-4788
