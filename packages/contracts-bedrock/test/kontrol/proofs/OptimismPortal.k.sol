@@ -26,14 +26,14 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
     )
         external
     {
-        assert(optimismPortal.paused() == false);
+        require(optimismPortal.paused() == false, "Portal should not be paused");
 
         /* Pause Optimism Portal */
         vm.prank(optimismPortal.GUARDIAN());
         superchainConfig.pause("identifier");
 
         /* Portal is now paused */
-        assert(optimismPortal.paused() == true);
+        require(optimismPortal.paused() == true, "Portal should be paused");
 
         /* No one can call proveWithdrawalTransaction */
         vm.expectRevert("OptimismPortal: paused");
@@ -67,14 +67,14 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
             Types.OutputRootProof(_outputRootProof0, _outputRootProof1, _outputRootProof2, _outputRootProof3);
 
         /* After deployment, Optimism portal is enabled */
-        assert(optimismPortal.paused() == false);
+        require(optimismPortal.paused() == false, "Portal should not be paused");
 
         /* Pause Optimism Portal */
         vm.prank(optimismPortal.GUARDIAN());
         superchainConfig.pause("identifier");
 
         /* Portal is now paused */
-        assert(optimismPortal.paused() == true);
+        require(optimismPortal.paused() == true, "Portal should be paused");
 
         /* No one can call proveWithdrawalTransaction */
         vm.expectRevert("OptimismPortal: paused");
@@ -95,14 +95,14 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction(_tx0, _tx1, _tx2, _tx3, _tx4, _tx5);
 
         /* After deployment, Optimism portal is enabled */
-        assert(optimismPortal.paused() == false);
+        require(optimismPortal.paused() == false, "Portal should not be paused");
 
         /* Pause Optimism Portal */
         vm.prank(optimismPortal.GUARDIAN());
         superchainConfig.pause("identifier");
 
         /* Portal is now paused */
-        assert(optimismPortal.paused() == true);
+        require(optimismPortal.paused() == true, "Portal should be paused");
 
         vm.expectRevert("OptimismPortal: paused");
         optimismPortal.finalizeWithdrawalTransaction(_tx);
