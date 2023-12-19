@@ -62,7 +62,7 @@ func (t *unsafeHeadTracker) Snapshot() (raft.FSMSnapshot, error) {
 	}, nil
 }
 
-// CommitUnsafePayload commits the unsafe payload to the raft log.
+// UnsafeHead returns the latest unsafe head payload.
 func (t *unsafeHeadTracker) UnsafeHead() eth.ExecutionPayload {
 	t.mtx.RLock()
 	defer t.mtx.RUnlock()
