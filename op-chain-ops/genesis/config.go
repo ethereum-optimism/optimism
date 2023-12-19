@@ -744,6 +744,9 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 	if config.L1FeeVaultRecipient == (common.Address{}) {
 		return nil, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
+	if config.ProxyAdminOwner == (common.Address{}) {
+		return nil, fmt.Errorf("ProxyAdminOwner cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 
 	l1BobaTokenAddress, err := config.GetL1BobaTokenAddress()
 	if err != nil {

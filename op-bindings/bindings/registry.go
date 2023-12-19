@@ -29,7 +29,7 @@ var immutableReferences = make(map[string]bool)
 var Create2DeployerCodeHash = common.HexToHash("0xb0550b5b431e30d38000efb7107aaa0ade03d48a7198a140edda9d27134468b2")
 
 // specialContractNames represents the set of contract names that are special
-var specialContractNames = map[string]string{
+var SpecialContractNames = map[string]string{
 	"BobaL2": "L2GovernanceERC20",
 }
 
@@ -43,7 +43,7 @@ func init() {
 
 // GetStorageLayout returns the storage layout of a contract by name.
 func GetStorageLayout(name string) (*solc.StorageLayout, error) {
-	if specialName, ok := specialContractNames[name]; ok {
+	if specialName, ok := SpecialContractNames[name]; ok {
 		name = specialName
 	}
 	layout := layouts[name]
@@ -55,7 +55,7 @@ func GetStorageLayout(name string) (*solc.StorageLayout, error) {
 
 // GetDeployedBytecode returns the deployed bytecode of a contract by name.
 func GetDeployedBytecode(name string) ([]byte, error) {
-	if specialName, ok := specialContractNames[name]; ok {
+	if specialName, ok := SpecialContractNames[name]; ok {
 		name = specialName
 	}
 	bc := deployedBytecodes[name]
@@ -72,6 +72,9 @@ func GetDeployedBytecode(name string) ([]byte, error) {
 
 // HasImmutableReferences returns the immutable references of a contract by name.
 func HasImmutableReferences(name string) (bool, error) {
+	if specialName, ok := SpecialContractNames[name]; ok {
+		name = specialName
+	}
 	has, ok := immutableReferences[name]
 	if !ok {
 		return false, fmt.Errorf("%s: immutable reference not found", name)

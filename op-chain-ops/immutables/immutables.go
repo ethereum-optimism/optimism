@@ -272,7 +272,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		if !ok {
 			return nil, fmt.Errorf("invalid type for l2Bridge")
 		}
-		l1Token, ok := deployment.Args[1].(*common.Address)
+		l1Token, ok := deployment.Args[1].(common.Address)
 		if !ok {
 			return nil, fmt.Errorf("invalid type for l1Token")
 		}
@@ -292,7 +292,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 			opts,
 			backend,
 			l2Bridge,
-			*l1Token,
+			l1Token,
 			_name,
 			_symbol,
 			uint8(_decimals),

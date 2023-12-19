@@ -34,7 +34,7 @@ const (
 	TxNotInMempoolTimeoutFlagName     = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName      = "txmgr.receipt-query-interval"
 	// Kms
-	KmsKeyIDName    = "kms.keyid"
+	KmsKeyIDName    = "kms.key.id"
 	KmsEndpointName = "kms.endpoint"
 	KmsRegionName   = "kms.region"
 )

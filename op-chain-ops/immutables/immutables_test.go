@@ -127,6 +127,9 @@ func TestBuildOptimism(t *testing.T) {
 
 		// If a predeploy has no config, it needs to have no immutable references in the solc output.
 		if reflect.ValueOf(predeployConfig).IsZero() {
+			if specialName, ok := bindings.SpecialContractNames[name]; ok {
+				name = specialName
+			}
 			ref, _ := bindings.HasImmutableReferences(name)
 			require.Zero(t, ref, "found immutable reference for %s", name)
 			return nil

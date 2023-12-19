@@ -23,5 +23,4 @@ func init() {
 
 	layouts["GovernanceToken"] = GovernanceTokenStorageLayout
 	deployedBytecodes["GovernanceToken"] = GovernanceTokenDeployedBin
-	immutableReferences["GovernanceToken"] = true
 }
