@@ -31,9 +31,6 @@ jobs:
 
       - name: Run Tag Service
         run: |
-          ops/tag-service/tag-service.py --bump="${{ github.event.inputs.bump }}" --service="${{ github.event.inputs.service }}"
-          if [ "${{ github.event.inputs.prerelease }}" == 'true' ]; then
-            ops/tag-service/tag-service.py --bump="${{ github.event.inputs.bump }}" --service="${{ github.event.inputs.service }}" --pre-release
-          fi
+          ops/tag-service/tag-service.py --bump="major" --service="ci-builder"
         env:
           INPUT_GITHUB_TOKEN: ${{ github.token }}
