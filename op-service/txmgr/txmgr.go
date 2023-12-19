@@ -225,7 +225,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
 		}
-		rawTx.Gas = gas
+		rawTx.Gas = gas * 2
 	}
 
 	return m.signWithNextNonce(ctx, rawTx)

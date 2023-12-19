@@ -135,7 +135,6 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, txcfg txmgr.Config, l2 L2C
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	engine := derivationPipeline
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
-	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 
 	var daMgr *DAManager
 	txMgr, err := txmgr.NewSimpleTxManagerFromConfig("submit", log, metrics, txcfg)
@@ -145,6 +144,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, txcfg txmgr.Config, l2 L2C
 		daMgr = NewDAManager(log, cfg, meteredEngine, txMgr, true)
 	}
 	daMgr.Start()
+	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics, daMgr)
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,

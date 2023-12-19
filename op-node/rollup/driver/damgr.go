@@ -89,8 +89,8 @@ func (d *DAManager) Start() bool {
 	return true
 }
 
-func (d *DAManager) Test() bool {
-	d.hashCh <- common.HexToHash("0x059e4161e765a2af3eed83187aa3da8a35f839617b4847a9cb46f71e8cccd670")
+func (d *DAManager) SendDaHash(hash common.Hash) bool {
+	d.hashCh <- hash
 	return true
 }
 
@@ -107,8 +107,8 @@ func (d *DAManager) loop() {
 		select {
 		case <-ticker.C:
 			d.getDA()
-		case test := <-d.hashCh:
-			d.daHashes[test] = 0
+		case hash := <-d.hashCh:
+			d.daHashes[hash] = 0
 		case <-d.shutdownCtx.Done():
 			d.log.Info("d.shutdownCtx.Done()")
 			return
@@ -121,12 +121,17 @@ func (d *DAManager) getDA() {
 		return
 	}
 	for hash, count := range d.daHashes {
-		if count == 4 {
+
+		data, _ := d.engine.GetFileDataByHash(d.shutdownCtx, hash)
+		if data != nil {
+			log.Info("getDA true", "hash", hash)
 			delete(d.daHashes, hash)
-			continue
+		} else {
+			d.daHashes[hash] = count + 1
+			if count == 5 {
+				delete(d.daHashes, hash)
+			}
 		}
-		log.Info("getDA", "hash", hash, "count", count)
-		d.daHashes[hash] = count + 1
 	}
 }
 func verifySignature(index, length uint64, broadcaster, user common.Address, commitment, sign []byte) bool {

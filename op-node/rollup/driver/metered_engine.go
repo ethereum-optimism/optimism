@@ -68,6 +68,7 @@ func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef,
 func (m *MeteredEngine) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
 	sealingStart := time.Now()
 	// Actually execute the block and add it to the head of the chain.
+	log.Info("MeteredEngine")
 	payload, errType, err := m.inner.ConfirmPayload(ctx)
 	if err != nil {
 		m.metrics.RecordSequencingError()

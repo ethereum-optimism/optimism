@@ -638,6 +638,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 
 // forceNextSafeAttributes inserts the provided attributes, reorging away any conflicting unsafe chain.
 func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
+	log.Info("forceNextSafeAttributes")
 	if eq.safeAttributes == nil {
 		return nil
 	}
@@ -735,7 +736,6 @@ func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPa
 	if err != nil {
 		return nil, BlockInsertPayloadErr, NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
-
 	eq.unsafeHead = ref
 	eq.engineSyncTarget = ref
 	eq.metrics.RecordL2Ref("l2_unsafe", ref)

@@ -32,7 +32,6 @@ type driverClient interface {
 
 	SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error)
 	Broadcaster(ctx context.Context) (common.Address, error)
-	Test(ctx context.Context) error
 }
 
 type adminAPI struct {
@@ -136,7 +135,4 @@ func (n *nodeAPI) Broadcaster(ctx context.Context) (common.Address, error) {
 
 func (n *nodeAPI) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data hexutil.Bytes) (common.Hash, error) {
 	return n.dr.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
-}
-func (n *nodeAPI) Test(ctx context.Context) error {
-	return n.dr.Test(ctx)
 }

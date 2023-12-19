@@ -139,8 +139,8 @@ github.com/docker/docker v24.0.5+incompatible/go.mod h1:eEKB0N0r5NX/I1kEveEz05bc
 github.com/docker/go-units v0.4.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/docker/go-units v0.5.0 h1:69rxXcBk27SvSaaxTtLh/8llcHD8vYHT7WSdRZ/jvr4=
 github.com/docker/go-units v0.5.0/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
-github.com/domicon-labs/op-geth v1.0.1 h1:gGMfkaMsFhAjVNzxj+Ss3c+QAfrIhbRluSvmJFYvlyc=
-github.com/domicon-labs/op-geth v1.0.1/go.mod h1:12W+vBetjYbDj5D2+V8hizke5yWuLrUDf7UmVkXTnCQ=
+github.com/domicon-labs/op-geth v1.0.3 h1:YX9bnCUcDw8BiihhVcJgfRjFDQs1/oXGAo51QbWI46A=
+github.com/domicon-labs/op-geth v1.0.3/go.mod h1:12W+vBetjYbDj5D2+V8hizke5yWuLrUDf7UmVkXTnCQ=
 github.com/dop251/goja v0.0.0-20211022113120-dc8c55024d06/go.mod h1:R9ET47fwRVRPZnOGvHxxhuZcbrMCuiqOz3Rlrh4KSnk=
 github.com/dop251/goja v0.0.0-20230806174421-c933cf95e127 h1:qwcF+vdFrvPSEUDSX5RVoRccG8a5DhOdWdQ4zN62zzo=
 github.com/dop251/goja v0.0.0-20230806174421-c933cf95e127/go.mod h1:QMWlm50DNe14hD7t24KEqZuUdC9sOTy8W6XbCU1mlw4=

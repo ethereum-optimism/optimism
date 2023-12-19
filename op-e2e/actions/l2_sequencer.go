@@ -49,7 +49,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 	}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
+		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, metrics.NoopMetrics, nil),
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}

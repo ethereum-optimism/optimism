@@ -169,6 +169,7 @@ func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2Blo
 }
 
 func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+	log.Info("ConfirmPayload")
 	return dp.eng.ConfirmPayload(ctx)
 }
 
