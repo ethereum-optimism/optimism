@@ -1,4 +1,4 @@
-name: Tag Service
+name: Tag Service GITM
 
 on:
   workflow_dispatch:
