@@ -14,7 +14,7 @@ on:
           - prerelease
           - finalize-prerelease
       service:
-        description: 'Which service to release'
+        description: 'Which service to releases'
         required: true
         type: choice
         options:
