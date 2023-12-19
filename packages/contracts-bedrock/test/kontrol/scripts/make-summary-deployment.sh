@@ -1,3 +1,5 @@
+set -euo pipefail
+
 # create deployments/hardhat/.deploy and snapshots/state-diff/Deploy.json if necessary
 if [ ! -d "deployments/hardhat" ]; then
   mkdir deployments/hardhat;
