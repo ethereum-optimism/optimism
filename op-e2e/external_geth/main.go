@@ -146,6 +146,7 @@ func execute(binPath string, config external.Config) (*gethSession, error) {
 		"--ws.api", "debug,eth,txpool,net,engine",
 		"--syncmode=full",
 		"--nodiscover",
+		"--ipcdisable",
 		"--port", "0",
 		"--maxpeers", "0",
 		"--networkid", strconv.FormatUint(config.ChainID, 10),

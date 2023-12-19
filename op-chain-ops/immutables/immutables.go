@@ -67,7 +67,21 @@ type PredeploysImmutableConfig struct {
 	EAS            struct {
 		Name string
 	}
-	Create2Deployer struct{}
+	Create2Deployer  struct{}
+	BobaTuringCredit struct {
+		Owner       common.Address
+		TuringToken common.Address
+	}
+	BobaHCHelper struct {
+		Owner common.Address
+	}
+	BobaL2 struct {
+		L2Bridge common.Address
+		L1Token  common.Address
+		Name     string
+		Symbol   string
+		Decimals uint8
+	}
 }
 
 // Check will ensure that the required fields are set on the config.
@@ -247,6 +261,42 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "EAS":
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "SchemaRegistry":
+		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "BobaTuringCredit":
+		_, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+	case "BobaHCHelper":
+		_, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
+	case "BobaL2":
+		l2Bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l2Bridge")
+		}
+		l1Token, ok := deployment.Args[1].(*common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for l1Token")
+		}
+		_name, ok := deployment.Args[2].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _name")
+		}
+		_symbol, ok := deployment.Args[3].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _symbol")
+		}
+		_decimals, ok := deployment.Args[4].(uint8)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _decimals")
+		}
+		_, tx, _, err = bindings.DeployL2GovernanceERC20(
+			opts,
+			backend,
+			l2Bridge,
+			*l1Token,
+			_name,
+			_symbol,
+			uint8(_decimals),
+		)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

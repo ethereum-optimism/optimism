@@ -9,8 +9,8 @@ the health of the network by measuring end-to-end transaction latency.
 ## Metrics
 
 * Round-trip duration time to get transaction receipt (from creation timestamp)
- 
-* First-seen duration time (from creation timestamp) 
+
+* First-seen duration time (from creation timestamp)
 
 
 ## Usage

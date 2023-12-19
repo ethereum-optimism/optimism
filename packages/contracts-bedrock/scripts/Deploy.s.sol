@@ -39,6 +39,7 @@ import { ProtocolVersions, ProtocolVersion } from "src/L1/ProtocolVersions.sol";
 import { StorageSetter } from "src/universal/StorageSetter.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "scripts/Chains.sol";
+import { BOBA } from "src/boba/BOBA.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";

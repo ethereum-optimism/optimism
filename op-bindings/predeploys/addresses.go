@@ -26,6 +26,11 @@ const (
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+
+	// BOBA specific
+	BobaTuringCredit = "0x42000000000000000000000000000000000003e8"
+	BobaHCHelper     = "0x42000000000000000000000000000000000003E9"
+	BobaL2           = "0x4200000000000000000000000000000000000023"
 )
 
 var (
@@ -52,6 +57,11 @@ var (
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
+
+	// BOBA specific
+	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
+	BobaHCHelperAddr     = common.HexToAddress(BobaHCHelper)
+	BobaL2Addr           = common.HexToAddress(BobaL2)
 )
 
 func init() {
@@ -89,7 +99,23 @@ func init() {
 		},
 	}
 
+	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
+	Predeploys["BobaHCHelper"] = &BobaHCHelperAddr
+	Predeploys["BobaL2"] = &BobaL2Addr
+
 	for _, predeploy := range Predeploys {
 		PredeploysByAddress[predeploy.Address] = predeploy
 	}
+}
+
+// IsProxied returns true for predeploys that will sit behind a proxy contract
+func IsProxied(predeployAddr common.Address) bool {
+	switch predeployAddr {
+	case WETH9Addr:
+	case GovernanceTokenAddr:
+	case BobaL2Addr:
+	default:
+		return true
+	}
+	return false
 }

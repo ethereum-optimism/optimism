@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -82,6 +83,7 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	}
 	path := crypto.Keccak256(res.Address[:])
 	accountProofValue, err := trie.VerifyProof(stateRoot, path, db)
+	log.Debug("account_proof Verify", "err", err, "stateRoot", hexutil.Bytes(stateRoot.Bytes()), "accountProofValue", accountProofValue, "claimedValue", hexutil.Bytes(accountClaimedValue))
 	if err != nil {
 		return fmt.Errorf("failed to verify account value with key %s (path %x) in account trie %s: %w", res.Address, path, stateRoot, err)
 	}

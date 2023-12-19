@@ -85,6 +85,31 @@ func TestBuildOptimism(t *testing.T) {
 			Name: "EAS",
 		},
 		Create2Deployer: struct{}{},
+		BobaTuringCredit: struct {
+			Owner       common.Address
+			TuringToken common.Address
+		}{
+			Owner:       common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			TuringToken: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		BobaHCHelper: struct {
+			Owner common.Address
+		}{
+			Owner: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		BobaL2: struct {
+			L2Bridge common.Address
+			L1Token  common.Address
+			Name     string
+			Symbol   string
+			Decimals uint8
+		}{
+			L2Bridge: common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			L1Token:  common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			Name:     "BOBA Token",
+			Symbol:   "BOBA",
+			Decimals: uint8(18),
+		},
 	}
 
 	require.NoError(t, cfg.Check())

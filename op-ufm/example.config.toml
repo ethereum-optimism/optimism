@@ -31,7 +31,7 @@ port = "9761"
 # see https://community.optimism.io/docs/useful-tools/networks/
 chain_id = 420
 # Signer method to use
-# Possible values: signer | static
+# Possible values: signer | static | kms
 signer_method = "static"
 # Address used to send transactions
 address = "0x0000000000000000000000000000000000000000"

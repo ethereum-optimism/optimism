@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	rpcclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/testutils"
 )
@@ -196,6 +198,44 @@ func TestSyncStatus(t *testing.T) {
 	err = client.CallContext(context.Background(), &out, "optimism_syncStatus")
 	assert.NoError(t, err)
 	assert.Equal(t, status, out)
+}
+
+func TestTimeout(t *testing.T) {
+	log := testlog.Logger(t, log.LvlError)
+	l2Client := &testutils.MockL2Client{}
+	drClient := &mockDriverClient{}
+	rng := rand.New(rand.NewSource(1234))
+	status := randomSyncStatus(rng)
+	drClient.On("SyncStatus").Run(func(args mock.Arguments) {
+		time.Sleep(2 * time.Second)
+	}).Return(status)
+
+	rpcCfg := &RPCConfig{
+		ListenAddr: "localhost",
+		ListenPort: 0,
+		ListenTimeout: &httputil.HTTPTimeouts{
+			ReadTimeout:       1 * time.Second,
+			ReadHeaderTimeout: 1 * time.Second,
+			WriteTimeout:      1 * time.Second,
+			IdleTimeout:       1 * time.Second,
+		},
+	}
+	rollupCfg := &rollup.Config{
+		// ignore other rollup config info in this test
+	}
+	server, err := newRPCServer(context.Background(), rpcCfg, rollupCfg, l2Client, drClient, log, "0.0", metrics.NoopMetrics)
+	assert.NoError(t, err)
+	assert.NoError(t, server.Start())
+	defer func() {
+		require.NoError(t, server.Stop(context.Background()))
+	}()
+
+	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	assert.NoError(t, err)
+
+	var out *eth.SyncStatus
+	err = client.CallContext(context.Background(), &out, "optimism_syncStatus")
+	assert.ErrorContains(t, err, "request timed out")
 }
 
 type mockDriverClient struct {

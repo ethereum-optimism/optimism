@@ -3,7 +3,7 @@ variable "REGISTRY" {
 }
 
 variable "REPOSITORY" {
-  default = "oplabs-tools-artifacts/images"
+  default = "boba-392114/bobanetwork-tools-artifacts/images"
 }
 
 variable "GIT_COMMIT" {

@@ -54,4 +54,3 @@ if [ "$VALUE1" != "$VALUE2" ]; then
 fi
 
 echo "Values match!"
-

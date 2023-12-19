@@ -392,7 +392,8 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.baseURI(), base_uri);
         assertEq(
             optimist.tokenURI(_getTokenId(bob)),
-            "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes/0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e.json"
+            "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes/0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e.json" //solhint-disable-line
+                // max-line-length
         );
     }
 
