@@ -34,11 +34,13 @@ func NewActiveL2EndpointProvider(ctx context.Context,
 	logger log.Logger,
 ) (*ActiveL2EndpointProvider, error) {
 	ethDialer := func(ctx context.Context, timeout time.Duration,
-		log log.Logger, url string) (EthClientInterface, error) {
+		log log.Logger, url string,
+	) (EthClientInterface, error) {
 		return DialEthClientWithTimeout(ctx, timeout, log, url)
 	}
 	rollupDialer := func(ctx context.Context, timeout time.Duration,
-		log log.Logger, url string) (RollupClientInterface, error) {
+		log log.Logger, url string,
+	) (RollupClientInterface, error) {
 		return DialRollupClientWithTimeout(ctx, timeout, log, url)
 	}
 	return newActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, checkDuration, networkTimeout, logger, ethDialer, rollupDialer)
@@ -71,8 +73,7 @@ func newActiveL2EndpointProvider(
 	}
 	cctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	_, err = p.EthClient(cctx)
-	if err != nil {
+	if _, err = p.EthClient(cctx); err != nil {
 		return nil, fmt.Errorf("setting provider eth client: %w", err)
 	}
 	return p, nil
@@ -89,9 +90,9 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		// we changed sequencers, dial a new EthClient
 		cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 		defer cancel()
-		p.ethClientIndex = p.rollupIndex
-		ep := p.ethUrls[p.ethClientIndex]
-		log.Info("sequencer changed (or ethClient was nil due to startup), dialing new eth client", "new_index", p.rollupIndex, "new_url", ep)
+		idx := p.rollupIndex
+		ep := p.ethUrls[idx]
+		log.Info("sequencer changed (or ethClient was nil due to startup), dialing new eth client", "new_index", idx, "new_url", ep)
 		ethClient, err := p.ethDialer(cctx, p.networkTimeout, p.log, ep)
 		if err != nil {
 			return nil, fmt.Errorf("dialing eth client: %w", err)
@@ -99,6 +100,7 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		if p.currentEthClient != nil {
 			p.currentEthClient.Close()
 		}
+		p.ethClientIndex = idx
 		p.currentEthClient = ethClient
 	}
 	return p.currentEthClient, nil
