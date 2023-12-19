@@ -1290,3 +1290,61 @@ func TestMinFees(t *testing.T) {
 		})
 	}
 }
+
+// TestClose ensures that the tx manager will refuse new work and cancel any in progress
+func TestClose(t *testing.T) {
+	conf := configWithNumConfs(1)
+	conf.SafeAbortNonceTooLowCount = 100
+	h := newTestHarnessWithConfig(t, conf)
+
+	// make the tx fail until it tries `ready` number of times
+	// as currently set, this will fail 3 times before succeeding, delaying for 30ms total
+	i := 0
+	ready := 3
+	called := 0
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		defer func() { i = (i + 1) % (ready + 1) }()
+		defer func() { called += 1 }()
+		if i == ready {
+			txHash := tx.Hash()
+			h.backend.mine(&txHash, tx.GasFeeCap())
+			return nil
+		} else {
+			time.Sleep(10 * time.Millisecond)
+			return core.ErrNonceTooLow
+		}
+	}
+	h.backend.setTxSender(sendTx)
+
+	// demonstrate that a tx is sent, even when it must retry repeatedly
+	ctx := context.Background()
+	_, err := h.mgr.Send(ctx, TxCandidate{
+		To: &common.Address{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 4, called)
+	called = 0
+
+	// rig the txManager to close during the retrying of the tx
+	// this is technically a race condition in the test, if the go func is not scheduled before the tx is retried fully
+	go func() {
+		time.Sleep(15 * time.Millisecond)
+		h.mgr.Close()
+	}()
+	// demonstrate that a tx will cancel if it is in progress when the manager is closed
+	_, err = h.mgr.Send(ctx, TxCandidate{
+		To: &common.Address{},
+	})
+	require.ErrorIs(t, ErrClosed, err)
+	// confirm that the tx was canceled before it retried to completion
+	require.Less(t, called, 4)
+	called = 0
+
+	// demonstrate that new calls to Send will also fail when the manager is closed
+	_, err = h.mgr.Send(ctx, TxCandidate{
+		To: &common.Address{},
+	})
+	require.ErrorIs(t, ErrClosed, err)
+	// confirm that the tx was canceled before it ever made it to the backend
+	require.Equal(t, 0, called)
+}
