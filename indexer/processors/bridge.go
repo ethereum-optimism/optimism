@@ -286,8 +286,8 @@ func (b *BridgeProcessor) processFinalizedL1Events() error {
 		lastFinalizedL1BlockNumber = b.LastFinalizedL1Header.Number
 	}
 
-	// Latest unfinalized L1 state bounded by `blockLimit` blocks that have had L2 bridge events indexed. Since L1 data
-	// is indexed independently of L2, there may not be new L1 state to finalized
+	// Latest unfinalized L1 state bounded by `blockLimit` blocks that have had L2 bridge events
+	// indexed. Since L1 data is indexed independently, there may not be new L1 state to finalized
 	latestL1HeaderScope := func(db *gorm.DB) *gorm.DB {
 		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
 		headers := newQuery.Model(database.L1BlockHeader{}).Where("number > ? AND timestamp <= ?", lastFinalizedL1BlockNumber, b.LastL2Header.Timestamp)
@@ -340,8 +340,8 @@ func (b *BridgeProcessor) processFinalizedL2Events() error {
 		lastFinalizedL2BlockNumber = b.LastFinalizedL2Header.Number
 	}
 
-	// Latest unfinalized L2 state bounded by `blockLimit` blocks that have had L1 bridge events indexed. Since L2 data
-	// is indexed independently of L1, there may not be new L2 state to finalized
+	// Latest unfinalized L2 state bounded by `blockLimit` blocks that have had L1 bridge events
+	// indexed. Since L2 data is indexed independently, there may not be new L2 state to finalized
 	latestL2HeaderScope := func(db *gorm.DB) *gorm.DB {
 		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
 		headers := newQuery.Model(database.L2BlockHeader{}).Where("number > ? AND timestamp <= ?", lastFinalizedL2BlockNumber, b.LastL1Header.Timestamp)

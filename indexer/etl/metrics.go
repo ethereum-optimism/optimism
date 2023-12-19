@@ -64,7 +64,7 @@ func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
 			Name:      "indexed_height",
-			Help:      "the latest block height indexed into the database",
+			Help:      "the latest block height processed by the etl",
 		}),
 		indexedHeaders: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: MetricsNamespace,

@@ -168,8 +168,9 @@ func (l2Etl *L2ETL) handleBatch(batch *ETLBatch) error {
 			return nil, err
 		}
 
+		// All L2 blocks are indexed so len(batch.Headers) == len(l2BlockHeaders)
 		l2Etl.ETL.metrics.RecordIndexedHeaders(len(l2BlockHeaders))
-		l2Etl.ETL.metrics.RecordIndexedLatestHeight(l2BlockHeaders[len(l2BlockHeaders)-1].Number)
+		l2Etl.ETL.metrics.RecordIndexedLatestHeight(batch.Headers[len(batch.Headers)-1].Number)
 
 		// a-ok!
 		return nil, nil

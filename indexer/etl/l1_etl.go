@@ -190,8 +190,10 @@ func (l1Etl *L1ETL) handleBatch(batch *ETLBatch) error {
 			return nil, fmt.Errorf("unable to persist batch: %w", err)
 		}
 
+		// Since not every L1 block is indexed, we still want our metrics to cover L1 blocks
+		// that have been observed so that a false stall alart isn't triggered on low activity
 		l1Etl.ETL.metrics.RecordIndexedHeaders(len(l1BlockHeaders))
-		l1Etl.ETL.metrics.RecordIndexedLatestHeight(l1BlockHeaders[len(l1BlockHeaders)-1].Number)
+		l1Etl.ETL.metrics.RecordIndexedLatestHeight(batch.Headers[len(batch.Headers)-1].Number)
 
 		// a-ok!
 		return nil, nil
