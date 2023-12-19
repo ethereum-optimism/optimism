@@ -143,6 +143,10 @@ func (m *MockEthClient) ExpectClose() {
 	m.Mock.On("Close").Once()
 }
 
+func (m *MockEthClient) MaybeClose() {
+	m.Mock.On("Close").Maybe()
+}
+
 func (m *MockEthClient) Close() {
 	m.Mock.Called()
 }

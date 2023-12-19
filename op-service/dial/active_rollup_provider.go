@@ -128,14 +128,6 @@ func (p *ActiveL2RollupProvider) findActiveEndpoints(ctx context.Context) error 
 			p.log.Info("Sequencer inactive, trying next.", "index", idx, "url", ep)
 		}
 	}
-
-	// TODO: We exhausted the list of sequencers, close and remove latest client?
-	//   It definitely makes all the existing tests pass, but maybe we remove
-	//   this and adjust the tests, if it makes sense.
-	if p.currentRollupClient != nil {
-		p.currentRollupClient.Close()
-		p.currentRollupClient = nil
-	}
 	return fmt.Errorf("failed to find an active sequencer, tried following urls: %v; errs: %w", p.rollupUrls, errs)
 }
 
