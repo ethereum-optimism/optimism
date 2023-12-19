@@ -239,7 +239,7 @@ contract BobaHCHelper { /*is Ownable*/
 
     // This function was part of the legacy API but is also supported for new
     // applications for which this simple algorithm has acceptable security.
-    function GetRandom(uint32 rType, uint256 _random) public returns (uint256) {
+    function GetRandom(uint32 rType, uint256) public returns (uint256) {
         require(rType == 1, "TURING: Geth intercept failure");
 
         uint32 method = 0x493d57d6; // GetRandom(uint32,uint256)
