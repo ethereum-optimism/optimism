@@ -62,6 +62,10 @@ func (m *MockRollupClient) ExpectClose() {
 	m.Mock.On("Close").Once()
 }
 
+func (m *MockRollupClient) MaybeClose() {
+	m.Mock.On("Close").Once().Maybe()
+}
+
 func (m *MockRollupClient) Close() {
 	m.Mock.Called()
 }

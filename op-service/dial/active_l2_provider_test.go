@@ -131,8 +131,8 @@ func (et *endpointProviderTest) assertAllExpectations(t *testing.T) {
 	}
 }
 
-func (ept *endpointProviderTest) setRollupDialOutcome(index int, success bool) {
-	ept.rollupDialOutcomes[index] = success
+func (et *endpointProviderTest) setRollupDialOutcome(index int, success bool) {
+	et.rollupDialOutcomes[index] = success
 }
 
 // TestRollupProvider_FailoverOnInactiveSequencer verifies that the ActiveL2RollupProvider
@@ -697,4 +697,82 @@ func TestEndpointProvider_ReturnsSameSequencerOnInactiveWithLongCheckDuration(t 
 	require.NoError(t, err)
 	require.Same(t, ept.ethClients[0], secondEthClientUsed)
 	ept.assertAllExpectations(t)
+}
+
+// TestRollupProvider_HandlesIndexClientMismatch verifies
+func TestRollupProvider_HandlesIndexClientMismatch(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 2)
+	primarySequencer, secondarySequencer := ept.rollupClients[0], ept.rollupClients[1]
+
+	// primarySequencer is active on creation
+	primarySequencer.ExpectSequencerActive(true, nil) // active on creation
+	rollupProvider, err := ept.newActiveL2RollupProvider(0)
+	require.NoError(t, err)
+
+	primarySequencer.ExpectSequencerActive(false, nil) // ZDD: sequencer goes down
+	primarySequencer.ExpectClose()
+	primarySequencer.ExpectSequencerActive(false, nil) // buggy behavior: we shouldn't have to expect this twice! A fixed version will let us remove this
+	ept.setRollupDialOutcome(1, false)                 // secondarySequencer fails to dial
+	// now get the rollupClient, we expect an error
+	rollupClient, err := rollupProvider.RollupClient(context.Background())
+	require.Error(t, err)
+	require.Nil(t, rollupClient)
+	require.Same(t, primarySequencer, rollupProvider.currentRollupClient) // if this passes, it's a bug
+	require.Equal(t, 1, rollupProvider.rollupIndex)
+
+	// now, 0 is still inactive, but 1 becomes dialable and active
+	primarySequencer.ExpectSequencerActive(false, nil)
+	primarySequencer.ExpectClose()
+	secondarySequencer.ExpectSequencerActive(true, nil)
+	ept.setRollupDialOutcome(1, true) // secondarySequencer dials successfully
+
+	rollupClient, err = rollupProvider.RollupClient(context.Background())
+	require.NoError(t, err)
+	require.Same(t, secondarySequencer, rollupClient)
+	ept.assertAllExpectations(t)
+}
+
+// what if we did a test with 3 sequencers?
+func TestRollupProvider_HandlesManyIndexClientMismatch(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 3)
+	seq0, seq1, seq2 := ept.rollupClients[0], ept.rollupClients[1], ept.rollupClients[2]
+
+	// "start happy": primarySequencer is active on creation
+	seq0.ExpectSequencerActive(true, nil) // active on creation
+	rollupProvider, err := ept.newActiveL2RollupProvider(0)
+	require.NoError(t, err)
+
+	// primarySequencer goes down
+	seq0.ExpectSequencerActive(false, fmt.Errorf("I'm offline now"))
+	seq0.ExpectClose()
+	ept.setRollupDialOutcome(0, false) // primarySequencer fails to dial
+	// secondarySequencer is inactive, but online
+	seq1.ExpectSequencerActive(false, nil)
+	seq1.ExpectClose()
+	seq1.ExpectSequencerActive(false, nil) // a non-buggy impl shouldn't need this line.
+	// tertiarySequencer can't even be dialed
+	ept.setRollupDialOutcome(2, false)
+	// after calling RollupClient, index will be set to 0, but currentRollupClient is secondarySequencer
+	rollupClient, err := rollupProvider.RollupClient(context.Background())
+	require.Error(t, err)
+	require.Nil(t, rollupClient)
+	require.Same(t, seq1, rollupProvider.currentRollupClient) // if this passes, it's a bug! a non-buggy impl would be nil, or at least seq0 - not seq1
+	require.Equal(t, 0, rollupProvider.rollupIndex)
+	// internal state is now inconsistent in the buggy impl.
+
+	// now seq0 is dialable and active
+	ept.setRollupDialOutcome(0, true)
+	seq0.ExpectSequencerActive(true, nil)
+	seq0.MaybeClose()
+	// now seq1 and seq2 are dialable, but inactive
+	ept.setRollupDialOutcome(1, true)
+	seq1.ExpectSequencerActive(false, nil)
+	seq1.MaybeClose()
+	ept.setRollupDialOutcome(2, true)
+	seq2.ExpectSequencerActive(false, nil)
+	seq2.MaybeClose()
+	// now trigger the bug by calling for the client
+	rollupClient, err = rollupProvider.RollupClient(context.Background())
+	require.NoError(t, err)
+	require.Same(t, seq0, rollupClient)
 }
