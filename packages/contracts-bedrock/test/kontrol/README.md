@@ -44,7 +44,7 @@ test/kontrol
 
 ### [`kontrol`](./kontrol) folder
 
-- [`pausability-lemmas.k`](./kontrol/pausability-lemmas.k)
+- [`pausability-lemmas.k`](./kontrol/pausability-lemmas.k): File containing the necessary lemmas for this project
 - [`scripts`](./kontrol/scripts): Contains
     - [`make-summary-deployment.sh`](./kontrol/scripts/make-summary-deployment.sh): Executes [`KontrolDeployment.sol`](./KontrolDeployment.sol), curates the result and writes the summary deployment contract
     - [`run-kontrol.sh`](./kontrol/scrpts/run-kontrol.sh): CI execution script
