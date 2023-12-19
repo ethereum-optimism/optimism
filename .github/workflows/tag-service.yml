@@ -1,4 +1,4 @@
-name: Release Workflow
+name: Tag Service
 
 on:
   pull_request:
