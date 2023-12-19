@@ -31,7 +31,10 @@ contract Specification_Test is CommonTest {
         CHALLENGER,
         SYSTEMCONFIGOWNER,
         GUARDIAN,
-        BRIDGE
+        BRIDGE,
+        L1PROXYADMINOWNER,
+        GOVERNANCETOKENOWNER,
+        MINTMANAGEROWNER
     }
 
     /// @notice Represents the specification of a function.
@@ -577,6 +580,212 @@ contract Specification_Test is CommonTest {
             _pausable: false
         });
         _addSpec({ _name: "SystemConfig", _sel: _getSel("version()"), _auth: Role.NOAUTH, _pausable: false });
+
+        // ProxyAdmin
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("addressManager()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("changeProxyAdmin(address,address)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("getProxyAdmin(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("getProxyImplementation(address)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("implementationName(address)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("isUpgrading()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("owner()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("proxyType(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("renounceOwnership()"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("setAddress(string,address)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("setAddressManager(address)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("setImplementationName(address,string)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("setProxyType(address,uint8)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("setUpgrading(bool)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+        _addSpec({ _name: "ProxyAdmin", _sel: _getSel("upgrade(address,address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "ProxyAdmin",
+            _sel: _getSel("upgradeAndCall(address,address,bytes)"),
+            _auth: Role.L1PROXYADMINOWNER,
+            _pausable: false
+        });
+
+        // GovernanceToken
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("DOMAIN_SEPARATOR()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("allowance(address,address)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("approve(address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("balanceOf(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("burn(uint256)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("burnFrom(address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("checkpoints(address,uint32)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("decimals()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("decreaseAllowance(address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("delegate(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("delegateBySig(address,uint256,uint256,uint8,bytes32,bytes32)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("delegates(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("getPastTotalSupply(uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("getPastVotes(address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("getVotes(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("increaseAllowance(address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("mint(address,uint256)"),
+            _auth: Role.GOVERNANCETOKENOWNER,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("name()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("nonces(address)"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("numCheckpoints(address)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("owner()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("permit(address,address,uint256,uint256,uint8,bytes32,bytes32)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("renounceOwnership()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("symbol()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "GovernanceToken", _sel: _getSel("totalSupply()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("transfer(address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("transferFrom(address,address,uint256)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "GovernanceToken",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.NOAUTH,
+            _pausable: false
+        });
+
+        // MintManager
+        _addSpec({ _name: "MintManager", _sel: _getSel("DENOMINATOR()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "MintManager", _sel: _getSel("MINT_CAP()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "MintManager", _sel: _getSel("MINT_PERIOD()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "MintManager", _sel: _getSel("governanceToken()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "MintManager",
+            _sel: _getSel("mint(address,uint256)"),
+            _auth: Role.MINTMANAGEROWNER,
+            _pausable: false
+        });
+        _addSpec({ _name: "MintManager", _sel: _getSel("mintPermittedAfter()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({ _name: "MintManager", _sel: _getSel("owner()"), _auth: Role.NOAUTH, _pausable: false });
+        _addSpec({
+            _name: "MintManager",
+            _sel: _getSel("renounceOwnership()"),
+            _auth: Role.MINTMANAGEROWNER,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "MintManager",
+            _sel: _getSel("transferOwnership(address)"),
+            _auth: Role.MINTMANAGEROWNER,
+            _pausable: false
+        });
+        _addSpec({
+            _name: "MintManager",
+            _sel: _getSel("upgrade(address)"),
+            _auth: Role.MINTMANAGEROWNER,
+            _pausable: false
+        });
     }
 
     /// @dev Computes the selector from a function signature.
@@ -619,7 +828,7 @@ contract Specification_Test is CommonTest {
         command[1] = "-c";
         command[2] = string.concat(
             Executables.find,
-            " src/L1 -type f -exec basename {} \\;",
+            " src/{L1,governance,universal/ProxyAdmin.sol} -type f -exec basename {} \\;",
             " | ",
             Executables.sed,
             " 's/\\.[^.]*$//'",
