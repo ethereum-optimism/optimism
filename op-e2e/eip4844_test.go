@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -25,7 +26,8 @@ func TestSystem4844E2E(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	genesisActivation := uint64(0)
 	cfg.DeployConfig.L1CancunTimeOffset = &genesisActivation
-	cfg.DeployConfig.L2BlobsUpgradeTimeOffset = &genesisActivation
+	hu := hexutil.Uint64(0)
+	cfg.DeployConfig.L2GenesisEcotoneTimeOffset = &hu
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
