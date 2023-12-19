@@ -342,7 +342,6 @@ var optionalFlags = []cli.Flag{
 	L1RPCMaxBatchSize,
 	L1RPCMaxConcurrency,
 	L1HTTPPollInterval,
-	L2EngineJWTSecret,
 	L2RpcTimeout,
 	L2RpcBatchTimeout,
 	VerifierL1Confs,
