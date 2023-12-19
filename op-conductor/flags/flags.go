@@ -43,6 +43,11 @@ var (
 		Usage:   "HTTP provider URL for op-node",
 		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "NODE_RPC"),
 	}
+	ExecutionRPC = &cli.StringFlag{
+		Name:    "execution.rpc",
+		Usage:   "HTTP provider URL for execution layer",
+		EnvVars: opservice.PrefixEnvVar(EnvVarPrefix, "EXECUTION_RPC"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -51,6 +56,7 @@ var requiredFlags = []cli.Flag{
 	RaftServerID,
 	RaftStorageDir,
 	NodeRPC,
+	ExecutionRPC,
 }
 
 var optionalFlags = []cli.Flag{}

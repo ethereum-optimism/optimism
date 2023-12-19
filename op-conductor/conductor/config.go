@@ -35,6 +35,9 @@ type Config struct {
 	// NodeRPC is the HTTP provider URL for op-node.
 	NodeRPC string
 
+	// ExecutionRPC is the HTTP provider URL for execution layer.
+	ExecutionRPC string
+
 	RollupCfg rollup.Config
 
 	LogConfig     oplog.CLIConfig
@@ -59,6 +62,9 @@ func (c *Config) Check() error {
 	}
 	if c.NodeRPC == "" {
 		return fmt.Errorf("missing node RPC")
+	}
+	if c.ExecutionRPC == "" {
+		return fmt.Errorf("missing geth RPC")
 	}
 	if err := c.RollupCfg.Check(); err != nil {
 		return errors.Wrap(err, "invalid rollup config")
@@ -92,6 +98,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*Config, error) {
 		RaftServerID:   ctx.String(flags.RaftServerID.Name),
 		RaftStorageDir: ctx.String(flags.RaftStorageDir.Name),
 		NodeRPC:        ctx.String(flags.NodeRPC.Name),
+		ExecutionRPC:   ctx.String(flags.ExecutionRPC.Name),
 		RollupCfg:      *rollupCfg,
 		LogConfig:      oplog.ReadCLIConfig(ctx),
 		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
