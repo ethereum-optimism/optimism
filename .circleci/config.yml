@@ -1494,6 +1494,10 @@ workflows:
           module: op-challenger
           requires: ["op-stack-go-lint"]
       - go-test:
+          name: op-conductor-tests
+          module: op-conductor
+          requires: ["op-stack-go-lint"]
+      - go-test:
           name: op-program-tests
           module: op-program
           requires: ["op-stack-go-lint"]
@@ -1547,6 +1551,7 @@ workflows:
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests
+            - op-conductor-tests
             - op-program-tests
             - op-program-compat
             - op-service-tests
@@ -1586,6 +1591,12 @@ workflows:
       - docker-build:
           name: op-challenger-docker-build
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: ['op-stack-go-docker-build']
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: op-conductor-docker-build
+          docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
@@ -1710,6 +1721,21 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
+          name: op-conductor-docker-release
+          filters:
+            tags:
+              only: /^op-conductor\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
@@ -1890,6 +1916,16 @@ workflows:
       - docker-build:
           name: op-challenger-docker-publish
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
+          name: op-conductor-docker-publish
+          docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
