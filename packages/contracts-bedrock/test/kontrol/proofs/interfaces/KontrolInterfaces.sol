@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Types } from "src/libraries/Types.sol";
 
-interface OptimismPortalInterface {
+interface IOptimismPortal {
     function GUARDIAN() external view returns (address);
 
     function guardian() external view returns (address);
@@ -21,7 +21,7 @@ interface OptimismPortalInterface {
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external;
 }
 
-interface SuperchainConfigInterface {
+interface ISuperchainConfig {
     function guardian() external view returns (address);
 
     function paused() external view returns (bool paused_);

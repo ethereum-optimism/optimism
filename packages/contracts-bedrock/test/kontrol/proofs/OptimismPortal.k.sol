@@ -4,8 +4,8 @@ import { DeploymentSummary } from "./utils/DeploymentSummary.sol";
 import { KontrolUtils } from "./utils/KontrolUtils.sol";
 import { Types } from "src/libraries/Types.sol";
 import {
-    OptimismPortalInterface as OptimismPortal,
-    SuperchainConfigInterface as SuperchainConfig
+    IOptimismPortal as OptimismPortal,
+    ISuperchainConfig as SuperchainConfig
 } from "./interfaces/KontrolInterfaces.sol";
 
 contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
