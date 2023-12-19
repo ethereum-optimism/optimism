@@ -81,13 +81,17 @@ func newActiveL2EndpointProvider(
 
 func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInterface, error) {
 	p.clientLock.Lock()
-	defer p.clientLock.Unlock()
 	err := p.ensureActiveEndpoint(ctx)
 	if err != nil {
+		p.clientLock.Unlock()
 		return nil, err
 	}
-	if p.ethClientIndex != p.rollupIndex || p.currentEthClient == nil {
-		// we changed sequencers, dial a new EthClient
+	currentClient := p.currentEthClient
+	shouldDial := p.ethClientIndex != p.rollupIndex || currentClient == nil
+	p.clientLock.Unlock()
+
+	if shouldDial {
+		// Dialing logic outside of the lock
 		cctx, cancel := context.WithTimeout(ctx, p.networkTimeout)
 		defer cancel()
 		idx := p.rollupIndex
@@ -97,11 +101,13 @@ func (p *ActiveL2EndpointProvider) EthClient(ctx context.Context) (EthClientInte
 		if err != nil {
 			return nil, fmt.Errorf("dialing eth client: %w", err)
 		}
-		if p.currentEthClient != nil {
-			p.currentEthClient.Close()
+		if currentClient != nil {
+			currentClient.Close()
 		}
+		p.clientLock.Lock()
 		p.ethClientIndex = idx
 		p.currentEthClient = ethClient
+		p.clientLock.Unlock()
 	}
 	return p.currentEthClient, nil
 }

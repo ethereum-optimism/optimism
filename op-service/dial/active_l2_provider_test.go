@@ -719,11 +719,14 @@ func TestRollupProvider_HandlesManyIndexClientMismatch(t *testing.T) {
 	seq1.MaybeClose()
 	// tertiarySequencer can't even be dialed
 	ept.setRollupDialOutcome(2, false)
-	// after calling RollupClient, index will be set to 0, but currentRollupClient is secondarySequencer
+	// In a prior buggy implementation, this scenario lead to an internal inconsistent state
+	// where the current client didn't match the index. On a subsequent try, this led to the
+	// active sequencer at 0 to be skipped entirely, while the sequencer at index 1
+	// was checked twice.
 	rollupClient, err := rollupProvider.RollupClient(context.Background())
 	require.Error(t, err)
 	require.Nil(t, rollupClient)
-	// internal state would now be inconsistent in the buggy impl.
+	// internal state would now be inconsistent in a buggy impl.
 
 	// now seq0 is dialable and active
 	ept.setRollupDialOutcome(0, true)
@@ -736,9 +739,56 @@ func TestRollupProvider_HandlesManyIndexClientMismatch(t *testing.T) {
 	ept.setRollupDialOutcome(2, true)
 	seq2.ExpectSequencerActive(false, nil)
 	seq2.MaybeClose()
-	// now trigger the bug by calling for the client
+	// this would trigger the prior bug: request the rollup client.
 	rollupClient, err = rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, seq0, rollupClient)
+	ept.assertAllExpectations(t)
+}
+
+// TestRollupProvider_HandlesSingleSequencer verifies that the ActiveL2RollupProvider
+// can handle being passed a single sequencer endpoint without issue.
+func TestRollupProvider_HandlesSingleSequencer(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 1)
+	onlySequencer := ept.rollupClients[0]
+	onlySequencer.ExpectSequencerActive(true, nil) // respond true once on creation
+
+	rollupProvider, err := ept.newActiveL2RollupProvider(0)
+	require.NoError(t, err)
+
+	onlySequencer.ExpectSequencerActive(true, nil) // respond true again when the test calls `RollupClient()` the first time
+	firstSequencerUsed, err := rollupProvider.RollupClient(context.Background())
+	require.NoError(t, err)
+	require.Same(t, onlySequencer, firstSequencerUsed)
+
+	onlySequencer.ExpectSequencerActive(false, nil) // become inactive after that
+	onlySequencer.MaybeClose()
+	secondSequencerUsed, err := rollupProvider.RollupClient(context.Background())
+	require.Error(t, err)
+	require.Nil(t, secondSequencerUsed)
+	ept.assertAllExpectations(t)
+}
+
+// TestEndpointProvider_HandlesSingleSequencer verifies that the ActiveL2EndpointProvider
+// can handle being passed a single sequencer endpoint without issue.
+func TestEndpointProvider_HandlesSingleSequencer(t *testing.T) {
+	ept := setupEndpointProviderTest(t, 1)
+	onlySequencer := ept.rollupClients[0]
+	onlySequencer.ExpectSequencerActive(true, nil) // respond true once on creation
+	onlySequencer.ExpectSequencerActive(true, nil) // respond true again when the constructor calls `RollupClient()`
+
+	endpointProvider, err := ept.newActiveL2EndpointProvider(0)
+	require.NoError(t, err)
+
+	onlySequencer.ExpectSequencerActive(true, nil) // respond true a once more on fall-through check in `EthClient()`
+	firstEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	require.NoError(t, err)
+	require.Same(t, ept.ethClients[0], firstEthClientUsed)
+
+	onlySequencer.ExpectSequencerActive(false, nil) // become inactive after that
+	onlySequencer.MaybeClose()
+	secondEthClientUsed, err := endpointProvider.EthClient(context.Background())
+	require.Error(t, err)
+	require.Nil(t, secondEthClientUsed)
 	ept.assertAllExpectations(t)
 }
