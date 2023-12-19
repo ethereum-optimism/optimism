@@ -717,14 +717,13 @@ func TestRollupProvider_HandlesManyIndexClientMismatch(t *testing.T) {
 	// secondarySequencer is inactive, but online
 	seq1.ExpectSequencerActive(false, nil)
 	seq1.MaybeClose()
-	seq1.ExpectSequencerActive(false, nil) // a non-buggy impl shouldn't need this line.
 	// tertiarySequencer can't even be dialed
 	ept.setRollupDialOutcome(2, false)
 	// after calling RollupClient, index will be set to 0, but currentRollupClient is secondarySequencer
 	rollupClient, err := rollupProvider.RollupClient(context.Background())
 	require.Error(t, err)
 	require.Nil(t, rollupClient)
-	// internal state is now inconsistent in the buggy impl.
+	// internal state would now be inconsistent in the buggy impl.
 
 	// now seq0 is dialable and active
 	ept.setRollupDialOutcome(0, true)
@@ -741,4 +740,5 @@ func TestRollupProvider_HandlesManyIndexClientMismatch(t *testing.T) {
 	rollupClient, err = rollupProvider.RollupClient(context.Background())
 	require.NoError(t, err)
 	require.Same(t, seq0, rollupClient)
+	ept.assertAllExpectations(t)
 }
