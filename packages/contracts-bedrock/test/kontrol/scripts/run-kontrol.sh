@@ -129,8 +129,8 @@ lemmas=test/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
 module=OptimismPortalKontrol:${base_module}
 rekompile=--rekompile
-regen=--regen
 rekompile=
+regen=--regen
 regen=
 
 #########################
