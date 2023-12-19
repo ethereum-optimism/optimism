@@ -35,12 +35,14 @@
 
 The Fault Dispute Game (FDG) is a specific type of
 [dispute game](./dispute-game-interface.md) that verifies the validity of a
-root claim by iteratively bisecting over [output roots][g-output-root] and execution traces of single block state transitions down to a single instruction step.
-It relies on a Virtual Machine (VM) to falsify invalid claims made at a single instruction step.
+root claim by iteratively bisecting over [output roots][g-output-root] and execution traces of single block state
+transitions down to a single instruction step. It relies on a Virtual Machine (VM) to falsify invalid claims made at
+a single instruction step.
 
 Actors, i.e. Players, interact with the game by making claims that dispute other claims in the FDG.
-Each claim made narrows the range over the entire historical state of L2, until the source of dispute is a single state transition.
-Once a time limit is reached, the dispute game is _resolved_, based on claims made that are disputed and which aren't, to determine the winners of the game.
+Each claim made narrows the range over the entire historical state of L2, until the source of dispute is a single
+state transition. Once a time limit is reached, the dispute game is _resolved_, based on claims made that are disputed
+and which aren't, to determine the winners of the game.
 
 ## Definitions
 
@@ -70,11 +72,12 @@ We refer to this state as the **ABSOLUTE\_PRESTATE**.
 
 ### Claims
 
-Claims assert an [output root][g-output-root] or the state of the FPVM at a given instruction. This is represented as `ClaimHash`,
-a `bytes32` representing an [output root][g-output-root] or a commitment to the last VM state in a trace. A FDG is initialized
-with an output root that corresponds to the state of L2 at a given L2 block number, and execution trace sub-games are initialized with a claim that commits to the entire
-execution trace between two conseuctive output roots (a block `n -> n+1` state transition). As we'll see later,
-there can be multiple claims, committing to different output roots and FPVM states in the FDG.
+Claims assert an [output root][g-output-root] or the state of the FPVM at a given instruction. This is represented as
+`ClaimHash`, a `bytes32` representing an [output root][g-output-root] or a commitment to the last VM state in a trace.
+A FDG is initialized with an output root that corresponds to the state of L2 at a given L2 block number, and execution
+trace sub-games are initialized with a claim that commits to the entire execution trace between two conseuctive output
+roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple claims, committing to different
+output roots and FPVM states in the FDG.
 
 ### DAG
 
@@ -89,12 +92,12 @@ against $C_i$ through either an "Attack" or "Defend" [move](#moves).
 
 The Game Tree is a binary tree of positions. Every claim in the DAG references a position in the Game Tree.
  The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` + `MAX_GAME_DEPTH` respectively, that are both preset
-to an FDG implementation. The split depth defines the maximum depth at which claims about [output roots][g-output-root] can occur, and below
-it, execution trace bisection occurs. Thus, the Game Tree contains $2^{d-1}$ positions, where $d$ is the `MAX_GAME_DEPTH`
-(unless $d=0$, in which case there's only 1 position).
+to an FDG implementation. The split depth defines the maximum depth at which claims about [output roots][g-output-root]
+can occur, and below it, execution trace bisection occurs. Thus, the Game Tree contains $2^{d-1}$ positions, where $d$
+is the `MAX_GAME_DEPTH` (unless $d=0$, in which case there's only 1 position).
 
-The full game tree, with a layer of the tree allocated to output bisection, and sub-trees after an arbitrary split depth,
-looks like:
+The full game tree, with a layer of the tree allocated to output bisection, and sub-trees after an arbitrary split
+depth, looks like:
 
 ![ob-tree](./assets/ob-tree.png)
 
@@ -129,7 +132,8 @@ This is an immutable, preset to a FDG implementation, representing the duration 
 
 The game involves two types of participants (or Players): **Challengers** and **Defenders**.
 These players are grouped into separate teams, each employing distinct strategies to interact with the game.
-Team members share a common goal regarding the game's outcome. Players interact with the game primarily through _moves_.
+Team members share a common goal regarding the game's outcome. Players interact with the game primarily through
+_moves_.
 
 ### Moves
 
@@ -137,9 +141,9 @@ A Move is a challenge against an existing claim and must include an alternate cl
 Moves can either be attacks or defenses and serve to update to DAG by adding nodes and edges targeting the disputed
 claim.
 
-Moves within the fault dispute game can claim two separate values: [output roots][g-output-root] and execution trace commitments. At and
-above the `SPLIT_DEPTH`, claims correspond to output roots, while below the split depth, they correspond to execution trace
-commitments.
+Moves within the fault dispute game can claim two separate values: [output roots][g-output-root] and execution trace
+commitments. At and above the `SPLIT_DEPTH`, claims correspond to output roots, while below the split depth, they
+correspond to execution trace commitments.
 
 Initially, claims added to the DAG are _uncontesteed_ (i.e. not **countered**). Once a move targets a claim, that claim
  is considered countered.
@@ -235,11 +239,12 @@ The FDG provides the following interface to manage data loaded to the `PreimageO
 function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external;
 ```
 
-The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`. Players use this to ensure pre-image parts are available to the VM during a step.
-Because there are multiple sets of local preimage keys that belong to the `FaultDisputeGame` contract due to the ability
-for players to bisect to any block `n->n+1` state transition since the configured genesis, the `_execLeafIdx` parameter
-enables a search for the starting / disputed outputs to be performed such that the contract can write to and reference unique local
-keys in the `PreimageOracle` for each of these `n->n+1` transitions.
+The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`. Players use this to ensure pre-image
+parts are available to the VM during a step. Because there are multiple sets of local preimage keys that belong to the
+`FaultDisputeGame` contract due to the ability for players to bisect to any block `n->n+1` state transition since the
+configured genesis, the `_execLeafIdx` parameter enables a search for the starting / disputed outputs to be performed
+such that the contract can write to and reference unique local keys in the `PreimageOracle` for each of these `n->n+1`
+transitions.
 
 ### Team Dynamics
 
