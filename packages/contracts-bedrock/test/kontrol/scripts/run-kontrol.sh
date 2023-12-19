@@ -16,7 +16,7 @@ notif "Script Home: $SCRIPT_HOME"
 blank_line
 
 # Set Run Directory <root>/packages/contracts-bedrock
-WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../../.." >/dev/null 2>&1 && pwd )
+WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
 notif "Run Directory: ${WORKSPACE_DIR}"
 blank_line
 
@@ -125,7 +125,7 @@ trap on_failure ERR INT
 # such as `rekompile`. Such a pattern is intended for easy use while locally
 # developing and executing the proofs via this script. Comment/uncomment the
 # empty assignment to activate/deactivate the corresponding flag
-lemmas=test/kontrol/kontrol/pausability-lemmas.k
+lemmas=test/kontrol/pausability-lemmas.k
 base_module=PAUSABILITY-LEMMAS
 module=OptimismPortalKontrol:${base_module}
 rekompile=--rekompile

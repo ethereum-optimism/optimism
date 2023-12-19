@@ -18,7 +18,7 @@ sed -i 's/mustGetAddress/getAddress/g' ./scripts/Deploy.s.sol
 FOUNDRY_PROFILE=kdeploy forge script -vvv test/kontrol/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
 
-JSON_SCRIPTS=test/kontrol/kontrol/scripts/json
+JSON_SCRIPTS=test/kontrol/scripts/json
 STATEDIFF=Deploy.json
 python3 ${JSON_SCRIPTS}/clean_json.py snapshots/state-diff/${STATEDIFF}
 echo "Cleaned state diff json"
