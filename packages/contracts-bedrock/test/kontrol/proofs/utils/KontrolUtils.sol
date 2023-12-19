@@ -44,18 +44,18 @@ abstract contract KontrolUtils is KontrolCheats {
     Vm private constant vm = Vm(VM_ADDRESS);
 
     function createWithdrawalTransaction(
-        uint256 _tx0,
-        address _tx1,
-        address _tx2,
-        uint256 _tx3,
-        uint256 _tx4,
-        bytes memory _tx5
+        uint256 nonce,
+        address sender,
+        address target,
+        uint256 value,
+        uint256 gasLimit,
+        bytes memory data
     )
         internal
         pure
         returns (Types.WithdrawalTransaction memory _tx)
     {
-        _tx = Types.WithdrawalTransaction(_tx0, _tx1, _tx2, _tx3, _tx4, _tx5);
+        _tx = Types.WithdrawalTransaction(nonce, sender, target, value, gasLimit, data);
     }
 
     function freshBytesArray(uint256 symbolicArrayLength) public returns (bytes[] memory symbolicArray) {
