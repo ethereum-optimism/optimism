@@ -1,7 +1,6 @@
 package flags
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -9,7 +8,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 // TestOptionalFlagsDontSetRequired asserts that all flags deemed optional set
@@ -76,16 +74,7 @@ func TestEnvVarFormat(t *testing.T) {
 		flag := flag
 		flagName := flag.Names()[0]
 
-		skippedFlags := []string{
-			txmgr.FeeLimitMultiplierFlagName,
-			txmgr.TxSendTimeoutFlagName,
-			txmgr.TxNotInMempoolTimeoutFlagName,
-		}
-
 		t.Run(flagName, func(t *testing.T) {
-			if slices.Contains(skippedFlags, flagName) {
-				t.Skipf("Skipping flag %v which is known to not have a standard flag name <-> env var conversion", flagName)
-			}
 			envFlagGetter, ok := flag.(interface {
 				GetEnvVars() []string
 			})

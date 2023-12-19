@@ -33,6 +33,7 @@ ARG OP_NODE_VERSION=v0.0.0
 ARG OP_CHALLENGER_VERSION=v0.0.0
 ARG OP_BATCHER_VERSION=v0.0.0
 ARG OP_PROPOSER_VERSION=v0.0.0
+ARG OP_CONDUCTOR_VERSION=v0.0.0
 
 
 # separate docker-builds:
@@ -66,6 +67,8 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-bat
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_BATCHER_VERSION"
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION"
+RUN --mount=type=cache,target=/root/.cache/go-build cd op-conductor && make op-conductor  \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_CONDUCTOR_VERSION"
 
 
 FROM alpine:3.18
@@ -80,5 +83,6 @@ COPY --from=builder /app/op-node/bin/op-node /usr/local/bin/
 COPY --from=builder /app/op-challenger/bin/op-challenger /usr/local/bin/
 COPY --from=builder /app/op-batcher/bin/op-batcher /usr/local/bin/
 COPY --from=builder /app/op-proposer/bin/op-proposer /usr/local/bin/
+COPY --from=builder /app/op-conductor/bin/op-conductor /usr/local/bin/
 
 
