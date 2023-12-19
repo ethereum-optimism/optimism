@@ -1,0 +1,17 @@
+name: Welcome to GITM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Print Welcome Message
+        run: echo "Welcome to GITM"
