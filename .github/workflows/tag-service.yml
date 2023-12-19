@@ -1,4 +1,4 @@
-name: Tag Service GITM
+name: Tag Service
 
 on:
   pull_request:
