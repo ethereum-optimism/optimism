@@ -99,9 +99,9 @@ func init() {
 		},
 	}
 
-	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
-	Predeploys["BobaHCHelper"] = &BobaHCHelperAddr
-	Predeploys["BobaL2"] = &BobaL2Addr
+	Predeploys["BobaTuringCredit"] = &Predeploy{Address: BobaTuringCreditAddr}
+	Predeploys["BobaHCHelper"] = &Predeploy{Address: BobaHCHelperAddr}
+	Predeploys["BobaL2"] = &Predeploy{Address: BobaL2Addr}
 
 	for _, predeploy := range Predeploys {
 		PredeploysByAddress[predeploy.Address] = predeploy

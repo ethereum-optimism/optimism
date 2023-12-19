@@ -25,6 +25,17 @@ contract SystemConfig is OwnableUpgradeable, ISemver {
         UNSAFE_BLOCK_SIGNER
     }
 
+    /// @notice Struct representing the addresses of L1 system contracts. These should be the
+    ///         proxies and will differ for each OP Stack chain.
+    struct Addresses {
+        address l1CrossDomainMessenger;
+        address l1ERC721Bridge;
+        address l1StandardBridge;
+        address l2OutputOracle;
+        address optimismPortal;
+        address optimismMintableERC20Factory;
+    }
+
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 

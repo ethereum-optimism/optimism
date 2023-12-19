@@ -843,7 +843,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Decimals uint8
 		}{
 			L2Bridge: predeploys.L2StandardBridgeAddr,
-			L1Token:  l1BobaTokenAddress,
+			L1Token:  *l1BobaTokenAddress,
 			Name:     "Boba Token",
 			Symbol:   "BOBA",
 			Decimals: uint8(18),
@@ -913,17 +913,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
-	}
-	storage["BobaTuringCredit"] = state.StorageValues{}
-	storage["L2ERC721Bridge"] = state.StorageValues{
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"_initialized":  initializedValue,
-		"_initializing": false,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"bridge":        predeploys.L2StandardBridgeAddr,
-		"_initialized":  initializedValue,
-		"_initializing": false,
 	}
 	storage["BobaTuringCredit"] = state.StorageValues{
 		"owner":       config.ProxyAdminOwner,
