@@ -14,11 +14,20 @@ if [ ! -f "snapshots/state-diff/Deploy.json" ]; then
   touch snapshots/state-diff/Deploy.json;
 fi
 
+DEPLOY_SCRIPT="./scripts/Deploy.s.sol"
+
+# Create a backup
+cp ${DEPLOY_SCRIPT} ${DEPLOY_SCRIPT}.bak
+
 # replace mustGetAddress by getAddress in Deploy.s.sol
-sed -i 's/mustGetAddress/getAddress/g' ./scripts/Deploy.s.sol
+awk '{gsub(/mustGetAddress/, "getAddress")}1' ${DEPLOY_SCRIPT} > temp && mv temp ${DEPLOY_SCRIPT}
 
 FOUNDRY_PROFILE=kdeploy forge script -vvv test/kontrol/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
 echo "Created state diff json"
+
+# Restore the file from the backup
+cp ${DEPLOY_SCRIPT}.bak ${DEPLOY_SCRIPT}
+rm ${DEPLOY_SCRIPT}.bak
 
 JSON_SCRIPTS=test/kontrol/scripts/json
 STATEDIFF=Deploy.json
