@@ -18,28 +18,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         superchainConfig = SuperchainConfig(SuperchainConfigProxyAddress);
     }
 
-    function test_kontrol_in_foundry(
-        bytes[] memory _withdrawalProof,
-        Types.OutputRootProof memory _outputRootProof,
-        uint256 _l2OutputIndex,
-        Types.WithdrawalTransaction memory _tx
-    )
-        external
-    {
-        require(optimismPortal.paused() == false, "Portal should not be paused");
-
-        /* Pause Optimism Portal */
-        vm.prank(optimismPortal.GUARDIAN());
-        superchainConfig.pause("identifier");
-
-        /* Portal is now paused */
-        require(optimismPortal.paused() == true, "Portal should be paused");
-
-        /* No one can call proveWithdrawalTransaction */
-        vm.expectRevert("OptimismPortal: paused");
-        optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
-    }
-
+    /// TODO: Replace struct parameters and workarounds with the appropiate
+    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     function test_proveWithdrawalTransaction_paused(
         /* WithdrawalTransaction args */
         uint256 _tx0,
@@ -81,6 +61,8 @@ contract OptimismPortalKontrol is DeploymentSummary, KontrolUtils {
         optimismPortal.proveWithdrawalTransaction(_tx, _l2OutputIndex, _outputRootProof, _withdrawalProof);
     }
 
+    /// TODO: Replace struct parameters and workarounds with the appropiate
+    /// types once Kontrol supports symbolic `bytes` and `bytes[]`
     function test_finalizeWithdrawalTransaction_paused(
         address _tx1,
         address _tx2,
