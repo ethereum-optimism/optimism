@@ -8,6 +8,7 @@ import (
 	"net"
 	_ "net/http/pprof"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -125,9 +126,16 @@ func (bs *BatcherService) initRPCClients(ctx context.Context, cfg *CLIConfig) er
 	}
 	bs.L1Client = l1Client
 
-	endpointProvider, err := dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
+	var endpointProvider dial.L2EndpointProvider
+	if strings.Contains(cfg.RollupRpc, ",") && strings.Contains(cfg.L2EthRpc, ",") {
+		rollupUrls := strings.Split(cfg.RollupRpc, ",")
+		ethUrls := strings.Split(cfg.L2EthRpc, ",")
+		endpointProvider, err = dial.NewActiveL2EndpointProvider(ctx, ethUrls, rollupUrls, dial.DefaultActiveSequencerFollowerCheckDuration, dial.DefaultDialTimeout, bs.Log)
+	} else {
+		endpointProvider, err = dial.NewStaticL2EndpointProvider(ctx, bs.Log, cfg.L2EthRpc, cfg.RollupRpc)
+	}
 	if err != nil {
-		return fmt.Errorf("failed to create L2 endpoint provider: %w", err)
+		return fmt.Errorf("failed to build L2 endpoint provider: %w", err)
 	}
 	bs.EndpointProvider = endpointProvider
 
