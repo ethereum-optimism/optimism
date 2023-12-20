@@ -120,6 +120,13 @@ type IPBanStore interface {
 	GetIPBanExpiration(ip net.IP) (time.Time, error)
 }
 
+type MetadataStore interface {
+	// SetPeerMetadata sets the metadata for the specified peer
+	SetPeerMetadata(id peer.ID, md PeerMetadata) (PeerMetadata, error)
+	// GetPeerMetadata returns the metadata for the specified peer
+	GetPeerMetadata(id peer.ID) (PeerMetadata, error)
+}
+
 // ExtendedPeerstore defines a type-safe API to work with additional peer metadata based on a libp2p peerstore.Peerstore
 type ExtendedPeerstore interface {
 	peerstore.Peerstore
@@ -127,4 +134,5 @@ type ExtendedPeerstore interface {
 	peerstore.CertifiedAddrBook
 	PeerBanStore
 	IPBanStore
+	MetadataStore
 }

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -121,7 +122,13 @@ func (ps *ProposerService) initRPCClients(ctx context.Context, cfg *CLIConfig) e
 	}
 	ps.L1Client = l1Client
 
-	rollupProvider, err := dial.NewStaticL2RollupProvider(ctx, ps.Log, cfg.RollupRpc)
+	var rollupProvider dial.RollupProvider
+	if strings.Contains(cfg.RollupRpc, ",") {
+		rollupUrls := strings.Split(cfg.RollupRpc, ",")
+		rollupProvider, err = dial.NewActiveL2RollupProvider(ctx, rollupUrls, dial.DefaultActiveSequencerFollowerCheckDuration, dial.DefaultDialTimeout, ps.Log)
+	} else {
+		rollupProvider, err = dial.NewStaticL2RollupProvider(ctx, ps.Log, cfg.RollupRpc)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to build L2 endpoint provider: %w", err)
 	}

@@ -563,11 +563,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
 		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
-
-		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
-			Client:   nil,
-			TrustRPC: false,
-		}
 	}
 
 	// Geth Clients

@@ -20,7 +20,7 @@ build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
-	pnpm install
+	pnpm install:ci
 	pnpm build
 .PHONY: build-ts
 

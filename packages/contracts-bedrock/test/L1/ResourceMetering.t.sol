@@ -71,6 +71,20 @@ contract ResourceMetering_Test is Test {
         assertEq(prevBlockNum, initialBlockNum);
     }
 
+    /// @dev Tests that reinitializing the resource params are set correctly.
+    function test_meter_reinitializedResourceParams_succeeds() external {
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
+
+        // Reset the initialized slot to enable reinitialization.
+        vm.store(address(meter), bytes32(uint256(0)), bytes32(uint256(0)));
+        meter.initialize();
+
+        (uint128 postBaseFee, uint64 postBoughtGas, uint64 postBlockNum) = meter.params();
+        assertEq(prevBaseFee, postBaseFee);
+        assertEq(prevBoughtGas, postBoughtGas);
+        assertEq(prevBlockNum, postBlockNum);
+    }
+
     /// @dev Tests that updating the resource params to the same values works correctly.
     function test_meter_updateParamsNoChange_succeeds() external {
         meter.use(0); // equivalent to just updating the base fee and block number

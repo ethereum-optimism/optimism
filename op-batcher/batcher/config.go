@@ -3,6 +3,7 @@ package batcher
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -20,10 +21,10 @@ type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
+	// L2EthRpc is the HTTP provider URL for the L2 execution engine. A comma-separated list enables the active L2 provider. Such a list needs to match the number of RollupRpcs provided.
 	L2EthRpc string
 
-	// RollupRpc is the HTTP provider URL for the L2 rollup node.
+	// RollupRpc is the HTTP provider URL for the L2 rollup node. A comma-separated list enables the active L2 provider. Such a list needs to match the number of L2EthRpcs provided.
 	RollupRpc string
 
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
@@ -73,6 +74,9 @@ func (c *CLIConfig) Check() error {
 	}
 	if c.RollupRpc == "" {
 		return errors.New("empty rollup RPC URL")
+	}
+	if strings.Count(c.RollupRpc, ",") != strings.Count(c.L2EthRpc, ",") {
+		return errors.New("number of rollup and eth URLs must match")
 	}
 	if c.PollInterval == 0 {
 		return errors.New("must set PollInterval")

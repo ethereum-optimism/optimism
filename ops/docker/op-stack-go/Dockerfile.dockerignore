@@ -8,6 +8,7 @@
 !/op-bootnode
 !/op-chain-ops
 !/op-challenger
+!/op-conductor
 !/op-heartbeat
 !/op-node
 !/op-preimage

@@ -62,7 +62,7 @@
     "@nomiclabs/hardhat-ethers": "^2.2.3",
     "@nomiclabs/hardhat-waffle": "^2.0.6",
     "hardhat": "^2.19.2",
-    "ts-node": "^10.9.1",
+    "ts-node": "^10.9.2",
     "tsx": "^4.6.2"
   }
 }

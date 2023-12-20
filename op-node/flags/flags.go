@@ -2,16 +2,15 @@ package flags
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
-
-	"github.com/urfave/cli/v2"
 )
 
 // Flags
@@ -41,16 +40,6 @@ var (
 		EnvVars:     prefixEnvVars("L2_ENGINE_AUTH"),
 		Value:       "",
 		Destination: new(string),
-	}
-	RollupConfig = &cli.StringFlag{
-		Name:    "rollup.config",
-		Usage:   "Rollup chain parameters",
-		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
-	}
-	Network = &cli.StringFlag{
-		Name:    "network",
-		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
-		EnvVars: prefixEnvVars("NETWORK"),
 	}
 	/* Optional Flags */
 	SyncModeFlag = &cli.GenericFlag{
@@ -225,18 +214,6 @@ var (
 		EnvVars: prefixEnvVars("HEARTBEAT_URL"),
 		Value:   "https://heartbeat.optimism.io",
 	}
-	BackupL2UnsafeSyncRPC = &cli.StringFlag{
-		Name:    "l2.backup-unsafe-sync-rpc",
-		Usage:   "Set the backup L2 unsafe sync RPC endpoint.",
-		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC"),
-	}
-	BackupL2UnsafeSyncRPCTrustRPC = &cli.StringFlag{
-		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
-		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
-			"This does not include checks if the blockhash is part of the canonical chain.",
-		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
-	}
-
 	RollupHalt = &cli.StringFlag{
 		Name:    "rollup.halt",
 		Usage:   "Opt-in option to halt on incompatible protocol version requirements of the given level (major/minor/patch/none), as signaled onchain in L1",
@@ -246,18 +223,6 @@ var (
 		Name:    "rollup.load-protocol-versions",
 		Usage:   "Load protocol versions from the superchain L1 ProtocolVersions contract (if available), and report in logs and metrics",
 		EnvVars: prefixEnvVars("ROLLUP_LOAD_PROTOCOL_VERSIONS"),
-	}
-	CanyonOverrideFlag = &cli.Uint64Flag{
-		Name:    "override.canyon",
-		Usage:   "Manually specify the Canyon fork timestamp, overriding the bundled setting",
-		EnvVars: prefixEnvVars("OVERRIDE_CANYON"),
-		Hidden:  false,
-	}
-	DeltaOverrideFlag = &cli.Uint64Flag{
-		Name:    "override.delta",
-		Usage:   "Manually specify the Delta fork timestamp, overriding the bundled setting",
-		EnvVars: prefixEnvVars("OVERRIDE_DELTA"),
-		Hidden:  false,
 	}
 	/* Deprecated Flags */
 	L2EngineSyncEnabled = &cli.BoolFlag{
@@ -281,6 +246,19 @@ var (
 		EnvVars: prefixEnvVars("BETA_EXTRA_NETWORKS"),
 		Hidden:  true, // hidden, this is deprecated, the flag is not used anymore.
 	}
+	BackupL2UnsafeSyncRPC = &cli.StringFlag{
+		Name:    "l2.backup-unsafe-sync-rpc",
+		Usage:   "Set the backup L2 unsafe sync RPC endpoint.",
+		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC"),
+		Hidden:  true,
+	}
+	BackupL2UnsafeSyncRPCTrustRPC = &cli.StringFlag{
+		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
+		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
+			"This does not include checks if the blockhash is part of the canonical chain.",
+		EnvVars: prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
+		Hidden:  true,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -293,8 +271,6 @@ var optionalFlags = []cli.Flag{
 	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,
-	RollupConfig,
-	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
@@ -320,19 +296,17 @@ var optionalFlags = []cli.Flag{
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
-	BackupL2UnsafeSyncRPC,
-	BackupL2UnsafeSyncRPCTrustRPC,
 	RollupHalt,
 	RollupLoadProtocolVersions,
 	L1RethDBPath,
-	CanyonOverrideFlag,
-	DeltaOverrideFlag,
 }
 
 var DeprecatedFlags = []cli.Flag{
 	L2EngineSyncEnabled,
 	SkipSyncStartCheck,
 	BetaExtraNetworks,
+	BackupL2UnsafeSyncRPC,
+	BackupL2UnsafeSyncRPCTrustRPC,
 	// Deprecated P2P Flags are added at the init step
 }
 
@@ -344,16 +318,8 @@ func init() {
 	optionalFlags = append(optionalFlags, P2PFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, DeprecatedFlags...)
+	optionalFlags = append(optionalFlags, opflags.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
-}
-
-// This checks flags that are exclusive & required. Specifically for each
-// set of flags, exactly one flag must be set.
-var requiredXorFlags = [][]string{
-	{
-		RollupConfig.Name,
-		Network.Name,
-	},
 }
 
 func CheckRequired(ctx *cli.Context) error {
@@ -362,16 +328,5 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	for _, flagNames := range requiredXorFlags {
-		setCount := 0
-		for _, f := range flagNames {
-			if ctx.IsSet(f) {
-				setCount += 1
-			}
-		}
-		if setCount != 1 {
-			return fmt.Errorf("exactly one of the flags %v is required", flagNames)
-		}
-	}
-	return nil
+	return opflags.CheckRequiredXor(ctx)
 }

@@ -60,8 +60,8 @@ abstract contract GameSolver is CommonBase {
         bytes memory _preStateData
     ) {
         GAME = _gameProxy;
-        SPLIT_DEPTH = GAME.SPLIT_DEPTH();
-        MAX_DEPTH = GAME.MAX_GAME_DEPTH();
+        SPLIT_DEPTH = GAME.splitDepth();
+        MAX_DEPTH = GAME.maxGameDepth();
         MAX_L2_BLOCK_NUMBER = 2 ** (MAX_DEPTH - SPLIT_DEPTH);
 
         l2Outputs = _l2Outputs;

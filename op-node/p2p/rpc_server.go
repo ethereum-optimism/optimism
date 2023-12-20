@@ -115,6 +115,10 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 		if dat, err := eps.GetPeerScores(id); err == nil {
 			info.PeerScores = dat
 		}
+		if md, err := eps.GetPeerMetadata(id); err == nil {
+			info.ENR = md.ENR
+			info.ChainID = md.OPStackID
+		}
 	}
 	if dat, err := pstore.Get(id, "ProtocolVersion"); err == nil {
 		protocolVersion, ok := dat.(string)
@@ -126,12 +130,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 		agentVersion, ok := dat.(string)
 		if ok {
 			info.UserAgent = agentVersion
-		}
-	}
-	if dat, err := pstore.Get(id, "ENR"); err == nil {
-		enodeData, ok := dat.(*enode.Node)
-		if ok {
-			info.ENR = enodeData.String()
 		}
 	}
 	// include the /p2p/ address component in all of the addresses for convenience of the API user.
@@ -151,12 +149,6 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 	for _, c := range nw.ConnsToPeer(id) {
 		info.Direction = c.Stat().Direction
 		break
-	}
-	if dat, err := pstore.Get(id, "optimismChainID"); err == nil {
-		chID, ok := dat.(uint64)
-		if ok {
-			info.ChainID = chID
-		}
 	}
 	info.Latency = pstore.LatencyEWMA(id)
 	if connMgr != nil {

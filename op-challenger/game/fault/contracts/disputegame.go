@@ -13,25 +13,33 @@ import (
 )
 
 const (
-	methodGameDuration     = "GAME_DURATION"
-	methodMaxGameDepth     = "MAX_GAME_DEPTH"
-	methodAbsolutePrestate = "ABSOLUTE_PRESTATE"
-	methodStatus           = "status"
-	methodClaimCount       = "claimDataLen"
-	methodClaim            = "claimData"
-	methodL1Head           = "l1Head"
-	methodResolve          = "resolve"
-	methodResolveClaim     = "resolveClaim"
-	methodAttack           = "attack"
-	methodDefend           = "defend"
-	methodStep             = "step"
-	methodAddLocalData     = "addLocalData"
-	methodVM               = "VM"
+	methodGameDurationV0     = "GAME_DURATION"
+	methodMaxGameDepthV0     = "MAX_GAME_DEPTH"
+	methodAbsolutePrestateV0 = "ABSOLUTE_PRESTATE"
+	methodGameDurationV1     = "gameDuration"
+	methodMaxGameDepthV1     = "maxGameDepth"
+	methodAbsolutePrestateV1 = "absolutePrestate"
+	methodStatus             = "status"
+	methodClaimCount         = "claimDataLen"
+	methodClaim              = "claimData"
+	methodL1Head             = "l1Head"
+	methodResolve            = "resolve"
+	methodResolveClaim       = "resolveClaim"
+	methodAttack             = "attack"
+	methodDefend             = "defend"
+	methodStep               = "step"
+	methodAddLocalData       = "addLocalData"
+	methodVMV0               = "VM"
+	methodVMV1               = "vm"
 )
 
 type disputeGameContract struct {
 	multiCaller *batching.MultiCaller
 	contract    *batching.BoundContract
+	// The version byte signifies the version of the dispute game contract due to mismatching function selectors.
+	// 0 = `FaultDisputeGame`
+	// 1 = `OutputBisectionGame`
+	version uint8
 }
 
 // contractProposal matches the structure for output root proposals used by the contracts.
@@ -56,6 +64,13 @@ func asProposal(p contractProposal) Proposal {
 }
 
 func (f *disputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
+	var methodGameDuration string
+	if f.version == 1 {
+		methodGameDuration = methodGameDurationV1
+	} else {
+		methodGameDuration = methodGameDurationV0
+	}
+
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodGameDuration))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch game duration: %w", err)
@@ -64,6 +79,13 @@ func (f *disputeGameContract) GetGameDuration(ctx context.Context) (uint64, erro
 }
 
 func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
+	var methodMaxGameDepth string
+	if f.version == 1 {
+		methodMaxGameDepth = methodMaxGameDepthV1
+	} else {
+		methodMaxGameDepth = methodMaxGameDepthV0
+	}
+
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodMaxGameDepth))
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
@@ -72,6 +94,13 @@ func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, erro
 }
 
 func (f *disputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
+	var methodAbsolutePrestate string
+	if f.version == 1 {
+		methodAbsolutePrestate = methodAbsolutePrestateV1
+	} else {
+		methodAbsolutePrestate = methodAbsolutePrestateV0
+	}
+
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodAbsolutePrestate))
 	if err != nil {
 		return common.Hash{}, fmt.Errorf("failed to fetch absolute prestate hash: %w", err)
@@ -135,6 +164,13 @@ func (f *disputeGameContract) GetAllClaims(ctx context.Context) ([]types.Claim, 
 }
 
 func (f *disputeGameContract) vm(ctx context.Context) (*VMContract, error) {
+	var methodVM string
+	if f.version == 1 {
+		methodVM = methodVMV1
+	} else {
+		methodVM = methodVMV0
+	}
+
 	result, err := f.multiCaller.SingleCall(ctx, batching.BlockLatest, f.contract.Call(methodVM))
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch VM addr: %w", err)

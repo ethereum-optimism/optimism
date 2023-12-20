@@ -9,6 +9,8 @@
 
 - [Introduction](#introduction)
 - [Span batch format](#span-batch-format)
+  - [Max span-batch size](#max-span-batch-size)
+  - [Future batch-format extension](#future-batch-format-extension)
 - [Span batch Activation Rule](#span-batch-activation-rule)
 - [Optimization Strategies](#optimization-strategies)
   - [Truncating information and storing only necessary data](#truncating-information-and-storing-only-necessary-data)
@@ -128,6 +130,26 @@ Where:
   - `protected_bits`: standard bitlist of length of number of legacy transactions:
     1 bit per L2 legacy transactions, indicating if transaction is protected([EIP-155]) or not.
 
+[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
+[EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
+[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
+[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
+
+### Max span-batch size
+
+Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
+equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
+`MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
+to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
+limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
+decoding. For example, let's say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return
+using the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for
+decoding because we know the upper limit of memory usage.
+
+### Future batch-format extension
+
+This is an experimental extension of the span-batch format, and not activated with the Delta upgrade yet.
+
 Introduce version `2` to the [batch-format](./derivation.md#batch-format) table:
 
 | `batch_version` | `content`           |
@@ -146,23 +168,6 @@ Where:
     - `fee_recipients_set`: concatenated list of unique L2 fee recipient address.
     - `fee_recipients_idxs`: for each block,
       `uvarint` number of index to decode fee recipients from `fee_recipients_set`.
-
-[EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
-
-[EIP-2930]: https://eips.ethereum.org/EIPS/eip-2930
-
-[EIP-1559]: https://eips.ethereum.org/EIPS/eip-1559
-
-[EIP-155]: https://eips.ethereum.org/EIPS/eip-155
-
-Total size of encoded span batch is limited to `MAX_SPAN_BATCH_SIZE` (currently 10,000,000 bytes,
-equal to `MAX_RLP_BYTES_PER_CHANNEL`). Therefore every field size of span batch will be implicitly limited to
-`MAX_SPAN_BATCH_SIZE` . There can be at least single span batch per channel, and channel size is limited
-to `MAX_RLP_BYTES_PER_CHANNEL` and you may think that there is already an implicit limit. However, having an explicit
-limit for span batch is helpful for several reasons. We may save computation costs by avoiding malicious input while
-decoding. For example, let's say bad batcher wrote span batch which `block_count = max.Uint64`. We may early return
-using the explicit limit, not trying to consume data until EOF is reached. We can also safely preallocate memory for
-decoding because we know the upper limit of memory usage.
 
 ## Span batch Activation Rule
 

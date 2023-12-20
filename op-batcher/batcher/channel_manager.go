@@ -241,7 +241,7 @@ func (s *channelManager) processBlocks() error {
 		} else if err != nil {
 			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
 		}
-		s.log.Debug("Added block to channel", "channel", s.currentChannel.ID(), "block", block)
+		s.log.Debug("Added block to channel", "id", s.currentChannel.ID(), "block", block)
 
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
@@ -337,9 +337,15 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 	}
 }
 
-// Close closes the current pending channel, if one exists, outputs any remaining frames,
-// and prevents the creation of any new channels.
-// Any outputted frames still need to be published.
+var ErrPendingAfterClose = errors.New("pending channels remain after closing channel-manager")
+
+// Close clears any pending channels that are not in-flight already, to leave a clean derivation state.
+// Close then marks the remaining current open channel, if any, as "full" so it can be submitted as well.
+// Close does NOT immediately output frames for the current remaining channel:
+// as this might error, due to limitations on a single channel.
+// Instead, this is part of the pending-channel submission work: after closing,
+// the caller SHOULD drain pending channels by generating TxData repeatedly until there is none left (io.EOF).
+// A ErrPendingAfterClose error will be returned if there are any remaining pending channels to submit.
 func (s *channelManager) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -348,19 +354,39 @@ func (s *channelManager) Close() error {
 	}
 
 	s.closed = true
+	s.log.Info("Channel manager is closing")
 
 	// Any pending state can be proactively cleared if there are no submitted transactions
 	for _, ch := range s.channelQueue {
 		if ch.NoneSubmitted() {
+			s.log.Info("Channel has no past or pending submission - dropping", "id", ch.ID(), "")
 			s.removePendingChannel(ch)
+		} else {
+			s.log.Info("Channel is in-flight and will need to be submitted after close", "id", ch.ID(), "confirmed", len(ch.confirmedTransactions), "pending", len(ch.pendingTransactions))
 		}
 	}
+	s.log.Info("Reviewed all pending channels on close", "remaining", len(s.channelQueue))
 
 	if s.currentChannel == nil {
 		return nil
 	}
 
-	s.currentChannel.Close()
+	// If the channel is already full, we don't need to close it or output frames.
+	// This would already have happened in TxData.
+	if !s.currentChannel.IsFull() {
+		// Force-close the remaining open channel early (if not already closed):
+		// it will be marked as "full" due to service termination.
+		s.currentChannel.Close()
 
-	return s.outputFrames()
+		// Final outputFrames call in case there was unflushed data in the compressor.
+		if err := s.outputFrames(); err != nil {
+			return fmt.Errorf("outputting frames during close: %w", err)
+		}
+	}
+
+	if s.currentChannel.HasFrame() {
+		// Make it clear to the caller that there is remaining pending work.
+		return ErrPendingAfterClose
+	}
+	return nil
 }
