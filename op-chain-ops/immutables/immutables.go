@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 )
 
@@ -36,15 +35,13 @@ type PredeploysImmutableConfig struct {
 		MinWithdrawalAmount *big.Int
 		WithdrawalNetwork   uint8
 	}
-	OptimismMintableERC20Factory struct {
-		Bridge common.Address
-	}
-	L1BlockNumber       struct{}
-	GasPriceOracle      struct{}
-	L1Block             struct{}
-	GovernanceToken     struct{}
-	LegacyMessagePasser struct{}
-	L2ERC721Bridge      struct {
+	OptimismMintableERC20Factory struct{}
+	L1BlockNumber                struct{}
+	GasPriceOracle               struct{}
+	L1Block                      struct{}
+	GovernanceToken              struct{}
+	LegacyMessagePasser          struct{}
+	L2ERC721Bridge               struct {
 		OtherBridge common.Address
 		Messenger   common.Address
 	}
@@ -234,15 +231,7 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		}
 		_, tx, _, err = bindings.DeployL1FeeVault(opts, backend, recipient, minimumWithdrawalAmount, withdrawalNetwork)
 	case "OptimismMintableERC20Factory":
-		bridge, ok := deployment.Args[0].(common.Address)
-		if !ok {
-			return nil, fmt.Errorf("invalid type for bridge")
-		}
-		// Sanity check that the argument is correct
-		if bridge != predeploys.L2StandardBridgeAddr {
-			return nil, fmt.Errorf("invalid bridge address")
-		}
-		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, bridge)
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend)
 	case "L2ERC721Bridge":
 		otherBridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
