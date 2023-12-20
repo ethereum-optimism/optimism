@@ -88,8 +88,12 @@
 - [Deriving Payload Attributes](#deriving-payload-attributes)
   - [Deriving the Transaction List](#deriving-the-transaction-list)
     - [Network upgrade automation transactions](#network-upgrade-automation-transactions)
-      - [Ecotone: L1Block predeploy upgrade](#ecotone-l1block-predeploy-upgrade)
-      - [Ecotone: Beacon block roots contract deployment (EIP-4788)](#ecotone-beacon-block-roots-contract-deployment-eip-4788)
+      - [Ecotone](#ecotone)
+        - [L1Block Deployment](#l1block-deployment)
+        - [GasPriceOracle Deployment](#gaspriceoracle-deployment)
+        - [L1Block Proxy Update](#l1block-proxy-update)
+        - [GasPriceOracle Proxy Update](#gaspriceoracle-proxy-update)
+        - [Beacon block roots contract deployment (EIP-4788)](#beacon-block-roots-contract-deployment-eip-4788)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -987,46 +991,156 @@ Some network upgrades require automated contract changes or deployments at speci
 To automate these, without adding persistent changes to the execution-layer,
 special transactions may be inserted as part of the derivation process.
 
-#### Ecotone: L1Block predeploy upgrade
+#### Ecotone
+
+The block before the Ecotone hardfork, contains the following transactions in this order:
+>>>>>>> fb57163da (Update ecotone contract deployment)
+
+* L1 Attributes Transaction
+* User deposits from L1
+* Network Upgrade Transactions
+  * L1Block deployment
+  * GasPriceOracle deployment
+  * L1Block proxy update
+  * GasPriceOracle proxy update
+  * GasPriceOracle enable ecotone
+  * Beacon block roots contract deployment (EIP-4788)
+
+To not modify or interrupt the system behavior around gas computation, this block will not include any sequenced
+transactions.
+
+##### L1Block Deployment
 
 The `L1Block` contract is upgraded to process the new Ecotone L1-data-fee parameters and L1 blob base-fee.
 
-The `L1Block` is called in the very first transaction of the block,
-and parsed to retrieve the L1 block attributes.
-
-To not modify or interrupt the above system transaction behavior,
-the `L1Block` contract upgrade is executed in the last block *before* the scheduled update.
-
 A deposit transaction is derived with the following attributes:
 
-- `from`: `ProxyAdmin` owner
-- `to`: TBD (depending on multi-call approach)
+- `from`: `0x4210000000000000000000000000000000000000`
+- `to`: `null`,
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: gas limit TBD
-- `isCreation`: `false`
-- `data`: bytecode TBD, a multi-call:
-  - deploy new contract implementation
-  - upgrade of `L1Block` through `ProxyAdmin`
-- `sourceHash`: `0x7dc74874297a8937186fdbec57ad344647a522de456088557e5fdeda88f66ddd`,
-  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1Block upgrade"`
+- `gasLimit`: `1,000,000` (TBC)
+- `data`: L1Block deploy bytecode (TBC when PR for contracts is merged)
+- `sourceHash`: `0x877a6077205782ea15a6dc8699fa5ebcec5e0f4389f09cb8eda09488231346f8`,
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Deployment"
 
+This results in the Ecotone L1Block contract being deployed to `0x07dbe8500fc591d1852B76feE44d5a05e13097Ff`, to verify:
+
+```bash
+cast compute-address --nonce=0 0x4210000000000000000000000000000000000000
+Computed Address: 0x07dbe8500fc591d1852B76feE44d5a05e13097Ff
+```
 Verify `sourceHash`:
 
 ```bash
 # compute intent hash:
-cast keccak "Ecotone: L1Block upgrade"
-# 0xaf2b20ee05be9fc3f0712050591a5f8988f94b56cdf48842863a773b76634fde
+cast keccak "Ecotone: L1 Block Deployment"
+# 0xc9732b17afa32fa4f1f537dc8db369066928498bc8395a96761648c6adb187d0
 
 # source hash type:
 # 0x0000000000000000000000000000000000000000000000000000000000000002
 
 # compute source hash:
-cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002831b745c7397f93704ae55eb0100bf3c56fe9e304d3f21c1a93ec25f736fea26
-# 0x7dc74874297a8937186fdbec57ad344647a522de456088557e5fdeda88f66ddd
+cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002c9732b17afa32fa4f1f537dc8db369066928498bc8395a96761648c6adb187d0
+# 0x877a6077205782ea15a6dc8699fa5ebcec5e0f4389f09cb8eda09488231346f8
 ```
 
-#### Ecotone: Beacon block roots contract deployment (EIP-4788)
+##### GasPriceOracle Deployment
+
+The `GasPriceOracle` contract is upgraded to support the new Ecotone L1-data-fee parameters. Post fork this contract
+will use the blob base fee to compute the gas price for L1-data-fee transactions.
+
+A deposit transaction is derived with the following attributes:
+
+- `from`: `0x4210000000000000000000000000000000000001`
+- `to`: `null`,
+- `mint`: `0`
+- `value`: `0`
+- `gasLimit`: `1,000,000` (TBC)
+- `data`: GasPriceOracle deploy bytecode (TBC when PR for contracts is merged)
+- `sourceHash`: `0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42`,
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Deployment"
+
+This results in the Ecotone GasPriceOracle contract being deployed to `0xb528D11cC114E026F138fE568744c6D45ce6Da7A`, to verify:
+
+```bash
+cast compute-address --nonce=0 0x4210000000000000000000000000000000000001
+Computed Address: 0xb528D11cC114E026F138fE568744c6D45ce6Da7A
+```
+
+Verify `sourceHash`:
+
+```bash
+# compute intent hash:
+cast keccak "Ecotone: Gas Price Oracle Deployment"
+# 0x529c922cad7984deae1f8311397f61998c2d101c184693006c91384c0faae8be
+
+# source hash type:
+# 0x0000000000000000000000000000000000000000000000000000000000000002
+
+# compute source hash:
+cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002529c922cad7984deae1f8311397f61998c2d101c184693006c91384c0faae8be
+# 0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42
+```
+
+##### L1Block Proxy Update
+
+This transaction updates the L1Block proxy to point to the new L1Block implementation.
+
+A deposit transaction is derived with the following attributes:
+
+- `from`: `Proxy Admin`
+- `to`: `L1 Block Proxy`,
+- `mint`: `0`
+- `value`: `0`
+- `gasLimit`: `1,000,000` (TBC)
+- `data`: `upgradeTo(0x07dbe8500fc591d1852B76feE44d5a05e13097Ff)`
+- `sourceHash`: `0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc`,
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Proxy Update"
+
+```bash
+# compute intent hash:
+cast keccak "Ecotone: L1 Block Proxy Update"
+# 0x8eb5485869caa58625c9c5f54152d8f25133495d52f3cd99861072299010d005
+
+# source hash type:
+# 0x0000000000000000000000000000000000000000000000000000000000000002
+
+# compute source hash:
+cast keccak 0x00000000000000000000000000000000000000000000000000000000000000028eb5485869caa58625c9c5f54152d8f25133495d52f3cd99861072299010d005
+# 0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc
+```
+
+##### GasPriceOracle Proxy Update
+
+This transaction updates the GasPriceOracle proxy to point to the new GasPriceOracle implementation.
+
+A deposit transaction is derived with the following attributes:
+
+- `from`: `Proxy Admin`
+- `to`: `Gas Price Oracle Proxy`,
+- `mint`: `0`
+- `value`: `0`
+- `gasLimit`: `1,000,000` (TBC)
+- `data`: `upgradeTo(0xb528D11cC114E026F138fE568744c6D45ce6Da7A)`
+- `sourceHash`: `0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a`,
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
+
+```bash
+# compute intent hash:
+cast keccak "Ecotone: Gas Price Oracle Proxy Update"
+# 0x461dddc5e0ed82e7bedc48bd6d5aba375f57afb76b83cd67b934619598d8c56b
+
+# source hash type:
+# 0x0000000000000000000000000000000000000000000000000000000000000002
+
+# compute source hash:
+cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002461dddc5e0ed82e7bedc48bd6d5aba375f57afb76b83cd67b934619598d8c56b
+# 0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a
+```
+
+##### Beacon block roots contract deployment (EIP-4788)
+>>>>>>> fb57163da (Update ecotone contract deployment)
 
 [EIP-4788] introduces a "Beacon block roots" contract, that processes and exposes the beacon-block-root values.
 at address `BEACON_ROOTS_ADDRESS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`.
@@ -1053,7 +1167,7 @@ A Deposit transaction is derived with the following attributes:
 - `data`:
   `0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500`
 - `isSystemTx`: `false`, as per the Regolith upgrade, even the system-generated transactions spend gas.
-- `sourceHash`: `0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f`,
+- `sourceHash`: `0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c`,
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: beacon block roots contract deployment"`
 
 The contract address upon deployment is computed as `rlp([sender, nonce])`, which will equal:
@@ -1081,7 +1195,7 @@ cast keccak "Ecotone: beacon block roots contract deployment"
 
 # compute source hash:
 cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002ab0dfc96b47739a0ae1d415bbfaae79ebb1111861a3b7cfbbaa6ca4a9e618357
-0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c
+# 0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c
 ```
 
 [EIP-4788]: https://eips.ethereum.org/EIPS/eip-4788
