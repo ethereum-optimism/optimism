@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"errors"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 

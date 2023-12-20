@@ -3,6 +3,7 @@ package derive
 import (
 	"context"
 	"fmt"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"

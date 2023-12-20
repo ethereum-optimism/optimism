@@ -82,6 +82,10 @@ func (h headerInfo) GasLimit() uint64 {
 	return h.Header.GasLimit
 }
 
+func (h headerInfo) ParentBeaconRoot() *common.Hash {
+	return h.Header.ParentBeaconRoot
+}
+
 func (h headerInfo) HeaderRLP() ([]byte, error) {
 	return rlp.EncodeToBytes(h.Header)
 }
