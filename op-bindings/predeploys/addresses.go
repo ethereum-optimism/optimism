@@ -26,6 +26,16 @@ const (
 	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
 	EAS                           = "0x4200000000000000000000000000000000000021"
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
+	MultiCall3                    = "0xcA11bde05977b3631167028862bE2a173976CA11"
+	Safe_v130                     = "0x69f4D1788e39c87893C980c06EdF4b7f686e2938"
+	SafeL2_v130                   = "0xfb1bffC9d739B8D520DaF37dF666da4C687191EA"
+	MultiSendCallOnly_v130        = "0xA1dabEF33b3B82c7814B6D82A79e50F4AC44102B"
+	SafeSingletonFactory          = "0x914d7Fec6aaC8cd542e72Bca78B30650d45643d7"
+	DeterministicDeploymentProxy  = "0x4e59b44847b379578588920cA78FbF26c0B4956C"
+	MultiSend_v130                = "0x998739BFdAAdde7C933B942a68053933098f9EDa"
+	Permit2                       = "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+	SenderCreator                 = "0x7fc98430eaedbb6070b35b39d798725049088348"
+	EntryPoint                    = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789"
 )
 
 var (
@@ -49,6 +59,16 @@ var (
 	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
 	EASAddr                           = common.HexToAddress(EAS)
 	Create2DeployerAddr               = common.HexToAddress(Create2Deployer)
+	MultiCall3Addr                    = common.HexToAddress(MultiCall3)
+	Safe_v130Addr                     = common.HexToAddress(Safe_v130)
+	SafeL2_v130Addr                   = common.HexToAddress(SafeL2_v130)
+	MultiSendCallOnly_v130Addr        = common.HexToAddress(MultiSendCallOnly_v130)
+	SafeSingletonFactoryAddr          = common.HexToAddress(SafeSingletonFactory)
+	DeterministicDeploymentProxyAddr  = common.HexToAddress(DeterministicDeploymentProxy)
+	MultiSend_v130Addr                = common.HexToAddress(MultiSend_v130)
+	Permit2Addr                       = common.HexToAddress(Permit2)
+	SenderCreatorAddr                 = common.HexToAddress(SenderCreator)
+	EntryPointAddr                    = common.HexToAddress(EntryPoint)
 
 	Predeploys          = make(map[string]*Predeploy)
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
@@ -83,10 +103,46 @@ func init() {
 	Predeploys["Create2Deployer"] = &Predeploy{
 		Address:       Create2DeployerAddr,
 		ProxyDisabled: true,
-		Enabled: func(config DeployConfig) bool {
-			canyonTime := config.CanyonTime(0)
-			return canyonTime != nil && *canyonTime == 0
-		},
+	}
+	Predeploys["MultiCall3"] = &Predeploy{
+		Address:       MultiCall3Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["Safe_v130"] = &Predeploy{
+		Address:       Safe_v130Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["SafeL2_v130"] = &Predeploy{
+		Address:       SafeL2_v130Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["MultiSendCallOnly_v130"] = &Predeploy{
+		Address:       MultiSendCallOnly_v130Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["SafeSingletonFactory"] = &Predeploy{
+		Address:       SafeSingletonFactoryAddr,
+		ProxyDisabled: true,
+	}
+	Predeploys["DeterministicDeploymentProxy"] = &Predeploy{
+		Address:       DeterministicDeploymentProxyAddr,
+		ProxyDisabled: true,
+	}
+	Predeploys["MultiSend_v130"] = &Predeploy{
+		Address:       MultiSend_v130Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["Permit2"] = &Predeploy{
+		Address:       Permit2Addr,
+		ProxyDisabled: true,
+	}
+	Predeploys["SenderCreator"] = &Predeploy{
+		Address:       SenderCreatorAddr,
+		ProxyDisabled: true,
+	}
+	Predeploys["EntryPoint"] = &Predeploy{
+		Address:       EntryPointAddr,
+		ProxyDisabled: true,
 	}
 
 	for _, predeploy := range Predeploys {

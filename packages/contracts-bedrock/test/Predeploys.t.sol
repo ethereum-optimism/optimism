@@ -16,8 +16,14 @@ contract PredeploysTest is CommonTest {
             bytes memory code = addr.code;
             assertTrue(code.length > 0);
             // Skip the accounts that do not have a proxy
-            if (addr == Predeploys.LEGACY_ERC20_ETH || addr == Predeploys.GOVERNANCE_TOKEN || addr == Predeploys.WETH9)
-            {
+            if (
+                addr == Predeploys.LEGACY_ERC20_ETH || addr == Predeploys.GOVERNANCE_TOKEN || addr == Predeploys.WETH9
+                    || addr == Predeploys.MultiCall3 || addr == Predeploys.Create2Deployer || addr == Predeploys.Safe_v130
+                    || addr == Predeploys.SafeL2_v130 || addr == Predeploys.MultiSendCallOnly_v130
+                    || addr == Predeploys.SafeSingletonFactory || addr == Predeploys.DeterministicDeploymentProxy
+                    || addr == Predeploys.MultiSend_v130 || addr == Predeploys.Permit2 || addr == Predeploys.SenderCreator
+                    || addr == Predeploys.EntryPoint
+            ) {
                 continue;
             }
             assertTrue(EIP1967Helper.getAdmin(addr) == Predeploys.PROXY_ADMIN, "Admin mismatch");
