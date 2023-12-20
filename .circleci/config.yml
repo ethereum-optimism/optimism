@@ -1281,13 +1281,11 @@ jobs:
           command: |
             IMAGE_BASE_PREFIX="us-docker.pkg.dev/oplabs-tools-artifacts/images"
             # Load from previous docker-build job
-            docker load < "./op-stack-go.tar"
             docker load < "./op-node.tar"
             docker load < "./op-proposer.tar"
             docker load < "./op-batcher.tar"
             docker load < "./da-server.tar"
             # rename to the tags that the docker-compose of the devnet expects
-            docker tag "$IMAGE_BASE_PREFIX/op-stack-go:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-stack-go:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-node:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-node:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-proposer:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-proposer:devnet"
             docker tag "$IMAGE_BASE_PREFIX/op-batcher:<<pipeline.git.revision>>" "$IMAGE_BASE_PREFIX/op-batcher:devnet"
@@ -1800,64 +1798,50 @@ workflows:
             - op-e2e-fault-proof-tests
             - op-e2e-action-tests
             - op-e2e-ext-geth-tests
-      - docker-build: # just to warm up the cache (other jobs run in parallel)
-          name: op-stack-go-docker-build
-          docker_name: op-stack-go
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-node-docker-build
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-batcher-docker-build
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-program-docker-build
           docker_name: op-program
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
+          # op-program is not part of the devnet, we don't save it.
       - docker-build:
           name: op-proposer-docker-build
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-challenger-docker-build
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
+          # op-challenger is not part of the devnet, we don't save it.
       - docker-build:
           name: op-dispute-mon-docker-build
           docker_name: op-dispute-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - docker-build:
           name: op-conductor-docker-build
           docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
+          # op-conductor is not part of the devnet, we don't save it.
       - docker-build:
           name: op-heartbeat-docker-build
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
-          save_image_tag: <<pipeline.git.revision>> # for devnet later
+          # op-heartbeat is not part of the devnet, we don't save it.
       - docker-build:
           name: da-server-docker-build
           docker_name: da-server
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
       - cannon-prestate:
           requires:
@@ -1906,18 +1890,6 @@ workflows:
               only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
-      - docker-build: # just to warm up the cache (other jobs run in parallel)
-          name: op-stack-go-docker-build-release
-          filters:
-            tags:
-              only: /^(da-server|proxyd|chain-mon|indexer|ci-builder(-rust)?|ufm-[a-z0-9\-]*|op-[a-z0-9\-]*)\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-stack-go
-          docker_tags: <<pipeline.git.revision>>
-          platforms: "linux/amd64,linux/arm64"
-          requires:
-            - hold
       - docker-build:
           name: op-heartbeat-release
           filters:
@@ -1927,7 +1899,7 @@ workflows:
               ignore: /.*/
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -1942,7 +1914,7 @@ workflows:
               ignore: /.*/
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -1957,7 +1929,7 @@ workflows:
               ignore: /.*/
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -1972,7 +1944,7 @@ workflows:
               ignore: /.*/
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -1987,7 +1959,7 @@ workflows:
               ignore: /.*/
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -2017,7 +1989,7 @@ workflows:
               ignore: /.*/
           docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>
-          requires: ['op-stack-go-docker-build-release']
+          requires: ['hold']
           platforms: "linux/amd64,linux/arm64"
           publish: true
           release: true
@@ -2212,19 +2184,10 @@ workflows:
     when:
       equal: [ build_hourly, <<pipeline.schedule.name>> ]
     jobs:
-      - docker-build: # just to warm up the cache (other jobs run in parallel)
-          name: op-stack-go-docker-build-publish
-          docker_name: op-stack-go
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr
-            - slack
       - docker-build:
           name: op-node-docker-publish
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
@@ -2234,7 +2197,6 @@ workflows:
           name: op-batcher-docker-publish
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
@@ -2244,7 +2206,6 @@ workflows:
           name: op-program-docker-publish
           docker_name: op-program
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
@@ -2254,7 +2215,6 @@ workflows:
           name: op-proposer-docker-publish
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
@@ -2264,7 +2224,6 @@ workflows:
           name: op-challenger-docker-publish
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
@@ -2284,7 +2243,6 @@ workflows:
           name: op-conductor-docker-publish
           docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
@@ -2294,7 +2252,6 @@ workflows:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          requires: [ 'op-stack-go-docker-build-publish' ]
           platforms: "linux/amd64,linux/arm64"
           publish: true
           context:
