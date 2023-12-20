@@ -33,6 +33,7 @@ test/kontrol
 ### Root folder
 
 - [`KontrolDeployment.sol`](./KontrolDeployment.sol): Reduced deployment to generate the summary contract
+- [`pausability-lemmas.k`](./pausability-lemmas.k): File containing the necessary lemmas for this project
 - [`proofs`](./proofs): Where the proofs of the project live
 - [`kontrol`](./kontrol): Lemmas and utilities for the project set up
 
@@ -42,14 +43,12 @@ test/kontrol
 - [`interfaces`](./proofs/interfaces): Files with the signature of the functions involved in the verification effort
 - [`utils`](./proofs/utils): Dependencies for `OptimismPortal.k.sol`
 
-### [`kontrol`](./kontrol) folder
+### [`scripts`](./scripts) folder
 
-- [`pausability-lemmas.k`](./kontrol/pausability-lemmas.k): File containing the necessary lemmas for this project
-- [`scripts`](./kontrol/scripts): Contains
-    - [`make-summary-deployment.sh`](./kontrol/scripts/make-summary-deployment.sh): Executes [`KontrolDeployment.sol`](./KontrolDeployment.sol), curates the result and writes the summary deployment contract
-    - [`run-kontrol.sh`](./kontrol/scrpts/run-kontrol.sh): CI execution script
-    - [`run-kontrol-local.sh`](./kontrol/scrpts/run-kontrol-local.sh): Local execution script
-    - [`json`](./kontrol/scripts/json): Data cleaning scripts for the output of [`KontrolDeployment.sol`](./KontrolDeployment.sol)
+- [`make-summary-deployment.sh`](./scripts/make-summary-deployment.sh): Executes [`KontrolDeployment.sol`](./KontrolDeployment.sol), curates the result and writes the summary deployment contract
+- [`run-kontrol.sh`](./scrpts/run-kontrol.sh): CI execution script
+- [`run-kontrol-local.sh`](./scrpts/run-kontrol-local.sh): Local execution script
+- [`json`](./scripts/json): Data cleaning scripts for the output of [`KontrolDeployment.sol`](./KontrolDeployment.sol)
 
 ## Local verification exeuction
 
