@@ -50,5 +50,8 @@
   },
   "peerDependencies": {
     "viem": "^0.3.30"
+  },
+  "dependencies": {
+    "@eth-optimism/contracts-ts": "^0.17.0"
   }
 }

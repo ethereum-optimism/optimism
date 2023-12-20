@@ -239,14 +239,6 @@ pull_request_rules:
       label:
         add:
           - A-pkg-contracts-bedrock
-  - name: Add A-pkg-contracts-ts label
-    conditions:
-      - 'files~=^packages/contracts-ts/'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - A-pkg-contracts-ts
   - name: Add A-pkg-core-utils label
     conditions:
       - 'files~=^packages/core-utils/'

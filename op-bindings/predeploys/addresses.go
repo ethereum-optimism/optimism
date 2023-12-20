@@ -3,7 +3,6 @@ package predeploys
 import "github.com/ethereum/go-ethereum/common"
 
 // TODO - we should get a single toml yaml or json file source of truth in @eth-optimism/bedrock package
-// This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
 // To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"

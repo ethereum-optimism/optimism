@@ -10,8 +10,7 @@
     "src/**/*.sol"
   ],
   "scripts": {
-    "bindings": "pnpm bindings:ts && pnpm bindings:go",
-    "bindings:ts": "nx generate @eth-optimism/contracts-ts",
+    "bindings": "pnpm bindings:go",
     "bindings:go:no-build": "cd ../../op-bindings && make bindings-build",
     "bindings:go": "pnpm clean && pnpm build && pnpm bindings:go:no-build",
     "prebuild": "./scripts/verify-foundry-install.sh",

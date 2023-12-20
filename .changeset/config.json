@@ -3,7 +3,6 @@
   "changelog": ["@changesets/changelog-github", { "repo": "ethereum-optimism/optimism" }],
   "commit": false,
   "fixed": [],
-  "linked": [["@eth-optimism/contracts-bedrock", "@eth-optimism/contracts-ts"]],
   "access": "public",
   "baseBranch": "develop",
   "updateInternalDependencies": "patch",

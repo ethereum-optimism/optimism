@@ -35,6 +35,3 @@ $ make devtools
 
 The geth docs for `abigen` can be found [here](https://geth.ethereum.org/docs/dapp/native-bindings).
 
-## See also
-
-TypeScript bindings are also generated in [@eth-optimism/contracts-ts](../packages/contracts-ts/)

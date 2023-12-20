@@ -581,28 +581,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  contracts-ts-tests:
-    docker:
-      - image: <<pipeline.parameters.ci_builder_image>>
-    resource_class: medium
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore pnpm Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install:ci
-      - run:
-          name: Check generated and build
-          command: pnpm generate:check
-          working_directory: packages/contracts-ts
-
   sdk-next-tests:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
@@ -1382,13 +1360,6 @@ workflows:
           coverage_flag: chain-mon-tests
           package_name: chain-mon
           dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: contracts-ts-tests
-          coverage_flag: contracts-ts-tests
-          package_name: contracts-ts
-          dependencies: '(contracts-bedrock|contracts-ts)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
