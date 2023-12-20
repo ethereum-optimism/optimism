@@ -13,9 +13,9 @@ type UserDepositSource struct {
 }
 
 const (
-	UserDepositSourceDomain   = 0
-	L1InfoDepositSourceDomain = 1
-	SystemDepositSourceDomain = 2
+	UserDepositSourceDomain    = 0
+	L1InfoDepositSourceDomain  = 1
+	UpgradeDepositSourceDomain = 2
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -46,5 +46,15 @@ func (dep *L1InfoDepositSource) SourceHash() common.Hash {
 	return crypto.Keccak256Hash(domainInput[:])
 }
 
+type UpgradeDepositSource struct {
+	Intent string
+}
 
-// third source that implements Proto's spec
+func (dep *UpgradeDepositSource) SourceHash() common.Hash {
+	intentHash := crypto.Keccak256Hash([]byte(dep.Intent))
+
+	var domainInput [32 * 2]byte
+	binary.BigEndian.PutUint64(domainInput[32-8:32], UpgradeDepositSourceDomain)
+	copy(domainInput[32:], intentHash[:])
+	return crypto.Keccak256Hash(domainInput[:])
+}
