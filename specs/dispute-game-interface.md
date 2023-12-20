@@ -30,6 +30,9 @@ single dispute game will not result in the bug becoming consensus.
 For added context, we define a few types that are used in the following snippets.
 
 ```solidity
+/// @notice A `Claim` type represents a 32 byte hash or other unique identifier for a claim about
+///         a certain piece of information.
+type Claim is bytes32;
 
 /// @notice A custom type for a generic hash.
 type Hash is bytes32;
@@ -37,14 +40,25 @@ type Hash is bytes32;
 /// @notice A dedicated timestamp type.
 type Timestamp is uint64;
 
-/// @notice The type of proof system being used.
-enum GameType {
-    /// @dev The game will use a `IDisputeGame` implementation that utilizes fault proofs.
-    FAULT,
-    /// @dev The game will use a `IDisputeGame` implementation that utilizes validity proofs.
-    VALIDITY,
-    /// @dev The game will use a `IDisputeGame` implementation that utilizes attestation proofs.
-    ATTESTATION
+/// @notice A `GameType` represents the type of game being played.
+type GameType is uint8;
+
+/// @title GameTypes
+/// @notice A library that defines the IDs of games that can be played.
+library GameTypes {
+    /// @dev A dispute game type the uses the cannon vm.
+    GameType internal constant CANNON = GameType.wrap(0);
+
+    /// @dev A dispute game type that performs output bisection and then uses the cannon vm.
+    GameType internal constant OUTPUT_CANNON = GameType.wrap(1);
+
+    /// @notice A dispute game type that performs output bisection and then uses an alphabet vm.
+    ///         Not intended for production use.
+    GameType internal constant OUTPUT_ALPHABET = GameType.wrap(254);
+
+    /// @notice A dispute game type that uses an alphabet vm.
+    ///         Not intended for production use.
+    GameType internal constant ALPHABET = GameType.wrap(255);
 }
 
 /// @notice The current status of the dispute game.
@@ -56,13 +70,6 @@ enum GameStatus {
     /// @dev The game has concluded, and the `rootClaim` could not be contested.
     DEFENDER_WINS
 }
-
-/// @notice A `Claim` type represents a 32 byte hash or other unique identifier for a claim about
-///         a certain piece of information.
-/// @dev For the `FAULT` `GameType`, this will be a root of the merklized state of the fault proof
-///      program at the end of the state transition.
-///      For the `ATTESTATION` `GameType`, this will be an output root.
-type Claim is bytes32;
 ```
 
 ## `DisputeGameFactory` Interface
@@ -112,7 +119,11 @@ interface IDisputeGameFactory {
     /// @return proxy_ The clone of the `DisputeGame` created with the given parameters.
     ///         Returns `address(0)` if nonexistent.
     /// @return timestamp_ The timestamp of the creation of the dispute game.
-    function games(GameType _gameType, Claim _rootClaim, bytes calldata _extraData)
+    function games(
+        GameType _gameType,
+        Claim _rootClaim,
+        bytes calldata _extraData
+    )
         external
         view
         returns (IDisputeGame proxy_, Timestamp timestamp_);
@@ -141,7 +152,11 @@ interface IDisputeGameFactory {
     /// @param _rootClaim The root claim of the DisputeGame.
     /// @param _extraData Any extra data that should be provided to the created dispute game.
     /// @return proxy_ The address of the created DisputeGame proxy.
-    function create(GameType _gameType, Claim _rootClaim, bytes calldata _extraData)
+    function create(
+        GameType _gameType,
+        Claim _rootClaim,
+        bytes calldata _extraData
+    )
         external
         returns (IDisputeGame proxy_);
 
@@ -158,7 +173,11 @@ interface IDisputeGameFactory {
     /// @param _rootClaim The root claim of the DisputeGame.
     /// @param _extraData Any extra data that should be provided to the created dispute game.
     /// @return uuid_ The unique identifier for the given dispute game parameters.
-    function getGameUUID(GameType _gameType, Claim _rootClaim, bytes memory _extraData)
+    function getGameUUID(
+        GameType _gameType,
+        Claim _rootClaim,
+        bytes memory _extraData
+    )
         external
         pure
         returns (Hash uuid_);
@@ -175,46 +194,40 @@ the interface.
 Clones of the `IDisputeGame`'s `initialize` functions will be called by the `DisputeGameFactory` upon creation.
 
 ```solidity
-////////////////////////////////////////////////////////////////
-//                    GENERIC DISPUTE GAME                    //
-////////////////////////////////////////////////////////////////
-
 /// @title IDisputeGame
 /// @notice The generic interface for a DisputeGame contract.
-interface IDisputeGame {
-    /// @notice Initializes the DisputeGame contract.
-    /// @custom:invariant The `initialize` function may only be called once.
-    function initialize() external;
-
+interface IDisputeGame is IInitializable {
     /// @notice Emitted when the game is resolved.
     /// @param status The status of the game after resolution.
     event Resolved(GameStatus indexed status);
 
     /// @notice Returns the timestamp that the DisputeGame contract was created at.
-    function createdAt() external pure returns (Timestamp createdAt_);
+    /// @return createdAt_ The timestamp that the DisputeGame contract was created at.
+    function createdAt() external view returns (Timestamp createdAt_);
 
     /// @notice Returns the current status of the game.
+    /// @return status_ The current status of the game.
     function status() external view returns (GameStatus status_);
 
     /// @notice Getter for the game type.
-    /// @dev `clones-with-immutable-args` argument #1
     /// @dev The reference impl should be entirely different depending on the type (fault, validity)
     ///      i.e. The game type should indicate the security model.
     /// @return gameType_ The type of proof system being used.
     function gameType() external view returns (GameType gameType_);
 
     /// @notice Getter for the root claim.
+    /// @dev `clones-with-immutable-args` argument #1
     /// @return rootClaim_ The root claim of the DisputeGame.
-    /// @dev `clones-with-immutable-args` argument #2
-    function rootClaim() external view returns (Claim rootClaim_);
+    function rootClaim() external pure returns (Claim rootClaim_);
 
     /// @notice Getter for the extra data.
-    /// @dev `clones-with-immutable-args` argument #3
+    /// @dev `clones-with-immutable-args` argument #2
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
-    function extraData() external view returns (bytes memory extraData_);
+    function extraData() external pure returns (bytes memory extraData_);
 
-    /// @notice Returns the address of the `BondManager` used
-    function bondManager() public view returns (IBondManager bondManager_);
+    /// @notice Returns the address of the `BondManager` used.
+    /// @return bondManager_ The address of the `BondManager` used.
+    function bondManager() external view returns (IBondManager bondManager_);
 
     /// @notice If all necessary information has been gathered, this function should mark the game
     ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
@@ -222,7 +235,7 @@ interface IDisputeGame {
     ///         necessary parties.
     /// @dev May only be called if the `status` is `IN_PROGRESS`.
     /// @return status_ The status of the game after resolution.
-    function resolve() public returns (GameStatus status_);
+    function resolve() external returns (GameStatus status_);
 
     /// @notice A compliant implementation of this interface should return the components of the
     ///         game UUID's preimage provided in the cwia payload. The preimage of the UUID is
