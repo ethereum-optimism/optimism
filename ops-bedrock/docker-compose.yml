@@ -11,15 +11,6 @@ volumes:
 
 
 services:
-  op_stack_go_builder:  # Not an actual service, but builds the prerequisite go images
-    build:
-      context: ../
-      dockerfile: ops/docker/op-stack-go/Dockerfile
-      args:
-        GIT_COMMIT: "dev"
-        GIT_DATE: "0"
-    image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
-    entrypoint: ["echo", "build complete"]
 
   l1:
     build:
@@ -56,14 +47,12 @@ services:
 
   op-node:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l2
     build:
       context: ../
-      dockerfile: ./op-node/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-node-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-node:devnet
     command: >
       op-node
@@ -103,15 +92,13 @@ services:
 
   op-proposer:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
-      dockerfile: ./op-proposer/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-proposer-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-proposer:devnet
     ports:
       - "6062:6060"
@@ -132,15 +119,13 @@ services:
 
   op-batcher:
     depends_on:
-      - op_stack_go_builder
       - l1
       - l2
       - op-node
     build:
       context: ../
-      dockerfile: ./op-batcher/Dockerfile
-      args:
-        OP_STACK_GO_BUILDER: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-stack-go:devnet
+      dockerfile: ops/docker/op-stack-go/Dockerfile
+      target: op-batcher-target
     image: us-docker.pkg.dev/oplabs-tools-artifacts/images/op-batcher:devnet
     ports:
       - "6061:6060"
