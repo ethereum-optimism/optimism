@@ -269,6 +269,6 @@ func newEthClientWithCaches(metrics caching.Metrics, cacheSize int) *EthClient {
 	return &EthClient{
 		transactionsCache: caching.NewLRUCache[common.Hash, types.Transactions](metrics, "txs", cacheSize),
 		headersCache:      caching.NewLRUCache[common.Hash, eth.BlockInfo](metrics, "headers", cacheSize),
-		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayload](metrics, "payloads", cacheSize),
+		payloadsCache:     caching.NewLRUCache[common.Hash, *eth.ExecutionPayloadEnvelope](metrics, "payloads", cacheSize),
 	}
 }

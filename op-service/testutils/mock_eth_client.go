@@ -70,30 +70,30 @@ func (m *MockEthClient) ExpectInfoAndTxsByLabel(label eth.BlockLabel, info eth.B
 	m.Mock.On("InfoAndTxsByLabel", label).Once().Return(info, transactions, err)
 }
 
-func (m *MockEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayload, error) {
+func (m *MockEthClient) PayloadByHash(ctx context.Context, hash common.Hash) (*eth.ExecutionPayloadEnvelope, error) {
 	out := m.Mock.Called(hash)
-	return out.Get(0).(*eth.ExecutionPayload), out.Error(1)
+	return out.Get(0).(*eth.ExecutionPayloadEnvelope), out.Error(1)
 }
 
-func (m *MockEthClient) ExpectPayloadByHash(hash common.Hash, payload *eth.ExecutionPayload, err error) {
+func (m *MockEthClient) ExpectPayloadByHash(hash common.Hash, payload *eth.ExecutionPayloadEnvelope, err error) {
 	m.Mock.On("PayloadByHash", hash).Once().Return(payload, err)
 }
 
-func (m *MockEthClient) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayload, error) {
+func (m *MockEthClient) PayloadByNumber(ctx context.Context, n uint64) (*eth.ExecutionPayloadEnvelope, error) {
 	out := m.Mock.MethodCalled("PayloadByNumber", n)
-	return out[0].(*eth.ExecutionPayload), *out[1].(*error)
+	return out[0].(*eth.ExecutionPayloadEnvelope), *out[1].(*error)
 }
 
-func (m *MockEthClient) ExpectPayloadByNumber(n uint64, payload *eth.ExecutionPayload, err error) {
+func (m *MockEthClient) ExpectPayloadByNumber(n uint64, payload *eth.ExecutionPayloadEnvelope, err error) {
 	m.Mock.On("PayloadByNumber", n).Once().Return(payload, &err)
 }
 
-func (m *MockEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
+func (m *MockEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayloadEnvelope, error) {
 	out := m.Mock.Called(label)
-	return out.Get(0).(*eth.ExecutionPayload), out.Error(1)
+	return out.Get(0).(*eth.ExecutionPayloadEnvelope), out.Error(1)
 }
 
-func (m *MockEthClient) ExpectPayloadByLabel(label eth.BlockLabel, payload *eth.ExecutionPayload, err error) {
+func (m *MockEthClient) ExpectPayloadByLabel(label eth.BlockLabel, payload *eth.ExecutionPayloadEnvelope, err error) {
 	m.Mock.On("PayloadByLabel", label).Once().Return(payload, err)
 }
 

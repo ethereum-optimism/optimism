@@ -73,7 +73,7 @@ func (m *FakeEngineControl) StartPayload(ctx context.Context, parent eth.L2Block
 	return derive.BlockInsertOK, nil
 }
 
-func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
+func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayloadEnvelope, errTyp derive.BlockInsertionErrType, err error) {
 	if m.err != nil {
 		return nil, m.errTyp, m.err
 	}
@@ -92,7 +92,7 @@ func (m *FakeEngineControl) ConfirmPayload(ctx context.Context) (out *eth.Execut
 
 	m.resetBuildingState()
 	m.totalTxs += len(payload.Transactions)
-	return payload, derive.BlockInsertOK, nil
+	return &eth.ExecutionPayloadEnvelope{ExecutionPayload: payload}, derive.BlockInsertOK, nil
 }
 
 func (m *FakeEngineControl) CancelPayload(ctx context.Context, force bool) error {
@@ -351,12 +351,12 @@ func TestSequencerChaosMonkey(t *testing.T) {
 			require.NoError(t, err)
 		}
 		if payload != nil {
-			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ID(), "head must stay in sync with emitted payloads")
+			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ExecutionPayload.ID(), "head must stay in sync with emitted payloads")
 			var tx types.Transaction
-			require.NoError(t, tx.UnmarshalBinary(payload.Transactions[0]))
-			info, err := derive.L1BlockInfoFromBytes(cfg, 0, tx.Data())
+			require.NoError(t, tx.UnmarshalBinary(payload.ExecutionPayload.Transactions[0]))
+			info, err := derive.L1BlockInfoFromBytes(cfg, uint64(payload.ExecutionPayload.Timestamp), tx.Data())
 			require.NoError(t, err)
-			require.GreaterOrEqual(t, uint64(payload.Timestamp), info.Time, "ensure L2 time >= L1 time")
+			require.GreaterOrEqual(t, uint64(payload.ExecutionPayload.Timestamp), info.Time, "ensure L2 time >= L1 time")
 		}
 	}
 

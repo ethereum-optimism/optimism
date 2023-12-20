@@ -18,7 +18,7 @@ type Metrics interface {
 	RecordPublishingError()
 	RecordDerivationError()
 
-	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
@@ -55,7 +55,7 @@ type L2Chain interface {
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
-	AddUnsafePayload(payload *eth.ExecutionPayload)
+	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
 	Origin() eth.L1BlockRef
@@ -75,16 +75,16 @@ type L1StateIface interface {
 
 type SequencerIface interface {
 	StartBuildingBlock(ctx context.Context) error
-	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
+	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayloadEnvelope, error)
 	PlanNextSequencerAction() time.Duration
-	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error)
+	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayloadEnvelope, error)
 	BuildingOnto() eth.L2BlockRef
 	CancelBuildingBlock(ctx context.Context)
 }
 
 type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
-	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
+	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) error
 }
 
 type AltSync interface {
@@ -148,7 +148,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, l1
 		l1HeadSig:        make(chan eth.L1BlockRef, 10),
 		l1SafeSig:        make(chan eth.L1BlockRef, 10),
 		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
+		unsafeL2Payloads: make(chan *eth.ExecutionPayloadEnvelope, 10),
 		altSync:          altSync,
 	}
 }
