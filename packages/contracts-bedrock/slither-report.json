@@ -1008,7 +1008,7 @@
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
-    "id": "138bfe0b87067edda58ea1bb24d88b46c26dd0da82a6818486cf28b4cb185d01",
+    "id": "6b52fad833e1120044d0d5364441efdf7e7d9f3988885eaeb83816ee433b43ea",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "tx-origin",
@@ -1172,42 +1172,6 @@
     "type": "node",
     "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
     "start": 17082,
-    "length": 38,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "31cd4889732cd7c264fbe798960cae4b02c6d6f07d31596ceba32a2aaf3db8f7",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#331)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#343)\n",
-    "type": "variable",
-    "name": "l2Sender",
-    "start": 2603,
-    "length": 23,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "31cd4889732cd7c264fbe798960cae4b02c6d6f07d31596ceba32a2aaf3db8f7",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#331)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#343)\n",
-    "type": "node",
-    "name": "l2Sender = _tx.sender",
-    "start": 16551,
-    "length": 21,
-    "filename_relative": "src/L1/OptimismPortal.sol"
-  },
-  {
-    "id": "31cd4889732cd7c264fbe798960cae4b02c6d6f07d31596ceba32a2aaf3db8f7",
-    "impact": "Medium",
-    "confidence": "High",
-    "check": "write-after-write",
-    "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#53) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#331)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#343)\n",
-    "type": "node",
-    "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
-    "start": 17345,
     "length": 38,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
