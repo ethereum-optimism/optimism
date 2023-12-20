@@ -91,8 +91,8 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	// from the transaction pool.
 	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.config.MaxSequencerDrift
 
-	// For the Eclipse activation block we shouldn't include  any user transactions.
-	if d.config.IsEcotoneUpgradeDepositBlock(uint64(attrs.Timestamp)) {
+	// For the Ecotone activation block we shouldn't include any sequencer transactions.
+	if d.config.IsEcotoneUpgradeDepositBlock(l2Head.Time, uint64(attrs.Timestamp)) {
 		attrs.NoTxPool = true
 	}
 

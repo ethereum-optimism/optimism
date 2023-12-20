@@ -22,8 +22,11 @@ import (
 func TestEclipseNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
-	eclipseOffset := hexutil.Uint64(2)
-	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &eclipseOffset
+	offset := hexutil.Uint64(0)
+	ecotoneOffset := hexutil.Uint64(2)
+	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &ecotoneOffset
 
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)

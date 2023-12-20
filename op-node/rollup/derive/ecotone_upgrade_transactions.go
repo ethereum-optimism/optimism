@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"math/big"
 )
 
 var (
@@ -21,10 +22,11 @@ var (
 	deployGasPriceOracleSource = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Deployment"}
 	updateL1BlockProxySource   = UpgradeDepositSource{Intent: "Ecotone: L1 Block Proxy Update"}
 	updateGasPriceOracleSource = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Proxy Update"}
+	beaconRootsSource          = UpgradeDepositSource{Intent: "Eclipse: beacon block roots contract deployment"}
 )
 
 func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
-	upgradeTxns := make([]hexutil.Bytes, 0, 4)
+	upgradeTxns := make([]hexutil.Bytes, 0, 5)
 
 	deployL1BlockTransaction, err := types.NewTx(&types.DepositTx{
 		SourceHash:          deployL1BlockSource.SourceHash(),
@@ -103,6 +105,23 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	}
 
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
+
+	deployEIP4788, err := types.NewTx(&types.DepositTx{
+		From: common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875"),
+		// to is null
+		Mint:                big.NewInt(0),
+		Value:               big.NewInt(0),
+		Gas:                 0x3d090,
+		Data:                common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"),
+		IsSystemTransaction: false,
+		SourceHash:          beaconRootsSource.SourceHash(),
+	}).MarshalBinary()
+
+	if err != nil {
+		return nil, err
+	}
+
+	upgradeTxns = append(upgradeTxns, deployEIP4788)
 
 	return upgradeTxns, nil
 }

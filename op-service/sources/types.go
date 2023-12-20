@@ -36,6 +36,11 @@ type headerInfo struct {
 	*types.Header
 }
 
+// TODO: required to compile
+func (h headerInfo) ParentBeaconRoot() *common.Hash {
+	return nil
+}
+
 var _ eth.BlockInfo = (*headerInfo)(nil)
 
 func (h headerInfo) Hash() common.Hash {

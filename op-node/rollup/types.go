@@ -299,8 +299,8 @@ func (c *Config) IsEcotone(timestamp uint64) bool {
 }
 
 // IsEcotoneUpgradeDepositBlock returns true if the timestamp is the block before the Ecotone hard fork block
-func (c *Config) IsEcotoneUpgradeDepositBlock(timestamp uint64) bool {
-	return c.EcotoneTime != nil && timestamp == *c.EcotoneTime
+func (c *Config) IsEcotoneUpgradeDepositBlock(parentTimestamp uint64, blockTimestamp uint64) bool {
+	return !c.IsEcotone(parentTimestamp) && c.IsEcotone(blockTimestamp)
 }
 
 // IsFjord returns true if the Fjord hardfork is active at or past the given timestamp.

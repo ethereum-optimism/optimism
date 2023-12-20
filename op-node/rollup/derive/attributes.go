@@ -3,8 +3,6 @@ package derive
 import (
 	"context"
 	"fmt"
-	"math/big"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
@@ -101,7 +99,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	var upgradeTxs []hexutil.Bytes
-	if ba.cfg.IsEcotoneUpgradeDepositBlock(nextL2Time) {
+	if ba.cfg.IsEcotoneUpgradeDepositBlock(l2Parent.Time, nextL2Time) {
 		upgradeTxs, err = EcotoneNetworkUpgradeTransactions()
 		if err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to build ecotone network upgrade txs: %w", err))
@@ -121,30 +119,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	var withdrawals *types.Withdrawals
 	if ba.cfg.IsCanyon(nextL2Time) {
 		withdrawals = &types.Withdrawals{}
-	}
-
-	if !ba.cfg.IsEcotone(l2Parent.Time) && ba.cfg.IsEcotone(nextL2Time) {
-		// CODE REVIEW: where's the better place for this? deposit_tx?
-		source := UpgradeDepositSource{
-			Intent: "Eclipse: beacon block roots contract deployment",
-		}
-		upgradeDeposit := types.DepositTx{
-			From: common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875"),
-			// to is null
-			Mint:  big.NewInt(0),
-			Value: big.NewInt(0),
-			Gas:   0x3d090,
-			// IsCreation:          true, // CODE REVIEW: this doesn't exist
-			Data:                common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"),
-			IsSystemTransaction: false,
-			SourceHash:          source.SourceHash(),
-		}
-		upgradeTx := types.NewTx(&upgradeDeposit)
-		opaqueUpgradeTx, err := upgradeTx.MarshalBinary()
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode ecotone block roots contract deployment tx tx: %w", err)
-		}
-		txs = append(txs, opaqueUpgradeTx) // CODE REVIEW: is `txs` appropriate for just appending like this
 	}
 
 	return &eth.PayloadAttributes{
