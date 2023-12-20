@@ -19,7 +19,10 @@ DEPLOY_SCRIPT="./scripts/Deploy.s.sol"
 # Create a backup
 cp ${DEPLOY_SCRIPT} ${DEPLOY_SCRIPT}.bak
 
-# replace mustGetAddress by getAddress in Deploy.s.sol
+# Replace mustGetAddress by getAddress in Deploy.s.sol
+# This is needed because the Kontrol deployment is only a partial
+# version of the full Optimism deployment. Since not all the components
+# of the system are deployed, we'd get some reverts on the `mustGetAddress` functions
 awk '{gsub(/mustGetAddress/, "getAddress")}1' ${DEPLOY_SCRIPT} > temp && mv temp ${DEPLOY_SCRIPT}
 
 FOUNDRY_PROFILE=kdeploy forge script -vvv test/kontrol/KontrolDeployment.sol:KontrolDeployment --sig 'runKontrolDeployment()'
