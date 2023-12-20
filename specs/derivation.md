@@ -996,15 +996,15 @@ special transactions may be inserted as part of the derivation process.
 The block before the Ecotone hardfork, contains the following transactions in this order:
 >>>>>>> fb57163da (Update ecotone contract deployment)
 
-* L1 Attributes Transaction
-* User deposits from L1
-* Network Upgrade Transactions
-  * L1Block deployment
-  * GasPriceOracle deployment
-  * L1Block proxy update
-  * GasPriceOracle proxy update
-  * GasPriceOracle enable ecotone
-  * Beacon block roots contract deployment (EIP-4788)
+- L1 Attributes Transaction
+- User deposits from L1
+- Network Upgrade Transactions
+  - L1Block deployment
+  - GasPriceOracle deployment
+  - L1Block proxy update
+  - GasPriceOracle proxy update
+  - GasPriceOracle enable ecotone
+  - Beacon block roots contract deployment (EIP-4788)
 
 To not modify or interrupt the system behavior around gas computation, this block will not include any sequenced
 transactions by setting `noTxPool: true`.
@@ -1053,7 +1053,8 @@ A deposit transaction is derived with the following attributes:
 - `sourceHash`: `0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42`,
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Deployment"
 
-This results in the Ecotone GasPriceOracle contract being deployed to `0xb528D11cC114E026F138fE568744c6D45ce6Da7A`, to verify:
+This results in the Ecotone GasPriceOracle contract being deployed to `0xb528D11cC114E026F138fE568744c6D45ce6Da7A`,
+to verify:
 
 ```bash
 cast compute-address --nonce=0 0x4210000000000000000000000000000000000001
