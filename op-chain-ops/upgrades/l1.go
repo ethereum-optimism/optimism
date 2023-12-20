@@ -384,9 +384,34 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		}
 	}
 
+	OptimismMintableERC20FactoryeABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+
+	var bridge common.Address
+	if config != nil {
+		bridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
+	} else {
+		OptimismMintableERC20Factory, err := bindings.NewOptimismMintableERC20FactoryCaller(common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()), backend)
+		if err != nil {
+			return err
+		}
+		bridge, err = OptimismMintableERC20Factory.Bridge(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+	}
+
+	calldata, err := OptimismMintableERC20FactoryeABI.Pack("initialize", bridge)
+	if err != nil {
+		return err
+	}
+
 	args := []any{
 		common.HexToAddress(list.OptimismMintableERC20FactoryProxy.String()),
 		common.HexToAddress(implementations.OptimismMintableERC20Factory.Address.String()),
+		calldata,
 	}
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
