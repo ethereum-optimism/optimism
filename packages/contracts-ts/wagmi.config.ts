@@ -11,117 +11,6 @@ import { camelCase, constantCase } from 'change-case'
  * In future it would be nice to have a json file in contracts bedrock be generated as source of truth
  * Keep this in sync with op-bindings/predeploys/addresses.go in meantime
  */
-const predeployContracts = {
-  LegacyMessagePasser: {
-    address: '0x4200000000000000000000000000000000000000',
-    introduced: 'Legacy',
-    deprecated: true,
-    proxied: true,
-  },
-  DeployerWhitelist: {
-    address: '0x4200000000000000000000000000000000000002',
-    introduced: 'Legacy',
-    deprecated: true,
-    proxied: true,
-  },
-  LegacyERC20ETH: {
-    address: '0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000',
-    introduced: 'Legacy',
-    deprecated: true,
-    proxied: false,
-  },
-  WETH9: {
-    address: '0x4200000000000000000000000000000000000006',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: false,
-  },
-  L2CrossDomainMessenger: {
-    address: '0x4200000000000000000000000000000000000007',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: true,
-  },
-  L2StandardBridge: {
-    address: '0x4200000000000000000000000000000000000010',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: true,
-  },
-  SequencerFeeVault: {
-    address: '0x4200000000000000000000000000000000000011',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: true,
-  },
-  OptimismMintableERC20Factory: {
-    address: '0x4200000000000000000000000000000000000012',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: true,
-  },
-  L1BlockNumber: {
-    address: '0x4200000000000000000000000000000000000013',
-    introduced: 'Legacy',
-    deprecated: true,
-    proxied: true,
-  },
-  GasPriceOracle: {
-    address: '0x420000000000000000000000000000000000000F',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: true,
-  },
-  GovernanceToken: {
-    address: '0x4200000000000000000000000000000000000042',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: false,
-  },
-  L1Block: {
-    address: '0x4200000000000000000000000000000000000015',
-    introduced: 'Bedrock',
-    deprecated: false,
-    proxied: true,
-  },
-  L2ToL1MessagePasser: {
-    address: '0x4200000000000000000000000000000000000016',
-    introduced: 'Bedrock',
-    deprecated: false,
-    proxied: true,
-  },
-  L2ERC721Bridge: {
-    address: '0x4200000000000000000000000000000000000014',
-    introduced: 'Legacy',
-    deprecated: false,
-    proxied: true,
-  },
-  OptimismMintableERC721Factory: {
-    address: '0x4200000000000000000000000000000000000017',
-    introduced: 'Bedrock',
-    deprecated: false,
-    proxied: true,
-  },
-  ProxyAdmin: {
-    address: '0x4200000000000000000000000000000000000018',
-    introduced: 'Bedrock',
-    deprecated: false,
-    proxied: true,
-  },
-  BaseFeeVault: {
-    address: '0x4200000000000000000000000000000000000019',
-    introduced: 'Bedrock',
-    deprecated: false,
-    proxied: true,
-  },
-  L1FeeVault: {
-    address: '0x420000000000000000000000000000000000001a',
-    introduced: 'Bedrock',
-    deprecated: false,
-    proxied: true,
-  },
-} as const
-
 type DeploymentJson = {
   abi: Abi
   address: `0x${string}`
@@ -173,21 +62,21 @@ const getWagmiContracts = (
     // @see https://github.com/wagmi-dev/wagmi/issues/2724
     const abi = filterDuplicates
       ? deployment.abi.filter((item) => {
-          if (item.type !== 'function') {
-            return true
-          }
-          if (item.name !== constantCase(item.name)) {
-            return true
-          }
-          // if constante case make sure it is not a duplicate
-          // e.g. make sure fooBar doesn't exist with FOO_BAR
-          return !deployment.abi.some(
-            (otherItem) =>
-              otherItem.type === 'function' &&
-              otherItem.name !== item.name &&
-              otherItem.name === camelCase(item.name)
-          )
-        })
+        if (item.type !== 'function') {
+          return true
+        }
+        if (item.name !== constantCase(item.name)) {
+          return true
+        }
+        // if constante case make sure it is not a duplicate
+        // e.g. make sure fooBar doesn't exist with FOO_BAR
+        return !deployment.abi.some(
+          (otherItem) =>
+            otherItem.type === 'function' &&
+            otherItem.name !== item.name &&
+            otherItem.name === camelCase(item.name)
+        )
+      })
       : deployment.abi
     const contractConfig = {
       abi,

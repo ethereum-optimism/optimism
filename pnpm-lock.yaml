@@ -276,6 +276,9 @@ importers:
 
   packages/contracts-ts:
     dependencies:
+      '@eth-optimism/superchain-registry':
+        specifier: github:ethereum-optimism/superchain-registry
+        version: github.com/ethereum-optimism/superchain-registry/3115be15f2f8ae079934d0e0dcae44aa57d03d83
       '@testing-library/react':
         specifier: ^14.1.2
         version: 14.1.2(react-dom@18.2.0)(react@18.2.0)
@@ -15590,3 +15593,9 @@ packages:
   /zwitch@1.0.5:
     resolution: {integrity: sha512-V50KMwwzqJV0NpZIZFwfOD5/lyny3WlSzRiXgA0G7VUnRlqttta1L6UQIHzd6EuBY/cHGfwTIck7w1yH6Q5zUw==}
     dev: true
+
+  github.com/ethereum-optimism/superchain-registry/3115be15f2f8ae079934d0e0dcae44aa57d03d83:
+    resolution: {tarball: https://codeload.github.com/ethereum-optimism/superchain-registry/tar.gz/3115be15f2f8ae079934d0e0dcae44aa57d03d83}
+    name: '@eth-optimism/superchain-registry'
+    version: 0.0.1-alpha.1
+    dev: false
