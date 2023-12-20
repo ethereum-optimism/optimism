@@ -47,7 +47,7 @@ library ChainAssertions {
             _l2OutputOracleStartingBlockNumber: _l2OutputOracleStartingBlockNumber,
             _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp
         });
-        checkOptimismMintableERC20Factory(_prox);
+        checkOptimismMintableERC20Factory({ _contracts: _prox, _isInitialized: true });
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
         checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
@@ -140,11 +140,23 @@ library ChainAssertions {
     }
 
     /// @notice Asserts that the OptimismMintableERC20Factory is setup correctly
-    function checkOptimismMintableERC20Factory(Types.ContractSet memory _contracts) internal view {
+    function checkOptimismMintableERC20Factory(
+        Types.ContractSet memory _contracts,
+        bool _isInitialized
+    )
+        internal
+        view
+    {
         console.log("Running chain assertions on the OptimismMintableERC20Factory");
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(_contracts.OptimismMintableERC20Factory);
-        require(factory.BRIDGE() == _contracts.L1StandardBridge);
-        require(factory.bridge() == _contracts.L1StandardBridge);
+
+        if (!_isInitialized) {
+            require(factory.BRIDGE() == address(0));
+            require(factory.bridge() == address(0));
+        } else {
+            require(factory.BRIDGE() == _contracts.L1StandardBridge);
+            require(factory.bridge() == _contracts.L1StandardBridge);
+        }
     }
 
     /// @notice Asserts that the L1ERC721Bridge is setup correctly
