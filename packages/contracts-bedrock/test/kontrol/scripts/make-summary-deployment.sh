@@ -29,8 +29,11 @@ echo "Created state diff json"
 cp ${DEPLOY_SCRIPT}.bak ${DEPLOY_SCRIPT}
 rm ${DEPLOY_SCRIPT}.bak
 
+# Clean and store the state diff json in snapshots/state-diff/Kontrol-Deploy.json
 JSON_SCRIPTS=test/kontrol/scripts/json
-STATEDIFF=Deploy.json
+GENERATED_STATEDIFF=Deploy.json # Name of the statediff json produced by the deployment script
+STATEDIFF=Kontrol-${GENERATED_STATEDIFF} # Name of the Kontrol statediff
+mv snapshots/state-diff/${GENERATED_STATEDIFF} snapshots/state-diff/${STATEDIFF}
 python3 ${JSON_SCRIPTS}/clean_json.py snapshots/state-diff/${STATEDIFF}
 echo "Cleaned state diff json"
 
