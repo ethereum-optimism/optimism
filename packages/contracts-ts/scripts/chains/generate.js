@@ -14,47 +14,48 @@ writeFileSync('./src/chains.ts', generateChainsFile())
  */
 function generateChainsFile() {
   /**
+   * @type {Record<number, Chain>}
    * Loops through every superchain chain and generates a viem chain to be used in typescript
    * Currently it uses addresses.json but a nice cleanup here would be to use the yaml files directly and then
    * we can remove the addresses.json script in favor of this script
    */
-  const chains: Record<number, Chain> = {}
+  const chains = {}
   Object.entries(addressesJson).forEach(([chainIdStr, contracts]) => {
     const chainId = parseInt(chainIdStr)
     const genesisBlock = chainId === 10 ? OP_GENESIS_BLOCK : 0
     const viemChain = Object.values(viemChains).find(chain => chain.id === chainId)
     const { ProxyAdmin, OptimismPortalProxy, AddressManager, L1ERC721BridgeProxy, L2OutputOracleProxy, L1StandardBridgeProxy, L1CrossDomainMessengerProxy, OptimismMintableERC20FactoryProxy } = contracts
-    // TODO add the `blockCreated` property to all of these
+    /**
+     * @type {import('./OpStackChain.js').OpStackChain<number>['contracts']}
+     */
     const viemContracts =
-      {
-        ...getL2Predeploys(genesisBlock),
-        portal: {
-          ...(viemChain as any)?.contracts?.portal,
-          address: OptimismPortalProxy as `0x${string}`,
-
-        },
-        addressManager: {
-          address: AddressManager as `0x${string}`,
-        },
-        proxyAdmin: {
-          address: ProxyAdmin as `0x${string}`,
-        },
-        l1ERC721Bridge: {
-          address: L1ERC721BridgeProxy as `0x${string}`,
-        },
-        l2OutputOracle: {
-          address: L2OutputOracleProxy as `0x${string}`,
-        },
-        l1StandardBridge: {
-          address: L1StandardBridgeProxy as `0x${string}`,
-        },
-        l1CrossDomainMessenger: {
-          address: L1CrossDomainMessengerProxy as `0x${string}`,
-        },
-        l2ERC20Factory: {
-          address: OptimismMintableERC20FactoryProxy as `0x${string}`,
-        },
-      } as const
+    {
+      ...getL2Predeploys(genesisBlock),
+      portal: {
+        address: OptimismPortalProxy,
+      },
+      addressManager: {
+        address: AddressManager,
+      },
+      proxyAdmin: {
+        address: ProxyAdmin,
+      },
+      l1ERC721Bridge: {
+        address: L1ERC721BridgeProxy,
+      },
+      l2OutputOracle: {
+        address: L2OutputOracleProxy,
+      },
+      l1StandardBridge: {
+        address: L1StandardBridgeProxy,
+      },
+      l1CrossDomainMessenger: {
+        address: L1CrossDomainMessengerProxy,
+      },
+      l2ERC20Factory: {
+        address: OptimismMintableERC20FactoryProxy,
+      },
+    }
     if (!viemChain) {
       console.warn(`no viem chain found for superchain chain ${chainId}! Please notify this chain partner to do a pr to viem`)
       chains[chainId] = {
@@ -88,7 +89,10 @@ function generateChainsFile() {
     }
   })
 
-  const file: string[] = []
+  /**
+   * @type {Array<string>}
+   */
+  const file = []
 
   Object.values(chains).forEach(chain => {
     file.push(`export const ${(camelCase(chain.name))} = ${JSON.stringify(chain, null, 2)}`)
