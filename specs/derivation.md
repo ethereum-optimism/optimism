@@ -1073,7 +1073,7 @@ This transaction updates the L1Block proxy to point to the new L1Block implement
 
 A deposit transaction is derived with the following attributes:
 
-- `from`: `Proxy Admin`
+- `from`: `0x0000000000000000000000000000000000000000`
 - `to`: `L1 Block Proxy`,
 - `mint`: `0`
 - `value`: `0`
@@ -1093,7 +1093,7 @@ This transaction updates the GasPriceOracle proxy to point to the new GasPriceOr
 
 A deposit transaction is derived with the following attributes:
 
-- `from`: `Proxy Admin`
+- `from`: `0x0000000000000000000000000000000000000000`
 - `to`: `Gas Price Oracle Proxy`,
 - `mint`: `0`
 - `value`: `0`
