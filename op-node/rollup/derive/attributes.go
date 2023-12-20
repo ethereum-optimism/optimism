@@ -3,6 +3,7 @@ package derive
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -115,7 +116,27 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	if !ba.cfg.IsEcotone(l2Parent.Time) && ba.cfg.IsEcotone(nextL2Time) {
-		// append the upgrade tx
+		// CODE REVIEW: where's the better place for this? deposit_tx?
+		source := UpgradeDepositSource{
+			Intent: "Eclipse: beacon block roots contract deployment",
+		}
+		upgradeDeposit := types.DepositTx{
+			From: common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875"),
+			// to is null
+			Mint:  big.NewInt(0),
+			Value: big.NewInt(0),
+			Gas:   0x3d090,
+			// IsCreation:          true, // CODE REVIEW: this doesn't exist
+			Data:                common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"),
+			IsSystemTransaction: false,
+			SourceHash:          source.SourceHash(),
+		}
+		upgradeTx := types.NewTx(&upgradeDeposit)
+		opaqueUpgradeTx, err := upgradeTx.MarshalBinary()
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode ecotone block roots contract deployment tx tx: %w", err)
+		}
+		txs = append(txs, opaqueUpgradeTx) // CODE REVIEW: is `txs` appropriate for just appending like this
 	}
 
 	return &eth.PayloadAttributes{
@@ -126,6 +147,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 		Withdrawals:           withdrawals,
-		// ...
+		ParentBeaconBlockRoot: nil, // TODO where should this come from?
 	}, nil
 }

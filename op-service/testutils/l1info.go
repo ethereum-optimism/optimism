@@ -13,18 +13,19 @@ import (
 type MockBlockInfo struct {
 	// Prefixed all fields with "Info" to avoid collisions with the interface method names.
 
-	InfoHash        common.Hash
-	InfoParentHash  common.Hash
-	InfoCoinbase    common.Address
-	InfoRoot        common.Hash
-	InfoNum         uint64
-	InfoTime        uint64
-	InfoMixDigest   [32]byte
-	InfoBaseFee     *big.Int
-	InfoReceiptRoot common.Hash
-	InfoGasUsed     uint64
-	InfoGasLimit    uint64
-	InfoHeaderRLP   []byte
+	InfoHash             common.Hash
+	InfoParentHash       common.Hash
+	InfoCoinbase         common.Address
+	InfoRoot             common.Hash
+	InfoNum              uint64
+	InfoTime             uint64
+	InfoMixDigest        [32]byte
+	InfoBaseFee          *big.Int
+	InfoReceiptRoot      common.Hash
+	InfoGasUsed          uint64
+	InfoGasLimit         uint64
+	InfoHeaderRLP        []byte
+	InfoParentBeaconRoot *common.Hash
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -73,6 +74,10 @@ func (l *MockBlockInfo) GasLimit() uint64 {
 
 func (l *MockBlockInfo) ID() eth.BlockID {
 	return eth.BlockID{Hash: l.InfoHash, Number: l.InfoNum}
+}
+
+func (l *MockBlockInfo) ParentBeaconRoot() *common.Hash {
+	return l.InfoParentBeaconRoot
 }
 
 func (l *MockBlockInfo) HeaderRLP() ([]byte, error) {
