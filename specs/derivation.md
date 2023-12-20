@@ -93,6 +93,7 @@
         - [GasPriceOracle Deployment](#gaspriceoracle-deployment)
         - [L1Block Proxy Update](#l1block-proxy-update)
         - [GasPriceOracle Proxy Update](#gaspriceoracle-proxy-update)
+        - [GasPriceOracle Enable Ecotone](#gaspriceoracle-enable-ecotone)
         - [Beacon block roots contract deployment (EIP-4788)](#beacon-block-roots-contract-deployment-eip-4788)
   - [Building Individual Payload Attributes](#building-individual-payload-attributes)
 
@@ -1003,7 +1004,7 @@ The block before the Ecotone hardfork, contains the following transactions in th
   - GasPriceOracle deployment
   - L1Block proxy update
   - GasPriceOracle proxy update
-  - GasPriceOracle enable ecotone
+  - GasPriceOracle Enable Ecotone
   - Beacon block roots contract deployment (EIP-4788)
 
 To not modify or interrupt the system behavior around gas computation, this block will not include any sequenced
@@ -1050,7 +1051,7 @@ A deposit transaction is derived with the following attributes:
 - `value`: `0`
 - `gasLimit`: `1,000,000` (TBC)
 - `data`: GasPriceOracle deploy bytecode (TBC when PR for contracts is merged)
-- `sourceHash`: `0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42`,
+- `sourceHash`: `0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Deployment"
 
 This results in the Ecotone GasPriceOracle contract being deployed to `0xb528D11cC114E026F138fE568744c6D45ce6Da7A`,
@@ -1079,9 +1080,18 @@ A deposit transaction is derived with the following attributes:
 - `mint`: `0`
 - `value`: `0`
 - `gasLimit`: `1,000,000` (TBC)
-- `data`: `upgradeTo(0x07dbe8500fc591d1852B76feE44d5a05e13097Ff)`
-- `sourceHash`: `0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc`,
+- `data`: `0x3659cfe600000000000000000000000007dbe8500fc591d1852b76fee44d5a05e13097ff`
+- `sourceHash`: `0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Proxy Update"
+
+Verify data:
+
+```bash
+cast concat-hex $(cast sig "upgradeTo(address)") $(cast abi-encode "upgradeTo(address)" 0x07dbe8500fc591d1852B76feE44d5a05e13097Ff)
+0x3659cfe600000000000000000000000007dbe8500fc591d1852b76fee44d5a05e13097ff
+```
+
+Verify `sourceHash`:
 
 ```bash
 cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: L1 Block Proxy Update"))
@@ -1099,9 +1109,47 @@ A deposit transaction is derived with the following attributes:
 - `mint`: `0`
 - `value`: `0`
 - `gasLimit`: `1,000,000` (TBC)
-- `data`: `upgradeTo(0xb528D11cC114E026F138fE568744c6D45ce6Da7A)`
+- `data`: `0x3659cfe6000000000000000000000000b528d11cc114e026f138fe568744c6d45ce6da7a`
+- `sourceHash`: `0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a`
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
+
+Verify data:
+
+```bash
+cast concat-hex $(cast sig "upgradeTo(address)") $(cast abi-encode "upgradeTo(address)" 0xb528D11cC114E026F138fE568744c6D45ce6Da7A)
+0x3659cfe6000000000000000000000000b528d11cc114e026f138fe568744c6d45ce6da7a
+```
+
+Verify `sourceHash`:
+
+```bash
+cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: Gas Price Oracle Proxy Update"))
+# 0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a
+```
+
+##### GasPriceOracle Enable Ecotone
+
+This transaction informs the GasPriceOracle to start using the Ecotone gas calculation formula.
+
+A deposit transaction is derived with the following attributes:
+
+- `from`: `0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001` (Depositer Account)
+- `to`: `Gas Price Oracle Proxy`,
+- `mint`: `0`
+- `value`: `0`
+- `gasLimit`: `1,000,000` (TBC)
+- `data`: `0x22b90ab3`
 - `sourceHash`: `0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a`,
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
+
+Verify data:
+
+```bash
+cast sig "setEcotone()"
+0x22b90ab3
+```
+
+Verify `sourceHash`:
 
 ```bash
 cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: Gas Price Oracle Proxy Update"))
