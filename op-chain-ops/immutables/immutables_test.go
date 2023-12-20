@@ -56,12 +56,8 @@ func TestBuildOptimism(t *testing.T) {
 			Bridge:        predeploys.L2StandardBridgeAddr,
 			RemoteChainId: big.NewInt(1),
 		},
-		OptimismMintableERC20Factory: struct {
-			Bridge common.Address
-		}{
-			Bridge: predeploys.L2StandardBridgeAddr,
-		},
-		ProxyAdmin: struct{}{},
+		OptimismMintableERC20Factory: struct{}{},
+		ProxyAdmin:                   struct{}{},
 		BaseFeeVault: struct {
 			Recipient           common.Address
 			MinWithdrawalAmount *big.Int
