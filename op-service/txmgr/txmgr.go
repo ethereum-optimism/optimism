@@ -513,15 +513,10 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 	}
 	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
 
-	// Make sure increase is at most [FeeLimitMultiplier] the suggested values
-	maxTip := new(big.Int).Mul(tip, big.NewInt(int64(m.cfg.FeeLimitMultiplier)))
-	if bumpedTip.Cmp(maxTip) > 0 {
-		return nil, fmt.Errorf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, m.cfg.FeeLimitMultiplier)
+	if err := m.checkLimits(tip, basefee, bumpedTip, bumpedFee); err != nil {
+		return nil, err
 	}
-	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, big.NewInt(int64(m.cfg.FeeLimitMultiplier))), maxTip)
-	if bumpedFee.Cmp(maxFee) > 0 {
-		return nil, fmt.Errorf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedFee, m.cfg.FeeLimitMultiplier)
-	}
+
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
 		Nonce:      tx.Nonce(),
@@ -587,6 +582,25 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
 	}
 	return tip, head.BaseFee, nil
+}
+
+func (m *SimpleTxManager) checkLimits(tip, basefee, bumpedTip, bumpedFee *big.Int) error {
+	// If below threshold, don't apply multiplier limit
+	if thr := m.cfg.FeeLimitThreshold; thr != nil && thr.Cmp(bumpedFee) == 1 {
+		return nil
+	}
+
+	// Make sure increase is at most [FeeLimitMultiplier] the suggested values
+	feeLimitMult := big.NewInt(int64(m.cfg.FeeLimitMultiplier))
+	maxTip := new(big.Int).Mul(tip, feeLimitMult)
+	if bumpedTip.Cmp(maxTip) > 0 {
+		return fmt.Errorf("bumped tip cap %v is over %dx multiple of the suggested value", bumpedTip, m.cfg.FeeLimitMultiplier)
+	}
+	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, feeLimitMult), maxTip)
+	if bumpedFee.Cmp(maxFee) > 0 {
+		return fmt.Errorf("bumped fee cap %v is over %dx multiple of the suggested value", bumpedFee, m.cfg.FeeLimitMultiplier)
+	}
+	return nil
 }
 
 // calcThresholdValue returns x * priceBumpPercent / 100
