@@ -39,6 +39,8 @@ fs_permissions = [
 ]
 libs = ["node_modules", "lib"]
 
+memory_limit = 512000000
+
 [fuzz]
 runs = 64
 
