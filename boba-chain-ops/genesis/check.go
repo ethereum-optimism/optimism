@@ -124,6 +124,16 @@ var (
 		predeploys.L1FeeVaultAddr:     eip1967Slots(predeploys.L1FeeVaultAddr),
 		predeploys.EASAddr:            eip1967Slots(predeploys.EASAddr),
 		predeploys.SchemaRegistryAddr: eip1967Slots(predeploys.SchemaRegistryAddr),
+
+		// Boba contracts
+		predeploys.BobaTuringCreditAddr: eip1967Slots(predeploys.BobaTuringCreditAddr),
+		predeploys.BobaHCHelperAddr: {
+			// Slot 0x00 (0) is _owner.
+			libcommon.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"): libcommon.HexToHash("0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266"),
+			// EIP-1967 storage slots
+			AdminSlot:          libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: libcommon.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d303e9"),
+		},
 	}
 )
 
@@ -199,6 +209,11 @@ func PostCheckMigratedDB(
 		return err
 	}
 
+	if err := PostCheckBobaProxyContracts(g); err != nil {
+		return err
+	}
+	log.Info("appended boba old slots to expected slots")
+
 	if err := PostCheckBobaLegacyProxyImplementation(tx); err != nil {
 		return err
 	}
@@ -234,6 +249,32 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked withdrawals")
 
+	return nil
+}
+
+// PostCheckBobaProxyContracts will append the old slots to the ExpectedStorageSlots and ignore the
+// legacy proxy slots. This is because the legacy slots are affected by the migration process.
+func PostCheckBobaProxyContracts(g *types.Genesis) error {
+	for addr := range BobaUntouchablePredeploys {
+		var originAddr libcommon.Address
+		if addr == predeploys.BobaTuringCreditAddr {
+			originAddr = predeploys.BobaLegacyTuringCreditAddr
+		}
+		for key, val := range g.Alloc[addr].Storage {
+			if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
+				continue
+			}
+			ExpectedStorageSlots[addr][key] = val
+		}
+		if originAddr != (libcommon.Address{}) {
+			for key, val := range g.Alloc[originAddr].Storage {
+				if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
+					continue
+				}
+				ExpectedStorageSlots[addr][key] = val
+			}
+		}
+	}
 	return nil
 }
 

@@ -57,6 +57,17 @@ func TestWipePredeployStorage(t *testing.T) {
 			require.Equal(t, expected, g.Alloc[*addr])
 			continue
 		}
+		if BobaUntouchablePredeploys[*addr] {
+			expected := types.GenesisAccount{
+				Code: code,
+				Storage: map[common.Hash]common.Hash{
+					storeVal: storeVal,
+				},
+				Nonce: uint64(nonce),
+			}
+			require.Equal(t, expected, g.Alloc[*addr])
+			continue
+		}
 		expected := types.GenesisAccount{
 			Code:    code,
 			Storage: map[common.Hash]common.Hash{},
@@ -182,6 +193,7 @@ func TestSetImplementations(t *testing.T) {
 		"_symbol":   "BOBA",
 		"_decimals": uint8(18),
 	}
+	storage["BobaTuringCredit"] = state.StorageValues{}
 
 	err := SetImplementations(g, storage, immutables)
 	require.NoError(t, err)

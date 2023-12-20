@@ -158,6 +158,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 				immutable["BobaL2"]["_decimals"],
 			},
 		},
+		{
+			Name: "BobaTuringCredit",
+		},
+		{
+			Name: "BobaHCHelper",
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -252,6 +258,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
+	case "BobaTuringCredit":
+		_, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -282,6 +290,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			_symbol,
 			uint8(_decimals),
 		)
+	case "BobaHCHelper":
+		_, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

@@ -38,6 +38,8 @@
     "EAS",
     "SchemaRegistry",
     "BOBA",
+    "BobaTuringCredit",
+    "BobaHCHelper",
     "L2GovernanceERC20",
     "ProtocolVersions",
     "Safe",

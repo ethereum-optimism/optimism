@@ -36,6 +36,8 @@
   "EAS",
   "SchemaRegistry",
   "BOBA",
+  "BobaTuringCredit",
   "GovernanceToken",
-  "L2GovernanceERC20"
+  "L2GovernanceERC20",
+  "BobaHCHelper"
 ]

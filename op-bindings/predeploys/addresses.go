@@ -28,7 +28,9 @@ const (
 	Create2Deployer               = "0x13b0D85CcB8bf860b6b79AF3029fCA081AE9beF2"
 
 	// BOBA specific
-	BobaL2 = "0x4200000000000000000000000000000000000023"
+	BobaTuringCredit = "0x42000000000000000000000000000000000003e8"
+	BobaHCHelper     = "0x42000000000000000000000000000000000003E9"
+	BobaL2           = "0x4200000000000000000000000000000000000023"
 )
 
 var (
@@ -57,7 +59,9 @@ var (
 	PredeploysByAddress = make(map[common.Address]*Predeploy)
 
 	// BOBA specific
-	BobaL2Addr = common.HexToAddress(BobaL2)
+	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
+	BobaHCHelperAddr     = common.HexToAddress(BobaHCHelper)
+	BobaL2Addr           = common.HexToAddress(BobaL2)
 )
 
 func init() {
@@ -95,6 +99,8 @@ func init() {
 		},
 	}
 
+	Predeploys["BobaTuringCredit"] = &Predeploy{Address: BobaTuringCreditAddr}
+	Predeploys["BobaHCHelper"] = &Predeploy{Address: BobaHCHelperAddr}
 	Predeploys["BobaL2"] = &Predeploy{Address: BobaL2Addr}
 
 	for _, predeploy := range Predeploys {
