@@ -34,7 +34,7 @@ chains following the same Superchain Target upgrade synchronously.
   - [Regolith](#regolith)
 - [Canyon](#canyon)
 - [Delta](#delta)
-- [Eclipse](#eclipse)
+- [Ecotone](#ecotone)
 - [Fjord](#fjord)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -308,10 +308,10 @@ The Delta upgrade consists of a single consensus-layer feature: [Span Batches](.
 
 The Delta upgrade uses a *L2 block-timestamp* activation-rule, and is specified only in the rollup-node (`delta_time`).
 
-## Eclipse
+## Ecotone
 
 Name of the next upgrade after Delta. Placeholder for development coordination.
 
 ## Fjord
 
-Name of the next upgrade after Eclipse. Placeholder for development coordination.
+Name of the next upgrade after Ecotone. Placeholder for development coordination.
