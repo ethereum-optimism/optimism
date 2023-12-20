@@ -502,7 +502,6 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  2,
 		"_initializing": false,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         blockHeader.Number,
@@ -527,12 +526,6 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 		"_owner": config.ProxyAdminOwner,
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
-		"_initialized":  2,
-		"_initializing": false,
-	}
-	storage["OptimismMintableERC20Factory"] = state.StorageValues{
-		"bridge":        predeploys.L2StandardBridgeAddr,
 		"_initialized":  2,
 		"_initializing": false,
 	}
