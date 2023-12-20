@@ -1,5 +1,53 @@
 [
   {
+    "id": "04e2c772a74b91b70a12a696ff6b3c636c241438e2a560543ff31fbf9c78d111",
+    "impact": "High",
+    "confidence": "High",
+    "check": "encode-packed-collision",
+    "description": "BobaHCHelper.GetLegacyResponse(uint32,string,bytes) (src/boba/BobaHCHelper.sol#214-238) calls abi.encodePacked() with multiple dynamic arguments:\n\t- key = keccak256(bytes)(abi.encodePacked(method,msg.sender,abi.encodePacked(_url),_payload)) (src/boba/BobaHCHelper.sol#221)\n",
+    "type": "function",
+    "name": "GetLegacyResponse",
+    "start": 8221,
+    "length": 1247,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "04e2c772a74b91b70a12a696ff6b3c636c241438e2a560543ff31fbf9c78d111",
+    "impact": "High",
+    "confidence": "High",
+    "check": "encode-packed-collision",
+    "description": "BobaHCHelper.GetLegacyResponse(uint32,string,bytes) (src/boba/BobaHCHelper.sol#214-238) calls abi.encodePacked() with multiple dynamic arguments:\n\t- key = keccak256(bytes)(abi.encodePacked(method,msg.sender,abi.encodePacked(_url),_payload)) (src/boba/BobaHCHelper.sol#221)\n",
+    "type": "node",
+    "name": "key = keccak256(bytes)(abi.encodePacked(method,msg.sender,abi.encodePacked(_url),_payload))",
+    "start": 8640,
+    "length": 95,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "6eeb5d15fcace3fb1c4947ff4b3961705407d1b06df28330ce3c2db3440a5fae",
+    "impact": "High",
+    "confidence": "High",
+    "check": "encode-packed-collision",
+    "description": "BobaHCHelper.CallOffchain(string,bytes) (src/boba/BobaHCHelper.sol#51-63) calls abi.encodePacked() with multiple dynamic arguments:\n\t- key = keccak256(bytes)(abi.encodePacked(method,msg.sender,abi.encodePacked(_url),_payload)) (src/boba/BobaHCHelper.sol#61)\n",
+    "type": "function",
+    "name": "CallOffchain",
+    "start": 1756,
+    "length": 643,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "6eeb5d15fcace3fb1c4947ff4b3961705407d1b06df28330ce3c2db3440a5fae",
+    "impact": "High",
+    "confidence": "High",
+    "check": "encode-packed-collision",
+    "description": "BobaHCHelper.CallOffchain(string,bytes) (src/boba/BobaHCHelper.sol#51-63) calls abi.encodePacked() with multiple dynamic arguments:\n\t- key = keccak256(bytes)(abi.encodePacked(method,msg.sender,abi.encodePacked(_url),_payload)) (src/boba/BobaHCHelper.sol#61)\n",
+    "type": "node",
+    "name": "key = keccak256(bytes)(abi.encodePacked(method,msg.sender,abi.encodePacked(_url),_payload))",
+    "start": 2236,
+    "length": 95,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
     "id": "0b6d0d6699a3fa3c78250e527327e43538895feecaa6cfd8a1793dfcc1d20c72",
     "impact": "High",
     "confidence": "Medium",
@@ -684,6 +732,78 @@
     "filename_relative": "src/universal/Proxy.sol"
   },
   {
+    "id": "33a64923b39c77049fac57d836ecb779a122f69c358e543dbafeb8b7556bbc6e",
+    "impact": "High",
+    "confidence": "High",
+    "check": "uninitialized-state",
+    "description": "BobaHCHelper.pendingCharge (src/boba/BobaHCHelper.sol#28) is never initialized. It is used in:\n\t- BobaHCHelper.getCachedResponse(bytes32,address,uint256) (src/boba/BobaHCHelper.sol#179-201)\n",
+    "type": "variable",
+    "name": "pendingCharge",
+    "start": 1114,
+    "length": 48,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "33a64923b39c77049fac57d836ecb779a122f69c358e543dbafeb8b7556bbc6e",
+    "impact": "High",
+    "confidence": "High",
+    "check": "uninitialized-state",
+    "description": "BobaHCHelper.pendingCharge (src/boba/BobaHCHelper.sol#28) is never initialized. It is used in:\n\t- BobaHCHelper.getCachedResponse(bytes32,address,uint256) (src/boba/BobaHCHelper.sol#179-201)\n",
+    "type": "function",
+    "name": "getCachedResponse",
+    "start": 6883,
+    "length": 835,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "b9d3fe8f33617e17de9e9ecb30a6a6f56548148b108af04bb8e53e93a6ec12e0",
+    "impact": "High",
+    "confidence": "High",
+    "check": "uninitialized-state",
+    "description": "BobaHCHelper.legacyWhitelist (src/boba/BobaHCHelper.sol#29) is never initialized. It is used in:\n\t- BobaHCHelper.GetLegacyResponse(uint32,string,bytes) (src/boba/BobaHCHelper.sol#214-238)\n",
+    "type": "variable",
+    "name": "legacyWhitelist",
+    "start": 1183,
+    "length": 47,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "b9d3fe8f33617e17de9e9ecb30a6a6f56548148b108af04bb8e53e93a6ec12e0",
+    "impact": "High",
+    "confidence": "High",
+    "check": "uninitialized-state",
+    "description": "BobaHCHelper.legacyWhitelist (src/boba/BobaHCHelper.sol#29) is never initialized. It is used in:\n\t- BobaHCHelper.GetLegacyResponse(uint32,string,bytes) (src/boba/BobaHCHelper.sol#214-238)\n",
+    "type": "function",
+    "name": "GetLegacyResponse",
+    "start": 8221,
+    "length": 1247,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "04d7e83d57cab6ea7d967f6158ea1f3642c4077d81742230b69732e1aac642db",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "boolean-cst",
+    "description": "BobaHCHelper.GetLegacyResponse(uint32,string,bytes) (src/boba/BobaHCHelper.sol#214-238) uses a Boolean constant improperly:\n\t-require(bool,string)(legacyWhitelist[msg.sender] || true,Legacy caller is not in whitelist) (src/boba/BobaHCHelper.sol#219)\n",
+    "type": "function",
+    "name": "GetLegacyResponse",
+    "start": 8221,
+    "length": 1247,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "04d7e83d57cab6ea7d967f6158ea1f3642c4077d81742230b69732e1aac642db",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "boolean-cst",
+    "description": "BobaHCHelper.GetLegacyResponse(uint32,string,bytes) (src/boba/BobaHCHelper.sol#214-238) uses a Boolean constant improperly:\n\t-require(bool,string)(legacyWhitelist[msg.sender] || true,Legacy caller is not in whitelist) (src/boba/BobaHCHelper.sol#219)\n",
+    "type": "node",
+    "name": "require(bool,string)(legacyWhitelist[msg.sender] || true,Legacy caller is not in whitelist)",
+    "start": 8548,
+    "length": 81,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
     "id": "89460308ae3bd86a612657eb7bfe28221ced6a7a7fe723ec2a19149bfc819cb5",
     "impact": "Medium",
     "confidence": "High",
@@ -1056,6 +1176,42 @@
     "filename_relative": "src/EAS/resolver/SchemaResolver.sol"
   },
   {
+    "id": "30b7fb36a555d62a0e1b1c20fb8ca2a7731012ecb4fb8c4ae7b939d216d85408",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "mapping-deletion",
+    "description": "BobaHCHelper.UnregisterEndpoint(string) (src/boba/BobaHCHelper.sol#118-125) deletes BobaHCHelper.EndpointEntry (src/boba/BobaHCHelper.sol#31-34) which contains a mapping:\n\t-delete (Endpoints[EK]) (src/boba/BobaHCHelper.sol#123)\n",
+    "type": "function",
+    "name": "UnregisterEndpoint",
+    "start": 4203,
+    "length": 365,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "30b7fb36a555d62a0e1b1c20fb8ca2a7731012ecb4fb8c4ae7b939d216d85408",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "mapping-deletion",
+    "description": "BobaHCHelper.UnregisterEndpoint(string) (src/boba/BobaHCHelper.sol#118-125) deletes BobaHCHelper.EndpointEntry (src/boba/BobaHCHelper.sol#31-34) which contains a mapping:\n\t-delete (Endpoints[EK]) (src/boba/BobaHCHelper.sol#123)\n",
+    "type": "struct",
+    "name": "EndpointEntry",
+    "start": 1237,
+    "length": 102,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "30b7fb36a555d62a0e1b1c20fb8ca2a7731012ecb4fb8c4ae7b939d216d85408",
+    "impact": "Medium",
+    "confidence": "High",
+    "check": "mapping-deletion",
+    "description": "BobaHCHelper.UnregisterEndpoint(string) (src/boba/BobaHCHelper.sol#118-125) deletes BobaHCHelper.EndpointEntry (src/boba/BobaHCHelper.sol#31-34) which contains a mapping:\n\t-delete (Endpoints[EK]) (src/boba/BobaHCHelper.sol#123)\n",
+    "type": "node",
+    "name": "delete (Endpoints[EK])",
+    "start": 4487,
+    "length": 21,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
     "id": "0e1e451177ca06fd343007706a5c0c9d51f9fe188265e5d192703a2a4db433fc",
     "impact": "Medium",
     "confidence": "Medium",
@@ -1294,6 +1450,30 @@
     "start": 10602,
     "length": 22,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
+  },
+  {
+    "id": "231751504104f2bfb59eb42b7d209c7667ca7b4c9ce8c110fc4c6a40e2bb0fc4",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "uninitialized-local",
+    "description": "BobaHCHelper.SequentialRandom(bytes32,bytes32,uint256).responseNum (src/boba/BobaHCHelper.sol#79) is a local variable never initialized\n",
+    "type": "variable",
+    "name": "responseNum",
+    "start": 2846,
+    "length": 19,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
+  },
+  {
+    "id": "43f5c0ef7b76fbfc796d57cc9bd1f9cd99f8e71dfa8cad6da4541f5c5c5d4733",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "uninitialized-local",
+    "description": "BobaHCHelper.SequentialRandom(bytes32,bytes32,uint256).serverHash (src/boba/BobaHCHelper.sol#78) is a local variable never initialized\n",
+    "type": "variable",
+    "name": "serverHash",
+    "start": 2818,
+    "length": 18,
+    "filename_relative": "src/boba/BobaHCHelper.sol"
   },
   {
     "id": "b806faf2b63e910b939c5ff4b591b1109887080a010986f2af2c30787dbc2a10",
