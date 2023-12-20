@@ -75,9 +75,9 @@ We refer to this state as the **ABSOLUTE\_PRESTATE**.
 Claims assert an [output root][g-output-root] or the state of the FPVM at a given instruction. This is represented as
 `ClaimHash`, a `bytes32` representing either an [output root][g-output-root] or a commitment to the last VM state in a
 trace. A FDG is initialized with an output root that corresponds to the state of L2 at a given L2 block number, and
-execution trace subgames are initialized with a claim that commits to the entire execution trace between two conseuctive
-output roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple claims, committing to
-different output roots and FPVM states in the FDG.
+execution trace subgames at `SPLIT_DEPTH + 1` are initialized with a claim that commits to the entire execution trace
+between two consecutive output roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple
+claims, committing to different output roots and FPVM states in the FDG.
 
 ### DAG
 
@@ -105,10 +105,10 @@ proof VM's state at a given instruction step.
 ### Game Tree
 
 The Game Tree is a binary tree of positions. Every claim in the DAG references a position in the Game Tree.
-The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` and `MAX_GAME_DEPTH` respectively, that are both preset
-to an FDG implementation. The split depth defines the maximum depth at which claims about [output roots][g-output-root]
-can occur, and below it, execution trace bisection occurs. Thus, the Game Tree contains $2^{d-1}$ positions, where $d$
-is the `MAX_GAME_DEPTH` (unless $d=0$, in which case there's only 1 position).
+The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` and `MAX_GAME_DEPTH` respectively, that are both
+preset to an FDG implementation. The split depth defines the maximum depth at which claims about
+[output roots][g-output-root] can occur, and below it, execution trace bisection occurs. Thus, the Game Tree contains
+$2^{d-1}$ positions, where $d$ is the `MAX_GAME_DEPTH` (unless $d=0$, in which case there's only 1 position).
 
 The full game tree, with a layer of the tree allocated to output bisection, and sub-trees after an arbitrary split
 depth, looks like:
