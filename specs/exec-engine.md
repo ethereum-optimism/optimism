@@ -173,8 +173,8 @@ ways:
   - using direct storage-reads:
     - basefee `uint256` in slot `1`
     - blobBasefee `uint256` in slot `7`
-    - l1BasefeeScalar big-endian `uint32` slot `8` offset `4`
-    - l1BlobBasefeeScalar as big-endian `uint32` in slot `8` offset `0`
+    - l1BasefeeScalar big-endian `uint32` slot `3` at offset `12`
+    - l1BlobBasefeeScalar big-endian `uint32` in slot `3` at offset `8`
 
 ## Engine API
 

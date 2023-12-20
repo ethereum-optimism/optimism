@@ -35,6 +35,20 @@
     "type": "uint64"
   },
   {
+    "bytes": "4",
+    "label": "blobBasefeeScalar",
+    "offset": 8,
+    "slot": "3",
+    "type": "uint32"
+  },
+  {
+    "bytes": "4",
+    "label": "basefeeScalar",
+    "offset": 12,
+    "slot": "3",
+    "type": "uint32"
+  },
+  {
     "bytes": "32",
     "label": "batcherHash",
     "offset": 0,
@@ -53,6 +67,13 @@
     "label": "l1FeeScalar",
     "offset": 0,
     "slot": "6",
+    "type": "uint256"
+  },
+  {
+    "bytes": "32",
+    "label": "blobBasefee",
+    "offset": 0,
+    "slot": "7",
     "type": "uint256"
   }
 ]

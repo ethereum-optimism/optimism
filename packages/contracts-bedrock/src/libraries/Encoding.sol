@@ -133,4 +133,44 @@ library Encoding {
         }
         return (nonce, version);
     }
+
+    /// @notice Returns an appropriately encoded call to L1Block.setL1BlockValuesEcotone
+    /// @param basefeeScalar       L1 basefee Scalar
+    /// @param blobBasefeeScalar   L1 blob basefee Scalar
+    /// @param sequenceNumber      Number of L2 blocks since epoch start.
+    /// @param timestamp           L1 timestamp.
+    /// @param number              L1 blocknumber.
+    /// @param basefee             L1 basefee.
+    /// @param blobBasefee         L1 blob basefee.
+    /// @param hash                L1 blockhash.
+    /// @param batcherHash         Versioned hash to authenticate batcher by.
+    function encodeSetL1BlockValuesEcotone(
+        uint32 basefeeScalar,
+        uint32 blobBasefeeScalar,
+        uint64 sequenceNumber,
+        uint64 timestamp,
+        uint64 number,
+        uint256 basefee,
+        uint256 blobBasefee,
+        bytes32 hash,
+        bytes32 batcherHash
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
+        bytes4 functionSignature = bytes4(keccak256("setL1BlockValuesEcotone()"));
+        return abi.encodePacked(
+            functionSignature,
+            basefeeScalar,
+            blobBasefeeScalar,
+            sequenceNumber,
+            timestamp,
+            number,
+            basefee,
+            blobBasefee,
+            hash,
+            batcherHash
+        );
+    }
 }
