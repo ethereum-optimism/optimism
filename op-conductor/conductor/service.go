@@ -72,7 +72,8 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 }
 
 func (c *OpConductor) initConsensus(ctx context.Context) error {
-	cons, err := consensus.NewRaftConsensus(c.log, c.cfg.RaftServerID, c.cfg.ConsensusAddr, fmt.Sprint(c.cfg.ConsensusPort), c.cfg.RaftStorageDir, c.cfg.RaftBootstrap, &c.cfg.RollupCfg)
+	serverAddr := fmt.Sprintf("%s:%d", c.cfg.ConsensusAddr, c.cfg.ConsensusPort)
+	cons, err := consensus.NewRaftConsensus(c.log, c.cfg.RaftServerID, serverAddr, c.cfg.RaftStorageDir, c.cfg.RaftBootstrap, &c.cfg.RollupCfg)
 	if err != nil {
 		return errors.Wrap(err, "failed to create raft consensus")
 	}

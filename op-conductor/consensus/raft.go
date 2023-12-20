@@ -33,14 +33,14 @@ type RaftConsensus struct {
 }
 
 // NewRaftConsensus creates a new RaftConsensus instance.
-func NewRaftConsensus(log log.Logger, serverID, serverAddr, serverPort, storageDir string, bootstrap bool, rollupCfg *rollup.Config) (*RaftConsensus, error) {
+func NewRaftConsensus(log log.Logger, serverID, serverAddr, storageDir string, bootstrap bool, rollupCfg *rollup.Config) (*RaftConsensus, error) {
 	rc := raft.DefaultConfig()
 	rc.LocalID = raft.ServerID(serverID)
 
 	baseDir := filepath.Join(storageDir, serverID)
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(baseDir, 0o755); err != nil {
-			return nil, fmt.Errorf("error creating storage dir: %v", err)
+			return nil, fmt.Errorf("error creating storage dir: %w", err)
 		}
 	}
 
@@ -48,23 +48,23 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, serverPort, storageD
 	logStorePath := filepath.Join(baseDir, "raft-log.db")
 	logStore, err := boltdb.NewBoltStore(logStorePath)
 	if err != nil {
-		return nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %v`, logStorePath, err)
+		return nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %w`, logStorePath, err)
 	}
 
 	stableStorePath := filepath.Join(baseDir, "raft-stable.db")
 	stableStore, err := boltdb.NewBoltStore(stableStorePath)
 	if err != nil {
-		return nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %v`, stableStorePath, err)
+		return nil, fmt.Errorf(`boltdb.NewBoltStore(%q): %w`, stableStorePath, err)
 	}
 
 	snapshotStore, err := raft.NewFileSnapshotStoreWithLogger(baseDir, 1, rc.Logger)
 	if err != nil {
-		return nil, fmt.Errorf(`raft.NewFileSnapshotStore(%q): %v`, baseDir, err)
+		return nil, fmt.Errorf(`raft.NewFileSnapshotStore(%q): %w`, baseDir, err)
 	}
 
-	addr, err := net.ResolveTCPAddr("", serverAddr)
+	addr, err := net.ResolveTCPAddr("tcp", serverAddr)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to resolve tcp address")
 	}
 
 	maxConnPool := 10
@@ -72,7 +72,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, serverPort, storageD
 	bindAddr := fmt.Sprintf("0.0.0.0:%d", addr.Port)
 	transport, err := raft.NewTCPTransportWithLogger(bindAddr, addr, maxConnPool, timeout, rc.Logger)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create raft tcp transport")
 	}
 
 	fsm := &unsafeHeadTracker{}
@@ -80,7 +80,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, serverPort, storageD
 	r, err := raft.NewRaft(rc, fsm, logStore, stableStore, snapshotStore, transport)
 	if err != nil {
 		log.Error("failed to create raft", "err", err)
-		return nil, err
+		return nil, errors.Wrap(err, "failed to create raft")
 	}
 
 	// If boostrap = true, start raft in bootstrap mode, this will allow the current node to elect itself as leader when there's no other participants
@@ -98,7 +98,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, serverPort, storageD
 
 		f := r.BootstrapCluster(cfg)
 		if err := f.Error(); err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to bootstrap raft cluster")
 		}
 	}
 
@@ -106,7 +106,7 @@ func NewRaftConsensus(log log.Logger, serverID, serverAddr, serverPort, storageD
 		log:           log,
 		r:             r,
 		serverID:      raft.ServerID(serverID),
-		unsafeTracker: &unsafeHeadTracker{},
+		unsafeTracker: fsm,
 		rollupCfg:     rollupCfg,
 	}, nil
 }
@@ -198,8 +198,7 @@ func (rc *RaftConsensus) Shutdown() error {
 // CommitUnsafePayload implements Consensus, it commits latest unsafe payload to the cluster FSM.
 func (rc *RaftConsensus) CommitUnsafePayload(payload eth.ExecutionPayload) error {
 	blockVersion := eth.BlockV1
-	expectedBlockTime := rc.rollupCfg.TimestampForBlock(uint64(payload.BlockNumber))
-	if rc.rollupCfg.IsCanyon(expectedBlockTime) {
+	if rc.rollupCfg.IsCanyon(uint64(payload.Timestamp)) {
 		blockVersion = eth.BlockV2
 	}
 

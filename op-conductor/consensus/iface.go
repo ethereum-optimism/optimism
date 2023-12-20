@@ -14,7 +14,6 @@ type Consensus interface {
 	DemoteVoter(id string) error
 	// RemoveServer removes a member (both voter or non-voter) from the cluster, if leader is being removed, it will cause a new leader election.
 	RemoveServer(id string) error
-
 	// LeaderCh returns a channel that will be notified when leadership status changes (true = leader, false = follower)
 	LeaderCh() <-chan bool
 	// Leader returns if it is the leader of the cluster.
@@ -26,10 +25,11 @@ type Consensus interface {
 	// TransferLeaderTo triggers leadership transfer to a specific member in the cluster.
 	TransferLeaderTo(id, addr string) error
 
-	// CommitPayload commits latest unsafe payload to the cluster FSM.
+	// CommitPayload commits latest unsafe payload to the FSM.
 	CommitUnsafePayload(payload eth.ExecutionPayload) error
 	// LatestUnsafeBlock returns the latest unsafe payload from FSM.
 	LatestUnsafePayload() eth.ExecutionPayload
+
 	// Shutdown shuts down the consensus protocol client.
 	Shutdown() error
 }
