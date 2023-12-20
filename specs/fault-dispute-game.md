@@ -91,7 +91,7 @@ against $C_i$ through either an "Attack" or "Defend" [move](#moves).
 ### Game Tree
 
 The Game Tree is a binary tree of positions. Every claim in the DAG references a position in the Game Tree.
- The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` + `MAX_GAME_DEPTH` respectively, that are both preset
+ The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` and `MAX_GAME_DEPTH` respectively, that are both preset
 to an FDG implementation. The split depth defines the maximum depth at which claims about [output roots][g-output-root]
 can occur, and below it, execution trace bisection occurs. Thus, the Game Tree contains $2^{d-1}$ positions, where $d$
 is the `MAX_GAME_DEPTH` (unless $d=0$, in which case there's only 1 position).
