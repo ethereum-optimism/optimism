@@ -114,6 +114,10 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		withdrawals = &types.Withdrawals{}
 	}
 
+	if !ba.cfg.IsEcotone(l2Parent.Time) && ba.cfg.IsEcotone(nextL2Time) {
+		// append the upgrade tx
+	}
+
 	return &eth.PayloadAttributes{
 		Timestamp:             hexutil.Uint64(nextL2Time),
 		PrevRandao:            eth.Bytes32(l1Info.MixDigest()),
@@ -122,5 +126,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 		Withdrawals:           withdrawals,
+		// ...
 	}, nil
 }

@@ -64,7 +64,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		RegolithTime:                  config.RegolithTime(block.Time()),
 		CanyonTime:                    config.CanyonTime(block.Time()),
 		ShanghaiTime:                  config.CanyonTime(block.Time()),
-		CancunTime:                    nil, // no Dencun on L2 yet.
+		CancunTime:                    config.EcotoneTime(block.Time()),
 		InteropTime:                   config.InteropTime(block.Time()),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator:       eip1559Denom,

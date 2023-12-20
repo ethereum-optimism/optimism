@@ -15,6 +15,7 @@ type UserDepositSource struct {
 const (
 	UserDepositSourceDomain   = 0
 	L1InfoDepositSourceDomain = 1
+	SystemDepositSourceDomain = 2
 )
 
 func (dep *UserDepositSource) SourceHash() common.Hash {
@@ -44,3 +45,6 @@ func (dep *L1InfoDepositSource) SourceHash() common.Hash {
 	copy(domainInput[32:], depositIDHash[:])
 	return crypto.Keccak256Hash(domainInput[:])
 }
+
+
+// third source that implements Proto's spec
