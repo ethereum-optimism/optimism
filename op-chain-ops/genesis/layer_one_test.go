@@ -26,7 +26,7 @@ import (
 // TestBuildL1DeveloperGenesis tests that the L1 genesis block can be built
 // given a deploy config and an l1-allocs.json and a deploy.json that
 // are generated from a deploy config. If new contracts are added, these
-// mocks will need to be regenerated.
+// mocks will need to be regenerated
 func TestBuildL1DeveloperGenesis(t *testing.T) {
 	b, err := os.ReadFile("testdata/test-deploy-config-full.json")
 	require.NoError(t, err)
