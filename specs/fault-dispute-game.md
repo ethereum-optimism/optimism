@@ -11,6 +11,7 @@
   - [Execution Trace](#execution-trace)
   - [Claims](#claims)
   - [DAG](#dag)
+  - [Subgame](#subgame)
   - [Game Tree](#game-tree)
   - [Position](#position)
   - [GAME_DURATION](#game_duration)
@@ -95,6 +96,7 @@ root. A good mental model around this structure is that it is a fundamental disp
 piece of information. These subgames are chained together such that a child within a subgame is the root of its own
 subgame, which is visualized in the [resolution](#resolution) section. There are two types of sub-games in the fault
 dispute game:
+
 1. Output Roots
 1. Execution Trace Commitments
 
