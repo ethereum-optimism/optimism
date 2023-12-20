@@ -103,34 +103,32 @@ abstract contract KontrolUtils is KontrolCheats {
     /// The length of the array to 10 or fewer elements
     function freshWithdrawalProof() public returns (bytes[] memory withdrawalProof) {
         /* Assume arrayLength = 2 for faster proof speeds */
-        uint256 arrayLength = 10;
+        uint256 arrayLength = 6;
 
         withdrawalProof = new bytes[](arrayLength);
 
         /* Deploy ghost contract */
-        GhostBytes10 ghostBytes10 = new GhostBytes10();
+        /* GhostBytes10 ghostBytes10 = new GhostBytes10(); */
 
         /* Make the storage of the ghost contract symbolic */
-        kevm.symbolicStorage(address(ghostBytes10));
+        /* kevm.symbolicStorage(address(ghostBytes10)); */
 
         /* Each bytes element will have a length of 600 */
-        uint256 bytesSlotValue = 600 * 2 + 1;
+        /* uint256 bytesSlotValue = 600 * 2 + 1; */
 
         /* Load the size encoding into the first slot of ghostBytes*/
-        vm.store(address(ghostBytes10), bytes32(uint256(0)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(1)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(2)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(3)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(4)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(5)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(6)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(7)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue));
-        vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue));
+        /* vm.store(address(ghostBytes10), bytes32(uint256(0)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(1)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(2)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(3)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(4)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(5)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(6)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(7)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(8)), bytes32(bytesSlotValue)); */
+        /* vm.store(address(ghostBytes10), bytes32(uint256(9)), bytes32(bytesSlotValue)); */
 
-        /* Current approach */
-
-        withdrawalProof = ghostBytes10.getGhostBytesArray();
+        /* withdrawalProof = ghostBytes10.getGhostBytesArray(); */
 
         /* Second approach */
 
@@ -147,8 +145,8 @@ abstract contract KontrolUtils is KontrolCheats {
 
         /* First approach */
 
-        /* for (uint256 i = 0; i < withdrawalProof.length; ++i) { */
-        /*     withdrawalProof[i] = freshBigBytes(600);
-        /* } */
+        for (uint256 i = 0; i < withdrawalProof.length; ++i) {
+            withdrawalProof[i] = freshBigBytes(600);
+        }
     }
 }
