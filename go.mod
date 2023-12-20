@@ -20,6 +20,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.5
 	github.com/hashicorp/raft v1.6.0
+	github.com/hashicorp/raft-boltdb v0.0.0-20231211162105-6c830fa4535e
 	github.com/holiman/uint256 v1.2.3
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
@@ -58,6 +59,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.7.0 // indirect
+	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.0 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
@@ -109,6 +111,7 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
 	github.com/hashicorp/go-hclog v1.5.0 // indirect
 	github.com/hashicorp/go-immutable-radix v1.0.0 // indirect
+	github.com/hashicorp/go-msgpack v0.5.5 // indirect
 	github.com/hashicorp/go-msgpack/v2 v2.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
 	github.com/hashicorp/golang-lru/arc/v2 v2.0.5 // indirect

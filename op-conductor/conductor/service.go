@@ -2,12 +2,14 @@ package conductor
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum-optimism/optimism/op-conductor/client"
+	"github.com/ethereum-optimism/optimism/op-conductor/consensus"
 	"github.com/ethereum-optimism/optimism/op-service/cliapp"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/sources"
@@ -42,6 +44,9 @@ func (c *OpConductor) init(ctx context.Context) error {
 	if err := c.initSequencerControl(ctx); err != nil {
 		return errors.Wrap(err, "failed to initialize sequencer control")
 	}
+	if err := c.initConsensus(ctx); err != nil {
+		return errors.Wrap(err, "failed to initialize consensus")
+	}
 	return nil
 }
 
@@ -66,6 +71,15 @@ func (c *OpConductor) initSequencerControl(ctx context.Context) error {
 	return nil
 }
 
+func (c *OpConductor) initConsensus(ctx context.Context) error {
+	cons, err := consensus.NewRaftConsensus(c.log, c.cfg.RaftServerID, c.cfg.ConsensusAddr, fmt.Sprint(c.cfg.ConsensusPort), c.cfg.RaftStorageDir, c.cfg.RaftBootstrap, &c.cfg.RollupCfg)
+	if err != nil {
+		return errors.Wrap(err, "failed to create raft consensus")
+	}
+	c.cons = cons
+	return nil
+}
+
 // OpConductor represents a full conductor instance and its resources, it does:
 //  1. performs health checks on sequencer
 //  2. participate in consensus protocol for leader election
@@ -80,7 +94,9 @@ type OpConductor struct {
 	log     log.Logger
 	version string
 	cfg     *Config
-	ctrl    client.SequencerControl
+
+	ctrl client.SequencerControl
+	cons consensus.Consensus
 }
 
 var _ cliapp.Lifecycle = (*OpConductor)(nil)
