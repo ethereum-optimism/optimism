@@ -135,9 +135,9 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	// 12 new L2 blocks: 5 with origin before L1 block with batch, 6 with origin of L1 block
 	// with batch, 1 with new origin that changed the batcher
 	for i := 0; i <= 12; i++ {
-		payload, err := engCl.PayloadByNumber(t.Ctx(), sequencer.L2Safe().Number+uint64(i))
+		envelope, err := engCl.PayloadByNumber(t.Ctx(), sequencer.L2Safe().Number+uint64(i))
 		require.NoError(t, err)
-		ref, err := derive.PayloadToBlockRef(sd.RollupCfg, payload)
+		ref, err := derive.PayloadToBlockRef(sd.RollupCfg, envelope.ExecutionPayload)
 		require.NoError(t, err)
 		if i < 6 {
 			require.Equal(t, ref.L1Origin.Number, cfgChangeL1BlockNum-2)
@@ -148,7 +148,7 @@ func BatcherKeyRotation(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 		} else {
 			require.Equal(t, ref.L1Origin.Number, cfgChangeL1BlockNum)
 			require.Equal(t, ref.SequenceNumber, uint64(0), "first L2 block with this origin")
-			sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, payload)
+			sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 			require.NoError(t, err)
 			require.Equal(t, dp.Addresses.Bob, sysCfg.BatcherAddr, "bob should be batcher now")
 		}
@@ -305,9 +305,9 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	sequencer.ActBuildToL1HeadExcl(t)
 
 	engCl := seqEngine.EngineClient(t, sd.RollupCfg)
-	payload, err := engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	envelope, err := engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, payload)
+	sysCfg, err := derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
 	require.Equal(t, sd.RollupCfg.Genesis.SystemConfig, sysCfg, "still have genesis system config before we adopt the L1 block with GPO change")
 
@@ -318,9 +318,9 @@ func GPOParamsChange(gt *testing.T, deltaTimeOffset *hexutil.Uint64) {
 	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
 	sequencer.ActL2EndBlock(t)
 
-	payload, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	envelope, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	sysCfg, err = derive.PayloadToSystemConfig(sd.RollupCfg, payload)
+	sysCfg, err = derive.PayloadToSystemConfig(sd.RollupCfg, envelope.ExecutionPayload)
 	require.NoError(t, err)
 	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(1000))), sysCfg.Overhead, "overhead changed")
 	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(2_300_000))), sysCfg.Scalar, "scalar changed")

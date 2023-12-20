@@ -28,6 +28,8 @@ type MockBlockInfo struct {
 	InfoGasUsed     uint64
 	InfoGasLimit    uint64
 	InfoHeaderRLP   []byte
+
+	InfoParentBeaconRoot *common.Hash
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -80,6 +82,10 @@ func (l *MockBlockInfo) GasLimit() uint64 {
 
 func (l *MockBlockInfo) ID() eth.BlockID {
 	return eth.BlockID{Hash: l.InfoHash, Number: l.InfoNum}
+}
+
+func (l *MockBlockInfo) ParentBeaconRoot() *common.Hash {
+	return l.InfoParentBeaconRoot
 }
 
 func (l *MockBlockInfo) HeaderRLP() ([]byte, error) {

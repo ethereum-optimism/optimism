@@ -188,7 +188,7 @@ func TestSystemE2EDencunAtGenesisWithBlobs(t *testing.T) {
 
 	// send a blob-containing txn on l1
 	ethPrivKey := sys.Cfg.Secrets.Alice
-	txData := transactions.CreateEmptyBlobTx(ethPrivKey, true, sys.Cfg.L1ChainIDBig().Uint64())
+	txData := transactions.CreateEmptyBlobTx(true, sys.Cfg.L1ChainIDBig().Uint64())
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L1ChainIDBig()), txData)
 	// send blob-containing txn
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -545,11 +545,11 @@ func TestSystemMockP2P(t *testing.T) {
 
 	var published, received []common.Hash
 	seqTracer, verifTracer := new(FnTracer), new(FnTracer)
-	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
-		published = append(published, payload.BlockHash)
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
+		published = append(published, payload.ExecutionPayload.BlockHash)
 	}
-	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received = append(received, payload.BlockHash)
+	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
+		received = append(received, payload.ExecutionPayload.BlockHash)
 	}
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
@@ -646,8 +646,8 @@ func TestSystemP2PAltSync(t *testing.T) {
 	var published []string
 	seqTracer := new(FnTracer)
 	// The sequencer still publishes the blocks to the tracer, even if they do not reach the network due to disabled P2P
-	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
-		published = append(published, payload.ID().String())
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
+		published = append(published, payload.ExecutionPayload.ID().String())
 	}
 	// Blocks are now received via the RPC based alt-sync method
 	cfg.Nodes["sequencer"].Tracer = seqTracer
@@ -700,8 +700,8 @@ func TestSystemP2PAltSync(t *testing.T) {
 		Pprof:               oppprof.CLIConfig{},
 		L1EpochPollInterval: time.Second * 10,
 		Tracer: &FnTracer{
-			OnUnsafeL2PayloadFn: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-				syncedPayloads = append(syncedPayloads, payload.ID().String())
+			OnUnsafeL2PayloadFn: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
+				syncedPayloads = append(syncedPayloads, payload.ExecutionPayload.ID().String())
 			},
 		},
 	}
@@ -790,17 +790,17 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	var published, received1, received2, received3 []common.Hash
 	seqTracer, verifTracer, verifTracer2, verifTracer3 := new(FnTracer), new(FnTracer), new(FnTracer), new(FnTracer)
-	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
-		published = append(published, payload.BlockHash)
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayloadEnvelope) {
+		published = append(published, payload.ExecutionPayload.BlockHash)
 	}
-	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received1 = append(received1, payload.BlockHash)
+	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
+		received1 = append(received1, payload.ExecutionPayload.BlockHash)
 	}
-	verifTracer2.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received2 = append(received2, payload.BlockHash)
+	verifTracer2.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
+		received2 = append(received2, payload.ExecutionPayload.BlockHash)
 	}
-	verifTracer3.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received3 = append(received3, payload.BlockHash)
+	verifTracer3.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayloadEnvelope) {
+		received3 = append(received3, payload.ExecutionPayload.BlockHash)
 	}
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer

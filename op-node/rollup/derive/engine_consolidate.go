@@ -15,7 +15,9 @@ import (
 
 // AttributesMatchBlock checks if the L2 attributes pre-inputs match the output
 // nil if it is a match. If err is not nil, the error contains the reason for the mismatch
-func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes, parentHash common.Hash, block *eth.ExecutionPayload, l log.Logger) error {
+func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes, parentHash common.Hash, envelope *eth.ExecutionPayloadEnvelope, l log.Logger) error {
+	block := envelope.ExecutionPayload
+
 	if parentHash != block.ParentHash {
 		return fmt.Errorf("parent hash field does not match. expected: %v. got: %v", parentHash, block.ParentHash)
 	}
@@ -44,6 +46,9 @@ func AttributesMatchBlock(rollupCfg *rollup.Config, attrs *eth.PayloadAttributes
 	}
 	if withdrawalErr := checkWithdrawalsMatch(attrs.Withdrawals, block.Withdrawals); withdrawalErr != nil {
 		return withdrawalErr
+	}
+	if envelope.ParentBeaconBlockRoot != attrs.ParentBeaconBlockRoot {
+		return fmt.Errorf("parent beacon block root does not match. expected %v. got: %v", attrs.ParentBeaconBlockRoot, envelope.ParentBeaconBlockRoot)
 	}
 	return nil
 }

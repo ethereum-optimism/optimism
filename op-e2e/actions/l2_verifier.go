@@ -127,7 +127,7 @@ func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (s *l2VerifierBackend) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	return nil
 }
 
@@ -245,7 +245,7 @@ func (s *L2Verifier) ActL2PipelineFull(t Testing) {
 }
 
 // ActL2UnsafeGossipReceive creates an action that can receive an unsafe execution payload, like gossipsub
-func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayload) Action {
+func (s *L2Verifier) ActL2UnsafeGossipReceive(payload *eth.ExecutionPayloadEnvelope) Action {
 	return func(t Testing) {
 		s.derivation.AddUnsafePayload(payload)
 	}

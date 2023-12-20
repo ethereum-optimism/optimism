@@ -57,7 +57,7 @@ type EngineQueueStage interface {
 	SystemConfig() eth.SystemConfig
 
 	Finalize(l1Origin eth.L1BlockRef)
-	AddUnsafePayload(payload *eth.ExecutionPayload)
+	AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope)
 	UnsafeL2SyncTarget() eth.L2BlockRef
 	Step(context.Context) error
 }
@@ -161,7 +161,7 @@ func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2Blo
 	return dp.eng.StartPayload(ctx, parent, attrs, updateSafe)
 }
 
-func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
 	return dp.eng.ConfirmPayload(ctx)
 }
 
@@ -174,7 +174,7 @@ func (dp *DerivationPipeline) BuildingPayload() (onto eth.L2BlockRef, id eth.Pay
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
-func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
+func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayloadEnvelope) {
 	dp.eng.AddUnsafePayload(payload)
 }
 

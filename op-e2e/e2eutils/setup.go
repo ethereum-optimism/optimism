@@ -195,3 +195,11 @@ func CanyonTimeOffset() *hexutil.Uint64 {
 	}
 	return nil
 }
+
+func EcotoneTimeOffset() *hexutil.Uint64 {
+	if os.Getenv("OP_E2E_USE_ECOTONE") == "true" {
+		offset := hexutil.Uint64(0)
+		return &offset
+	}
+	return nil
+}

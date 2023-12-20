@@ -76,7 +76,7 @@ type Driver struct {
 
 	// L2 Signals:
 
-	unsafeL2Payloads chan *eth.ExecutionPayload
+	unsafeL2Payloads chan *eth.ExecutionPayloadEnvelope
 
 	l1        L1Chain
 	l2        L2Chain
@@ -156,11 +156,11 @@ func (s *Driver) OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) er
 	}
 }
 
-func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
+func (s *Driver) OnUnsafeL2Payload(ctx context.Context, envelope *eth.ExecutionPayloadEnvelope) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case s.unsafeL2Payloads <- payload:
+	case s.unsafeL2Payloads <- envelope:
 		return nil
 	}
 }
@@ -281,7 +281,7 @@ func (s *Driver) eventLoop() {
 				// Publishing of unsafe data via p2p is optional.
 				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
 				if err := s.network.PublishL2Payload(s.driverCtx, payload); err != nil {
-					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+					s.log.Warn("failed to publish newly created block", "id", payload.ExecutionPayload.ID(), "err", err)
 					s.metrics.RecordPublishingError()
 				}
 			}
@@ -294,11 +294,11 @@ func (s *Driver) eventLoop() {
 			if err != nil {
 				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
-		case payload := <-s.unsafeL2Payloads:
+		case envelope := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
-			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
-			s.derivation.AddUnsafePayload(payload)
-			s.metrics.RecordReceivedUnsafePayload(payload)
+			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", envelope.ExecutionPayload.ID())
+			s.derivation.AddUnsafePayload(envelope)
+			s.metrics.RecordReceivedUnsafePayload(envelope)
 			reqStep()
 
 		case newL1Head := <-s.l1HeadSig:
