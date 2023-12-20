@@ -145,7 +145,6 @@ def deploy_contracts(paths):
         'forge', 'script', fqn, '--sender', account,
         '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
         '--unlocked', '--with-gas-price', '100000000000',
-        '--memory-limit', '512000000'
     ], env={}, cwd=paths.contracts_bedrock_dir)
 
     shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
