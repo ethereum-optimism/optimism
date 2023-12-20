@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func TestEclipseNetworkUpgradeTransactions(gt *testing.T) {
+func TestEcotoneNetworkUpgradeTransactions(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	offset := hexutil.Uint64(0)
@@ -42,8 +42,8 @@ func TestEclipseNetworkUpgradeTransactions(gt *testing.T) {
 	initialL1BlockAddress, err := engine.EthClient().StorageAt(context.Background(), predeploys.L1BlockAddr, genesis.ImplementationSlot, nil)
 	require.NoError(t, err)
 
-	// Build the eclipse block
-	sequencer.ActBuildL2ToEclipse(t)
+	// Build to the ecotone block
+	sequencer.ActBuildL2ToEcotone(t)
 	block := sequencer.L2Unsafe()
 
 	// get latest block

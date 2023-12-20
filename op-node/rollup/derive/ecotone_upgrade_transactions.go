@@ -22,7 +22,7 @@ var (
 	deployGasPriceOracleSource = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Deployment"}
 	updateL1BlockProxySource   = UpgradeDepositSource{Intent: "Ecotone: L1 Block Proxy Update"}
 	updateGasPriceOracleSource = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Proxy Update"}
-	beaconRootsSource          = UpgradeDepositSource{Intent: "Eclipse: beacon block roots contract deployment"}
+	beaconRootsSource          = UpgradeDepositSource{Intent: "Ecotone: beacon block roots contract deployment"}
 )
 
 func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
