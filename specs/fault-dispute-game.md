@@ -73,11 +73,11 @@ We refer to this state as the **ABSOLUTE\_PRESTATE**.
 ### Claims
 
 Claims assert an [output root][g-output-root] or the state of the FPVM at a given instruction. This is represented as
-`ClaimHash`, a `bytes32` representing either an [output root][g-output-root] or a commitment to the last VM state in a trace.
-A FDG is initialized with an output root that corresponds to the state of L2 at a given L2 block number, and execution
-trace subgames are initialized with a claim that commits to the entire execution trace between two conseuctive output
-roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple claims, committing to different
-output roots and FPVM states in the FDG.
+`ClaimHash`, a `bytes32` representing either an [output root][g-output-root] or a commitment to the last VM state in a
+trace. A FDG is initialized with an output root that corresponds to the state of L2 at a given L2 block number, and
+execution trace subgames are initialized with a claim that commits to the entire execution trace between two conseuctive
+output roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple claims, committing to
+different output roots and FPVM states in the FDG.
 
 ### DAG
 
@@ -88,10 +88,24 @@ where $C_i$ is a claim.
 - $E$ is the set of _directed_ edges. An edge $(C_i,C_j)$ exists if $C_j$ is a direct dispute
 against $C_i$ through either an "Attack" or "Defend" [move](#moves).
 
+### Subgame
+
+A sub-game is a DAG of depth 1, where the root of the DAG is a `Claim` and the children are `Claim`s that counter the
+root. A good mental model around this structure is that it is a fundamental dispute between two parties over a single
+piece of information. These subgames are chained together such that a child within a subgame is the root of its own
+subgame, which is visualized in the [resolution](#resolution) section. There are two types of sub-games in the fault
+dispute game:
+1. Output Roots
+1. Execution Trace Commitments
+
+At and above the split depth, all subgame roots correspond to [output roots][g-output-root], or commitments to the full
+state of L2 at a given L2 block number. Below the split depth, subgame roots correspond to commitments to the fault
+proof VM's state at a given instruction step.
+
 ### Game Tree
 
 The Game Tree is a binary tree of positions. Every claim in the DAG references a position in the Game Tree.
- The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` and `MAX_GAME_DEPTH` respectively, that are both preset
+The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` and `MAX_GAME_DEPTH` respectively, that are both preset
 to an FDG implementation. The split depth defines the maximum depth at which claims about [output roots][g-output-root]
 can occur, and below it, execution trace bisection occurs. Thus, the Game Tree contains $2^{d-1}$ positions, where $d$
 is the `MAX_GAME_DEPTH` (unless $d=0$, in which case there's only 1 position).
