@@ -1007,7 +1007,7 @@ The block before the Ecotone hardfork, contains the following transactions in th
   * Beacon block roots contract deployment (EIP-4788)
 
 To not modify or interrupt the system behavior around gas computation, this block will not include any sequenced
-transactions.
+transactions by setting `noTxPool: true`.
 
 ##### L1Block Deployment
 
@@ -1033,15 +1033,7 @@ Computed Address: 0x07dbe8500fc591d1852B76feE44d5a05e13097Ff
 Verify `sourceHash`:
 
 ```bash
-# compute intent hash:
-cast keccak "Ecotone: L1 Block Deployment"
-# 0xc9732b17afa32fa4f1f537dc8db369066928498bc8395a96761648c6adb187d0
-
-# source hash type:
-# 0x0000000000000000000000000000000000000000000000000000000000000002
-
-# compute source hash:
-cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002c9732b17afa32fa4f1f537dc8db369066928498bc8395a96761648c6adb187d0
+cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: L1 Block Deployment"))
 # 0x877a6077205782ea15a6dc8699fa5ebcec5e0f4389f09cb8eda09488231346f8
 ```
 
@@ -1071,15 +1063,7 @@ Computed Address: 0xb528D11cC114E026F138fE568744c6D45ce6Da7A
 Verify `sourceHash`:
 
 ```bash
-# compute intent hash:
-cast keccak "Ecotone: Gas Price Oracle Deployment"
-# 0x529c922cad7984deae1f8311397f61998c2d101c184693006c91384c0faae8be
-
-# source hash type:
-# 0x0000000000000000000000000000000000000000000000000000000000000002
-
-# compute source hash:
-cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002529c922cad7984deae1f8311397f61998c2d101c184693006c91384c0faae8be
+❯ cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: Gas Price Oracle Deployment"))
 # 0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42
 ```
 
@@ -1099,15 +1083,7 @@ A deposit transaction is derived with the following attributes:
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Proxy Update"
 
 ```bash
-# compute intent hash:
-cast keccak "Ecotone: L1 Block Proxy Update"
-# 0x8eb5485869caa58625c9c5f54152d8f25133495d52f3cd99861072299010d005
-
-# source hash type:
-# 0x0000000000000000000000000000000000000000000000000000000000000002
-
-# compute source hash:
-cast keccak 0x00000000000000000000000000000000000000000000000000000000000000028eb5485869caa58625c9c5f54152d8f25133495d52f3cd99861072299010d005
+cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: L1 Block Proxy Update"))
 # 0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc
 ```
 
@@ -1127,15 +1103,7 @@ A deposit transaction is derived with the following attributes:
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
 
 ```bash
-# compute intent hash:
-cast keccak "Ecotone: Gas Price Oracle Proxy Update"
-# 0x461dddc5e0ed82e7bedc48bd6d5aba375f57afb76b83cd67b934619598d8c56b
-
-# source hash type:
-# 0x0000000000000000000000000000000000000000000000000000000000000002
-
-# compute source hash:
-cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002461dddc5e0ed82e7bedc48bd6d5aba375f57afb76b83cd67b934619598d8c56b
+cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: Gas Price Oracle Proxy Update"))
 # 0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a
 ```
 
@@ -1186,15 +1154,7 @@ cast compute-address --nonce=0 0x0B799C86a49DEeb90402691F1041aa3AF2d3C875
 Verify `sourceHash`:
 
 ```bash
-# compute intent hash:
-cast keccak "Ecotone: beacon block roots contract deployment"
-# 0xab0dfc96b47739a0ae1d415bbfaae79ebb1111861a3b7cfbbaa6ca4a9e618357
-
-# source hash type:
-# 0x0000000000000000000000000000000000000000000000000000000000000002
-
-# compute source hash:
-cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002ab0dfc96b47739a0ae1d415bbfaae79ebb1111861a3b7cfbbaa6ca4a9e618357
+cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: beacon block roots contract deployment"))
 # 0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c
 ```
 
