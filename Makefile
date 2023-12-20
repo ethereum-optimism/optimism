@@ -39,6 +39,31 @@ golang-docker:
 			op-node op-batcher op-proposer op-challenger
 .PHONY: golang-docker
 
+docker-builder-clean:
+	docker buildx rm buildx-build
+.PHONY: docker-builder-clean
+
+docker-builder:
+	docker buildx create \
+		--driver=docker-container --name=buildx-build --bootstrap --use
+.PHONY: docker-builder
+
+# add --print to dry-run
+cross-op-node:
+	# We don't use a buildx builder here, and just load directly into regular docker, for convenience.
+	GIT_COMMIT=$$(git rev-parse HEAD) \
+	GIT_DATE=$$(git show -s --format='%ct') \
+	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
+	PLATFORMS=linux/arm64
+	docker buildx bake \
+			--progress plain \
+			--builder=buildx-build \
+			--load \
+			--no-cache \
+			-f docker-bake.hcl \
+			op-node
+.PHONY: golang-docker
+
 contracts-bedrock-docker:
 	IMAGE_TAGS=$$(git rev-parse HEAD),latest \
 	docker buildx bake \

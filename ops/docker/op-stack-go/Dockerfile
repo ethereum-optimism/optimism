@@ -1,4 +1,9 @@
 # automatically set by buildkit, can be changed with --platform flag
+# see https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
+# TARGETOS
+# TARGETARCH
+# TARGETPLATFORM
+# BUILDPLATFORM
 ARG TARGETOS
 ARG TARGETARCH
 
@@ -39,6 +44,13 @@ ARG GIT_DATE
 # - proxyd
 # - any JS/TS/smart-contract builds
 
+# TODO: if the build involves optional CGO, then:
+# 1) we may have to disable CGO explicitly
+# 3) apk install cross-build gcc,
+#    and specify to go to use that, with the CC flag
+
+ARG TARGETOS TARGETARCH
+
 # Build the Go services, utilizing caches and share the many common packages.
 # The "id" defaults to the value of "target", the cache will thus be reused during this build.
 # "sharing" defaults to "shared", the cache will thus be available to other concurrent docker builds.
@@ -65,6 +77,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-wheel && make op-wheel
 
 FROM --platform=$BUILDPLATFORM builder as op-node-builder
 ARG OP_NODE_VERSION=v0.0.0
+RUN echo TARGETOS=$TARGETOS TARGETARCH=$TARGETARCH BUILDPLATFORM=$BUILDPLATFORM TARGETPLATFORM=$TARGETPLATFORM OP_NODE_VERSION=$OP_NODE_VERSION
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-node && make op-node  \
     GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE VERSION="$OP_NODE_VERSION"
 
@@ -81,7 +94,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build cd op-batcher && make op-bat
 FROM --platform=$BUILDPLATFORM builder as op-proposer-builder
 ARG OP_PROPOSER_VERSION=v0.0.0
 RUN --mount=type=cache,target=/root/.cache/go-build cd op-proposer && make op-proposer  \
-    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION" \
+    GOOS=$TARGETOS GOARCH=$TARGETARCH GITCOMMIT=$GIT_COMMIT GITDATE=$GIT_DATE  VERSION="$OP_PROPOSER_VERSION"
 
 FROM --platform=$BUILDPLATFORM builder as op-conductor-builder
 ARG OP_CONDUCTOR_VERSION=v0.0.0
