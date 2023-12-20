@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"testing"
 	"time"
@@ -100,7 +101,11 @@ func TestVerifyBlockSignature(t *testing.T) {
 	})
 }
 
-func createSignedP2Payload(payload *eth.ExecutionPayload, signer Signer, l2ChainID *big.Int) ([]byte, error) {
+type MarshalSSZ interface {
+	MarshalSSZ(w io.Writer) (n int, err error)
+}
+
+func createSignedP2Payload(payload MarshalSSZ, signer Signer, l2ChainID *big.Int) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.Write(make([]byte, 65))
 	if _, err := payload.MarshalSSZ(&buf); err != nil {
@@ -119,6 +124,22 @@ func createSignedP2Payload(payload *eth.ExecutionPayload, signer Signer, l2Chain
 	return snappy.Encode(nil, data), nil
 }
 
+func createExecutionPayload(w types.Withdrawals, excessGas, gasUsed *uint64) *eth.ExecutionPayload {
+	return &eth.ExecutionPayload{
+		Timestamp:     hexutil.Uint64(time.Now().Unix()),
+		Withdrawals:   &w,
+		ExcessBlobGas: (*eth.Uint64Quantity)(excessGas),
+		BlobGasUsed:   (*eth.Uint64Quantity)(gasUsed),
+	}
+}
+
+func createEnvelope(h *common.Hash, w types.Withdrawals, excessGas, gasUsed *uint64) *eth.ExecutionPayloadEnvelope {
+	return &eth.ExecutionPayloadEnvelope{
+		ExecutionPayload:      createExecutionPayload(w, excessGas, gasUsed),
+		ParentBeaconBlockRoot: h,
+	}
+}
+
 // TestBlockValidator does some very basic tests of the p2p block validation logic
 func TestBlockValidator(t *testing.T) {
 	// Params Set 1: Create the validation function
@@ -129,35 +150,61 @@ func TestBlockValidator(t *testing.T) {
 	require.NoError(t, err)
 	runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
 	signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
-
-	// valFnV1 := BuildBlocksValidator(testlog.Logger(t, log.LvlCrit), rollupCfg, runCfg, eth.BlockV1)
-	valFnV2 := BuildBlocksValidator(testlog.Logger(t, log.LvlCrit), cfg, runCfg, eth.BlockV2)
-
 	// Params Set 2: Call the validation function
 	peerID := peer.ID("foo")
 
-	// Valid Case
-	payload := eth.ExecutionPayload{
-		Timestamp:   hexutil.Uint64(time.Now().Unix()),
-		Withdrawals: &types.Withdrawals{},
-	}
-	payload.BlockHash, _ = payload.CheckBlockHash() // hack to generate the block hash easily.
-	data, err := createSignedP2Payload(&payload, signer, cfg.L2ChainID)
-	require.NoError(t, err)
-	message := &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
-	res := valFnV2(context.TODO(), peerID, message)
-	require.Equal(t, res, pubsub.ValidationAccept)
+	v2Validator := BuildBlocksValidator(testlog.Logger(t, log.LvlCrit), cfg, runCfg, eth.BlockV2)
+	v3Validator := BuildBlocksValidator(testlog.Logger(t, log.LvlCrit), cfg, runCfg, eth.BlockV3)
 
-	// Invalid because non-empty withdrawals when Canyon is active
-	payload = eth.ExecutionPayload{
-		Timestamp:   hexutil.Uint64(time.Now().Unix()),
-		Withdrawals: &types.Withdrawals{&types.Withdrawal{Index: 1, Validator: 1}},
-	}
-	payload.BlockHash, _ = payload.CheckBlockHash()
-	data, err = createSignedP2Payload(&payload, signer, cfg.L2ChainID)
-	require.NoError(t, err)
-	message = &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
-	res = valFnV2(context.TODO(), peerID, message)
-	require.Equal(t, res, pubsub.ValidationReject)
+	zero, one := uint64(0), uint64(1)
+	beaconHash := common.HexToHash("0x1234")
 
+	payloadTests := []struct {
+		name      string
+		validator pubsub.ValidatorEx
+		result    pubsub.ValidationResult
+		payload   *eth.ExecutionPayload
+	}{
+		{"V2Valid", v2Validator, pubsub.ValidationAccept, createExecutionPayload(types.Withdrawals{}, nil, nil)},
+		{"V2NonZeroWithdrawals", v2Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{&types.Withdrawal{Index: 1, Validator: 1}}, nil, nil)},
+		{"V2NonZeroBlobProperties", v2Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, &zero, &zero)},
+		{"V3RejectExecutionPayload", v3Validator, pubsub.ValidationReject, createExecutionPayload(types.Withdrawals{}, &zero, &zero)},
+	}
+
+	for _, tt := range payloadTests {
+		test := tt
+		t.Run(fmt.Sprintf("ExecutionPayload_%s", test.name), func(t *testing.T) {
+			e := &eth.ExecutionPayloadEnvelope{ExecutionPayload: test.payload}
+			test.payload.BlockHash, _ = e.CheckBlockHash() // hack to generate the block hash easily.
+			data, err := createSignedP2Payload(test.payload, signer, cfg.L2ChainID)
+			require.NoError(t, err)
+			message := &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
+			res := test.validator(context.TODO(), peerID, message)
+			require.Equal(t, res, test.result)
+		})
+	}
+
+	envelopeTests := []struct {
+		name      string
+		validator pubsub.ValidatorEx
+		result    pubsub.ValidationResult
+		payload   *eth.ExecutionPayloadEnvelope
+	}{
+		{"V3RejectNonZeroExcessGas", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &one, &zero)},
+		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &zero, &one)},
+		{"V3RejectNonZeroBlobGasUsed", v3Validator, pubsub.ValidationReject, createEnvelope(&beaconHash, types.Withdrawals{}, &zero, &one)},
+		{"V3Valid", v3Validator, pubsub.ValidationAccept, createEnvelope(&beaconHash, types.Withdrawals{}, &zero, &zero)},
+	}
+
+	for _, tt := range envelopeTests {
+		test := tt
+		t.Run(fmt.Sprintf("ExecutionPayloadEnvelope_%s", test.name), func(t *testing.T) {
+			test.payload.ExecutionPayload.BlockHash, _ = test.payload.CheckBlockHash() // hack to generate the block hash easily.
+			data, err := createSignedP2Payload(test.payload, signer, cfg.L2ChainID)
+			require.NoError(t, err)
+			message := &pubsub.Message{Message: &pubsub_pb.Message{Data: data}}
+			res := test.validator(context.TODO(), peerID, message)
+			require.Equal(t, res, test.result)
+		})
+	}
 }

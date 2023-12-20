@@ -117,17 +117,18 @@ func startPayload(ctx context.Context, eng ExecEngine, fc eth.ForkchoiceState, a
 // confirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
-func confirmPayload(ctx context.Context, log log.Logger, eng ExecEngine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
-	payload, err := eng.GetPayload(ctx, id)
+func confirmPayload(ctx context.Context, log log.Logger, eng ExecEngine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayloadEnvelope, errTyp BlockInsertionErrType, err error) {
+	envelope, err := eng.GetPayload(ctx, id)
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload: %w", err)
 	}
+	payload := envelope.ExecutionPayload
 	if err := sanityCheckPayload(payload); err != nil {
 		return nil, BlockInsertPayloadErr, err
 	}
 
-	status, err := eng.NewPayload(ctx, payload)
+	status, err := eng.NewPayload(ctx, payload, envelope.ParentBeaconBlockRoot)
 	if err != nil {
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to insert execution payload: %w", err)
 	}
@@ -164,5 +165,5 @@ func confirmPayload(ctx context.Context, log log.Logger, eng ExecEngine, fc eth.
 		"state_root", payload.StateRoot, "timestamp", uint64(payload.Timestamp), "parent", payload.ParentHash,
 		"prev_randao", payload.PrevRandao, "fee_recipient", payload.FeeRecipient,
 		"txs", len(payload.Transactions), "update_safe", updateSafe)
-	return payload, BlockInsertOK, nil
+	return envelope, BlockInsertOK, nil
 }

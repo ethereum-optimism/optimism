@@ -979,8 +979,9 @@ func TestBlockBuildingRace(t *testing.T) {
 			a1InfoTx,
 		},
 	}
-	eng.ExpectGetPayload(id, payloadA1, nil)
-	eng.ExpectNewPayload(payloadA1, &eth.PayloadStatusV1{
+	envelope := &eth.ExecutionPayloadEnvelope{ExecutionPayload: payloadA1}
+	eng.ExpectGetPayload(id, envelope, nil)
+	eng.ExpectNewPayload(payloadA1, nil, &eth.PayloadStatusV1{
 		Status:          eth.ExecutionValid,
 		LatestValidHash: &refA1.Hash,
 		ValidationError: nil,
@@ -1169,7 +1170,7 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 		L1Origin:       refA.ID(),
 		SequenceNumber: 2,
 	}
-	payloadA1 := &eth.ExecutionPayload{
+	payloadA1 := &eth.ExecutionPayloadEnvelope{ExecutionPayload: &eth.ExecutionPayload{
 		ParentHash:    refA1.ParentHash,
 		FeeRecipient:  common.Address{},
 		StateRoot:     eth.Bytes32{},
@@ -1184,7 +1185,7 @@ func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
 		BaseFeePerGas: *uint256.NewInt(7),
 		BlockHash:     refA1.Hash,
 		Transactions:  []eth.Data{},
-	}
+	}}
 
 	prev := &fakeAttributesQueue{origin: refA}
 
