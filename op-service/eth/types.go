@@ -259,6 +259,8 @@ type PayloadAttributes struct {
 	NoTxPool bool `json:"noTxPool,omitempty"`
 	// GasLimit override
 	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
+	// parentBeaconBlockRoot optional extension in Dencun
+	ParentBeaconBlockRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 }
 
 type ExecutePayloadStatus string

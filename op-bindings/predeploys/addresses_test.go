@@ -51,6 +51,7 @@ func TestL1BlockSlots(t *testing.T) {
 	require.Equal(t, types.OverheadSlot, overHeadSlot)
 	require.Equal(t, types.ScalarSlot, scalarSlot)
 	require.Equal(t, types.L1BasefeeSlot, l1BaseFeeSlot)
+
 	// new in Ecotone
 	require.Equal(t, types.L1BlobBasefeeSlot, blobBasefeeSlot)
 	require.Equal(t, types.L1FeeScalarsSlot, l1BasefeeScalarSlot)

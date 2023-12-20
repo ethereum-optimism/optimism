@@ -102,6 +102,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 			l2Parent, nextL2Time, eth.ToBlockID(l1Info), l1Info.Time()))
 	}
 
+	var upgradeTxs []hexutil.Bytes
+	if ba.rollupCfg.IsEcotoneUpgradeDepositBlock(l2Parent.Time, nextL2Time) {
+		upgradeTxs, err = EcotoneNetworkUpgradeTransactions()
+		if err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to build ecotone network upgrade txs: %w", err))
+		}
+	}
+
 	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
@@ -121,9 +129,10 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		sysConfig.BasefeeScalar = basefeeScalar
 	}
 
-	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
+	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs)+len(upgradeTxs))
 	txs = append(txs, l1InfoTx)
 	txs = append(txs, depositTxs...)
+	txs = append(txs, upgradeTxs...)
 
 	var withdrawals *types.Withdrawals
 	if ba.rollupCfg.IsCanyon(nextL2Time) {
@@ -138,5 +147,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 		Withdrawals:           withdrawals,
+		ParentBeaconBlockRoot: l1Info.ParentBeaconRoot(),
 	}, nil
 }
