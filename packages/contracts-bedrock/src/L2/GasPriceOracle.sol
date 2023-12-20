@@ -24,20 +24,30 @@ contract GasPriceOracle is ISemver {
     uint256 public constant DECIMALS = 6;
 
     /// @notice Semantic version.
-    /// @custom:semver 1.1.0
-    string public constant version = "1.1.0";
+    /// @custom:semver 1.2.0
+    string public constant version = "1.2.0";
+
+    /// @notice Flag that indicates whether the network is in ecotone mode.
+    bool public isEcotone;
 
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
     ///         transaction, the current L1 base fee, and the various dynamic parameters.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
     /// @return L1 fee that should be paid for the tx
     function getL1Fee(bytes memory _data) external view returns (uint256) {
-        uint256 l1GasUsed = getL1GasUsed(_data);
-        uint256 l1Fee = l1GasUsed * l1BaseFee();
-        uint256 divisor = 10 ** DECIMALS;
-        uint256 unscaled = l1Fee * scalar();
-        uint256 scaled = unscaled / divisor;
-        return scaled;
+        if (isEcotone) {
+            _getL1FeeEcotone(_data);
+        }
+        return _getL1FeeBedrock(_data);
+    }
+
+    /// @notice Set chain to be Ecotone chain (callable by depositor account)
+    function setEcotone() external {
+        require(
+            msg.sender == L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).DEPOSITOR_ACCOUNT(),
+            "GasPriceOracle: only the depositor account can set isEcotone flag"
+        );
+        isEcotone = true;
     }
 
     /// @notice Retrieves the current gas price (base fee).
@@ -52,15 +62,23 @@ contract GasPriceOracle is ISemver {
         return block.basefee;
     }
 
+    /// @custom:legacy
     /// @notice Retrieves the current fee overhead.
     /// @return Current fee overhead.
     function overhead() public view returns (uint256) {
+        if (isEcotone) {
+            revert("GasPriceOracle: overhead() is deprecated");
+        }
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
     }
 
+    /// @custom:legacy
     /// @notice Retrieves the current fee scalar.
     /// @return Current fee scalar.
     function scalar() public view returns (uint256) {
+        if (isEcotone) {
+            revert("GasPriceOracle: scalar() is deprecated");
+        }
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
     }
 
@@ -70,6 +88,24 @@ contract GasPriceOracle is ISemver {
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
     }
 
+    /// @notice Retrieves the current blob base fee.
+    /// @return Current blob base fee.
+    function blobBasefee() public view returns (uint256) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBasefee();
+    }
+
+    /// @notice Retrieves the current base fee scalar.
+    /// @return Current base fee scalar.
+    function basefeeScalar() public view returns (uint32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefeeScalar();
+    }
+
+    /// @notice Retrieves the current blob base fee scalar.
+    /// @return Current blob base fee scalar.
+    function blobBasefeeScalar() public view returns (uint32) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).blobBasefeeScalar();
+    }
+
     /// @custom:legacy
     /// @notice Retrieves the number of decimals used in the scalar.
     /// @return Number of decimals used in the scalar.
@@ -77,13 +113,46 @@ contract GasPriceOracle is ISemver {
         return DECIMALS;
     }
 
-    /// @notice Computes the amount of L1 gas used for a transaction. Adds the overhead which
-    ///         represents the per-transaction gas overhead of posting the transaction and state
-    ///         roots to L1. Adds 68 bytes of padding to account for the fact that the input does
-    ///         not have a signature.
+    /// @notice Computes the amount of L1 gas used for a transaction. Adds 68 bytes
+    ///         of padding to account for the fact that the input does not have a signature.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
     function getL1GasUsed(bytes memory _data) public view returns (uint256) {
+        if (isEcotone) {
+            return _getL1GasUsedEcotone(_data);
+        }
+        return _getL1GasUsedBedrock(_data);
+    }
+
+    /// @notice Pre-ecotone computation of the L1 portion of the fee.
+    /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
+    /// @return L1 fee that should be paid for the tx
+    function _getL1FeeBedrock(bytes memory _data) internal view returns (uint256) {
+        uint256 l1GasUsed = _getL1GasUsedBedrock(_data);
+        uint256 l1Fee = l1GasUsed * l1BaseFee();
+        uint256 unscaled = l1Fee * L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
+        uint256 divisor = 10 ** DECIMALS;
+        uint256 scaled = unscaled / divisor;
+        return scaled;
+    }
+
+    /// @notice Post-ecotone computation of the L1 portion of the fee.
+    /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
+    /// @return L1 fee that should be paid for the tx
+    function _getL1FeeEcotone(bytes memory _data) internal view returns (uint256) {
+        uint256 l1GasUsed = _getL1GasUsedEcotone(_data);
+        uint256 scaledBasefee = basefeeScalar() * 16 * l1BaseFee();
+        uint256 scaledBlobBasefee = blobBasefeeScalar() * blobBasefee();
+        uint256 unscaled = l1GasUsed * (scaledBasefee + scaledBlobBasefee);
+        uint256 divisor = 10 ** DECIMALS;
+        uint256 scaled = unscaled / divisor;
+        return scaled;
+    }
+
+    /// @notice Pre-ecotone L1 gas estimation calculation.
+    /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
+    /// @return Amount of L1 gas used to publish the transaction.
+    function _getL1GasUsedBedrock(bytes memory _data) internal view returns (uint256) {
         uint256 total = 0;
         uint256 length = _data.length;
         for (uint256 i = 0; i < length; i++) {
@@ -93,7 +162,23 @@ contract GasPriceOracle is ISemver {
                 total += 16;
             }
         }
-        uint256 unsigned = total + overhead();
+        uint256 unsigned = total + L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
         return unsigned + (68 * 16);
+    }
+
+    /// @notice Post-ecotone L1 gas estimation calculation.
+    /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
+    /// @return Amount of L1 gas used to publish the transaction.
+    function _getL1GasUsedEcotone(bytes memory _data) internal pure returns (uint256) {
+        uint256 total = 0;
+        uint256 length = _data.length;
+        for (uint256 i = 0; i < length; i++) {
+            if (_data[i] == 0) {
+                total += 4;
+            } else {
+                total += 16;
+            }
+        }
+        return (total + (68 * 16 * 16)) / 16;
     }
 }
