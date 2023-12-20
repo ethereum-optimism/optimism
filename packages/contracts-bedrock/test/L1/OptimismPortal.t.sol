@@ -41,7 +41,7 @@ contract OptimismPortal_Test is CommonTest {
         assertEq(optimismPortal.l2Sender(), 0x000000000000000000000000000000000000dEaD);
     }
 
-    /// @dev Tests that the constructor sets the correct values.
+    /// @dev Tests that the initializer sets the correct values.
     function test_initialize_succeeds() external {
         address guardian = deploy.cfg().superchainConfigGuardian();
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
