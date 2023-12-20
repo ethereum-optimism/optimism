@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
 )
 
-func TestDencunL1Fork(gt *testing.T) {
+func TestDencunL1ForkAfterGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	offset := uint64(24)
@@ -99,10 +99,42 @@ func TestDencunL1ForkAtGenesis(gt *testing.T) {
 	require.Equal(t, sequencer.SyncStatus().UnsafeL2, verifier.SyncStatus().UnsafeL2, "verifier and sequencer agree")
 }
 
-func TestDencunL2ForkAtGenesis(gt *testing.T) {
+func TestDencunL2ForkAfterGenesis(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	offset := hexutil.Uint64(0)
+	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
+	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
+	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
+
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+	_, _, miner, sequencer, engine, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+
+	// start op-nodes
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	// build empty L1 blocks, crossing the fork boundary
+	miner.ActL1SetFeeRecipient(common.Address{'A', 0})
+	miner.ActEmptyBlock(t)
+	miner.ActEmptyBlock(t) // Cancun activates here
+	miner.ActEmptyBlock(t)
+	log.Info("L1 blocks built")
+	// build L2 chain
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+	log.Info("L2 chain built")
+	// verify Cancun is still active
+	l2Head := engine.l2Chain.CurrentBlock()
+	require.True(t, sd.L2Cfg.Config.IsCancun(l2Head.Number, l2Head.Time), "Cancun active")
+	require.NotNil(t, l2Head.ExcessBlobGas, "Cancun blob gas in header")
+}
+
+func TestDencunL2ForkAtGenesis(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	offset := hexutil.Uint64(24)
 	dp.DeployConfig.L2GenesisCanyonTimeOffset = &offset
 	dp.DeployConfig.L2GenesisDeltaTimeOffset = &offset
 	dp.DeployConfig.L2GenesisEcotoneTimeOffset = &offset
