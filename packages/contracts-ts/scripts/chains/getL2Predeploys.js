@@ -1,3 +1,10 @@
+/**
+ * @typedef {ReturnType<typeof getL2Predeploys>} L2Predeploys
+ */
+
+/** Gets the l2 predeploy contracts shaped as an extension of viem
+ * @param {number} genesisBlock
+ */
 export const getL2Predeploys = (genesisBlock = 0) => ({
   weth9: {
     address: '0x4200000000000000000000000000000000000006',
@@ -97,4 +104,4 @@ export const getL2Predeploys = (genesisBlock = 0) => ({
     deprecated: false,
     proxied: true,
   },
-} as const)
+})
