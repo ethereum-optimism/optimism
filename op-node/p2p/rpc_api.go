@@ -5,11 +5,11 @@ import (
 	"net"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 )
 
 type PeerInfo struct {
@@ -20,8 +20,8 @@ type PeerInfo struct {
 	ENR             string   `json:"ENR"`       // might not always be known, e.g. if the peer connected us instead of us discovering them
 	Addresses       []string `json:"addresses"` // multi-addresses. may be mix of LAN / docker / external IPs. All of them are communicated.
 	Protocols       []string `json:"protocols"` // negotiated protocols list
-	//GossipScore float64
-	//PeerScore float64
+	// GossipScore float64
+	// PeerScore float64
 	Connectedness network.Connectedness `json:"connectedness"` // "NotConnected", "Connected", "CanConnect" (gracefully disconnected), or "CannotConnect" (tried but failed)
 	Direction     network.Direction     `json:"direction"`     // "Unknown", "Inbound" (if the peer contacted us), "Outbound" (if we connected to them)
 	Protected     bool                  `json:"protected"`     // Protected peers do not get
@@ -41,6 +41,7 @@ type PeerDump struct {
 	BannedSubnets  []*net.IPNet         `json:"bannedSubnets"`
 }
 
+//go:generate mockery --name API --output mocks/ --with-expecter=true
 type API interface {
 	Self(ctx context.Context) (*PeerInfo, error)
 	Peers(ctx context.Context, connected bool) (*PeerDump, error)
