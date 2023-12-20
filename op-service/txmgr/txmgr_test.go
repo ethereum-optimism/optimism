@@ -1297,22 +1297,19 @@ func TestClose(t *testing.T) {
 	conf.SafeAbortNonceTooLowCount = 100
 	h := newTestHarnessWithConfig(t, conf)
 
-	// make the tx fail until it tries `ready` number of times
-	// as currently set, this will fail 3 times before succeeding, delaying for 30ms total
-	i := 0
-	ready := 3
+	// sendTx will fail until it is called a retry-number of times
 	called := 0
-	sendTx := func(ctx context.Context, tx *types.Transaction) error {
-		defer func() { i = (i + 1) % (ready + 1) }()
-		defer func() { called += 1 }()
-		if i == ready {
+	const retries = 4
+	sendTx := func(ctx context.Context, tx *types.Transaction) (err error) {
+		called += 1
+		if called%retries == 0 {
 			txHash := tx.Hash()
 			h.backend.mine(&txHash, tx.GasFeeCap())
-			return nil
 		} else {
 			time.Sleep(10 * time.Millisecond)
-			return core.ErrNonceTooLow
+			err = core.ErrNonceTooLow
 		}
+		return
 	}
 	h.backend.setTxSender(sendTx)
 
@@ -1322,7 +1319,7 @@ func TestClose(t *testing.T) {
 		To: &common.Address{},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 4, called)
+	require.Equal(t, retries, called)
 	called = 0
 
 	// rig the txManager to close during the retrying of the tx
@@ -1337,7 +1334,7 @@ func TestClose(t *testing.T) {
 	})
 	require.ErrorIs(t, ErrClosed, err)
 	// confirm that the tx was canceled before it retried to completion
-	require.Less(t, called, 4)
+	require.Less(t, called, retries)
 	called = 0
 
 	// demonstrate that new calls to Send will also fail when the manager is closed
@@ -1347,4 +1344,35 @@ func TestClose(t *testing.T) {
 	require.ErrorIs(t, ErrClosed, err)
 	// confirm that the tx was canceled before it ever made it to the backend
 	require.Equal(t, 0, called)
+}
+
+// TestCloseWaitingForConfirmation ensures that the tx manager will wait for confirmation of a tx in flight, even when closed
+func TestCloseWaitingForConfirmation(t *testing.T) {
+	// two confirmations required so that we can mine and not yet be fully confirmed
+	conf := configWithNumConfs(2)
+	h := newTestHarnessWithConfig(t, conf)
+
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, tx.GasFeeCap())
+		return nil
+	}
+	h.backend.setTxSender(sendTx)
+
+	// rig the backend to advance confirmations after some time
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		h.backend.mine(nil, nil)
+	}()
+	// rig the txManager to close between the tx being mined and the tx being confirmed
+	go func() {
+		time.Sleep(50 * time.Millisecond)
+		h.mgr.Close()
+	}()
+
+	ctx := context.Background()
+	_, err := h.mgr.Send(ctx, TxCandidate{
+		To: &common.Address{},
+	})
+	require.NoError(t, err)
 }

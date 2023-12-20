@@ -224,6 +224,9 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 		defer cancel()
 	}
 	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
+		if m.closed.Load() {
+			return nil, ErrClosed
+		}
 		tx, err := m.craftTx(ctx, candidate)
 		if err != nil {
 			m.l.Warn("Failed to create a transaction, will retry", "err", err)
