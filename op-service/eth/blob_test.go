@@ -1,6 +1,7 @@
 package eth
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -32,10 +33,63 @@ func TestBlobEncodeDecode(t *testing.T) {
 	}
 }
 
+func TestSmallBlobEncoding(t *testing.T) {
+	// the first field element is filled and no data remains
+	data := Data(make([]byte, 128))
+	data[127] = 0xFF
+
+	var b Blob
+	if err := b.FromData(data); err != nil {
+		t.Fatalf("failed to encode bytes: %v", err)
+	}
+
+	decoded, err := b.ToData()
+	if err != nil {
+		t.Fatalf("failed to decode blob: %v", err)
+	}
+	fmt.Println("original data: ", data)
+	fmt.Println("decoded data: ", decoded)
+	if string(decoded) != string(data) {
+		t.Errorf("decoded blob != small blob input")
+	}
+
+	// only 10 bytes of data
+	data[9] = 0xFF
+	if err := b.FromData(data); err != nil {
+		t.Fatalf("failed to encode bytes: %v", err)
+	}
+	decoded, err = b.ToData()
+	if err != nil {
+		t.Fatalf("failed to decode blob: %v", err)
+	}
+	fmt.Println("original data: ", data)
+	fmt.Println("decoded data: ", decoded)
+	if string(decoded) != string(data) {
+		t.Errorf("decoded blob != small blob input")
+	}
+
+	// no 3 bytes of extra data left to encode after the first 4 field elements
+	data = Data(make([]byte, 27+31*3))
+	data[27+31*3-1] = 0xFF
+	if err := b.FromData(data); err != nil {
+		t.Fatalf("failed to encode bytes: %v", err)
+	}
+	decoded, err = b.ToData()
+	if err != nil {
+		t.Fatalf("failed to decode blob: %v", err)
+	}
+	fmt.Println("original data: ", data)
+	fmt.Println("decoded data: ", decoded)
+	if string(decoded) != string(data) {
+		t.Errorf("decoded blob != small blob input")
+	}
+}
+
 func TestBigBlobEncoding(t *testing.T) {
 	bigData := Data(make([]byte, MaxBlobDataSize))
 	bigData[MaxBlobDataSize-1] = 0xFF
 	var b Blob
+	// test the maximum size of data that can be encoded
 	if err := b.FromData(bigData); err != nil {
 		t.Fatalf("failed to encode bytes: %v", err)
 	}
@@ -46,6 +100,22 @@ func TestBigBlobEncoding(t *testing.T) {
 	if string(decoded) != string(bigData) {
 		t.Errorf("decoded blob != big blob input")
 	}
+
+	// chop off 1 byte of data at a time for 10 times
+	for i := 1; i < 11; i++ {
+		// test the chopped off data
+		tempBigData := bigData[i:]
+		if err := b.FromData(tempBigData); err != nil {
+			t.Fatalf("failed to encode bytes: %v", err)
+		}
+		decoded, err := b.ToData()
+		if err != nil {
+			t.Fatalf("failed to decode blob: %v", err)
+		}
+		if string(decoded) != string(tempBigData) {
+			t.Errorf("decoded blob != big blob input")
+		}
+	}
 }
 
 func TestInvalidBlobDecoding(t *testing.T) {
@@ -54,11 +124,18 @@ func TestInvalidBlobDecoding(t *testing.T) {
 	if err := b.FromData(data); err != nil {
 		t.Fatalf("failed to encode bytes: %v", err)
 	}
-	b[32] = 0x80 // field elements should never have their highest order bit set
+
+	b[32] = 0x80 //field elements should never have their highest order bit set
 	if _, err := b.ToData(); err == nil {
 		t.Errorf("expected error, got none")
 	}
 
+	b[1] = 0x01 // wrong version of encoding
+	if _, err := b.ToData(); err == nil {
+		t.Errorf("expected error, got none")
+	}
+
+	b[0] = 0x00
 	b[32] = 0x00
 	b[4] = 0xFF // encode an invalid (much too long) length prefix
 	if _, err := b.ToData(); err == nil {
