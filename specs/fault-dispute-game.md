@@ -75,7 +75,7 @@ We refer to this state as the **ABSOLUTE\_PRESTATE**.
 Claims assert an [output root][g-output-root] or the state of the FPVM at a given instruction. This is represented as
 `ClaimHash`, a `bytes32` representing either an [output root][g-output-root] or a commitment to the last VM state in a trace.
 A FDG is initialized with an output root that corresponds to the state of L2 at a given L2 block number, and execution
-trace sub-games are initialized with a claim that commits to the entire execution trace between two conseuctive output
+trace subgames are initialized with a claim that commits to the entire execution trace between two conseuctive output
 roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple claims, committing to different
 output roots and FPVM states in the FDG.
 
