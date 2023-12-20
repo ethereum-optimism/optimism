@@ -826,18 +826,6 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (*immutables
 			Name: "EAS",
 		},
 		Create2Deployer: struct{}{},
-		BobaTuringCredit: struct {
-			Owner       common.Address
-			TuringToken common.Address
-		}{
-			Owner:       config.ProxyAdminOwner,
-			TuringToken: predeploys.BobaL2Addr,
-		},
-		BobaHCHelper: struct {
-			Owner common.Address
-		}{
-			Owner: config.ProxyAdminOwner,
-		},
 		BobaL2: struct {
 			L2Bridge common.Address
 			L1Token  common.Address
@@ -916,13 +904,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
-	}
-	storage["BobaTuringCredit"] = state.StorageValues{
-		"owner":       config.ProxyAdminOwner,
-		"turingToken": predeploys.BobaL2Addr,
-	}
-	storage["BobaHCHelper"] = state.StorageValues{
-		"owner": config.ProxyAdminOwner,
 	}
 	l1TokenAddr, err := config.GetL1BobaTokenAddress()
 	if err != nil {

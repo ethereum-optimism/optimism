@@ -67,10 +67,6 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 
 	log.Info("Filtered withdrawals", "filtered", len(filteredWithdrawals))
 
-	// We need to retrieve the legacy credit from the genesis so that we can rebuild the credit in
-	// new turingCredit contract
-	legacyTuringCredit := RetrieveLegacyTuringCredit(genesis)
-
 	// At this point, we have verified that the witness data is correct and retrieved the legacy
 	// credit from the genesis. We can now start to mutate the genesis to prepare it for the
 
@@ -132,14 +128,6 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	err = ether.MigrateBalances(genesis, migrationData.Addresses(), migrationData.OvmAllowances, noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("failed to migrate OVM_ETH: %w", err)
-	}
-
-	// Finally, we need to migrate the legacy credit from the LegacyTuringCredit contract to the
-	// new TuringCredit contract.
-	log.Info("Starting to migrate TuringCredit")
-	err = ether.MigrateTuringCredit(genesis, legacyTuringCredit, noCheck)
-	if err != nil {
-		return nil, fmt.Errorf("failed to migrate TuringCredit: %w", err)
 	}
 
 	if !commit {

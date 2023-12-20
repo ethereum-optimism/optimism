@@ -16,7 +16,6 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/clients"
-	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common"
@@ -269,17 +268,6 @@ func checkPredeployConfig(client *clients.RpcClient, name string) error {
 			if err := checkBobaL2(p, client); err != nil {
 				return err
 			}
-
-		case predeploys.BobaTuringCreditAddr:
-			if err := checkBobaTuringCredit(p, client); err != nil {
-				return err
-			}
-
-		case predeploys.BobaHCHelperAddr:
-			if err := checkBobaHCHelper(p, client); err != nil {
-				return err
-			}
-
 		}
 		return nil
 	})
@@ -884,60 +872,6 @@ func checkBobaL2(addr libcommon.Address, client *clients.RpcClient) error {
 	}
 	log.Info("BobaL2", "decimals", decimals)
 
-	return nil
-}
-
-func checkBobaTuringCredit(addr libcommon.Address, client *clients.RpcClient) error {
-	contract, err := bindings.NewBobaTuringCredit(addr, client)
-	if err != nil {
-		return err
-	}
-	owner, err := contract.Owner(&bind.CallOpts{})
-	if err != nil {
-		return err
-	}
-	if owner == (libcommon.Address{}) {
-		return fmt.Errorf("BobaTuringCredit owner should not be set to address(0)")
-	}
-	log.Info("BobaTuringCredit", "owner", owner.Hex())
-	turingToken, err := contract.TuringToken(&bind.CallOpts{})
-	if err != nil {
-		return err
-	}
-	if turingToken == (libcommon.Address{}) {
-		return fmt.Errorf("BobaTuringCredit turingToken should not be set to address(0)")
-	}
-	log.Info("BobaTuringCredit", "turingToken", turingToken.Hex())
-	slot, err := client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyOwnerSlot, nil)
-	if err != nil {
-		return err
-	}
-	if libcommon.BytesToAddress(slot) != (libcommon.Address{}) {
-		return fmt.Errorf("BobaTuringCredit legacy proxy owner should be set to address(0)")
-	}
-	slot, err = client.StorageAt(context.Background(), addr, ether.BobaLegacyProxyImplementationSlot, nil)
-	if err != nil {
-		return err
-	}
-	if libcommon.BytesToAddress(slot) != (libcommon.Address{}) {
-		return fmt.Errorf("BobaTuringCredit legacy proxy implementation should be set to address(0)")
-	}
-	return nil
-}
-
-func checkBobaHCHelper(addr libcommon.Address, client *clients.RpcClient) error {
-	contract, err := bindings.NewBobaHCHelper(addr, client)
-	if err != nil {
-		return err
-	}
-	owner, err := contract.Owner(&bind.CallOpts{})
-	if err != nil {
-		return err
-	}
-	if owner == (libcommon.Address{}) {
-		return fmt.Errorf("BobaHCHelper owner should not be set to address(0)")
-	}
-	log.Info("BobaHCHelper", "owner", owner.Hex())
 	return nil
 }
 

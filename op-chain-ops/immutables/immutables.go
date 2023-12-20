@@ -67,15 +67,8 @@ type PredeploysImmutableConfig struct {
 	EAS            struct {
 		Name string
 	}
-	Create2Deployer  struct{}
-	BobaTuringCredit struct {
-		Owner       common.Address
-		TuringToken common.Address
-	}
-	BobaHCHelper struct {
-		Owner common.Address
-	}
-	BobaL2 struct {
+	Create2Deployer struct{}
+	BobaL2          struct {
 		L2Bridge common.Address
 		L1Token  common.Address
 		Name     string
@@ -263,10 +256,6 @@ func l2ImmutableDeployer(backend *backends.SimulatedBackend, opts *bind.Transact
 		_, tx, _, err = bindings.DeployEAS(opts, backend)
 	case "SchemaRegistry":
 		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
-	case "BobaTuringCredit":
-		_, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
-	case "BobaHCHelper":
-		_, tx, _, err = bindings.DeployBobaHCHelper(opts, backend)
 	case "BobaL2":
 		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {

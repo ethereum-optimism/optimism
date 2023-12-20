@@ -5,9 +5,6 @@ import (
 )
 
 // The legacy system has a different set of predeploys
-// BobaTuringCredit -> 0x4200000000000000000000000000000000000020
-// BobaLegacyTuringCreditImplementation -> 0x4200000000000000000000000000000000000021
-// BobaHCHelperImplementation -> 0x4200000000000000000000000000000000000022
 // BobaL2 -> 0x4200000000000000000000000000000000000023
 
 // Boba predeployed contracts will be move to the following addresses from the index 1000
@@ -41,14 +38,8 @@ const (
 	BobaHCHelper     = "0x42000000000000000000000000000000000003E9"
 	BobaL2           = "0x4200000000000000000000000000000000000023"
 
-	// Boba Legacy address
-	BobaLegacyTuringCredit               = "0x4200000000000000000000000000000000000020"
-	BobaLegacyTuringCreditImplementation = "0x4200000000000000000000000000000000000021"
-
 	// Special case for Boba mainnet
-	BobaTuringCredit288                     = "0xF8D2f1b0292C0Eeef80D8F47661A9DaCDB4b23bf"
-	BOBAL2288                               = "0xa18bF3994C0Cc6E3b63ac420308E5383f53120D7"
-	BobaLegacyTuringCreditImplementation288 = "0xd8E006702bdCbE2582dF13f900bCF750129bB449"
+	BOBAL2288 = "0xa18bF3994C0Cc6E3b63ac420308E5383f53120D7"
 )
 
 var (
@@ -77,14 +68,8 @@ var (
 	BobaHCHelperAddr     = common.HexToAddress(BobaHCHelper)
 	BobaL2Addr           = common.HexToAddress(BobaL2)
 
-	// Boba legacy
-	BobaLegacyTuringCreditAddr               = common.HexToAddress(BobaLegacyTuringCredit)
-	BobaLegacyTuringCreditImplementationAddr = common.HexToAddress(BobaLegacyTuringCreditImplementation)
-
 	// Special case for Boba mainnet
-	BobaTuringCredit288Addr                     = common.HexToAddress(BobaTuringCredit288)
-	BobaLegacyTuringCreditImplementation288Addr = common.HexToAddress(BobaLegacyTuringCreditImplementation288)
-	BOBAL2288Addr                               = common.HexToAddress(BOBAL2288)
+	BOBAL2288Addr = common.HexToAddress(BOBAL2288)
 
 	Predeploys                    = make(map[string]*common.Address)
 	LegacyBobaProxy               = make(map[string]*common.Address)
@@ -125,11 +110,5 @@ func init() {
 	Predeploys["EAS"] = &EASAddr
 
 	// Boba specific
-	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
-	Predeploys["BobaHCHelper"] = &BobaHCHelperAddr
 	Predeploys["BobaL2"] = &BobaL2Addr
-
-	// Boba legacy
-	LegacyBobaProxy["BobaLegacyTuringCredit"] = &BobaLegacyTuringCreditAddr
-	LegacyBobaProxyImplementation["BobaLegacyTuringCreditImplementation"] = &BobaLegacyTuringCreditImplementationAddr
 }
