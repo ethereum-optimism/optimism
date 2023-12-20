@@ -50,21 +50,21 @@ func TestUpgradeDepositIntentEcotoneBlockUpgrade(t *testing.T) {
 
 /*
 # compute intent hash:
-cast keccak "Eclipse: beacon block roots contract deployment"
+cast keccak "Ecotone: beacon block roots contract deployment"
 # 0x4e73a20ffe4a8330eb1f726862f4b062301e73d081c6d3824a6e0bd6428697fe
 # source hash type:
 # 0x0000000000000000000000000000000000000000000000000000000000000002
 # compute source hash:
-cast keccak 0x00000000000000000000000000000000000000000000000000000000000000024e73a20ffe4a8330eb1f726862f4b062301e73d081c6d3824a6e0bd6428697fe
-# 0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f
+cast keccak 0x0000000000000000000000000000000000000000000000000000000000000002ab0dfc96b47739a0ae1d415bbfaae79ebb1111861a3b7cfbbaa6ca4a9e618357
+# 0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c
 */
 func TestUpgradeDepositIntentEcotonContractUpgrade(t *testing.T) {
 	source := UpgradeDepositSource{
-		Intent: "Eclipse: beacon block roots contract deployment",
+		Intent: "Ecotone: beacon block roots contract deployment",
 	}
 
 	actual := source.SourceHash()
-	expected := "0xfbcd78e2e9665570c3f73026d601053af3892bdd06292d7eaf3adf4a1ee1392f"
+	expected := "0x69b763c48478b9dc2f65ada09b3d92133ec592ea715ec65ad6e7f3dc519dc00c"
 
 	assert.Equal(t, expected, actual.Hex())
 }

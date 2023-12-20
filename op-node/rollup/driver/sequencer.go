@@ -91,6 +91,11 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	// from the transaction pool.
 	attrs.NoTxPool = uint64(attrs.Timestamp) > l1Origin.Time+d.config.MaxSequencerDrift
 
+	// For the Ecotone activation block we shouldn't include any sequencer transactions.
+	if d.config.IsEcotoneUpgradeDepositBlock(l2Head.Time, uint64(attrs.Timestamp)) {
+		attrs.NoTxPool = true
+	}
+
 	d.log.Debug("prepared attributes for new block",
 		"num", l2Head.Number+1, "time", uint64(attrs.Timestamp),
 		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
