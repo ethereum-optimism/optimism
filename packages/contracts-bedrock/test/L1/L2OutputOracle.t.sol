@@ -149,6 +149,140 @@ contract L2OutputOracle_constructor_Test is CommonTest {
             _finalizationPeriodSeconds: finalizationPeriodSeconds
         });
     }
+
+    /// @dev Tests that initialize sets the initial values correctly.
+    function testFuzz_initialize_succeeds(
+        uint256 _submissionInterval,
+        uint256 _l2BlockTime,
+        uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
+        address _proposer,
+        address _challenger,
+        uint256 _finalizationPeriodSeconds
+    )
+        external
+    {
+        vm.assume(_submissionInterval > 0);
+        vm.assume(_l2BlockTime > 0);
+        vm.assume(_startingTimestamp <= block.timestamp);
+
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+        l2OutputOracle.initialize({
+            _submissionInterval: _submissionInterval,
+            _l2BlockTime: _l2BlockTime,
+            _startingBlockNumber: _startingBlockNumber,
+            _startingTimestamp: _startingTimestamp,
+            _proposer: _proposer,
+            _challenger: _challenger,
+            _finalizationPeriodSeconds: _finalizationPeriodSeconds
+        });
+
+        assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), _submissionInterval);
+        assertEq(l2OutputOracle.submissionInterval(), _submissionInterval);
+        assertEq(l2OutputOracle.L2_BLOCK_TIME(), _l2BlockTime);
+        assertEq(l2OutputOracle.l2BlockTime(), _l2BlockTime);
+        assertEq(l2OutputOracle.latestBlockNumber(), _startingBlockNumber);
+        assertEq(l2OutputOracle.startingBlockNumber(), _startingBlockNumber);
+        assertEq(l2OutputOracle.startingTimestamp(), _startingTimestamp);
+        assertEq(l2OutputOracle.PROPOSER(), _proposer);
+        assertEq(l2OutputOracle.proposer(), _proposer);
+        assertEq(l2OutputOracle.CHALLENGER(), _challenger);
+        assertEq(l2OutputOracle.challenger(), _challenger);
+        assertEq(l2OutputOracle.finalizationPeriodSeconds(), _finalizationPeriodSeconds);
+        assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), _finalizationPeriodSeconds);
+    }
+
+    /// @dev Tests that initialize reverts if the submissionInterval is zero.
+    function testFuzz_initialize_submissionInterval_reverts(
+        uint256 _submissionInterval,
+        uint256 _l2BlockTime,
+        uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
+        address _proposer,
+        address _challenger,
+        uint256 _finalizationPeriodSeconds
+    )
+        external
+    {
+        vm.assume(!(_submissionInterval > 0));
+
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        vm.expectRevert();
+        l2OutputOracle.initialize({
+            _submissionInterval: _submissionInterval,
+            _l2BlockTime: _l2BlockTime,
+            _startingBlockNumber: _startingBlockNumber,
+            _startingTimestamp: _startingTimestamp,
+            _proposer: _proposer,
+            _challenger: _challenger,
+            _finalizationPeriodSeconds: _finalizationPeriodSeconds
+        });
+    }
+
+    /// @dev Tests that initialize reverts if the l2BlockTime is invalid.
+    function testFuzz_initalize_l2BlockTimeZero_reverts(
+        uint256 _submissionInterval,
+        uint256 _l2BlockTime,
+        uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
+        address _proposer,
+        address _challenger,
+        uint256 _finalizationPeriodSeconds
+    )
+        external
+    {
+        vm.assume(!(_l2BlockTime > 0));
+
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        vm.expectRevert();
+        l2OutputOracle.initialize({
+            _submissionInterval: _submissionInterval,
+            _l2BlockTime: _l2BlockTime,
+            _startingBlockNumber: _startingBlockNumber,
+            _startingTimestamp: _startingTimestamp,
+            _proposer: _proposer,
+            _challenger: _challenger,
+            _finalizationPeriodSeconds: _finalizationPeriodSeconds
+        });
+    }
+
+    /// @dev Tests that initialize reverts if the starting timestamp is invalid.
+    function testFuzz_initialize_badTimestamp_reverts(
+        uint256 _submissionInterval,
+        uint256 _l2BlockTime,
+        uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
+        address _proposer,
+        address _challenger,
+        uint256 _finalizationPeriodSeconds
+    )
+        external
+    {
+        vm.assume(!(_startingTimestamp <= block.timestamp));
+
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        vm.expectRevert();
+        l2OutputOracle.initialize({
+            _submissionInterval: _submissionInterval,
+            _l2BlockTime: _l2BlockTime,
+            _startingBlockNumber: _startingBlockNumber,
+            _startingTimestamp: _startingTimestamp,
+            _proposer: _proposer,
+            _challenger: _challenger,
+            _finalizationPeriodSeconds: _finalizationPeriodSeconds
+        });
+    }
 }
 
 contract L2OutputOracle_getter_Test is CommonTest {
