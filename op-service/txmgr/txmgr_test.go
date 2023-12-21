@@ -839,6 +839,14 @@ func TestIncreaseGasPrice(t *testing.T) {
 		run  func(t *testing.T)
 	}{
 		{
+			name: "bump at least 1",
+			run: func(t *testing.T) {
+				tx, newTx := doGasPriceIncrease(t, 1, 3, 1, 1)
+				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
+				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+			},
+		},
+		{
 			name: "enforces min bump",
 			run: func(t *testing.T) {
 				tx, newTx := doGasPriceIncrease(t, 100, 1000, 101, 460)

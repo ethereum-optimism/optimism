@@ -260,11 +260,11 @@ func createPayloadWithWithdrawals(w *types.Withdrawals) *ExecutionPayload {
 		GasLimit:      Uint64Quantity(333),
 		GasUsed:       Uint64Quantity(444),
 		Timestamp:     Uint64Quantity(555),
-		ExtraData:     common.Hex2Bytes("0x666"),
+		ExtraData:     common.Hex2Bytes("6666"),
 		BaseFeePerGas: *uint256.NewInt(777),
 		BlockHash:     common.HexToHash("0x888"),
 		Withdrawals:   w,
-		Transactions:  []Data{common.Hex2Bytes("0x999")},
+		Transactions:  []Data{common.Hex2Bytes("9999")},
 	}
 }
 
