@@ -339,7 +339,7 @@ func (generator *bindGenGeneratorRemote) writeAllOutputs(contractMetadata *remot
 		return err
 	}
 
-	err = genContractBindings(generator.logger, abiFilePath, bytecodeFilePath, generator.bindingsPackageName, contractMetadata.Name)
+	err = genContractBindings(generator.logger, generator.monorepoBasePath, abiFilePath, bytecodeFilePath, generator.bindingsPackageName, contractMetadata.Name)
 	if err != nil {
 		return err
 	}
