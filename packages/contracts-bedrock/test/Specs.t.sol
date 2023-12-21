@@ -175,7 +175,10 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2Output(uint256)") });
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2OutputAfter(uint256)") });
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("getL2OutputIndexAfter(uint256)") });
-        _addSpec({ _name: "L2OutputOracle", _sel: _getSel("initialize(uint256,uint256)") });
+        _addSpec({
+            _name: "L2OutputOracle",
+            _sel: _getSel("initialize(uint256,uint256,uint256,uint256,address,address,uint256)")
+        });
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("l2BlockTime()") });
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("latestBlockNumber()") });
         _addSpec({ _name: "L2OutputOracle", _sel: _getSel("latestOutputIndex()") });
