@@ -55,10 +55,11 @@ func CLIRollupConfigFlag(envPrefix string) cli.Flag {
 // This checks flags that are exclusive & required. Specifically for each
 // set of flags, exactly one flag must be set.
 var requiredXorFlags = [][]string{
-	{
-		RollupConfigFlagName,
-		NetworkFlagName,
-	},
+	// TODO(client-pod#391): Re-enable this check at a later point
+	// {
+	// 	RollupConfigFlagName,
+	// 	NetworkFlagName,
+	// },
 }
 
 func CheckRequiredXor(ctx *cli.Context) error {
