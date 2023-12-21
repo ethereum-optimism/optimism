@@ -41,7 +41,12 @@ export LOCAL=false
 if [ $# -gt 1 ]; then
   usage
 else
-  if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+  if [ $# -eq 0 ] || [ "$1" == "container" ]; then
+    notif "Running in docker container (DEFAULT)"
+    blank_line
+    export LOCAL=false
+    [ $# -gt 1 ] && shift
+  elif [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     usage
   elif [ "$1" == "local" ]; then
     notif "Running with LOCAL install, .kontrolrc CI version ENFORCED"
@@ -63,15 +68,6 @@ else
     export LOCAL=true
     shift
     pushd "${WORKSPACE_DIR}" > /dev/null
-  elif [ $# -eq 0 ] || [ "$1" == "container" ]; then
-    notif "Running in docker container (DEFAULT)"
-    blank_line
-    export LOCAL=false
-    shift
-    notif "Running in docker container (DEFAULT)"
-    blank_line
-    export LOCAL=false
-    shift
   else
     # Unexpected argument passed
     usage
