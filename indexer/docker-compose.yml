@@ -21,7 +21,7 @@ services:
   index:
     build:
       context: ..
-      dockerfile: indexer/ops/Dockerfile
+      dockerfile: indexer/Dockerfile
     command: ["/bin/sh", "-c", "indexer migrate && indexer index"]
     expose:
       - "8100"
@@ -47,7 +47,7 @@ services:
   api:
     build:
       context: ..
-      dockerfile: indexer/ops/Dockerfile
+      dockerfile: indexer/Dockerfile
     command: ["indexer", "api"]
     environment:
       - INDEXER_CONFIG=/app/indexer/config.toml
