@@ -31,7 +31,7 @@ contract Specification_Test is CommonTest {
         CHALLENGER,
         SYSTEMCONFIGOWNER,
         GUARDIAN,
-        BRIDGE,
+        MESSENGER,
         L1PROXYADMINOWNER,
         GOVERNANCETOKENOWNER,
         MINTMANAGEROWNER
@@ -271,25 +271,25 @@ contract Specification_Test is CommonTest {
         _addSpec({
             _name: "L1StandardBridge",
             _sel: _getSel("finalizeBridgeERC20(address,address,address,address,uint256,bytes)"),
-            _auth: Role.BRIDGE,
+            _auth: Role.MESSENGER,
             _pausable: true
         });
         _addSpec({
             _name: "L1StandardBridge",
             _sel: _getSel("finalizeBridgeETH(address,address,uint256,bytes)"),
-            _auth: Role.BRIDGE,
+            _auth: Role.MESSENGER,
             _pausable: true
         });
         _addSpec({
             _name: "L1StandardBridge",
             _sel: _getSel("finalizeERC20Withdrawal(address,address,address,address,uint256,bytes)"),
-            _auth: Role.BRIDGE,
+            _auth: Role.MESSENGER,
             _pausable: true
         });
         _addSpec({
             _name: "L1StandardBridge",
             _sel: _getSel("finalizeETHWithdrawal(address,address,uint256,bytes)"),
-            _auth: Role.BRIDGE,
+            _auth: Role.MESSENGER,
             _pausable: true
         });
         _addSpec({
