@@ -42,51 +42,6 @@ contract L2OutputOracle_constructor_Test is CommonTest {
         assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
-
-    /// @dev Tests that the constructor reverts if the l2BlockTime is invalid.
-    function test_constructor_l2BlockTimeZero_reverts() external {
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
-        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
-        vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
-        new L2OutputOracle({
-            _submissionInterval: submissionInterval,
-            _l2BlockTime: 0,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp,
-            _proposer: proposer,
-            _challenger: challenger,
-            _finalizationPeriodSeconds: 7 days
-        });
-    }
-
-    /// @dev Tests that the constructor reverts if the submissionInterval is zero.
-    function test_constructor_submissionInterval_reverts() external {
-        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
-        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
-        vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
-        new L2OutputOracle({
-            _submissionInterval: 0,
-            _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp,
-            _proposer: proposer,
-            _challenger: challenger,
-            _finalizationPeriodSeconds: 7 days
-        });
-    }
-
-    /// @dev Tests that initialize reverts if the starting timestamp is invalid.
-    function test_initialize_badTimestamp_reverts() external {
-        // Reset the initialized field in the 0th storage slot
-        // so that initialize can be called again.
-        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
-        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
-        l2OutputOracle.initialize({ _startingBlockNumber: 0, _startingTimestamp: block.timestamp + 1 });
-    }
 }
 
 contract L2OutputOracle_getter_Test is CommonTest {
@@ -460,16 +415,16 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
     function test_initValuesOnImpl_succeeds() external {
         L2OutputOracle oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
 
-        assertEq(oracleImpl.SUBMISSION_INTERVAL(), deploy.cfg().l2OutputOracleSubmissionInterval());
-        assertEq(oracleImpl.submissionInterval(), deploy.cfg().l2OutputOracleSubmissionInterval());
-        assertEq(oracleImpl.L2_BLOCK_TIME(), deploy.cfg().l2BlockTime());
-        assertEq(oracleImpl.l2BlockTime(), deploy.cfg().l2BlockTime());
-        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), deploy.cfg().finalizationPeriodSeconds());
-        assertEq(oracleImpl.finalizationPeriodSeconds(), deploy.cfg().finalizationPeriodSeconds());
-        assertEq(oracleImpl.PROPOSER(), deploy.cfg().l2OutputOracleProposer());
-        assertEq(oracleImpl.proposer(), deploy.cfg().l2OutputOracleProposer());
-        assertEq(oracleImpl.CHALLENGER(), deploy.cfg().l2OutputOracleChallenger());
-        assertEq(oracleImpl.challenger(), deploy.cfg().l2OutputOracleChallenger());
+        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 0);
+        assertEq(oracleImpl.submissionInterval(), 0);
+        assertEq(oracleImpl.L2_BLOCK_TIME(), 0);
+        assertEq(oracleImpl.l2BlockTime(), 0);
+        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 0);
+        assertEq(oracleImpl.finalizationPeriodSeconds(), 0);
+        assertEq(oracleImpl.PROPOSER(), address(0));
+        assertEq(oracleImpl.proposer(), address(0));
+        assertEq(oracleImpl.CHALLENGER(), address(0));
+        assertEq(oracleImpl.challenger(), address(0));
 
         assertEq(oracleImpl.startingBlockNumber(), 0);
         assertEq(oracleImpl.startingTimestamp(), 0);
@@ -480,7 +435,15 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
         vm.expectRevert("Initializable: contract is already initialized");
-        l2OutputOracle.initialize({ _startingBlockNumber: startingBlockNumber, _startingTimestamp: startingTimestamp });
+        l2OutputOracle.initialize({
+            _submissionInterval: 0,
+            _l2BlockTime: 0,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: address(0),
+            _challenger: address(0),
+            _finalizationPeriodSeconds: 0
+        });
     }
 
     /// @dev Tests that the implementation contract cannot be initialized twice.
@@ -489,7 +452,15 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
         vm.expectRevert("Initializable: contract is already initialized");
-        oracleImpl.initialize({ _startingBlockNumber: startingBlockNumber, _startingTimestamp: startingTimestamp });
+        oracleImpl.initialize({
+            _submissionInterval: 0,
+            _l2BlockTime: 0,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: address(0),
+            _challenger: address(0),
+            _finalizationPeriodSeconds: 0
+        });
     }
 
     /// @dev Tests that the proxy can be successfully upgraded.
