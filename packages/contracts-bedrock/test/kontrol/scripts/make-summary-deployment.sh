@@ -44,7 +44,7 @@ CONTRACT_NAMES=deployments/hardhat/.deploy
 python3 ${JSON_SCRIPTS}/reverse_key_values.py ${CONTRACT_NAMES} ${CONTRACT_NAMES}Reversed
 CONTRACT_NAMES=${CONTRACT_NAMES}Reversed
 
-PROOFS_DIR=test/kontrol/proofs
+SUMMARY_DIR=test/kontrol/proofs/utils
 SUMMARY_NAME=DeploymentSummary
-kontrol summary ${SUMMARY_NAME} snapshots/state-diff/${STATEDIFF} --contract-names ${CONTRACT_NAMES} --output-dir ${PROOFS_DIR}
-echo "Added state updates to ${PROOFS_DIR}/${SUMMARY_NAME}.sol"
+kontrol summary ${SUMMARY_NAME} snapshots/state-diff/${STATEDIFF} --contract-names ${CONTRACT_NAMES} --output-dir ${SUMMARY_DIR}
+echo "Added state updates to ${SUMMARY_DIR}/${SUMMARY_NAME}.sol"
