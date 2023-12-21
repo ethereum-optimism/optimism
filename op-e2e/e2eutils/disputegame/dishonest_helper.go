@@ -3,11 +3,28 @@ package disputegame
 import (
 	"context"
 	"errors"
+	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
 )
+
+type IFaultGameHelper interface {
+	MaxDepth(ctx context.Context) int64
+	LogGameData(ctx context.Context)
+	waitForNewClaim(ctx context.Context, numClaimsSeen int64, timeout time.Duration) (int64, error)
+	getClaim(ctx context.Context, claimIdx int64) ContractClaim
+	Attack(ctx context.Context, claimIdx int64, value common.Hash)
+	Defend(ctx context.Context, claimIdx int64, value common.Hash)
+}
+
+type IHonestHelper interface {
+	Attack(ctx context.Context, claimIdx int64)
+	Defend(ctx context.Context, claimIdx int64)
+	StepFails(ctx context.Context, claimIdx int64, isAttack bool)
+}
 
 type dishonestClaim struct {
 	ParentIndex int64
@@ -16,14 +33,15 @@ type dishonestClaim struct {
 }
 
 type DishonestHelper struct {
-	*FaultGameHelper
-	*HonestHelper
+	t *testing.T
+	IFaultGameHelper
+	IHonestHelper
 	claims   map[dishonestClaim]bool
 	defender bool
 }
 
-func newDishonestHelper(g *FaultGameHelper, correctTrace *HonestHelper, defender bool) *DishonestHelper {
-	return &DishonestHelper{g, correctTrace, make(map[dishonestClaim]bool), defender}
+func newDishonestHelper(t *testing.T, g IFaultGameHelper, correctTrace IHonestHelper, defender bool) *DishonestHelper {
+	return &DishonestHelper{t, g, correctTrace, make(map[dishonestClaim]bool), defender}
 }
 
 func (t *DishonestHelper) Attack(ctx context.Context, claimIndex int64) {
@@ -32,7 +50,7 @@ func (t *DishonestHelper) Attack(ctx context.Context, claimIndex int64) {
 		return
 	}
 	t.claims[c] = true
-	t.FaultGameHelper.Attack(ctx, claimIndex, common.Hash{byte(claimIndex)})
+	t.IFaultGameHelper.Attack(ctx, claimIndex, common.Hash{byte(claimIndex)})
 }
 
 func (t *DishonestHelper) Defend(ctx context.Context, claimIndex int64) {
@@ -41,7 +59,7 @@ func (t *DishonestHelper) Defend(ctx context.Context, claimIndex int64) {
 		return
 	}
 	t.claims[c] = true
-	t.FaultGameHelper.Defend(ctx, claimIndex, common.Hash{byte(claimIndex)})
+	t.IFaultGameHelper.Defend(ctx, claimIndex, common.Hash{byte(claimIndex)})
 }
 
 func (t *DishonestHelper) AttackCorrect(ctx context.Context, claimIndex int64) {
@@ -50,7 +68,7 @@ func (t *DishonestHelper) AttackCorrect(ctx context.Context, claimIndex int64) {
 		return
 	}
 	t.claims[c] = true
-	t.HonestHelper.Attack(ctx, claimIndex)
+	t.IHonestHelper.Attack(ctx, claimIndex)
 }
 
 func (t *DishonestHelper) DefendCorrect(ctx context.Context, claimIndex int64) {
@@ -59,13 +77,13 @@ func (t *DishonestHelper) DefendCorrect(ctx context.Context, claimIndex int64) {
 		return
 	}
 	t.claims[c] = true
-	t.HonestHelper.Defend(ctx, claimIndex)
+	t.IHonestHelper.Defend(ctx, claimIndex)
 }
 
 // ExhaustDishonestClaims makes all possible significant moves (mod honest challenger's) in a game.
 // It is very inefficient and should NOT be used on games with large depths
 func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
-	depth := d.MaxDepth(ctx)
+	depth := d.IFaultGameHelper.MaxDepth(ctx)
 
 	move := func(claimIndex int64, claimData ContractClaim) {
 		// dishonest level, valid attack
@@ -80,8 +98,8 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
 			return
 		}
 
-		d.LogGameData(ctx)
-		d.FaultGameHelper.t.Logf("Dishonest moves against claimIndex %d", claimIndex)
+		d.IFaultGameHelper.LogGameData(ctx)
+		d.t.Logf("Dishonest moves against claimIndex %d", claimIndex)
 		agreeWithLevel := d.defender == (pos.Depth()%2 == 0)
 		if !agreeWithLevel {
 			d.AttackCorrect(ctx, claimIndex)
@@ -99,16 +117,16 @@ func (d *DishonestHelper) ExhaustDishonestClaims(ctx context.Context) {
 	for {
 		// Use a short timeout since we don't know the challenger will respond,
 		// and this is only designed for the alphabet game where the response should be fast.
-		newCount, err := d.waitForNewClaim(ctx, numClaimsSeen, 30*time.Second)
+		newCount, err := d.IFaultGameHelper.waitForNewClaim(ctx, numClaimsSeen, 30*time.Second)
 		if errors.Is(err, context.DeadlineExceeded) {
 			// we assume that the honest challenger has stopped responding
 			// There's nothing to respond to.
 			break
 		}
-		d.FaultGameHelper.require.NoError(err)
+		require.NoError(d.t, err)
 
 		for i := numClaimsSeen; i < newCount; i++ {
-			claimData := d.getClaim(ctx, numClaimsSeen)
+			claimData := d.IFaultGameHelper.getClaim(ctx, numClaimsSeen)
 			move(numClaimsSeen, claimData)
 			numClaimsSeen++
 		}

@@ -36,5 +36,5 @@ func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth uint6
 }
 
 func (g *AlphabetGameHelper) CreateDishonestHelper(alphabetTrace string, depth uint64, defender bool) *DishonestHelper {
-	return newDishonestHelper(&g.FaultGameHelper, g.CreateHonestActor(alphabetTrace, depth), defender)
+	return newDishonestHelper(g.t, &g.FaultGameHelper, g.CreateHonestActor(alphabetTrace, depth), defender)
 }

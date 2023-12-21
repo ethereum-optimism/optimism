@@ -3,6 +3,7 @@ package faultproofs
 import (
 	"context"
 	"testing"
+	"time"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
@@ -12,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestOutputAlphabetGame(t *testing.T) {
+func TestOutputAlphabetGame_ChallengerWins(t *testing.T) {
 	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
@@ -58,4 +59,69 @@ func TestOutputAlphabetGame(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+}
+
+func TestOutputAlphabetGame_ExhaustiveDisputeGame(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+
+	testCase := func(t *testing.T, isRootCorrect bool) {
+		ctx := context.Background()
+		sys, l1Client := startFaultDisputeSystem(t)
+		t.Cleanup(sys.Close)
+
+		disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+		rootClaimedAlphabet := disputegame.CorrectAlphabet
+		if !isRootCorrect {
+			rootClaimedAlphabet = "abcdexyz"
+		}
+		game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, rootClaimedAlphabet)
+		require.NotNil(t, game)
+		game.LogGameData(ctx)
+		gameDuration := game.GameDuration(ctx)
+
+		// Start honest challenger
+		game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
+			challenger.WithAlphabet(disputegame.CorrectAlphabet),
+			challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
+			// Ensures the challenger responds to all claims before test timeout
+			challenger.WithPollInterval(time.Millisecond*400),
+		)
+
+		// Start dishonest challenger
+		dishonestHelper := game.CreateDishonestHelper(
+			ctx,
+			disputegame.CorrectAlphabet,
+			4,
+			"Defender",
+			!isRootCorrect,
+			challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
+		)
+		dishonestHelper.ExhaustDishonestClaims(ctx)
+
+		// Wait until we've reached max depth before checking for inactivity
+		game.WaitForClaimAtDepth(ctx, int(game.MaxDepth(ctx)))
+
+		// Wait for 4 blocks of no challenger responses. The challenger may still be stepping on invalid claims at max depth
+		game.WaitForInactivity(ctx, 4, false)
+
+		sys.TimeTravelClock.AdvanceTime(gameDuration)
+		require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+		expectedStatus := disputegame.StatusChallengerWins
+		if isRootCorrect {
+			expectedStatus = disputegame.StatusDefenderWins
+		}
+		game.WaitForInactivity(ctx, 10, true)
+		game.LogGameData(ctx)
+		require.EqualValues(t, expectedStatus, game.Status(ctx))
+	}
+
+	t.Run("RootCorrect", func(t *testing.T) {
+		op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+		testCase(t, true)
+	})
+	t.Run("RootIncorrect", func(t *testing.T) {
+		op_e2e.InitParallel(t, op_e2e.UseExecutor(1))
+		testCase(t, false)
+	})
 }
