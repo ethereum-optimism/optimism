@@ -12,13 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const (
-	// default to 5 seconds
-	defaultLoopInterval     = 5000
-	defaultHeaderBufferSize = 500
-)
-
-// In the future, presets can just be onchain config and fetched on initialization
+// In the future, presets can just be onchain system config with everything else
+// fetched on initialization
 
 // Config represents the `indexer.toml` file used to configure the indexer
 type Config struct {
