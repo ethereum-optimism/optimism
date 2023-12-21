@@ -11,7 +11,7 @@ usage() {
   echo "Options:" 1>&2
   echo "  -h, --help         Display this help message." 1>&2
   echo "  conatiner          Run tests in docker container. Reproduce CI execution. (Default)" 1>&2
-  echo "  local              Run locally, enforces CI Registered .kontrolrc Kontrol version for best execution results. (Recommended)" 1>&2
+  echo "  local              Run locally, enforces CI Registered .kontrolrc Kontrol version for better reproducibility. (Recommended)" 1>&2
   echo "  dev                Run locally, do NOT enforce CI registered Kontrol version (Recomended w/ greater kup & kontrol experience)" 1>&2
   exit 0
 }
