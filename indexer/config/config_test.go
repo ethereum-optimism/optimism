@@ -22,6 +22,11 @@ func TestLoadConfig(t *testing.T) {
 		[chain]
 		preset = 420
 
+		l1-polling-interval = 5000
+		l2-polling-interval = 5000
+		l1-header-buffer-size = 1000
+		l2-header-buffer-size = 1000
+
 		[rpcs]
 		l1-rpc = "https://l1.example.com"
 		l2-rpc = "https://l2.example.com"
@@ -58,6 +63,10 @@ func TestLoadConfig(t *testing.T) {
 	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), Presets[420].ChainConfig.L1Contracts.L1CrossDomainMessengerProxy.String())
 	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), Presets[420].ChainConfig.L1Contracts.L1StandardBridgeProxy.String())
 	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), Presets[420].ChainConfig.L1Contracts.L2OutputOracleProxy.String())
+	require.Equal(t, conf.Chain.L1PollingInterval, uint(5000))
+	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(1000))
+	require.Equal(t, conf.Chain.L2PollingInterval, uint(5000))
+	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(1000))
 	require.Equal(t, conf.RPCs.L1RPC, "https://l1.example.com")
 	require.Equal(t, conf.RPCs.L2RPC, "https://l2.example.com")
 	require.Equal(t, conf.DB.Host, "127.0.0.1")
@@ -79,6 +88,10 @@ func TestLoadConfigWithoutPreset(t *testing.T) {
 
 	testData := `
         [chain]
+		l1-polling-interval = 5000
+		l2-polling-interval = 5000
+		l1-header-buffer-size = 1000
+		l2-header-buffer-size = 1000
 
 		[chain.l1-contracts]
 		optimism-portal = "0x4205Fc579115071764c7423A4f12eDde41f106Ed"
@@ -108,12 +121,6 @@ func TestLoadConfigWithoutPreset(t *testing.T) {
 	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1").String())
 	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), common.HexToAddress("0x4209fc46f92E8a1c0deC1b1747d010903E884bE1").String())
 	require.Equal(t, conf.Chain.Preset, 0)
-
-	// Enforce polling default values
-	require.Equal(t, conf.Chain.L1PollingInterval, uint(5000))
-	require.Equal(t, conf.Chain.L2PollingInterval, uint(5000))
-	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(500))
-	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(500))
 }
 
 func TestLoadConfigWithUnknownPreset(t *testing.T) {
@@ -160,7 +167,8 @@ func TestLoadConfigPollingValues(t *testing.T) {
 	l1-polling-interval = 1000
 	l2-polling-interval = 1005
 	l1-header-buffer-size = 100
-	l2-header-buffer-size = 105`
+	l2-header-buffer-size = 105
+	`
 
 	data := []byte(testData)
 	err = os.WriteFile(tmpfile.Name(), data, 0644)
@@ -190,6 +198,11 @@ func TestLoadedConfigPresetPrecendence(t *testing.T) {
         [chain]
         preset = 10  # Optimism Mainnet
 
+		l1-polling-interval = 1000
+		l2-polling-interval = 1000
+		l1-header-buffer-size = 100
+		l2-header-buffer-size = 100
+
 		# confirmation depths are explicitly set
 		l1-confirmation-depth = 50
 		l2-confirmation-depth = 100
@@ -197,7 +210,6 @@ func TestLoadedConfigPresetPrecendence(t *testing.T) {
 		# override a contract address
 		[chain.l1-contracts]
 		optimism-portal = "0x0000000000000000000000000000000000000001"
-
 
         [rpcs]
         l1-rpc = "https://l1.example.com"
@@ -234,6 +246,11 @@ func TestLocalDevnet(t *testing.T) {
 	testData := `
         [chain]
         preset = 901
+
+		l1-polling-interval = 5000
+		l2-polling-interval = 5000
+		l1-header-buffer-size = 1000
+		l2-header-buffer-size = 1000
 
         [rpcs]
         l1-rpc = "https://l1.example.com"

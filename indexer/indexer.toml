@@ -1,13 +1,35 @@
 [chain]
-### Option 1: Utilize a known preset. See config/presets.go 
-### for available presets. i.e OP, Base, Zora, PGN, etc.
-### -- Curently setup for Local Devnet
-preset = 901
+## Required ETL configuration which controls
+## the rate and and range at data retrieval
+l1-polling-interval = 5000 # 5s
+l2-polling-interval = 5000
+
+l1-header-buffer-size = 1000
+l2-header-buffer-size = 1000
+
+l1-confirmation-depth = 0 # unnecessary for devnet
+l2-confirmation-depth = 0
+
+### Option 1: Utilize a known preset for chain configuration
+### See config/presets.go for available presets.
+###    i.e OP, Base, Zora, PGN, etc.
+preset = 901 # Local Devnet
 
 ### Option 2: Custom Networks
 ###
+### Deployment block height of the rollup. Must be set
+### correctly otherwise the ETL will start from L1
+### genesis resulting in a lot of wasted work. Confirmation
+### depths should be set appropriately to avoid a the ETL
+### getting stuck terminally due to a reorg
+# l1-starting-height = 0
+#
+# l1-confirmation-depth = 10
+# l2-confirmation-depth = 75 (roughly 10 L1 block equivalent)
+#
 ### These contract addresses MUST be the Proxy contract
 ### addresses and not the implementation
+# [chain.l1-contracts]
 # address-manager = ""
 # system-config = ""
 # optimism-portal = ""
@@ -15,26 +37,6 @@ preset = 901
 # l1-cross-domain-messenger = ""
 # l1-standard-brigde = ""
 # l1-erc721-bridge = ""
-###
-### Deployment block height of the rollup. Must be set
-### correctly otherwise the ETL will start from L1 genesis
-### resulting in a lot of wasted work.
-# l1-starting-height = 0
-###
-
-## Required ETL configuration which controls
-## the rate and and range at data retrieval
-l1-polling-interval = 5000
-l2-polling-interval = 5000
-
-l1-header-buffer-size = 1000
-l2-header-buffer-size = 1000
-
-### For the devnet, we'll use a confirmation depth of 0.
-### However important to set for live networks to avoid
-### the ETL getting into a stuck state due to a reorg
-# l1-confirmation-depth = 10
-# l2-confirmation-depth = 75  (rough 10 L1 block equivalent)
 ###
 
 [rpcs]
