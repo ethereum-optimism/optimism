@@ -269,3 +269,71 @@ func TestOutputCannonProposedOutputRootValid(t *testing.T) {
 		})
 	}
 }
+
+func TestOutputCannonPoisonedPostState(t *testing.T) {
+	op_e2e.InitParallel(t, op_e2e.UsesCannon, op_e2e.UseExecutor(outputCannonTestExecutor))
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys)
+	// Root claim is dishonest
+	game := disputeGameFactory.StartOutputCannonGame(ctx, "sequencer", 1, common.Hash{0xaa})
+	correctTrace := game.CreateHonestActor(ctx, "sequencer", challenger.WithPrivKey(sys.Cfg.Secrets.Alice))
+
+	// Honest first attack at "honest" level
+	correctTrace.Attack(ctx, 0)
+
+	// Honest defense at "dishonest" level
+	correctTrace.Defend(ctx, 1)
+
+	// Dishonest attack at "honest" level - honest move would be to ignore
+	game.Attack(ctx, 2, common.Hash{0x03, 0xaa})
+
+	// Honest attack at "dishonest" level - honest move would be to ignore
+	correctTrace.Attack(ctx, 3)
+	game.LogGameData(ctx)
+
+	// Start the honest challenger
+	game.StartChallenger(ctx, "sequencer", "Honest", challenger.WithPrivKey(sys.Cfg.Secrets.Bob))
+
+	// Start dishonest challenger that posts correct claims
+	// It participates in the subgame root the honest claim index 4
+	claimCount := int64(5)
+	depth := game.MaxDepth(ctx)
+	splitDepth := game.SplitDepth(ctx)
+	for {
+		game.LogGameData(ctx)
+		claimCount++
+		// Wait for the challenger to counter
+		game.WaitForClaimCount(ctx, claimCount)
+
+		// Respond with our own move
+		if claimCount == splitDepth+4 {
+			// Root of the cannon game must have the right VM status code (so it can't be honest).
+			// Note this occurs when there are splitDepth + 4 claims because there are multiple forks in this game.
+			game.Attack(ctx, claimCount-1, common.Hash{0x01})
+		} else {
+			correctTrace.Defend(ctx, claimCount-1)
+		}
+		claimCount++
+		game.WaitForClaimCount(ctx, claimCount)
+
+		// Defender moves last. If we're at max depth, then we're done
+		pos := game.GetClaimPosition(ctx, claimCount-1)
+		if int64(pos.Depth()) == depth {
+			break
+		}
+	}
+
+	// Wait for the challenger to drive the subgame at 4 to the leaf node, which should be countered
+	game.WaitForClaimAtMaxDepth(ctx, true)
+
+	// Time travel past when the game will be resolvable.
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game.LogGameData(ctx)
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+}
