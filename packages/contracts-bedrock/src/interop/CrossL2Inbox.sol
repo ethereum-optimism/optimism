@@ -55,7 +55,7 @@ contract CrossL2Inbox is ISemver {
     constructor(address _superchainPostie) {
         SUPERCHAIN_POSTIE = _superchainPostie;
     }
-    
+
     /// @notice Until we can natively bridge ETH, allow filling this contract with ETH
     ///         in order to run cross l2 messages with value
     receive() external payable {}
@@ -86,6 +86,11 @@ contract CrossL2Inbox is ISemver {
     {
         // TODO: should check _msg.to to not get round-trip inbox/outbox interactions
         // that have the system contract address as _msg.from.
+
+        require(
+            _msg.targetChain == bytes32(block.chainid),
+            "CrossL2Inbox: _msg.targetChain doesn't match block.chainid"
+        );
 
         require(
             roots[_msg.sourceChain][_l2OutputRoot],
