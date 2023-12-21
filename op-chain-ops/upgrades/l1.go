@@ -305,11 +305,11 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		return err
 	}
 
-	var l2OutputOracleSubmissionInterval, l2OutputOracleL2BlockTime, l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp, l2OutputOracleFinalizationPeriodSeconds *big.Int
+	var l2OutputOracleSubmissionInterval, l2BlockTime, l2OutputOracleStartingBlockNumber, l2OutputOracleStartingTimestamp, finalizationPeriodSeconds *big.Int
 	var l2OutputOracleProposer, l2OutputOracleChallenger common.Address
 	if config != nil {
 		l2OutputOracleSubmissionInterval = new(big.Int).SetUint64(config.L2OutputOracleSubmissionInterval)
-		l2OutputOracleL2BlockTime = new(big.Int).SetUint64(config.L2BlockTime)
+		l2BlockTime = new(big.Int).SetUint64(config.L2BlockTime)
 		l2OutputOracleStartingBlockNumber = new(big.Int).SetUint64(config.L2OutputOracleStartingBlockNumber)
 		if config.L2OutputOracleStartingTimestamp < 0 {
 			return fmt.Errorf("L2OutputOracleStartingTimestamp must be concrete")
@@ -317,7 +317,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 		l2OutputOracleStartingTimestamp = new(big.Int).SetInt64(int64(config.L2OutputOracleStartingTimestamp))
 		l2OutputOracleProposer = config.L2OutputOracleProposer
 		l2OutputOracleChallenger = config.L2OutputOracleChallenger
-		l2OutputOracleFinalizationPeriodSeconds = new(big.Int).SetUint64(config.FinalizationPeriodSeconds)
+		finalizationPeriodSeconds = new(big.Int).SetUint64(config.FinalizationPeriodSeconds)
 	} else {
 		l2OutputOracle, err := bindings.NewL2OutputOracleCaller(common.HexToAddress(list.L2OutputOracleProxy.String()), backend)
 		if err != nil {
@@ -329,7 +329,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 
-		l2OutputOracleL2BlockTime, err = l2OutputOracle.L2BlockTime(&bind.CallOpts{})
+		l2BlockTime, err = l2OutputOracle.L2BlockTime(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
@@ -354,7 +354,7 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 			return err
 		}
 
-		l2OutputOracleFinalizationPeriodSeconds, err = l2OutputOracle.FinalizationPeriodSeconds(&bind.CallOpts{})
+		finalizationPeriodSeconds, err = l2OutputOracle.FinalizationPeriodSeconds(&bind.CallOpts{})
 		if err != nil {
 			return err
 		}
@@ -363,12 +363,12 @@ func L2OutputOracle(batch *safe.Batch, implementations superchain.Implementation
 	calldata, err := l2OutputOracleABI.Pack(
 		"initialize",
 		l2OutputOracleSubmissionInterval,
-		l2OutputOracleL2BlockTime,
+		l2BlockTime,
 		l2OutputOracleStartingBlockNumber,
 		l2OutputOracleStartingTimestamp,
 		l2OutputOracleProposer,
 		l2OutputOracleChallenger,
-		l2OutputOracleFinalizationPeriodSeconds,
+		finalizationPeriodSeconds,
 	)
 	if err != nil {
 		return err
