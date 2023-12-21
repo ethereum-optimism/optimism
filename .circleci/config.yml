@@ -512,6 +512,30 @@ jobs:
           command: make && git diff --exit-code
           working_directory: op-bindings
 
+  bindgen-remote:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen remote bindings
+          command: make bindgen-remote && git diff --exit-code
+          working_directory: op-bindings
+      - notify-failures-on-develop
+
+  bindgen-test:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen test
+          command: make test-bindgen-e2e
+          working_directory: op-bindings
+      - notify-failures-on-develop
+
   js-lint-test:
     parameters:
       package_name:
@@ -1979,3 +2003,16 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+
+  scheduled-bindgen:
+    when:
+      equal: [ build_daily, <<pipeline.schedule.name>> ]
+    jobs:
+      - bindgen-remote:
+          context:
+            - slack
+            - oplabs-etherscan
+      - bindgen-test:
+          context:
+            - slack
+            - oplabs-etherscan
