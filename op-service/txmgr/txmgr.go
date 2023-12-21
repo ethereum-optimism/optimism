@@ -604,9 +604,14 @@ func (m *SimpleTxManager) checkLimits(tip, basefee, bumpedTip, bumpedFee *big.In
 }
 
 // calcThresholdValue returns x * priceBumpPercent / 100
+// It guarantees that x is increased by at least 1
 func calcThresholdValue(x *big.Int) *big.Int {
 	threshold := new(big.Int).Mul(priceBumpPercent, x)
-	threshold = threshold.Div(threshold, oneHundred)
+	threshold.Div(threshold, oneHundred)
+	// Guarantee to add at least 1 wei. Edge-case during near-zero fee conditions.
+	if threshold.Cmp(x) == 0 {
+		threshold.Add(threshold, big.NewInt(1))
+	}
 	return threshold
 }
 
