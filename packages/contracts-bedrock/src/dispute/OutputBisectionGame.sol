@@ -454,6 +454,19 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
+        // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
+        // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
+        // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
+        // be created.
+        // Expected length: 0x46 (0x04 selector + 0x20 root claim + 0x20 extraData + 0x02 CWIA bytes)
+        assembly {
+            if gt(calldatasize(), 0x46) {
+                // Store the selector for `ExtraDataTooLong()` & revert
+                mstore(0x00, 0xc407e025)
+                revert(0x1C, 0x04)
+            }
+        }
+
         // Set the root claim
         claimData.push(
             ClaimData({
