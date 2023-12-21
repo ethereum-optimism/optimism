@@ -36,14 +36,7 @@ func (g *OutputAlphabetGameHelper) StartChallenger(
 	return c
 }
 
-func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, alphabetTrace string, depth uint64, l2Node string, options ...challenger.Option) *OutputHonestHelper {
-	opts := []challenger.Option{
-		challenger.WithOutputAlphabet(alphabetTrace, g.system.RollupEndpoint(l2Node)),
-		challenger.WithFactoryAddress(g.factoryAddr),
-		challenger.WithGameAddress(g.addr),
-	}
-	opts = append(opts, options...)
-
+func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, alphabetTrace string, depth uint64, l2Node string) *OutputHonestHelper {
 	logger := testlog.Logger(g.t, log.LvlInfo).New("role", "HonestHelper", "game", g.addr)
 	caller := batching.NewMultiCaller(g.system.NodeClient("l1").Client(), batching.DefaultBatchSize)
 	contract, err := contracts.NewOutputBisectionGameContract(g.addr, caller)
@@ -66,6 +59,6 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, alphab
 	}
 }
 
-func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, alphabetTrace string, depth uint64, l2Node string, defender bool, options ...challenger.Option) *DishonestHelper {
+func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, alphabetTrace string, depth uint64, l2Node string, defender bool) *DishonestHelper {
 	return newDishonestHelper(g.t, &g.OutputGameHelper, g.CreateHonestActor(ctx, alphabetTrace, depth, l2Node), defender)
 }

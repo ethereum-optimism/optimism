@@ -74,13 +74,13 @@ func TestOutputAlphabetGame_ExhaustiveDisputeGame(t *testing.T) {
 		if !isRootCorrect {
 			rootClaimedAlphabet = "abcdexyz"
 		}
-		game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 1, rootClaimedAlphabet)
+		game := disputeGameFactory.StartOutputAlphabetGame(ctx, "sequencer", 3, rootClaimedAlphabet)
 		require.NotNil(t, game)
 		game.LogGameData(ctx)
 		gameDuration := game.GameDuration(ctx)
 
 		// Start honest challenger
-		game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
+		game.StartChallenger(ctx, "sequencer", "Challenger",
 			challenger.WithAlphabet(disputegame.CorrectAlphabet),
 			challenger.WithPrivKey(sys.Cfg.Secrets.Alice),
 			// Ensures the challenger responds to all claims before test timeout
@@ -94,7 +94,6 @@ func TestOutputAlphabetGame_ExhaustiveDisputeGame(t *testing.T) {
 			4,
 			"Defender",
 			!isRootCorrect,
-			challenger.WithPrivKey(sys.Cfg.Secrets.Mallory),
 		)
 		dishonestHelper.ExhaustDishonestClaims(ctx)
 
