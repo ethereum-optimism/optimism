@@ -16,6 +16,13 @@ var errUnknownGame = errors.New("unknown game")
 
 type PlayerCreator func(game types.GameMetadata, dir string) (GamePlayer, error)
 
+type CoordinatorMetricer interface {
+	RecordActedL1Block(n uint64)
+	RecordGamesStatus(inProgress, defenderWon, challengerWon int)
+	RecordGameUpdateScheduled()
+	RecordGameUpdateCompleted()
+}
+
 type gameState struct {
 	player   GamePlayer
 	inflight bool
@@ -33,10 +40,15 @@ type coordinator struct {
 	resultQueue <-chan job
 
 	logger       log.Logger
-	m            SchedulerMetricer
+	m            CoordinatorMetricer
 	createPlayer PlayerCreator
 	states       map[common.Address]*gameState
 	disk         DiskManager
+
+	// blockUpdates maps a block number to the number of jobs that should be scheduled
+	// for that block. This helps us keep track of in-flight jobs and the highest block
+	// that the challenger has fully acted upon (all jobs are complete).
+	blockUpdates map[uint64]uint64
 }
 
 // schedule takes the current list of games to attempt to progress, filters out games that have previous
@@ -44,7 +56,7 @@ type coordinator struct {
 // To avoid deadlock, it may process results from the inbound resultQueue while adding jobs to the outbound jobQueue.
 // Returns an error if a game couldn't be scheduled because of an error. It will continue attempting to progress
 // all games even if an error occurs with one game.
-func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) error {
+func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata, blockNumber uint64) error {
 	// First remove any game states we no longer require
 	for addr, state := range c.states {
 		if !state.inflight && !slices.ContainsFunc(games, func(candidate types.GameMetadata) bool {
@@ -63,7 +75,7 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 	// Otherwise, results may start being processed before all games are recorded, resulting in existing
 	// data directories potentially being deleted for games that are required.
 	for _, game := range games {
-		if j, err := c.createJob(ctx, game); err != nil {
+		if j, err := c.createJob(ctx, game, blockNumber); err != nil {
 			errs = append(errs, fmt.Errorf("failed to create job for game %v: %w", game.Proxy, err))
 		} else if j != nil {
 			jobs = append(jobs, *j)
@@ -90,13 +102,14 @@ func (c *coordinator) schedule(ctx context.Context, games []types.GameMetadata) 
 		if err := c.enqueueJob(ctx, j); err != nil {
 			errs = append(errs, fmt.Errorf("failed to enqueue job for game %v: %w", j.addr, err))
 		}
+		c.blockUpdates[j.block]++
 	}
 	return errors.Join(errs...)
 }
 
 // createJob updates the state for the specified game and returns the job to enqueue for it, if any
 // Returns (nil, nil) when there is no error and no job to enqueue
-func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata) (*job, error) {
+func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, blockNumber uint64) (*job, error) {
 	state, ok := c.states[game.Proxy]
 	if !ok {
 		state = &gameState{}
@@ -123,7 +136,7 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata) (*
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
 		return nil, nil
 	}
-	return &job{addr: game.Proxy, player: state.player, status: state.status}, nil
+	return &job{block: blockNumber, addr: game.Proxy, player: state.player, status: state.status}, nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
@@ -150,6 +163,11 @@ func (c *coordinator) processResult(j job) error {
 	state.status = j.status
 	c.deleteResolvedGameFiles()
 	c.m.RecordGameUpdateCompleted()
+	c.blockUpdates[j.block]--
+	if c.blockUpdates[j.block] == 0 {
+		delete(c.blockUpdates, j.block)
+		c.m.RecordActedL1Block(j.block)
+	}
 	return nil
 }
 
@@ -165,7 +183,7 @@ func (c *coordinator) deleteResolvedGameFiles() {
 	}
 }
 
-func newCoordinator(logger log.Logger, m SchedulerMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
+func newCoordinator(logger log.Logger, m CoordinatorMetricer, jobQueue chan<- job, resultQueue <-chan job, createPlayer PlayerCreator, disk DiskManager) *coordinator {
 	return &coordinator{
 		logger:       logger,
 		m:            m,
@@ -174,5 +192,6 @@ func newCoordinator(logger log.Logger, m SchedulerMetricer, jobQueue chan<- job,
 		createPlayer: createPlayer,
 		disk:         disk,
 		states:       make(map[common.Address]*gameState),
+		blockUpdates: make(map[uint64]uint64),
 	}
 }

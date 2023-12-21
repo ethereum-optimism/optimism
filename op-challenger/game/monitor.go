@@ -27,7 +27,7 @@ type gameSource interface {
 }
 
 type gameScheduler interface {
-	Schedule([]types.GameMetadata) error
+	Schedule([]types.GameMetadata, uint64) error
 }
 
 type gameMonitor struct {
@@ -101,7 +101,7 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 	return 0
 }
 
-func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash) error {
+func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash, blockNumber uint64) error {
 	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), blockHash)
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
@@ -114,7 +114,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash) 
 		}
 		gamesToPlay = append(gamesToPlay, game)
 	}
-	if err := m.scheduler.Schedule(gamesToPlay); errors.Is(err, scheduler.ErrBusy) {
+	if err := m.scheduler.Schedule(gamesToPlay, blockNumber); errors.Is(err, scheduler.ErrBusy) {
 		m.logger.Info("Scheduler still busy with previous update")
 	} else if err != nil {
 		return fmt.Errorf("failed to schedule games: %w", err)
@@ -123,7 +123,7 @@ func (m *gameMonitor) progressGames(ctx context.Context, blockHash common.Hash) 
 }
 
 func (m *gameMonitor) onNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
-	if err := m.progressGames(ctx, sig.Hash); err != nil {
+	if err := m.progressGames(ctx, sig.Hash, sig.Number); err != nil {
 		m.logger.Error("Failed to progress games", "err", err)
 	}
 }
