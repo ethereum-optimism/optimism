@@ -7,9 +7,13 @@ set -euo pipefail
 blank_line() { echo '' >&2 ; }
 notif() { echo "== $0: $*" >&2 ; }
 usage() {
-  echo "Usage: $0 [-h|--help] [local]" 1>&2
-  echo "Either no arguments or 'local' to run with local kontrol installation" 1>&2
-  exit 1
+  echo "Usage: $0 [-h|--help] [container] [local] [dev]" 1>&2
+  echo "Options:" 1>&2
+  echo "  -h, --help         Display this help message." 1>&2
+  echo "  conatiner          Run tests in docker container. Reproduce CI execution. (Default)" 1>&2
+  echo "  local              Run locally, enforces CI Registered .kontrolrc Kontrol version for best execution results. (Recommended)" 1>&2
+  echo "  dev                Run locally, do NOT enforce CI registered Kontrol version (Recomended w/ greater kup & kontrol experience)" 1>&2
+  exit 0
 }
 
 #############
@@ -36,25 +40,41 @@ export LOCAL=false
 #######################
 if [ $# -gt 1 ]; then
   usage
-elif [ $# -eq 1 ]; then
-  if [ "$1" != "local" ]; then
+else
+  if [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
     usage
-  elif [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
-    usage
-  else
-    notif "Running with local install"
-    # Check Kontrol Version
-    if [ "$(kontrol version | awk -F':' '{print$2}')" != "${KONTROLRC}" ]; then
-      notif "Kontrol version does not match ${KONTROLRC}"
-      blank_line
-      exit 1
-    else
+  elif [ "$1" == "local" ]; then
+    notif "Running with LOCAL install, .kontrolrc CI version ENFORCED"
+    if [ "$(kontrol version | awk -F':' '{print$2}')" == "${KONTROLRC}" ]; then
       notif "Kontrol version matches ${KONTROLRC}"
       blank_line
       export LOCAL=true
       shift
       pushd "${WORKSPACE_DIR}" > /dev/null
+    else
+      notif "Kontrol version does NOT match ${KONTROLRC}"
+      notif "Please run 'kup install kontrol --version ${KONTROLRC}'"
+      blank_line
+      exit 1
     fi
+  elif [ "$1" == "dev" ]; then
+    notif "Running with LOCAL install, IGNORING .kontrolrc version"
+    blank_line
+    export LOCAL=true
+    shift
+    pushd "${WORKSPACE_DIR}" > /dev/null
+  elif [ $# -eq 0 ] || [ "$1" == "container" ]; then
+    notif "Running in docker container (DEFAULT)"
+    blank_line
+    export LOCAL=false
+    shift
+    notif "Running in docker container (DEFAULT)"
+    blank_line
+    export LOCAL=false
+    shift
+  else
+    # Unexpected argument passed
+    usage
   fi
 fi
 
@@ -158,7 +178,9 @@ clean_docker(){
 on_failure() {
     dump_log_results
 
-    clean_docker
+    if [ "${LOCAL}" = false ]; then
+      clean_docker
+    fi
 
     notif "Cleanup complete."
     blank_line
@@ -222,7 +244,7 @@ if [ "${LOCAL}" == false ]; then
       clean_docker
       blank_line
   fi
-    start_docker
+  start_docker
 fi
 
 kontrol_build
