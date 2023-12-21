@@ -6,6 +6,11 @@ set -euo pipefail
 #####################
 blank_line() { echo '' >&2 ; }
 notif() { echo "== $0: $*" >&2 ; }
+usage() {
+  echo "Usage: $0 [-h|--help] [local]" 1>&2
+  echo "Either no arguments or 'local' to run with local kontrol installation" 1>&2
+  exit 1
+}
 
 #############
 # Variables #
@@ -24,7 +29,34 @@ export FOUNDRY_PROFILE=kprove
 export CONTAINER_NAME=kontrol-tests
 KONTROLRC=$(cat "${WORKSPACE_DIR}/../../.kontrolrc")
 export KONTROL_RELEASE=${KONTROLRC}
+export LOCAL=false
 
+#######################
+# Check for arguments #
+#######################
+if [ $# -gt 1 ]; then
+  usage
+elif [ $# -eq 1 ]; then
+  if [ "$1" != "local" ]; then
+    usage
+  elif [ "$1" == "-h" ] || [ "$1" == "--help" ]; then
+    usage
+  else
+    notif "Running with local install"
+    # Check Kontrol Version
+    if [ "$(kontrol version | awk -F':' '{print$2}')" != "${KONTROLRC}" ]; then
+      notif "Kontrol version does not match ${KONTROLRC}"
+      blank_line
+      exit 1
+    else
+      notif "Kontrol version matches ${KONTROLRC}"
+      blank_line
+      export LOCAL=true
+      shift
+      pushd "${WORKSPACE_DIR}" > /dev/null
+    fi
+  fi
+fi
 
 #############
 # Functions #
@@ -32,7 +64,7 @@ export KONTROL_RELEASE=${KONTROLRC}
 kontrol_build() {
     notif "Kontrol Build"
     # shellcheck disable=SC2086
-    docker_exec kontrol build                       \
+    run kontrol build                       \
                         --verbose                   \
                         --require ${lemmas}         \
                         --module-import ${module}   \
@@ -42,7 +74,7 @@ kontrol_build() {
 kontrol_prove() {
     notif "Kontrol Prove"
     # shellcheck disable=SC2086
-    docker_exec kontrol prove                              \
+    run kontrol prove                              \
                         --max-depth ${max_depth}           \
                         --max-iterations ${max_iterations} \
                         --smt-timeout ${smt_timeout}       \
@@ -75,44 +107,62 @@ docker_exec () {
     docker exec --user user --workdir /home/user/workspace ${CONTAINER_NAME} "${@}"
 }
 
-dump_log_results(){
-  trap clean_docker ERR
-
-  notif "Something went wrong. Running cleanup..."
-  blank_line
-
-  notif "Creating Tar of Proof Results"
-  docker exec ${CONTAINER_NAME} tar -czvf results.tar.gz kout/proofs
-  RESULTS_LOG="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
-  notif "Copying Tests Results to Host"
-  docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz "${RESULTS_LOG}"
-  if [ -f "${RESULTS_LOG}" ]; then
-    cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz
+run () {
+  if [ "${LOCAL}" = true ]; then
+    notif "Running local"
+    # shellcheck disable=SC2086
+    "${@}"
   else
-    notif "Results Log: ${RESULTS_LOG} not found, did not pull from container."
+  notif "Running in docker"
+    docker_exec "${@}"
   fi
-  blank_line
+}
 
-  notif "Dump RUN Logs"
-  RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
-  docker logs ${CONTAINER_NAME} > "${RUN_LOG}"
+dump_log_results(){
+    trap clean_docker ERR
+    RESULTS_LOG="results-$(date +'%Y-%m-%d-%H-%M-%S').tar.gz"
+
+    notif "Generating Results Log: ${RESULTS_LOG}"
+    blank_line
+
+    run tar -czvf results.tar.gz kout-proofs/ > /dev/null 2>&1
+    if [ "${LOCAL}" = true ]; then
+      cp results.tar.gz "${RESULTS_LOG}"
+    else
+      docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz "${RESULTS_LOG}"
+    fi
+    if [ -f "${RESULTS_LOG}" ]; then
+      cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz
+    else
+      notif "Results Log: ${RESULTS_LOG} not found, skipping.."
+      blank_line
+    fi
+    # Report where the file was generated and placed
+    notif "Results Log: $(dirname "${RESULTS_LOG}") generated"
+    
+    if [ "${LOCAL}" = false ]; then
+      notif "Results Log: ${RESULTS_LOG} generated"
+      blank_line
+      RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
+      docker logs ${CONTAINER_NAME} > "${RUN_LOG}"
+    fi
 }
 
 clean_docker(){
-  notif "Stopping Docker Container"
-  docker stop ${CONTAINER_NAME}
-  blank_line
+    notif "Stopping Docker Container"
+    docker stop ${CONTAINER_NAME}
+    blank_line
 }
 
 # Define the function to run on failure
 on_failure() {
-  dump_log_results
+    dump_log_results
 
-  clean_docker
+    clean_docker
 
-  notif "Cleanup complete."
-  blank_line
-  exit 1
+    notif "Cleanup complete."
+    blank_line
+    exit 1
 }
 
 # Set up the trap to run the function on failure
@@ -131,6 +181,7 @@ module=OptimismPortalKontrol:${base_module}
 rekompile=--rekompile
 rekompile=
 regen=--regen
+# shellcheck disable=SC2034
 regen=
 
 #########################
@@ -163,23 +214,26 @@ tests+="--match-test CounterTest.test_SetNumber "
 #############
 # RUN TESTS #
 #############
-
-# Is old docker container running?
-if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
-    # Stop old docker container
-    notif "Stopping old docker container"
-    clean_docker
-    blank_line
+if [ "${LOCAL}" == false ]; then
+  # Is old docker container running?
+  if [ "$(docker ps -q -f name=${CONTAINER_NAME})" ]; then
+      # Stop old docker container
+      notif "Stopping old docker container"
+      clean_docker
+      blank_line
+  fi
+    start_docker
 fi
-
-start_docker
 
 kontrol_build
 kontrol_prove
 
 dump_log_results
 
-clean_docker
+if [ "${LOCAL}" == false ]; then
+    notif "Stopping docker container"
+    clean_docker
+fi
 
 blank_line
 notif "DONE"
