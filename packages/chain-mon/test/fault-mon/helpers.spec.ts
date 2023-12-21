@@ -57,7 +57,7 @@ describe('helpers', () => {
         deployConfig.l2OutputOracleStartingTimestamp,
         deployConfig.l2OutputOracleProposer,
         deployConfig.l2OutputOracleChallenger,
-        deployConfig.finalizationPeriodSeconds
+        deployConfig.finalizationPeriodSeconds,
       ])
     )
 
