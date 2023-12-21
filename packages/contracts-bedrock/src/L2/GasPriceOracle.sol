@@ -27,7 +27,7 @@ contract GasPriceOracle is ISemver {
     /// @custom:semver 1.2.0
     string public constant version = "1.2.0";
 
-    /// @notice Flag that indicates whether the network is in ecotone mode.
+    /// @notice Indicates whether the network has gone through the Ecotone upgrade.
     bool public isEcotone;
 
     /// @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
@@ -36,7 +36,7 @@ contract GasPriceOracle is ISemver {
     /// @return L1 fee that should be paid for the tx
     function getL1Fee(bytes memory _data) external view returns (uint256) {
         if (isEcotone) {
-            _getL1FeeEcotone(_data);
+            return _getL1FeeEcotone(_data);
         }
         return _getL1FeeBedrock(_data);
     }
@@ -118,17 +118,14 @@ contract GasPriceOracle is ISemver {
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
     function getL1GasUsed(bytes memory _data) public view returns (uint256) {
-        if (isEcotone) {
-            return _getL1GasUsedEcotone(_data);
-        }
-        return _getL1GasUsedBedrock(_data);
+        return _getL1GasUsed(_data);
     }
 
-    /// @notice Pre-ecotone computation of the L1 portion of the fee.
+    /// @notice Computation of the L1 portion of the fee for Bedrock.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
     /// @return L1 fee that should be paid for the tx
     function _getL1FeeBedrock(bytes memory _data) internal view returns (uint256) {
-        uint256 l1GasUsed = _getL1GasUsedBedrock(_data);
+        uint256 l1GasUsed = _getL1GasUsed(_data);
         uint256 l1Fee = l1GasUsed * l1BaseFee();
         uint256 unscaled = l1Fee * L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
         uint256 divisor = 10 ** DECIMALS;
@@ -136,23 +133,23 @@ contract GasPriceOracle is ISemver {
         return scaled;
     }
 
-    /// @notice Post-ecotone computation of the L1 portion of the fee.
+    /// @notice L1 portion of the fee after Ecotone.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 fee for.
     /// @return L1 fee that should be paid for the tx
     function _getL1FeeEcotone(bytes memory _data) internal view returns (uint256) {
-        uint256 l1GasUsed = _getL1GasUsedEcotone(_data);
+        uint256 l1GasUsed = _getL1GasUsed(_data);
         uint256 scaledBasefee = basefeeScalar() * 16 * l1BaseFee();
         uint256 scaledBlobBasefee = blobBasefeeScalar() * blobBasefee();
         uint256 unscaled = l1GasUsed * (scaledBasefee + scaledBlobBasefee);
-        uint256 divisor = 10 ** DECIMALS;
+        uint256 divisor = 16 * 10 ** DECIMALS;
         uint256 scaled = unscaled / divisor;
         return scaled;
     }
 
-    /// @notice Pre-ecotone L1 gas estimation calculation.
+    /// @notice L1 gas estimation calculation.
     /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
     /// @return Amount of L1 gas used to publish the transaction.
-    function _getL1GasUsedBedrock(bytes memory _data) internal view returns (uint256) {
+    function _getL1GasUsed(bytes memory _data) internal view returns (uint256) {
         uint256 total = 0;
         uint256 length = _data.length;
         for (uint256 i = 0; i < length; i++) {
@@ -162,23 +159,10 @@ contract GasPriceOracle is ISemver {
                 total += 16;
             }
         }
-        uint256 unsigned = total + L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
+        uint256 unsigned = total;
+        if (!isEcotone) {
+            total += L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
+        }
         return unsigned + (68 * 16);
-    }
-
-    /// @notice Post-ecotone L1 gas estimation calculation.
-    /// @param _data Unsigned fully RLP-encoded transaction to get the L1 gas for.
-    /// @return Amount of L1 gas used to publish the transaction.
-    function _getL1GasUsedEcotone(bytes memory _data) internal pure returns (uint256) {
-        uint256 total = 0;
-        uint256 length = _data.length;
-        for (uint256 i = 0; i < length; i++) {
-            if (_data[i] == 0) {
-                total += 4;
-            } else {
-                total += 16;
-            }
-        }
-        return (total + (68 * 16 * 16)) / 16;
     }
 }
