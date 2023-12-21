@@ -1,36 +1,40 @@
-# Default to the local Devnet. Can set chain id for some hard-coded chain config
+# Default to the local Devnet Preset
+# See /config/presets.go for available preset configurations
 #  - i.e OP Mainnet, OP Goerli, Base, Base Goerli, Zora, Zora Goerli, etc
 [chain]
 preset = 901
 
-### ChainConfiguration. Uncomment to set desired L1 & L2 config
-##  l1-polling-interval = 0
-##  l1-header-buffer-size = 0
-##  l1-confirmation-depth = 0
-##  l1-starting-height = 0
-##  
-##  l2-polling-interval = 0
-##  l2-header-buffer-size = 0
-##  l2-confirmation-depth = 0
+l1-polling-interval = 5000
+l2-polling-interval = 5000
+
+l1-header-buffer-size = 1000
+l2-header-buffer-size = 1000
+
+### For the devnet, we'll use a confirmation depth of 0.
+### However important to set for live networks to avoid
+### getting into a stuck state due to a reorg
+###
+# l1-confirmation-depth = 10
+# l2-confirmation-depth = 75  (rough 10 L1 block equivalent)
+###
 ###
 
 [rpcs]
-l1-rpc = "http://127.0.0.1:8545"
-l2-rpc = "http://127.0.0.1:9545"
+l1-rpc = "${INDEXER_L1_RPC_URL}"
+l2-rpc = "${INDEXER_L2_RPC_URL}"
 
 [db]
-host = "127.0.0.1"
-port = 5432
-user = "db_username"
-password = "db_password"
-name = "db_name"
+host = "${DB_HOST}"
+port = ${DB_PORT}
+user = "${DB_USER}"
+password = "${DB_PWD}"
+name = "${DB_NAME}"
 
 [http]
-host = "127.0.0.1"
-port = 8080
+host = "0.0.0.0"
+port = 8100
 timeout = 10
 
 [metrics]
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 7300
-
