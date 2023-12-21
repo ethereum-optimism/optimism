@@ -38,7 +38,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -89,10 +89,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_etl_l1_indexed_height)",
+          "expr": "op_indexer_etl_l1_indexed_height",
           "instant": false,
           "legendFormat": "ETL",
           "range": true,
@@ -105,7 +105,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -159,7 +159,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "op_indexer_etl_l1_latest_height",
@@ -175,7 +175,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -228,10 +228,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_etl_l1_indexed_height\n / op_indexer_etl_l1_latest_height\n\n",
+          "expr": "op_indexer_etl_l1_indexed_height\n / op_indexer_etl_l1_latest_height\n",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -244,7 +244,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -325,10 +325,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_etl_l1_interval_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_etl_l1_interval_seconds_count[$etl_rate_interval]))",
+          "expr": "rate(op_indexer_etl_l1_interval_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_etl_l1_interval_seconds_count[$etl_rate_interval])",
           "instant": false,
           "legendFormat": "l1",
           "range": true,
@@ -337,10 +337,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_etl_l2_interval_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_etl_l2_interval_seconds_count[$etl_rate_interval]))",
+          "expr": "rate(op_indexer_etl_l2_interval_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_etl_l2_interval_seconds_count[$etl_rate_interval])",
           "hide": false,
           "instant": false,
           "legendFormat": "l2",
@@ -354,7 +354,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -405,12 +405,12 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "disableTextWrap": false,
           "editorMode": "code",
           "exemplar": true,
-          "expr": "op_indexer_etl_l2_indexed_height)",
+          "expr": "op_indexer_etl_l2_indexed_height",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -426,7 +426,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -479,7 +479,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "op_indexer_etl_l2_latest_height",
@@ -495,7 +495,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -547,7 +547,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "op_indexer_etl_l2_indexed_height\n / op_indexer_etl_l2_latest_height",
@@ -563,7 +563,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -643,7 +643,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(contract) (rate(op_indexer_etl_l1_indexed_logs_total[$etl_rate_interval])) * 60",
@@ -659,7 +659,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -739,7 +739,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(contract) (rate(op_indexer_etl_l2_indexed_logs_total[$etl_rate_interval])) * 60",
@@ -768,7 +768,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -820,7 +820,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"initiated\"}",
@@ -836,7 +836,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -888,10 +888,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"initiated\"} / op_indexer_etl_l1_indexed_height ",
+          "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"initiated\"} / on() op_indexer_etl_l1_indexed_height",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -904,7 +904,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -955,10 +955,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"finalized\"})",
+          "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"finalized\"}",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -971,7 +971,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1023,10 +1023,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"finalized\"} / op_indexer_etl_l1_indexed_height",
+          "expr": "op_indexer_bridge_height{chain=\"l1\", kind=\"finalized\"} / on() op_indexer_etl_l1_indexed_height",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1039,7 +1039,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1123,7 +1123,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "max by(chain) \n(rate(op_indexer_bridge_interval_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_bridge_interval_seconds_count[$etl_rate_interval]))",
@@ -1139,7 +1139,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1190,10 +1190,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"initiated\"})",
+          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"initiated\"}",
           "instant": false,
           "legendFormat": "initiated",
           "range": true,
@@ -1206,7 +1206,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1258,10 +1258,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"initiated\"} / op_indexer_etl_l2_indexed_height",
+          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"initiated\"} / on() op_indexer_etl_l2_indexed_height",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1274,7 +1274,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1325,10 +1325,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"finalized\"})",
+          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"finalized\"}",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1341,7 +1341,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1393,10 +1393,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"finalized\"} / op_indexer_etl_l2_indexed_height",
+          "expr": "op_indexer_bridge_height{chain=\"l2\", kind=\"finalized\"} / on() op_indexer_etl_l2_indexed_height",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1409,7 +1409,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1489,11 +1489,11 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "rate(op_indexer_bridge_tx_deposits[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_tx_deposits[$etl_rate_interval]) * 60",
           "instant": false,
           "legendFormat": "L1 Transaction Deposits",
           "range": true,
@@ -1502,11 +1502,11 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "exemplar": true,
-          "expr": "rate(op_indexer_bridge_sent_messages{chain=\"l1\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_sent_messages{chain=\"l1\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L1 Sent Messages",
@@ -1516,10 +1516,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_relayed_messages{chain=\"l1\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_relayed_messages{chain=\"l1\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L1 Relayed Messages",
@@ -1529,10 +1529,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_initiated_token_transfers{chain=\"l1\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_initiated_token_transfers{chain=\"l1\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L1 Initiated Bridge Transfers",
@@ -1542,10 +1542,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_finalized_token_transfers{chain=\"l1\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_finalized_token_transfers{chain=\"l1\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L1 Finalized Bridge Transfers",
@@ -1555,10 +1555,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_skipped_ovm1_withdrawals{chain=\"l1\"}[$etl_rate_interval])) * 60 ",
+          "expr": "rate(op_indexer_bridge_skipped_ovm1_withdrawals{chain=\"l1\"}[$etl_rate_interval]) * 60 ",
           "hide": false,
           "instant": false,
           "legendFormat": "Skipped OVM1 Withdrawals",
@@ -1572,7 +1572,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1652,10 +1652,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_tx_minted_eth[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_tx_minted_eth[$etl_rate_interval]) * 60",
           "instant": false,
           "legendFormat": "Minted ETH",
           "range": true,
@@ -1664,10 +1664,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_tx_withdrawn_eth[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_tx_withdrawn_eth[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "Withdrawn ETH",
@@ -1681,7 +1681,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1761,10 +1761,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_tx_withdrawals[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_tx_withdrawals[$etl_rate_interval]) * 60",
           "instant": false,
           "legendFormat": "L2 Transaction Withdrawals",
           "range": true,
@@ -1773,10 +1773,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_sent_messages{chain=\"l2\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_sent_messages{chain=\"l2\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L2 Sent Messages",
@@ -1786,10 +1786,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_relayed_messages{chain=\"l2\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_relayed_messages{chain=\"l2\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L2 Relayed Messages",
@@ -1799,10 +1799,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_initiated_token_transfers{chain=\"l2\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_initiated_token_transfers{chain=\"l2\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L2 Initiated Bridge Transfers",
@@ -1812,10 +1812,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "rate(op_indexer_bridge_finalized_token_transfers{chain=\"l2\"}[$etl_rate_interval])) * 60",
+          "expr": "rate(op_indexer_bridge_finalized_token_transfers{chain=\"l2\"}[$etl_rate_interval]) * 60",
           "hide": false,
           "instant": false,
           "legendFormat": "L2 Finalized Bridge Transfers",
@@ -1829,7 +1829,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1909,7 +1909,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "disableTextWrap": false,
           "editorMode": "code",
@@ -1942,7 +1942,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -1998,32 +1998,7 @@
           },
           "unit": "reqpm"
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "eth_getLogs"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 7,
@@ -2048,7 +2023,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(method) (rate(op_indexer_rpc_l1_requests_total[$etl_rate_interval])) * 60",
@@ -2060,7 +2035,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(method,error) (rate(op_indexer_rpc_l1_responses_total{error!=\"<nil>\"}[$etl_rate_interval])) * 60",
@@ -2077,7 +2052,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -2159,7 +2134,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(method) (rate(op_indexer_rpc_l1_request_duration_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_rpc_l1_request_duration_seconds_count[$etl_rate_interval]))",
@@ -2176,7 +2151,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -2232,32 +2207,7 @@
           },
           "unit": "reqpm"
         },
-        "overrides": [
-          {
-            "__systemRef": "hideSeriesFrom",
-            "matcher": {
-              "id": "byNames",
-              "options": {
-                "mode": "exclude",
-                "names": [
-                  "eth_getLogs"
-                ],
-                "prefix": "All except:",
-                "readOnly": true
-              }
-            },
-            "properties": [
-              {
-                "id": "custom.hideFrom",
-                "value": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": true
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
         "h": 7,
@@ -2282,7 +2232,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(method) (rate(op_indexer_rpc_l2_requests_total[$etl_rate_interval])) * 60",
@@ -2294,10 +2244,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
-          "expr": "sum by(method, error) (rate(op_indexer_rpc_l2_responses_total{error!=\"<nil>\"}[2m])) * 60",
+          "expr": "sum by(method, error) (rate(op_indexer_rpc_l2_responses_total{error!=\"<nil>\"}[$etl_rate_interval])) * 60",
           "hide": true,
           "instant": false,
           "legendFormat": "{{method}} (error: {{error}})",
@@ -2311,7 +2261,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "grafanacloud-prom"
+        "uid": "6R74VAnVz"
       },
       "fieldConfig": {
         "defaults": {
@@ -2392,7 +2342,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "grafanacloud-prom"
+            "uid": "6R74VAnVz"
           },
           "editorMode": "code",
           "expr": "sum by(method) (rate(op_indexer_rpc_l2_request_duration_seconds_sum[$etl_rate_interval])\n/\nrate(op_indexer_rpc_l2_request_duration_seconds_count[$etl_rate_interval]))",
@@ -2422,7 +2372,7 @@
     ]
   },
   "time": {
-    "from": "now-3h",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {},
