@@ -712,11 +712,11 @@
     "impact": "Medium",
     "confidence": "High",
     "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract L2OutputOracle (src/L1/L2OutputOracle.sol#14-296) has payable functions:\n\t - L2OutputOracle.proposeL2Output(bytes32,uint256,bytes32,uint256) (src/L1/L2OutputOracle.sol#168-215)\n\tBut does not have a function to withdraw the ether\n",
+    "description": "Contract locking ether found:\n\tContract L2OutputOracle (src/L1/L2OutputOracle.sol#14-304) has payable functions:\n\t - L2OutputOracle.proposeL2Output(bytes32,uint256,bytes32,uint256) (src/L1/L2OutputOracle.sol#176-223)\n\tBut does not have a function to withdraw the ether\n",
     "type": "contract",
     "name": "L2OutputOracle",
     "start": 611,
-    "length": 12768,
+    "length": 12491,
     "filename_relative": "src/L1/L2OutputOracle.sol"
   },
   {
@@ -724,10 +724,10 @@
     "impact": "Medium",
     "confidence": "High",
     "check": "locked-ether",
-    "description": "Contract locking ether found:\n\tContract L2OutputOracle (src/L1/L2OutputOracle.sol#14-296) has payable functions:\n\t - L2OutputOracle.proposeL2Output(bytes32,uint256,bytes32,uint256) (src/L1/L2OutputOracle.sol#168-215)\n\tBut does not have a function to withdraw the ether\n",
+    "description": "Contract locking ether found:\n\tContract L2OutputOracle (src/L1/L2OutputOracle.sol#14-304) has payable functions:\n\t - L2OutputOracle.proposeL2Output(bytes32,uint256,bytes32,uint256) (src/L1/L2OutputOracle.sol#176-223)\n\tBut does not have a function to withdraw the ether\n",
     "type": "function",
     "name": "proposeL2Output",
-    "start": 7598,
+    "start": 7324,
     "length": 1981,
     "filename_relative": "src/L1/L2OutputOracle.sol"
   },
