@@ -59,16 +59,17 @@ contract L2OutputOracle is Initializable, ISemver {
     /// @custom:semver 1.8.0
     string public constant version = "1.8.0";
 
-    /// @notice Constructs the L2OutputOracle contract.
+    /// @notice Constructs the L2OutputOracle contract. Initializes variables to the same values as
+    ///         in the getting-started config.
     constructor() {
         initialize({
-            _submissionInterval: 0,
-            _l2BlockTime: 0,
+            _submissionInterval: 120,
+            _l2BlockTime: 12,
             _startingBlockNumber: 0,
-            _startingTimestamp: 0,
+            _startingTimestamp: block.timestamp,
             _proposer: address(0),
             _challenger: address(0),
-            _finalizationPeriodSeconds: 0
+            _finalizationPeriodSeconds: 12
         });
     }
 
@@ -93,6 +94,13 @@ contract L2OutputOracle is Initializable, ISemver {
         public
         initializer
     {
+        require(_submissionInterval > 0, "L2OutputOracle: submission interval must be greater than 0");
+        require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
+        require(
+            _startingTimestamp <= block.timestamp,
+            "L2OutputOracle: starting L2 timestamp must be less than current time"
+        );
+
         submissionInterval = _submissionInterval;
         l2BlockTime = _l2BlockTime;
         startingBlockNumber = _startingBlockNumber;
