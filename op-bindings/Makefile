@@ -80,3 +80,6 @@ clean:
 
 test:
 	go test ./...
+
+test-bindgen-e2e:
+	RUN_E2E=true go test -count=1 ./bindgen/...

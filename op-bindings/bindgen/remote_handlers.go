@@ -18,7 +18,7 @@ import (
 type contractData struct {
 	abi          string
 	deployedBin  string
-	deploymentTx etherscan.TxInfo
+	deploymentTx etherscan.Transaction
 }
 
 func (generator *bindGenGeneratorRemote) standardHandler(contractMetadata *remoteContractMetadata) error {
@@ -47,8 +47,11 @@ func (generator *bindGenGeneratorRemote) standardHandler(contractMetadata *remot
 		return err
 	}
 
-	if err := generator.compareBytecodeWithOp(contractMetadata, true, true); err != nil {
-		return fmt.Errorf("error comparing contract bytecode for %s: %w", contractMetadata.Name, err)
+	if err := generator.compareInitBytecodeWithOp(contractMetadata, true); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
+	}
+	if err := generator.compareDeployedBytecodeWithOp(contractMetadata, true); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
 	}
 
 	return generator.writeAllOutputs(contractMetadata, remoteContractMetadataTemplate)
@@ -66,10 +69,16 @@ func (generator *bindGenGeneratorRemote) create2DeployerHandler(contractMetadata
 		return err
 	}
 
-	// We're not comparing the bytecode for Create2Deployer with deployment on OP,
+	// We're expecting the bytecode for Create2Deployer to not match the deployment on OP,
 	// because we're predeploying a modified version of Create2Deployer that has not yet been
 	// deployed to OP.
 	// For context: https://github.com/ethereum-optimism/op-geth/pull/126
+	if err := generator.compareInitBytecodeWithOp(contractMetadata, false); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
+	}
+	if err := generator.compareDeployedBytecodeWithOp(contractMetadata, false); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
+	}
 
 	return generator.writeAllOutputs(contractMetadata, remoteContractMetadataTemplate)
 }
@@ -85,9 +94,6 @@ func (generator *bindGenGeneratorRemote) multiSendHandler(contractMetadata *remo
 
 	contractMetadata.ABI = fetchedData.abi
 	contractMetadata.DeployedBin = fetchedData.deployedBin
-	if err = generator.compareDeployedBytecodeWithRpc(contractMetadata, "eth"); err != nil {
-		return err
-	}
 	if err = generator.compareDeployedBytecodeWithRpc(contractMetadata, "op"); err != nil {
 		return err
 	}
@@ -114,8 +120,11 @@ func (generator *bindGenGeneratorRemote) senderCreatorHandler(contractMetadata *
 	// The SenderCreator contract is deployed by EntryPoint, so the transaction data
 	// from the deployment transaction is for the entire EntryPoint deployment.
 	// So, we're manually providing the initialization bytecode and therefore it isn't being compared here
-	if err := generator.compareBytecodeWithOp(contractMetadata, false, true); err != nil {
-		return fmt.Errorf("error comparing contract bytecode for %s: %w", contractMetadata.Name, err)
+	if err := generator.compareInitBytecodeWithOp(contractMetadata, false); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
+	}
+	if err := generator.compareDeployedBytecodeWithOp(contractMetadata, true); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
 	}
 
 	return generator.writeAllOutputs(contractMetadata, remoteContractMetadataTemplate)
@@ -128,6 +137,7 @@ func (generator *bindGenGeneratorRemote) permit2Handler(contractMetadata *remote
 	}
 
 	contractMetadata.ABI = fetchedData.abi
+	contractMetadata.DeployedBin = fetchedData.deployedBin
 	if contractMetadata.InitBin, err = generator.removeDeploymentSalt(fetchedData.deploymentTx.Input, contractMetadata.DeploymentSalt); err != nil {
 		return err
 	}
@@ -140,10 +150,13 @@ func (generator *bindGenGeneratorRemote) permit2Handler(contractMetadata *remote
 		)
 	}
 
-	// We're not comparing deployed bytecode because Permit2 has immutable Solidity variables that
+	if err := generator.compareInitBytecodeWithOp(contractMetadata, true); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
+	}
+	// We're asserting the deployed bytecode doesn't match, because Permit2 has immutable Solidity variables that
 	// are dependent on block.chainid
-	if err := generator.compareBytecodeWithOp(contractMetadata, true, false); err != nil {
-		return fmt.Errorf("error comparing contract bytecode for %s: %w", contractMetadata.Name, err)
+	if err := generator.compareDeployedBytecodeWithOp(contractMetadata, false); err != nil {
+		return fmt.Errorf("%s: %w", contractMetadata.Name, err)
 	}
 
 	return generator.writeAllOutputs(contractMetadata, permit2MetadataTemplate)
@@ -206,37 +219,77 @@ func (generator *bindGenGeneratorRemote) removeDeploymentSalt(deploymentData, de
 	return re.ReplaceAllString(deploymentData, ""), nil
 }
 
-func (generator *bindGenGeneratorRemote) compareBytecodeWithOp(contractMetadataEth *remoteContractMetadata, compareInitialization, compareDeployment bool) error {
+func (generator *bindGenGeneratorRemote) compareInitBytecodeWithOp(contractMetadataEth *remoteContractMetadata, initCodeShouldMatch bool) error {
+	if contractMetadataEth.InitBin == "" {
+		return fmt.Errorf("no initialization bytecode provided for ETH deployment for comparison")
+	}
+
+	var zeroAddress common.Address
+	if contractMetadataEth.Deployments.Op == zeroAddress {
+		return fmt.Errorf("no deployment address on Optimism provided for %s", contractMetadataEth.Name)
+	}
+
 	// Passing false here, because true will retrieve contract's ABI, but we don't need it for bytecode comparison
 	opContractData, err := generator.fetchContractData(false, "op", contractMetadataEth.Deployments.Op.Hex())
 	if err != nil {
 		return err
 	}
 
-	if compareInitialization {
-		if opContractData.deploymentTx.Input, err = generator.removeDeploymentSalt(opContractData.deploymentTx.Input, contractMetadataEth.DeploymentSalt); err != nil {
-			return err
-		}
-
-		if !strings.EqualFold(contractMetadataEth.InitBin, opContractData.deploymentTx.Input) {
-			return fmt.Errorf(
-				"initialization bytecode on Ethereum doesn't match bytecode on Optimism. contract=%s bytecodeEth=%s bytecodeOp=%s",
-				contractMetadataEth.Name,
-				contractMetadataEth.InitBin,
-				opContractData.deploymentTx.Input,
-			)
-		}
+	if opContractData.deploymentTx.Input, err = generator.removeDeploymentSalt(opContractData.deploymentTx.Input, contractMetadataEth.DeploymentSalt); err != nil {
+		return err
 	}
 
-	if compareDeployment {
-		if !strings.EqualFold(contractMetadataEth.DeployedBin, opContractData.deployedBin) {
-			return fmt.Errorf(
-				"deployed bytecode on Ethereum doesn't match bytecode on Optimism. contract=%s bytecodeEth=%s bytecodeOp=%s",
-				contractMetadataEth.Name,
-				contractMetadataEth.DeployedBin,
-				opContractData.deployedBin,
-			)
-		}
+	initCodeComparison := strings.EqualFold(contractMetadataEth.InitBin, opContractData.deploymentTx.Input)
+	if initCodeShouldMatch && !initCodeComparison {
+		return fmt.Errorf(
+			"expected initialization bytecode to match on Ethereum and Optimism, but it doesn't. contract=%s bytecodeEth=%s bytecodeOp=%s",
+			contractMetadataEth.Name,
+			contractMetadataEth.InitBin,
+			opContractData.deploymentTx.Input,
+		)
+	} else if !initCodeShouldMatch && initCodeComparison {
+		return fmt.Errorf(
+			"expected initialization bytecode on Ethereum to not match on Optimism, but it did. contract=%s bytecodeEth=%s bytecodeOp=%s",
+			contractMetadataEth.Name,
+			contractMetadataEth.InitBin,
+			opContractData.deploymentTx.Input,
+		)
+	}
+
+	return nil
+}
+
+func (generator *bindGenGeneratorRemote) compareDeployedBytecodeWithOp(contractMetadataEth *remoteContractMetadata, deployedCodeShouldMatch bool) error {
+	if contractMetadataEth.DeployedBin == "" {
+		return fmt.Errorf("no deployed bytecode provided for ETH deployment for comparison")
+	}
+
+	var zeroAddress common.Address
+	if contractMetadataEth.Deployments.Op == zeroAddress {
+		return fmt.Errorf("no deployment address on Optimism provided for %s", contractMetadataEth.Name)
+	}
+
+	// Passing false here, because true will retrieve contract's ABI, but we don't need it for bytecode comparison
+	opContractData, err := generator.fetchContractData(false, "op", contractMetadataEth.Deployments.Op.Hex())
+	if err != nil {
+		return err
+	}
+
+	deployedCodeComparison := strings.EqualFold(contractMetadataEth.DeployedBin, opContractData.deployedBin)
+	if deployedCodeShouldMatch && !deployedCodeComparison {
+		return fmt.Errorf(
+			"expected deployed bytecode to match on Ethereum and Optimism, but it doesn't. contract=%s bytecodeEth=%s bytecodeOp=%s",
+			contractMetadataEth.Name,
+			contractMetadataEth.DeployedBin,
+			opContractData.deployedBin,
+		)
+	} else if !deployedCodeShouldMatch && deployedCodeComparison {
+		return fmt.Errorf(
+			"expected deployed bytecode on Ethereum to not match on Optimism, but it does. contract=%s bytecodeEth=%s bytecodeOp=%s",
+			contractMetadataEth.Name,
+			contractMetadataEth.DeployedBin,
+			opContractData.deployedBin,
+		)
 	}
 
 	return nil

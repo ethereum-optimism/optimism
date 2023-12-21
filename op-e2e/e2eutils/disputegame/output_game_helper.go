@@ -394,16 +394,24 @@ func (g *OutputGameHelper) waitForNewClaim(ctx context.Context, checkPoint int64
 
 func (g *OutputGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
-	g.require.NoError(err, "Attack transaction did not send")
+	if err != nil {
+		g.require.NoErrorf(err, "Attack transaction did not send. Game state: \n%v", g.gameData(ctx))
+	}
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-	g.require.NoError(err, "Attack transaction was not OK")
+	if err != nil {
+		g.require.NoErrorf(err, "Attack transaction was not OK. Game state: \n%v", g.gameData(ctx))
+	}
 }
 
 func (g *OutputGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
-	g.require.NoError(err, "Defend transaction did not send")
+	if err != nil {
+		g.require.NoErrorf(err, "Defend transaction did not send. Game state: \n%v", g.gameData(ctx))
+	}
 	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
-	g.require.NoError(err, "Defend transaction was not OK")
+	if err != nil {
+		g.require.NoErrorf(err, "Defend transaction was not OK. Game state: \n%v", g.gameData(ctx))
+	}
 }
 
 type ErrWithData interface {
