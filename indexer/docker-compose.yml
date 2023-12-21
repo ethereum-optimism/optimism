@@ -11,7 +11,9 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -q -U postgres -d indexer" ]
     ports:
-      - "5432:5432"
+      # deconflict with postgres that might be running already on
+      # the host machine
+      - "5433:5432"
     volumes:
       - postgres_data:/data/postgres
       - ./migrations:/docker-entrypoint-initdb.d/
@@ -73,9 +75,10 @@ services:
       - "9090"
     volumes:
       - ./ops/prometheus:/etc/prometheus/:ro
+      - prometheus_data:/prometheus
     depends_on:
-      #index:
-      #condition: service_healthy
+      index:
+        condition: service_healthy
       api:
         condition: service_healthy
 
@@ -89,9 +92,12 @@ services:
     volumes:
       - ./ops/grafana/provisioning:/etc/grafana/provisioning/:ro
       - ./ops/grafana/dashboards:/var/lib/grafana/dashboards/:ro
+      - grafana_data:/var/lib/grafana
     depends_on:
       prometheus:
         condition: service_started
 
 volumes:
   postgres_data:
+  prometheus_data:
+  grafana_data:

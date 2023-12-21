@@ -35,12 +35,10 @@ type Indexer struct {
 	l1Client node.EthClient
 	l2Client node.EthClient
 
-	// api server only really serves a /health endpoint here, but this may change in the future
-	apiServer *httputil.HTTPServer
-
-	metricsServer *httputil.HTTPServer
-
 	metricsRegistry *prometheus.Registry
+
+	apiServer     *httputil.HTTPServer
+	metricsServer *httputil.HTTPServer
 
 	L1ETL           *etl.L1ETL
 	L2ETL           *etl.L2ETL
@@ -235,15 +233,20 @@ func (ix *Indexer) startHttpServer(ctx context.Context, cfg config.ServerConfig)
 	ix.log.Debug("starting http server...", "port", cfg.Port)
 
 	r := chi.NewRouter()
+	r.Use(middleware.Logger)
 	r.Use(middleware.Heartbeat("/healthz"))
+
+	// needed so that the middlware gets invoked
+	r.Get("/", r.NotFoundHandler())
 
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
 	srv, err := httputil.StartHTTPServer(addr, r)
 	if err != nil {
 		return fmt.Errorf("http server failed to start: %w", err)
 	}
-	ix.apiServer = srv
+
 	ix.log.Info("http server started", "addr", srv.Addr())
+	ix.apiServer = srv
 	return nil
 }
 
