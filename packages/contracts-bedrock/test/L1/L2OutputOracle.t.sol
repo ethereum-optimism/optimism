@@ -20,27 +20,134 @@ import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 contract L2OutputOracle_constructor_Test is CommonTest {
     /// @dev Tests that constructor sets the initial values correctly.
     function test_constructor_succeeds() external {
-        address proposer = deploy.cfg().l2OutputOracleProposer();
-        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        L2OutputOracle oracleImpl = new L2OutputOracle();
+
+        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 120);
+        assertEq(oracleImpl.submissionInterval(), 120);
+        assertEq(oracleImpl.L2_BLOCK_TIME(), 12);
+        assertEq(oracleImpl.l2BlockTime(), 12);
+        assertEq(oracleImpl.latestBlockNumber(), 0);
+        assertEq(oracleImpl.startingBlockNumber(), 0);
+        assertEq(oracleImpl.startingTimestamp(), block.timestamp);
+        assertEq(oracleImpl.PROPOSER(), address(0));
+        assertEq(oracleImpl.proposer(), address(0));
+        assertEq(oracleImpl.CHALLENGER(), address(0));
+        assertEq(oracleImpl.challenger(), address(0));
+        assertEq(oracleImpl.finalizationPeriodSeconds(), 12);
+        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 12);
+    }
+
+    /// @dev Tests that initialize sets the initial values correctly.
+    function test_initialize_succeeds() external {
         uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
-        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
         uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
 
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+        l2OutputOracle.initialize({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
+        });
+
+        assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
+        assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
+        assertEq(l2OutputOracle.latestBlockNumber(), startingBlockNumber);
+        assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
+        assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
         assertEq(l2OutputOracle.PROPOSER(), proposer);
         assertEq(l2OutputOracle.proposer(), proposer);
         assertEq(l2OutputOracle.CHALLENGER(), challenger);
         assertEq(l2OutputOracle.challenger(), challenger);
-        assertEq(l2OutputOracle.SUBMISSION_INTERVAL(), submissionInterval);
-        assertEq(l2OutputOracle.submissionInterval(), submissionInterval);
-        assertEq(l2OutputOracle.latestBlockNumber(), startingBlockNumber);
-        assertEq(l2OutputOracle.startingBlockNumber(), startingBlockNumber);
-        assertEq(l2OutputOracle.startingTimestamp(), startingTimestamp);
-        assertEq(l2OutputOracle.L2_BLOCK_TIME(), l2BlockTime);
-        assertEq(l2OutputOracle.l2BlockTime(), l2BlockTime);
         assertEq(l2OutputOracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
         assertEq(l2OutputOracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
+    }
+
+    /// @dev Tests that initialize reverts if the submissionInterval is zero.
+    function test_initialize_submissionInterval_reverts() external {
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
+        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
+        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
+        vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
+        l2OutputOracle.initialize({
+            _submissionInterval: 0,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
+        });
+    }
+
+    /// @dev Tests that initialize reverts if the l2BlockTime is invalid.
+    function test_initalize_l2BlockTimeZero_reverts() external {
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
+        uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
+        vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
+        l2OutputOracle.initialize({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: 0,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
+        });
+    }
+
+    /// @dev Tests that initialize reverts if the starting timestamp is invalid.
+    function test_initialize_badTimestamp_reverts() external {
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(l2OutputOracle), bytes32(uint256(0)), bytes32(uint256(0)));
+
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
+        uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
+        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
+        l2OutputOracle.initialize({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: block.timestamp + 1,
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
+        });
     }
 }
 
@@ -411,55 +518,68 @@ contract L2OutputOracleUpgradeable_Test is CommonTest {
         assertEq(l2OutputOracle.challenger(), challenger);
     }
 
-    /// @dev Tests that the impl is created with the correct values.
+    /// @dev Tests that the impl is created with the correct values by the constructor.
     function test_initValuesOnImpl_succeeds() external {
         L2OutputOracle oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
 
-        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 0);
-        assertEq(oracleImpl.submissionInterval(), 0);
-        assertEq(oracleImpl.L2_BLOCK_TIME(), 0);
-        assertEq(oracleImpl.l2BlockTime(), 0);
-        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 0);
-        assertEq(oracleImpl.finalizationPeriodSeconds(), 0);
+        assertEq(oracleImpl.SUBMISSION_INTERVAL(), 120);
+        assertEq(oracleImpl.submissionInterval(), 120);
+        assertEq(oracleImpl.L2_BLOCK_TIME(), 12);
+        assertEq(oracleImpl.l2BlockTime(), 12);
+        assertEq(oracleImpl.FINALIZATION_PERIOD_SECONDS(), 12);
+        assertEq(oracleImpl.finalizationPeriodSeconds(), 12);
         assertEq(oracleImpl.PROPOSER(), address(0));
         assertEq(oracleImpl.proposer(), address(0));
         assertEq(oracleImpl.CHALLENGER(), address(0));
         assertEq(oracleImpl.challenger(), address(0));
 
         assertEq(oracleImpl.startingBlockNumber(), 0);
-        assertEq(oracleImpl.startingTimestamp(), 0);
+        assertEq(oracleImpl.startingTimestamp(), block.timestamp);
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initializeProxy_alreadyInitialized_reverts() external {
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
         vm.expectRevert("Initializable: contract is already initialized");
         l2OutputOracle.initialize({
-            _submissionInterval: 0,
-            _l2BlockTime: 0,
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: address(0),
-            _challenger: address(0),
-            _finalizationPeriodSeconds: 0
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
         });
     }
 
     /// @dev Tests that the implementation contract cannot be initialized twice.
     function test_initializeImpl_alreadyInitialized_reverts() external {
         L2OutputOracle oracleImpl = L2OutputOracle(deploy.mustGetAddress("L2OutputOracle"));
+
+        uint256 submissionInterval = deploy.cfg().l2OutputOracleSubmissionInterval();
+        uint256 l2BlockTime = deploy.cfg().l2BlockTime();
         uint256 startingBlockNumber = deploy.cfg().l2OutputOracleStartingBlockNumber();
         uint256 startingTimestamp = deploy.cfg().l2OutputOracleStartingTimestamp();
+        address proposer = deploy.cfg().l2OutputOracleProposer();
+        address challenger = deploy.cfg().l2OutputOracleChallenger();
+        uint256 finalizationPeriodSeconds = deploy.cfg().finalizationPeriodSeconds();
+
         vm.expectRevert("Initializable: contract is already initialized");
         oracleImpl.initialize({
-            _submissionInterval: 0,
-            _l2BlockTime: 0,
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: address(0),
-            _challenger: address(0),
-            _finalizationPeriodSeconds: 0
+            _proposer: proposer,
+            _challenger: challenger,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
         });
     }
 
