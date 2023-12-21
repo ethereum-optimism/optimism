@@ -75,14 +75,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 		}
 	}
 
-	genesis := db.Genesis()
+	db, err = setupEcotone(config, db)
 
-	if config.EcotoneTime(genesis.Timestamp) == &genesis.Timestamp {
-		err = setupEcotone(db)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return genesis, nil
+	return db.Genesis(), nil
 }

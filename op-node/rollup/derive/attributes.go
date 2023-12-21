@@ -130,6 +130,6 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 		Withdrawals:           withdrawals,
-		ParentBeaconBlockRoot: nil, // TODO where should this come from?
+		ParentBeaconBlockRoot: l1Info.ParentBeaconRoot(),
 	}, nil
 }
