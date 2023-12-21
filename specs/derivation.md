@@ -994,16 +994,15 @@ special transactions may be inserted as part of the derivation process.
 
 #### Ecotone
 
-The block before the Ecotone hardfork, contains the following transactions in this order:
->>>>>>> fb57163da (Update ecotone contract deployment)
+The Ecotone hardfork activation block, contains the following transactions in this order:
 
-- L1 Attributes Transaction
+- L1 Attributes Transaction, using the pre-Ecotone `setL1BlockValues`
 - User deposits from L1
 - Network Upgrade Transactions
   - L1Block deployment
   - GasPriceOracle deployment
-  - L1Block proxy update
-  - GasPriceOracle proxy update
+  - Update L1Block Proxy ERC-1967 Implementation Slot
+  - Update GasPriceOracle Proxy ERC-1967 Implementation Slot
   - GasPriceOracle Enable Ecotone
   - Beacon block roots contract deployment (EIP-4788)
 
@@ -1020,7 +1019,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `null`,
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `1,000,000` (TBC)
+- `gasLimit`: `300,000` (TBC)
 - `data`: L1Block deploy bytecode (TBC when PR for contracts is merged)
 - `sourceHash`: `0x877a6077205782ea15a6dc8699fa5ebcec5e0f4389f09cb8eda09488231346f8`,
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Deployment"
@@ -1031,6 +1030,7 @@ This results in the Ecotone L1Block contract being deployed to `0x07dbe8500fc591
 cast compute-address --nonce=0 0x4210000000000000000000000000000000000000
 Computed Address: 0x07dbe8500fc591d1852B76feE44d5a05e13097Ff
 ```
+
 Verify `sourceHash`:
 
 ```bash
@@ -1049,7 +1049,7 @@ A deposit transaction is derived with the following attributes:
 - `to`: `null`,
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `1,000,000` (TBC)
+- `gasLimit`: `500,000` (TBC)
 - `data`: GasPriceOracle deploy bytecode (TBC when PR for contracts is merged)
 - `sourceHash`: `0xa312b4510adf943510f05fcc8f15f86995a5066bd83ce11384688ae20e6ecf42`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Deployment"
@@ -1071,15 +1071,15 @@ Verify `sourceHash`:
 
 ##### L1Block Proxy Update
 
-This transaction updates the L1Block proxy to point to the new L1Block implementation.
+This transaction updates the L1Block Proxy ERC-1967 implementation slot to point to the new L1Block deployment.
 
 A deposit transaction is derived with the following attributes:
 
 - `from`: `0x0000000000000000000000000000000000000000`
-- `to`: `L1 Block Proxy`,
+- `to`: `0x4200000000000000000000000000000000000015` (L1Block Proxy)
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `1,000,000` (TBC)
+- `gasLimit`: `200,000` (TBC)
 - `data`: `0x3659cfe600000000000000000000000007dbe8500fc591d1852b76fee44d5a05e13097ff`
 - `sourceHash`: `0x18acb38c5ff1c238a7460ebc1b421fa49ec4874bdf1e0a530d234104e5e67dbc`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: L1 Block Proxy Update"
@@ -1100,15 +1100,16 @@ cast keccak $(cast concat-hex 0x000000000000000000000000000000000000000000000000
 
 ##### GasPriceOracle Proxy Update
 
-This transaction updates the GasPriceOracle proxy to point to the new GasPriceOracle implementation.
+This transaction updates the GasPriceOracle Proxy ERC-1967 implementation slot to point to the new GasPriceOracle
+deployment.
 
 A deposit transaction is derived with the following attributes:
 
 - `from`: `0x0000000000000000000000000000000000000000`
-- `to`: `Gas Price Oracle Proxy`,
+- `to`: `0x420000000000000000000000000000000000000F` (Gas Price Oracle Proxy)
 - `mint`: `0`
 - `value`: `0`
-- `gasLimit`: `1,000,000` (TBC)
+- `gasLimit`: `200,000` (TBC)
 - `data`: `0x3659cfe6000000000000000000000000b528d11cc114e026f138fe568744c6d45ce6da7a`
 - `sourceHash`: `0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a`
   computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
@@ -1134,7 +1135,7 @@ This transaction informs the GasPriceOracle to start using the Ecotone gas calcu
 A deposit transaction is derived with the following attributes:
 
 - `from`: `0xDeaDDEaDDeAdDeAdDEAdDEaddeAddEAdDEAd0001` (Depositer Account)
-- `to`: `Gas Price Oracle Proxy`,
+- `to`: `0x420000000000000000000000000000000000000F` (Gas Price Oracle Proxy)
 - `mint`: `0`
 - `value`: `0`
 - `gasLimit`: `1,000,000` (TBC)
@@ -1157,7 +1158,6 @@ cast keccak $(cast concat-hex 0x000000000000000000000000000000000000000000000000
 ```
 
 ##### Beacon block roots contract deployment (EIP-4788)
->>>>>>> fb57163da (Update ecotone contract deployment)
 
 [EIP-4788] introduces a "Beacon block roots" contract, that processes and exposes the beacon-block-root values.
 at address `BEACON_ROOTS_ADDRESS = 0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`.
