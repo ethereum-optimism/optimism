@@ -458,6 +458,11 @@ func (m *SimpleTxManager) publishTx(ctx context.Context, tx *types.Transaction, 
 	l.Info("Publishing transaction")
 
 	for {
+		// if the tx manager closed, give up without bumping fees or retrying
+		if m.closed.Load() {
+			l.Warn("TxManager closed, aborting transaction submission")
+			return tx, false
+		}
 		if bumpFeesImmediately {
 			newTx, err := m.increaseGasPrice(ctx, tx)
 			if err != nil {

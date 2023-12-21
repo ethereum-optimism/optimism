@@ -1297,11 +1297,17 @@ func TestClose(t *testing.T) {
 	conf.SafeAbortNonceTooLowCount = 100
 	h := newTestHarnessWithConfig(t, conf)
 
+	sendingSignal := make(chan struct{})
+
 	// sendTx will fail until it is called a retry-number of times
 	called := 0
 	const retries = 4
 	sendTx := func(ctx context.Context, tx *types.Transaction) (err error) {
 		called += 1
+		// sendingSignal is used when the tx begins to be sent
+		if called == 1 {
+			sendingSignal <- struct{}{}
+		}
 		if called%retries == 0 {
 			txHash := tx.Hash()
 			h.backend.mine(&txHash, tx.GasFeeCap())
@@ -1313,6 +1319,10 @@ func TestClose(t *testing.T) {
 	}
 	h.backend.setTxSender(sendTx)
 
+	// on the first call, we don't use the sending signal but we still need to drain it
+	go func() {
+		<-sendingSignal
+	}()
 	// demonstrate that a tx is sent, even when it must retry repeatedly
 	ctx := context.Background()
 	_, err := h.mgr.Send(ctx, TxCandidate{
@@ -1322,10 +1332,9 @@ func TestClose(t *testing.T) {
 	require.Equal(t, retries, called)
 	called = 0
 
-	// rig the txManager to close during the retrying of the tx
-	// this is technically a race condition in the test, if the go func is not scheduled before the tx is retried fully
+	// on the second call, we close the manager while the tx is in progress by consuming the sending signal
 	go func() {
-		time.Sleep(15 * time.Millisecond)
+		<-sendingSignal
 		h.mgr.Close()
 	}()
 	// demonstrate that a tx will cancel if it is in progress when the manager is closed
@@ -1335,9 +1344,11 @@ func TestClose(t *testing.T) {
 	require.ErrorIs(t, ErrClosed, err)
 	// confirm that the tx was canceled before it retried to completion
 	require.Less(t, called, retries)
+	require.True(t, h.mgr.closed.Load())
 	called = 0
 
 	// demonstrate that new calls to Send will also fail when the manager is closed
+	// there should be no need to capture the sending signal here because the manager is already closed and will return immediately
 	_, err = h.mgr.Send(ctx, TxCandidate{
 		To: &common.Address{},
 	})
@@ -1352,27 +1363,37 @@ func TestCloseWaitingForConfirmation(t *testing.T) {
 	conf := configWithNumConfs(2)
 	h := newTestHarnessWithConfig(t, conf)
 
+	// sendDone is a signal that the tx has been sent from the sendTx function
+	sendDone := make(chan struct{})
+	// closeDone is a signal that the txmanager has closed
+	closeDone := make(chan struct{})
+
 	sendTx := func(ctx context.Context, tx *types.Transaction) error {
 		txHash := tx.Hash()
 		h.backend.mine(&txHash, tx.GasFeeCap())
+		close(sendDone)
 		return nil
 	}
 	h.backend.setTxSender(sendTx)
 
-	// rig the backend to advance confirmations after some time
+	// when the sending of the tx is complete, the manager will be closed
+	// the manager should wait for the tx to be confirmed before fully closing
 	go func() {
-		time.Sleep(100 * time.Millisecond)
-		h.backend.mine(nil, nil)
-	}()
-	// rig the txManager to close between the tx being mined and the tx being confirmed
-	go func() {
-		time.Sleep(50 * time.Millisecond)
+		<-sendDone
 		h.mgr.Close()
+		close(closeDone)
+	}()
+
+	// when the manager is closed, a new block is mined to advance confirmations for the TX
+	go func() {
+		<-closeDone
+		h.backend.mine(nil, nil)
 	}()
 
 	ctx := context.Background()
 	_, err := h.mgr.Send(ctx, TxCandidate{
 		To: &common.Address{},
 	})
+	require.True(t, h.mgr.closed.Load())
 	require.NoError(t, err)
 }
