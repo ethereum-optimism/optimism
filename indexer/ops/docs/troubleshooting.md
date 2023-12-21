@@ -5,14 +5,14 @@ This document provides a set of troubleshooting steps for common failure scenari
 
 ### Postgres failures
 1. Unable to connect to postgres database:
-* Verify that the database is healthy and accessible.
-* Verify that the database credentials are correct.
-* Verify that the database is not rate limiting connections.
+    * Verify that the database is healthy and accessible.
+    * Verify that the database credentials are correct.
+    * Verify that the database is not rate limiting connections.
 
 2. Unable to insert or read rows:
-* Verify that the database is healthy and accessible.
-* Verify that the database credentials are correct.
-* Verify that most recent`./migrations` schemas have been applied to the database.
+    * Verify that the database is healthy and accessible.
+    * Verify that the database credentials are correct.
+    * Verify that most recent`./migrations` schemas have been applied to the database.
 
 ### Header Traversal Failure
 Header traversal is a client abstraction that allows the indexer to sequentially traverse the chain via batches of blocks. The following are some common failure modes and how to resolve them:
@@ -76,7 +76,7 @@ TRUNCATE l2_transaction_withdrawals CASCADE;
 
 ### API is returning response errors
 The API is a read-only service that does not modify the database. If the API is returning errors, it is likely due to the following reasons:
-* Verify that the API is able to connect to the database. If the database is down, the API will return errors.
-* Verify that http `timeout` env variable is set to a reasonable value. If the timeout is too low, the API may be timing out on requests and returning errors.
-* Verify that rate limiting isn't enabled in request routing layer. If rate limiting is enabled, the API may be rate limited and returning errors.
-* Verify that service isn't being overloaded by too many requests. If the service is overloaded, the API may be returning errors.
+    * Verify that the API is able to connect to the database. If the database is down, the API will return errors.
+    * Verify that http `timeout` env variable is set to a reasonable value. If the timeout is too low, the API may be timing out on requests and returning errors.
+    * Verify that rate limiting isn't enabled in request routing layer. If rate limiting is enabled, the API may be rate limited and returning errors.
+    * Verify that service isn't being overloaded by too many requests. If the service is overloaded, the API may be returning errors.
