@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/etherscan"
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -134,7 +134,7 @@ func parseConfigBase(logger log.Logger, c *cli.Context) (bindGenGeneratorBase, e
 		return bindGenGeneratorBase{}, err
 	}
 
-	monoRepoPath, err := config.FindMonorepoRoot(cwd)
+	monoRepoPath, err := op_service.FindMonorepoRoot(cwd)
 	if err != nil {
 		return bindGenGeneratorBase{}, err
 	}
