@@ -129,18 +129,18 @@ library ChainAssertions {
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
 
         if (!_isInitialized) {
-            require(oracle.SUBMISSION_INTERVAL() == 0);
-            require(oracle.submissionInterval() == 0);
-            require(oracle.L2_BLOCK_TIME() == 0);
-            require(oracle.l2BlockTime() == 0);
+            require(oracle.SUBMISSION_INTERVAL() == 120);
+            require(oracle.submissionInterval() == 120);
+            require(oracle.L2_BLOCK_TIME() == 12);
+            require(oracle.l2BlockTime() == 12);
+            require(oracle.startingBlockNumber() == 0);
+            require(oracle.startingTimestamp() == block.timestamp);
             require(oracle.PROPOSER() == address(0));
             require(oracle.proposer() == address(0));
             require(oracle.CHALLENGER() == address(0));
             require(oracle.challenger() == address(0));
-            require(oracle.FINALIZATION_PERIOD_SECONDS() == 0);
-            require(oracle.finalizationPeriodSeconds() == 0);
-            require(oracle.startingBlockNumber() == 0);
-            require(oracle.startingTimestamp() == 0);
+            require(oracle.FINALIZATION_PERIOD_SECONDS() == 12);
+            require(oracle.finalizationPeriodSeconds() == 12);
         } else {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
             require(oracle.submissionInterval() == _cfg.l2OutputOracleSubmissionInterval());
