@@ -131,6 +131,8 @@ type DeployConfig struct {
 	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
 	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
+	// GUARDIAN account in the OptimismPortal
+	PortalGuardian common.Address `json:"portalGuardian,omitempty"`
 	// SuperchainConfigGuardian represents the GUARDIAN account in the SuperchainConfig. Has the ability to pause withdrawals.
 	SuperchainConfigGuardian common.Address `json:"superchainConfigGuardian"`
 	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
