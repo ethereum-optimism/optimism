@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/dial"
-	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // HealthMonitor defines the interface for monitoring the health of the sequencer.
@@ -47,13 +46,11 @@ type SequencerHealthMonitor struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	rollupCfg           *rollup.Config
-	safeInterval        uint64
-	minPeerCount        uint64
-	interval            uint64
-	healthUpdateCh      chan bool
-	lastSeenUnsafeBlock eth.L2BlockRef
-	lastSeenSafeBlock   eth.L2BlockRef
+	rollupCfg      *rollup.Config
+	safeInterval   uint64
+	minPeerCount   uint64
+	interval       uint64
+	healthUpdateCh chan bool
 
 	node dial.RollupClientInterface
 	p2p  p2p.API
@@ -114,18 +111,16 @@ func (hm *SequencerHealthMonitor) healthCheck() bool {
 		hm.log.Error("health monitor failed to get sync status", "err", err)
 		return false
 	}
-	hm.lastSeenUnsafeBlock = status.UnsafeL2
-	hm.lastSeenSafeBlock = status.SafeL2
 
 	now := uint64(time.Now().Unix())
 	// allow at most one block drift for unsafe head
-	if now-hm.lastSeenUnsafeBlock.Time > hm.interval+hm.rollupCfg.BlockTime {
-		hm.log.Error("unsafe head is not progressing", "lastSeenUnsafeBlock", hm.lastSeenUnsafeBlock)
+	if now-status.UnsafeL2.Time > hm.interval+hm.rollupCfg.BlockTime {
+		hm.log.Error("unsafe head is not progressing", "lastSeenUnsafeBlock", status.UnsafeL2)
 		return false
 	}
 
-	if now-hm.lastSeenSafeBlock.Time > hm.safeInterval {
-		hm.log.Error("safe head is not progressing", "safe_head_time", hm.lastSeenSafeBlock.Time, "now", now)
+	if now-status.SafeL2.Time > hm.safeInterval {
+		hm.log.Error("safe head is not progressing", "safe_head_time", status.SafeL2.Time, "now", now)
 		return false
 	}
 
