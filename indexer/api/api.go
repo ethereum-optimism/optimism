@@ -33,6 +33,7 @@ const (
 	// Endpoint paths
 	// NOTE - This can be further broken out over time as new version iterations
 	// are implemented
+	DocsPath        = "/docs"
 	HealthPath      = "/healthz"
 	DepositsPath    = "/api/v0/deposits/"
 	WithdrawalsPath = "/api/v0/withdrawals/"
@@ -154,6 +155,7 @@ func (a *APIService) initRouter(apiConfig config.ServerConfig) {
 	apiRouter.Get(fmt.Sprintf(DepositsPath+addressParam, ethereumAddressRegex), h.L1DepositsHandler)
 	apiRouter.Get(fmt.Sprintf(WithdrawalsPath+addressParam, ethereumAddressRegex), h.L2WithdrawalsHandler)
 	apiRouter.Get(SupplyPath, h.SupplyView)
+	apiRouter.Get(DocsPath, h.DocsHandler)
 	a.router = apiRouter
 }
 

@@ -17,31 +17,35 @@ This document provides a set of troubleshooting steps for common failure scenari
 ### Header Traversal Failure
 Header traversal is a client abstraction that allows the indexer to sequentially traverse the chain via batches of blocks. The following are some common failure modes and how to resolve them:
 1. `the HeaderTraversal and provider have diverged in state`
-* This error occurs when the indexer is operating on a different block state than the node. This is typically caused by network reorgs and is the result of `l1-confirmation-count` or `l2-confirmation-count` values being set too low. To resolve this issue, increase the confirmation count values and restart the indexer service.
+This error occurs when the indexer is operating on a different block state than the node. This is typically caused by network reorgs and is the result of `l1-confirmation-depth` or `l2-confirmation-depth` values being set too low. To resolve this issue, 
+    * Delete L1/L2 blocks in the database back to a last known valid height
+    * Increase confirmation depth values
+    * Restart the indexer
 
 2. `the HeaderTraversal's internal state is ahead of the provider`
-* This error occurs when the indexer is operating on a block that the upstream provider does not have. This typically occurs when resyncing upstream node services. This issue typically resolves itself once the upstream node service is fully synced. If the problem persists, please file an issue.
+This error occurs when the indexer is operating on a block that the upstream provider does not have. This typically occurs when resyncing upstream node services. This issue typically resolves itself once the upstream node service is fully synced. If the problem persists, please file an issue.
 
 ### L1/L2 Processor Failures
 The L1 and L2 processors are responsible for processing new blocks and system txs. Processor failures can spread and contaminate other downstream processors (i.e, bridge) as well. For example, if a L2 processor misses a block and fails to index a `MessagePassed` event, the bridge processor will fail to index the corresponding `WithdrawalProven` event and halt progress. The following are some common failure modes and how to resolve them:
 
 1. A processor stops syncing arbitrarily due to a network/connectivity issue or syncing too slow.
-* Verify that `batch-size` and `polling-interval` config values are sufficiently set in accordance with upstream node rate limits. If misconfigured, the indexer may be rate limited by the upstream node and fail to sync.
-* Verify that the upstream dependency is healthy and accessible.
+    * Verify that `header-buffer-size` and `polling-interval` config values are sufficiently set in accordance with upstream node rate limits. If misconfigured, the indexer may be rate limited by the upstream node and fail to sync.
+    * Verify that the upstream dependency is healthy and accessible.
 
 2. A processor failed to index a block or system tx. This should never happen as resiliency is built into the processor interaction logic, but if it does, the following investigations should be made:
-* Verify that `preset` is set to proper L2 chain ID. If misconfigured, the indexer may be trying to index the wrong system contract addresses. There should be a log at startup that indicates the preset and system contract addresses being used.
-* Verify that the upstream node dependency is healthy and accessible.
-* Verify data tables to ensure that the block or system tx was indexed. If it wasn't indexed, please file an issue and resync the indexer (see below).
+    * Verify that `preset` is set to proper L2 chain ID or manually specified contract addresses are correct. If misconfigured, the indexer may be trying to index the wrong system contract addresses. There should be a log at startup that indicates the preset and system contract addresses being used.
+    * Verify that the upstream node dependency is healthy and accessible.
+    * Verify data tables to ensure that the block or system tx was indexed. If it wasn't indexed, please file an issue and resync the indexer (see below).
 
 ### Bridge Processor Failures
-The bridge processor is responsible for indexing bridge tx and events (i.e, withdrawals, deposits). The bridge processor actively subscribes to new L1 block events where it waits for the prevalence of new batch submission epoch. Once detected, the processor scans the epoch blocks on L1 and L2 for initialized and finalized bridge events.
+The bridge processor is responsible for indexing bridge tx and events (i.e, withdrawals, deposits). The bridge processor actively subscribes to new information and scans for newly indexed initialized and finalized bridge events.
 
 1. A finalized bridge event has no corresponding initiation (e.g, a detected finalized withdrawal has no corresponding proven event persisted in DB). The bridge process will halt indexing until the event is resolved.
-* Verify that the indexer is incorrect by checking the L1/L2 block explorers for the corresponding withdrawal hash. The hash should be present on the `OptimismPortal` contract (`provenWithdrawals()`, `finalizedWithdrawals()`) as well as the L2 `L2ToL1MessagePasser` contract (`sentMessages()`). Foundry's `cast logs` [command](https://book.getfoundry.sh/reference/cast/cast-logs) provides a way to quickly do these lookups. If the hash is not present, the withdrawal was not initiated and the bridge processor is correct to halt indexing (TODO - Provide script that scans for correlated events on L2 using withdrawal hash). If the hash is present, the bridge processor is incorrect and should be investigated further. Please file an issue with the details of the investigation.
+    * Verify that the indexer is incorrect by checking the L1/L2 block explorers for the corresponding withdrawal hash. The hash should be present on the `OptimismPortal` contract (`provenWithdrawals()`, `finalizedWithdrawals()`) as well as the L2 `L2ToL1MessagePasser` contract (`sentMessages()`). Foundry's `cast logs` [command](https://book.getfoundry.sh/reference/cast/cast-logs) provides a way to quickly do these lookups. If the hash is not present, the withdrawal was not initiated and the bridge processor is correct to halt indexing 
+        > TODO: script that scans for correlated events on L2 using withdrawal hash). If the hash is present, the bridge processor is incorrect and should be investigated further. Please file an issue with the details of the investigation.
 
 2. Bridge processor halting due to upstream L1/L2 processor failures. See above for troubleshooting steps for L1/L2 processor failures.
-* Verify that the bridge processor is not halted due to upstream processor failures. If it is, remediate the upstream processor failures and restart the application. The bridge processor will be able to resume indexing from the last persisted epoch.
+    * Verify that the bridge processor is not halted due to upstream processor failures. If it is, remediate the upstream processor failures and restart the application. The bridge processor will be able to resume indexing from the last persisted heights.
 
 ### Re-syncing
 To resync a deployed indexer, the following steps should be taken:
@@ -51,19 +55,21 @@ To resync a deployed indexer, the following steps should be taken:
 TRUNCATE l1_block_headers CASCADE;
 TRUNCATE l2_block_headers CASCADE;
 ```
-3. Restart the indexer service. The indexer should detect that the database is empty and begin syncing from L2 genesis (i.e, `l2_start_height = 0`, `l1_start_height = l2_genesis_tx`). This can be verified by checking the logs for the following message:
+> The indexer syncs L1 & L2 state independently and can thus also be resynced individually as well.
+3. Restart the indexer service. The indexer should detect that the database is empty and begin syncing from genesis (i.e, `l2_start_height = 0`, `l1_start_height = l1-starting-height`). This can be verified by checking the logs for the following message:
 ```
 no indexed state, starting from genesis
 ```
 
-### Re-syncing bridge processor
-To resync the bridge processor, the following steps should be taken:
+#### Re-syncing just the bridge processor
+To resync the bridge processor without re-retrieving L1/L2 contract data, the following steps should be taken:
 1. Stop the running indexer service instance.
-2. Delete the bridge processor's database state. This can be done by doing performing cascading delete of both the l1 `l1_transaction_deposits` and the `l2_transaction_withdrawals` tables:
+2. Delete the bridge processor's database state. This can be done by doing performing cascading delete the root bridge tables -- `l1_transaction_deposits` and `l2_transaction_withdrawals`:
 ```sql
 TRUNCATE l1_transaction_deposits CASCADE;
 TRUNCATE l2_transaction_withdrawals CASCADE;
 ```
+> Similar to blocks & logs, deposits & withdrawals are synced independently and can thus be resynced individually as well. The bridge process is smart enough to pause finalization processing until the other side is caught up. For this reason, it's possible to just re-sync deposits or withdrawals.
 3. Restart the indexer service.
 
 ## API Troubleshooting
