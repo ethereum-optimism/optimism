@@ -39,7 +39,6 @@ func setupL2OutputOracle() (common.Address, *bind.TransactOpts, *backends.Simula
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
-
 	_, _, contract, err := bindings.DeployL2OutputOracle(
 		opts,
 		backend,
