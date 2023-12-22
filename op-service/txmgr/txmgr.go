@@ -30,6 +30,7 @@ const (
 var (
 	priceBumpPercent = big.NewInt(100 + priceBump)
 	oneHundred       = big.NewInt(100)
+	ninetyNine       = big.NewInt(99)
 )
 
 // TxManager is an interface that allows callers to reliably publish txs,
@@ -603,15 +604,12 @@ func (m *SimpleTxManager) checkLimits(tip, basefee, bumpedTip, bumpedFee *big.In
 	return nil
 }
 
-// calcThresholdValue returns x * priceBumpPercent / 100
+// calcThresholdValue returns ceil(x * priceBumpPercent / 100)
 // It guarantees that x is increased by at least 1
 func calcThresholdValue(x *big.Int) *big.Int {
 	threshold := new(big.Int).Mul(priceBumpPercent, x)
+	threshold.Add(threshold, ninetyNine)
 	threshold.Div(threshold, oneHundred)
-	// Guarantee to add at least 1 wei. Edge-case during near-zero fee conditions.
-	if threshold.Cmp(x) == 0 {
-		threshold.Add(threshold, big.NewInt(1))
-	}
 	return threshold
 }
 
