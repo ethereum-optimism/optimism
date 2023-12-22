@@ -1016,7 +1016,7 @@ The `L1Block` contract is upgraded to process the new Ecotone L1-data-fee parame
 A deposit transaction is derived with the following attributes:
 
 - `from`: `0x4210000000000000000000000000000000000000`
-- `to`: `null`,
+- `to`: `null`
 - `mint`: `0`
 - `value`: `0`
 - `gasLimit`: `300,000` (TBC)

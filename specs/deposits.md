@@ -349,13 +349,16 @@ the genesis file will be located in the `deployedBytecode` field of the build ar
 
 #### Ecotone L1Block upgrade
 
-The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded in the Ecotone upgrade.
+The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded as part of the Ecotone hardfork.
+The version is incremented to `1.2.0` and several new storage slots are used for:
 
-- `overhead`: this getter function now reverts (TBD). Storage remains the same.
-- `scalar`: this getter function now reverts (TBD). Storage remains the same.
-- `x` (TBD): base-fee component scalar
-- `y` (TBD): DA-base-fee component scalar (blob base fee when operating with L1 DA)
-- `daBasefee`: the DA-base-fee.
+- `blobBasefee` (`uint256`): The L1 basefee for blob transactions.
+- `blobBasefeeScalar` (`uint256`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
+- `basefeeScalar` (`uint256`): The scalar value applied to the L1 base fee portion of the L1 cost.
+
+Additionally, the `setL1BlockValues` function is deprecated and replaced with `setL1BlockValuesEcotone`.
+`setL1BlockValuesEcotone` uses packed encoding for its parameters, which is described in
+[L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
 
 ## User-Deposited Transactions
 
