@@ -143,7 +143,7 @@ func (c *coordinator) createJob(ctx context.Context, game types.GameMetadata, bl
 		c.logger.Debug("Not rescheduling resolved game", "game", game.Proxy, "status", state.status)
 		return nil, nil
 	}
-	return &job{block: blockNumber, addr: game.Proxy, player: state.player, status: state.status}, nil
+	return newJob(blockNumber, game.Proxy, state.player, state.status), nil
 }
 
 func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
