@@ -168,6 +168,28 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         gameProxy = OutputBisectionGame(address(factory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
     }
 
+    /// @dev Tests that the game cannot be initialized with extra data > 64 bytes long (root claim + l2 block number
+    ///      concatenated)
+    function testFuzz_initialize_extraDataTooLong_reverts(uint256 _extraDataLen) public {
+        // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced
+        // to be at least 64 bytes long.
+        // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the contract size limit
+        // in this test, as CWIA proxies store the immutable args in their bytecode.
+        // [33 bytes, 23.5 KB]
+        _extraDataLen = bound(_extraDataLen, 33, 23_500);
+        bytes memory _extraData = new bytes(_extraDataLen);
+
+        // Assign the first 32 bytes in `extraData` to a valid L2 block number passed genesis.
+        uint256 genesisBlockNumber = gameProxy.genesisBlockNumber();
+        assembly {
+            mstore(add(_extraData, 0x20), add(genesisBlockNumber, 1))
+        }
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(abi.encodeWithSelector(ExtraDataTooLong.selector));
+        gameProxy = OutputBisectionGame(address(factory.create(GAME_TYPE, claim, _extraData)));
+    }
+
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
         // Assert that the root claim is initialized correctly.
