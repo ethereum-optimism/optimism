@@ -191,7 +191,7 @@
       },
       {
         "internalType": "address",
-        "name": "_otherMessenger",
+        "name": "_l2CrossDomainMessenger",
         "type": "address"
       }
     ],

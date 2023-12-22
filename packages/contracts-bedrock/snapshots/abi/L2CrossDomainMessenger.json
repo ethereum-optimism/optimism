@@ -174,7 +174,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "_otherMessenger",
+        "name": "_l1CrossDomainMessenger",
         "type": "address"
       }
     ],
