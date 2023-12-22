@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/receipts"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -63,17 +64,11 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	require.NoError(t, err)
 	tx, err = optimismMintableTokenFactory.CreateOptimismMintableERC20(l2Opts, weth9Address, "L2-WETH", "L2-WETH")
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), l2Client, tx.Hash())
+	rcpt, err := wait.ForReceiptOK(context.Background(), l2Client, tx.Hash())
 	require.NoError(t, err)
 
-	// Get the deployment event to have access to the L2 WETH9 address
-	it, err := optimismMintableTokenFactory.FilterOptimismMintableERC20Created(&bind.FilterOpts{Start: 0}, nil, nil)
-	require.NoError(t, err)
-	var event *bindings.OptimismMintableERC20FactoryOptimismMintableERC20Created
-	for it.Next() {
-		event = it.Event
-	}
-	require.NotNil(t, event)
+	event, err := receipts.FindLog(rcpt.Logs, optimismMintableTokenFactory.ParseOptimismMintableERC20Created)
+	require.NoError(t, err, "Should emit ERC20Created event")
 
 	// Approve WETH9 with the bridge
 	tx, err = WETH9.Approve(opts, cfg.L1Deployments.L1StandardBridgeProxy, new(big.Int).SetUint64(math.MaxUint64))
@@ -97,13 +92,8 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	portal, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 	require.NoError(t, err)
 
-	depIt, err := portal.FilterTransactionDeposited(&bind.FilterOpts{Start: 0}, nil, nil, nil)
-	require.NoError(t, err)
-	var depositEvent *bindings.OptimismPortalTransactionDeposited
-	for depIt.Next() {
-		depositEvent = depIt.Event
-	}
-	require.NotNil(t, depositEvent)
+	depositEvent, err := receipts.FindLog(depositReceipt.Logs, portal.ParseTransactionDeposited)
+	require.NoError(t, err, "Should emit deposit event")
 
 	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 	require.NoError(t, err)
