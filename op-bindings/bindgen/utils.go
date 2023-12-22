@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -113,7 +114,7 @@ func writeContractArtifacts(logger log.Logger, tempDirPath, contractName string,
 //
 // Note: This function relies on the external `abigen` tool, which should be
 // installed and available in the system's PATH.
-func genContractBindings(logger log.Logger, abiFilePath, bytecodeFilePath, goPackageName, contractName string) error {
+func genContractBindings(logger log.Logger, monorepoRootPath, abiFilePath, bytecodeFilePath, goPackageName, contractName string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("error getting cwd: %w", err)
@@ -127,6 +128,32 @@ func genContractBindings(logger log.Logger, abiFilePath, bytecodeFilePath, goPac
 		if err != nil {
 			return fmt.Errorf("error reading existing bindings output file, outFilePath: %s err: %w", outFilePath, err)
 		}
+	}
+
+	if monorepoRootPath != "" {
+		logger.Debug("Checking abigen version")
+
+		// Fetch installed abigen version (format: abigen version X.Y.Z-<stable/nightly>-<commit_sha>)
+		cmd := exec.Command("abigen", "--version")
+		var versionBuf bytes.Buffer
+		cmd.Stdout = bufio.NewWriter(&versionBuf)
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("error fetching abigen version: %w", err)
+		}
+		abigenVersion := bytes.Trim(versionBuf.Bytes(), "\n")
+
+		// Fetch expected abigen version (format: vX.Y.Z)
+		expectedAbigenVersion, err := os.ReadFile(path.Join(monorepoRootPath, ".abigenrc"))
+		if err != nil {
+			return fmt.Errorf("error reading .abigenrc file: %w", err)
+		}
+		expectedAbigenVersion = bytes.Trim(expectedAbigenVersion, "\n")[1:]
+
+		if !bytes.Contains(abigenVersion, expectedAbigenVersion) {
+			return fmt.Errorf("abigen version mismatch, expected %s, got %s. Please run `pnpm install:abigen` in the monorepo root", expectedAbigenVersion, abigenVersion)
+		}
+	} else {
+		logger.Debug("No monorepo root path provided, skipping abigen version check")
 	}
 
 	logger.Debug("Generating contract bindings", "contractName", contractName, "outFilePath", outFilePath)

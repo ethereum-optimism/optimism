@@ -82,7 +82,7 @@ func (generator *bindGenGeneratorLocal) processContracts(contracts []string) err
 			return err
 		}
 
-		err = genContractBindings(generator.logger, abiFilePath, bytecodeFilePath, generator.bindingsPackageName, contractName)
+		err = genContractBindings(generator.logger, generator.monorepoBasePath, abiFilePath, bytecodeFilePath, generator.bindingsPackageName, contractName)
 		if err != nil {
 			return err
 		}
