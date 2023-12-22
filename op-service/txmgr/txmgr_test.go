@@ -907,15 +907,15 @@ func TestIncreaseGasPrice(t *testing.T) {
 func TestIncreaseGasPriceLimits(t *testing.T) {
 	t.Run("no-threshold", func(t *testing.T) {
 		testIncreaseGasPriceLimit(t, gasPriceLimitTest{
-			expTipCap: 36,
-			expFeeCap: 493, // just below 5*100
+			expTipCap: 46,
+			expFeeCap: 354, // just below 5*100
 		})
 	})
 	t.Run("with-threshold", func(t *testing.T) {
 		testIncreaseGasPriceLimit(t, gasPriceLimitTest{
 			thr:       big.NewInt(params.GWei),
-			expTipCap: 61_265_017,
-			expFeeCap: 957_582_949, // just below 1 gwei
+			expTipCap: 131_326_987,
+			expFeeCap: 933_286_308, // just below 1 gwei
 		})
 	})
 }
