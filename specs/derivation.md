@@ -515,22 +515,45 @@ The field elements are encoded as big-endian integers (`KZG_ENDIANNESS = big`).
 
 To save computational overhead, only `254` bits per field element are used for rollup data.
 
-Data is encoded, 4 field elements, `127` bytes of rollup data, at a time:
+`127` bytes of application-layer rollup data is encoded at a time, into 4 adjacent field elements of the blob:
+
+```python
+# read(N): read N bytes from the application-layer rollup-data.
+# write(V): append V (one or more bytes) to the raw blob.
+bytes tailA = read(31)
+byte x = read(1)
+byte A = x & 0b0011_1111
+write(A)
+write(tailA)
+
+bytes tailB = read(31)
+byte y = read(1)
+byte B = (y & 0b0000_1111) | (x & 0b1100_0000) >> 2)
+write(B)
+write(tailB)
+
+bytes tailC = read(31)
+byte z = read(1)
+byte C = z & 0b0011_1111
+write(C)
+write(tailC)
+
+bytes tailD = read(31)
+byte D = ((z & 0b1100_0000) >> 2) | ((y & 0b1111_0000) >> 4)
+write(D)
+write(tailD)
+```
+
+Each written field element looks like this:
+
+- Starts with one of the prepared 6-bit left-padded byte values, to keep the field element within valid range.
+- Followed by 31 bytes of application-layer data, to fill the low 31 bytes of the field element.
+
+The written output should look like this:
 
 ```text
-# Allocate 4 field elements (big-endian).
-# Read 31 bytes into the low 31 bytes of each.
 <----- element 0 -----><----- element 1 -----><----- element 2 -----><----- element 3 ----->
-| byte A |  read(31)  || byte B |  read(31)  || byte C |  read(31)  || byte D |  read(31)  |
-# Read 3 more bytes after the above.
-byte x = read(1)
-byte y = read(1)
-byte z = read(1)
-# Split the 24 bits into 4 x 6 bits, to write into the leading (highest) byte of each element:
-byte A = x & 0b0011_1111
-byte B = y & 0b0011_1111
-byte C = z & 0b0011_1111
-byte D = ((x & 0b1100_0000) >> 2) | ((y & 0b1100_0000) >> 4) | ((z & 0b1100_0000) >> 6)
+| byte A |  tailA...  || byte B |  tailB...  || byte C |  tailC...  || byte D |  tailD...  |
 ```
 
 The above is repeated 1024 times, to fill all `4096` elements,
