@@ -62,7 +62,7 @@ func NewMetrics(registry *prometheus.Registry, subsystem string) Metricer {
 		etlLatestHeight: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: MetricsNamespace,
 			Subsystem: subsystem,
-			Name:      "etl_height",
+			Name:      "indexed_height",
 			Help:      "the latest block height after a processing interval by the etl",
 		}),
 		indexedHeaders: factory.NewCounter(prometheus.CounterOpts{
