@@ -328,9 +328,6 @@ func (g *OutputGameHelper) WaitForInactivity(ctx context.Context, numInactiveBlo
 	}
 }
 
-// Mover is a function that either attacks or defends the claim at parentClaimIdx
-type Mover func(parent *ClaimHelper) *ClaimHelper
-
 // Stepper is a function that attempts to perform a step against the claim at parentClaimIdx
 type Stepper func(parentClaimIdx int64)
 
