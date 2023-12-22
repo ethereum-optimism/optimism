@@ -178,8 +178,8 @@ func (b *BridgeProcessor) processInitiatedL1Events() error {
 		lastL1BlockNumber = b.LastL1Header.Number
 	}
 
-	// Latest unobserved L1 state bounded by `blockLimits` blocks. Since this process is driven on new L1 data,
-	// we always expect this query to return a new result
+	// Latest unobserved L1 state bounded by `blockLimits` blocks. Since
+	// not every L1 block is indexed, we may have nothign to process.
 	latestL1HeaderScope := func(db *gorm.DB) *gorm.DB {
 		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
 		headers := newQuery.Model(database.L1BlockHeader{}).Where("number > ?", lastL1BlockNumber)
@@ -189,7 +189,8 @@ func (b *BridgeProcessor) processInitiatedL1Events() error {
 	if err != nil {
 		return fmt.Errorf("failed to query new L1 state: %w", err)
 	} else if latestL1Header == nil {
-		return fmt.Errorf("no new L1 state found")
+		l1BridgeLog.Debug("no new L1 state found")
+		return nil
 	}
 
 	fromL1Height, toL1Height := new(big.Int).Add(lastL1BlockNumber, bigint.One), latestL1Header.Number
@@ -231,8 +232,8 @@ func (b *BridgeProcessor) processInitiatedL2Events() error {
 		lastL2BlockNumber = b.LastL2Header.Number
 	}
 
-	// Latest unobserved L2 state bounded by `blockLimits` blocks. Since this process is driven by new L2 data,
-	// we always expect this query to return a new result
+	// Latest unobserved L2 state bounded by `blockLimits` blocks.
+	// Since every L2 block is indexed, we always expect new state.
 	latestL2HeaderScope := func(db *gorm.DB) *gorm.DB {
 		newQuery := db.Session(&gorm.Session{NewDB: true}) // fresh subquery
 		headers := newQuery.Model(database.L2BlockHeader{}).Where("number > ?", lastL2BlockNumber)
