@@ -3,6 +3,7 @@ package disputegame
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
@@ -35,6 +36,10 @@ func (c *ClaimHelper) AgreesWithOutputRoot() bool {
 	return c.position.Depth()%2 == 0
 }
 
+func (c *ClaimHelper) IsRootClaim() bool {
+	return c.position.IsRootPosition()
+}
+
 func (c *ClaimHelper) IsOutputRoot(ctx context.Context) bool {
 	splitDepth := c.game.SplitDepth(ctx)
 	return int64(c.position.Depth()) <= splitDepth
@@ -45,16 +50,25 @@ func (c *ClaimHelper) IsOutputRootLeaf(ctx context.Context) bool {
 	return int64(c.position.Depth()) == splitDepth
 }
 
+func (c *ClaimHelper) IsBottomGameRoot(ctx context.Context) bool {
+	splitDepth := c.game.SplitDepth(ctx)
+	return int64(c.position.Depth()) == splitDepth+1
+}
+
 func (c *ClaimHelper) IsMaxDepth(ctx context.Context) bool {
 	maxDepth := c.game.MaxDepth(ctx)
 	return int64(c.position.Depth()) == maxDepth
 }
 
+func (c *ClaimHelper) Depth() int64 {
+	return int64(c.position.Depth())
+}
+
 // WaitForCounterClaim waits for the claim to be countered by another claim being posted.
 // It returns a helper for the claim that countered this one.
-func (c *ClaimHelper) WaitForCounterClaim(ctx context.Context) *ClaimHelper {
-	counterIdx, counterClaim := c.game.waitForClaim(ctx, fmt.Sprintf("failed to find claim with parent idx %v", c.index), func(claim ContractClaim) bool {
-		return int64(claim.ParentIndex) == c.index
+func (c *ClaimHelper) WaitForCounterClaim(ctx context.Context, ignoreClaims ...*ClaimHelper) *ClaimHelper {
+	counterIdx, counterClaim := c.game.waitForClaim(ctx, fmt.Sprintf("failed to find claim with parent idx %v", c.index), func(claimIdx int64, claim ContractClaim) bool {
+		return int64(claim.ParentIndex) == c.index && !containsClaim(claimIdx, ignoreClaims)
 	})
 	return newClaimHelper(c.game, counterIdx, counterClaim)
 }
@@ -87,4 +101,24 @@ func (c *ClaimHelper) Attack(ctx context.Context, value common.Hash) *ClaimHelpe
 func (c *ClaimHelper) Defend(ctx context.Context, value common.Hash) *ClaimHelper {
 	c.game.Defend(ctx, c.index, value)
 	return c.WaitForCounterClaim(ctx)
+}
+
+func (c *ClaimHelper) RequireOnlyCounteredBy(ctx context.Context, expected ...*ClaimHelper) {
+	claims := c.game.getAllClaims(ctx)
+	for idx, claim := range claims {
+		if int64(claim.ParentIndex) != c.index {
+			// Doesn't counter this claim, so ignore
+			continue
+		}
+		if !containsClaim(int64(idx), expected) {
+			// Found a countering claim not in the expected list. Fail.
+			c.require.FailNowf("Found unexpected countering claim", "Parent claim index: %v Game state:\n%v", c.index, c.game.gameData(ctx))
+		}
+	}
+}
+
+func containsClaim(claimIdx int64, haystack []*ClaimHelper) bool {
+	return slices.ContainsFunc(haystack, func(candidate *ClaimHelper) bool {
+		return candidate.index == claimIdx
+	})
 }

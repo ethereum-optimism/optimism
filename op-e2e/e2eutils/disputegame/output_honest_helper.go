@@ -18,6 +18,16 @@ type OutputHonestHelper struct {
 	correctTrace types.TraceAccessor
 }
 
+func (h *OutputHonestHelper) AttackClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Attack(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
+}
+
+func (h *OutputHonestHelper) DefendClaim(ctx context.Context, claim *ClaimHelper) *ClaimHelper {
+	h.Defend(ctx, claim.index)
+	return claim.WaitForCounterClaim(ctx)
+}
+
 func (h *OutputHonestHelper) Attack(ctx context.Context, claimIdx int64) {
 	// Ensure the claim exists
 	h.game.WaitForClaimCount(ctx, claimIdx+1)
