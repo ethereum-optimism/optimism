@@ -125,14 +125,16 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         __ResourceMetering_init();
     }
 
-    /// @notice Getter function for the contract of the L2OutputOracle on this chain.
+    /// @notice Getter function for the contract of the L2OutputOracle on this chain. This will be removed
+    /// in the future, use `l2Oracle()` instead.
     /// @return Contract of the L2OutputOracle on this chain.
     /// @custom:legacy
     function L2_ORACLE() external view returns (L2OutputOracle) {
         return l2Oracle;
     }
 
-    /// @notice Getter function for the contract of the SystemConfig on this chain.
+    /// @notice Getter function for the contract of the SystemConfig on this chain. This will be removed
+    /// in the future, use `systemConfig()` instead.
     /// @return Contract of the SystemConfig on this chain.
     /// @custom:legacy
     function SYSTEM_CONFIG() external view returns (SystemConfig) {
@@ -156,6 +158,7 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
     }
 
     /// @notice Getter for the current paused status.
+    /// @return paused_ Whether or not the contract is paused.
     function paused() public view returns (bool paused_) {
         paused_ = superchainConfig.paused();
     }
