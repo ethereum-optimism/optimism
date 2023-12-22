@@ -25,6 +25,9 @@ var (
 	updateGasPriceOracleSource = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Proxy Update"}
 	enableEcotoneSource        = UpgradeDepositSource{Intent: "Ecotone: Gas Price Oracle Set Ecotone"}
 	beaconRootsSource          = UpgradeDepositSource{Intent: "Ecotone: beacon block roots contract deployment"}
+
+	eip4788From         = common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875")
+	eip4788CreationData = common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500")
 )
 
 func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
@@ -109,12 +112,12 @@ func EcotoneNetworkUpgradeTransactions() ([]hexutil.Bytes, error) {
 	upgradeTxns = append(upgradeTxns, updateGasPriceOracleProxy)
 
 	deployEIP4788, err := types.NewTx(&types.DepositTx{
-		From: common.HexToAddress("0x0B799C86a49DEeb90402691F1041aa3AF2d3C875"),
+		From: eip4788From,
 		// to is null
 		Mint:                big.NewInt(0),
 		Value:               big.NewInt(0),
 		Gas:                 0x3d090,
-		Data:                common.Hex2Bytes("0x60618060095f395ff33373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"),
+		Data:                eip4788CreationData,
 		IsSystemTransaction: false,
 		SourceHash:          beaconRootsSource.SourceHash(),
 	}).MarshalBinary()
