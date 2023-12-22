@@ -518,7 +518,7 @@ To save computational overhead, only `254` bits per field element are used for r
 `127` bytes of application-layer rollup data is encoded at a time, into 4 adjacent field elements of the blob:
 
 ```python
-# read(N): read N bytes from the application-layer rollup-data.
+# read(N): read the next N bytes from the application-layer rollup-data. The next read starts where the last stopped.
 # write(V): append V (one or more bytes) to the raw blob.
 bytes tailA = read(31)
 byte x = read(1)
