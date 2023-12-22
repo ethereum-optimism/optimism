@@ -2,7 +2,7 @@
 
 ## Getting started
 
-### Configruation
+### Configuration
 The `indexer.toml` contains configuration for the indexer. The file is templated for the local devnet, however presets are available for [known networks](https://github.com/ethereum-optimism/optimism/blob/develop/indexer/config/presets.go). The file also templates keys needed for custom networks such as the rollup contract addresses and the `l1-starting-height` for the deployment height.
 
 Required configuration is network specific `(l1|l2)-rpc` urls that point to archival nodes as well as the `(l1|l2)-polling-interval` & `(l1|l2)-header-buffer-size` keys which controls the of rate data retrieval from these notes.

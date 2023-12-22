@@ -36,7 +36,9 @@ services:
       - DB_NAME=indexer
     volumes:
       - ./indexer.toml:/app/indexer/config.toml/:ro
-      # needed only for devnet preset
+      # needed only when running against the local devnet such
+      # that it can bootstrap the local deployment addresses
+      - ../go.mod:/app/go.mod/:ro
       - ../.devnet/addresses.json:/app/.devnet/addresses.json/:ro
     healthcheck:
       test: wget index:8100/healthz -q -O - > /dev/null 2>&1
@@ -61,7 +63,9 @@ services:
       - "7300"
     volumes:
       - ./indexer.toml:/app/indexer/config.toml/:ro
-      # needed only for devnet preset
+      # needed only when running against the local devnet such
+      # that it can bootstrap the local deployment addresses
+      - ../go.mod:/app/go.mod/:ro
       - ../.devnet/addresses.json:/app/.devnet/addresses.json/:ro
     healthcheck:
       test: wget api:8100/healthz -q -O - > /dev/null 2>&1
