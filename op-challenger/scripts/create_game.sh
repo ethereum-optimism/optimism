@@ -4,7 +4,7 @@ set -euo pipefail
 SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 CHALLENGER_DIR="${SOURCE_DIR%/*}"
 
-# ./create_game.sh <rpc-addr> <dispute-game-factory-addr> <cast signing args>
+# ./create_game.sh <rpc-addr> <dispute-game-factory-addr> <root-claim> <cast signing args>
 RPC=${1:?Must specify RPC address}
 FACTORY_ADDR=${2:?Must specify factory address}
 ROOT_CLAIM=${3:?Must specify root claim}

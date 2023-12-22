@@ -33,7 +33,7 @@ From the top level of the repository run:
 
 ```shell
 make devnet-clean
-make cannon-prestate op-challenger
+make op-challenger
 make devnet-up
 ```
 
