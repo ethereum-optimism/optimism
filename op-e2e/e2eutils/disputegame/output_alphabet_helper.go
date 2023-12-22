@@ -59,6 +59,6 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, alphab
 	}
 }
 
-func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, alphabetTrace string, depth uint64, l2Node string, defender bool) *DishonestHelper {
-	return newDishonestHelper(g.t, &g.OutputGameHelper, g.CreateHonestActor(ctx, alphabetTrace, depth, l2Node), defender)
+func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, alphabetTrace string, depth uint64, l2Node string, defender bool) *OutputDishonestHelper {
+	return newOutputDishonestHelper(&g.OutputGameHelper, g.CreateHonestActor(ctx, alphabetTrace, depth, l2Node), defender)
 }

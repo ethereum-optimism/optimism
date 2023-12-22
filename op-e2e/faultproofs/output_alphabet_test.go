@@ -92,7 +92,7 @@ func TestOutputAlphabetGame_ExhaustiveDisputeGame(t *testing.T) {
 			ctx,
 			disputegame.CorrectAlphabet,
 			4,
-			"Defender",
+			"sequencer",
 			!isRootCorrect,
 		)
 		dishonestHelper.ExhaustDishonestClaims(ctx)
