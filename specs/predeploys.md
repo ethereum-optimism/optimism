@@ -231,16 +231,25 @@ the L1 portion of the fee. This fee pays for using L1 as a data availability
 layer and should be added to the L2 portion of the fee, which pays for
 execution, to compute the total transaction fee.
 
-The values used to compute the L2 portion of the fee are:
+The values used to compute the L1 portion of the fee prior to the Ecotone upgrade are:
 
 - scalar
 - overhead
 - decimals
 
 After the Bedrock upgrade, these values are instead managed by the
-`SystemConfig` contract on L2. The `scalar` and `overhead` values
+`SystemConfig` contract on L1. The `scalar` and `overhead` values
 are sent to the `L1Block` contract each block and the `decimals` value
 has been hardcoded to 6.
+
+Following the Ecotone upgrade, the values used for L1 fee computation are:
+
+- l1BasefeeScalar
+- l1BlobBasefeeScalar
+- decimals
+
+These values are managed by the `SystemConfig` contract on the L1. The`decimals` remains hardcoded
+to 6, and the old `scalar` and `overhead` values are ignored.
 
 ## L1Block
 

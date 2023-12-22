@@ -12,7 +12,8 @@
   - [Priority fees (Sequencer Fee Vault)](#priority-fees-sequencer-fee-vault)
   - [Base fees (Base Fee Vault)](#base-fees-base-fee-vault)
   - [L1-Cost fees (L1 Fee Vault)](#l1-cost-fees-l1-fee-vault)
-    - [Eclipse L1-Cost fee changes (EIP-4844 DA)](#eclipse-l1-cost-fee-changes-eip-4844-da)
+    - [Pre-Ecotone](#pre-ecotone)
+    - [Ecotone L1-Cost fee changes (EIP-4844 DA)](#ecotone-l1-cost-fee-changes-eip-4844-da)
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV2`](#engine_forkchoiceupdatedv2)
     - [Extended PayloadAttributesV2](#extended-payloadattributesv2)
@@ -23,8 +24,8 @@
 - [Sync](#sync)
   - [Happy-path sync](#happy-path-sync)
   - [Worst-case sync](#worst-case-sync)
-- [Eclipse: disable Blob-transactions](#eclipse-disable-blob-transactions)
-- [Eclipse: Beacon Block Root](#eclipse-beacon-block-root)
+- [Ecotone: disable Blob-transactions](#ecotone-disable-blob-transactions)
+- [Ecotone: Beacon Block Root](#ecotone-beacon-block-root)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -99,9 +100,14 @@ The protocol funds batch-submission of sequenced L2 transactions by charging L2 
 based on the estimated batch-submission costs.
 This fee is charged from the L2 transaction-sender ETH balance, and collected into the L1 Fee Vault.
 
-The exact L1 cost function to determine the L1-cost fee component of a L2 transaction is calculated as:
-`(rollupDataGas + l1FeeOverhead) * l1Basefee * l1FeeScalar / 1000000`
-(big-int computation, result in Wei and `uint256` range)
+The exact L1 cost function to determine the L1-cost fee component of a L2 transaction depends on
+the upgrades that are active.
+
+#### Pre-Ecotone
+
+Before Ecotone activation, L1 cost is calculated as:
+`(rollupDataGas + l1FeeOverhead) * l1Basefee * l1FeeScalar / 1e6` (big-int computation, result
+in Wei and `uint256` range)
 Where:
 
 - `rollupDataGas` is determined from the *full* encoded transaction
@@ -132,9 +138,43 @@ can be accessed in two interchangeable ways:
     - Overhead as big-endian `uint256` in slot `5`
     - Scalar as big-endian `uint256` in slot `6`
 
-#### Eclipse L1-Cost fee changes (EIP-4844 DA)
+#### Ecotone L1-Cost fee changes (EIP-4844 DA)
 
-TBD.
+Ecotone allows posting batches via Blobs which are subject to a new fee market. To account for this feature,
+L1 cost is computed as:
+
+`(compressedTxSize) * (l1Basefee*16*lBasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 1e6`
+
+Where:
+
+- the computation is an unlimited precision integer computation, with the result in Wei and having
+  `uint256` range.
+
+- `compressedTxSize` is an approximation of how many bytes the transaction occupies in a compressed
+  batch. It is determined from the *full* encoded transaction as: `compressedTxSize = (zeroes*4 +
+  ones*16) / 16` (To preserve precision under integer arithmetic, the division by 16 is actually
+  performed at the very end of the fee computation together with the division by 1e6 as a single
+  division by 16e6.)
+
+- `l1Basefee` is the L1 basefee of the latest L1 origin registered in the L2 chain.
+
+- `l1BlobBasefee` is the blob gasprice, computed as described in [EIP-4844][4844-gas] from the
+  header of the latest registered L1 origin block.
+
+[4844-gas]: https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#gas-accounting
+
+The two basefee values and their respective scalars can be accessed in two interchangeable
+ways:
+
+- read from the deposited L1 attributes (`l1BasefeeScalar`, `l1BlobBasefeeScalar`, `basefee`,
+  `blobBasefee`) of the current L2 block
+- read from the L1 Block Info contract (`0x4200000000000000000000000000000000000015`)
+  - using the respective solidity getter functions
+  - using direct storage-reads:
+    - basefee `uint256` in slot `1`
+    - blobBasefee `uint256` in slot `7`
+    - l1BasefeeScalar big-endian `uint32` slot `8` offset `4`
+    - l1BlobBasefeeScalar as big-endian `uint32` in slot `8` offset `0`
 
 ## Engine API
 
@@ -312,12 +352,12 @@ the operation within the engine is the exact same as with L1 (although with an E
 
 [rollup node spec]: rollup-node.md
 
-## Eclipse: disable Blob-transactions
+## Ecotone: disable Blob-transactions
 
 [EIP-4844] introduces Blob transactions: featuring all the functionality of an [EIP-1559] transaction,
 plus a list of "blobs": "Binary Large Object", i.e. a dedicated data type for serving Data-Availability as base-layer.
 
-With the Eclipse upgrade, all Cancun L1 execution features are enabled, with [EIP-4844] as exception:
+With the Ecotone upgrade, all Cancun L1 execution features are enabled, with [EIP-4844] as exception:
 as a L2, the OP-Stack does not serve blobs, and thus disables this new transaction type.
 
 EIP-4844 is disabled as following:
@@ -327,7 +367,7 @@ EIP-4844 is disabled as following:
 - Block-building code does not select EIP-4844 transactions.
 - An L2 block state-transition with EIP-4844 transactions is invalid.
 
-## Eclipse: Beacon Block Root
+## Ecotone: Beacon Block Root
 
 [EIP-4788] introduces a "beacon block root" into the execution-layer block-header and EVM.
 This block root is an [SSZ hash-tree-root] of the consensus-layer contents of the previous consensus block.
@@ -335,10 +375,10 @@ This block root is an [SSZ hash-tree-root] of the consensus-layer contents of th
 With the adoption of [EIP-4399] in the Bedrock upgrade the OP-Stack already includes the `PREVRANDAO` of L1.
 And thus with [EIP-4788] the L1 beacon block root is made available.
 
-For the Eclipse upgrade, this entails that:
+For the Ecotone upgrade, this entails that:
 
 - The `parent_beacon_block_root` of the L1 origin is now embedded in the L2 block header.
-- The "Beacon roots contract" is deployed at Eclipse upgrade-time, or embedded at genesis if activated at genesis.
+- The "Beacon roots contract" is deployed at Ecotone upgrade-time, or embedded at genesis if activated at genesis.
 - The block state-transition process now includes the same special beacon-block-root EVM processing as L1 ethereum.
 
 [SSZ hash-tree-root]: https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md#merkleization

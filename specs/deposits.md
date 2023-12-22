@@ -30,11 +30,12 @@ with the authorization and validation conditions on L2.
     - [Nonce Handling](#nonce-handling)
 - [Deposit Receipt](#deposit-receipt)
 - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
+  - [L1 Attributes Deposited Transaction Calldata](#l1-attributes-deposited-transaction-calldata)
 - [Special Accounts on L2](#special-accounts-on-l2)
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
   - [L1 Attributes Predeployed Contract](#l1-attributes-predeployed-contract)
     - [L1 Attributes Predeployed Contract: Reference Implementation](#l1-attributes-predeployed-contract-reference-implementation)
-    - [Eclipse L1Block upgrade](#eclipse-l1block-upgrade)
+    - [Ecotone L1Block upgrade](#ecotone-l1block-upgrade)
 - [User-Deposited Transactions](#user-deposited-transactions)
   - [Deposit Contract](#deposit-contract)
     - [Address Aliasing](#address-aliasing)
@@ -163,8 +164,9 @@ The deposit transaction is processed exactly like a type-3 (EIP-1559) transactio
 - No L1-cost fee is charged, as deposits are derived from L1 and do not have to be submitted as data back to it.
 - No base fee is charged. The total base fee accounting does not change.
 
-Note that this includes contract-deployment behavior like with regular transactions,
-and gas metering is the same (with the exception of fee related changes above), including metering of intrinsic gas.
+Note that this includes contract-deployment behavior like with regular transactions, and gas
+metering is the same (with the exception of fee related changes above), including metering of
+intrinsic gas.
 
 Any non-EVM state-transition error emitted by the EVM execution is processed in a special way:
 
@@ -244,19 +246,41 @@ This transaction MUST have the following values:
    contract][predeploy]).
 3. `mint` is `0`
 4. `value` is `0`
-5. `gasLimit` is set to 150,000,000.
-6. `isSystemTx` is set to `true`.
-7. `data` is an [ABI] encoded call to the [L1 attributes predeployed contract][predeploy]'s
-   `setL1BlockValues()` function with correct values associated with the corresponding L1 block (cf.
-   [reference implementation][l1-attr-ref-implem]).
+5. `gasLimit` is set to 150,000,000 prior to the Regolith upgrade, and 1,000,000 after.
+6. `isSystemTx` is set to `true` prior to the Regolith upgrade, and `false` after.
+7. `data` is an encoded call to the [L1 attributes predeployed contract][predeploy] that
+depends on the upgrades that are active (see below).
 
-If the Regolith upgrade is active, some fields are overridden:
+This system-initiated transaction for L1 attributes is not charged any ETH for its allocated
+`gasLimit`, as it is considered part of state-transition processing.
 
-1. `gasLimit` is set to 1,000,000
-2. `isSystemTx` is set to `false`
+### L1 Attributes Deposited Transaction Calldata
 
-This system-initiated transaction for L1 attributes is not charged any ETH for its allocated `gasLimit`,
-as it is effectively part of the state-transition processing.
+Prior to the Ecotone upgrade, the `data` field of the L1 attributes deposited transaction is an
+[ABI][ABI] encoded call to the `setL1BlockValues()` function with correct values associated with
+the corresponding L1 block (cf.  [reference implementation][l1-attr-ref-implem]).
+
+If the Ecotone upgrade is active, then `data` is instead a call to the `setL1BlockValuesEcotone()`
+function, where the input args are no longer ABI encoded function parameters, but are instead
+packed into 5 32-byte aligned segments (starting after the function selector). Each unsigned
+integer argument is encoded as big-endian using a number of bytes corresponding to the underlying
+type. The overall calldata layout is as follows:
+
+| Input arg         | Type        | Calldata bytes | Segment |
+| ----------------- | ----------- | -------------- | --------|
+| {0x440a5e20}      |             | 0-3            | n/a     |
+| basefeeScalar     | uint32      | 4-7            | 1       |
+| blobBasefeeScalar | uint32      | 8-11           |         |
+| sequenceNumber    | uint64      | 12-19          |         |
+| l1BlockTimestamp  | uint64      | 20-27          |         |
+| l1BlockNumber     | uint64      | 28-35          |         |
+| basefee           | uint256     | 36-67          | 2       |
+| blobBasefee       | uint256     | 68-99          | 3       |
+| l1BlockHash       | bytes32     | 100-131        | 4       |
+| batcherHash       | bytes32     | 132-163        | 5       |
+
+Total calldata length must be exactly 164 bytes, implying the sixth and final segment is only
+partially filled.
 
 ## Special Accounts on L2
 
@@ -295,6 +319,13 @@ The predeploy stores the following values:
   - `batcherHash` (`bytes32`): A versioned commitment to the batch-submitter(s) currently operating.
   - `overhead` (`uint256`): The L1 fee overhead to apply to L1 cost computation of transactions in this L2 block.
   - `scalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
+- With the Ecotone upgrade, the predeploy additionally stores:
+  - `blobBasefee` (`uint256`)
+  - `baseFeeScalar` (`uint32`): system configurable to scale the `basefee` in the Ecotone l1 cost computation
+  - `blobBasefeeScalar` (`uint32`): system configurable to scale the `blobBasefee` in the Ecotone l1 cost computation
+
+Following the Ecotone upgrade, `overhead` and `scalar` are frozen at the values they had on the
+block immediately prior to the fork.
 
 The contract implements an authorization scheme, such that it only accepts state-changing calls from
 the [depositor account][depositor-account].
@@ -316,9 +347,9 @@ After running `pnpm build` in the `packages/contracts-bedrock` directory, the by
 the genesis file will be located in the `deployedBytecode` field of the build artifacts file at
 `/packages/contracts-bedrock/forge-artifacts/L1Block.sol/L1Block.json`.
 
-#### Eclipse L1Block upgrade
+#### Ecotone L1Block upgrade
 
-The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded in the Eclipse upgrade.
+The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded in the Ecotone upgrade.
 
 - `overhead`: this getter function now reverts (TBD). Storage remains the same.
 - `scalar`: this getter function now reverts (TBD). Storage remains the same.
