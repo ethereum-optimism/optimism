@@ -288,6 +288,12 @@ abstract contract CrossDomainMessenger is
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
 
         if (success) {
+            // This check is identical to one above, but it ensures that the same message cannot be relayed
+            // twice, and adds a layer of protection against rentrancy.
+            require(
+                successfulMessages[versionedHash] == false,
+                "CrossDomainMessenger: message has already been relayed via reentrancy"
+            );
             successfulMessages[versionedHash] = true;
             emit RelayedMessage(versionedHash);
         } else {
