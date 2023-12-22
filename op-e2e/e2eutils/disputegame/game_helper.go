@@ -246,7 +246,7 @@ func (g *FaultGameHelper) WaitForInactivity(ctx context.Context, numInactiveBloc
 // DefendRootClaim uses the supplied Mover to perform moves in an attempt to defend the root claim.
 // It is assumed that the output root being disputed is valid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it waits for the honest challenger to counter the leaf claim with step.
-func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover) {
+func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove func(parentClaimIdx int64)) {
 	maxDepth := g.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
 		g.LogGameData(ctx)
@@ -268,7 +268,7 @@ func (g *FaultGameHelper) DefendRootClaim(ctx context.Context, performMove Mover
 // It is assumed that the output root being disputed is invalid and that an honest op-challenger is already running.
 // When the game has reached the maximum depth it calls the Stepper to attempt to counter the leaf claim.
 // Since the output root is invalid, it should not be possible for the Stepper to call step successfully.
-func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove Mover, attemptStep Stepper) {
+func (g *FaultGameHelper) ChallengeRootClaim(ctx context.Context, performMove func(parentClaimIdx int64), attemptStep Stepper) {
 	maxDepth := g.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
 		g.LogGameData(ctx)
