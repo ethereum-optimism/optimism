@@ -79,6 +79,7 @@ contract Specification_Test is CommonTest {
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("initialize(address,address,address)") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("messageNonce()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("paused()") });
+        _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("otherMessenger()") });
         _addSpec({ _name: "L1CrossDomainMessenger", _sel: _getSel("portal()") });
         _addSpec({
             _name: "L1CrossDomainMessenger",
