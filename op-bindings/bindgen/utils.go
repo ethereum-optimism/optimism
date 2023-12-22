@@ -1,4 +1,4 @@
-package main
+package bindgen
 
 import (
 	"bufio"
@@ -13,9 +13,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type BindGenGeneratorBase struct {
+	MetadataOut         string
+	BindingsPackageName string
+	MonorepoBasePath    string
+	ContractsListPath   string
+	Logger              log.Logger
+}
+
 type contractsList struct {
 	Local  []string         `json:"local"`
-	Remote []remoteContract `json:"remote"`
+	Remote []RemoteContract `json:"remote"`
 }
 
 // readContractList reads a JSON file from the given `filePath` and unmarshals

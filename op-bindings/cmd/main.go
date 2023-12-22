@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindgen"
 	"github.com/ethereum-optimism/optimism/op-bindings/etherscan"
 	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -11,14 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
-
-type bindGenGeneratorBase struct {
-	metadataOut         string
-	bindingsPackageName string
-	monorepoBasePath    string
-	contractsListPath   string
-	logger              log.Logger
-}
 
 const (
 	// Base Flags
@@ -92,7 +85,7 @@ func generateBindings(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := localBindingsGenerator.generateBindings(); err != nil {
+		if err := localBindingsGenerator.GenerateBindings(); err != nil {
 			return fmt.Errorf("error generating local bindings: %w", err)
 		}
 
@@ -100,7 +93,7 @@ func generateBindings(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := remoteBindingsGenerator.generateBindings(); err != nil {
+		if err := remoteBindingsGenerator.GenerateBindings(); err != nil {
 			return fmt.Errorf("error generating remote bindings: %w", err)
 		}
 
@@ -110,7 +103,7 @@ func generateBindings(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := localBindingsGenerator.generateBindings(); err != nil {
+		if err := localBindingsGenerator.GenerateBindings(); err != nil {
 			return fmt.Errorf("error generating local bindings: %w", err)
 		}
 		return nil
@@ -119,7 +112,7 @@ func generateBindings(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		if err := remoteBindingsGenerator.generateBindings(); err != nil {
+		if err := remoteBindingsGenerator.GenerateBindings(); err != nil {
 			return fmt.Errorf("error generating remote bindings: %w", err)
 		}
 		return nil
@@ -128,55 +121,55 @@ func generateBindings(c *cli.Context) error {
 	}
 }
 
-func parseConfigBase(logger log.Logger, c *cli.Context) (bindGenGeneratorBase, error) {
+func parseConfigBase(logger log.Logger, c *cli.Context) (bindgen.BindGenGeneratorBase, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return bindGenGeneratorBase{}, err
+		return bindgen.BindGenGeneratorBase{}, err
 	}
 
 	monoRepoPath, err := op_service.FindMonorepoRoot(cwd)
 	if err != nil {
-		return bindGenGeneratorBase{}, err
+		return bindgen.BindGenGeneratorBase{}, err
 	}
 
-	return bindGenGeneratorBase{
-		metadataOut:         c.String(MetadataOutFlagName),
-		bindingsPackageName: c.String(BindingsPackageNameFlagName),
-		monorepoBasePath:    monoRepoPath,
-		contractsListPath:   c.String(ContractsListFlagName),
-		logger:              logger,
+	return bindgen.BindGenGeneratorBase{
+		MetadataOut:         c.String(MetadataOutFlagName),
+		BindingsPackageName: c.String(BindingsPackageNameFlagName),
+		MonorepoBasePath:    monoRepoPath,
+		ContractsListPath:   c.String(ContractsListFlagName),
+		Logger:              logger,
 	}, nil
 }
 
-func parseConfigLocal(logger log.Logger, c *cli.Context) (bindGenGeneratorLocal, error) {
+func parseConfigLocal(logger log.Logger, c *cli.Context) (bindgen.BindGenGeneratorLocal, error) {
 	baseConfig, err := parseConfigBase(logger, c)
 	if err != nil {
-		return bindGenGeneratorLocal{}, err
+		return bindgen.BindGenGeneratorLocal{}, err
 	}
-	return bindGenGeneratorLocal{
-		bindGenGeneratorBase: baseConfig,
-		sourceMapsList:       c.String(SourceMapsListFlagName),
-		forgeArtifactsPath:   c.String(ForgeArtifactsFlagName),
+	return bindgen.BindGenGeneratorLocal{
+		BindGenGeneratorBase: baseConfig,
+		SourceMapsList:       c.String(SourceMapsListFlagName),
+		ForgeArtifactsPath:   c.String(ForgeArtifactsFlagName),
 	}, nil
 }
 
-func parseConfigRemote(logger log.Logger, c *cli.Context) (bindGenGeneratorRemote, error) {
+func parseConfigRemote(logger log.Logger, c *cli.Context) (bindgen.BindGenGeneratorRemote, error) {
 	baseConfig, err := parseConfigBase(logger, c)
 	if err != nil {
-		return bindGenGeneratorRemote{}, err
+		return bindgen.BindGenGeneratorRemote{}, err
 	}
-	generator := bindGenGeneratorRemote{
-		bindGenGeneratorBase: baseConfig,
+	generator := bindgen.BindGenGeneratorRemote{
+		BindGenGeneratorBase: baseConfig,
 	}
 
-	generator.contractDataClients.eth = etherscan.NewEthereumClient(c.String(EtherscanApiKeyEthFlagName))
-	generator.contractDataClients.op = etherscan.NewOptimismClient(c.String(EtherscanApiKeyOpFlagName))
+	generator.ContractDataClients.Eth = etherscan.NewEthereumClient(c.String(EtherscanApiKeyEthFlagName))
+	generator.ContractDataClients.Op = etherscan.NewOptimismClient(c.String(EtherscanApiKeyOpFlagName))
 
-	if generator.rpcClients.eth, err = ethclient.Dial(c.String(RpcUrlEthFlagName)); err != nil {
-		return bindGenGeneratorRemote{}, fmt.Errorf("error initializing Ethereum client: %w", err)
+	if generator.RpcClients.Eth, err = ethclient.Dial(c.String(RpcUrlEthFlagName)); err != nil {
+		return bindgen.BindGenGeneratorRemote{}, fmt.Errorf("error initializing Ethereum client: %w", err)
 	}
-	if generator.rpcClients.op, err = ethclient.Dial(c.String(RpcUrlOpFlagName)); err != nil {
-		return bindGenGeneratorRemote{}, fmt.Errorf("error initializing Optimism client: %w", err)
+	if generator.RpcClients.Op, err = ethclient.Dial(c.String(RpcUrlOpFlagName)); err != nil {
+		return bindgen.BindGenGeneratorRemote{}, fmt.Errorf("error initializing Optimism client: %w", err)
 	}
 	return generator, nil
 }

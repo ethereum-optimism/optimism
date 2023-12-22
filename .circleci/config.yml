@@ -524,16 +524,16 @@ jobs:
           working_directory: op-bindings
       - notify-failures-on-develop
 
-  bindgen-test:
+  bindgen-test-e2e:
     docker:
       - image: <<pipeline.parameters.ci_builder_image>>
     resource_class: xlarge
     steps:
       - checkout
       - run:
-          name: bindgen test
+          name: bindgen test E2E
           command: make test-bindgen-e2e
-          working_directory: op-bindings
+          working_directory: op-bindings-e2e
       - notify-failures-on-develop
 
   js-lint-test:
@@ -2012,7 +2012,7 @@ workflows:
           context:
             - slack
             - oplabs-etherscan
-      - bindgen-test:
+      - bindgen-test-e2e:
           context:
             - slack
             - oplabs-etherscan
