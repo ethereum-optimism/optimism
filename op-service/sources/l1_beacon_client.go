@@ -51,6 +51,7 @@ func (cl *L1BeaconClient) apiReq(ctx context.Context, dest any, method string) e
 	return nil
 }
 
+// GetTimeToSlotFn returns a function that converts a timestamp to a slot number.
 func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, error) {
 	cl.initLock.Lock()
 	defer cl.initLock.Unlock()
@@ -74,9 +75,9 @@ func (cl *L1BeaconClient) GetTimeToSlotFn(ctx context.Context) (TimeToSlotFn, er
 	return cl.timeToSlotFn, nil
 }
 
-// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the
-// given indexed hashes. The order of the returned blobs will match the order of `dataHashes`.
-func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.Blob, error) {
+// GetBlobSidecarsByRefAndIndexedDataHashes fetches blob sidecars that were confirmed in the given L1 block with the
+// given indexed hashes.
+func (cl *L1BeaconClient) GetBlobSidecarsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.BlobSidecar, error) {
 	slotFn, err := cl.GetTimeToSlotFn(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get time to slot function: %w", err)
@@ -103,13 +104,24 @@ func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, re
 		return nil, fmt.Errorf("expected %v sidecars but got %v", len(dataHashes), len(resp.Data))
 	}
 
+	return resp.Data, nil
+}
+
+// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the
+// given indexed hashes. The order of the returned blobs will match the order of `dataHashes`.
+func (cl *L1BeaconClient) BlobsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]*eth.Blob, error) {
+	blobSidecars, err := cl.GetBlobSidecarsByRefAndIndexedDataHashes(ctx, ref, dataHashes)
+	if err != nil {
+		return nil, err
+	}
+
 	out := make([]*eth.Blob, len(dataHashes))
 	for i, ih := range dataHashes {
 		// The beacon node api makes no guarantees on order of the returned blob sidecars, so
 		// search for the sidecar that matches the current indexed hash to ensure blobs are
 		// returned in the same order.
 		var sidecar *eth.BlobSidecar
-		for _, sc := range resp.Data {
+		for _, sc := range blobSidecars {
 			if uint64(sc.Index) == ih.Index {
 				sidecar = sc
 				break
