@@ -115,9 +115,9 @@ type DeployConfig struct {
 	// L2GenesisDeltaTimeOffset is the number of seconds after genesis block that Delta hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Delta.
 	L2GenesisDeltaTimeOffset *hexutil.Uint64 `json:"l2GenesisDeltaTimeOffset,omitempty"`
-	// L2GenesisEclipseTimeOffset is the number of seconds after genesis block that Eclipse hard fork activates.
-	// Set it to 0 to activate at genesis. Nil to disable Eclipse.
-	L2GenesisEclipseTimeOffset *hexutil.Uint64 `json:"l2GenesisEclipseTimeOffset,omitempty"`
+	// L2GenesisEcotoneTimeOffset is the number of seconds after genesis block that Ecotone hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable Ecotone.
+	L2GenesisEcotoneTimeOffset *hexutil.Uint64 `json:"l2GenesisEcotoneTimeOffset,omitempty"`
 	// L2GenesisFjordTimeOffset is the number of seconds after genesis block that Fjord hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable Fjord.
 	L2GenesisFjordTimeOffset *hexutil.Uint64 `json:"l2GenesisFjordTimeOffset,omitempty"`
@@ -489,12 +489,12 @@ func (d *DeployConfig) DeltaTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
-func (d *DeployConfig) EclipseTime(genesisTime uint64) *uint64 {
-	if d.L2GenesisEclipseTimeOffset == nil {
+func (d *DeployConfig) EcotoneTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisEcotoneTimeOffset == nil {
 		return nil
 	}
 	v := uint64(0)
-	if offset := *d.L2GenesisEclipseTimeOffset; offset > 0 {
+	if offset := *d.L2GenesisEcotoneTimeOffset; offset > 0 {
 		v = genesisTime + uint64(offset)
 	}
 	return &v
@@ -561,7 +561,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		CanyonTime:             d.CanyonTime(l1StartBlock.Time()),
 		DeltaTime:              d.DeltaTime(l1StartBlock.Time()),
-		EclipseTime:            d.EclipseTime(l1StartBlock.Time()),
+		EcotoneTime:            d.EcotoneTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
 	}, nil
