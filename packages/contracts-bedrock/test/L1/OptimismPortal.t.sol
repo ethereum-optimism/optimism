@@ -31,20 +31,18 @@ contract OptimismPortal_Test is CommonTest {
 
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
-        OptimismPortal portalImpl = new OptimismPortal();
-
-        assertEq(address(portalImpl.L2_ORACLE()), address(0));
-        assertEq(address(portalImpl.l2Oracle()), address(0));
-        assertEq(address(portalImpl.SYSTEM_CONFIG()), address(0));
-        assertEq(address(portalImpl.systemConfig()), address(0));
-        assertEq(address(portalImpl.superchainConfig()), address(0));
-        assertEq(portalImpl.l2Sender(), 0x000000000000000000000000000000000000dEaD);
+        OptimismPortal opImpl = OptimismPortal(payable(deploy.mustGetAddress("OptimismPortal")));
+        assertEq(address(opImpl.L2_ORACLE()), address(0));
+        assertEq(address(opImpl.l2Oracle()), address(0));
+        assertEq(address(opImpl.SYSTEM_CONFIG()), address(0));
+        assertEq(address(opImpl.systemConfig()), address(0));
+        assertEq(address(opImpl.superchainConfig()), address(0));
+        assertEq(opImpl.l2Sender(), 0x000000000000000000000000000000000000dEaD);
     }
 
     /// @dev Tests that the initializer sets the correct values.
     function test_initialize_succeeds() external {
         address guardian = deploy.cfg().superchainConfigGuardian();
-
         assertEq(address(optimismPortal.L2_ORACLE()), address(l2OutputOracle));
         assertEq(address(optimismPortal.l2Oracle()), address(l2OutputOracle));
         assertEq(address(optimismPortal.SYSTEM_CONFIG()), address(systemConfig));
