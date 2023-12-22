@@ -19,7 +19,6 @@ import { Types } from "scripts/Types.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { ISystemConfigV0 } from "scripts/interfaces/ISystemConfigV0.sol";
 import { console2 as console } from "forge-std/console2.sol";
-import { Deployer } from "scripts/Deployer.sol";
 
 library ChainAssertions {
     /// @notice Asserts the correctness of an L1 deployment. This function expects that all contracts
