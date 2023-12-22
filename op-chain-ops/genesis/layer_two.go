@@ -76,6 +76,9 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 	}
 
 	db, err = setupEcotone(config, db)
+	if err != nil {
+		return nil, err
+	}
 
 	return db.Genesis(), nil
 }
