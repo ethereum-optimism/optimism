@@ -48,7 +48,7 @@ library ChainAssertions {
         });
         checkOptimismMintableERC20Factory({ _contracts: _prox, _isProxy: true });
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
-        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true, _isInitialized: true });
+        checkOptimismPortal({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
         checkProtocolVersions({ _contracts: _prox, _cfg: _cfg, _isProxy: true });
     }
 
@@ -189,15 +189,7 @@ library ChainAssertions {
     }
 
     /// @notice Asserts the OptimismPortal is setup correctly
-    function checkOptimismPortal(
-        Types.ContractSet memory _contracts,
-        DeployConfig _cfg,
-        bool _isProxy,
-        bool _isInitialized
-    )
-        internal
-        view
-    {
+    function checkOptimismPortal(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the OptimismPortal");
 
         OptimismPortal portal = OptimismPortal(payable(_contracts.OptimismPortal));
@@ -207,7 +199,7 @@ library ChainAssertions {
             console.log("Guardian has no code: %s", guardian);
         }
 
-        if (!_isInitialized) {
+        if (!_isProxy) {
             require(address(portal.L2_ORACLE()) == address(0));
             require(address(portal.l2Oracle()) == address(0));
             require(address(portal.SYSTEM_CONFIG()) == address(0));
@@ -219,12 +211,10 @@ library ChainAssertions {
             require(address(portal.SYSTEM_CONFIG()) == _contracts.SystemConfig);
             require(address(portal.systemConfig()) == _contracts.SystemConfig);
 
-            if (_isProxy) {
-                require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
-                require(portal.guardian() == _cfg.superchainConfigGuardian());
-                require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
-                require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
-            }
+            require(portal.GUARDIAN() == _cfg.superchainConfigGuardian());
+            require(portal.guardian() == _cfg.superchainConfigGuardian());
+            require(address(portal.superchainConfig()) == address(_contracts.SuperchainConfig));
+            require(portal.paused() == SuperchainConfig(_contracts.SuperchainConfig).paused());
         }
     }
 
