@@ -32,7 +32,6 @@ alphabet-actors:
 	clean \
 	op-challenger \
 	test \
-	lint \
 	visualize \
 	alphabet \
 	alphabet-actors
