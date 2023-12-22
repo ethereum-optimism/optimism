@@ -349,7 +349,7 @@ the genesis file will be located in the `deployedBytecode` field of the build ar
 
 #### Ecotone L1Block upgrade
 
-The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded as part of the Ecotone hardfork.
+The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded as part of the Ecotone upgrade.
 The version is incremented to `1.2.0` and several new storage slots are used for:
 
 - `blobBasefee` (`uint256`): The L1 basefee for blob transactions.
