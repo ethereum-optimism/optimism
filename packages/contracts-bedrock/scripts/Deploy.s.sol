@@ -243,10 +243,10 @@ contract Deploy is Deployer {
 
     /// @notice Internal function containing the deploy logic.
     function _run() internal {
-        deployBOBA();
         deploySafe();
         setupSuperchain();
         setupOpChain();
+        deployBOBA();
     }
 
     ////////////////////////////////////////////////////////////////
@@ -417,7 +417,7 @@ contract Deploy is Deployer {
         addr_ = address(bobaToken);
 
         address owner = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        require(bobaToken.balanceOf(owner) > 10000e18);
+        bobaToken.transfer(owner, 10000e18);
     }
 
     ////////////////////////////////////////////////////////////////
