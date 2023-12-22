@@ -288,7 +288,7 @@ contract OptimismPortal_Test is CommonTest {
 
         uint256 ts = block.timestamp;
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(bytes32(uint256(1)), uint128(ts), uint128(startingBlockNumber)))
         );
@@ -498,12 +498,12 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         vm.store(address(optimismPortal), slot, bytes32(0));
 
         // Fetch the output proposal at `_proposedOutputIndex` from the L2OutputOracle
-        Types.OutputProposal memory proposal = optimismPortal.L2_ORACLE().getL2Output(_proposedOutputIndex);
+        Types.OutputProposal memory proposal = optimismPortal.l2Oracle().getL2Output(_proposedOutputIndex);
 
         // Propose the same output root again, creating the same output at a different index + l2BlockNumber.
-        vm.startPrank(optimismPortal.L2_ORACLE().PROPOSER());
-        optimismPortal.L2_ORACLE().proposeL2Output(
-            proposal.outputRoot, optimismPortal.L2_ORACLE().nextBlockNumber(), blockhash(block.number), block.number
+        vm.startPrank(optimismPortal.l2Oracle().PROPOSER());
+        optimismPortal.l2Oracle().proposeL2Output(
+            proposal.outputRoot, optimismPortal.l2Oracle().nextBlockNumber(), blockhash(block.number), block.number
         );
         vm.stopPrank();
 
@@ -577,7 +577,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Mock a call where the resulting output root is anything but the original output root. In
         // this case we just use bytes32(uint256(1)).
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(bytes32(uint256(1)), _proposedBlockNumber)
         );
@@ -603,7 +603,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
 
         // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSignature("startingTimestamp()"),
             abi.encode(block.timestamp + 1)
         );
@@ -632,7 +632,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Mock an outputRoot change on the output proposal before attempting
         // to finalize the withdrawal.
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(
                 Types.OutputProposal(bytes32(uint256(0)), uint128(block.timestamp), uint128(_proposedBlockNumber))
@@ -663,7 +663,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Mock a timestamp change on the output proposal that has not passed the
         // finalization period.
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(_outputRoot, uint128(block.timestamp + 1), uint128(_proposedBlockNumber)))
         );
@@ -699,7 +699,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Setup the Oracle to return an output with a recent timestamp
         uint256 recentTimestamp = block.timestamp - 1;
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(_outputRoot, uint128(recentTimestamp), uint128(_proposedBlockNumber)))
         );
@@ -751,7 +751,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         });
 
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(
                 Types.OutputProposal(
@@ -800,7 +800,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is CommonTest {
         // Setup the Oracle to return the outputRoot we want as well as a finalized timestamp.
         uint256 finalizedTimestamp = block.timestamp - l2OutputOracle.FINALIZATION_PERIOD_SECONDS() - 1;
         vm.mockCall(
-            address(optimismPortal.L2_ORACLE()),
+            address(optimismPortal.l2Oracle()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
             abi.encode(Types.OutputProposal(outputRoot, uint128(finalizedTimestamp), uint128(_proposedBlockNumber)))
         );
