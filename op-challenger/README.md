@@ -44,7 +44,6 @@ DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy .devnet/addresses.json)
   --trace-type cannon \
   --l1-eth-rpc http://localhost:8545 \
   --game-factory-address $DISPUTE_GAME_FACTORY \
-  --agree-with-proposed-output=true \
   --datadir temp/challenger-data \
   --cannon-rollup-config .devnet/rollup.json  \
   --cannon-l2-genesis .devnet/genesis-l2.json \
