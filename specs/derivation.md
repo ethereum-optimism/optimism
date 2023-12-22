@@ -1140,8 +1140,8 @@ A deposit transaction is derived with the following attributes:
 - `value`: `0`
 - `gasLimit`: `1,000,000` (TBC)
 - `data`: `0x22b90ab3`
-- `sourceHash`: `0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a`,
-  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Proxy Update"`
+- `sourceHash`: `0x0c1cb38e99dbc9cbfab3bb80863380b0905290b37eb3d6ab18dc01c1f3e75f93`,
+  computed with the "Upgrade-deposited" type, with `intent = "Ecotone: Gas Price Oracle Set Ecotone"
 
 Verify data:
 
@@ -1153,8 +1153,8 @@ cast sig "setEcotone()"
 Verify `sourceHash`:
 
 ```bash
-cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: Gas Price Oracle Proxy Update"))
-# 0xee4f9385eceef498af0be7ec5862229f426dec41c8d42397c7257a5117d9230a
+cast keccak $(cast concat-hex 0x0000000000000000000000000000000000000000000000000000000000000002 $(cast keccak "Ecotone: Gas Price Oracle Set Ecotone"))
+# 0x0c1cb38e99dbc9cbfab3bb80863380b0905290b37eb3d6ab18dc01c1f3e75f93
 ```
 
 ##### Beacon block roots contract deployment (EIP-4788)
