@@ -8,15 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/alphabet"
-	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/trace/outputs"
 	faultTypes "github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/l2oo"
@@ -36,16 +33,12 @@ import (
 
 const (
 	alphabetGameType       uint8 = 255
-	cannonGameType         uint8 = 0
 	outputCannonGameType   uint8 = 1
 	outputAlphabetGameType uint8 = 254
 	alphabetGameDepth            = 4
 )
 
 var lastAlphabetTraceIndex = big.NewInt(1<<alphabetGameDepth - 1)
-
-// rootPosition is the position of the root claim.
-var rootPosition = faultTypes.NewPositionFromGIndex(big.NewInt(1))
 
 type Status uint8
 
@@ -258,106 +251,6 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 			system:                h.system,
 		},
 		claimedAlphabet: claimedAlphabet,
-	}
-}
-
-func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Hash) *CannonGameHelper {
-	extraData, _, _ := h.createDisputeGameExtraData(ctx)
-	return h.createCannonGame(ctx, rootClaim, extraData)
-}
-
-func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, l2Node string, options ...challenger.Option) (*CannonGameHelper, *HonestHelper) {
-	extraData, l1Head, l2BlockNumber := h.createDisputeGameExtraData(ctx)
-	challengerOpts := []challenger.Option{
-		challenger.WithCannon(h.t, h.system.RollupCfg(), h.system.L2Genesis(), h.system.NodeEndpoint(l2Node)),
-		challenger.WithFactoryAddress(h.factoryAddr),
-	}
-	challengerOpts = append(challengerOpts, options...)
-	cfg := challenger.NewChallengerConfig(h.t, h.system.NodeEndpoint("l1"), challengerOpts...)
-	opts := &bind.CallOpts{Context: ctx}
-	challengedOutput := h.l2ooHelper.GetL2OutputAfter(ctx, l2BlockNumber)
-	agreedOutput := h.l2ooHelper.GetL2OutputBefore(ctx, l2BlockNumber)
-	l1BlockInfo, err := h.blockOracle.Load(opts, l1Head)
-	h.require.NoError(err, "Fetch L1 block info")
-
-	l2Client := h.system.NodeClient(l2Node)
-	defer l2Client.Close()
-	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
-	if err != nil {
-		h.require.NoErrorf(err, "Failed to fetch L2 block header %v", agreedOutput.L2BlockNumber)
-	}
-
-	inputs := cannon.LocalGameInputs{
-		L1Head:        l1BlockInfo.Hash,
-		L2Head:        agreedHeader.Hash(),
-		L2OutputRoot:  agreedOutput.OutputRoot,
-		L2Claim:       challengedOutput.OutputRoot,
-		L2BlockNumber: challengedOutput.L2BlockNumber,
-	}
-
-	cannonTypeAddr, err := h.factory.GameImpls(opts, cannonGameType)
-	h.require.NoError(err, "fetch cannon game type impl")
-
-	gameImpl, err := bindings.NewFaultDisputeGameCaller(cannonTypeAddr, h.client)
-	h.require.NoError(err, "bind fault dispute game caller")
-
-	maxDepth, err := gameImpl.MAXGAMEDEPTH(opts)
-	h.require.NoError(err, "fetch max game depth")
-
-	provider := cannon.NewTraceProvider(
-		testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"),
-		metrics.NoopMetrics,
-		cfg,
-		faultTypes.NoLocalContext,
-		inputs,
-		cfg.Datadir,
-		maxDepth.Uint64(),
-	)
-	rootClaim, err := provider.Get(ctx, rootPosition)
-	h.require.NoError(err, "Compute correct root hash")
-	// Override the VM status to claim the root is invalid
-	// Otherwise creating the game will fail
-	rootClaim[0] = mipsevm.VMStatusInvalid
-
-	game := h.createCannonGame(ctx, rootClaim, extraData)
-	correctMaxDepth := game.MaxDepth(ctx)
-	provider.SetMaxDepth(uint64(correctMaxDepth))
-	honestHelper := &HonestHelper{
-		t:            h.t,
-		require:      h.require,
-		game:         &game.FaultGameHelper,
-		correctTrace: provider,
-	}
-	return game, honestHelper
-}
-
-func (h *FactoryHelper) createCannonGame(ctx context.Context, rootClaim common.Hash, extraData []byte) *CannonGameHelper {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-
-	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
-		return h.factory.Create(opts, cannonGameType, rootClaim, extraData)
-	})
-	h.require.NoError(err, "create fault dispute game")
-	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
-	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
-	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
-	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
-	h.require.NoError(err)
-	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
-	h.require.NoError(err)
-
-	return &CannonGameHelper{
-		FaultGameHelper: FaultGameHelper{
-			t:           h.t,
-			require:     h.require,
-			system:      h.system,
-			client:      h.client,
-			opts:        h.opts,
-			game:        game,
-			factoryAddr: h.factoryAddr,
-			addr:        createdEvent.DisputeProxy,
-		},
 	}
 }
 
