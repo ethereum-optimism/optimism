@@ -12,6 +12,7 @@ import { Constants } from "src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { StandardBridge } from "src/universal/StandardBridge.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "src/L2/L2StandardBridge.sol";
 import { CrossDomainMessenger } from "src/universal/CrossDomainMessenger.sol";
 import { SuperchainConfig } from "src/L1/SuperchainConfig.sol";
@@ -31,10 +32,24 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
 }
 
 contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
+    /// @dev Test that the constructor sets the correct values.
+    function test_constructor_succeeds() external {
+        L1StandardBridge impl = L1StandardBridge(deploy.mustGetAddress("L1StandardBridge"));
+        assertEq(address(impl.superchainConfig()), address(0));
+        assertEq(address(impl.MESSENGER()), address(0));
+        assertEq(address(impl.messenger()), address(0));
+        assertEq(address(impl.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(impl.otherBridge()), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
+    }
+
     /// @dev Test that the initialize function sets the correct values.
     function test_initialize_succeeds() external {
+        assertEq(address(l1StandardBridge.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1StandardBridge.MESSENGER()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.messenger()), address(l1CrossDomainMessenger));
         assertEq(address(l1StandardBridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(l1StandardBridge.otherBridge()), Predeploys.L2_STANDARD_BRIDGE);
         assertEq(address(l2StandardBridge), Predeploys.L2_STANDARD_BRIDGE);
     }
 }
