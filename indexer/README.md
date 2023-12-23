@@ -15,21 +15,22 @@ All tests can be ran by running `make test` from the `/indexer` directory.  This
 ### Run the Indexer (docker-compose)
 The local [docker-compose.go](https://github.com/ethereum-optimism/optimism/blob/develop/indexer/docker-compose.yml) file spins up **index, api, postgres, prometheus and grafana** services. The `indexer.toml` file is setup for the local devnet. To run against a live network, update the `indexer.toml` with the desired configuration.
 
-> The API and Postgres services with ports mapped externally. Postgres externally mapped on port 5433 to deconflict with any instances already running
+> The API, Postgres, and Grafana services are the only ones with ports mapped externally. Postgres database is mapped to port 5433 to deconflict any instances already running on the default port
 
 1. Install Deps: Docker, Genesis State: `make devnet-allocs` 
-2. *Optional*: Start Devnet `make devnet up`
-3. Start Indexer `cd indexer && docker-compose up`
+2. Start Devnet `make devnet up`, Otherwise update `indexer.toml` to desired network config.
+3. Start Indexer: `cd indexer && docker-compose up`
 4. View the Grafana dashboard at http://localhost:3000
-    - **User**: admin **Password**: optimism
+    - **User**: admin
+    - **Password**: optimism
 
 ### Run the Indexer (Go Binary or Dockerfile)
 1. Prepare the `indexer.toml` file
-    a. **Run database migrations**: `indexer migrate --config <indexer.toml>`
-    b. Run index service, cmd: `indexer index --config <indexer.toml>`
-    c. Run the api service, cmd: `indexer api --config <indexer.toml>`
+2. **Run database migrations**: `indexer migrate --config <indexer.toml>`
+3. Run index service, cmd: `indexer index --config <indexer.toml>`
+4. Run the api service, cmd: `indexer api --config <indexer.toml>`
 
-> Both the index and api services listen on an HTTP and Metrics port. Migrations sohuld **always** be run prior to start the indexer to ensure latest schemas are set.
+> Both the index and api services listen on an HTTP and Metrics port. Migrations should **always** be run prior to start the indexer to ensure latest schemas are set.
 
 ## Architecture
 ![Architectural Diagram](./ops/assets/architecture.png)
