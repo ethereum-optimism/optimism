@@ -106,9 +106,10 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		return err
 	}
 
-	var optimismPortal common.Address
+	var optimismPortal, otherMessenger common.Address
 	if config != nil {
 		optimismPortal = common.HexToAddress(list.OptimismPortalProxy.String())
+		otherMessenger = predeploys.L2CrossDomainMessengerAddr
 	} else {
 		l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessengerCaller(common.HexToAddress(list.L1CrossDomainMessengerProxy.String()), backend)
 		if err != nil {
@@ -118,9 +119,13 @@ func L1CrossDomainMessenger(batch *safe.Batch, implementations superchain.Implem
 		if err != nil {
 			return err
 		}
+		otherMessenger, err = l1CrossDomainMessenger.OtherMessenger(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
 	}
 
-	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal, predeploys.L2CrossDomainMessengerAddr)
+	calldata, err := l1CrossDomainMessengerABI.Pack("initialize", superchainConfigProxy, optimismPortal, otherMessenger)
 	if err != nil {
 		return err
 	}
