@@ -52,22 +52,27 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
+func init() {
+	log.Root().SetHandler(log.DiscardHandler())
+}
+
 // createE2ETestSuite ... Create a new E2E test suite
 func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
-	// E2E tests can run on the order of magnitude of minutes. Once
-	// the system is running, mark this test for Parallel execution.
-	// We mark the test as parallel before starting the devnet to
-	// reduce that number of idle routines when paused.
+	// E2E tests can run on the order of magnitude of minutes.
+	// We mark the test as parallel before starting the devnet
+	// to reduce that number of idle routines when paused.
 	t.Parallel()
 
-	// Rollup System Configuration. Unless specified,
-	// omit logs emitted by the various components. Maybe
-	// we can eventually dump these logs to a temp file
-	log.Root().SetHandler(log.DiscardHandler())
+	// Bump up the block times to try minimize resource
+	// contention when parallel devnets are running
 	opCfg := op_e2e.DefaultSystemConfig(t)
+	opCfg.DeployConfig.L1BlockTime = 6
+	opCfg.DeployConfig.L2BlockTime = 2
+
+	// Unless specified, omit logs emitted by the various components
 	if len(os.Getenv("ENABLE_ROLLUP_LOGS")) == 0 {
 		t.Log("set env 'ENABLE_ROLLUP_LOGS' to show rollup logs")
 		for name := range opCfg.Loggers {
@@ -116,7 +121,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	})
 	require.NoError(t, err)
 	require.NoError(t, ix.Start(context.Background()), "cleanly start indexer")
-
 	t.Cleanup(func() {
 		require.NoError(t, ix.Stop(context.Background()), "cleanly shut down indexer")
 	})
@@ -131,7 +135,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	apiService, err := api.NewApi(context.Background(), apiLog, apiCfg)
 	require.NoError(t, err, "create indexer API service")
-
 	require.NoError(t, apiService.Start(context.Background()), "start indexer API service")
 	t.Cleanup(func() {
 		require.NoError(t, apiService.Stop(context.Background()), "cleanly shut down indexer")
