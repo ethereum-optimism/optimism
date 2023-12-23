@@ -23,9 +23,11 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     /// @dev Tests that the bridge is initialized correctly.
     function test_initialize_succeeds() external {
+        assertEq(address(l2StandardBridge.MESSENGER()), address(l2CrossDomainMessenger));
         assertEq(address(l2StandardBridge.messenger()), address(l2CrossDomainMessenger));
         assertEq(l1StandardBridge.l2TokenBridge(), address(l2StandardBridge));
         assertEq(address(l2StandardBridge.OTHER_BRIDGE()), address(l1StandardBridge));
+        assertEq(address(l2StandardBridge.otherBridge()), address(l1StandardBridge));
     }
 
     /// @dev Ensures that the L2StandardBridge is always not paused. The pausability
