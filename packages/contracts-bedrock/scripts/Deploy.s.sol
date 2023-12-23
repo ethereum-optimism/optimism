@@ -635,7 +635,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.L1StandardBridge = address(bridge);
-        ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false, _isInitialized: false });
+        ChainAssertions.checkL1StandardBridge({ _contracts: contracts, _isProxy: false });
 
         addr_ = address(bridge);
     }
@@ -776,7 +776,7 @@ contract Deploy is Deployer {
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
         console.log("L1StandardBridge version: %s", version);
 
-        ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true, _isInitialized: true });
+        ChainAssertions.checkL1StandardBridge({ _contracts: _proxies(), _isProxy: true });
     }
 
     /// @notice Initialize the L1ERC721Bridge
