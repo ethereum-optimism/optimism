@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/safe"
 
@@ -259,7 +260,7 @@ func L1StandardBridge(batch *safe.Batch, implementations superchain.Implementati
 	var messenger, otherBridge common.Address
 	if config != nil {
 		messenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
-		otherBridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
+		otherBridge = predeploys.L2StandardBridgeAddr
 	} else {
 		l1StandardBridge, err := bindings.NewL1StandardBridgeCaller(common.HexToAddress(list.L1StandardBridgeProxy.String()), backend)
 		if err != nil {
