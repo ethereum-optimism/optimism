@@ -40,6 +40,7 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
     /// @custom:semver 1.9.0
     string public constant version = "1.9.0";
 
+    /// @notice Constructs the OptimismMintableERC20Factory contract.
     constructor() {
         initialize({ _bridge: address(0) });
     }
@@ -51,6 +52,7 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
     }
 
     /// @notice Getter function for the address of the StandardBridge on this chain.
+    ///         Public getter is legacy and will be removed in the future. Use `bridge` instead.
     /// @return Address of the StandardBridge on this chain.
     /// @custom:legacy
     function BRIDGE() external view returns (address) {
