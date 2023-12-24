@@ -442,7 +442,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		}
 	}
 
-	OptimismMintableERC20FactoryeABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
+	OptimismMintableERC20FactoryABI, err := bindings.OptimismMintableERC20FactoryMetaData.GetAbi()
 	if err != nil {
 		return err
 	}
@@ -461,7 +461,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 		}
 	}
 
-	calldata, err := OptimismMintableERC20FactoryeABI.Pack("initialize", bridge)
+	calldata, err := OptimismMintableERC20FactoryABI.Pack("initialize", bridge)
 	if err != nil {
 		return err
 	}
