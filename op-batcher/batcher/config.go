@@ -57,6 +57,10 @@ type CLIConfig struct {
 
 	BatchType uint
 
+	// DataAvailabilityType is one of the values defined in op-batcher/flags/flags.go and dictates
+	// the data availability type to use for poting batches, e.g. blobs vs calldata.
+	DataAvailabilityType string
+
 	TxMgrConfig      txmgr.CLIConfig
 	LogConfig        oplog.CLIConfig
 	MetricsConfig    opmetrics.CLIConfig
@@ -87,7 +91,12 @@ func (c *CLIConfig) Check() error {
 	if c.BatchType > 1 {
 		return fmt.Errorf("unknown batch type: %v", c.BatchType)
 	}
-
+	switch c.DataAvailabilityType {
+	case flags.CalldataType:
+	case flags.BlobsType:
+	default:
+		return fmt.Errorf("unknown data availability type: %v", c.DataAvailabilityType)
+	}
 	if err := c.MetricsConfig.Check(); err != nil {
 		return err
 	}
@@ -119,6 +128,7 @@ func NewConfig(ctx *cli.Context) *CLIConfig {
 		MaxL1TxSize:            ctx.Uint64(flags.MaxL1TxSizeBytesFlag.Name),
 		Stopped:                ctx.Bool(flags.StoppedFlag.Name),
 		BatchType:              ctx.Uint(flags.BatchTypeFlag.Name),
+		DataAvailabilityType:   ctx.String(flags.DataAvailabilityTypeFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
 		LogConfig:              oplog.ReadCLIConfig(ctx),
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),

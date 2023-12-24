@@ -349,28 +349,61 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 		return err
 	}
 
-	l.sendTransaction(txdata, queue, receiptsCh)
+	if err = l.sendTransaction(txdata, queue, receiptsCh); err != nil {
+		return fmt.Errorf("BatchSubmitter.sendTransaction failed: %w", err)
+	}
 	return nil
 }
 
-// sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// sendTransaction creates & submits a transaction to the batch inbox address with the given `txData`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
+func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
-	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
-	if err != nil {
-		l.Log.Error("Failed to calculate intrinsic gas", "err", err)
-		return
+
+	var candidate *txmgr.TxCandidate
+	if l.Config.UseBlobs {
+		var err error
+		if candidate, err = l.blobTxCandidate(data); err != nil {
+			// We could potentially fall through and try a calldata tx instead, but this would
+			// likely result in the chain spending more in gas fees than it is tuned for, so best
+			// to just fail. We do not expect this error to trigger unless there is a serious bug
+			// or configuration issue.
+			return fmt.Errorf("could not create blob tx candidate: %w", err)
+		}
+	} else {
+		candidate = l.calldataTxCandidate(data)
 	}
 
-	candidate := txmgr.TxCandidate{
-		To:       &l.RollupConfig.BatchInboxAddress,
-		TxData:   data,
-		GasLimit: intrinsicGas,
+	intrinsicGas, err := core.IntrinsicGas(candidate.TxData, nil, false, true, true, false)
+	if err != nil {
+		// we log instead of return an error here because txmgr can do its own gas estimation
+		l.Log.Error("Failed to calculate intrinsic gas", "err", err)
+	} else {
+		candidate.GasLimit = intrinsicGas
 	}
-	queue.Send(txdata, candidate, receiptsCh)
+
+	queue.Send(txdata, *candidate, receiptsCh)
+	return nil
+}
+
+func (l *BatchSubmitter) blobTxCandidate(data []byte) (*txmgr.TxCandidate, error) {
+	var b eth.Blob
+	if err := b.FromData(data); err != nil {
+		return nil, fmt.Errorf("data could not be converted to blob: %w", err)
+	}
+	return &txmgr.TxCandidate{
+		To:    &l.RollupConfig.BatchInboxAddress,
+		Blobs: []*eth.Blob{&b},
+	}, nil
+}
+
+func (l *BatchSubmitter) calldataTxCandidate(data []byte) *txmgr.TxCandidate {
+	return &txmgr.TxCandidate{
+		To:     &l.RollupConfig.BatchInboxAddress,
+		TxData: data,
+	}
 }
 
 func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {

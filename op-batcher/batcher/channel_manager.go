@@ -209,6 +209,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		"l1Head", l1Head,
 		"blocks_pending", len(s.blocks),
 		"batch_type", s.cfg.BatchType,
+		"max_frame_size", s.cfg.MaxFrameSize,
 	)
 	s.metr.RecordChannelOpened(pc.ID(), len(s.blocks))
 
