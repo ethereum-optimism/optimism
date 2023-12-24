@@ -475,7 +475,7 @@ func OptimismMintableERC20Factory(batch *safe.Batch, implementations superchain.
 	}
 
 	proxyAdmin := common.HexToAddress(list.ProxyAdmin.String())
-	if err := batch.AddCall(proxyAdmin, common.Big0, upgrade, args, proxyAdminABI); err != nil {
+	if err := batch.AddCall(proxyAdmin, common.Big0, upgradeAndCall, args, proxyAdminABI); err != nil {
 		return err
 	}
 
