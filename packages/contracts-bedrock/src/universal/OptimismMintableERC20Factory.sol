@@ -17,6 +17,9 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
     /// @custom:network-specific
     address public bridge;
 
+    /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+    uint256[48] private __gap;
+
     /// @custom:legacy
     /// @notice Emitted whenever a new OptimismMintableERC20 is created. Legacy version of the newer
     ///         OptimismMintableERC20Created event. We recommend relying on that event instead.
@@ -37,7 +40,6 @@ contract OptimismMintableERC20Factory is ISemver, Initializable {
     /// @custom:semver 1.9.0
     string public constant version = "1.9.0";
 
-    /// @notice Constructs the L1StandardBridge contract.
     constructor() {
         initialize({ _bridge: address(0) });
     }
