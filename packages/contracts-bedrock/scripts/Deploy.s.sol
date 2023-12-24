@@ -522,7 +522,7 @@ contract Deploy is Deployer {
             _cfg: cfg,
             _l2OutputOracleStartingBlockNumber: 0,
             _l2OutputOracleStartingTimestamp: 0,
-            _isInitialized: false
+            _isProxy: false
         });
 
         require(loadInitializedSlot("L2OutputOracle") == 1, "L2OutputOracle is not initialized");
@@ -900,7 +900,7 @@ contract Deploy is Deployer {
             _cfg: cfg,
             _l2OutputOracleStartingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
             _l2OutputOracleStartingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
-            _isInitialized: true
+            _isProxy: true
         });
 
         require(loadInitializedSlot("L2OutputOracleProxy") == 1, "L2OutputOracleProxy is not initialized");
