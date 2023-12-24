@@ -125,32 +125,32 @@ contract OptimismPortal is Initializable, ResourceMetering, ISemver {
         __ResourceMetering_init();
     }
 
-    /// @notice Getter function for the contract of the L2OutputOracle on this chain. This will be removed
-    /// in the future, use `l2Oracle()` instead.
+    /// @notice Getter function for the contract of the L2OutputOracle on this chain.
+    ///         Public getter is legacy and will be removed in the future. Use `l2Oracle()` instead.
     /// @return Contract of the L2OutputOracle on this chain.
     /// @custom:legacy
     function L2_ORACLE() external view returns (L2OutputOracle) {
         return l2Oracle;
     }
 
-    /// @notice Getter function for the contract of the SystemConfig on this chain. This will be removed
-    /// in the future, use `systemConfig()` instead.
+    /// @notice Getter function for the contract of the SystemConfig on this chain.
+    ///         Public getter is legacy and will be removed in the future. Use `systemConfig()` instead.
     /// @return Contract of the SystemConfig on this chain.
     /// @custom:legacy
     function SYSTEM_CONFIG() external view returns (SystemConfig) {
         return systemConfig;
     }
 
-    /// @notice Getter function for the address of the guardian. This will be removed in the future, use
-    /// `SuperchainConfig.guardian()` instead.
+    /// @notice Getter function for the address of the guardian.
+    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.guardian()` instead.
     /// @return Address of the guardian.
     /// @custom:legacy
     function GUARDIAN() external view returns (address) {
         return guardian();
     }
 
-    /// @notice Getter function for the address of the guardian. This will be removed in the future, use
-    /// `SuperchainConfig.guardian()` instead.
+    /// @notice Getter function for the address of the guardian.
+    ///         Public getter is legacy and will be removed in the future. Use `SuperchainConfig.guardian()` instead.
     /// @return Address of the guardian.
     /// @custom:legacy
     function guardian() public view returns (address) {
