@@ -317,7 +317,7 @@ abstract contract CrossDomainMessenger is
     }
 
     /// @notice Retrieves the address of the paired CrossDomainMessenger contract on the other chain
-    ///         This will be removed in the future, use `otherMessenger()` instead.
+    ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return Address of the paired CrossDomainMessenger contract on the other chain.
     /// @custom:legacy
     function OTHER_MESSENGER() public view returns (address) {

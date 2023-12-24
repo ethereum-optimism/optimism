@@ -30,10 +30,10 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, ISemver {
         __CrossDomainMessenger_init({ _otherMessenger: _l1CrossDomainMessenger });
     }
 
-    /// @custom:legacy
-    /// @notice Legacy getter for the remote messenger.
-    ///         Use otherMessenger going forward.
+    /// @notice Getter for the remote messenger.
+    ///         Public getter is legacy and will be removed in the future. Use `otherMessenger()` instead.
     /// @return Address of the L1CrossDomainMessenger contract.
+    /// @custom:legacy
     function l1CrossDomainMessenger() public view returns (address) {
         return otherMessenger;
     }
