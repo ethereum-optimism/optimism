@@ -28,24 +28,24 @@
     "type": "address"
   },
   {
-    "bytes": "1536",
+    "bytes": "1504",
     "label": "__gap",
     "offset": 0,
     "slot": "2",
-    "type": "uint256[48]"
+    "type": "uint256[47]"
   },
   {
     "bytes": "32",
     "label": "deposits",
     "offset": 0,
-    "slot": "50",
+    "slot": "49",
     "type": "mapping(address => mapping(address => mapping(uint256 => bool)))"
   },
   {
     "bytes": "20",
     "label": "superchainConfig",
     "offset": 0,
-    "slot": "51",
+    "slot": "50",
     "type": "contract SuperchainConfig"
   }
 ]
