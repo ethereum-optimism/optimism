@@ -18,8 +18,6 @@ const (
 	// upgradeAndCall represents the signature of the upgradeAndCall function
 	// on the ProxyAdmin contract.
 	upgradeAndCall = "upgradeAndCall(address,address,bytes)"
-	// upgrade represents the signature of the upgrade function on the ProxyAdmin contract.
-	upgrade = "upgrade(address,address)"
 
 	method = "setBytes32"
 )
