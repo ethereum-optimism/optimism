@@ -46,7 +46,7 @@ library ChainAssertions {
             _cfg: _cfg,
             _l2OutputOracleStartingBlockNumber: _l2OutputOracleStartingBlockNumber,
             _l2OutputOracleStartingTimestamp: _l2OutputOracleStartingTimestamp,
-            _isInitialized: true
+            _isProxy: true
         });
         checkOptimismMintableERC20Factory(_prox);
         checkL1ERC721Bridge({ _contracts: _prox, _isProxy: true });
@@ -120,7 +120,7 @@ library ChainAssertions {
         DeployConfig _cfg,
         uint256 _l2OutputOracleStartingBlockNumber,
         uint256 _l2OutputOracleStartingTimestamp,
-        bool _isInitialized
+        bool _isProxy
     )
         internal
         view
@@ -128,19 +128,19 @@ library ChainAssertions {
         console.log("Running chain assertions on the L2OutputOracle");
         L2OutputOracle oracle = L2OutputOracle(_contracts.L2OutputOracle);
 
-        if (!_isInitialized) {
+        if (!_isProxy) {
             require(oracle.SUBMISSION_INTERVAL() == 120);
             require(oracle.submissionInterval() == 120);
             require(oracle.L2_BLOCK_TIME() == 12);
             require(oracle.l2BlockTime() == 12);
-            require(oracle.startingBlockNumber() == 0);
-            require(oracle.startingTimestamp() == block.timestamp);
             require(oracle.PROPOSER() == address(0));
             require(oracle.proposer() == address(0));
             require(oracle.CHALLENGER() == address(0));
             require(oracle.challenger() == address(0));
             require(oracle.FINALIZATION_PERIOD_SECONDS() == 12);
             require(oracle.finalizationPeriodSeconds() == 12);
+            require(oracle.startingBlockNumber() == 0);
+            require(oracle.startingTimestamp() == block.timestamp);
         } else {
             require(oracle.SUBMISSION_INTERVAL() == _cfg.l2OutputOracleSubmissionInterval());
             require(oracle.submissionInterval() == _cfg.l2OutputOracleSubmissionInterval());
