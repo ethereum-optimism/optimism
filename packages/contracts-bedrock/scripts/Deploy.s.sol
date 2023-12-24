@@ -566,7 +566,7 @@ contract Deploy is Deployer {
         // are always proxies.
         Types.ContractSet memory contracts = _proxiesUnstrict();
         contracts.OptimismMintableERC20Factory = address(factory);
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isInitialized: false });
+        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: contracts, _isProxy: false });
 
         addr_ = address(factory);
     }
@@ -841,7 +841,7 @@ contract Deploy is Deployer {
         string memory version = factory.version();
         console.log("OptimismMintableERC20Factory version: %s", version);
 
-        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: _proxies(), _isInitialized: true });
+        ChainAssertions.checkOptimismMintableERC20Factory({ _contracts: _proxies(), _isProxy: true });
     }
 
     /// @notice initializeL1CrossDomainMessenger
