@@ -1063,7 +1063,7 @@
     "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#278-361) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#358)\n",
     "type": "function",
     "name": "finalizeWithdrawalTransaction",
-    "start": 13076,
+    "start": 13200,
     "length": 4839,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
@@ -1075,7 +1075,7 @@
     "description": "OptimismPortal.finalizeWithdrawalTransaction(Types.WithdrawalTransaction) (src/L1/OptimismPortal.sol#278-361) uses tx.origin for authorization: success == false && tx.origin == Constants.ESTIMATION_ADDRESS (src/L1/OptimismPortal.sol#358)\n",
     "type": "node",
     "name": "success == false && tx.origin == Constants.ESTIMATION_ADDRESS",
-    "start": 17778,
+    "start": 17902,
     "length": 61,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
@@ -1195,7 +1195,7 @@
     "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#337)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#349)\n",
     "type": "node",
     "name": "l2Sender = _tx.sender",
-    "start": 16479,
+    "start": 16603,
     "length": 21,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
@@ -1207,7 +1207,7 @@
     "description": "OptimismPortal.l2Sender (src/L1/OptimismPortal.sol#43) is written in both\n\tl2Sender = _tx.sender (src/L1/OptimismPortal.sol#337)\n\tl2Sender = Constants.DEFAULT_L2_SENDER (src/L1/OptimismPortal.sol#349)\n",
     "type": "node",
     "name": "l2Sender = Constants.DEFAULT_L2_SENDER",
-    "start": 17273,
+    "start": 17397,
     "length": 38,
     "filename_relative": "src/L1/OptimismPortal.sol"
   },
