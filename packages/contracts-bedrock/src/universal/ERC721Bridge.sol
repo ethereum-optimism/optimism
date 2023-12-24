@@ -71,6 +71,7 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /// @notice Legacy getter for messenger contract.
+    ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
     /// @return Messenger contract on this domain.
     /// @custom:legacy
     function MESSENGER() external view returns (CrossDomainMessenger) {
@@ -78,6 +79,7 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /// @notice Legacy getter for other bridge address.
+    ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
     /// @return Address of the bridge on the other network.
     /// @custom:legacy
     function OTHER_BRIDGE() external view returns (address) {
