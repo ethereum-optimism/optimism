@@ -16,7 +16,7 @@
     "sourceCodeHash": "0x21cc2f7719a284361179b3d189cb796b9c1de78b64b5d86f22c3c50d22d69391"
   },
   "src/L1/L1ERC721Bridge.sol": {
-    "initCodeHash": "0x83c8a92daedac36eb6e95cb54f9c969589b2438edc55ce374155904c625e08c1",
+    "initCodeHash": "0x58f4342e4cc65c5e0ac0262358da2a5fe73d6165dfba0164ab1a29748afa6522",
     "sourceCodeHash": "0x73958e22c9b8fa9dae0d49f7db136abb6c5368bd94a0d17a88a823ec27527caa"
   },
   "src/L1/L1StandardBridge.sol": {
