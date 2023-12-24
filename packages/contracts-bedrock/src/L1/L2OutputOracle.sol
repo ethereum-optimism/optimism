@@ -111,6 +111,7 @@ contract L2OutputOracle is Initializable, ISemver {
     }
 
     /// @notice Getter for the submissionInterval.
+    ///         Public getter is legacy and will be removed in the future. Use `submissionInterval` instead.
     /// @return Submission interval.
     /// @custom:legacy
     function SUBMISSION_INTERVAL() external view returns (uint256) {
@@ -118,6 +119,7 @@ contract L2OutputOracle is Initializable, ISemver {
     }
 
     /// @notice Getter for the l2BlockTime.
+    ///         Public getter is legacy and will be removed in the future. Use `l2BlockTime` instead.
     /// @return L2 block time.
     /// @custom:legacy
     function L2_BLOCK_TIME() external view returns (uint256) {
@@ -125,6 +127,7 @@ contract L2OutputOracle is Initializable, ISemver {
     }
 
     /// @notice Getter for the challenger address.
+    ///         Public getter is legacy and will be removed in the future. Use `challenger` instead.
     /// @return Address of the challenger.
     /// @custom:legacy
     function CHALLENGER() external view returns (address) {
@@ -132,6 +135,7 @@ contract L2OutputOracle is Initializable, ISemver {
     }
 
     /// @notice Getter for the proposer address.
+    ///         Public getter is legacy and will be removed in the future. Use `proposer` instead.
     /// @return Address of the proposer.
     /// @custom:legacy
     function PROPOSER() external view returns (address) {
@@ -139,6 +143,7 @@ contract L2OutputOracle is Initializable, ISemver {
     }
 
     /// @notice Getter for the finalizationPeriodSeconds.
+    ///         Public getter is legacy and will be removed in the future. Use `finalizationPeriodSeconds` instead.
     /// @return Finalization period in seconds.
     /// @custom:legacy
     function FINALIZATION_PERIOD_SECONDS() external view returns (uint256) {
