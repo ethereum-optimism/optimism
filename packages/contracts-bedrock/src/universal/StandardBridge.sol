@@ -44,10 +44,9 @@ abstract contract StandardBridge is Initializable {
     StandardBridge public otherBridge;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    ///         A gap size of 47 was chosen here, so that the first slot used in a child contract
+    ///         A gap size of 45 was chosen here, so that the first slot used in a child contract
     ///         would be a multiple of 50.
-    // TODO: should 46 be used as in https://github.com/ethereum-optimism/optimism/pull/6573 ?
-    uint256[47] private __gap;
+    uint256[45] private __gap;
 
     /// @notice Emitted when an ETH bridge is initiated to the other chain.
     /// @param from      Address of the sender.
