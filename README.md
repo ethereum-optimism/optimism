@@ -28,7 +28,7 @@ Governance discussion can also be found on the [Optimism Governance Forum](https
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of the contributing process for this repository.
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
-Then check out the list of [Good First Issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
+Then check out the list of [Good First Issues](https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue) to find something fun to work on!
 Typo fixes are welcome; however, please create a single commit with all of the typo fixes & batch as many fixes together in a PR as possible. Spammy PRs will be closed.
 
 ## Security Policy and Vulnerability Reporting
