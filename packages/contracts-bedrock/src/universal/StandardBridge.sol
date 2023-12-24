@@ -132,6 +132,7 @@ abstract contract StandardBridge is Initializable {
     receive() external payable virtual;
 
     /// @notice Getter for messenger contract.
+    ///         Public getter is legacy and will be removed in the future. Use `messenger` instead.
     /// @return Contract of the messenger on this domain.
     /// @custom:legacy
     function MESSENGER() external view returns (CrossDomainMessenger) {
@@ -139,6 +140,7 @@ abstract contract StandardBridge is Initializable {
     }
 
     /// @notice Getter for the other bridge contract.
+    ///         Public getter is legacy and will be removed in the future. Use `otherBridge` instead.
     /// @return Contract of the bridge on the other network.
     /// @custom:legacy
     function OTHER_BRIDGE() external view returns (StandardBridge) {
