@@ -25,7 +25,7 @@
   },
   "src/L1/L2OutputOracle.sol": {
     "initCodeHash": "0xfdb2065c9932a1fabc3b6afa8fa41ce9ae02bc2aa2c2b449132f56dad86058c3",
-    "sourceCodeHash": "0x2630c303827df5b6b2129cd778dc79b3139f734c88e3acfa47154b841cc0bb22"
+    "sourceCodeHash": "0xb3bd2629ecc64d270e687985dce32b2aaeff0ed1e261cc26fae6475543788dc3"
   },
   "src/L1/OptimismPortal.sol": {
     "initCodeHash": "0xaa4733b87fab3a3a0700128cab3e272c02064f38fb0080251566cacefe5d7908",
