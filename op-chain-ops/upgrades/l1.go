@@ -193,7 +193,7 @@ func L1ERC721Bridge(batch *safe.Batch, implementations superchain.Implementation
 	var messenger, otherBridge common.Address
 	if config != nil {
 		messenger = common.HexToAddress(list.L1CrossDomainMessengerProxy.String())
-		otherBridge = common.HexToAddress(list.L1StandardBridgeProxy.String())
+		otherBridge = predeploys.L2ERC721BridgeAddr
 	} else {
 		l1ERC721Bridge, err := bindings.NewL1ERC721BridgeCaller(common.HexToAddress(list.L1ERC721BridgeProxy.String()), backend)
 		if err != nil {
