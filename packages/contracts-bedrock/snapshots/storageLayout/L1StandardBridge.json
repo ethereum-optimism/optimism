@@ -49,17 +49,17 @@
     "type": "contract StandardBridge"
   },
   {
-    "bytes": "1504",
+    "bytes": "1440",
     "label": "__gap",
     "offset": 0,
     "slot": "5",
-    "type": "uint256[47]"
+    "type": "uint256[45]"
   },
   {
     "bytes": "20",
     "label": "superchainConfig",
     "offset": 0,
-    "slot": "52",
+    "slot": "50",
     "type": "contract SuperchainConfig"
   }
 ]
