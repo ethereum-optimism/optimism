@@ -146,6 +146,16 @@ contract Initializer_Test is Bridge_Initializer {
                             minimumBaseFee: 0,
                             systemTxMaxGas: 0,
                             maximumBaseFee: 0
+                        }),
+                        0, //_startBlock
+                        address(0), // _batchInbox
+                        SystemConfig.Addresses({ // _addrs
+                            l1CrossDomainMessenger: address(0),
+                            l1ERC721Bridge: address(0),
+                            l1StandardBridge: address(0),
+                            l2OutputOracle: address(0),
+                            optimismPortal: address(0),
+                            optimismMintableERC20Factory: address(0)
                         })
                     )
                     ),
