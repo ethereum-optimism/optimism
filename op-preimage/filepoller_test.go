@@ -1,18 +1,20 @@
-package preimage
+package preimage_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestFilePoller_Read(t *testing.T) {
-	chanA, chanB, err := CreateBidirectionalChannel()
+	chanA, chanB, err := preimage.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	ctx := context.Background()
-	chanAPoller := NewFilePoller(ctx, chanA, time.Millisecond*100)
+	chanAPoller := preimage.NewFilePoller(ctx, chanA, time.Millisecond*100)
 
 	go func() {
 		_, _ = chanB.Write([]byte("hello"))
@@ -26,10 +28,10 @@ func TestFilePoller_Read(t *testing.T) {
 }
 
 func TestFilePoller_Write(t *testing.T) {
-	chanA, chanB, err := CreateBidirectionalChannel()
+	chanA, chanB, err := preimage.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	ctx := context.Background()
-	chanAPoller := NewFilePoller(ctx, chanA, time.Millisecond*100)
+	chanAPoller := preimage.NewFilePoller(ctx, chanA, time.Millisecond*100)
 
 	bufch := make(chan []byte, 1)
 	go func() {
@@ -53,10 +55,10 @@ func TestFilePoller_Write(t *testing.T) {
 }
 
 func TestFilePoller_ReadCancel(t *testing.T) {
-	chanA, chanB, err := CreateBidirectionalChannel()
+	chanA, chanB, err := preimage.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
-	chanAPoller := NewFilePoller(ctx, chanA, time.Millisecond*100)
+	chanAPoller := preimage.NewFilePoller(ctx, chanA, time.Millisecond*100)
 
 	go func() {
 		_, _ = chanB.Write([]byte("hello"))
@@ -69,10 +71,10 @@ func TestFilePoller_ReadCancel(t *testing.T) {
 }
 
 func TestFilePoller_WriteCancel(t *testing.T) {
-	chanA, chanB, err := CreateBidirectionalChannel()
+	chanA, chanB, err := preimage.CreateBidirectionalChannel()
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
-	chanAPoller := NewFilePoller(ctx, chanA, time.Millisecond*100)
+	chanAPoller := preimage.NewFilePoller(ctx, chanA, time.Millisecond*100)
 
 	go func() {
 		var buf [5]byte

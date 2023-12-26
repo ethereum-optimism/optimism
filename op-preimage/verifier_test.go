@@ -1,20 +1,22 @@
-package preimage
+package preimage_test
 
 import (
 	"errors"
 	"testing"
+
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestWithVerification(t *testing.T) {
 	validData := []byte{1, 2, 3, 4, 5, 6}
-	keccak256Key := Keccak256Key(Keccak256(validData))
+	keccak256Key := preimage.Keccak256Key(preimage.Keccak256(validData))
 	anError := errors.New("boom")
 
 	tests := []struct {
 		name         string
-		key          Key
+		key          preimage.Key
 		data         []byte
 		err          error
 		expectedErr  error
@@ -22,7 +24,7 @@ func TestWithVerification(t *testing.T) {
 	}{
 		{
 			name:         "LocalKey NoVerification",
-			key:          LocalIndexKey(1),
+			key:          preimage.LocalIndexKey(1),
 			data:         []byte{4, 3, 5, 7, 3},
 			expectedData: []byte{4, 3, 5, 7, 3},
 		},
@@ -43,26 +45,26 @@ func TestWithVerification(t *testing.T) {
 			name:        "Keccak256 InvalidData",
 			key:         keccak256Key,
 			data:        []byte{6, 7, 8},
-			expectedErr: ErrIncorrectData,
+			expectedErr: preimage.ErrIncorrectData,
 		},
 		{
 			name:        "EmptyData",
 			key:         keccak256Key,
 			data:        []byte{},
-			expectedErr: ErrIncorrectData,
+			expectedErr: preimage.ErrIncorrectData,
 		},
 		{
 			name:        "UnknownKey",
 			key:         invalidKey([32]byte{0xaa}),
 			data:        []byte{},
-			expectedErr: ErrUnsupportedKeyType,
+			expectedErr: preimage.ErrUnsupportedKeyType,
 		},
 	}
 
 	for _, test := range tests {
-		test := test
+		//test := test
 		t.Run(test.name, func(t *testing.T) {
-			source := WithVerification(func(key [32]byte) ([]byte, error) {
+			source := preimage.WithVerification(func(key [32]byte) ([]byte, error) {
 				return test.data, test.err
 			})
 			actual, err := source(test.key.PreimageKey())

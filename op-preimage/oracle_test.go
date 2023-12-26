@@ -1,4 +1,4 @@
-package preimage
+package preimage_test
 
 import (
 	"bytes"
@@ -7,6 +7,8 @@ import (
 	"io"
 	"sync"
 	"testing"
+
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 
 	"github.com/stretchr/testify/require"
 )
@@ -25,21 +27,21 @@ func bidirectionalPipe() (a, b io.ReadWriter) {
 func TestOracle(t *testing.T) {
 	testPreimage := func(preimages ...[]byte) {
 		a, b := bidirectionalPipe()
-		cl := NewOracleClient(a)
-		srv := NewOracleServer(b)
+		cl := preimage.NewOracleClient(a)
+		srv := preimage.NewOracleServer(b)
 
 		preimageByHash := make(map[[32]byte][]byte)
 		for _, p := range preimages {
-			k := Keccak256Key(Keccak256(p))
+			k := preimage.Keccak256Key(preimage.Keccak256(p))
 			preimageByHash[k.PreimageKey()] = p
 		}
 		for _, p := range preimages {
-			k := Keccak256Key(Keccak256(p))
+			k := preimage.Keccak256Key(preimage.Keccak256(p))
 
 			var wg sync.WaitGroup
 			wg.Add(2)
 
-			go func(k Key, p []byte) {
+			go func(k preimage.Key, p []byte) {
 				result := cl.Get(k)
 				wg.Done()
 				expected := preimageByHash[k.PreimageKey()]

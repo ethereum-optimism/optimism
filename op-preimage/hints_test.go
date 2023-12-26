@@ -1,4 +1,4 @@
-package preimage
+package preimage_test
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +29,7 @@ func TestHints(t *testing.T) {
 		wg.Add(2)
 
 		go func() {
-			hw := NewHintWriter(a)
+			hw := preimage.NewHintWriter(a)
 			for _, h := range hints {
 				hw.Hint(rawHint(h))
 			}
@@ -37,7 +39,7 @@ func TestHints(t *testing.T) {
 		got := make(chan string, len(hints))
 		go func() {
 			defer wg.Done()
-			hr := NewHintReader(b)
+			hr := preimage.NewHintReader(b)
 			for i := 0; i < len(hints); i++ {
 				err := hr.NextHint(func(hint string) error {
 					got <- hint
@@ -81,10 +83,10 @@ func TestHints(t *testing.T) {
 	})
 	t.Run("unexpected EOF", func(t *testing.T) {
 		var buf bytes.Buffer
-		hw := NewHintWriter(&buf)
+		hw := preimage.NewHintWriter(&buf)
 		hw.Hint(rawHint("hello"))
 		_, _ = buf.Read(make([]byte, 1)) // read one byte so it falls short, see if it's detected
-		hr := NewHintReader(&buf)
+		hr := preimage.NewHintReader(&buf)
 		err := hr.NextHint(func(hint string) error { return nil })
 		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
 	})
@@ -94,14 +96,14 @@ func TestHints(t *testing.T) {
 		wg.Add(2)
 
 		go func() {
-			hw := NewHintWriter(a)
+			hw := preimage.NewHintWriter(a)
 			hw.Hint(rawHint("one"))
 			hw.Hint(rawHint("two"))
 			wg.Done()
 		}()
 		go func() {
 			defer wg.Done()
-			hr := NewHintReader(b)
+			hr := preimage.NewHintReader(b)
 			cbErr := errors.New("fail")
 			err := hr.NextHint(func(hint string) error { return cbErr })
 			require.ErrorIs(t, err, cbErr)
