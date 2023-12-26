@@ -38,6 +38,16 @@ type ResourceMeteringResourceConfig struct {
 	MaximumBaseFee              *big.Int
 }
 
+// SystemConfigAddresses is an auto generated low-level Go binding around an user-defined struct.
+type SystemConfigAddresses struct {
+	L1CrossDomainMessenger       common.Address
+	L1ERC721Bridge               common.Address
+	L1StandardBridge             common.Address
+	L2OutputOracle               common.Address
+	OptimismPortal               common.Address
+	OptimismMintableERC20Factory common.Address
+}
+
 // SystemConfigMetaData contains all meta data concerning the SystemConfig contract.
 var SystemConfigMetaData = &bind.MetaData{
 	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_overhead\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_scalar\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_batcherHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_gasLimit\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"_unsafeBlockSigner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_config\",\"type\":\"tuple\",\"internalType\":\"structResourceMetering.ResourceConfig\",\"components\":[{\"name\":\"maxResourceLimit\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"elasticityMultiplier\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"minimumBaseFee\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"systemTxMaxGas\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"maximumBaseFee\",\"type\":\"uint128\",\"internalType\":\"uint128\"}]}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"UNSAFE_BLOCK_SIGNER_SLOT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"batcherHash\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"gasLimit\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"_owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_overhead\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_scalar\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_batcherHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"_gasLimit\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"_unsafeBlockSigner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_config\",\"type\":\"tuple\",\"internalType\":\"structResourceMetering.ResourceConfig\",\"components\":[{\"name\":\"maxResourceLimit\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"elasticityMultiplier\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"minimumBaseFee\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"systemTxMaxGas\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"maximumBaseFee\",\"type\":\"uint128\",\"internalType\":\"uint128\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"minimumGasLimit\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"overhead\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"owner\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"renounceOwnership\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"resourceConfig\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structResourceMetering.ResourceConfig\",\"components\":[{\"name\":\"maxResourceLimit\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"elasticityMultiplier\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"minimumBaseFee\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"systemTxMaxGas\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"maximumBaseFee\",\"type\":\"uint128\",\"internalType\":\"uint128\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"scalar\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setBatcherHash\",\"inputs\":[{\"name\":\"_batcherHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setGasConfig\",\"inputs\":[{\"name\":\"_overhead\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"_scalar\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setGasLimit\",\"inputs\":[{\"name\":\"_gasLimit\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setResourceConfig\",\"inputs\":[{\"name\":\"_config\",\"type\":\"tuple\",\"internalType\":\"structResourceMetering.ResourceConfig\",\"components\":[{\"name\":\"maxResourceLimit\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"elasticityMultiplier\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"minimumBaseFee\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"systemTxMaxGas\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"maximumBaseFee\",\"type\":\"uint128\",\"internalType\":\"uint128\"}]}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setUnsafeBlockSigner\",\"inputs\":[{\"name\":\"_unsafeBlockSigner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"transferOwnership\",\"inputs\":[{\"name\":\"newOwner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"unsafeBlockSigner\",\"inputs\":[],\"outputs\":[{\"name\":\"addr_\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"ConfigUpdate\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"updateType\",\"type\":\"uint8\",\"indexed\":true,\"internalType\":\"enumSystemConfig.UpdateType\"},{\"name\":\"data\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OwnershipTransferred\",\"inputs\":[{\"name\":\"previousOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"newOwner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false}]",
@@ -53,7 +63,7 @@ var SystemConfigABI = SystemConfigMetaData.ABI
 var SystemConfigBin = SystemConfigMetaData.Bin
 
 // DeploySystemConfig deploys a new Ethereum contract, binding an instance of SystemConfig to it.
-func DeploySystemConfig(auth *bind.TransactOpts, backend bind.ContractBackend, _owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig) (common.Address, *types.Transaction, *SystemConfig, error) {
+func DeploySystemConfig(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *SystemConfig, error) {
 	parsed, err := SystemConfigMetaData.GetAbi()
 	if err != nil {
 		return common.Address{}, nil, nil, err
@@ -62,7 +72,7 @@ func DeploySystemConfig(auth *bind.TransactOpts, backend bind.ContractBackend, _
 		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
 	}
 
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(SystemConfigBin), backend, _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config)
+	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(SystemConfigBin), backend)
 	if err != nil {
 		return common.Address{}, nil, nil, err
 	}
@@ -211,6 +221,223 @@ func (_SystemConfig *SystemConfigTransactorRaw) Transact(opts *bind.TransactOpts
 	return _SystemConfig.Contract.contract.Transact(opts, method, params...)
 }
 
+// BATCHINBOXSLOT is a free data retrieval call binding the contract method 0xbc49ce5f.
+//
+// Solidity: function BATCH_INBOX_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) BATCHINBOXSLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "BATCH_INBOX_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// BATCHINBOXSLOT is a free data retrieval call binding the contract method 0xbc49ce5f.
+//
+// Solidity: function BATCH_INBOX_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) BATCHINBOXSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.BATCHINBOXSLOT(&_SystemConfig.CallOpts)
+}
+
+// BATCHINBOXSLOT is a free data retrieval call binding the contract method 0xbc49ce5f.
+//
+// Solidity: function BATCH_INBOX_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) BATCHINBOXSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.BATCHINBOXSLOT(&_SystemConfig.CallOpts)
+}
+
+// L1CROSSDOMAINMESSENGERSLOT is a free data retrieval call binding the contract method 0x5d73369c.
+//
+// Solidity: function L1_CROSS_DOMAIN_MESSENGER_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) L1CROSSDOMAINMESSENGERSLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "L1_CROSS_DOMAIN_MESSENGER_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// L1CROSSDOMAINMESSENGERSLOT is a free data retrieval call binding the contract method 0x5d73369c.
+//
+// Solidity: function L1_CROSS_DOMAIN_MESSENGER_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) L1CROSSDOMAINMESSENGERSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L1CROSSDOMAINMESSENGERSLOT(&_SystemConfig.CallOpts)
+}
+
+// L1CROSSDOMAINMESSENGERSLOT is a free data retrieval call binding the contract method 0x5d73369c.
+//
+// Solidity: function L1_CROSS_DOMAIN_MESSENGER_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) L1CROSSDOMAINMESSENGERSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L1CROSSDOMAINMESSENGERSLOT(&_SystemConfig.CallOpts)
+}
+
+// L1ERC721BRIDGESLOT is a free data retrieval call binding the contract method 0x19f5cea8.
+//
+// Solidity: function L1_ERC_721_BRIDGE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) L1ERC721BRIDGESLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "L1_ERC_721_BRIDGE_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// L1ERC721BRIDGESLOT is a free data retrieval call binding the contract method 0x19f5cea8.
+//
+// Solidity: function L1_ERC_721_BRIDGE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) L1ERC721BRIDGESLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L1ERC721BRIDGESLOT(&_SystemConfig.CallOpts)
+}
+
+// L1ERC721BRIDGESLOT is a free data retrieval call binding the contract method 0x19f5cea8.
+//
+// Solidity: function L1_ERC_721_BRIDGE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) L1ERC721BRIDGESLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L1ERC721BRIDGESLOT(&_SystemConfig.CallOpts)
+}
+
+// L1STANDARDBRIDGESLOT is a free data retrieval call binding the contract method 0xf8c68de0.
+//
+// Solidity: function L1_STANDARD_BRIDGE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) L1STANDARDBRIDGESLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "L1_STANDARD_BRIDGE_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// L1STANDARDBRIDGESLOT is a free data retrieval call binding the contract method 0xf8c68de0.
+//
+// Solidity: function L1_STANDARD_BRIDGE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) L1STANDARDBRIDGESLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L1STANDARDBRIDGESLOT(&_SystemConfig.CallOpts)
+}
+
+// L1STANDARDBRIDGESLOT is a free data retrieval call binding the contract method 0xf8c68de0.
+//
+// Solidity: function L1_STANDARD_BRIDGE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) L1STANDARDBRIDGESLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L1STANDARDBRIDGESLOT(&_SystemConfig.CallOpts)
+}
+
+// L2OUTPUTORACLESLOT is a free data retrieval call binding the contract method 0x61d15768.
+//
+// Solidity: function L2_OUTPUT_ORACLE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) L2OUTPUTORACLESLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "L2_OUTPUT_ORACLE_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// L2OUTPUTORACLESLOT is a free data retrieval call binding the contract method 0x61d15768.
+//
+// Solidity: function L2_OUTPUT_ORACLE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) L2OUTPUTORACLESLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L2OUTPUTORACLESLOT(&_SystemConfig.CallOpts)
+}
+
+// L2OUTPUTORACLESLOT is a free data retrieval call binding the contract method 0x61d15768.
+//
+// Solidity: function L2_OUTPUT_ORACLE_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) L2OUTPUTORACLESLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.L2OUTPUTORACLESLOT(&_SystemConfig.CallOpts)
+}
+
+// OPTIMISMMINTABLEERC20FACTORYSLOT is a free data retrieval call binding the contract method 0x06c92657.
+//
+// Solidity: function OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) OPTIMISMMINTABLEERC20FACTORYSLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// OPTIMISMMINTABLEERC20FACTORYSLOT is a free data retrieval call binding the contract method 0x06c92657.
+//
+// Solidity: function OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) OPTIMISMMINTABLEERC20FACTORYSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.OPTIMISMMINTABLEERC20FACTORYSLOT(&_SystemConfig.CallOpts)
+}
+
+// OPTIMISMMINTABLEERC20FACTORYSLOT is a free data retrieval call binding the contract method 0x06c92657.
+//
+// Solidity: function OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) OPTIMISMMINTABLEERC20FACTORYSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.OPTIMISMMINTABLEERC20FACTORYSLOT(&_SystemConfig.CallOpts)
+}
+
+// OPTIMISMPORTALSLOT is a free data retrieval call binding the contract method 0xfd32aa0f.
+//
+// Solidity: function OPTIMISM_PORTAL_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCaller) OPTIMISMPORTALSLOT(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "OPTIMISM_PORTAL_SLOT")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// OPTIMISMPORTALSLOT is a free data retrieval call binding the contract method 0xfd32aa0f.
+//
+// Solidity: function OPTIMISM_PORTAL_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigSession) OPTIMISMPORTALSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.OPTIMISMPORTALSLOT(&_SystemConfig.CallOpts)
+}
+
+// OPTIMISMPORTALSLOT is a free data retrieval call binding the contract method 0xfd32aa0f.
+//
+// Solidity: function OPTIMISM_PORTAL_SLOT() view returns(bytes32)
+func (_SystemConfig *SystemConfigCallerSession) OPTIMISMPORTALSLOT() ([32]byte, error) {
+	return _SystemConfig.Contract.OPTIMISMPORTALSLOT(&_SystemConfig.CallOpts)
+}
+
 // UNSAFEBLOCKSIGNERSLOT is a free data retrieval call binding the contract method 0x4f16540b.
 //
 // Solidity: function UNSAFE_BLOCK_SIGNER_SLOT() view returns(bytes32)
@@ -335,6 +562,130 @@ func (_SystemConfig *SystemConfigCallerSession) GasLimit() (uint64, error) {
 	return _SystemConfig.Contract.GasLimit(&_SystemConfig.CallOpts)
 }
 
+// L1CrossDomainMessenger is a free data retrieval call binding the contract method 0xa7119869.
+//
+// Solidity: function l1CrossDomainMessenger() view returns(address addr_)
+func (_SystemConfig *SystemConfigCaller) L1CrossDomainMessenger(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "l1CrossDomainMessenger")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// L1CrossDomainMessenger is a free data retrieval call binding the contract method 0xa7119869.
+//
+// Solidity: function l1CrossDomainMessenger() view returns(address addr_)
+func (_SystemConfig *SystemConfigSession) L1CrossDomainMessenger() (common.Address, error) {
+	return _SystemConfig.Contract.L1CrossDomainMessenger(&_SystemConfig.CallOpts)
+}
+
+// L1CrossDomainMessenger is a free data retrieval call binding the contract method 0xa7119869.
+//
+// Solidity: function l1CrossDomainMessenger() view returns(address addr_)
+func (_SystemConfig *SystemConfigCallerSession) L1CrossDomainMessenger() (common.Address, error) {
+	return _SystemConfig.Contract.L1CrossDomainMessenger(&_SystemConfig.CallOpts)
+}
+
+// L1ERC721Bridge is a free data retrieval call binding the contract method 0xc4e8ddfa.
+//
+// Solidity: function l1ERC721Bridge() view returns(address addr_)
+func (_SystemConfig *SystemConfigCaller) L1ERC721Bridge(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "l1ERC721Bridge")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// L1ERC721Bridge is a free data retrieval call binding the contract method 0xc4e8ddfa.
+//
+// Solidity: function l1ERC721Bridge() view returns(address addr_)
+func (_SystemConfig *SystemConfigSession) L1ERC721Bridge() (common.Address, error) {
+	return _SystemConfig.Contract.L1ERC721Bridge(&_SystemConfig.CallOpts)
+}
+
+// L1ERC721Bridge is a free data retrieval call binding the contract method 0xc4e8ddfa.
+//
+// Solidity: function l1ERC721Bridge() view returns(address addr_)
+func (_SystemConfig *SystemConfigCallerSession) L1ERC721Bridge() (common.Address, error) {
+	return _SystemConfig.Contract.L1ERC721Bridge(&_SystemConfig.CallOpts)
+}
+
+// L1StandardBridge is a free data retrieval call binding the contract method 0x078f29cf.
+//
+// Solidity: function l1StandardBridge() view returns(address addr_)
+func (_SystemConfig *SystemConfigCaller) L1StandardBridge(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "l1StandardBridge")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// L1StandardBridge is a free data retrieval call binding the contract method 0x078f29cf.
+//
+// Solidity: function l1StandardBridge() view returns(address addr_)
+func (_SystemConfig *SystemConfigSession) L1StandardBridge() (common.Address, error) {
+	return _SystemConfig.Contract.L1StandardBridge(&_SystemConfig.CallOpts)
+}
+
+// L1StandardBridge is a free data retrieval call binding the contract method 0x078f29cf.
+//
+// Solidity: function l1StandardBridge() view returns(address addr_)
+func (_SystemConfig *SystemConfigCallerSession) L1StandardBridge() (common.Address, error) {
+	return _SystemConfig.Contract.L1StandardBridge(&_SystemConfig.CallOpts)
+}
+
+// L2OutputOracle is a free data retrieval call binding the contract method 0x4d9f1559.
+//
+// Solidity: function l2OutputOracle() view returns(address addr_)
+func (_SystemConfig *SystemConfigCaller) L2OutputOracle(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "l2OutputOracle")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// L2OutputOracle is a free data retrieval call binding the contract method 0x4d9f1559.
+//
+// Solidity: function l2OutputOracle() view returns(address addr_)
+func (_SystemConfig *SystemConfigSession) L2OutputOracle() (common.Address, error) {
+	return _SystemConfig.Contract.L2OutputOracle(&_SystemConfig.CallOpts)
+}
+
+// L2OutputOracle is a free data retrieval call binding the contract method 0x4d9f1559.
+//
+// Solidity: function l2OutputOracle() view returns(address addr_)
+func (_SystemConfig *SystemConfigCallerSession) L2OutputOracle() (common.Address, error) {
+	return _SystemConfig.Contract.L2OutputOracle(&_SystemConfig.CallOpts)
+}
+
 // MinimumGasLimit is a free data retrieval call binding the contract method 0x4add321d.
 //
 // Solidity: function minimumGasLimit() view returns(uint64)
@@ -364,6 +715,68 @@ func (_SystemConfig *SystemConfigSession) MinimumGasLimit() (uint64, error) {
 // Solidity: function minimumGasLimit() view returns(uint64)
 func (_SystemConfig *SystemConfigCallerSession) MinimumGasLimit() (uint64, error) {
 	return _SystemConfig.Contract.MinimumGasLimit(&_SystemConfig.CallOpts)
+}
+
+// OptimismMintableERC20Factory is a free data retrieval call binding the contract method 0x9b7d7f0a.
+//
+// Solidity: function optimismMintableERC20Factory() view returns(address addr_)
+func (_SystemConfig *SystemConfigCaller) OptimismMintableERC20Factory(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "optimismMintableERC20Factory")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// OptimismMintableERC20Factory is a free data retrieval call binding the contract method 0x9b7d7f0a.
+//
+// Solidity: function optimismMintableERC20Factory() view returns(address addr_)
+func (_SystemConfig *SystemConfigSession) OptimismMintableERC20Factory() (common.Address, error) {
+	return _SystemConfig.Contract.OptimismMintableERC20Factory(&_SystemConfig.CallOpts)
+}
+
+// OptimismMintableERC20Factory is a free data retrieval call binding the contract method 0x9b7d7f0a.
+//
+// Solidity: function optimismMintableERC20Factory() view returns(address addr_)
+func (_SystemConfig *SystemConfigCallerSession) OptimismMintableERC20Factory() (common.Address, error) {
+	return _SystemConfig.Contract.OptimismMintableERC20Factory(&_SystemConfig.CallOpts)
+}
+
+// OptimismPortal is a free data retrieval call binding the contract method 0x0a49cb03.
+//
+// Solidity: function optimismPortal() view returns(address addr_)
+func (_SystemConfig *SystemConfigCaller) OptimismPortal(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "optimismPortal")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// OptimismPortal is a free data retrieval call binding the contract method 0x0a49cb03.
+//
+// Solidity: function optimismPortal() view returns(address addr_)
+func (_SystemConfig *SystemConfigSession) OptimismPortal() (common.Address, error) {
+	return _SystemConfig.Contract.OptimismPortal(&_SystemConfig.CallOpts)
+}
+
+// OptimismPortal is a free data retrieval call binding the contract method 0x0a49cb03.
+//
+// Solidity: function optimismPortal() view returns(address addr_)
+func (_SystemConfig *SystemConfigCallerSession) OptimismPortal() (common.Address, error) {
+	return _SystemConfig.Contract.OptimismPortal(&_SystemConfig.CallOpts)
 }
 
 // Overhead is a free data retrieval call binding the contract method 0x0c18c162.
@@ -490,6 +903,37 @@ func (_SystemConfig *SystemConfigCallerSession) Scalar() (*big.Int, error) {
 	return _SystemConfig.Contract.Scalar(&_SystemConfig.CallOpts)
 }
 
+// StartBlock is a free data retrieval call binding the contract method 0x48cd4cb1.
+//
+// Solidity: function startBlock() view returns(uint256)
+func (_SystemConfig *SystemConfigCaller) StartBlock(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "startBlock")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// StartBlock is a free data retrieval call binding the contract method 0x48cd4cb1.
+//
+// Solidity: function startBlock() view returns(uint256)
+func (_SystemConfig *SystemConfigSession) StartBlock() (*big.Int, error) {
+	return _SystemConfig.Contract.StartBlock(&_SystemConfig.CallOpts)
+}
+
+// StartBlock is a free data retrieval call binding the contract method 0x48cd4cb1.
+//
+// Solidity: function startBlock() view returns(uint256)
+func (_SystemConfig *SystemConfigCallerSession) StartBlock() (*big.Int, error) {
+	return _SystemConfig.Contract.StartBlock(&_SystemConfig.CallOpts)
+}
+
 // UnsafeBlockSigner is a free data retrieval call binding the contract method 0x1fd19ee1.
 //
 // Solidity: function unsafeBlockSigner() view returns(address addr_)
@@ -552,25 +996,25 @@ func (_SystemConfig *SystemConfigCallerSession) Version() (string, error) {
 	return _SystemConfig.Contract.Version(&_SystemConfig.CallOpts)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xf975e925.
+// Initialize is a paid mutator transaction binding the contract method 0x5228a6ac.
 //
-// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config) returns()
-func (_SystemConfig *SystemConfigTransactor) Initialize(opts *bind.TransactOpts, _owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig) (*types.Transaction, error) {
-	return _SystemConfig.contract.Transact(opts, "initialize", _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config)
+// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config, uint256 _startBlock, address _batchInbox, (address,address,address,address,address,address) _addresses) returns()
+func (_SystemConfig *SystemConfigTransactor) Initialize(opts *bind.TransactOpts, _owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig, _startBlock *big.Int, _batchInbox common.Address, _addresses SystemConfigAddresses) (*types.Transaction, error) {
+	return _SystemConfig.contract.Transact(opts, "initialize", _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config, _startBlock, _batchInbox, _addresses)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xf975e925.
+// Initialize is a paid mutator transaction binding the contract method 0x5228a6ac.
 //
-// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config) returns()
-func (_SystemConfig *SystemConfigSession) Initialize(_owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig) (*types.Transaction, error) {
-	return _SystemConfig.Contract.Initialize(&_SystemConfig.TransactOpts, _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config)
+// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config, uint256 _startBlock, address _batchInbox, (address,address,address,address,address,address) _addresses) returns()
+func (_SystemConfig *SystemConfigSession) Initialize(_owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig, _startBlock *big.Int, _batchInbox common.Address, _addresses SystemConfigAddresses) (*types.Transaction, error) {
+	return _SystemConfig.Contract.Initialize(&_SystemConfig.TransactOpts, _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config, _startBlock, _batchInbox, _addresses)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xf975e925.
+// Initialize is a paid mutator transaction binding the contract method 0x5228a6ac.
 //
-// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config) returns()
-func (_SystemConfig *SystemConfigTransactorSession) Initialize(_owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig) (*types.Transaction, error) {
-	return _SystemConfig.Contract.Initialize(&_SystemConfig.TransactOpts, _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config)
+// Solidity: function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash, uint64 _gasLimit, address _unsafeBlockSigner, (uint32,uint8,uint8,uint32,uint32,uint128) _config, uint256 _startBlock, address _batchInbox, (address,address,address,address,address,address) _addresses) returns()
+func (_SystemConfig *SystemConfigTransactorSession) Initialize(_owner common.Address, _overhead *big.Int, _scalar *big.Int, _batcherHash [32]byte, _gasLimit uint64, _unsafeBlockSigner common.Address, _config ResourceMeteringResourceConfig, _startBlock *big.Int, _batchInbox common.Address, _addresses SystemConfigAddresses) (*types.Transaction, error) {
+	return _SystemConfig.Contract.Initialize(&_SystemConfig.TransactOpts, _owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config, _startBlock, _batchInbox, _addresses)
 }
 
 // RenounceOwnership is a paid mutator transaction binding the contract method 0x715018a6.
