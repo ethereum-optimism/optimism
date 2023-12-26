@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/tasks"
 )
 
-var blocksLimit = 1_000
+var blocksLimit = 500
 
 type BridgeProcessor struct {
 	log     log.Logger
