@@ -94,7 +94,12 @@ func TestE2EBridgeTransactionsL2ToL1MessagePasserWithdrawal(t *testing.T) {
 	l1Opts.Value = l2Opts.Value
 	depositTx, err := optimismPortal.Receive(l1Opts)
 	require.NoError(t, err)
-	_, err = wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L1Client, depositTx.Hash())
+	require.NoError(t, err)
+	depositInfo, err := e2etest_utils.ParseDepositInfo(depositReceipt)
+	require.NoError(t, err)
+	depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
+	_, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, depositL2TxHash)
 	require.NoError(t, err)
 
 	withdrawTx, err := l2ToL1MessagePasser.InitiateWithdrawal(l2Opts, aliceAddr, big.NewInt(100_000), calldata)
