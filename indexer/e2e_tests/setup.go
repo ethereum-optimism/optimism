@@ -53,6 +53,9 @@ type E2ETestSuite struct {
 }
 
 func init() {
+	// Disable the global logger. Ideally we'd like to dump geth
+	// logs per-test but that's possible when running tests in
+	// parallel as the root logger is shared.
 	log.Root().SetHandler(log.DiscardHandler())
 }
 
@@ -69,8 +72,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// Bump up the block times to try minimize resource
 	// contention when parallel devnets are running
 	opCfg := op_e2e.DefaultSystemConfig(t)
-	opCfg.DeployConfig.L1BlockTime = 6
-	opCfg.DeployConfig.L2BlockTime = 2
 
 	// Unless specified, omit logs emitted by the various components
 	if len(os.Getenv("ENABLE_ROLLUP_LOGS")) == 0 {
