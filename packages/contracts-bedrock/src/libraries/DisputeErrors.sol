@@ -28,6 +28,9 @@ error UnexpectedRootClaim(Claim rootClaim);
 ///         cost of the next possible counter claim.
 error BondTooLow();
 
+/// @notice Thrown when the `extraData` passed to the CWIA proxy is too long for the `FaultDisputeGame`.
+error ExtraDataTooLong();
+
 /// @notice Thrown when a defense against the root claim is attempted.
 error CannotDefendRootClaim();
 

@@ -26,26 +26,26 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
 
     /// @notice The absolute prestate of the instruction trace. This is a constant that is defined
     ///         by the program that is being used to execute the trace.
-    Claim public immutable ABSOLUTE_PRESTATE;
+    Claim internal immutable ABSOLUTE_PRESTATE;
 
     /// @notice The max depth of the game.
-    uint256 public immutable MAX_GAME_DEPTH;
+    uint256 internal immutable MAX_GAME_DEPTH;
 
     /// @notice The max depth of the output bisection portion of the position tree. Immediately beneath
     ///         this depth, execution trace bisection begins.
-    uint256 public immutable SPLIT_DEPTH;
+    uint256 internal immutable SPLIT_DEPTH;
 
     /// @notice The duration of the game.
-    Duration public immutable GAME_DURATION;
+    Duration internal immutable GAME_DURATION;
 
     /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
-    IBigStepper public immutable VM;
+    IBigStepper internal immutable VM;
 
     /// @notice The genesis block number
-    uint256 public immutable GENESIS_BLOCK_NUMBER;
+    uint256 internal immutable GENESIS_BLOCK_NUMBER;
 
     /// @notice The genesis output root
-    Hash public immutable GENESIS_OUTPUT_ROOT;
+    Hash internal immutable GENESIS_OUTPUT_ROOT;
 
     /// @notice The game type ID
     GameType internal immutable GAME_TYPE;
@@ -81,8 +81,8 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.16
-    string public constant version = "0.0.16";
+    /// @custom:semver 0.0.18
+    string public constant version = "0.0.18";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -454,6 +454,19 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
         // Set the game's starting timestamp
         createdAt = Timestamp.wrap(uint64(block.timestamp));
 
+        // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
+        // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
+        // but are not used by the game, which would allow for multiple dispute games for the same output proposal to
+        // be created.
+        // Expected length: 0x46 (0x04 selector + 0x20 root claim + 0x20 extraData + 0x02 CWIA bytes)
+        assembly {
+            if gt(calldatasize(), 0x46) {
+                // Store the selector for `ExtraDataTooLong()` & revert
+                mstore(0x00, 0xc407e025)
+                revert(0x1C, 0x04)
+            }
+        }
+
         // Set the root claim
         claimData.push(
             ClaimData({
@@ -472,6 +485,45 @@ contract OutputBisectionGame is IOutputBisectionGame, Clone, ISemver {
     /// @notice Returns the length of the `claimData` array.
     function claimDataLen() external view returns (uint256 len_) {
         len_ = claimData.length;
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                     IMMUTABLE GETTERS                      //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Returns the absolute prestate of the instruction trace.
+    function absolutePrestate() external view returns (Claim absolutePrestate_) {
+        absolutePrestate_ = ABSOLUTE_PRESTATE;
+    }
+
+    /// @notice Returns the max game depth.
+    function maxGameDepth() external view returns (uint256 maxGameDepth_) {
+        maxGameDepth_ = MAX_GAME_DEPTH;
+    }
+
+    /// @notice Returns the split depth.
+    function splitDepth() external view returns (uint256 splitDepth_) {
+        splitDepth_ = SPLIT_DEPTH;
+    }
+
+    /// @notice Returns the game duration.
+    function gameDuration() external view returns (Duration gameDuration_) {
+        gameDuration_ = GAME_DURATION;
+    }
+
+    /// @notice Returns the address of the VM.
+    function vm() external view returns (IBigStepper vm_) {
+        vm_ = VM;
+    }
+
+    /// @notice Returns the genesis block number.
+    function genesisBlockNumber() external view returns (uint256 genesisBlockNumber_) {
+        genesisBlockNumber_ = GENESIS_BLOCK_NUMBER;
+    }
+
+    /// @notice Returns the genesis output root.
+    function genesisOutputRoot() external view returns (Hash genesisOutputRoot_) {
+        genesisOutputRoot_ = GENESIS_OUTPUT_ROOT;
     }
 
     ////////////////////////////////////////////////////////////////

@@ -216,6 +216,31 @@ contract DelayedVetoable_HandleCall_TestFail is DelayedVetoable_Init {
         success2;
     }
 
+    function testFuzz_handleCall_forwardingTargetRetValue_succeeds(
+        bytes calldata inData,
+        bytes calldata outData
+    )
+        external
+    {
+        assumeNoClash(inData);
+
+        // Initiate the call
+        vm.prank(initiator);
+        (bool success,) = address(delayedVetoable).call(inData);
+        success;
+
+        vm.warp(block.timestamp + operatingDelay);
+        vm.expectEmit(true, false, false, true, address(delayedVetoable));
+        emit Forwarded(keccak256(inData), inData);
+
+        vm.mockCall(target, inData, outData);
+
+        // Forward the call
+        (bool success2, bytes memory retData) = address(delayedVetoable).call(inData);
+        assertTrue(success2);
+        assertEq(keccak256(retData), keccak256(outData));
+    }
+
     /// @dev A test documenting the single instance in which the contract is not 'transparent' to the initiator.
     function testFuzz_handleCall_queuedAtClash_reverts(bytes memory outData) external {
         // This will get us calldata with the same function selector as the queuedAt function, but

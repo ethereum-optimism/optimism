@@ -1,10 +1,12 @@
 package flags
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -23,12 +25,13 @@ func TestOptionalFlagsDontSetRequired(t *testing.T) {
 func TestUniqueFlags(t *testing.T) {
 	seenCLI := make(map[string]struct{})
 	for _, flag := range Flags {
-		name := flag.Names()[0]
-		if _, ok := seenCLI[name]; ok {
-			t.Errorf("duplicate flag %s", name)
-			continue
+		for _, name := range flag.Names() {
+			if _, ok := seenCLI[name]; ok {
+				t.Errorf("duplicate flag %s", name)
+				continue
+			}
+			seenCLI[name] = struct{}{}
 		}
-		seenCLI[name] = struct{}{}
 	}
 }
 
@@ -44,10 +47,90 @@ func TestBetaFlags(t *testing.T) {
 		name := flag.Names()[0]
 		envName := envFlag.GetEnvVars()[0]
 		if strings.HasPrefix(name, "beta.") {
-			assert.Contains(t, envName, "BETA_", "%q flag must contain BETA in env var to match \"beta.\" flag name", name)
+			require.Contains(t, envName, "BETA_", "%q flag must contain BETA in env var to match \"beta.\" flag name", name)
 		}
 		if strings.Contains(envName, "BETA_") {
-			assert.True(t, strings.HasPrefix(name, "beta."), "%q flag must start with \"beta.\" in flag name to match \"BETA_\" env var", name)
+			require.True(t, strings.HasPrefix(name, "beta."), "%q flag must start with \"beta.\" in flag name to match \"BETA_\" env var", name)
 		}
+	}
+}
+
+func TestDeprecatedFlagsAreHidden(t *testing.T) {
+	for _, flag := range DeprecatedFlags {
+		flag := flag
+		flagName := flag.Names()[0]
+
+		t.Run(flagName, func(t *testing.T) {
+
+			visibleFlag, ok := flag.(interface {
+				IsVisible() bool
+			})
+			require.True(t, ok, "Need to case the flag to the correct format")
+			require.False(t, visibleFlag.IsVisible())
+		})
+	}
+}
+
+func TestHasEnvVar(t *testing.T) {
+	for _, flag := range Flags {
+		flag := flag
+		flagName := flag.Names()[0]
+
+		t.Run(flagName, func(t *testing.T) {
+			if flagName == PeerScoringName || flagName == PeerScoreBandsName || flagName == TopicScoringName {
+				t.Skipf("Skipping flag %v which is known to have no env vars", flagName)
+			}
+			envFlagGetter, ok := flag.(interface {
+				GetEnvVars() []string
+			})
+			envFlags := envFlagGetter.GetEnvVars()
+			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
+			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+		})
+	}
+}
+
+func TestEnvVarFormat(t *testing.T) {
+	for _, flag := range Flags {
+		flag := flag
+		flagName := flag.Names()[0]
+
+		skippedFlags := []string{
+			L1NodeAddr.Name,
+			L2EngineAddr.Name,
+			L2EngineJWTSecret.Name,
+			L1TrustRPC.Name,
+			L1RPCProviderKind.Name,
+			SnapshotLog.Name,
+			BackupL2UnsafeSyncRPC.Name,
+			BackupL2UnsafeSyncRPCTrustRPC.Name,
+			"p2p.scoring",
+			"p2p.ban.peers",
+			"p2p.ban.threshold",
+			"p2p.ban.duration",
+			"p2p.listen.tcp",
+			"p2p.listen.udp",
+			"p2p.useragent",
+			"p2p.gossip.mesh.lo",
+			"p2p.gossip.mesh.floodpublish",
+			"l2.engine-sync",
+		}
+
+		t.Run(flagName, func(t *testing.T) {
+			if slices.Contains(skippedFlags, flagName) {
+				t.Skipf("Skipping flag %v which is known to not have a standard flag name <-> env var conversion", flagName)
+			}
+			if flagName == PeerScoringName || flagName == PeerScoreBandsName || flagName == TopicScoringName {
+				t.Skipf("Skipping flag %v which is known to have no env vars", flagName)
+			}
+			envFlagGetter, ok := flag.(interface {
+				GetEnvVars() []string
+			})
+			envFlags := envFlagGetter.GetEnvVars()
+			require.True(t, ok, "must be able to cast the flag to an EnvVar interface")
+			require.Equal(t, 1, len(envFlags), "flags should have exactly one env var")
+			expectedEnvVar := opservice.FlagNameToEnvVarName(flagName, "OP_NODE")
+			require.Equal(t, expectedEnvVar, envFlags[0])
+		})
 	}
 }

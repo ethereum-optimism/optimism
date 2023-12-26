@@ -17,6 +17,10 @@ var layouts = make(map[string]*solc.StorageLayout)
 // in an init function.
 var deployedBytecodes = make(map[string]string)
 
+var initBytecodes = make(map[string]string)
+var deploymentSalts = make(map[string]string)
+var deployers = make(map[string]string)
+
 // immutableReferences represents the set of immutable references. It is populated
 // in an init function.
 var immutableReferences = make(map[string]bool)
@@ -62,6 +66,45 @@ func HasImmutableReferences(name string) (bool, error) {
 		return false, fmt.Errorf("%s: immutable reference not found", name)
 	}
 	return has, nil
+}
+
+func GetInitBytecode(name string) ([]byte, error) {
+	bc := initBytecodes[name]
+	if bc == "" {
+		return nil, fmt.Errorf("%s: init bytecode not found", name)
+	}
+
+	if !isHex(bc) {
+		return nil, fmt.Errorf("%s: invalid init bytecode", name)
+	}
+
+	return common.FromHex(bc), nil
+}
+
+func GetDeployerAddress(name string) ([]byte, error) {
+	addr := deployers[name]
+	if addr == "" {
+		return nil, fmt.Errorf("%s: deployer address not found", name)
+	}
+
+	if !common.IsHexAddress(addr) {
+		return nil, fmt.Errorf("%s: invalid deployer address", name)
+	}
+
+	return common.FromHex(addr), nil
+}
+
+func GetDeploymentSalt(name string) ([]byte, error) {
+	salt := deploymentSalts[name]
+	if salt == "" {
+		return nil, fmt.Errorf("%s: deployment salt not found", name)
+	}
+
+	if !isHex(salt) {
+		return nil, fmt.Errorf("%s: invalid deployment salt", name)
+	}
+
+	return common.FromHex(salt), nil
 }
 
 // isHexCharacter returns bool of c being a valid hexadecimal.

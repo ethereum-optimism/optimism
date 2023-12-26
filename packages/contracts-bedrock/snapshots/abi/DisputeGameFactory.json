@@ -7,104 +7,6 @@
   {
     "inputs": [
       {
-        "internalType": "Hash",
-        "name": "uuid",
-        "type": "bytes32"
-      }
-    ],
-    "name": "GameAlreadyExists",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "GameType",
-        "name": "gameType",
-        "type": "uint8"
-      }
-    ],
-    "name": "NoImplementation",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "disputeProxy",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "GameType",
-        "name": "gameType",
-        "type": "uint8"
-      },
-      {
-        "indexed": true,
-        "internalType": "Claim",
-        "name": "rootClaim",
-        "type": "bytes32"
-      }
-    ],
-    "name": "DisputeGameCreated",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "impl",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "GameType",
-        "name": "gameType",
-        "type": "uint8"
-      }
-    ],
-    "name": "ImplementationSet",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "uint8",
-        "name": "version",
-        "type": "uint8"
-      }
-    ],
-    "name": "Initialized",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "previousOwner",
-        "type": "address"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "newOwner",
-        "type": "address"
-      }
-    ],
-    "name": "OwnershipTransferred",
-    "type": "event"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "GameType",
         "name": "_gameType",
         "type": "uint8"
@@ -331,5 +233,103 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "disputeProxy",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DisputeGameCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "impl",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint8"
+      }
+    ],
+    "name": "ImplementationSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint8",
+        "name": "version",
+        "type": "uint8"
+      }
+    ],
+    "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Hash",
+        "name": "uuid",
+        "type": "bytes32"
+      }
+    ],
+    "name": "GameAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "GameType",
+        "name": "gameType",
+        "type": "uint8"
+      }
+    ],
+    "name": "NoImplementation",
+    "type": "error"
   }
 ]

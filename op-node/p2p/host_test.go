@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/testlog"
@@ -332,6 +333,26 @@ func TestDiscovery(t *testing.T) {
 		case c := <-connsB:
 			peersOfB = append(peersOfB, c.RemotePeer())
 		}
+	}
+
+	// Check that among known connections (B-A, B-C), we have metadata
+	type mdcheck struct {
+		n1 *NodeP2P
+		n2 *NodeP2P
+	}
+	cases := []mdcheck{
+		{nodeB, nodeA},
+		{nodeB, nodeC},
+	}
+	for _, c := range cases {
+		// make peerstore metadata available
+		eps, ok := c.n1.Host().Peerstore().(store.ExtendedPeerstore)
+		require.True(t, ok)
+		// confirm n1 has metadata about n2
+		md, err := eps.GetPeerMetadata(c.n2.Host().ID())
+		require.NoError(t, err)
+		require.NotEmpty(t, md.ENR)
+		require.Equal(t, uint64(901), md.OPStackID)
 	}
 }
 

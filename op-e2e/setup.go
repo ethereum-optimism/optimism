@@ -490,7 +490,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			RegolithTime:            cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			CanyonTime:              cfg.DeployConfig.CanyonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			DeltaTime:               cfg.DeployConfig.DeltaTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
-			EclipseTime:             cfg.DeployConfig.EclipseTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
+			EcotoneTime:             cfg.DeployConfig.EcotoneTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			FjordTime:               cfg.DeployConfig.FjordTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			InteropTime:             cfg.DeployConfig.InteropTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
@@ -563,11 +563,6 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
 		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
-
-		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
-			Client:   nil,
-			TrustRPC: false,
-		}
 	}
 
 	// Geth Clients

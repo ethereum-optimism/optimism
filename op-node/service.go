@@ -9,21 +9,21 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	"github.com/ethereum-optimism/optimism/op-service/sources"
-	"github.com/urfave/cli/v2"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	opflags "github.com/ethereum-optimism/optimism/op-service/flags"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/sources"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -63,8 +63,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
 	}
 
-	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
-
 	syncConfig, err := NewSyncConfig(ctx, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the sync config: %w", err)
@@ -78,7 +76,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
-		L2Sync: l2SyncEndpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
@@ -152,7 +149,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
 			return nil, fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
-		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
+		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0o600); err != nil {
 			return nil, err
 		}
 	}
@@ -161,15 +158,6 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
 	}, nil
-}
-
-// NewL2SyncEndpointConfig returns a pointer to a L2SyncEndpointConfig if the
-// flag is set, otherwise nil.
-func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
-	return &node.L2SyncEndpointConfig{
-		L2NodeAddr: ctx.String(flags.BackupL2UnsafeSyncRPC.Name),
-		TrustRPC:   ctx.Bool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
-	}
 }
 
 func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
@@ -191,8 +179,8 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 }
 
 func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
-	network := ctx.String(flags.Network.Name)
-	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
+	network := ctx.String(opflags.NetworkFlagName)
+	rollupConfigPath := ctx.String(opflags.RollupConfigFlagName)
 	if ctx.Bool(flags.BetaExtraNetworks.Name) {
 		log.Warn("The beta.extra-networks flag is deprecated and can be omitted safely.")
 	}
@@ -226,12 +214,12 @@ Conflicting configuration is deprecated, and will stop the op-node from starting
 }
 
 func applyOverrides(ctx *cli.Context, rollupConfig *rollup.Config) {
-	if ctx.IsSet(flags.CanyonOverrideFlag.Name) {
-		canyon := ctx.Uint64(flags.CanyonOverrideFlag.Name)
+	if ctx.IsSet(opflags.CanyonOverrideFlagName) {
+		canyon := ctx.Uint64(opflags.CanyonOverrideFlagName)
 		rollupConfig.CanyonTime = &canyon
 	}
-	if ctx.IsSet(flags.DeltaOverrideFlag.Name) {
-		delta := ctx.Uint64(flags.DeltaOverrideFlag.Name)
+	if ctx.IsSet(opflags.DeltaOverrideFlagName) {
+		delta := ctx.Uint64(opflags.DeltaOverrideFlagName)
 		rollupConfig.DeltaTime = &delta
 	}
 }

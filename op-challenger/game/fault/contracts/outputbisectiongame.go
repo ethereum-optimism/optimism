@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	methodGenesisBlockNumber = "GENESIS_BLOCK_NUMBER"
-	methodGenesisOutputRoot  = "GENESIS_OUTPUT_ROOT"
-	methodSplitDepth         = "SPLIT_DEPTH"
+	methodGenesisBlockNumber = "genesisBlockNumber"
+	methodGenesisOutputRoot  = "genesisOutputRoot"
+	methodSplitDepth         = "splitDepth"
 	methodL2BlockNumber      = "l2BlockNumber"
 )
 
@@ -33,6 +33,7 @@ func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiC
 		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
+			version:     1,
 		},
 	}, nil
 }

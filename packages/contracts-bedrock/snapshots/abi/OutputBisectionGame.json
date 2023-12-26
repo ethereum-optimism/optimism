@@ -47,209 +47,12 @@
   },
   {
     "inputs": [],
-    "name": "CannotDefendRootClaim",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClaimAboveSplit",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClaimAlreadyExists",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClaimAlreadyResolved",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClockNotExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ClockTimeExceeded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "GameDepthExceeded",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "GameNotInProgress",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidLocalIdent",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidParent",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidPrestate",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "InvalidSplitDepth",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "OutOfOrderResolution",
-    "type": "error"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "Claim",
-        "name": "rootClaim",
-        "type": "bytes32"
-      }
-    ],
-    "name": "UnexpectedRootClaim",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ValidStep",
-    "type": "error"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "parentIndex",
-        "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "Claim",
-        "name": "claim",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "claimant",
-        "type": "address"
-      }
-    ],
-    "name": "Move",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "enum GameStatus",
-        "name": "status",
-        "type": "uint8"
-      }
-    ],
-    "name": "Resolved",
-    "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "ABSOLUTE_PRESTATE",
+    "name": "absolutePrestate",
     "outputs": [
       {
         "internalType": "Claim",
-        "name": "",
+        "name": "absolutePrestate_",
         "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GAME_DURATION",
-    "outputs": [
-      {
-        "internalType": "Duration",
-        "name": "",
-        "type": "uint64"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GENESIS_BLOCK_NUMBER",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "GENESIS_OUTPUT_ROOT",
-    "outputs": [
-      {
-        "internalType": "Hash",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "MAX_GAME_DEPTH",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "SPLIT_DEPTH",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "VM",
-    "outputs": [
-      {
-        "internalType": "contract IBigStepper",
-        "name": "",
-        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -430,12 +233,51 @@
   },
   {
     "inputs": [],
+    "name": "gameDuration",
+    "outputs": [
+      {
+        "internalType": "Duration",
+        "name": "gameDuration_",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "gameType",
     "outputs": [
       {
         "internalType": "GameType",
         "name": "gameType_",
         "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "genesisBlockNumber",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "genesisBlockNumber_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "genesisOutputRoot",
+    "outputs": [
+      {
+        "internalType": "Hash",
+        "name": "genesisOutputRoot_",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -472,6 +314,19 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxGameDepth",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "maxGameDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -551,6 +406,19 @@
   },
   {
     "inputs": [],
+    "name": "splitDepth",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "splitDepth_",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "status",
     "outputs": [
       {
@@ -602,5 +470,137 @@
     ],
     "stateMutability": "view",
     "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "vm",
+    "outputs": [
+      {
+        "internalType": "contract IBigStepper",
+        "name": "vm_",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "parentIndex",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "Claim",
+        "name": "claim",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "claimant",
+        "type": "address"
+      }
+    ],
+    "name": "Move",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "enum GameStatus",
+        "name": "status",
+        "type": "uint8"
+      }
+    ],
+    "name": "Resolved",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "CannotDefendRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAboveSplit",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClaimAlreadyResolved",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClockNotExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ClockTimeExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameDepthExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "GameNotInProgress",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidLocalIdent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidParent",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPrestate",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidSplitDepth",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OutOfOrderResolution",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      }
+    ],
+    "name": "UnexpectedRootClaim",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ValidStep",
+    "type": "error"
   }
 ]

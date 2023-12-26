@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
+	op_service "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -49,7 +50,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	root, err := findMonorepoRoot(cwd)
+	root, err := op_service.FindMonorepoRoot(cwd)
 	if err != nil {
 		panic(err)
 	}
@@ -157,26 +158,4 @@ func allExist(filenames ...string) error {
 		}
 	}
 	return nil
-}
-
-// findMonorepoRoot will recursively search upwards for a go.mod file.
-// This depends on the structure of the monorepo having a go.mod file at the root.
-func findMonorepoRoot(startDir string) (string, error) {
-	dir, err := filepath.Abs(startDir)
-	if err != nil {
-		return "", err
-	}
-	for {
-		modulePath := filepath.Join(dir, "go.mod")
-		if _, err := os.Stat(modulePath); err == nil {
-			return dir, nil
-		}
-		parentDir := filepath.Dir(dir)
-		// Check if we reached the filesystem root
-		if parentDir == dir {
-			break
-		}
-		dir = parentDir
-	}
-	return "", fmt.Errorf("monorepo root not found")
 }

@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-SOURCE_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
-CHALLENGER_DIR=$(echo "${SOURCE_DIR%/*/*}")
-MONOREPO_DIR=$(echo "${SOURCE_DIR%/*/*/*}")
+SOURCE_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+CHALLENGER_DIR="${SOURCE_DIR%/*/*}"
+MONOREPO_DIR="${SOURCE_DIR%/*/*/*}"
 
 cd "$CHALLENGER_DIR"
 make
@@ -34,10 +34,7 @@ echo " Block Oracle Proxy at $BLOCK_ORACLE_PROXY"
 echo "----------------------------------------------------------------"
 
 CHARLIE_ADDRESS="0xF45B7537828CB2fffBC69996B054c2Aaf36DC778"
-CHARLIE_KEY="74feb147d72bfae943e6b4e483410933d9e447d5dc47d52432dcc2c1454dabb7"
-
 MALLORY_ADDRESS="0x4641c704a6c743f73ee1f36C7568Fbf4b80681e4"
-MALLORY_KEY="28d7045146193f5f4eeb151c4843544b1b0d30a7ac1680c845a416fac65a7715"
 
 echo "----------------------------------------------------------------"
 echo " - Fetching balance of the sponsor"
@@ -61,7 +58,7 @@ done
 
 # Root claim commits to the entire trace.
 # Alphabet game claim construction: keccak256(abi.encode(trace_index, trace[trace_index]))
-ROOT_CLAIM=$(cast keccak $(cast abi-encode "f(uint256,uint256)" 15 122))
+ROOT_CLAIM=$(cast keccak "$(cast abi-encode "f(uint256,uint256)" 15 122)")
 # Replace the first byte of the claim with the invalid vm status indicator
 ROOT_CLAIM="0x01${ROOT_CLAIM:4}"
 

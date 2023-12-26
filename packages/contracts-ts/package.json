@@ -51,9 +51,9 @@
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
-    "@vitest/coverage-istanbul": "^1.0.2",
+    "@vitest/coverage-istanbul": "^1.1.0",
     "@wagmi/cli": "^1.5.2",
-    "@wagmi/core": "^1.4.10",
+    "@wagmi/core": "^1.4.12",
     "abitype": "^0.10.3",
     "glob": "^10.3.10",
     "isomorphic-fetch": "^3.0.0",
@@ -61,12 +61,13 @@
     "jsdom": "^23.0.1",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
-    "vite": "^5.0.6",
-    "vitest": "^1.0.1"
+    "vite": "^5.0.10",
+    "vitest": "^1.0.1",
+    "wagmi": "^1.4.12"
   },
   "peerDependencies": {
-    "@wagmi/core": ">1.0.0",
-    "wagmi": ">1.0.0"
+    "@wagmi/core": "^1.4.12",
+    "wagmi": "^1.4.12"
   },
   "peerDependenciesMeta": {
     "wagmi": {
@@ -82,6 +83,6 @@
     "change-case": "4.1.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "viem": "^1.19.11"
+    "viem": "^1.20.3"
   }
 }

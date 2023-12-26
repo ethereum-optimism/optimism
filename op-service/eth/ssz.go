@@ -15,7 +15,7 @@ type BlockVersion int
 
 const ( // iota is reset to 0
 	BlockV1 BlockVersion = iota
-	BlockV2              = iota
+	BlockV2
 )
 
 // ExecutionPayload is the only SSZ type we have to marshal/unmarshal,
@@ -49,8 +49,10 @@ var payloadBufPool = sync.Pool{New: func() any {
 	return &x
 }}
 
-var ErrBadTransactionOffset = errors.New("transactions offset is smaller than extra data offset, aborting")
-var ErrBadWithdrawalsOffset = errors.New("withdrawals offset is smaller than transaction offset, aborting")
+var (
+	ErrBadTransactionOffset = errors.New("transactions offset is smaller than extra data offset, aborting")
+	ErrBadWithdrawalsOffset = errors.New("withdrawals offset is smaller than transaction offset, aborting")
+)
 
 func executionPayloadFixedPart(version BlockVersion) uint32 {
 	if version == BlockV2 {

@@ -30,28 +30,28 @@ func (m *MockL2Client) ExpectL2BlockRefByNumber(num uint64, ref eth.L2BlockRef, 
 }
 
 func (c *MockL2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error) {
-	out := c.Mock.MethodCalled("L2BlockRefByHash", hash)
-	return out[0].(eth.L2BlockRef), *out[1].(*error)
+	out := c.Mock.Called(hash)
+	return out.Get(0).(eth.L2BlockRef), out.Error(1)
 }
 
 func (m *MockL2Client) ExpectL2BlockRefByHash(hash common.Hash, ref eth.L2BlockRef, err error) {
-	m.Mock.On("L2BlockRefByHash", hash).Once().Return(ref, &err)
+	m.Mock.On("L2BlockRefByHash", hash).Once().Return(ref, err)
 }
 
 func (m *MockL2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error) {
-	out := m.Mock.MethodCalled("SystemConfigByL2Hash", hash)
-	return out[0].(eth.SystemConfig), *out[1].(*error)
+	out := m.Mock.Called(hash)
+	return out.Get(0).(eth.SystemConfig), out.Error(1)
 }
 
 func (m *MockL2Client) ExpectSystemConfigByL2Hash(hash common.Hash, cfg eth.SystemConfig, err error) {
-	m.Mock.On("SystemConfigByL2Hash", hash).Once().Return(cfg, &err)
+	m.Mock.On("SystemConfigByL2Hash", hash).Once().Return(cfg, err)
 }
 
 func (m *MockL2Client) OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
-	out := m.Mock.MethodCalled("OutputV0AtBlock", blockHash)
-	return out[0].(*eth.OutputV0), *out[1].(*error)
+	out := m.Mock.Called(blockHash)
+	return out.Get(0).(*eth.OutputV0), out.Error(1)
 }
 
 func (m *MockL2Client) ExpectOutputV0AtBlock(blockHash common.Hash, output *eth.OutputV0, err error) {
-	m.Mock.On("OutputV0AtBlock", blockHash).Once().Return(output, &err)
+	m.Mock.On("OutputV0AtBlock", blockHash).Once().Return(output, err)
 }

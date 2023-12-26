@@ -435,6 +435,16 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			continue
 		}
 
+		// Simple health check
+		if len(reqs) == 1 && parsedReq.Method == proxydHealthzMethod {
+			res := &RPCRes{
+				ID:      parsedReq.ID,
+				JSONRPC: JSONRPCVersion,
+				Result:  "OK",
+			}
+			return []*RPCRes{res}, false, "", nil
+		}
+
 		if err := ValidateRPCReq(parsedReq); err != nil {
 			RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
 			responses[i] = NewRPCErrorRes(nil, err)

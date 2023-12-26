@@ -3,7 +3,7 @@ version: 2.1
 parameters:
   ci_builder_image:
     type: string
-    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.30.0
+    default: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:v0.34.0
   base_image:
     type: string
     default: ubuntu-2204:2022.07.1
@@ -155,7 +155,7 @@ jobs:
             - "node_modules"
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --offline
+          command: pnpm install:ci:offline
       - run:
           name: print forge version
           command: forge --version
@@ -367,7 +367,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: print forge version
           command: forge --version
@@ -399,7 +399,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       # Note: this step needs to come first because one of the later steps modifies the cache & forces a contracts rebuild
       - run:
           name: semver lock
@@ -493,7 +493,7 @@ jobs:
       - attach_workspace: { at: "." }
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - check-changed:
           patterns: contracts-bedrock
       - run:
@@ -511,6 +511,30 @@ jobs:
           name: check go bindings
           command: make && git diff --exit-code
           working_directory: op-bindings
+
+  bindgen-remote:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen remote bindings
+          command: make bindgen-remote && git diff --exit-code
+          working_directory: op-bindings
+      - notify-failures-on-develop
+
+  bindgen-test-e2e:
+    docker:
+      - image: <<pipeline.parameters.ci_builder_image>>
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: bindgen test E2E
+          command: make test-bindgen-e2e
+          working_directory: op-bindings-e2e
+      - notify-failures-on-develop
 
   js-lint-test:
     parameters:
@@ -539,7 +563,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
@@ -568,7 +592,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: Check generated and build
           command: pnpm generate:check
@@ -590,7 +614,7 @@ jobs:
       # populate node modules from the cache
       - run:
           name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: anvil-l1
           background: true
@@ -654,7 +678,7 @@ jobs:
             npm i pnpm --global
       - run:
           name: pnpm dev deps
-          command: pnpm install --frozen-lockfile --prefer-offline
+          command: pnpm install:ci
       - run:
           name: specs toc
           command: pnpm lint:specs:toc && git diff --exit-code ./specs
@@ -674,7 +698,7 @@ jobs:
       - run:
           name: Install node_modules
           command: |
-            pnpm install --frozen-lockfile --prefer-offline
+            pnpm install:ci
       - run:
           name: Lint check
           command: |
@@ -859,7 +883,7 @@ jobs:
           name: run tests
           command: |
             mkdir -p /testlogs
-            
+
             export OP_E2E_CANNON_ENABLED="<<parameters.cannon_enabled>>"
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
@@ -951,8 +975,7 @@ jobs:
           working_directory: indexer
       - run:
           name: Install node_modules
-          command: pnpm install --frozen-lockfile --prefer-offline
-          working_directory: indexer/api-ts
+          command: pnpm install:ci
       - run:
           name: Install tygo
           command: go install github.com/gzuidhof/tygo@latest
@@ -1068,7 +1091,7 @@ jobs:
       - run:
           name: Install and build
           command: |
-            pnpm install --frozen-lockfile --prefer-offline && pnpm build
+            pnpm install:ci && pnpm build
       - attach_workspace:
           at: /tmp/workspace
       - run:
@@ -1359,22 +1382,6 @@ jobs:
       - setup_remote_docker:
           docker_layer_caching: true
       - run:
-          name: Install Docker CLI
-          command: |
-            # Add Docker's official GPG key:
-            apt-get update
-            apt-get install ca-certificates curl gnupg
-            install -m 0755 -d /etc/apt/keyrings
-            curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-            chmod a+r /etc/apt/keyrings/docker.gpg
-            # Add the repository to Apt sources:
-            echo \
-              "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian \
-              $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-              tee /etc/apt/sources.list.d/docker.list > /dev/null
-            apt-get update
-            apt-get install -y docker-ce-cli
-      - run:
           name: Run Kontrol Tests
           command: |
             pnpm test:kontrol
@@ -1511,6 +1518,10 @@ workflows:
           module: op-challenger
           requires: ["op-stack-go-lint"]
       - go-test:
+          name: op-conductor-tests
+          module: op-conductor
+          requires: ["op-stack-go-lint"]
+      - go-test:
           name: op-program-tests
           module: op-program
           requires: ["op-stack-go-lint"]
@@ -1564,6 +1575,7 @@ workflows:
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests
+            - op-conductor-tests
             - op-program-tests
             - op-program-compat
             - op-service-tests
@@ -1603,6 +1615,12 @@ workflows:
       - docker-build:
           name: op-challenger-docker-build
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: ['op-stack-go-docker-build']
+          save_image_tag: <<pipeline.git.revision>> # for devnet later
+      - docker-build:
+          name: op-conductor-docker-build
+          docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           requires: ['op-stack-go-docker-build']
           save_image_tag: <<pipeline.git.revision>> # for devnet later
@@ -1727,6 +1745,21 @@ workflows:
             branches:
               ignore: /.*/
           docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>
+          requires: ['op-stack-go-docker-build-release']
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          release: true
+          context:
+            - oplabs-gcr-release
+      - docker-build:
+          name: op-conductor-docker-release
+          filters:
+            tags:
+              only: /^op-conductor\/v.*/
+            branches:
+              ignore: /.*/
+          docker_name: op-conductor
           docker_tags: <<pipeline.git.revision>>
           requires: ['op-stack-go-docker-build-release']
           platforms: "linux/amd64,linux/arm64"
@@ -1915,6 +1948,16 @@ workflows:
             - oplabs-gcr
             - slack
       - docker-build:
+          name: op-conductor-docker-publish
+          docker_name: op-conductor
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          requires: [ 'op-stack-go-docker-build-publish' ]
+          platforms: "linux/amd64,linux/arm64"
+          publish: true
+          context:
+            - oplabs-gcr
+            - slack
+      - docker-build:
           name: op-heartbeat-docker-publish
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -1960,3 +2003,16 @@ workflows:
           context:
             - oplabs-gcr
             - slack
+
+  scheduled-bindgen:
+    when:
+      equal: [ build_daily, <<pipeline.schedule.name>> ]
+    jobs:
+      - bindgen-remote:
+          context:
+            - slack
+            - oplabs-etherscan
+      - bindgen-test-e2e:
+          context:
+            - slack
+            - oplabs-etherscan

@@ -70,13 +70,13 @@ contract OutputBisectionGame_Init is DisputeGameFactory_Init {
 
         // Check immutables
         assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
-        assertEq(Claim.unwrap(gameProxy.ABSOLUTE_PRESTATE()), Claim.unwrap(absolutePrestate));
-        assertEq(gameProxy.GENESIS_BLOCK_NUMBER(), genesisBlockNumber);
-        assertEq(Hash.unwrap(gameProxy.GENESIS_OUTPUT_ROOT()), Hash.unwrap(genesisOutputRoot));
-        assertEq(gameProxy.MAX_GAME_DEPTH(), 2 ** 3);
-        assertEq(gameProxy.SPLIT_DEPTH(), 2 ** 2);
-        assertEq(Duration.unwrap(gameProxy.GAME_DURATION()), 7 days);
-        assertEq(address(gameProxy.VM()), address(_vm));
+        assertEq(Claim.unwrap(gameProxy.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(gameProxy.genesisBlockNumber(), genesisBlockNumber);
+        assertEq(Hash.unwrap(gameProxy.genesisOutputRoot()), Hash.unwrap(genesisOutputRoot));
+        assertEq(gameProxy.maxGameDepth(), 2 ** 3);
+        assertEq(gameProxy.splitDepth(), 2 ** 2);
+        assertEq(Duration.unwrap(gameProxy.gameDuration()), 7 days);
+        assertEq(address(gameProxy.vm()), address(_vm));
 
         // Label the proxy
         vm.label(address(gameProxy), "OutputBisectionGame_Clone");
@@ -161,11 +161,33 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Tests that the game cannot be initialized with an output root that commits to <= the configured genesis
     ///      block number
     function testFuzz_initialize_cannotProposeGenesis_reverts(uint256 _blockNumber) public {
-        _blockNumber = bound(_blockNumber, 0, gameProxy.GENESIS_BLOCK_NUMBER());
+        _blockNumber = bound(_blockNumber, 0, gameProxy.genesisBlockNumber());
 
         Claim claim = _dummyClaim();
         vm.expectRevert(abi.encodeWithSelector(UnexpectedRootClaim.selector, claim));
         gameProxy = OutputBisectionGame(address(factory.create(GAME_TYPE, claim, abi.encode(_blockNumber))));
+    }
+
+    /// @dev Tests that the game cannot be initialized with extra data > 64 bytes long (root claim + l2 block number
+    ///      concatenated)
+    function testFuzz_initialize_extraDataTooLong_reverts(uint256 _extraDataLen) public {
+        // The `DisputeGameFactory` will pack the root claim and the extra data into a single array, which is enforced
+        // to be at least 64 bytes long.
+        // We bound the upper end to 23.5KB to ensure that the minimal proxy never surpasses the contract size limit
+        // in this test, as CWIA proxies store the immutable args in their bytecode.
+        // [33 bytes, 23.5 KB]
+        _extraDataLen = bound(_extraDataLen, 33, 23_500);
+        bytes memory _extraData = new bytes(_extraDataLen);
+
+        // Assign the first 32 bytes in `extraData` to a valid L2 block number passed genesis.
+        uint256 genesisBlockNumber = gameProxy.genesisBlockNumber();
+        assembly {
+            mstore(add(_extraData, 0x20), add(genesisBlockNumber, 1))
+        }
+
+        Claim claim = _dummyClaim();
+        vm.expectRevert(abi.encodeWithSelector(ExtraDataTooLong.selector));
+        gameProxy = OutputBisectionGame(address(factory.create(GAME_TYPE, claim, _extraData)));
     }
 
     /// @dev Tests that the game is initialized with the correct data.
@@ -234,7 +256,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     function test_move_gameDepthExceeded_reverts() public {
         Claim claim = _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC);
 
-        uint256 maxDepth = gameProxy.MAX_GAME_DEPTH();
+        uint256 maxDepth = gameProxy.maxGameDepth();
 
         for (uint256 i = 0; i <= maxDepth; i++) {
             // At the max game depth, the `_move` function should revert with
@@ -461,12 +483,12 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Static unit test for the correctness of resolving a game that reaches max game depth.
     function test_resolve_stepReached_succeeds() public {
         Claim claim = _dummyClaim();
-        for (uint256 i; i < gameProxy.SPLIT_DEPTH(); i++) {
+        for (uint256 i; i < gameProxy.splitDepth(); i++) {
             gameProxy.attack(i, claim);
         }
 
         claim = _changeClaimStatus(claim, VMStatuses.PANIC);
-        for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.MAX_GAME_DEPTH(); i++) {
+        for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.maxGameDepth(); i++) {
             gameProxy.attack(i, claim);
         }
 
@@ -495,12 +517,12 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Static unit test asserting that resolve reverts when attempting to resolve a subgame at max depth
     function test_resolve_claimAtMaxDepthAlreadyResolved_reverts() public {
         Claim claim = _dummyClaim();
-        for (uint256 i; i < gameProxy.SPLIT_DEPTH(); i++) {
+        for (uint256 i; i < gameProxy.splitDepth(); i++) {
             gameProxy.attack(i, claim);
         }
 
         claim = _changeClaimStatus(claim, VMStatuses.PANIC);
-        for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.MAX_GAME_DEPTH(); i++) {
+        for (uint256 i = gameProxy.claimDataLen() - 1; i < gameProxy.maxGameDepth(); i++) {
             gameProxy.attack(i, claim);
         }
 
@@ -539,7 +561,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
     /// @dev Tests that local data is loaded into the preimage oracle correctly in the subgame
     ///      that is disputing the transition from `GENESIS -> GENESIS + 1`
     function test_addLocalDataGenesisTransition_static_succeeds() public {
-        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.VM().oracle()));
+        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.vm().oracle()));
 
         // Get a claim below the split depth so that we can add local data for an execution trace subgame.
         for (uint256 i; i < 4; i++) {
@@ -548,7 +570,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
         gameProxy.attack(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // Expected start/disputed claims
-        bytes32 startingClaim = Hash.unwrap(gameProxy.GENESIS_OUTPUT_ROOT());
+        bytes32 startingClaim = Hash.unwrap(gameProxy.genesisOutputRoot());
         bytes32 disputedClaim = bytes32(uint256(3));
         Position disputedPos = LibPosition.wrap(4, 0);
 
@@ -579,7 +601,7 @@ contract OutputBisectionGame_Test is OutputBisectionGame_Init {
 
     /// @dev Tests that local data is loaded into the preimage oracle correctly.
     function test_addLocalDataMiddle_static_succeeds() public {
-        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.VM().oracle()));
+        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.vm().oracle()));
 
         // Get a claim below the split depth so that we can add local data for an execution trace subgame.
         for (uint256 i; i < 4; i++) {

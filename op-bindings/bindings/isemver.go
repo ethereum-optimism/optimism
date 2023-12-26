@@ -30,7 +30,7 @@ var (
 
 // ISemverMetaData contains all meta data concerning the ISemver contract.
 var ISemverMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"}]",
 }
 
 // ISemverABI is the input ABI used to generate the binding from.

@@ -15,7 +15,9 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -275,6 +277,127 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 		case predeploys.EASAddr:
 			if err := checkEAS(p, client); err != nil {
 				return fmt.Errorf("EAS: %w", err)
+			}
+
+		case predeploys.Create2DeployerAddr:
+			bytecode, err := bindings.GetDeployedBytecode("Create2Deployer")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("Create2Deployer :%w", err)
+			}
+
+		case predeploys.MultiCall3Addr:
+			bytecode, err := bindings.GetDeployedBytecode("MultiCall3")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("MultiCall3 :%w", err)
+			}
+
+		case predeploys.Safe_v130Addr:
+			bytecode, err := bindings.GetDeployedBytecode("Safe_v130")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("Safe_v130 :%w", err)
+			}
+
+		case predeploys.SafeL2_v130Addr:
+			bytecode, err := bindings.GetDeployedBytecode("SafeL2_v130")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("SafeL2_v130 :%w", err)
+			}
+
+		case predeploys.MultiSendCallOnly_v130Addr:
+			bytecode, err := bindings.GetDeployedBytecode("MultiSendCallOnly_v130")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("MultiSendCallOnly_v130 :%w", err)
+			}
+
+		case predeploys.SafeSingletonFactoryAddr:
+			bytecode, err := bindings.GetDeployedBytecode("SafeSingletonFactory")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("SafeSingletonFactory :%w", err)
+			}
+
+		case predeploys.DeterministicDeploymentProxyAddr:
+			bytecode, err := bindings.GetDeployedBytecode("DeterministicDeploymentProxy")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("DeterministicDeploymentProxy :%w", err)
+			}
+
+		case predeploys.MultiSend_v130Addr:
+			bytecode, err := bindings.GetDeployedBytecode("MultiSend_v130")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("MultiSend_v130 :%w", err)
+			}
+
+		case predeploys.Permit2Addr:
+			const domainABI = `[{"inputs":[{"name":"typeHash","type":"bytes32"},{"name":"nameHash","type":"bytes32"},{"name":"chainId","type":"uint256"},{"name":"verifyingContract","type":"address"}],"name":"EIP712Domain","outputs":[],"stateMutability":"nonpayable","type":"constructor"}]`
+			parsedABI, err := abi.JSON(strings.NewReader(domainABI))
+			if err != nil {
+				return fmt.Errorf("Permit2 failed to parse ABI: %w", err)
+			}
+			typeHash := crypto.Keccak256Hash([]byte("EIP712Domain(string name,uint256 chainId,address verifyingContract)"))
+			nameHash := crypto.Keccak256Hash([]byte("Permit2"))
+			chainId, err := client.ChainID(context.Background())
+			if err != nil {
+				return fmt.Errorf("Permit2: %w", err)
+			}
+			data, err := parsedABI.Constructor.Inputs.Pack(typeHash, nameHash, chainId, predeploys.Predeploys["Permit2"].Address)
+			if err != nil {
+				return fmt.Errorf("Permit2: %w", err)
+			}
+			calculatedDomainSeparator := crypto.Keccak256Hash(data)
+
+			permit2Caller, err := bindings.NewPermit2Caller(predeploys.Predeploys["Permit2"].Address, client)
+			if err != nil {
+				return fmt.Errorf("Permit2: %w", err)
+			}
+			retrievedDomainSeparator, err := permit2Caller.DOMAINSEPARATOR(&bind.CallOpts{})
+			if err != nil {
+				return fmt.Errorf("Permit2: %w", err)
+			}
+
+			if [32]byte(calculatedDomainSeparator.Bytes()) != retrievedDomainSeparator {
+				return fmt.Errorf("Permit2: EIP-712 domain separators don't match")
+			}
+
+		case predeploys.SenderCreatorAddr:
+			bytecode, err := bindings.GetDeployedBytecode("SenderCreator")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("SenderCreator :%w", err)
+			}
+
+		case predeploys.EntryPointAddr:
+			bytecode, err := bindings.GetDeployedBytecode("EntryPoint")
+			if err != nil {
+				return err
+			}
+			if err := checkPredeployBytecode(p, client, bytecode); err != nil {
+				return fmt.Errorf("EntryPoint :%w", err)
 			}
 		}
 		return nil
@@ -844,6 +967,17 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 		return err
 	}
 	log.Info("EAS version", "version", version)
+	return nil
+}
+
+func checkPredeployBytecode(addr common.Address, client *ethclient.Client, expectedBytecode []byte) error {
+	code, err := client.CodeAt(context.Background(), addr, nil)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(code, expectedBytecode) {
+		return fmt.Errorf("deployed bytecode at %s, doesn't match expected", addr)
+	}
 	return nil
 }
 

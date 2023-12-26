@@ -17,9 +17,8 @@ import (
 )
 
 type Config struct {
-	L1     L1EndpointSetup
-	L2     L2EndpointSetup
-	L2Sync L2SyncEndpointSetup
+	L1 L1EndpointSetup
+	L2 L2EndpointSetup
 
 	Driver driver.Config
 
@@ -119,11 +118,11 @@ func (cfg *Config) LoadPersisted(log log.Logger) error {
 
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
-	if err := cfg.L2.Check(); err != nil {
+	if err := cfg.L1.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
-	if err := cfg.L2Sync.Check(); err != nil {
-		return fmt.Errorf("sync config error: %w", err)
+	if err := cfg.L2.Check(); err != nil {
+		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)

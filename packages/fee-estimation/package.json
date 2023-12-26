@@ -37,15 +37,15 @@
     "@eth-optimism/contracts-ts": "workspace:^",
     "@testing-library/jest-dom": "^6.1.5",
     "@testing-library/react-hooks": "^8.0.1",
-    "@vitest/coverage-istanbul": "^1.0.2",
+    "@vitest/coverage-istanbul": "^1.1.0",
     "abitype": "^0.10.3",
     "isomorphic-fetch": "^3.0.0",
     "jest-dom": "link:@types/@testing-library/jest-dom",
     "jsdom": "^23.0.1",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3",
-    "viem": "^1.19.11",
-    "vite": "^5.0.6",
+    "viem": "^1.20.3",
+    "vite": "^5.0.10",
     "vitest": "^1.0.1"
   },
   "peerDependencies": {

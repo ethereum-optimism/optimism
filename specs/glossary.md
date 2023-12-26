@@ -511,7 +511,7 @@ See the [L2 chain derivation specification][derivation-spec] for more details.
 
 ## L2 Derivation Inputs
 
-[deriv-inputs]: glossary.md#l2-chain-derivation-inputs
+[deriv-inputs]: glossary.md#l2-derivation-inputs
 
 This term refers to data that is found in L1 blocks and is read by the [rollup node][rollup-node] to construct [payload
 attributes][payload-attr].
@@ -618,7 +618,7 @@ The unsafe L2 head is the highest [unsafe L2 block][unsafe-l2-block] that a [rol
 [consolidation]: glossary.md#unsafe-block-consolidation
 
 Unsafe block consolidation is the process through which the [rollup node][rollup-node] attempts to move the [safe L2
-head] a block forward, so that the oldest [unsafe L2 block][unsafe-l2-block] becomes the new safe L2 head.
+head][safe-l2-head] a block forward, so that the oldest [unsafe L2 block][unsafe-l2-block] becomes the new safe L2 head.
 
 In order to perform consolidation, the node verifies that the [payload attributes][payload-attr] derived from the L1
 chain match the oldest unsafe L2 block exactly.
@@ -634,7 +634,7 @@ See the [Engine Queue section][engine-queue] of the L2 chain derivatiaon spec fo
 The finalized L2 head is the highest L2 block that can be derived from *[finalized][finality]* L1 blocks — i.e. L1
 blocks older than two L1 epochs (64 L1 [time slots][time-slot]).
 
-[finality]: <https://hackmd.io/@prysmaticlabs/finality> *finalized* L1 data.
+[finality]: https://hackmd.io/@prysmaticlabs/finality
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -705,8 +705,6 @@ cf. [Proposing L2 output commitments](proposals.md#l2-output-root-proposals-spec
 
 An L1 contract to which [L2 output roots][l2-output] are posted by the [sequencer].
 
-> **TODO** expand
-
 ## Validator
 
 [validator]: glossary.md#validator
@@ -727,10 +725,7 @@ proof][fault-proof].
 An on-chain *interactive* proof, performed by [validators][validator], that demonstrates that a [sequencer] provided
 erroneous [output roots][l2-output].
 
-Fault proofs are not specified yet. For now, the best place to find information about fault proofs is the [Cannon
-repository][cannon].
-
-> **TODO** expand
+cf. [Fault Proofs](./fault-proof.md)
 
 ## Time Slot
 

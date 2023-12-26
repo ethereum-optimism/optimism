@@ -178,12 +178,12 @@ func LegacyL2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, metri
 		// require the entry but we'll store it anyways as a large % of these withdrawals are not relayed
 		// pre-bedrock.
 
-		v1MessageHash, err := legacyBridgeMessageV1MessageHash(&sentMessage.BridgeMessage)
+		v1MessageHash, err := LegacyBridgeMessageV1MessageHash(&sentMessage.BridgeMessage)
 		if err != nil {
 			return fmt.Errorf("failed to compute versioned message hash: %w", err)
 		}
 
-		withdrawalHash, err := legacyBridgeMessageWithdrawalHash(preset, &sentMessage.BridgeMessage)
+		withdrawalHash, err := LegacyBridgeMessageWithdrawalHash(preset, &sentMessage.BridgeMessage)
 		if err != nil {
 			return fmt.Errorf("failed to construct migrated withdrawal hash: %w", err)
 		}
@@ -373,7 +373,7 @@ func LegacyL2ProcessFinalizedBridgeEvents(log log.Logger, db *database.DB, metri
 
 // Utils
 
-func legacyBridgeMessageWithdrawalHash(preset int, msg *database.BridgeMessage) (common.Hash, error) {
+func LegacyBridgeMessageWithdrawalHash(preset int, msg *database.BridgeMessage) (common.Hash, error) {
 	l1Cdm := config.Presets[preset].ChainConfig.L1Contracts.L1CrossDomainMessengerProxy
 	legacyWithdrawal := crossdomain.NewLegacyWithdrawal(predeploys.L2CrossDomainMessengerAddr, msg.Tx.ToAddress, msg.Tx.FromAddress, msg.Tx.Data, msg.Nonce)
 	migratedWithdrawal, err := crossdomain.MigrateWithdrawal(legacyWithdrawal, &l1Cdm, big.NewInt(int64(preset)))
@@ -384,7 +384,7 @@ func legacyBridgeMessageWithdrawalHash(preset int, msg *database.BridgeMessage) 
 	return migratedWithdrawal.Hash()
 }
 
-func legacyBridgeMessageV1MessageHash(msg *database.BridgeMessage) (common.Hash, error) {
+func LegacyBridgeMessageV1MessageHash(msg *database.BridgeMessage) (common.Hash, error) {
 	legacyWithdrawal := crossdomain.NewLegacyWithdrawal(predeploys.L2CrossDomainMessengerAddr, msg.Tx.ToAddress, msg.Tx.FromAddress, msg.Tx.Data, msg.Nonce)
 	value, err := legacyWithdrawal.Value()
 	if err != nil {

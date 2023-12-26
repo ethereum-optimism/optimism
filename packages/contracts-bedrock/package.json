@@ -5,6 +5,7 @@
   "license": "MIT",
   "files": [
     "forge-artifacts/**/*.json",
+    "!forge-artifacts/**/*.t.sol/*.json",
     "deployments/**/*.json",
     "src/**/*.sol"
   ],
@@ -50,9 +51,9 @@
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^6.13.2",
+    "@typescript-eslint/eslint-plugin": "^6.15.0",
     "@typescript-eslint/parser": "^6.13.2",
-    "tsx": "^4.6.2",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }

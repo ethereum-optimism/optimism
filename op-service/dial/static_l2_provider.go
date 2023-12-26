@@ -13,7 +13,7 @@ import (
 type L2EndpointProvider interface {
 	RollupProvider
 	// EthClient(ctx) returns the underlying ethclient pointing to the L2 execution node
-	EthClient(ctx context.Context) (*ethclient.Client, error)
+	EthClient(ctx context.Context) (EthClientInterface, error)
 }
 
 // StaticL2EndpointProvider is a L2EndpointProvider that always returns the same static RollupClient and eth client
@@ -38,7 +38,7 @@ func NewStaticL2EndpointProvider(ctx context.Context, log log.Logger, ethClientU
 	}, nil
 }
 
-func (p *StaticL2EndpointProvider) EthClient(context.Context) (*ethclient.Client, error) {
+func (p *StaticL2EndpointProvider) EthClient(context.Context) (EthClientInterface, error) {
 	return p.ethClient, nil
 }
 

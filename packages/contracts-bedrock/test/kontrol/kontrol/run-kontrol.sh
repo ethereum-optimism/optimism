@@ -15,7 +15,7 @@ SCRIPT_HOME="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 notif "Script Home: $SCRIPT_HOME"
 blank_line
 
-# Set Run Directory <root>/packages/contracts-bedrock 
+# Set Run Directory <root>/packages/contracts-bedrock
 WORKSPACE_DIR=$( cd "${SCRIPT_HOME}/../../.." >/dev/null 2>&1 && pwd )
 notif "Run Directory: ${WORKSPACE_DIR}"
 blank_line
@@ -31,6 +31,7 @@ export KONTROL_RELEASE=${KONTROLRC}
 #############
 kontrol_build() {
     notif "Kontrol Build"
+    # shellcheck disable=SC2086
     docker_exec kontrol build                       \
                         --verbose                   \
                         --require ${lemmas}         \
@@ -40,6 +41,7 @@ kontrol_build() {
 
 kontrol_prove() {
     notif "Kontrol Prove"
+    # shellcheck disable=SC2086
     docker_exec kontrol prove                              \
                         --max-depth ${max_depth}           \
                         --max-iterations ${max_iterations} \
@@ -85,12 +87,12 @@ dump_log_results(){
   notif "Copying Tests Results to Host"
   docker cp ${CONTAINER_NAME}:/home/user/workspace/results.tar.gz "${RESULTS_LOG}"
   if [ -f "${RESULTS_LOG}" ]; then
-    cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz 
+    cp "${RESULTS_LOG}" kontrol-results_latest.tar.gz
   else
     notif "Results Log: ${RESULTS_LOG} not found, did not pull from container."
   fi
   blank_line
-  
+
   notif "Dump RUN Logs"
   RUN_LOG="run-kontrol-$(date +'%Y-%m-%d-%H-%M-%S').log"
   docker logs ${CONTAINER_NAME} > "${RUN_LOG}"

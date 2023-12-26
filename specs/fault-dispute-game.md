@@ -11,6 +11,7 @@
   - [Execution Trace](#execution-trace)
   - [Claims](#claims)
   - [DAG](#dag)
+  - [Subgame](#subgame)
   - [Game Tree](#game-tree)
   - [Position](#position)
   - [GAME_DURATION](#game_duration)
@@ -28,18 +29,21 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
+<!-- Glossary References -->
+[g-output-root]: glossary.md#L2-output-root
+
 ## Overview
 
 The Fault Dispute Game (FDG) is a specific type of
 [dispute game](./dispute-game-interface.md) that verifies the validity of a
-root claim by iteratively bisecting an execution trace down to a single instruction step.
-It relies on a Virtual Machine (VM) to falsify invalid claims made
-at a single instruction step.
+root claim by iteratively bisecting over [output roots][g-output-root] and execution traces of single block state
+transitions down to a single instruction step. It relies on a Virtual Machine (VM) to falsify invalid claims made at
+a single instruction step.
 
 Actors, i.e. Players, interact with the game by making claims that dispute other claims in the FDG.
-Each claim made narrows the execution trace until the source of dispute is a single state transition.
-Once a time limit is reached, the dispute game is _resolved_, based on
-claims made that are disputed and which aren't, to determine the winners of the game.
+Each claim made narrows the range over the entire historical state of L2, until the source of dispute is a single
+state transition. Once a time limit is reached, the dispute game is _resolved_, based on claims made that are disputed
+and which aren't, to determine the winners of the game.
 
 ## Definitions
 
@@ -69,9 +73,12 @@ We refer to this state as the **ABSOLUTE\_PRESTATE**.
 
 ### Claims
 
-Claims assert an execution trace. This is represented as `ClaimHash`, a `bytes32` commitment to
-the last VM state in a trace. A FDG is initialized with a root claim, which commits to the entire
-execution trace. As we'll see later, there can be multiple claims, committing to different states in the FDG.
+Claims assert an [output root][g-output-root] or the state of the FPVM at a given instruction. This is represented as
+`ClaimHash`, a `bytes32` representing either an [output root][g-output-root] or a commitment to the last VM state in a
+trace. A FDG is initialized with an output root that corresponds to the state of L2 at a given L2 block number, and
+execution trace subgames at `SPLIT_DEPTH + 1` are initialized with a claim that commits to the entire execution trace
+between two consecutive output roots (a block `n -> n+1` state transition). As we'll see later, there can be multiple
+claims, committing to different output roots and FPVM states in the FDG.
 
 ### DAG
 
@@ -82,12 +89,33 @@ where $C_i$ is a claim.
 - $E$ is the set of _directed_ edges. An edge $(C_i,C_j)$ exists if $C_j$ is a direct dispute
 against $C_i$ through either an "Attack" or "Defend" [move](#moves).
 
+### Subgame
+
+A sub-game is a DAG of depth 1, where the root of the DAG is a `Claim` and the children are `Claim`s that counter the
+root. A good mental model around this structure is that it is a fundamental dispute between two parties over a single
+piece of information. These subgames are chained together such that a child within a subgame is the root of its own
+subgame, which is visualized in the [resolution](#resolution) section. There are two types of sub-games in the fault
+dispute game:
+
+1. Output Roots
+1. Execution Trace Commitments
+
+At and above the split depth, all subgame roots correspond to [output roots][g-output-root], or commitments to the full
+state of L2 at a given L2 block number. Below the split depth, subgame roots correspond to commitments to the fault
+proof VM's state at a given instruction step.
+
 ### Game Tree
 
 The Game Tree is a binary tree of positions. Every claim in the DAG references a position in the Game Tree.
- The Game Tree has a maximum depth, `MAX_GAME_DEPTH`, that's preset to an FDG implementation.
-Thus, the Game Tree contains $2^{d-1}$ positions, where $d$ is the `MAX_GAME_DEPTH`
-(unless $d=0$, in which case there's only 1 position).
+The Game Tree has a split depth and maximum depth, `SPLIT_DEPTH` and `MAX_GAME_DEPTH` respectively, that are both
+preset to an FDG implementation. The split depth defines the maximum depth at which claims about
+[output roots][g-output-root] can occur, and below it, execution trace bisection occurs. Thus, the Game Tree contains
+$2^{d-1}$ positions, where $d$ is the `MAX_GAME_DEPTH` (unless $d=0$, in which case there's only 1 position).
+
+The full game tree, with a layer of the tree allocated to output bisection, and sub-trees after an arbitrary split
+depth, looks like:
+
+![ob-tree](./assets/ob-tree.png)
 
 ### Position
 
@@ -100,7 +128,8 @@ The **gindex** of a position $n$ can be calculated as $2^{d(n)} + idx(n)$, where
 - $d(n)$ is a function returning the depth of the position in the Game Tree
 - $idx(n)$ is a function returning the index of the position at its depth (starting from the left).
 
-Positions at the deepest level of the game tree correspond to indices in the execution trace.
+Positions at the deepest level of the game tree correspond to indices in the execution trace, whereas claims at the
+split depth represent single L2 blocks' [output roots][g-output-root].
 Positions higher up the game tree also cover the deepest, right-most positions relative to the current position.
 We refer to this coverage as the **trace index** of a Position.
 
@@ -119,13 +148,18 @@ This is an immutable, preset to a FDG implementation, representing the duration 
 
 The game involves two types of participants (or Players): **Challengers** and **Defenders**.
 These players are grouped into separate teams, each employing distinct strategies to interact with the game.
-Team members share a common goal regarding the game's outcome. Players interact with the game primarily through _moves_.
+Team members share a common goal regarding the game's outcome. Players interact with the game primarily through
+_moves_.
 
 ### Moves
 
-A Move is a challenge against a claim's execution trace and must include an alternate claim asserting a different trace.
+A Move is a challenge against an existing claim and must include an alternate claim asserting a different trace.
 Moves can either be attacks or defenses and serve to update to DAG by adding nodes and edges targeting the disputed
 claim.
+
+Moves within the fault dispute game can claim two separate values: [output roots][g-output-root] and execution trace
+commitments. At and above the `SPLIT_DEPTH`, claims correspond to output roots, while below the split depth, they
+correspond to execution trace commitments.
 
 Initially, claims added to the DAG are _uncontesteed_ (i.e. not **countered**). Once a move targets a claim, that claim
  is considered countered.
@@ -216,12 +250,17 @@ The FDG provides the following interface to manage data loaded to the `PreimageO
 ```solidity
 /// @notice Posts the requested local data to the VM's `PreimageOralce`.
 /// @param _ident The local identifier of the data to post.
+/// @param _execLeafIdx The index of the leaf claim in an execution subgame that requires the local data for a step.
 /// @param _partOffset The offset of the data to post.
-function addLocalData(uint256 _ident, uint256 _partOffset) external;
+function addLocalData(uint256 _ident, uint256 _execLeafIdx, uint256 _partOffset) external;
 ```
 
-The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`.
-Players use this to ensure pre-image parts are available to the VM during a step.
+The `addLocalData` function loads parts of a pre-image to VM's `PreimageOracle`. Players use this to ensure pre-image
+parts are available to the VM during a step. Because there are multiple sets of local preimage keys that belong to the
+`FaultDisputeGame` contract due to the ability for players to bisect to any block `n->n+1` state transition since the
+configured genesis, the `_execLeafIdx` parameter enables a search for the starting / disputed outputs to be performed
+such that the contract can write to and reference unique local keys in the `PreimageOracle` for each of these `n->n+1`
+transitions.
 
 ### Team Dynamics
 
@@ -352,7 +391,7 @@ digraph G {
 </p>
 
 Given these rules, players are motivated to move quickly to challenge all dishonest claims.
-Each move bisects the execution trace and eventually, `MAX_GAME_DEPTH` is reached where disputes
+Each move bisects the historical state of L2 and eventually, `MAX_GAME_DEPTH` is reached where disputes
 can be settled conclusively. Dishonest players are disincentivized to participate, via backwards induction,
 as an invalid claim won't remain uncontested. Further incentives can be added to the game by requiring
 claims to be bonded, while rewarding game winners using the bonds of dishonest claims.

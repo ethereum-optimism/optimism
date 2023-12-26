@@ -11,7 +11,7 @@ import (
 // It manages the lifecycle of the RollupClient for callers
 type RollupProvider interface {
 	// RollupClient(ctx) returns the underlying sources.RollupClient pointing to the L2 rollup consensus node
-	RollupClient(ctx context.Context) (*sources.RollupClient, error)
+	RollupClient(ctx context.Context) (RollupClientInterface, error)
 	// Close() closes the underlying client or clients
 	Close()
 }
@@ -39,7 +39,7 @@ func NewStaticL2RollupProviderFromExistingRollup(rollupCl *sources.RollupClient)
 	}, nil
 }
 
-func (p *StaticL2RollupProvider) RollupClient(context.Context) (*sources.RollupClient, error) {
+func (p *StaticL2RollupProvider) RollupClient(context.Context) (RollupClientInterface, error) {
 	return p.rollupClient, nil
 }
 

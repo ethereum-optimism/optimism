@@ -52,21 +52,35 @@ type E2ETestSuite struct {
 	L2Client *ethclient.Client
 }
 
+func init() {
+	// Disable the global logger. Ideally we'd like to dump geth
+	// logs per-test but that's possible when running tests in
+	// parallel as the root logger is shared.
+	log.Root().SetHandler(log.DiscardHandler())
+}
+
 // createE2ETestSuite ... Create a new E2E test suite
 func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
-	// Rollup System Configuration. Unless specified,
-	// omit logs emitted by the various components. Maybe
-	// we can eventually dump these logs to a temp file
-	log.Root().SetHandler(log.DiscardHandler())
+	// E2E tests can run on the order of magnitude of minutes.
+	// We mark the test as parallel before starting the devnet
+	// to reduce that number of idle routines when paused.
+	t.Parallel()
+
+	// Bump up the block times to try minimize resource
+	// contention when parallel devnets are running
 	opCfg := op_e2e.DefaultSystemConfig(t)
+
+	// Unless specified, omit logs emitted by the various components
 	if len(os.Getenv("ENABLE_ROLLUP_LOGS")) == 0 {
 		t.Log("set env 'ENABLE_ROLLUP_LOGS' to show rollup logs")
-		for name, logger := range opCfg.Loggers {
+		for name := range opCfg.Loggers {
 			t.Logf("discarding logs for %s", name)
-			logger.SetHandler(log.DiscardHandler())
+			noopLog := log.New()
+			noopLog.SetHandler(log.DiscardHandler())
+			opCfg.Loggers[name] = noopLog
 		}
 	}
 
@@ -77,12 +91,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	// Indexer Configuration and Start
 	indexerCfg := &config.Config{
-		DB: config.DBConfig{
-			Host: "127.0.0.1",
-			Port: 5432,
-			Name: dbName,
-			User: dbUser,
-		},
+		DB: config.DBConfig{Host: "127.0.0.1", Port: 5432, Name: dbName, User: dbUser},
 		RPCs: config.RPCsConfig{
 			L1RPC: opSys.EthInstances["l1"].HTTPEndpoint(),
 			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
@@ -105,10 +114,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
-	// E2E tests can run on the order of magnitude of minutes. Once
-	// the system is running, mark this test for Parallel execution
-	t.Parallel()
-
 	indexerLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer")
 	ix, err := indexer.NewIndexer(context.Background(), indexerLog, indexerCfg, func(cause error) {
 		if cause != nil {
@@ -116,30 +121,21 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		}
 	})
 	require.NoError(t, err)
-
 	require.NoError(t, ix.Start(context.Background()), "cleanly start indexer")
-
 	t.Cleanup(func() {
 		require.NoError(t, ix.Stop(context.Background()), "cleanly shut down indexer")
 	})
 
+	// API Configuration and Start
 	apiLog := testlog.Logger(t, log.LvlInfo).New("role", "indexer_api")
-
 	apiCfg := &api.Config{
-		DB: &api.TestDBConnector{BridgeTransfers: ix.DB.BridgeTransfers}, // reuse the same DB
-		HTTPServer: config.ServerConfig{
-			Host: "127.0.0.1",
-			Port: 0,
-		},
-		MetricsServer: config.ServerConfig{
-			Host: "127.0.0.1",
-			Port: 0,
-		},
+		DB:            &api.TestDBConnector{BridgeTransfers: ix.DB.BridgeTransfers}, // reuse the same DB
+		HTTPServer:    config.ServerConfig{Host: "127.0.0.1", Port: 0},
+		MetricsServer: config.ServerConfig{Host: "127.0.0.1", Port: 0},
 	}
 
 	apiService, err := api.NewApi(context.Background(), apiLog, apiCfg)
 	require.NoError(t, err, "create indexer API service")
-
 	require.NoError(t, apiService.Start(context.Background()), "start indexer API service")
 	t.Cleanup(func() {
 		require.NoError(t, apiService.Stop(context.Background()), "cleanly shut down indexer")
@@ -148,10 +144,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// Wait for the API to start listening
 	time.Sleep(1 * time.Second)
 
-	client, err := client.NewClient(&client.Config{
-		PaginationLimit: 100,
-		BaseURL:         "http://" + apiService.Addr(),
-	})
+	client, err := client.NewClient(&client.Config{PaginationLimit: 100, BaseURL: "http://" + apiService.Addr()})
 	require.NoError(t, err, "must open indexer API client")
 
 	return E2ETestSuite{
@@ -193,9 +186,9 @@ func setupTestDatabase(t *testing.T) string {
 		Password: "",
 	}
 
-	silentLog := log.New()
-	silentLog.SetHandler(log.DiscardHandler())
-	db, err := database.NewDB(context.Background(), silentLog, dbConfig)
+	noopLog := log.New()
+	noopLog.SetHandler(log.DiscardHandler())
+	db, err := database.NewDB(context.Background(), noopLog, dbConfig)
 	require.NoError(t, err)
 	defer db.Close()
 
