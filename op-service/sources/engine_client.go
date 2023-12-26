@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"time"
 
 	"github.com/ethereum/go-ethereum/eth/catalyst"
@@ -147,8 +147,14 @@ func (s *EngineClient) UploadFileDataByParams(ctx context.Context, index, length
 	return result, err
 }
 
-func (s *EngineClient) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
-	var result *types.FileData
+func (s *EngineClient) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
+	var result ethclient.RPCFileData
 	err := s.client.CallContext(ctx, &result, "eth_getFileDataByHash", hash)
+	return result, err
+}
+
+func (s *EngineClient) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
+	var result bool
+	err := s.client.CallContext(ctx, &result, "eth_diskSaveFileDataWithHash", hash)
 	return result, err
 }

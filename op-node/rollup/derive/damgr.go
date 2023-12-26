@@ -1,10 +1,9 @@
-package driver
+package derive
 
 import (
 	"context"
 	"errors"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/submit"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,7 +18,7 @@ type DAHash struct {
 }
 type DAManager struct {
 	log               log.Logger
-	engine            derive.ResettableEngineControl
+	engine            Engine
 	wg                sync.WaitGroup
 	shutdownCtx       context.Context
 	cancelShutdownCtx context.CancelFunc
@@ -32,7 +31,7 @@ type DAManager struct {
 	IsBroadcast bool
 }
 
-func NewDAManager(log log.Logger, rollup *rollup.Config, engine derive.ResettableEngineControl, txmgr *txmgr.SimpleTxManager, isBroadcast bool) *DAManager {
+func NewDAManager(log log.Logger, rollup *rollup.Config, engine Engine, txmgr *txmgr.SimpleTxManager, isBroadcast bool) *DAManager {
 	return &DAManager{
 		log:          log,
 		engine:       engine,
@@ -122,15 +121,17 @@ func (d *DAManager) getDA() {
 	}
 	for hash, count := range d.daHashes {
 
-		data, _ := d.engine.GetFileDataByHash(d.shutdownCtx, hash)
-		if data != nil {
-			log.Info("getDA true", "hash", hash)
-			delete(d.daHashes, hash)
-		} else {
+		data, err := d.engine.GetFileDataByHash(d.shutdownCtx, hash)
+		if err != nil {
+			log.Error("getDA", "hash", hash.Hex(), "err", err)
 			d.daHashes[hash] = count + 1
 			if count == 5 {
 				delete(d.daHashes, hash)
 			}
+		} else {
+			d.engine.DiskSaveFileDataWithHash(d.shutdownCtx, hash)
+			log.Info("getDA true", "hash", hash.Hex(), "data", data)
+			delete(d.daHashes, hash)
 		}
 	}
 }

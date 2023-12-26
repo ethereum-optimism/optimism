@@ -61,6 +61,8 @@ type L2Chain interface {
 }
 
 type DerivationPipeline interface {
+	derive.EngineDA
+
 	Reset()
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
@@ -131,20 +133,11 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, txcfg txmgr.Config, l2 L2C
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics, syncCfg)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics, syncCfg, txcfg)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	engine := derivationPipeline
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
-
-	var daMgr *DAManager
-	txMgr, err := txmgr.NewSimpleTxManagerFromConfig("submit", log, metrics, txcfg)
-	if err != nil {
-		daMgr = NewDAManager(log, cfg, meteredEngine, nil, false)
-	} else {
-		daMgr = NewDAManager(log, cfg, meteredEngine, txMgr, true)
-	}
-	daMgr.Start()
-	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics, daMgr)
+	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
@@ -169,6 +162,5 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, txcfg txmgr.Config, l2 L2C
 		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
 		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 		altSync:          altSync,
-		daMgr:            daMgr,
 	}
 }

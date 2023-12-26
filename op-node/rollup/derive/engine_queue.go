@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"io"
 	"time"
 
@@ -38,7 +41,7 @@ type Engine interface {
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
 
-	EngineDA
+	EngineDAState
 	SystemConfigL2Fetcher
 }
 
@@ -49,9 +52,15 @@ type EngineState interface {
 	SafeL2Head() eth.L2BlockRef
 }
 
-type EngineDA interface {
+type EngineDAState interface {
 	UploadFileDataByParams(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte, hash common.Hash) (bool, error)
-	GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error)
+	GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error)
+	DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error)
+}
+
+type EngineDA interface {
+	SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error)
+	Broadcaster(ctx context.Context) (common.Address, error)
 }
 
 // EngineControl enables other components to build blocks with the Engine,
@@ -59,7 +68,7 @@ type EngineDA interface {
 // avoid state inconsistencies between different users of the EngineControl.
 type EngineControl interface {
 	EngineState
-	EngineDA
+	EngineDAState
 
 	// StartPayload requests the engine to start building a block with the given attributes.
 	// If updateSafe, the resulting block will be marked as a safe block.
@@ -153,12 +162,19 @@ type EngineQueue struct {
 	l1Fetcher L1Fetcher
 
 	syncCfg *sync.Config
+
+	// Record Tx metrics
+	txmetrics.TxMetrics
+
+	metrics.RPCMetrics
+
+	daMgr *DAManager
 }
 
 var _ EngineControl = (*EngineQueue)(nil)
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher, syncCfg *sync.Config) *EngineQueue {
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher, syncCfg *sync.Config, daMgr *DAManager) *EngineQueue {
 	return &EngineQueue{
 		log:            log,
 		cfg:            cfg,
@@ -169,6 +185,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 		prev:           prev,
 		l1Fetcher:      l1Fetcher,
 		syncCfg:        syncCfg,
+		daMgr:          daMgr,
 	}
 }
 
@@ -728,7 +745,7 @@ func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPa
 	}
 	// Update the safe head if the payload is built with the last attributes in the batch.
 	updateSafe := eq.buildingSafe && eq.safeAttributes != nil && eq.safeAttributes.isLastInSpan
-	payload, errTyp, err := ConfirmPayload(ctx, eq.log, eq.engine, fc, eq.buildingID, updateSafe)
+	payload, errTyp, err := ConfirmPayload(ctx, eq.log, eq.engine, fc, eq.buildingID, updateSafe, eq.daMgr)
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", eq.buildingOnto, eq.buildingID, errTyp, err)
 	}
@@ -860,6 +877,18 @@ func (eq *EngineQueue) UploadFileDataByParams(ctx context.Context, index, length
 	return eq.engine.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
 }
 
-func (eq *EngineQueue) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+func (eq *EngineQueue) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
 	return eq.engine.GetFileDataByHash(ctx, hash)
+}
+
+func (eq *EngineQueue) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
+	return eq.engine.DiskSaveFileDataWithHash(ctx, hash)
+}
+
+func (eq *EngineQueue) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	return eq.daMgr.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+}
+
+func (eq *EngineQueue) Broadcaster(ctx context.Context) (common.Address, error) {
+	return eq.daMgr.Broadcaster(ctx)
 }

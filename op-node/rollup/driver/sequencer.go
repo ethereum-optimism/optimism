@@ -45,10 +45,9 @@ type Sequencer struct {
 	timeNow func() time.Time
 
 	nextAction time.Time
-	daMgr      *DAManager
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics, daMgr *DAManager) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
 		log:              log,
 		config:           cfg,
@@ -57,7 +56,6 @@ func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEn
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
 		metrics:          metrics,
-		daMgr:            daMgr,
 	}
 }
 
@@ -109,18 +107,9 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 // Warning: the safe and finalized L2 blocks as viewed during the initiation of the block building are reused for completion of the block building.
 // The Execution engine should not change the safe and finalized blocks between start and completion of block building.
 func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error) {
-	log.Info("Sequencer")
 	payload, errTyp, err := d.engine.ConfirmPayload(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building block: error (%d): %w", errTyp, err)
-	}
-	if d.daMgr != nil {
-		for i := 0; i < len(payload.Transactions); i++ {
-			tx := payload.Transactions[i]
-			if tx[0] == types.SubmitTxType {
-				log.Info("daMgr", "tx", tx)
-			}
-		}
 	}
 	return payload, nil
 }

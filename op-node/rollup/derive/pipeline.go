@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -23,6 +25,14 @@ type Metrics interface {
 	RecordHeadChannelOpened()
 	RecordChannelTimedOut()
 	RecordFrame()
+
+	RecordGasBumpCount(int)
+	RecordTxConfirmationLatency(int64)
+	RecordNonce(uint64)
+	RecordPendingTx(pending int64)
+	TxConfirmed(*types.Receipt)
+	TxPublished(string)
+	RPCError()
 }
 
 type L1Fetcher interface {
@@ -48,6 +58,7 @@ type ResettableStage interface {
 
 type EngineQueueStage interface {
 	EngineControl
+	EngineDA
 
 	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
@@ -84,7 +95,7 @@ type DerivationPipeline struct {
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
-func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config) *DerivationPipeline {
+func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics, syncCfg *sync.Config, txcfg txmgr.Config) *DerivationPipeline {
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher)
@@ -97,8 +108,16 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, engine)
 	attributesQueue := NewAttributesQueue(log, cfg, attrBuilder, batchQueue)
 
+	var daMgr *DAManager
+	txMgr, err := txmgr.NewSimpleTxManagerFromConfig("submit", log, metrics, txcfg)
+	if err != nil {
+		daMgr = NewDAManager(log, cfg, engine, nil, false)
+	} else {
+		daMgr = NewDAManager(log, cfg, engine, txMgr, true)
+	}
+	daMgr.Start()
 	// Step stages
-	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher, syncCfg)
+	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher, syncCfg, daMgr)
 
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
@@ -169,7 +188,6 @@ func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2Blo
 }
 
 func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
-	log.Info("ConfirmPayload")
 	return dp.eng.ConfirmPayload(ctx)
 }
 
@@ -195,8 +213,12 @@ func (dp *DerivationPipeline) UploadFileDataByParams(ctx context.Context, index,
 	return dp.eng.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
 }
 
-func (dp *DerivationPipeline) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+func (dp *DerivationPipeline) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
 	return dp.eng.GetFileDataByHash(ctx, hash)
+}
+
+func (dp *DerivationPipeline) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
+	return dp.eng.DiskSaveFileDataWithHash(ctx, hash)
 }
 
 // Step tries to progress the buffer.
@@ -232,4 +254,12 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	} else {
 		return nil
 	}
+}
+
+func (dp *DerivationPipeline) SendDA(ctx context.Context, index, length uint64, broadcaster, user common.Address, commitment, sign, data []byte) (common.Hash, error) {
+	return dp.eng.SendDA(ctx, index, length, broadcaster, user, commitment, sign, data)
+}
+
+func (dp *DerivationPipeline) Broadcaster(ctx context.Context) (common.Address, error) {
+	return dp.eng.Broadcaster(ctx)
 }

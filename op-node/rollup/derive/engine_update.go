@@ -39,7 +39,7 @@ func lastDeposit(txns []eth.Data) (int, error) {
 	return lastDeposit, nil
 }
 
-func sanityCheckPayload(payload *eth.ExecutionPayload) error {
+func sanityCheckPayload(payload *eth.ExecutionPayload, daMgr *DAManager) error {
 	// Sanity check payload before inserting it
 	if len(payload.Transactions) == 0 {
 		return errors.New("no transactions in returned payload")
@@ -56,6 +56,15 @@ func sanityCheckPayload(payload *eth.ExecutionPayload) error {
 	for i := lastDeposit + 1; i < len(payload.Transactions); i++ {
 		tx := payload.Transactions[i]
 		deposit, err := isDepositTx(tx)
+		if tx[0] == types.SubmitTxType {
+			var submixTx types.Transaction
+
+			if err = submixTx.UnmarshalBinary(tx); err != nil {
+				return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
+			}
+			log.Info("daMgr", "tx", submixTx)
+			daMgr.SendDaHash(submixTx.SourceHash())
+		}
 		if err != nil {
 			return fmt.Errorf("failed to decode transaction idx %d: %w", i, err)
 		}
@@ -117,13 +126,13 @@ func StartPayload(ctx context.Context, eng Engine, fc eth.ForkchoiceState, attrs
 // ConfirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
-func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool, daMgr *DAManager) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
 	payload, err := eng.GetPayload(ctx, id)
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload: %w", err)
 	}
-	if err := sanityCheckPayload(payload); err != nil {
+	if err := sanityCheckPayload(payload, daMgr); err != nil {
 		return nil, BlockInsertPayloadErr, err
 	}
 

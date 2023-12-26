@@ -75,11 +75,7 @@ func UnmarshalSubmitsLogEvent(ev *types.Log) (*types.SubmitTx, error) {
 
 	var dep types.SubmitTx
 
-	source := UserDepositSource{
-		L1BlockHash: ev.BlockHash,
-		LogIndex:    uint64(ev.Index),
-	}
-	dep.SourceHash = source.SourceHash()
+	dep.SourceHash = ev.TxHash
 	dep.From = from
 	dep.IsSystemTransaction = false
 

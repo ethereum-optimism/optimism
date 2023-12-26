@@ -2,6 +2,7 @@ package testutils
 
 import (
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // TestDerivationMetrics implements the metrics used in the derivation pipeline as no-op operations.
@@ -12,6 +13,41 @@ type TestDerivationMetrics struct {
 	FnRecordL2Ref             func(name string, ref eth.L2BlockRef)
 	FnRecordUnsafePayloads    func(length uint64, memSize uint64, next eth.BlockID)
 	FnRecordChannelInputBytes func(inputCompressedBytes int)
+}
+
+func (t *TestDerivationMetrics) RecordGasBumpCount(i int) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestDerivationMetrics) RecordTxConfirmationLatency(i int64) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestDerivationMetrics) RecordNonce(u uint64) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestDerivationMetrics) RecordPendingTx(pending int64) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestDerivationMetrics) TxConfirmed(receipt *types.Receipt) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestDerivationMetrics) TxPublished(s string) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (t *TestDerivationMetrics) RPCError() {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (t *TestDerivationMetrics) RecordL1ReorgDepth(d uint64) {

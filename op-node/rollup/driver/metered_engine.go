@@ -3,7 +3,7 @@ package driver
 import (
 	"context"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -68,7 +68,6 @@ func (m *MeteredEngine) StartPayload(ctx context.Context, parent eth.L2BlockRef,
 func (m *MeteredEngine) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp derive.BlockInsertionErrType, err error) {
 	sealingStart := time.Now()
 	// Actually execute the block and add it to the head of the chain.
-	log.Info("MeteredEngine")
 	payload, errType, err := m.inner.ConfirmPayload(ctx)
 	if err != nil {
 		m.metrics.RecordSequencingError()
@@ -105,6 +104,10 @@ func (m *MeteredEngine) UploadFileDataByParams(ctx context.Context, index, lengt
 	return m.inner.UploadFileDataByParams(ctx, index, length, broadcaster, user, commitment, sign, data, hash)
 }
 
-func (m *MeteredEngine) GetFileDataByHash(ctx context.Context, hash common.Hash) (*types.FileData, error) {
+func (m *MeteredEngine) GetFileDataByHash(ctx context.Context, hash common.Hash) (ethclient.RPCFileData, error) {
 	return m.inner.GetFileDataByHash(ctx, hash)
+}
+
+func (m *MeteredEngine) DiskSaveFileDataWithHash(ctx context.Context, hash common.Hash) (bool, error) {
+	return m.inner.DiskSaveFileDataWithHash(ctx, hash)
 }
