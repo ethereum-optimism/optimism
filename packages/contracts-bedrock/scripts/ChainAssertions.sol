@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
 import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { DeployConfig } from "scripts/DeployConfig.s.sol";
+import { Deployer } from "scripts/Deployer.sol";
 import { SystemConfig } from "src/L1/SystemConfig.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
@@ -55,30 +56,61 @@ library ChainAssertions {
     /// @notice Asserts that the SystemConfig is setup correctly
     function checkSystemConfig(Types.ContractSet memory _contracts, DeployConfig _cfg, bool _isProxy) internal view {
         console.log("Running chain assertions on the SystemConfig");
-        ISystemConfigV0 config = ISystemConfigV0(_contracts.SystemConfig);
+        SystemConfig config = SystemConfig(_contracts.SystemConfig);
 
-        if (_isProxy) {
-            require(config.owner() == _cfg.finalSystemOwner());
-            require(config.overhead() == _cfg.gasPriceOracleOverhead());
-            require(config.scalar() == _cfg.gasPriceOracleScalar());
-            require(config.batcherHash() == bytes32(uint256(uint160(_cfg.batchSenderAddress()))));
-            require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
-        } else {
+        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
+
+        if (!_isProxy) {
             require(config.owner() == address(0xdead));
             require(config.overhead() == 0);
             require(config.scalar() == 0);
             require(config.batcherHash() == bytes32(0));
+            require(config.gasLimit() == 1);
             require(config.unsafeBlockSigner() == address(0));
+            // Check _config
+            require(resourceConfig.maxResourceLimit == 1);
+            require(resourceConfig.elasticityMultiplier == 1);
+            require(resourceConfig.baseFeeMaxChangeDenominator == 2);
+            require(resourceConfig.systemTxMaxGas == 0);
+            require(resourceConfig.minimumBaseFee == 0);
+            require(resourceConfig.maximumBaseFee == 0);
+            // Check _addresses
+            require(config.startBlock() == block.number);
+            require(config.batchInbox() == address(0));
+            require(config.l1CrossDomainMessenger() == address(0));
+            require(config.l1ERC721Bridge() == address(0));
+            require(config.l1StandardBridge() == address(0));
+            require(config.l2OutputOracle() == address(0));
+            require(config.optimismPortal() == address(0));
+            require(config.optimismMintableERC20Factory() == address(0));
+        } else {
+            require(config.owner() == _cfg.finalSystemOwner());
+            require(config.overhead() == _cfg.gasPriceOracleOverhead());
+            require(config.scalar() == _cfg.gasPriceOracleScalar());
+            require(config.batcherHash() == bytes32(uint256(uint160(_cfg.batchSenderAddress()))));
+            require(config.gasLimit() == uint64(_cfg.l2GenesisBlockGasLimit()));
+            require(config.unsafeBlockSigner() == _cfg.p2pSequencerAddress());
+            // Check _config
+            ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
+            require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
+            require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
+            require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
+            require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
+            require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
+            require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
+            // Check _addresses
+            require(
+                config.startBlock()
+                    == (_cfg.systemConfigStartBlock() == 0 ? block.number : _cfg.systemConfigStartBlock())
+            );
+            require(config.batchInbox() == _cfg.batchInboxAddress());
+            require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger);
+            require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge);
+            require(config.l1StandardBridge() == _contracts.L1StandardBridge);
+            require(config.l2OutputOracle() == _contracts.L2OutputOracle);
+            require(config.optimismPortal() == _contracts.OptimismPortal);
+            require(config.optimismMintableERC20Factory() == _contracts.OptimismMintableERC20Factory);
         }
-
-        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
-        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
-        require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
-        require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
-        require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
-        require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
-        require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
     }
 
     /// @notice Asserts that the L1CrossDomainMessenger is setup correctly
