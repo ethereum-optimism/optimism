@@ -71,13 +71,46 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(address(systemConfig.optimismPortal()), address(optimismPortal));
         assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
     }
+
+    /// @dev Ensures that the start block override can be used to set the start block.
+    function test_initialize_startBlockOverride_succeeds() external {
+        uint256 startBlock = 100;
+
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+
+        assertEq(systemConfig.startBlock(), block.number);
+        // the startBlock slot is 106, wipe it out
+        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(0));
+        assertEq(systemConfig.startBlock(), 0);
+
+        vm.prank(systemConfig.owner());
+        systemConfig.initialize(
+            alice, // _owner,
+            overhead, // _overhead,
+            scalar, // _scalar,
+            batcherHash, // _batcherHash
+            gasLimit, // _gasLimit,
+            unsafeBlockSigner, // _unsafeBlockSigner,
+            Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+            startBlock, // _startBlock
+            batchInbox, // _batchInbox
+            SystemConfig.Addresses({ // _addresses
+                l1CrossDomainMessenger: address(l1CrossDomainMessenger),
+                l1ERC721Bridge: address(l1ERC721Bridge),
+                l1StandardBridge: address(l1StandardBridge),
+                l2OutputOracle: address(l2OutputOracle),
+                optimismPortal: address(optimismPortal),
+                optimismMintableERC20Factory: address(optimismMintableERC20Factory)
+            })
+        );
+        assertEq(systemConfig.startBlock(), startBlock);
     }
 }
 
-contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
+contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
-        address systemConfigImpl = deploy.mustGetAddress("SystemConfig");
         uint64 minimumGasLimit = systemConfig.minimumGasLimit();
 
         // Wipe out the initialized slot so the proxy can be initialized again
@@ -88,21 +121,59 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
 
         // The call to initialize reverts due to: "SystemConfig: gas limit too low"
         // but the proxy revert message bubbles up.
-        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
-        Proxy(payable(address(systemConfig))).upgradeToAndCall(
-            address(systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    alice, // _owner,
-                    2100, // _overhead,
-                    1000000, // _scalar,
-                    bytes32(hex"abcd"), // _batcherHash,
-                    minimumGasLimit - 1, // _gasLimit,
-                    address(1), // _unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG() // _config
-                )
-            )
+        vm.expectRevert("SystemConfig: gas limit too low");
+        systemConfig.initialize(
+            alice, // _owner,
+            2100, // _overhead,
+            1000000, // _scalar,
+            bytes32(hex"abcd"), // _batcherHash,
+            minimumGasLimit - 1, // _gasLimit,
+            address(1), // _unsafeBlockSigner,
+            Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+            0, // _startBlock
+            address(0), // _batchInbox
+            SystemConfig.Addresses({ // _addresses
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                l2OutputOracle: address(0),
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0)
+            })
+        );
+    }
+
+    /// @dev Tests that initialization fails when the start block override is used
+    ///      when the start block has already been set.
+    function test_initialize_startBlock_reverts() external {
+        // wipe out initialized slot so we can initialize again
+        vm.store(address(systemConfig), bytes32(0), bytes32(0));
+        // the startBlock slot is 106, set it to something non zero
+        vm.store(address(systemConfig), bytes32(uint256(106)), bytes32(uint256(block.number)));
+
+        // Initialize with a non zero start block, should see a revert
+        vm.prank(systemConfig.owner());
+        // The call to initialize reverts due to: "SystemConfig: cannot override an already set start block"
+        // but the proxy revert message bubbles up.
+        vm.expectRevert("SystemConfig: cannot override an already set start block");
+        systemConfig.initialize(
+            alice, // _owner,
+            overhead, // _overhead,
+            scalar, // _scalar,
+            batcherHash, // _batcherHash
+            gasLimit, // _gasLimit,
+            unsafeBlockSigner, // _unsafeBlockSigner,
+            Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+            1, // _startBlock
+            batchInbox, // _batchInbox
+            SystemConfig.Addresses({ // _addresses
+                l1CrossDomainMessenger: address(l1CrossDomainMessenger),
+                l1ERC721Bridge: address(l1ERC721Bridge),
+                l1StandardBridge: address(l1StandardBridge),
+                l2OutputOracle: address(l2OutputOracle),
+                optimismPortal: address(optimismPortal),
+                optimismMintableERC20Factory: address(optimismMintableERC20Factory)
+            })
         );
     }
 }
