@@ -68,5 +68,12 @@
     "offset": 0,
     "slot": "105",
     "type": "struct ResourceMetering.ResourceConfig"
+  },
+  {
+    "bytes": "32",
+    "label": "startBlock",
+    "offset": 0,
+    "slot": "106",
+    "type": "uint256"
   }
 ]
