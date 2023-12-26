@@ -621,7 +621,7 @@ contract Deploy is Deployer {
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
         console.log("Deploying SystemConfig implementation");
-        SystemConfig config = new SystemConfig();
+        SystemConfig config = new SystemConfig{ salt: _implSalt() }();
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
