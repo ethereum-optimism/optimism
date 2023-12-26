@@ -60,6 +60,17 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(actual.minimumBaseFee, rcfg.minimumBaseFee);
         assertEq(actual.systemTxMaxGas, rcfg.systemTxMaxGas);
         assertEq(actual.maximumBaseFee, rcfg.maximumBaseFee);
+        // Depends on start block being set to 0 in `initialize`
+        assertEq(systemConfig.startBlock(), block.number);
+        assertEq(address(systemConfig.batchInbox()), address(batchInbox));
+        // Check addresses
+        assertEq(address(systemConfig.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
+        assertEq(address(systemConfig.l1ERC721Bridge()), address(l1ERC721Bridge));
+        assertEq(address(systemConfig.l1StandardBridge()), address(l1StandardBridge));
+        assertEq(address(systemConfig.l2OutputOracle()), address(l2OutputOracle));
+        assertEq(address(systemConfig.optimismPortal()), address(optimismPortal));
+        assertEq(address(systemConfig.optimismMintableERC20Factory()), address(optimismMintableERC20Factory));
+    }
     }
 }
 
