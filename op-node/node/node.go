@@ -58,6 +58,8 @@ type OpNode struct {
 	pprofSrv   *httputil.HTTPServer
 	metricsSrv *httputil.HTTPServer
 
+	beacon *sources.L1BeaconClient
+
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
@@ -113,6 +115,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	}
 	if err := n.initL1(ctx, cfg); err != nil {
 		return fmt.Errorf("failed to init L1: %w", err)
+	}
+	if err := n.initL1BeaconAPI(ctx, cfg); err != nil {
+		return err
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return fmt.Errorf("failed to init L2: %w", err)
@@ -288,6 +293,22 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
+func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
+	if cfg.Beacon == nil {
+		n.log.Error("No beacon endpoint configured. Configuration is mandatory for the Ecotone upgrade")
+		return nil
+	}
+	httpClient, err := cfg.Beacon.Setup(ctx, n.log)
+	if err != nil {
+		return fmt.Errorf("failed to setup L1 beacon client: %w", err)
+	}
+
+	cl := sources.NewL1BeaconClient(httpClient)
+	n.beacon = cl
+
+	return nil
+}
+
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
 	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup)
 	if err != nil {
@@ -305,7 +326,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return err
 	}
 
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.beacon, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence, &cfg.Sync)
 
 	return nil
 }
