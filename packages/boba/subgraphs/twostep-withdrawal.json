@@ -1,0 +1,36 @@
+{
+  "version": "1",
+  "name": "twostep-withdrawal",
+  "abis": {
+    "L2StandardBridge": {
+      "path": "./abis/L2StandardBridge.json"
+    },
+    "L2ToL1MessagePasser": {
+      "path": "./abis/L2ToL1MessagePasser.json"
+    },
+    "OptimismPortal": {
+      "path": "./abis/OptimismPortal.json"
+    }
+  },
+  "chains": ["eth/bnb-boba-anchorage-l2", "eth/bnb-anchorage-l1"], // TODO
+  "instances": [
+    {
+      "abi": "L2StandardBridge",
+      "address": "0x4200000000000000000000000000000000000010",
+      "startBlock": 0,
+      "chain": "eth/bnb-boba-anchorage-l2" // TODO
+    },
+    {
+      "abi": "L2ToL1MessagePasser",
+      "address": "0x4200000000000000000000000000000000000016",
+      "startBlock": 0,
+      "chain": "eth/bnb-boba-anchorage-l2" // TODO
+    },
+    {
+      "abi": "OptimismPortal",
+      "address": "0x....", // TODO
+      "startBlock": 0, // TODO!
+      "chain": "eth/bnb-anchorage-l1" // TODO
+    }
+  ]
+}
