@@ -62,7 +62,7 @@ func TestWithVerification(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		//test := test
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			source := preimage.WithVerification(func(key [32]byte) ([]byte, error) {
 				return test.data, test.err
