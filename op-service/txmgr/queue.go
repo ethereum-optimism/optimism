@@ -29,8 +29,6 @@ type Queue[T any] struct {
 
 // NewQueue creates a new transaction sending Queue, with the following parameters:
 //   - maxPending: max number of pending txs at once (0 == no limit)
-//   - pendingChanged: called whenever a tx send starts or finishes. The
-//     number of currently pending txs is passed as a parameter.
 func NewQueue[T any](ctx context.Context, txMgr TxManager, maxPending uint64) *Queue[T] {
 	if maxPending > math.MaxInt {
 		// ensure we don't overflow as errgroup only accepts int; in reality this will never be an issue
