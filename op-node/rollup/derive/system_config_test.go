@@ -139,6 +139,33 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			err: false,
 		},
 		{
+			// The ecotone scalars should be updated
+			name: "SystemConfigUpdateGasConfigEcotone",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					SystemConfigUpdateGasConfigEcotone,
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				basefeeScalar := big.NewInt(0xaa)
+				blobBasefeeScalar := big.NewInt(0xbb)
+				packed := make([]byte, 8)
+				basefeeScalar.FillBytes(packed[0:4])
+				blobBasefeeScalar.FillBytes(packed[4:8])
+				data, err := bytesArgs.Pack(packed)
+				require.NoError(t, err)
+				log.Data = data
+				return log
+			},
+			config: eth.SystemConfig{
+				BasefeeScalar:     0xaa,
+				BlobBasefeeScalar: 0xbb,
+			},
+			err: false,
+		},
+		{
 			name: "SystemConfigOneTopic",
 			log: &types.Log{
 				Topics: []common.Hash{
