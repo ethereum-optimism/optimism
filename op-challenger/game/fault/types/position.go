@@ -12,7 +12,7 @@ var (
 	ErrPositionDepthTooSmall = errors.New("position depth is too small")
 )
 
-type PositionDepth uint32
+type PositionDepth uint64
 
 // Position is a golang wrapper around the dispute game Position type.
 type Position struct {
