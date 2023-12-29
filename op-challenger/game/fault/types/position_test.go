@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,7 +19,7 @@ func TestBigMSB(t *testing.T) {
 	require.True(t, ok)
 	tests := []struct {
 		input    *big.Int
-		expected int
+		expected PositionDepth
 	}{
 		{bi(0), 0},
 		{bi(1), 0},
@@ -41,8 +42,8 @@ func TestBigMSB(t *testing.T) {
 
 type testNodeInfo struct {
 	GIndex       *big.Int
-	Depth        int
-	MaxDepth     int
+	Depth        PositionDepth
+	MaxDepth     PositionDepth
 	IndexAtDepth *big.Int
 	TraceIndex   *big.Int
 	AttackGIndex *big.Int // 0 indicates attack is not possible from this node
@@ -148,7 +149,7 @@ func TestRelativeToAncestorAtDepth(t *testing.T) {
 
 	tests := []struct {
 		gindex         int64
-		newRootDepth   uint64
+		newRootDepth   types.PositionDepth
 		expectedGIndex int64
 	}{
 		{gindex: 5, newRootDepth: 1, expectedGIndex: 3},
@@ -243,7 +244,7 @@ func TestRelativeMoves(t *testing.T) {
 			expectedRelativePosition := test(NewPositionFromGIndex(big.NewInt(1)))
 			relative := NewPositionFromGIndex(big.NewInt(3))
 			start := test(relative)
-			relativePosition, err := start.RelativeToAncestorAtDepth(uint64(relative.Depth()))
+			relativePosition, err := start.RelativeToAncestorAtDepth(relative.Depth())
 			require.NoError(t, err)
 			require.Equal(t, expectedRelativePosition.ToGIndex(), relativePosition.ToGIndex())
 		})

@@ -78,7 +78,7 @@ func (f *disputeGameContract) GetGameDuration(ctx context.Context) (uint64, erro
 	return result.GetUint64(0), nil
 }
 
-func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, error) {
+func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (types.PositionDepth, error) {
 	var methodMaxGameDepth string
 	if f.version == 1 {
 		methodMaxGameDepth = methodMaxGameDepthV1
@@ -90,7 +90,7 @@ func (f *disputeGameContract) GetMaxGameDepth(ctx context.Context) (uint64, erro
 	if err != nil {
 		return 0, fmt.Errorf("failed to fetch max game depth: %w", err)
 	}
-	return result.GetBigInt(0).Uint64(), nil
+	return types.PositionDepth(result.GetBigInt(0).Uint64()), nil
 }
 
 func (f *disputeGameContract) GetAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
