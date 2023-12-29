@@ -14,9 +14,9 @@ var (
 	errRefClaimNotDeepEnough = errors.New("reference claim is not deep enough")
 )
 
-type ProviderCreator func(ctx context.Context, depth types.PositionDepth, pre types.Claim, post types.Claim) (types.TraceProvider, error)
+type ProviderCreator func(ctx context.Context, depth types.Depth, pre types.Claim, post types.Claim) (types.TraceProvider, error)
 
-func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth types.PositionDepth, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
+func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth types.Depth, bottomProviderCreator ProviderCreator) trace.ProviderSelector {
 	return func(ctx context.Context, game types.Game, ref types.Claim, pos types.Position) (types.TraceProvider, error) {
 		if pos.Depth() <= topDepth {
 			return topProvider, nil
@@ -68,7 +68,7 @@ func NewSplitProviderSelector(topProvider types.TraceProvider, topDepth types.Po
 	}
 }
 
-func findAncestorAtDepth(game types.Game, claim types.Claim, depth types.PositionDepth) (types.Claim, error) {
+func findAncestorAtDepth(game types.Game, claim types.Claim, depth types.Depth) (types.Claim, error) {
 	for claim.Depth() > depth {
 		parent, err := game.GetParent(claim)
 		if err != nil {
@@ -79,7 +79,7 @@ func findAncestorAtDepth(game types.Game, claim types.Claim, depth types.Positio
 	return claim, nil
 }
 
-func findAncestorWithTraceIndex(game types.Game, ref types.Claim, depth types.PositionDepth, traceIdx *big.Int) (types.Claim, error) {
+func findAncestorWithTraceIndex(game types.Game, ref types.Claim, depth types.Depth, traceIdx *big.Int) (types.Claim, error) {
 	candidate := ref
 	for candidate.TraceIndex(depth).Cmp(traceIdx) != 0 {
 		parent, err := game.GetParent(candidate)

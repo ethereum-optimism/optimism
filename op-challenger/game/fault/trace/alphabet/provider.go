@@ -29,12 +29,12 @@ var (
 type AlphabetTraceProvider struct {
 	AlphabetPrestateProvider
 	state  []string
-	depth  types.PositionDepth
+	depth  types.Depth
 	maxLen uint64
 }
 
 // NewTraceProvider returns a new [AlphabetProvider].
-func NewTraceProvider(state string, depth types.PositionDepth) *AlphabetTraceProvider {
+func NewTraceProvider(state string, depth types.Depth) *AlphabetTraceProvider {
 	return &AlphabetTraceProvider{
 		state:  strings.Split(state, ""),
 		depth:  depth,

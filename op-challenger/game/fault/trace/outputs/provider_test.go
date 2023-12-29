@@ -18,7 +18,7 @@ import (
 var (
 	prestateBlock       = uint64(100)
 	poststateBlock      = uint64(200)
-	gameDepth           = types.PositionDepth(7) // 128 leaf nodes
+	gameDepth           = types.Depth(7) // 128 leaf nodes
 	prestateOutputRoot  = common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	firstOutputRoot     = common.HexToHash("0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 	poststateOutputRoot = common.HexToHash("0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
@@ -27,7 +27,7 @@ var (
 
 func TestGet(t *testing.T) {
 	t.Run("ErrorsTraceIndexOutOfBounds", func(t *testing.T) {
-		deepGame := types.PositionDepth(164)
+		deepGame := types.Depth(164)
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock, deepGame)
 		pos := types.NewPosition(0, big.NewInt(0))
 		_, err := provider.Get(context.Background(), pos)
@@ -88,7 +88,7 @@ func TestGetBlockNumber(t *testing.T) {
 	}
 
 	t.Run("ErrorsTraceIndexOutOfBounds", func(t *testing.T) {
-		deepGame := types.PositionDepth(164)
+		deepGame := types.Depth(164)
 		provider, _ := setupWithTestData(t, prestateBlock, poststateBlock, deepGame)
 		pos := types.NewPosition(0, big.NewInt(0))
 		_, err := provider.BlockNumber(pos)
@@ -102,7 +102,7 @@ func TestGetStepData(t *testing.T) {
 	require.ErrorIs(t, err, ErrGetStepData)
 }
 
-func setupWithTestData(t *testing.T, prestateBlock, poststateBlock uint64, customGameDepth ...types.PositionDepth) (*OutputTraceProvider, *stubRollupClient) {
+func setupWithTestData(t *testing.T, prestateBlock, poststateBlock uint64, customGameDepth ...types.Depth) (*OutputTraceProvider, *stubRollupClient) {
 	rollupClient := stubRollupClient{
 		outputs: map[uint64]*eth.OutputResponse{
 			prestateBlock: {

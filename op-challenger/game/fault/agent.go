@@ -33,11 +33,11 @@ type Agent struct {
 	solver    *solver.GameSolver
 	loader    ClaimLoader
 	responder Responder
-	maxDepth  types.PositionDepth
+	maxDepth  types.Depth
 	log       log.Logger
 }
 
-func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth types.PositionDepth, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
+func NewAgent(m metrics.Metricer, loader ClaimLoader, maxDepth types.Depth, trace types.TraceAccessor, responder Responder, log log.Logger) *Agent {
 	return &Agent{
 		metrics:   m,
 		solver:    solver.NewGameSolver(maxDepth, trace),

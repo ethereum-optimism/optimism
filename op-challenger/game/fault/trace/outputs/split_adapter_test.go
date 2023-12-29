@@ -54,7 +54,7 @@ func TestOutputRootSplitAdapter(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			topDepth := types.PositionDepth(10)
+			topDepth := types.Depth(10)
 			adapter, creator := setupAdapterTest(t, topDepth)
 			preClaim := types.Claim{
 				ClaimData: types.ClaimData{
@@ -92,7 +92,7 @@ func TestOutputRootSplitAdapter(t *testing.T) {
 }
 
 func TestOutputRootSplitAdapter_FromAbsolutePrestate(t *testing.T) {
-	topDepth := types.PositionDepth(10)
+	topDepth := types.Depth(10)
 	adapter, creator := setupAdapterTest(t, topDepth)
 
 	postClaim := types.Claim{
@@ -120,7 +120,7 @@ func TestOutputRootSplitAdapter_FromAbsolutePrestate(t *testing.T) {
 	require.Equal(t, expectedClaimed, creator.claimed)
 }
 
-func setupAdapterTest(t *testing.T, topDepth types.PositionDepth) (split.ProviderCreator, *capturingCreator) {
+func setupAdapterTest(t *testing.T, topDepth types.Depth) (split.ProviderCreator, *capturingCreator) {
 	prestateBlock := uint64(20)
 	poststateBlock := uint64(40)
 	creator := &capturingCreator{}
@@ -145,7 +145,7 @@ type capturingCreator struct {
 	claimed      contracts.Proposal
 }
 
-func (c *capturingCreator) Create(_ context.Context, localContext common.Hash, _ types.PositionDepth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+func (c *capturingCreator) Create(_ context.Context, localContext common.Hash, _ types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 	c.localContext = localContext
 	c.agreed = agreed
 	c.claimed = claimed

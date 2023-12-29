@@ -12,15 +12,15 @@ var (
 	ErrPositionDepthTooSmall = errors.New("position depth is too small")
 )
 
-type PositionDepth uint64
+type Depth uint64
 
 // Position is a golang wrapper around the dispute game Position type.
 type Position struct {
-	depth        PositionDepth
+	depth        Depth
 	indexAtDepth *big.Int
 }
 
-func NewPosition(depth PositionDepth, indexAtDepth *big.Int) Position {
+func NewPosition(depth Depth, indexAtDepth *big.Int) Position {
 	return Position{
 		depth:        depth,
 		indexAtDepth: indexAtDepth,
@@ -47,7 +47,7 @@ func (p Position) MoveRight() Position {
 
 // RelativeToAncestorAtDepth returns a new position for a subtree.
 // [ancestor] is the depth of the subtree root node.
-func (p Position) RelativeToAncestorAtDepth(ancestor PositionDepth) (Position, error) {
+func (p Position) RelativeToAncestorAtDepth(ancestor Depth) (Position, error) {
 	if ancestor > p.depth {
 		return Position{}, ErrPositionDepthTooSmall
 	}
@@ -57,7 +57,7 @@ func (p Position) RelativeToAncestorAtDepth(ancestor PositionDepth) (Position, e
 	return NewPosition(newPosDepth, newIndexAtDepth), nil
 }
 
-func (p Position) Depth() PositionDepth {
+func (p Position) Depth() Depth {
 	return p.depth
 }
 
@@ -72,13 +72,13 @@ func (p Position) IsRootPosition() bool {
 	return p.depth == 0 && common.Big0.Cmp(p.indexAtDepth) == 0
 }
 
-func (p Position) lshIndex(amount PositionDepth) *big.Int {
+func (p Position) lshIndex(amount Depth) *big.Int {
 	return new(big.Int).Lsh(p.IndexAtDepth(), uint(amount))
 }
 
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
-func (p Position) TraceIndex(maxDepth PositionDepth) *big.Int {
+func (p Position) TraceIndex(maxDepth Depth) *big.Int {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
 	rd := maxDepth - p.depth
@@ -129,7 +129,7 @@ func (p Position) Defend() Position {
 	return p.parent().move(true).move(false)
 }
 
-func (p Position) Print(maxDepth PositionDepth) {
+func (p Position) Print(maxDepth Depth) {
 	fmt.Printf("GIN: %4b\tTrace Position is %4b\tTrace Depth is: %d\tTrace Index is: %d\n", p.ToGIndex(), p.indexAtDepth, p.depth, p.TraceIndex(maxDepth))
 }
 
@@ -138,11 +138,11 @@ func (p Position) ToGIndex() *big.Int {
 }
 
 // bigMSB returns the index of the most significant bit
-func bigMSB(x *big.Int) PositionDepth {
+func bigMSB(x *big.Int) Depth {
 	if x.Cmp(big.NewInt(0)) == 0 {
 		return 0
 	}
-	out := PositionDepth(0)
+	out := Depth(0)
 	for ; x.Cmp(big.NewInt(0)) != 0; out++ {
 		x = new(big.Int).Rsh(x, 1)
 	}

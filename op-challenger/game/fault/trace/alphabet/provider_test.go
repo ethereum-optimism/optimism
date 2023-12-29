@@ -20,7 +20,7 @@ func alphabetClaim(index *big.Int, letter string) common.Hash {
 // TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
-	depth := types.PositionDepth(3)
+	depth := types.Depth(3)
 	canonicalProvider := NewTraceProvider("abcdefgh", depth)
 
 	// Build a list of traces.
@@ -53,7 +53,7 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 // TestGetPreimage_Succeeds tests the GetPreimage function
 // returns the correct pre-image for a index.
 func TestGetStepData_Succeeds(t *testing.T) {
-	depth := types.PositionDepth(2)
+	depth := types.Depth(2)
 	ap := NewTraceProvider("abc", depth)
 	expected := BuildAlphabetPreimage(big.NewInt(0), "a")
 	pos := types.NewPosition(depth, big.NewInt(1))
@@ -69,7 +69,7 @@ func TestGetStepData_Succeeds(t *testing.T) {
 // TestGetPreimage_TooLargeIndex_Fails tests the GetPreimage
 // function errors if the index is too large.
 func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
-	depth := types.PositionDepth(2)
+	depth := types.Depth(2)
 	ap := NewTraceProvider("abc", depth)
 	pos := types.NewPosition(depth, big.NewInt(5))
 	_, _, _, err := ap.GetStepData(context.Background(), pos)
@@ -78,7 +78,7 @@ func TestGetStepData_TooLargeIndex_Fails(t *testing.T) {
 
 // TestGet_Succeeds tests the Get function.
 func TestGet_Succeeds(t *testing.T) {
-	depth := types.PositionDepth(2)
+	depth := types.Depth(2)
 	ap := NewTraceProvider("abc", depth)
 	pos := types.NewPosition(depth, big.NewInt(0))
 	claim, err := ap.Get(context.Background(), pos)
@@ -90,7 +90,7 @@ func TestGet_Succeeds(t *testing.T) {
 // TestGet_IndexTooLarge tests the Get function with an index
 // greater than the number of indices: 2^depth - 1.
 func TestGet_IndexTooLarge(t *testing.T) {
-	depth := types.PositionDepth(2)
+	depth := types.Depth(2)
 	ap := NewTraceProvider("abc", depth)
 	pos := types.NewPosition(depth, big.NewInt(4))
 	_, err := ap.Get(context.Background(), pos)
@@ -98,7 +98,7 @@ func TestGet_IndexTooLarge(t *testing.T) {
 }
 
 func TestGet_DepthTooLarge(t *testing.T) {
-	depth := types.PositionDepth(2)
+	depth := types.Depth(2)
 	ap := NewTraceProvider("abc", depth)
 	pos := types.NewPosition(depth+1, big.NewInt(0))
 	_, err := ap.Get(context.Background(), pos)
@@ -108,7 +108,7 @@ func TestGet_DepthTooLarge(t *testing.T) {
 // TestGet_Extends tests the Get function with an index that is larger
 // than the trace, but smaller than the maximum depth.
 func TestGet_Extends(t *testing.T) {
-	depth := types.PositionDepth(2)
+	depth := types.Depth(2)
 	ap := NewTraceProvider("abc", depth)
 	pos := types.NewPosition(depth, big.NewInt(3))
 	claim, err := ap.Get(context.Background(), pos)

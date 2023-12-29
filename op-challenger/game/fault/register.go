@@ -90,7 +90,7 @@ func registerOutputAlphabet(
 		if err != nil {
 			return nil, err
 		}
-		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.PositionDepth, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			accessor, err := outputs.NewOutputAlphabetTraceAccessor(logger, m, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
 			if err != nil {
 				return nil, err
@@ -124,7 +124,7 @@ func registerOutputCannon(
 			return nil, err
 		}
 		prestateProvider := outputs.NewPrestateProvider(ctx, logger, rollupClient, prestateBlock)
-		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.PositionDepth, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			splitDepth, err := contract.GetSplitDepth(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load split depth: %w", err)
@@ -157,7 +157,7 @@ func registerCannon(
 			return nil, err
 		}
 		prestateProvider := cannon.NewPrestateProvider(cfg.CannonAbsolutePreState)
-		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.PositionDepth, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			localInputs, err := cannon.FetchLocalInputs(ctx, contract, l2Client)
 			if err != nil {
 				return nil, fmt.Errorf("failed to fetch cannon local inputs: %w", err)
@@ -185,7 +185,7 @@ func registerAlphabet(
 			return nil, err
 		}
 		prestateProvider := &alphabet.AlphabetPrestateProvider{}
-		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.PositionDepth, dir string) (faultTypes.TraceAccessor, error) {
+		creator := func(ctx context.Context, logger log.Logger, gameDepth faultTypes.Depth, dir string) (faultTypes.TraceAccessor, error) {
 			traceProvider := alphabet.NewTraceProvider(alphabetTrace, gameDepth)
 			return trace.NewSimpleTraceAccessor(traceProvider), nil
 		}

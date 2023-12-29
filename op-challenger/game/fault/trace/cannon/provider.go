@@ -46,7 +46,7 @@ type CannonTraceProvider struct {
 	dir          string
 	prestate     string
 	generator    ProofGenerator
-	gameDepth    types.PositionDepth
+	gameDepth    types.Depth
 	localContext common.Hash
 
 	// lastStep stores the last step in the actual trace if known. 0 indicates unknown.
@@ -54,7 +54,7 @@ type CannonTraceProvider struct {
 	lastStep uint64
 }
 
-func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth types.PositionDepth) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, localContext common.Hash, localInputs LocalGameInputs, dir string, gameDepth types.Depth) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:       logger,
 		dir:          dir,
@@ -65,7 +65,7 @@ func NewTraceProvider(logger log.Logger, m CannonMetricer, cfg *config.Config, l
 	}
 }
 
-func (p *CannonTraceProvider) SetMaxDepth(gameDepth types.PositionDepth) {
+func (p *CannonTraceProvider) SetMaxDepth(gameDepth types.Depth) {
 	p.gameDepth = gameDepth
 }
 

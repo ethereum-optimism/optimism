@@ -18,12 +18,12 @@ func NewOutputAlphabetTraceAccessor(
 	m metrics.Metricer,
 	prestateProvider types.PrestateProvider,
 	rollupClient OutputRollupClient,
-	splitDepth types.PositionDepth,
+	splitDepth types.Depth,
 	prestateBlock uint64,
 	poststateBlock uint64,
 ) (*trace.Accessor, error) {
 	outputProvider := NewTraceProviderFromInputs(logger, prestateProvider, rollupClient, splitDepth, prestateBlock, poststateBlock)
-	alphabetCreator := func(ctx context.Context, localContext common.Hash, depth types.PositionDepth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
+	alphabetCreator := func(ctx context.Context, localContext common.Hash, depth types.Depth, agreed contracts.Proposal, claimed contracts.Proposal) (types.TraceProvider, error) {
 		provider := alphabet.NewTraceProvider(localContext.Hex(), depth)
 		return provider, nil
 	}

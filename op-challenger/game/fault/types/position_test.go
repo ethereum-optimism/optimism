@@ -18,7 +18,7 @@ func TestBigMSB(t *testing.T) {
 	require.True(t, ok)
 	tests := []struct {
 		input    *big.Int
-		expected PositionDepth
+		expected Depth
 	}{
 		{bi(0), 0},
 		{bi(1), 0},
@@ -41,8 +41,8 @@ func TestBigMSB(t *testing.T) {
 
 type testNodeInfo struct {
 	GIndex       *big.Int
-	Depth        PositionDepth
-	MaxDepth     PositionDepth
+	Depth        Depth
+	MaxDepth     Depth
 	IndexAtDepth *big.Int
 	TraceIndex   *big.Int
 	AttackGIndex *big.Int // 0 indicates attack is not possible from this node
@@ -148,7 +148,7 @@ func TestRelativeToAncestorAtDepth(t *testing.T) {
 
 	tests := []struct {
 		gindex         int64
-		newRootDepth   PositionDepth
+		newRootDepth   Depth
 		expectedGIndex int64
 	}{
 		{gindex: 5, newRootDepth: 1, expectedGIndex: 3},

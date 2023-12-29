@@ -13,7 +13,7 @@ import (
 )
 
 func TestCalculateNextActions(t *testing.T) {
-	maxDepth := types.PositionDepth(4)
+	maxDepth := types.Depth(4)
 	claimBuilder := faulttest.NewAlphabetClaimBuilder(t, maxDepth)
 
 	tests := []struct {

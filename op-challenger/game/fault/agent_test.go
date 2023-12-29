@@ -56,7 +56,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 	agent, claimLoader, responder := setupTestAgent(t)
 	responder.callResolveErr = errors.New("game is not resolvable")
 	responder.callResolveClaimErr = errors.New("claim is not resolvable")
-	depth := types.PositionDepth(4)
+	depth := types.Depth(4)
 	claimBuilder := test.NewClaimBuilder(t, depth, alphabet.NewTraceProvider("abcdefg", depth))
 
 	claimLoader.claims = []types.Claim{
@@ -73,7 +73,7 @@ func TestLoadClaimsWhenGameNotResolvable(t *testing.T) {
 func setupTestAgent(t *testing.T) (*Agent, *stubClaimLoader, *stubResponder) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	claimLoader := &stubClaimLoader{}
-	depth := types.PositionDepth(4)
+	depth := types.Depth(4)
 	provider := alphabet.NewTraceProvider("abcd", depth)
 	responder := &stubResponder{}
 	agent := NewAgent(metrics.NoopMetrics, claimLoader, depth, trace.NewSimpleTraceAccessor(provider), responder, logger)

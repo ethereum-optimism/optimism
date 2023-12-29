@@ -8,7 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 )
 
-func NewAlphabetWithProofProvider(t *testing.T, maxDepth types.PositionDepth, oracleError error) *alphabetWithProofProvider {
+func NewAlphabetWithProofProvider(t *testing.T, maxDepth types.Depth, oracleError error) *alphabetWithProofProvider {
 	return &alphabetWithProofProvider{
 		alphabet.NewTraceProvider("abcdefghijklmnopqrstuvwxyz", maxDepth),
 		maxDepth,
@@ -16,14 +16,14 @@ func NewAlphabetWithProofProvider(t *testing.T, maxDepth types.PositionDepth, or
 	}
 }
 
-func NewAlphabetClaimBuilder(t *testing.T, maxDepth types.PositionDepth) *ClaimBuilder {
+func NewAlphabetClaimBuilder(t *testing.T, maxDepth types.Depth) *ClaimBuilder {
 	alphabetProvider := NewAlphabetWithProofProvider(t, maxDepth, nil)
 	return NewClaimBuilder(t, maxDepth, alphabetProvider)
 }
 
 type alphabetWithProofProvider struct {
 	*alphabet.AlphabetTraceProvider
-	depth       types.PositionDepth
+	depth       types.Depth
 	OracleError error
 }
 

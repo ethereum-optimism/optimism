@@ -33,10 +33,10 @@ type GameContract interface {
 	GameInfo
 	ClaimLoader
 	GetStatus(ctx context.Context) (gameTypes.GameStatus, error)
-	GetMaxGameDepth(ctx context.Context) (types.PositionDepth, error)
+	GetMaxGameDepth(ctx context.Context) (types.Depth, error)
 }
 
-type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.PositionDepth, dir string) (types.TraceAccessor, error)
+type resourceCreator func(ctx context.Context, logger log.Logger, gameDepth types.Depth, dir string) (types.TraceAccessor, error)
 
 func NewGamePlayer(
 	ctx context.Context,
