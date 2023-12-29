@@ -39,7 +39,7 @@ func TestBigMSB(t *testing.T) {
 	}
 }
 
-func TestGINConversions(t *testing.T) {
+func TestGindexPositionConversions(t *testing.T) {
 	tests := []struct {
 		gindex           *big.Int
 		expectedPosition Position

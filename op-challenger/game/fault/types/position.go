@@ -43,7 +43,7 @@ func NewPositionFromGIndex(x *big.Int) Position {
 }
 
 func (p Position) Equal(other Position) bool {
-	return p.depth == other.depth && p.indexAtDepth.Cmp(other.indexAtDepth) == 0
+	return p.Depth() == other.Depth() && p.IndexAtDepth().Cmp(other.IndexAtDepth()) == 0
 }
 
 func (p Position) String() string {
