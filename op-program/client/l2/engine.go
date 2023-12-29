@@ -101,7 +101,7 @@ func (o *OracleEngine) L2BlockRefByLabel(ctx context.Context, label eth.BlockLab
 	if block == nil {
 		return eth.L2BlockRef{}, ErrNotFound
 	}
-	return derive.L2BlockToBlockRef(block, &o.rollupCfg.Genesis)
+	return derive.L2BlockToBlockRef(o.rollupCfg, block)
 }
 
 func (o *OracleEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error) {
@@ -109,7 +109,7 @@ func (o *OracleEngine) L2BlockRefByHash(ctx context.Context, l2Hash common.Hash)
 	if block == nil {
 		return eth.L2BlockRef{}, ErrNotFound
 	}
-	return derive.L2BlockToBlockRef(block, &o.rollupCfg.Genesis)
+	return derive.L2BlockToBlockRef(o.rollupCfg, block)
 }
 
 func (o *OracleEngine) L2BlockRefByNumber(ctx context.Context, n uint64) (eth.L2BlockRef, error) {
@@ -125,5 +125,5 @@ func (o *OracleEngine) SystemConfigByL2Hash(ctx context.Context, hash common.Has
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}
-	return derive.PayloadToSystemConfig(payload, o.rollupCfg)
+	return derive.PayloadToSystemConfig(o.rollupCfg, payload)
 }

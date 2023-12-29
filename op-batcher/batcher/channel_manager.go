@@ -25,11 +25,11 @@ var ErrReorg = errors.New("block does not extend existing chain")
 // channel.
 // Public functions on channelManager are safe for concurrent access.
 type channelManager struct {
-	mu   sync.Mutex
-	log  log.Logger
-	metr metrics.Metricer
-	cfg  ChannelConfig
-	rcfg *rollup.Config
+	mu        sync.Mutex
+	log       log.Logger
+	metr      metrics.Metricer
+	cfg       ChannelConfig
+	rollupCfg *rollup.Config
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
@@ -47,12 +47,12 @@ type channelManager struct {
 	closed bool
 }
 
-func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rcfg *rollup.Config) *channelManager {
+func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig, rollupCfg *rollup.Config) *channelManager {
 	return &channelManager{
 		log:        log,
 		metr:       metr,
 		cfg:        cfg,
-		rcfg:       rcfg,
+		rollupCfg:  rollupCfg,
 		txChannels: make(map[txID]*channel),
 	}
 }
@@ -198,7 +198,7 @@ func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	pc, err := newChannel(s.log, s.metr, s.cfg, s.rcfg)
+	pc, err := newChannel(s.log, s.metr, s.cfg, s.rollupCfg)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}
@@ -327,7 +327,7 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	return nil
 }
 
-func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo) eth.L2BlockRef {
+func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info *derive.L1BlockInfo) eth.L2BlockRef {
 	return eth.L2BlockRef{
 		Hash:           block.Hash(),
 		Number:         block.NumberU64(),

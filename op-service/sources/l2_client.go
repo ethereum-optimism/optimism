@@ -92,6 +92,10 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}, nil
 }
 
+func (s *L2Client) RollupConfig() *rollup.Config {
+	return s.rollupCfg
+}
+
 // L2BlockRefByLabel returns the [eth.L2BlockRef] for the given block label.
 func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	payload, err := s.PayloadByLabel(ctx, label)
@@ -104,7 +108,7 @@ func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) 
 		// w%: wrap to preserve ethereum.NotFound case
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of %s, could not get payload: %w", label, err)
 	}
-	ref, err := derive.PayloadToBlockRef(payload, &s.rollupCfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(s.rollupCfg, payload)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -119,7 +123,7 @@ func (s *L2Client) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2Bl
 		// w%: wrap to preserve ethereum.NotFound case
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of height %v, could not get payload: %w", num, err)
 	}
-	ref, err := derive.PayloadToBlockRef(payload, &s.rollupCfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(s.rollupCfg, payload)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -139,7 +143,7 @@ func (s *L2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.
 		// w%: wrap to preserve ethereum.NotFound case
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
 	}
-	ref, err := derive.PayloadToBlockRef(payload, &s.rollupCfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(s.rollupCfg, payload)
 	if err != nil {
 		return eth.L2BlockRef{}, err
 	}
@@ -159,7 +163,7 @@ func (s *L2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (
 		// w%: wrap to preserve ethereum.NotFound case
 		return eth.SystemConfig{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
 	}
-	cfg, err := derive.PayloadToSystemConfig(payload, s.rollupCfg)
+	cfg, err := derive.PayloadToSystemConfig(s.rollupCfg, payload)
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}

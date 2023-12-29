@@ -148,7 +148,7 @@ can be accessed in two interchangeable ways:
 Ecotone allows posting batches via Blobs which are subject to a new fee market. To account for this feature,
 L1 cost is computed as:
 
-`(zeroes*4 + ones*16) * (16*l1Basefee*l1BasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 16e6`
+`(zeroes*4 + ones*16) * (16*l1Basefee*l1BasefeeScalar + l1BlobBasefee*l1BlobBasefeeScalar) / 16e6`
 
 Where:
 
@@ -167,7 +167,7 @@ Conceptually what the above function captures is the formula below, where `compr
 (zeroes*4 + ones*16) / 16` can be thought of as a rough approximation of how many bytes the
 transaction occupies in a compressed batch.
 
-`(compressedTxSize) * (16*l1Basefee*lBasefeeScalar + l1BlobBasefeeScalar*l1BlobBasefeeScalar) / 1e6`
+`(compressedTxSize) * (16*l1Basefee*lBasefeeScalar + l1BlobBasefee*l1BlobBasefeeScalar) / 1e6`
 
 The precise cost function used by Ecotone at the top of this section preserves precision under
 integer arithmetic by postponing the inner division by 16 until the very end.

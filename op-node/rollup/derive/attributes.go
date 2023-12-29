@@ -3,6 +3,8 @@ package derive
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -25,16 +27,16 @@ type SystemConfigL2Fetcher interface {
 
 // FetchingAttributesBuilder fetches inputs for the building of L2 payload attributes on the fly.
 type FetchingAttributesBuilder struct {
-	cfg *rollup.Config
-	l1  L1ReceiptsFetcher
-	l2  SystemConfigL2Fetcher
+	rollupCfg *rollup.Config
+	l1        L1ReceiptsFetcher
+	l2        SystemConfigL2Fetcher
 }
 
-func NewFetchingAttributesBuilder(cfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
+func NewFetchingAttributesBuilder(rollupCfg *rollup.Config, l1 L1ReceiptsFetcher, l2 SystemConfigL2Fetcher) *FetchingAttributesBuilder {
 	return &FetchingAttributesBuilder{
-		cfg: cfg,
-		l1:  l1,
-		l2:  l2,
+		rollupCfg: rollupCfg,
+		l1:        l1,
+		l2:        l2,
 	}
 }
 
@@ -67,13 +69,13 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 					epoch, info.ParentHash(), l2Parent.L1Origin))
 		}
 
-		deposits, err := DeriveDeposits(receipts, ba.cfg.DepositContractAddress)
+		deposits, err := DeriveDeposits(receipts, ba.rollupCfg.DepositContractAddress)
 		if err != nil {
 			// deposits may never be ignored. Failing to process them is a critical error.
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
 		// apply sysCfg changes
-		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.cfg); err != nil {
+		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, ba.rollupCfg); err != nil {
 			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
 		}
 
@@ -94,15 +96,29 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	}
 
 	// Sanity check the L1 origin was correctly selected to maintain the time invariant between L1 and L2
-	nextL2Time := l2Parent.Time + ba.cfg.BlockTime
+	nextL2Time := l2Parent.Time + ba.rollupCfg.BlockTime
 	if nextL2Time < l1Info.Time() {
 		return nil, NewResetError(fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
 			l2Parent, nextL2Time, eth.ToBlockID(l1Info), l1Info.Time()))
 	}
 
-	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info, sysConfig, ba.cfg.IsRegolith(nextL2Time))
+	l1InfoTx, err := L1InfoDepositBytes(ba.rollupCfg, sysConfig, seqNumber, l1Info, nextL2Time)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
+	}
+
+	// If this is the Ecotone activation block we update the system config by copying over "Scalar"
+	// to "BasefeeScalar". Note that after doing so, the L2 view of the system config differs from
+	// that on the L1 up until we receive a "type 4" log event that explicitly updates the new
+	// scalars.
+	if ba.rollupCfg.IsEcotoneActivationBlock(nextL2Time) {
+		// check if the scalar is too big to convert to uint32, and if so just use the uint32 max value
+		basefeeScalar := uint32(math.MaxUint32)
+		scalar := new(big.Int).SetBytes(sysConfig.Scalar[:])
+		if scalar.Cmp(big.NewInt(math.MaxUint32)) < 0 {
+			basefeeScalar = uint32(scalar.Int64())
+		}
+		sysConfig.BasefeeScalar = basefeeScalar
 	}
 
 	txs := make([]hexutil.Bytes, 0, 1+len(depositTxs))
@@ -110,7 +126,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	txs = append(txs, depositTxs...)
 
 	var withdrawals *types.Withdrawals
-	if ba.cfg.IsCanyon(nextL2Time) {
+	if ba.rollupCfg.IsCanyon(nextL2Time) {
 		withdrawals = &types.Withdrawals{}
 	}
 

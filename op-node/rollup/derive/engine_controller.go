@@ -24,11 +24,11 @@ type ExecEngine interface {
 }
 
 type EngineController struct {
-	engine   ExecEngine // Underlying execution engine RPC
-	log      log.Logger
-	metrics  Metrics
-	genesis  *rollup.Genesis
-	syncMode sync.Mode
+	engine    ExecEngine // Underlying execution engine RPC
+	log       log.Logger
+	metrics   Metrics
+	syncMode  sync.Mode
+	rollupCfg *rollup.Config
 
 	// Block Head State
 	unsafeHead      eth.L2BlockRef
@@ -44,13 +44,12 @@ type EngineController struct {
 	safeAttrs    *AttributesWithParent
 }
 
-func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, genesis rollup.Genesis, syncMode sync.Mode) *EngineController {
+func NewEngineController(engine ExecEngine, log log.Logger, metrics Metrics, rollupCfg *rollup.Config, syncMode sync.Mode) *EngineController {
 	return &EngineController{
-		engine:   engine,
-		log:      log,
-		metrics:  metrics,
-		genesis:  &genesis,
-		syncMode: syncMode,
+		engine:    engine,
+		log:       log,
+		metrics:   metrics,
+		rollupCfg: rollupCfg,
 	}
 }
 
@@ -158,7 +157,7 @@ func (e *EngineController) ConfirmPayload(ctx context.Context) (out *eth.Executi
 	if err != nil {
 		return nil, errTyp, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", e.buildingOnto, e.buildingID, errTyp, err)
 	}
-	ref, err := PayloadToBlockRef(payload, e.genesis)
+	ref, err := PayloadToBlockRef(e.rollupCfg, payload)
 	if err != nil {
 		return nil, BlockInsertPayloadErr, NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}

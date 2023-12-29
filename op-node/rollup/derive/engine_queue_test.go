@@ -945,7 +945,7 @@ func TestBlockBuildingRace(t *testing.T) {
 	require.NotNil(t, eq.safeAttributes, "still have attributes")
 
 	// Now allow the building to complete
-	a1InfoTx, err := L1InfoDepositBytes(refA1.SequenceNumber, &testutils.MockBlockInfo{
+	a1InfoTx, err := L1InfoDepositBytes(cfg, cfg.Genesis.SystemConfig, refA1.SequenceNumber, &testutils.MockBlockInfo{
 		InfoHash:        refA.Hash,
 		InfoParentHash:  refA.ParentHash,
 		InfoCoinbase:    common.Address{},
@@ -956,7 +956,7 @@ func TestBlockBuildingRace(t *testing.T) {
 		InfoBaseFee:     big.NewInt(7),
 		InfoReceiptRoot: common.Hash{},
 		InfoGasUsed:     0,
-	}, cfg.Genesis.SystemConfig, false)
+	}, 0)
 
 	require.NoError(t, err)
 	payloadA1 := &eth.ExecutionPayload{

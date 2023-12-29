@@ -92,14 +92,17 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	// Finally create the engine client
+	rollupCfg, err := cfg.DeployConfig.RollupConfig(l1Block, l2GenesisBlock.Hash(), l2GenesisBlock.NumberU64())
+	require.NoError(t, err)
+	rollupCfg.Genesis = rollupGenesis
 	l2Engine, err := sources.NewEngineClient(
 		l2Node,
 		logger,
 		nil,
-		sources.EngineClientDefaultConfig(&rollup.Config{Genesis: rollupGenesis}),
+		sources.EngineClientDefaultConfig(rollupCfg),
 	)
 	require.Nil(t, err)
 
@@ -198,8 +201,7 @@ func (d *OpGeth) StartBlockBuilding(ctx context.Context, attrs *eth.PayloadAttri
 // CreatePayloadAttributes creates a valid PayloadAttributes containing a L1Info deposit transaction followed by the supplied transactions.
 func (d *OpGeth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.PayloadAttributes, error) {
 	timestamp := d.L2Head.Timestamp + 2
-	regolith := d.L2ChainConfig.IsRegolith(uint64(timestamp))
-	l1Info, err := derive.L1InfoDepositBytes(d.sequenceNum, d.L1Head, d.SystemConfig, regolith)
+	l1Info, err := derive.L1InfoDepositBytes(d.l2Engine.RollupConfig(), d.SystemConfig, d.sequenceNum, d.L1Head, uint64(timestamp))
 	if err != nil {
 		return nil, err
 	}

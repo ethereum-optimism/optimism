@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
@@ -68,6 +69,13 @@ func (h headerInfo) MixDigest() common.Hash {
 
 func (h headerInfo) BaseFee() *big.Int {
 	return h.Header.BaseFee
+}
+
+func (h headerInfo) BlobBaseFee() *big.Int {
+	if h.Header.ExcessBlobGas == nil {
+		return nil
+	}
+	return eip4844.CalcBlobFee(*h.Header.ExcessBlobGas)
 }
 
 func (h headerInfo) ReceiptHash() common.Hash {
@@ -134,7 +142,7 @@ func (hdr *rpcHeader) checkPostMerge() error {
 		return fmt.Errorf("post-merge block header requires zeroed block nonce field, but got: %s", hdr.Nonce)
 	}
 	if hdr.BaseFee == nil {
-		return fmt.Errorf("post-merge block header requires EIP-1559 basefee field, but got %s", hdr.BaseFee)
+		return fmt.Errorf("post-merge block header requires EIP-1559 base fee field, but got %s", hdr.BaseFee)
 	}
 	if len(hdr.Extra) > 32 {
 		return fmt.Errorf("post-merge block header requires 32 or less bytes of extra data, but got %d", len(hdr.Extra))

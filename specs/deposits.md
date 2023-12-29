@@ -260,11 +260,11 @@ Prior to the Ecotone upgrade, the `data` field of the L1 attributes deposited tr
 [ABI][ABI] encoded call to the `setL1BlockValues()` function with correct values associated with
 the corresponding L1 block (cf.  [reference implementation][l1-attr-ref-implem]).
 
-If the Ecotone upgrade is active, then `data` is instead a call to the `setL1BlockValuesEcotone()`
-function, where the input args are no longer ABI encoded function parameters, but are instead
-packed into 5 32-byte aligned segments (starting after the function selector). Each unsigned
-integer argument is encoded as big-endian using a number of bytes corresponding to the underlying
-type. The overall calldata layout is as follows:
+If the Ecotone upgrade is active, then with only one exception discussed below, `data` is instead a
+call to the `setL1BlockValuesEcotone()` function. The input args here are no longer ABI encoded
+function parameters, but are instead packed into 5 32-byte aligned segments (starting after the
+function selector). Each unsigned integer argument is encoded as big-endian using a number of bytes
+corresponding to the underlying type. The overall calldata layout is as follows:
 
 | Input arg         | Type        | Calldata bytes | Segment |
 | ----------------- | ----------- | -------------- | --------|
@@ -281,6 +281,12 @@ type. The overall calldata layout is as follows:
 
 Total calldata length must be exactly 164 bytes, implying the sixth and final segment is only
 partially filled.
+
+One exceptional case to the above is for chains that have a genesis prior to the Ecotone upgrade
+and therefore go through the Ecotone upgrade transition. For these chains, the very first Ecotone
+L1 block *must* have the pre-Ecotone L1 attributes deposit transaction. This exception is due to
+the fact that the L1Block contract will not have been upgraded yet and therefore can't handle the
+Ecotone style invocation.
 
 ## Special Accounts on L2
 
@@ -321,7 +327,7 @@ The predeploy stores the following values:
   - `scalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
 - With the Ecotone upgrade, the predeploy additionally stores:
   - `blobBasefee` (`uint256`)
-  - `baseFeeScalar` (`uint32`): system configurable to scale the `basefee` in the Ecotone l1 cost computation
+  - `basefeeScalar` (`uint32`): system configurable to scale the `basefee` in the Ecotone l1 cost computation
   - `blobBasefeeScalar` (`uint32`): system configurable to scale the `blobBasefee` in the Ecotone l1 cost computation
 
 Following the Ecotone upgrade, `overhead` and `scalar` are frozen at the values they had on the
@@ -350,11 +356,12 @@ the genesis file will be located in the `deployedBytecode` field of the build ar
 #### Ecotone L1Block upgrade
 
 The L1 Attributes Predeployed contract, `L1Block.sol`, is upgraded as part of the Ecotone upgrade.
-The version is incremented to `1.2.0` and several new storage slots are used for:
+The version is incremented to `1.2.0`, one new storage slot is introduced, and one existing slot
+begins to store additional data:
 
 - `blobBasefee` (`uint256`): The L1 basefee for blob transactions.
-- `blobBasefeeScalar` (`uint256`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
-- `basefeeScalar` (`uint256`): The scalar value applied to the L1 base fee portion of the L1 cost.
+- `blobBasefeeScalar` (`uint32`): The scalar value applied to the L1 blob base fee portion of the L1 cost.
+- `basefeeScalar` (`uint32`): The scalar value applied to the L1 base fee portion of the L1 cost.
 
 Additionally, the `setL1BlockValues` function is deprecated and replaced with `setL1BlockValuesEcotone`.
 `setL1BlockValuesEcotone` uses packed encoding for its parameters, which is described in
