@@ -45,27 +45,25 @@ var treeNodes = []struct {
 	MaxDepth     int
 	IndexAtDepth *big.Int
 	TraceIndex   *big.Int
-	AttackGIndex *big.Int // 0 indicates attack is not possible from this node
-	DefendGIndex *big.Int // 0 indicates defend is not possible from this node
 }{
-	{GIndex: bi(1), Depth: 0, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(15), AttackGIndex: bi(2)},
+	{GIndex: bi(1), Depth: 0, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(15)},
 
-	{GIndex: bi(2), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(7), AttackGIndex: bi(4), DefendGIndex: bi(6)},
-	{GIndex: bi(3), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(15), AttackGIndex: bi(6)},
+	{GIndex: bi(2), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(7)},
+	{GIndex: bi(3), Depth: 1, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(15)},
 
-	{GIndex: bi(4), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(3), AttackGIndex: bi(8), DefendGIndex: bi(10)},
-	{GIndex: bi(5), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(7), AttackGIndex: bi(10)},
-	{GIndex: bi(6), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(11), AttackGIndex: bi(12), DefendGIndex: bi(14)},
-	{GIndex: bi(7), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(15), AttackGIndex: bi(14)},
+	{GIndex: bi(4), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(3)},
+	{GIndex: bi(5), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(7)},
+	{GIndex: bi(6), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(11)},
+	{GIndex: bi(7), Depth: 2, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(15)},
 
-	{GIndex: bi(8), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(1), AttackGIndex: bi(16), DefendGIndex: bi(18)},
-	{GIndex: bi(9), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(3), AttackGIndex: bi(18)},
-	{GIndex: bi(10), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(5), AttackGIndex: bi(20), DefendGIndex: bi(22)},
-	{GIndex: bi(11), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(7), AttackGIndex: bi(22)},
-	{GIndex: bi(12), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(4), TraceIndex: bi(9), AttackGIndex: bi(24), DefendGIndex: bi(26)},
-	{GIndex: bi(13), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(5), TraceIndex: bi(11), AttackGIndex: bi(26)},
-	{GIndex: bi(14), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(6), TraceIndex: bi(13), AttackGIndex: bi(28), DefendGIndex: bi(30)},
-	{GIndex: bi(15), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(7), TraceIndex: bi(15), AttackGIndex: bi(30)},
+	{GIndex: bi(8), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(1)},
+	{GIndex: bi(9), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(3)},
+	{GIndex: bi(10), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(2), TraceIndex: bi(5)},
+	{GIndex: bi(11), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(3), TraceIndex: bi(7)},
+	{GIndex: bi(12), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(4), TraceIndex: bi(9)},
+	{GIndex: bi(13), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(5), TraceIndex: bi(11)},
+	{GIndex: bi(14), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(6), TraceIndex: bi(13)},
+	{GIndex: bi(15), Depth: 3, MaxDepth: 4, IndexAtDepth: bi(7), TraceIndex: bi(15)},
 
 	{GIndex: bi(16), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(0), TraceIndex: bi(0)},
 	{GIndex: bi(17), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(1), TraceIndex: bi(1)},
@@ -116,24 +114,50 @@ func TestTraceIndex(t *testing.T) {
 }
 
 func TestAttack(t *testing.T) {
-	for _, test := range treeNodes {
-		if test.AttackGIndex == nil || test.AttackGIndex.Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
+	tests := []struct {
+		startGIndex  *big.Int
+		attackGIndex *big.Int
+	}{
+		{bi(1), bi(2)},
+		{bi(2), bi(4)},
+		{bi(3), bi(6)},
+		{bi(4), bi(8)},
+		{bi(5), bi(10)},
+		{bi(6), bi(12)},
+		{bi(7), bi(14)},
+		{bi(8), bi(16)},
+		{bi(9), bi(18)},
+		{bi(10), bi(20)},
+		{bi(11), bi(22)},
+		{bi(12), bi(24)},
+		{bi(13), bi(26)},
+		{bi(14), bi(28)},
+		{bi(15), bi(30)},
+	}
+	for _, test := range tests {
+		pos := NewPositionFromGIndex(test.startGIndex)
 		result := pos.Attack()
-		require.Equalf(t, test.AttackGIndex, result.ToGIndex(), "Attack from GIndex %v", pos.ToGIndex())
+		require.Equalf(t, test.attackGIndex, result.ToGIndex(), "attacking GIndex %s, expected=%s, got=%s", test.startGIndex, test.attackGIndex, result.ToGIndex())
 	}
 }
 
 func TestDefend(t *testing.T) {
-	for _, test := range treeNodes {
-		if test.DefendGIndex == nil || test.DefendGIndex.Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
+	tests := []struct {
+		startGIndex  *big.Int
+		defendGIndex *big.Int
+	}{
+		{bi(2), bi(6)},
+		{bi(4), bi(10)},
+		{bi(6), bi(14)},
+		{bi(8), bi(18)},
+		{bi(10), bi(22)},
+		{bi(12), bi(26)},
+		{bi(14), bi(30)},
+	}
+	for _, test := range tests {
+		pos := NewPositionFromGIndex(test.startGIndex)
 		result := pos.Defend()
-		require.Equalf(t, test.DefendGIndex, result.ToGIndex(), "Defend from GIndex %v", pos.ToGIndex())
+		require.Equalf(t, test.defendGIndex, result.ToGIndex(), "defending GIndex %s, expected=%s, got=%s", test.startGIndex, test.defendGIndex, result.ToGIndex())
 	}
 }
 
