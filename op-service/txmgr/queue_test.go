@@ -38,15 +38,6 @@ type testTx struct {
 	sendErr bool // error to return from send for this tx
 }
 
-type testCase struct {
-	name   string        // name of the test
-	max    uint64        // max concurrency of the queue
-	calls  []queueCall   // calls to the queue
-	txs    []testTx      // txs to generate from the factory (and potentially error in send)
-	nonces []uint64      // expected sent tx nonces after all calls are made
-	total  time.Duration // approx. total time it should take to complete all queue calls
-}
-
 type mockBackendWithNonce struct {
 	mockBackend
 }
@@ -65,7 +56,14 @@ func (b *mockBackendWithNonce) NonceAt(ctx context.Context, account common.Addre
 }
 
 func TestSend(t *testing.T) {
-	testCases := []testCase{
+	testCases := []struct {
+		name   string        // name of the test
+		max    uint64        // max concurrency of the queue
+		calls  []queueCall   // calls to the queue
+		txs    []testTx      // txs to generate from the factory (and potentially error in send)
+		nonces []uint64      // expected sent tx nonces after all calls are made
+		total  time.Duration // approx. total time it should take to complete all queue calls
+	}{
 		{
 			name: "success",
 			max:  5,
