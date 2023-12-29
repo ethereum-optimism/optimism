@@ -128,6 +128,8 @@ The **gindex** of a position $n$ can be calculated as $2^{d(n)} + idx(n)$, where
 - $d(n)$ is a function returning the depth of the position in the Game Tree
 - $idx(n)$ is a function returning the index of the position at its depth (starting from the left).
 
+For example, a position with depth `5` and index `7` would have a gindex of $2^5 + 7 = 128 + 7 = 135$.
+
 Positions at the deepest level of the game tree correspond to indices in the execution trace, whereas claims at the
 split depth represent single L2 blocks' [output roots][g-output-root].
 Positions higher up the game tree also cover the deepest, right-most positions relative to the current position.

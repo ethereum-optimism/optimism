@@ -39,6 +39,60 @@ func TestBigMSB(t *testing.T) {
 	}
 }
 
+func TestGINConversions(t *testing.T) {
+	tests := []struct {
+		gindex           *big.Int
+		expectedPosition Position
+	}{
+		{bi(1), NewPosition(0, bi(0))},
+
+		{bi(2), NewPosition(1, bi(0))},
+		{bi(3), NewPosition(1, bi(1))},
+
+		{bi(4), NewPosition(2, bi(0))},
+		{bi(5), NewPosition(2, bi(1))},
+		{bi(6), NewPosition(2, bi(2))},
+		{bi(7), NewPosition(2, bi(3))},
+
+		{bi(8), NewPosition(3, bi(0))},
+		{bi(9), NewPosition(3, bi(1))},
+		{bi(10), NewPosition(3, bi(2))},
+		{bi(11), NewPosition(3, bi(3))},
+		{bi(12), NewPosition(3, bi(4))},
+		{bi(13), NewPosition(3, bi(5))},
+		{bi(14), NewPosition(3, bi(6))},
+		{bi(15), NewPosition(3, bi(7))},
+
+		{bi(16), NewPosition(4, bi(0))},
+		{bi(17), NewPosition(4, bi(1))},
+		{bi(18), NewPosition(4, bi(2))},
+		{bi(19), NewPosition(4, bi(3))},
+		{bi(20), NewPosition(4, bi(4))},
+		{bi(21), NewPosition(4, bi(5))},
+		{bi(22), NewPosition(4, bi(6))},
+		{bi(23), NewPosition(4, bi(7))},
+		{bi(24), NewPosition(4, bi(8))},
+		{bi(25), NewPosition(4, bi(9))},
+		{bi(26), NewPosition(4, bi(10))},
+		{bi(27), NewPosition(4, bi(11))},
+		{bi(28), NewPosition(4, bi(12))},
+		{bi(29), NewPosition(4, bi(13))},
+		{bi(30), NewPosition(4, bi(14))},
+		{bi(31), NewPosition(4, bi(15))},
+
+		{bi(1023), NewPosition(9, bi(511))},
+		{bi(1024), NewPosition(10, bi(0))},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("convert gindex=%s to Position", test.gindex.String()), func(t *testing.T) {
+			positionActual := NewPositionFromGIndex(test.gindex)
+			require.Truef(t, test.expectedPosition.Equal(positionActual), "expected position=%s, got=%s", test.expectedPosition, positionActual)
+			gindex := positionActual.ToGIndex()
+			require.Truef(t, gindex.Cmp(test.gindex) == 0, "expected gindex=%s, got=%s", test.gindex.String(), gindex.String())
+		})
+	}
+}
+
 type testNodeInfo struct {
 	GIndex       *big.Int
 	Depth        int
@@ -87,18 +141,6 @@ var treeNodes = []testNodeInfo{
 	{GIndex: bi(31), Depth: 4, MaxDepth: 4, IndexAtDepth: bi(15), TraceIndex: bi(15)},
 
 	{GIndex: bi(0).Mul(bi(math.MaxInt64), bi(2)), Depth: 63, MaxDepth: 64, IndexAtDepth: bi(9223372036854775806), TraceIndex: bi(0).Sub(bi(0).Mul(bi(math.MaxInt64), bi(2)), bi(1))},
-}
-
-// TestGINConversions does To & From the generalized index on the treeNodesMaxDepth4 data
-func TestGINConversions(t *testing.T) {
-	for _, test := range treeNodes {
-		from := NewPositionFromGIndex(test.GIndex)
-		pos := NewPosition(test.Depth, test.IndexAtDepth)
-		require.EqualValuesf(t, pos.Depth(), from.Depth(), "From GIndex %v vs pos %v", from.Depth(), pos.Depth())
-		require.Zerof(t, pos.IndexAtDepth().Cmp(from.IndexAtDepth()), "From GIndex %v vs pos %v", from.IndexAtDepth(), pos.IndexAtDepth())
-		to := pos.ToGIndex()
-		require.Equal(t, test.GIndex, to)
-	}
 }
 
 func TestTraceIndexOfRootWithLargeDepth(t *testing.T) {
