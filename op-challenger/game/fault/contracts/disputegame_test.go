@@ -87,7 +87,7 @@ func runSimpleGettersTest(t *testing.T, setup disputeGameSetupFunc) {
 				}
 			},
 			result:   big.NewInt(128),
-			expected: uint64(128),
+			expected: faultTypes.PositionDepth(128),
 			call: func(game *disputeGameContract) (any, error) {
 				return game.GetMaxGameDepth(context.Background())
 			},
