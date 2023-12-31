@@ -1002,7 +1002,7 @@ contract Deploy is Deployer {
             _gameType: GameTypes.CANNON,
             _absolutePrestate: loadMipsAbsolutePrestate(),
             _faultVm: IBigStepper(mustGetAddress("Mips")),
-            _maxGameDepth: 30 // Hard code depth for legacy game to keep e2e tests fast
+            _maxGameDepth: cfg.faultGameMaxDepth()
          });
     }
 
@@ -1011,15 +1011,14 @@ contract Deploy is Deployer {
         console.log("Setting Alphabet FaultDisputeGame implementation");
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
-        // Set the Alphabet FaultDisputeGame implementation in the factory.
-        Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        Claim outputAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
         _setFaultGameImplementation({
             _factory: factory,
             _gameType: GameTypes.ALPHABET,
-            _absolutePrestate: alphabetAbsolutePrestate,
-            _faultVm: IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
-            _maxGameDepth: 4 // The max game depth of the alphabet game is always 4.
-         });
+            _absolutePrestate: outputAbsolutePrestate,
+            _faultVm: IBigStepper(new AlphabetVM(outputAbsolutePrestate)),
+            _maxGameDepth: cfg.faultGameMaxDepth()
+        });
     }
 
     /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
