@@ -1044,10 +1044,10 @@ contract Deploy is Deployer {
             new FaultDisputeGame({
                 _gameType: _gameType,
                 _absolutePrestate: _absolutePrestate,
-                _genesisBlockNumber: cfg.outputBisectionGameGenesisBlock(),
-                _genesisOutputRoot: Hash.wrap(cfg.outputBisectionGameGenesisOutputRoot()),
+                _genesisBlockNumber: cfg.faultGameGenesisBlock(),
+                _genesisOutputRoot: Hash.wrap(cfg.faultGameGenesisOutputRoot()),
                 _maxGameDepth: _maxGameDepth,
-                _splitDepth: cfg.outputBisectionGameSplitDepth(),
+                _splitDepth: cfg.faultGameSplitDepth(),
                 _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                 _vm: _faultVm
             })
