@@ -14,7 +14,7 @@ import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
 import { LibHashing } from "src/dispute/lib/LibHashing.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
-import { LibClock } from "src/dispute/lib/LibClock.sol";
+import { LibClock } from "src/dispute/lib/LibUDT.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
