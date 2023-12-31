@@ -197,9 +197,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(countered, false);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // Assert that the `createdAt` timestamp is correct.
         assertEq(gameProxy.createdAt().raw(), block.timestamp);
@@ -279,25 +277,19 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @notice Static unit test for the correctness of the chess clock incrementation.
     function test_move_clockCorrectness_succeeds() public {
         (,,,, Clock clock) = gameProxy.claimData(0);
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         Claim claim = _dummyClaim();
 
         vm.warp(block.timestamp + 15);
         gameProxy.attack(0, claim);
         (,,,, clock) = gameProxy.claimData(1);
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(15), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(15), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(1, claim);
         (,,,, clock) = gameProxy.claimData(2);
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(10), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(10), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // We are at the split depth, so we need to set the status byte of the claim
         // for the next move.
@@ -306,16 +298,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 10);
         gameProxy.attack(2, claim);
         (,,,, clock) = gameProxy.claimData(3);
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(25), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(25), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(3, claim);
         (,,,, clock) = gameProxy.claimData(4);
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))).raw());
     }
 
     /// @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
@@ -366,9 +354,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(countered, false);
         assertEq(claim.raw(), counter.raw());
         assertEq(position.raw(), Position.wrap(1).move(true).raw());
-        assertEq(
-            clock.raw(), LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // Grab the claim data of the parent.
         (parentIndex, countered, claim, position, clock) = gameProxy.claimData(0);
@@ -378,10 +364,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(countered, true);
         assertEq(claim.raw(), ROOT_CLAIM.raw());
         assertEq(position.raw(), 1);
-        assertEq(
-            clock.raw(),
-            LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5))).raw()
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5))).raw());
     }
 
     /// @dev Tests that making a claim at the execution trace bisection root level with an invalid status

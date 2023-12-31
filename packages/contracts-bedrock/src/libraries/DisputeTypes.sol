@@ -2,7 +2,9 @@
 pragma solidity ^0.8.15;
 
 import { LibHashing } from "../dispute/lib/LibHashing.sol";
-import { LibClaim, LibHash, LibDuration, LibClock, LibTimestamp, LibVMStatus, LibGameType } from "../dispute/lib/LibUDT.sol";
+import {
+    LibClaim, LibHash, LibDuration, LibClock, LibTimestamp, LibVMStatus, LibGameType
+} from "../dispute/lib/LibUDT.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 import { LibGameId } from "../dispute/lib/LibGameId.sol";
 
