@@ -24,7 +24,7 @@ type OutputBisectionGameContract struct {
 }
 
 func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiCaller) (*OutputBisectionGameContract, error) {
-	contractAbi, err := bindings.OutputBisectionGameMetaData.GetAbi()
+	contractAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load output bisection game ABI: %w", err)
 	}
@@ -33,7 +33,6 @@ func NewOutputBisectionGameContract(addr common.Address, caller *batching.MultiC
 		disputeGameContract: disputeGameContract{
 			multiCaller: caller,
 			contract:    batching.NewBoundContract(contractAbi, addr),
-			version:     1,
 		},
 	}, nil
 }

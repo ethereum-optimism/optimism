@@ -213,18 +213,10 @@ func CheckRequired(ctx *cli.Context, traceTypes []config.TraceType) error {
 			if err := CheckCannonFlags(ctx); err != nil {
 				return err
 			}
-		case config.TraceTypeAlphabet:
-			if !ctx.IsSet(AlphabetFlag.Name) {
-				return fmt.Errorf("flag %s is required", "alphabet")
-			}
-		case config.TraceTypeOutputCannon:
-			if err := CheckCannonFlags(ctx); err != nil {
-				return err
-			}
 			if !ctx.IsSet(RollupRpcFlag.Name) {
 				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
 			}
-		case config.TraceTypeOutputAlphabet:
+		case config.TraceTypeAlphabet:
 			if !ctx.IsSet(RollupRpcFlag.Name) {
 				return fmt.Errorf("flag %s is required", RollupRpcFlag.Name)
 			}

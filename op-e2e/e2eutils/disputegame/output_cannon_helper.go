@@ -26,7 +26,7 @@ func (g *OutputCannonGameHelper) StartChallenger(
 	rollupEndpoint := g.system.RollupEndpoint(l2Node)
 	l2Endpoint := g.system.NodeEndpoint(l2Node)
 	opts := []challenger.Option{
-		challenger.WithOutputCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), rollupEndpoint, l2Endpoint),
+		challenger.WithCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), rollupEndpoint, l2Endpoint),
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 	}
@@ -40,7 +40,7 @@ func (g *OutputCannonGameHelper) StartChallenger(
 
 func (g *OutputCannonGameHelper) CreateHonestActor(ctx context.Context, l2Node string, options ...challenger.Option) *OutputHonestHelper {
 	opts := []challenger.Option{
-		challenger.WithOutputCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), g.system.RollupEndpoint(l2Node), g.system.NodeEndpoint(l2Node)),
+		challenger.WithCannon(g.t, g.system.RollupCfg(), g.system.L2Genesis(), g.system.RollupEndpoint(l2Node), g.system.NodeEndpoint(l2Node)),
 		challenger.WithFactoryAddress(g.factoryAddr),
 		challenger.WithGameAddress(g.addr),
 	}

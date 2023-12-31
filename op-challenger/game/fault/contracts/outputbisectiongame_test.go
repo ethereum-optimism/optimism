@@ -79,7 +79,7 @@ func TestOutputBisectionGame_UpdateOracleTx(t *testing.T) {
 			OracleOffset: 16,
 		}
 		claimIdx := uint64(6)
-		stubRpc.SetResponse(fdgAddr, methodVMV1, batching.BlockLatest, nil, []interface{}{vmAddr})
+		stubRpc.SetResponse(fdgAddr, methodVM, batching.BlockLatest, nil, []interface{}{vmAddr})
 		stubRpc.SetResponse(vmAddr, methodOracle, batching.BlockLatest, nil, []interface{}{oracleAddr})
 		stubRpc.SetResponse(oracleAddr, methodLoadKeccak256PreimagePart, batching.BlockLatest, []interface{}{
 			new(big.Int).SetUint64(uint64(data.OracleOffset)),
@@ -92,7 +92,7 @@ func TestOutputBisectionGame_UpdateOracleTx(t *testing.T) {
 }
 
 func setupOutputBisectionGameTest(t *testing.T) (*batchingTest.AbiBasedRpc, *OutputBisectionGameContract) {
-	fdgAbi, err := bindings.OutputBisectionGameMetaData.GetAbi()
+	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	require.NoError(t, err)
 
 	vmAbi, err := bindings.MIPSMetaData.GetAbi()

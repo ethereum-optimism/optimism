@@ -82,7 +82,6 @@ type FactoryHelper struct {
 	opts        *bind.TransactOpts
 	factoryAddr common.Address
 	factory     *bindings.DisputeGameFactory
-	blockOracle *bindings.BlockOracle
 	l2ooHelper  *l2oo.L2OOHelper
 }
 
@@ -98,8 +97,6 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 	factoryAddr := l1Deployments.DisputeGameFactoryProxy
 	factory, err := bindings.NewDisputeGameFactory(factoryAddr, client)
 	require.NoError(err)
-	blockOracle, err := bindings.NewBlockOracle(l1Deployments.BlockOracle, client)
-	require.NoError(err)
 
 	return &FactoryHelper{
 		t:           t,
@@ -109,13 +106,12 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, system DisputeSystem) *
 		opts:        opts,
 		factory:     factory,
 		factoryAddr: factoryAddr,
-		blockOracle: blockOracle,
 		l2ooHelper:  l2oo.NewL2OOHelperReadOnly(t, l1Deployments, client),
 	}
 }
 
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *AlphabetGameHelper {
-	extraData, _, _ := h.createDisputeGameExtraData(ctx)
+	extraData, _ := h.createDisputeGameExtraData(ctx)
 
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
@@ -177,7 +173,7 @@ func (h *FactoryHelper) StartOutputCannonGame(ctx context.Context, l2Node string
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
 	h.require.NoError(err)
-	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
+	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
 	prestateBlock, err := game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
@@ -226,7 +222,7 @@ func (h *FactoryHelper) StartOutputAlphabetGame(ctx context.Context, l2Node stri
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
 	h.require.NoError(err)
-	game, err := bindings.NewOutputBisectionGame(createdEvent.DisputeProxy, h.client)
+	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
 
 	prestateBlock, err := game.GenesisBlockNumber(&bind.CallOpts{Context: ctx})
@@ -268,12 +264,10 @@ func (h *FactoryHelper) waitForBlockToBeSafe(l2Node string, l2BlockNumber uint64
 	h.require.NoErrorf(err, "Block number %v did not become safe", l2BlockNumber)
 }
 
-func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraData []byte, l1Head *big.Int, l2BlockNumber uint64) {
+func (h *FactoryHelper) createDisputeGameExtraData(ctx context.Context) (extraData []byte, l2BlockNumber uint64) {
 	l2BlockNumber = h.waitForProposals(ctx)
-	l1Head = h.checkpointL1Block(ctx)
-	extraData = make([]byte, 64)
+	extraData = make([]byte, 32)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
-	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
 	return
 }
 
@@ -297,17 +291,4 @@ func (h *FactoryHelper) waitForProposals(ctx context.Context) uint64 {
 	defer cancel()
 	latestOutputIdx := h.l2ooHelper.WaitForProposals(ctx, 2)
 	return h.l2ooHelper.GetL2Output(ctx, latestOutputIdx).L2BlockNumber.Uint64()
-}
-
-// checkpointL1Block stores the current L1 block in the oracle
-// Returns the L1 block number that was stored as the checkpoint
-func (h *FactoryHelper) checkpointL1Block(ctx context.Context) *big.Int {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-	defer cancel()
-	// Store the current block in the oracle
-	tx, err := h.blockOracle.Checkpoint(h.opts)
-	h.require.NoError(err)
-	r, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
-	h.require.NoError(err, "failed to store block in block oracle")
-	return new(big.Int).Sub(r.BlockNumber, big.NewInt(1))
 }

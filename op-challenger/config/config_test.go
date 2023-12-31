@@ -28,16 +28,14 @@ func validConfig(traceType TraceType) Config {
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
-	case TraceTypeCannon, TraceTypeOutputCannon:
+	case TraceTypeCannon:
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 		cfg.CannonL2 = validCannonL2
 		cfg.CannonNetwork = validCannonNetwork
 	}
-	if traceType == TraceTypeOutputCannon || traceType == TraceTypeOutputAlphabet {
-		cfg.RollupRpc = validRollupRpc
-	}
+	cfg.RollupRpc = validRollupRpc
 	return cfg
 }
 
@@ -84,10 +82,10 @@ func TestAlphabetTraceRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingAlphabetTrace)
 }
 
-func TestAlphabetTraceNotRequiredForOutputAlphabet(t *testing.T) {
-	config := validConfig(TraceTypeOutputAlphabet)
+func TestAlphabetTraceRequiredForAlphabet(t *testing.T) {
+	config := validConfig(TraceTypeAlphabet)
 	config.AlphabetTrace = ""
-	require.NoError(t, config.Check())
+	require.Error(t, config.Check(), "Alphabet trace required for alphabet trace type")
 }
 
 func TestCannonBinRequired(t *testing.T) {
@@ -134,14 +132,14 @@ func TestHttpPollInterval(t *testing.T) {
 	})
 }
 
-func TestRollupRpcRequired_OutputCannon(t *testing.T) {
-	config := validConfig(TraceTypeOutputCannon)
+func TestRollupRpcRequired_Cannon(t *testing.T) {
+	config := validConfig(TraceTypeCannon)
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
 
-func TestRollupRpcRequired_OutputAlphabet(t *testing.T) {
-	config := validConfig(TraceTypeOutputAlphabet)
+func TestRollupRpcRequired_Alphabet(t *testing.T) {
+	config := validConfig(TraceTypeAlphabet)
 	config.RollupRpc = ""
 	require.ErrorIs(t, config.Check(), ErrMissingRollupRpc)
 }
@@ -208,7 +206,7 @@ func TestNetworkMustBeValid(t *testing.T) {
 
 func TestRequireConfigForMultipleTraceTypes(t *testing.T) {
 	cfg := validConfig(TraceTypeCannon)
-	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet, TraceTypeOutputCannon}
+	cfg.TraceTypes = []TraceType{TraceTypeCannon, TraceTypeAlphabet}
 	// Set all required options and check its valid
 	cfg.RollupRpc = validRollupRpc
 	cfg.AlphabetTrace = validAlphabetTrace
