@@ -34,25 +34,9 @@ type disputeGameContract struct {
 	contract    *batching.BoundContract
 }
 
-// contractProposal matches the structure for output root proposals used by the contracts.
-// It must exactly match the contract structure. The exposed API uses Proposal to decouple the contract
-// and challenger representations of the proposal data.
-type contractProposal struct {
-	Index         *big.Int
-	L2BlockNumber *big.Int
-	OutputRoot    common.Hash
-}
-
 type Proposal struct {
 	L2BlockNumber *big.Int
 	OutputRoot    common.Hash
-}
-
-func asProposal(p contractProposal) Proposal {
-	return Proposal{
-		L2BlockNumber: p.L2BlockNumber,
-		OutputRoot:    p.OutputRoot,
-	}
 }
 
 func (f *disputeGameContract) GetGameDuration(ctx context.Context) (uint64, error) {
