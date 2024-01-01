@@ -860,8 +860,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  1,
 		"_initializing": false,
-		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 		"otherBridge":   config.L1StandardBridgeProxy,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L2ERC721Bridge"] = state.StorageValues{
 		"_initialized":  1,
