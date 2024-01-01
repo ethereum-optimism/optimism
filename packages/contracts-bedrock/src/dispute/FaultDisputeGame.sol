@@ -78,6 +78,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     /// @notice Indicates whether the subgame rooted at the root claim has been resolved.
     bool internal subgameAtRootResolved;
 
+    /// @notice Flag for the `initialize` function to prevent re-initialization.
+    bool internal initialized;
+
     /// @notice Semantic version.
     /// @custom:semver 0.0.20
     string public constant version = "0.0.20";
@@ -442,14 +445,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
         //
         // Explicit checks:
+        // - The game must not have already been initialized.
         // - An output root cannot be proposed at or before the genesis block.
+
+        // INVARIANT: The game must not have already been initialized.
+        if (initialized) revert AlreadyInitialized();
 
         // Do not allow the game to be initialized if the root claim corresponds to a block at or before the
         // configured genesis block number.
         if (l2BlockNumber() <= GENESIS_BLOCK_NUMBER) revert UnexpectedRootClaim(rootClaim());
-
-        // Set the game's starting timestamp
-        createdAt = Timestamp.wrap(uint64(block.timestamp));
 
         // Revert if the calldata size is too large, which signals that the `extraData` contains more than expected.
         // This is to prevent adding extra bytes to the `extraData` that result in a different game UUID in the factory,
@@ -475,8 +479,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             })
         );
 
+        // Set the game's starting timestamp
+        createdAt = Timestamp.wrap(uint64(block.timestamp));
+
         // Persist the blockhash of the parent block.
         l1Head = Hash.wrap(blockhash(block.number - 1));
+
+        // Set the game as initialized.
+        initialized = true;
     }
 
     /// @notice Returns the length of the `claimData` array.
