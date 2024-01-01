@@ -98,12 +98,11 @@ library ChainAssertions {
             require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
             require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
             require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
-            // Check _addresses
-            require(
-                config.startBlock()
-                    == (_cfg.systemConfigStartBlock() == 0 ? block.number : _cfg.systemConfigStartBlock())
-            );
+            // Depends on start block being set to 0 in `initialize`
+            uint256 cfgStartBlock = _cfg.systemConfigStartBlock();
+            require(config.startBlock() == (cfgStartBlock == 0 ? block.number : cfgStartBlock));
             require(config.batchInbox() == _cfg.batchInboxAddress());
+            // Check _addresses
             require(config.l1CrossDomainMessenger() == _contracts.L1CrossDomainMessenger);
             require(config.l1ERC721Bridge() == _contracts.L1ERC721Bridge);
             require(config.l1StandardBridge() == _contracts.L1StandardBridge);
