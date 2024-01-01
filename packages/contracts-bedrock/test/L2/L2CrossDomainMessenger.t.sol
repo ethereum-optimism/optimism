@@ -11,12 +11,41 @@ import { Encoding } from "src/libraries/Encoding.sol";
 import { Types } from "src/libraries/Types.sol";
 
 // Target contract dependencies
+import { L2CrossDomainMessenger } from "src/L2/L2CrossDomainMessenger.sol";
 import { L2ToL1MessagePasser } from "src/L2/L2ToL1MessagePasser.sol";
 import { AddressAliasHelper } from "src/vendor/AddressAliasHelper.sol";
 
 contract L2CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev Receiver address for testing
     address recipient = address(0xabbaacdc);
+
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_params_initValuesOnProxy_succeeds() external {
+        assertEq(l2CrossDomainMessenger.OTHER_MESSENGER(), address(l1CrossDomainMessenger));
+        assertEq(l2CrossDomainMessenger.otherMessenger(), address(l1CrossDomainMessenger));
+        assertEq(l2CrossDomainMessenger.l1CrossDomainMessenger(), address(l1CrossDomainMessenger));
+    }
+
+    /// @dev Tests that the impl is initialized correctly.
+    function test_params_initValuesOnImpl_succeeds() external {
+        L2CrossDomainMessenger impl = L2CrossDomainMessenger(deploy.mustGetAddress("L2CrossDomainMessenger"));
+        assertEq(impl.OTHER_MESSENGER(), address(l1CrossDomainMessenger));
+        assertEq(impl.otherMessenger(), address(l1CrossDomainMessenger));
+        assertEq(impl.l1CrossDomainMessenger(), address(l1CrossDomainMessenger));
+    }
+
+    /// @dev Tests that the proxy cannot be initialized twice.
+    function test_initialize_cannotInitProxy_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        l2CrossDomainMessenger.initialize({ _l1CrossDomainMessenger: address(l1CrossDomainMessenger) });
+    }
+
+    /// @dev Tests that the implementation cannot be initialized twice.
+    function test_initialize_cannotInitImpl_reverts() external {
+        L2CrossDomainMessenger impl = L2CrossDomainMessenger(deploy.mustGetAddress("L2CrossDomainMessenger"));
+        vm.expectRevert("Initializable: contract is already initialized");
+        impl.initialize({ _l1CrossDomainMessenger: address(l1CrossDomainMessenger) });
+    }
 
     /// @dev Tests that `messageNonce` can be decoded correctly.
     function test_messageVersion_succeeds() external {
