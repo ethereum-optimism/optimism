@@ -74,7 +74,7 @@
     "name": "PORTAL",
     "outputs": [
       {
-        "internalType": "address",
+        "internalType": "contract OptimismPortal",
         "name": "",
         "type": "address"
       }
