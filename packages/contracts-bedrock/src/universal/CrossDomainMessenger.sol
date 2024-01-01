@@ -140,7 +140,7 @@ abstract contract CrossDomainMessenger is
     address public otherMessenger;
 
     /// @notice Reserve extra slots in the storage layout for future upgrades.
-    ///         A gap size of 44 was chosen here, so that the first slot used in a child contract
+    ///         A gap size of 43 was chosen here, so that the first slot used in a child contract
     ///         would be 1 plus a multiple of 50.
     uint256[43] private __gap;
 
@@ -359,7 +359,7 @@ abstract contract CrossDomainMessenger is
     }
 
     /// @notice Initializer.
-    /// @param _otherMessenger Address of the paired CrossDomainMessenger contract on the other
+    /// @param _otherMessenger Address of the paired CrossDomainMessenger contract on the other chain.
     // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init(address _otherMessenger) internal onlyInitializing {
         // We only want to set the xDomainMsgSender to the default value if it hasn't been initialized yet,
