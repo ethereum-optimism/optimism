@@ -50,12 +50,12 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, ISemver {
         __CrossDomainMessenger_init({ _otherMessenger: _l2CrossDomainMessenger });
     }
 
-    /// @notice Getter function for the address of the OptimismPortal on this chain.
-    ///         Public getter is legacy and will be removed in the future. Use `address(portal)` instead.
-    /// @return Address of the OptimismPortal on this chain.
+    /// @notice Getter function for the OptimismPortal contract on this chain.
+    ///         Public getter is legacy and will be removed in the future. Use `portal()` instead.
+    /// @return Contract of the OptimismPortal on this chain.
     /// @custom:legacy
-    function PORTAL() external view returns (address) {
-        return address(portal);
+    function PORTAL() external view returns (OptimismPortal) {
+        return portal;
     }
 
     /// @inheritdoc CrossDomainMessenger
