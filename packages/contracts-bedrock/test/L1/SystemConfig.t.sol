@@ -61,7 +61,8 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
         assertEq(actual.systemTxMaxGas, rcfg.systemTxMaxGas);
         assertEq(actual.maximumBaseFee, rcfg.maximumBaseFee);
         // Depends on start block being set to 0 in `initialize`
-        assertEq(systemConfig.startBlock(), block.number);
+        uint256 cfgStartBlock = deploy.cfg().systemConfigStartBlock();
+        assertEq(systemConfig.startBlock(), (cfgStartBlock == 0 ? block.number : cfgStartBlock));
         assertEq(address(systemConfig.batchInbox()), address(batchInbox));
         // Check addresses
         assertEq(address(systemConfig.l1CrossDomainMessenger()), address(l1CrossDomainMessenger));
@@ -119,8 +120,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
         address admin = address(uint160(uint256(vm.load(address(systemConfig), Constants.PROXY_OWNER_ADDRESS))));
         vm.prank(admin);
 
-        // The call to initialize reverts due to: "SystemConfig: gas limit too low"
-        // but the proxy revert message bubbles up.
         vm.expectRevert("SystemConfig: gas limit too low");
         systemConfig.initialize(
             alice, // _owner,
@@ -153,8 +152,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Initialize_Test {
 
         // Initialize with a non zero start block, should see a revert
         vm.prank(systemConfig.owner());
-        // The call to initialize reverts due to: "SystemConfig: cannot override an already set start block"
-        // but the proxy revert message bubbles up.
         vm.expectRevert("SystemConfig: cannot override an already set start block");
         systemConfig.initialize(
             alice, // _owner,
