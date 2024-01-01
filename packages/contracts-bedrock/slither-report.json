@@ -1176,38 +1176,38 @@
     "filename_relative": "src/L1/DelayedVetoable.sol"
   },
   {
-    "id": "c4fc32b91ce132a5935375d328a85fc0538959e5857532739d1bd06565811ccf",
+    "id": "8b6eeb36c54c9ce42b94eaf1c594114cc7cbf031a2cd74d65e7994567aff53e4",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "reentrancy-no-eth",
     "description": "Reentrancy in FaultDisputeGame.step(uint256,bool,bytes,bytes) (src/dispute/FaultDisputeGame.sol#122-189):\n\tExternal calls:\n\t- validStep = VM.step(_stateData,_proof,uuid.raw()) == postState.claim.raw() (src/dispute/FaultDisputeGame.sol#182)\n\tState variables written after the call(s):\n\t- parent.countered = true (src/dispute/FaultDisputeGame.sol#188)\n\tFaultDisputeGame.claimData (src/dispute/FaultDisputeGame.sol#70) can be used in cross function reentrancies:\n\t- FaultDisputeGame.claimData (src/dispute/FaultDisputeGame.sol#70)\n\t- FaultDisputeGame.claimDataLen() (src/dispute/FaultDisputeGame.sol#483-485)\n\t- FaultDisputeGame.findStartingAndDisputedOutputs(uint256) (src/dispute/FaultDisputeGame.sol#601-660)\n\t- FaultDisputeGame.findTraceAncestor(Position,uint256,bool) (src/dispute/FaultDisputeGame.sol#574-592)\n\t- FaultDisputeGame.initialize() (src/dispute/FaultDisputeGame.sol#437-480)\n\t- FaultDisputeGame.move(uint256,Claim,bool) (src/dispute/FaultDisputeGame.sol#195-281)\n\t- FaultDisputeGame.resolve() (src/dispute/FaultDisputeGame.sol#346-358)\n\t- FaultDisputeGame.resolveClaim(uint256) (src/dispute/FaultDisputeGame.sol#361-411)\n\t- FaultDisputeGame.step(uint256,bool,bytes,bytes) (src/dispute/FaultDisputeGame.sol#122-189)\n",
     "type": "function",
     "name": "step",
-    "start": 4903,
-    "length": 4217,
+    "start": 5016,
+    "length": 4220,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
-    "id": "c4fc32b91ce132a5935375d328a85fc0538959e5857532739d1bd06565811ccf",
+    "id": "8b6eeb36c54c9ce42b94eaf1c594114cc7cbf031a2cd74d65e7994567aff53e4",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "reentrancy-no-eth",
     "description": "Reentrancy in FaultDisputeGame.step(uint256,bool,bytes,bytes) (src/dispute/FaultDisputeGame.sol#122-189):\n\tExternal calls:\n\t- validStep = VM.step(_stateData,_proof,uuid.raw()) == postState.claim.raw() (src/dispute/FaultDisputeGame.sol#182)\n\tState variables written after the call(s):\n\t- parent.countered = true (src/dispute/FaultDisputeGame.sol#188)\n\tFaultDisputeGame.claimData (src/dispute/FaultDisputeGame.sol#70) can be used in cross function reentrancies:\n\t- FaultDisputeGame.claimData (src/dispute/FaultDisputeGame.sol#70)\n\t- FaultDisputeGame.claimDataLen() (src/dispute/FaultDisputeGame.sol#483-485)\n\t- FaultDisputeGame.findStartingAndDisputedOutputs(uint256) (src/dispute/FaultDisputeGame.sol#601-660)\n\t- FaultDisputeGame.findTraceAncestor(Position,uint256,bool) (src/dispute/FaultDisputeGame.sol#574-592)\n\t- FaultDisputeGame.initialize() (src/dispute/FaultDisputeGame.sol#437-480)\n\t- FaultDisputeGame.move(uint256,Claim,bool) (src/dispute/FaultDisputeGame.sol#195-281)\n\t- FaultDisputeGame.resolve() (src/dispute/FaultDisputeGame.sol#346-358)\n\t- FaultDisputeGame.resolveClaim(uint256) (src/dispute/FaultDisputeGame.sol#361-411)\n\t- FaultDisputeGame.step(uint256,bool,bytes,bytes) (src/dispute/FaultDisputeGame.sol#122-189)\n",
     "type": "node",
     "name": "validStep = VM.step(_stateData,_proof,uuid.raw()) == postState.claim.raw()",
-    "start": 8680,
+    "start": 8796,
     "length": 81,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
-    "id": "c4fc32b91ce132a5935375d328a85fc0538959e5857532739d1bd06565811ccf",
+    "id": "8b6eeb36c54c9ce42b94eaf1c594114cc7cbf031a2cd74d65e7994567aff53e4",
     "impact": "Medium",
     "confidence": "Medium",
     "check": "reentrancy-no-eth",
     "description": "Reentrancy in FaultDisputeGame.step(uint256,bool,bytes,bytes) (src/dispute/FaultDisputeGame.sol#122-189):\n\tExternal calls:\n\t- validStep = VM.step(_stateData,_proof,uuid.raw()) == postState.claim.raw() (src/dispute/FaultDisputeGame.sol#182)\n\tState variables written after the call(s):\n\t- parent.countered = true (src/dispute/FaultDisputeGame.sol#188)\n\tFaultDisputeGame.claimData (src/dispute/FaultDisputeGame.sol#70) can be used in cross function reentrancies:\n\t- FaultDisputeGame.claimData (src/dispute/FaultDisputeGame.sol#70)\n\t- FaultDisputeGame.claimDataLen() (src/dispute/FaultDisputeGame.sol#483-485)\n\t- FaultDisputeGame.findStartingAndDisputedOutputs(uint256) (src/dispute/FaultDisputeGame.sol#601-660)\n\t- FaultDisputeGame.findTraceAncestor(Position,uint256,bool) (src/dispute/FaultDisputeGame.sol#574-592)\n\t- FaultDisputeGame.initialize() (src/dispute/FaultDisputeGame.sol#437-480)\n\t- FaultDisputeGame.move(uint256,Claim,bool) (src/dispute/FaultDisputeGame.sol#195-281)\n\t- FaultDisputeGame.resolve() (src/dispute/FaultDisputeGame.sol#346-358)\n\t- FaultDisputeGame.resolveClaim(uint256) (src/dispute/FaultDisputeGame.sol#361-411)\n\t- FaultDisputeGame.step(uint256,bool,bytes,bytes) (src/dispute/FaultDisputeGame.sol#122-189)\n",
     "type": "node",
     "name": "parent.countered = true",
-    "start": 9090,
+    "start": 9206,
     "length": 23,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
@@ -1300,10 +1300,10 @@
     "impact": "Medium",
     "confidence": "Medium",
     "check": "uninitialized-local",
-    "description": "FaultDisputeGame.move(uint256,Claim,bool).grandparentClock (src/dispute/FaultDisputeGame.sol#230) is a local variable never initialized\n",
+    "description": "FaultDisputeGame.move(uint256,Claim,bool).grandparentClock (src/dispute/FaultDisputeGame.sol#233) is a local variable never initialized\n",
     "type": "variable",
     "name": "grandparentClock",
-    "start": 11599,
+    "start": 11722,
     "length": 22,
     "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
@@ -1318,6 +1318,18 @@
     "start": 10786,
     "length": 22,
     "filename_relative": "src/legacy/FaultDisputeGame.sol"
+  },
+  {
+    "id": "8c229f5475784b2e9526e30d55b066e479489bca4b07c4f062b42b5b70100794",
+    "impact": "Medium",
+    "confidence": "Medium",
+    "check": "uninitialized-local",
+    "description": "FaultDisputeGame._findStartingAndDisputedOutputs(uint256).currentDepth (src/dispute/FaultDisputeGame.sol#629) is a local variable never initialized\n",
+    "type": "variable",
+    "name": "currentDepth",
+    "start": 29661,
+    "length": 20,
+    "filename_relative": "src/dispute/FaultDisputeGame.sol"
   },
   {
     "id": "9ad67b006fc175893dd26d35a020a52dd8524709d87cca61212ee0e147eb992b",
