@@ -24,8 +24,17 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
     /// @dev The storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
-    /// @dev Tests that the constructor sets the correct values.
-    function test_constructor_succeeds() external {
+    /// @dev Tests that the proxy is initialized correctly.
+    function test_params_initValuesOnProxy_succeeds() external {
+        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
+        assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal));
+        assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal));
+        assertEq(l1CrossDomainMessenger.OTHER_MESSENGER(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        assertEq(l1CrossDomainMessenger.otherMessenger(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    }
+
+    /// @dev Tests that the impl is initialized correctly.
+    function test_params_initValuesOnImpl_succeeds() external {
         L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
         assertEq(address(impl.superchainConfig()), address(0));
         assertEq(address(impl.PORTAL()), address(0));
@@ -34,13 +43,25 @@ contract L1CrossDomainMessenger_Test is Bridge_Initializer {
         assertEq(impl.otherMessenger(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
     }
 
-    /// @dev Tests that the initializer sets the correct values.
-    function test_initialize_succeeds() external {
-        assertEq(address(l1CrossDomainMessenger.superchainConfig()), address(superchainConfig));
-        assertEq(address(l1CrossDomainMessenger.PORTAL()), address(optimismPortal));
-        assertEq(address(l1CrossDomainMessenger.portal()), address(optimismPortal));
-        assertEq(l1CrossDomainMessenger.OTHER_MESSENGER(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
-        assertEq(l1CrossDomainMessenger.otherMessenger(), Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    /// @dev Tests that the proxy cannot be initialized twice.
+    function test_initialize_cannotInitProxy_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        l1CrossDomainMessenger.initialize({
+            _superchainConfig: SuperchainConfig(address(0)),
+            _portal: OptimismPortal(payable(address(0))),
+            _l2CrossDomainMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        });
+    }
+
+    /// @dev Tests that the implementation cannot be initialized twice.
+    function test_initialize_cannotInitImpl_reverts() external {
+        L1CrossDomainMessenger impl = L1CrossDomainMessenger(deploy.mustGetAddress("L1CrossDomainMessenger"));
+        vm.expectRevert("Initializable: contract is already initialized");
+        impl.initialize({
+            _superchainConfig: SuperchainConfig(address(0)),
+            _portal: OptimismPortal(payable(address(0))),
+            _l2CrossDomainMessenger: Predeploys.L2_CROSS_DOMAIN_MESSENGER
+        });
     }
 
     /// @dev Tests that the version can be decoded from the message nonce.
