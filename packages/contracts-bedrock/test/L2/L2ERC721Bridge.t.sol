@@ -80,17 +80,25 @@ contract L2ERC721Bridge_Test is Bridge_Initializer {
         assertEq(address(l2ERC721Bridge.otherBridge()), address(l1ERC721Bridge));
     }
 
+    /// @dev Tests that initialize reverts if the bridge points to the zero address.
+    function test_initialize_invalidBridge_reverts() external {
+        // Reset the initialized field in the 0th storage slot so that initialize can be called again.
+        vm.store(address(l2ERC721Bridge), bytes32(uint256(0)), bytes32(uint256(0)));
+        vm.expectRevert("ERC721Bridge: other bridge cannot be address(0)");
+        l2ERC721Bridge.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(0) });
+    }
+
     /// @dev Tests that the implementation contract cannot be initialized twice.
     function test_initializeImpl_alreadyInitialized_reverts() external {
         L2ERC721Bridge impl = L2ERC721Bridge(deploy.mustGetAddress("L2ERC721Bridge"));
         vm.expectRevert("Initializable: contract is already initialized");
-        impl.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(0) });
+        impl.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(l1ERC721Bridge) });
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initializeProxy_alreadyInitialized_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        l2ERC721Bridge.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(0) });
+        l2ERC721Bridge.initialize({ _messenger: CrossDomainMessenger(address(0)), _otherBridge: address(l1ERC721Bridge) });
     }
 
     /// @dev Ensures that the L2ERC721Bridge is always not paused. The pausability
