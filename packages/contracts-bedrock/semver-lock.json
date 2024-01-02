@@ -92,8 +92,8 @@
     "sourceCodeHash": "0x64290a5d8138c46d2ecd308e3ef62ba04663049cce8a271b9a686ddd2e630391"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0xbd89fd5227cf5c52309cbaa24175351491180f6ff5b7a40a542bfc0e80d6ec00",
-    "sourceCodeHash": "0xbf39a67d44f5bcdaf65b202c393c538a87903a172056f4fb548645120f38d88c"
+    "initCodeHash": "0xd93d6ae410ba47724c40094ae3a19d8e9db4c5daaf43d367c4b7af0af6fccfa0",
+    "sourceCodeHash": "0xeb4ef33b0134a69ddf50c59494ae05b60c07e22e0634f69aafc213fbed6e1a2b"
   },
   "src/legacy/BlockOracle.sol": {
     "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",
@@ -104,8 +104,8 @@
     "sourceCodeHash": "0xb518a9f56136a910f2450098b4823c9982f93883fe4a9ef6f6b0a89355965d38"
   },
   "src/legacy/FaultDisputeGame.sol": {
-    "initCodeHash": "0xbd89fd5227cf5c52309cbaa24175351491180f6ff5b7a40a542bfc0e80d6ec00",
-    "sourceCodeHash": "0xdc119ac6d4766e6ee88fcaff31f7ef3b8f5ac79055bc426dd3c6872f3df0eb30"
+    "initCodeHash": "0xd93d6ae410ba47724c40094ae3a19d8e9db4c5daaf43d367c4b7af0af6fccfa0",
+    "sourceCodeHash": "0x16c1020857324372169e66c57c1927c19f7763bbaa69dc9c51ae4750d9e6c7a4"
   },
   "src/legacy/L1BlockNumber.sol": {
     "initCodeHash": "0xd586c4f93caf1753e53fcdc05eb547c1f3a69afda2904ae9f9d851b73e1c9c1d",

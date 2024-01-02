@@ -10,9 +10,7 @@ import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper
 import { Clone } from "src/libraries/Clone.sol";
 import { Types } from "src/libraries/Types.sol";
 import { ISemver } from "src/universal/ISemver.sol";
-import { LibHashing } from "src/dispute/lib/LibHashing.sol";
-import { LibPosition } from "src/dispute/lib/LibPosition.sol";
-import { LibClock } from "src/dispute/lib/LibClock.sol";
+import { LibClock } from "src/dispute/lib/LibUDT.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -81,8 +79,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     bool internal subgameAtRootResolved;
 
     /// @notice Semantic version.
-    /// @custom:semver 0.0.19
-    string public constant version = "0.0.19";
+    /// @custom:semver 0.0.20
+    string public constant version = "0.0.20";
 
     /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
@@ -150,21 +148,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             //       determine whether or not the step position is represents the `ABSOLUTE_PRESTATE`.
             preStateClaim = (stepPos.indexAtDepth() % (1 << (MAX_GAME_DEPTH - SPLIT_DEPTH))) == 0
                 ? ABSOLUTE_PRESTATE
-                : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex, false).claim;
+                : findTraceAncestor(Position.wrap(parentPos.raw() - 1), parent.parentIndex, false).claim;
             // For all attacks, the poststate is the parent claim.
             postState = parent;
         } else {
             // If the step is a defense, the poststate exists elsewhere in the game state,
             // and the parent claim is the expected pre-state.
             preStateClaim = parent.claim;
-            postState = findTraceAncestor(Position.wrap(Position.unwrap(parentPos) + 1), parent.parentIndex, false);
+            postState = findTraceAncestor(Position.wrap(parentPos.raw() + 1), parent.parentIndex, false);
         }
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
         //            preimage of the prestate claim hash.
         //            We ignore the highest order byte of the digest because it is used to
         //            indicate the VM Status and is added after the digest is computed.
-        if (keccak256(_stateData) << 8 != Claim.unwrap(preStateClaim) << 8) revert InvalidPrestate();
+        if (keccak256(_stateData) << 8 != preStateClaim.raw() << 8) revert InvalidPrestate();
 
         // Compute the local preimage context for the step.
         Hash uuid = findLocalContext(_claimIndex);
@@ -181,7 +179,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof, Hash.unwrap(uuid)) == Claim.unwrap(postState.claim);
+        bool validStep = VM.step(_stateData, _proof, uuid.raw()) == postState.claim.raw();
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 
@@ -240,18 +238,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         Duration nextDuration = Duration.wrap(
             uint64(
                 // First, fetch the duration of the grandparent claim.
-                Duration.unwrap(grandparentClock.duration())
+                grandparentClock.duration().raw()
                 // Second, add the difference between the current block timestamp and the
                 // parent's clock timestamp.
-                + block.timestamp - Timestamp.unwrap(parent.clock.timestamp())
+                + block.timestamp - parent.clock.timestamp().raw()
             )
         );
 
         // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
         //            seconds of time.
-        if (Duration.unwrap(nextDuration) > Duration.unwrap(GAME_DURATION) >> 1) {
-            revert ClockTimeExceeded();
-        }
+        if (nextDuration.raw() > GAME_DURATION.raw() >> 1) revert ClockTimeExceeded();
 
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
@@ -306,27 +302,27 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         IPreimageOracle oracle = VM.oracle();
         if (_ident == LocalPreimageKey.L1_HEAD_HASH) {
             // Load the L1 head hash
-            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Hash.unwrap(l1Head), 32, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), l1Head.raw(), 32, _partOffset);
         } else if (_ident == LocalPreimageKey.STARTING_OUTPUT_ROOT) {
             // Load the starting proposal's output root.
-            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(starting), 32, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), starting.raw(), 32, _partOffset);
         } else if (_ident == LocalPreimageKey.DISPUTED_OUTPUT_ROOT) {
             // Load the disputed proposal's output root
-            oracle.loadLocalData(_ident, Hash.unwrap(uuid), Claim.unwrap(disputed), 32, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), disputed.raw(), 32, _partOffset);
         } else if (_ident == LocalPreimageKey.STARTING_L2_BLOCK_NUMBER) {
             // Load the starting proposal's L2 block number as a big-endian uint64 in the
             // high order 8 bytes of the word.
 
             // If the starting position is 0 (invalid), the starting output root is genesis. Otherwise,
             // we add the index at depth + 1 to the genesis block number to get the L2 block number.
-            uint256 l2Number = Position.unwrap(startingPos) == 0
+            uint256 l2Number = startingPos.raw() == 0
                 ? GENESIS_BLOCK_NUMBER
                 : GENESIS_BLOCK_NUMBER + startingPos.traceIndex(SPLIT_DEPTH) + 1;
 
-            oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(l2Number << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), bytes32(l2Number << 0xC0), 8, _partOffset);
         } else if (_ident == LocalPreimageKey.CHAIN_ID) {
             // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
-            oracle.loadLocalData(_ident, Hash.unwrap(uuid), bytes32(block.chainid << 0xC0), 8, _partOffset);
+            oracle.loadLocalData(_ident, uuid.raw(), bytes32(block.chainid << 0xC0), 8, _partOffset);
         } else {
             revert InvalidLocalIdent();
         }
@@ -370,8 +366,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // INVARIANT: Cannot resolve a subgame unless the clock of its root has expired
         if (
-            Duration.unwrap(parent.clock.duration()) + (block.timestamp - Timestamp.unwrap(parent.clock.timestamp()))
-                <= Duration.unwrap(GAME_DURATION) >> 1
+            parent.clock.duration().raw() + (block.timestamp - parent.clock.timestamp().raw())
+                <= GAME_DURATION.raw() >> 1
         ) {
             revert ClockNotExpired();
         }
@@ -550,19 +546,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
 
         // If the move is a defense, the disputed output could have been made by either party. In this case, we
         // need to search for the parent output to determine what the expected status byte should be.
-        Position disputedLeafPos = Position.wrap(Position.unwrap(_parentPos) + 1);
+        Position disputedLeafPos = Position.wrap(_parentPos.raw() + 1);
         ClaimData storage disputed = findTraceAncestor({ _pos: disputedLeafPos, _start: _parentIdx, _global: true });
-        uint8 vmStatus = uint8(Claim.unwrap(_rootClaim)[0]);
+        uint8 vmStatus = uint8(_rootClaim.raw()[0]);
 
         if (_isAttack || disputed.position.depth() % 2 == SPLIT_DEPTH % 2) {
             // If the move is an attack, the parent output is always deemed to be disputed. In this case, we only need
             // to check that the root claim signals that the VM panicked or resulted in an invalid transition.
             // If the move is a defense, and the disputed output and creator of the execution trace subgame disagree,
             // the root claim should also signal that the VM panicked or resulted in an invalid transition.
-            if (!(vmStatus == VMStatus.unwrap(VMStatuses.INVALID) || vmStatus == VMStatus.unwrap(VMStatuses.PANIC))) {
+            if (!(vmStatus == VMStatuses.INVALID.raw() || vmStatus == VMStatuses.PANIC.raw())) {
                 revert UnexpectedRootClaim(_rootClaim);
             }
-        } else if (vmStatus != VMStatus.unwrap(VMStatuses.VALID)) {
+        } else if (vmStatus != VMStatuses.VALID.raw()) {
             // The disputed output and the creator of the execution trace subgame agree. The status byte should
             // have signaled that the VM succeeded.
             revert UnexpectedRootClaim(_rootClaim);
@@ -590,7 +586,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // Walk up the DAG to find a claim that commits to the same trace index as `_pos`. It is
         // guaranteed that such a claim exists.
         ancestor_ = claimData[_start];
-        while (Position.unwrap(ancestor_.position) != Position.unwrap(traceAncestorPos)) {
+        while (ancestor_.position.raw() != traceAncestorPos.raw()) {
             ancestor_ = claimData[ancestor_.parentIndex];
         }
     }
@@ -638,7 +634,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
         // above. This is important because it determines which claim is the starting output root and which
         // is the disputed output root.
         (Position execRootPos, Position outputPos) = (execRootClaim.position, claim.position);
-        bool wasAttack = Position.unwrap(execRootPos.parent()) == Position.unwrap(outputPos);
+        bool wasAttack = execRootPos.parent().raw() == outputPos.raw();
 
         // Determine the starting and disputed output root indices.
         // 1. If it was an attack, the disputed output root is `claim`, and the starting output root is
@@ -650,16 +646,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
             // starting claim nor position exists in the tree. We leave these as 0, which can be easily
             // identified due to 0 being an invalid Gindex.
             if (outputPos.indexAtDepth() > 0) {
-                ClaimData storage starting =
-                    findTraceAncestor(Position.wrap(Position.unwrap(outputPos) - 1), claimIdx, true);
+                ClaimData storage starting = findTraceAncestor(Position.wrap(outputPos.raw() - 1), claimIdx, true);
                 (startingClaim_, startingPos_) = (starting.claim, starting.position);
             } else {
-                startingClaim_ = Claim.wrap(Hash.unwrap(GENESIS_OUTPUT_ROOT));
+                startingClaim_ = Claim.wrap(GENESIS_OUTPUT_ROOT.raw());
             }
             (disputedClaim_, disputedPos_) = (claim.claim, claim.position);
         } else {
-            ClaimData storage disputed =
-                findTraceAncestor(Position.wrap(Position.unwrap(outputPos) + 1), claimIdx, true);
+            ClaimData storage disputed = findTraceAncestor(Position.wrap(outputPos.raw() + 1), claimIdx, true);
             (startingClaim_, startingPos_) = (claim.claim, claim.position);
             (disputedClaim_, disputedPos_) = (disputed.claim, disputed.position);
         }
@@ -692,7 +686,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, ISemver {
     {
         // A position of 0 indicates that the starting claim is the absolute prestate. In this special case,
         // we do not include the starting claim within the local context hash.
-        if (Position.unwrap(_startingPos) == 0) {
+        if (_startingPos.raw() == 0) {
             uuid_ = Hash.wrap(keccak256(abi.encode(_disputed, _disputedPos)));
         } else {
             uuid_ = Hash.wrap(keccak256(abi.encode(_starting, _startingPos, _disputed, _disputedPos)));

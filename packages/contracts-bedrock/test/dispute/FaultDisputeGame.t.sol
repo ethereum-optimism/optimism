@@ -13,7 +13,7 @@ import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 import { Types } from "src/libraries/Types.sol";
-import { LibClock } from "src/dispute/lib/LibClock.sol";
+import { LibClock } from "src/dispute/lib/LibUDT.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 import { AlphabetVM } from "test/mocks/AlphabetVM.sol";
@@ -68,13 +68,13 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, rootClaim, extraData)));
 
         // Check immutables
-        assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
-        assertEq(Claim.unwrap(gameProxy.absolutePrestate()), Claim.unwrap(absolutePrestate));
+        assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
+        assertEq(gameProxy.absolutePrestate().raw(), absolutePrestate.raw());
         assertEq(gameProxy.genesisBlockNumber(), genesisBlockNumber);
-        assertEq(Hash.unwrap(gameProxy.genesisOutputRoot()), Hash.unwrap(genesisOutputRoot));
+        assertEq(gameProxy.genesisOutputRoot().raw(), genesisOutputRoot.raw());
         assertEq(gameProxy.maxGameDepth(), 2 ** 3);
         assertEq(gameProxy.splitDepth(), 2 ** 2);
-        assertEq(Duration.unwrap(gameProxy.gameDuration()), 7 days);
+        assertEq(gameProxy.gameDuration().raw(), 7 days);
         assertEq(address(gameProxy.vm()), address(_vm));
 
         // Label the proxy
@@ -126,7 +126,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the game's root claim is set correctly.
     function test_rootClaim_succeeds() public {
-        assertEq(Claim.unwrap(gameProxy.rootClaim()), Claim.unwrap(ROOT_CLAIM));
+        assertEq(gameProxy.rootClaim().raw(), ROOT_CLAIM.raw());
     }
 
     /// @dev Tests that the game's extra data is set correctly.
@@ -136,20 +136,20 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the game's starting timestamp is set correctly.
     function test_createdAt_succeeds() public {
-        assertEq(Timestamp.unwrap(gameProxy.createdAt()), block.timestamp);
+        assertEq(gameProxy.createdAt().raw(), block.timestamp);
     }
 
     /// @dev Tests that the game's type is set correctly.
     function test_gameType_succeeds() public {
-        assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
+        assertEq(gameProxy.gameType().raw(), GAME_TYPE.raw());
     }
 
     /// @dev Tests that the game's data is set correctly.
     function test_gameData_succeeds() public {
         (GameType gameType, Claim rootClaim, bytes memory _extraData) = gameProxy.gameData();
 
-        assertEq(GameType.unwrap(gameType), GameType.unwrap(GAME_TYPE));
-        assertEq(Claim.unwrap(rootClaim), Claim.unwrap(ROOT_CLAIM));
+        assertEq(gameType.raw(), GAME_TYPE.raw());
+        assertEq(rootClaim.raw(), ROOT_CLAIM.raw());
         assertEq(_extraData, extraData);
     }
 
@@ -195,17 +195,15 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         (uint32 parentIndex, bool countered, Claim claim, Position position, Clock clock) = gameProxy.claimData(0);
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, false);
-        assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
-        assertEq(Position.unwrap(position), 1);
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(claim.raw(), ROOT_CLAIM.raw());
+        assertEq(position.raw(), 1);
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // Assert that the `createdAt` timestamp is correct.
-        assertEq(Timestamp.unwrap(gameProxy.createdAt()), block.timestamp);
+        assertEq(gameProxy.createdAt().raw(), block.timestamp);
 
         // Assert that the blockhash provided is correct.
-        assertEq(Hash.unwrap(gameProxy.l1Head()), blockhash(block.number - 1));
+        assertEq(gameProxy.l1Head().raw(), blockhash(block.number - 1));
     }
 
     /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
@@ -279,25 +277,19 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @notice Static unit test for the correctness of the chess clock incrementation.
     function test_move_clockCorrectness_succeeds() public {
         (,,,, Clock clock) = gameProxy.claimData(0);
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         Claim claim = _dummyClaim();
 
         vm.warp(block.timestamp + 15);
         gameProxy.attack(0, claim);
         (,,,, clock) = gameProxy.claimData(1);
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(15), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(15), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(1, claim);
         (,,,, clock) = gameProxy.claimData(2);
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(10), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(10), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // We are at the split depth, so we need to set the status byte of the claim
         // for the next move.
@@ -306,16 +298,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         vm.warp(block.timestamp + 10);
         gameProxy.attack(2, claim);
         (,,,, clock) = gameProxy.claimData(3);
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(25), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(25), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         vm.warp(block.timestamp + 10);
         gameProxy.attack(3, claim);
         (,,,, clock) = gameProxy.claimData(4);
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(20), Timestamp.wrap(uint64(block.timestamp))).raw());
     }
 
     /// @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
@@ -364,11 +352,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Assert correctness of the attack claim's data.
         assertEq(parentIndex, 0);
         assertEq(countered, false);
-        assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
-        assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).move(true)));
-        assertEq(
-            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(claim.raw(), counter.raw());
+        assertEq(position.raw(), Position.wrap(1).move(true).raw());
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))).raw());
 
         // Grab the claim data of the parent.
         (parentIndex, countered, claim, position, clock) = gameProxy.claimData(0);
@@ -376,12 +362,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, true);
-        assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
-        assertEq(Position.unwrap(position), 1);
-        assertEq(
-            Clock.unwrap(clock),
-            Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5))))
-        );
+        assertEq(claim.raw(), ROOT_CLAIM.raw());
+        assertEq(position.raw(), 1);
+        assertEq(clock.raw(), LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5))).raw());
     }
 
     /// @dev Tests that making a claim at the execution trace bisection root level with an invalid status
@@ -569,13 +552,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(4, _changeClaimStatus(_dummyClaim(), VMStatuses.PANIC));
 
         // Expected start/disputed claims
-        bytes32 startingClaim = Hash.unwrap(gameProxy.genesisOutputRoot());
+        bytes32 startingClaim = gameProxy.genesisOutputRoot().raw();
         bytes32 disputedClaim = bytes32(uint256(3));
         Position disputedPos = LibPosition.wrap(4, 0);
 
         // Expected local data
         bytes32[5] memory data =
-            [Hash.unwrap(gameProxy.l1Head()), startingClaim, disputedClaim, bytes32(0), bytes32(block.chainid << 0xC0)];
+            [gameProxy.l1Head().raw(), startingClaim, disputedClaim, bytes32(0), bytes32(block.chainid << 0xC0)];
 
         for (uint256 i = 1; i <= 5; i++) {
             uint256 expectedLen = i > 3 ? 8 : 32;
@@ -616,7 +599,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
         // Expected local data
         bytes32[5] memory data = [
-            Hash.unwrap(gameProxy.l1Head()),
+            gameProxy.l1Head().raw(),
             startingClaim,
             disputedClaim,
             bytes32(uint256(1) << 0xC0),

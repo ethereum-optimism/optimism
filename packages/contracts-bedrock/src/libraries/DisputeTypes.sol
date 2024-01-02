@@ -1,15 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { LibHashing } from "../dispute/lib/LibHashing.sol";
-import { LibPosition } from "../dispute/lib/LibPosition.sol";
-import { LibClock } from "../dispute/lib/LibClock.sol";
-import { LibGameId } from "../dispute/lib/LibGameId.sol";
+import { LibHashing } from "src/dispute/lib/LibHashing.sol";
+import {
+    LibClaim,
+    LibHash,
+    LibDuration,
+    LibClock,
+    LibTimestamp,
+    LibVMStatus,
+    LibGameType
+} from "src/dispute/lib/LibUDT.sol";
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { LibGameId } from "src/dispute/lib/LibGameId.sol";
 
+using LibClaim for Claim global;
 using LibHashing for Claim global;
+using LibHash for Hash global;
 using LibPosition for Position global;
+using LibDuration for Duration global;
 using LibClock for Clock global;
 using LibGameId for GameId global;
+using LibTimestamp for Timestamp global;
+using LibVMStatus for VMStatus global;
+using LibGameType for GameType global;
 
 /// @notice A custom type for a generic hash.
 type Hash is bytes32;

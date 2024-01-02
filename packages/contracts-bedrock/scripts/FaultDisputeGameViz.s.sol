@@ -4,15 +4,14 @@ pragma solidity ^0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { FaultDisputeGame_Init } from "../test/dispute/FaultDisputeGame.t.sol";
-import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame } from "../src/dispute/FaultDisputeGame.sol";
-import { IFaultDisputeGame } from "../src/dispute/interfaces/IFaultDisputeGame.sol";
+import { FaultDisputeGame_Init } from "test/dispute/FaultDisputeGame.t.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { IFaultDisputeGame } from "src/dispute/interfaces/IFaultDisputeGame.sol";
 
-import "../src/libraries/DisputeTypes.sol";
-import "../src/libraries/DisputeErrors.sol";
-import { LibClock } from "../src/dispute/lib/LibClock.sol";
-import { LibPosition } from "../src/dispute/lib/LibPosition.sol";
+import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 
 /**
  * @title FaultDisputeGameViz
