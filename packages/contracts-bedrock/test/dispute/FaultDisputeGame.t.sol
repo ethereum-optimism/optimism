@@ -206,6 +206,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(gameProxy.l1Head().raw(), blockhash(block.number - 1));
     }
 
+    /// @dev Tests that the game cannot be initialized twice.
+    function test_initialize_onlyOnce_succeeds() public {
+        vm.expectRevert(AlreadyInitialized.selector);
+        gameProxy.initialize();
+    }
+
     /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
     ///      with the `GameNotInProgress` error
     function test_move_gameNotInProgress_reverts() public {

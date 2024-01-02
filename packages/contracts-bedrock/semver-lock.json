@@ -88,12 +88,12 @@
     "sourceCodeHash": "0x1afb1d392e8f6a58ff86ea7f648e0d1756d4ba8d0d964279d58a390deaa53b7e"
   },
   "src/dispute/DisputeGameFactory.sol": {
-    "initCodeHash": "0x84a15994d275bea8a96af83a46849e74eb573aa579db86350b6fe358bd61ec57",
-    "sourceCodeHash": "0x64290a5d8138c46d2ecd308e3ef62ba04663049cce8a271b9a686ddd2e630391"
+    "initCodeHash": "0x6dc67d5bb1496b1360aeb7447633f28689327ee1f2df632f20d257fe8fa75c70",
+    "sourceCodeHash": "0xb6cc80e4e2c5bb6b527d4b523eafb72facff75cb25de036052eab380cb2d3213"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0xd93d6ae410ba47724c40094ae3a19d8e9db4c5daaf43d367c4b7af0af6fccfa0",
-    "sourceCodeHash": "0xeb4ef33b0134a69ddf50c59494ae05b60c07e22e0634f69aafc213fbed6e1a2b"
+    "initCodeHash": "0x86328a03426488472fea8ff7eca00e46c6601d5d0adab9f07ee1bc5f98605d48",
+    "sourceCodeHash": "0x52dd7c52bbb57fa0bdf80cc1993a5e3fc4ff6638cec13eeba59a4a17ac0570f0"
   },
   "src/legacy/BlockOracle.sol": {
     "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",
@@ -104,7 +104,7 @@
     "sourceCodeHash": "0xb518a9f56136a910f2450098b4823c9982f93883fe4a9ef6f6b0a89355965d38"
   },
   "src/legacy/FaultDisputeGame.sol": {
-    "initCodeHash": "0xd93d6ae410ba47724c40094ae3a19d8e9db4c5daaf43d367c4b7af0af6fccfa0",
+    "initCodeHash": "0x86328a03426488472fea8ff7eca00e46c6601d5d0adab9f07ee1bc5f98605d48",
     "sourceCodeHash": "0x16c1020857324372169e66c57c1927c19f7763bbaa69dc9c51ae4750d9e6c7a4"
   },
   "src/legacy/L1BlockNumber.sol": {
