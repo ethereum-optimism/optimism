@@ -92,8 +92,8 @@
     "sourceCodeHash": "0xb6cc80e4e2c5bb6b527d4b523eafb72facff75cb25de036052eab380cb2d3213"
   },
   "src/dispute/FaultDisputeGame.sol": {
-    "initCodeHash": "0xd93d6ae410ba47724c40094ae3a19d8e9db4c5daaf43d367c4b7af0af6fccfa0",
-    "sourceCodeHash": "0xeb4ef33b0134a69ddf50c59494ae05b60c07e22e0634f69aafc213fbed6e1a2b"
+    "initCodeHash": "0x86328a03426488472fea8ff7eca00e46c6601d5d0adab9f07ee1bc5f98605d48",
+    "sourceCodeHash": "0x52dd7c52bbb57fa0bdf80cc1993a5e3fc4ff6638cec13eeba59a4a17ac0570f0"
   },
   "src/legacy/BlockOracle.sol": {
     "initCodeHash": "0x183ce41fb2842c9853f08955ddd91e345126028fad64e07ed14f593cbf9c88bc",
@@ -151,3 +151,4 @@
     "initCodeHash": "0xb656d2aa6aff3e6435e747a0c23236d1b66f1f5c0b45e4b1a10d290a90223c5a",
     "sourceCodeHash": "0xebfc968e6b78d7ea355547d427300739f14d000a11ff35f29d9ded3ddb7882da"
   }
+}
