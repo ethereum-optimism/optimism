@@ -55,3 +55,7 @@ func (g *OutputAlphabetGameHelper) CreateHonestActor(ctx context.Context, l2Node
 		correctTrace: correctTrace,
 	}
 }
+
+func (g *OutputAlphabetGameHelper) CreateDishonestHelper(ctx context.Context, l2Node string, defender bool) *DishonestHelper {
+	return newDishonestHelper(&g.OutputGameHelper, g.CreateHonestActor(ctx, l2Node), defender)
+}

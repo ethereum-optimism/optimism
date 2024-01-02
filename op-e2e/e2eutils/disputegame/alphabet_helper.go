@@ -33,7 +33,3 @@ func (g *AlphabetGameHelper) CreateHonestActor(alphabetTrace string, depth uint6
 		correctTrace: alphabet.NewTraceProvider(alphabetTrace, depth),
 	}
 }
-
-func (g *AlphabetGameHelper) CreateDishonestHelper(alphabetTrace string, depth uint64, defender bool) *DishonestHelper {
-	return newDishonestHelper(&g.FaultGameHelper, g.CreateHonestActor(alphabetTrace, depth), defender)
-}
