@@ -186,14 +186,14 @@ library ChainAssertions {
         require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
         require(bridge.otherBridge() == Predeploys.L2_ERC721_BRIDGE);
 
-        if (!_isProxy) {
-            require(address(bridge.MESSENGER()) == address(0));
-            require(address(bridge.messenger()) == address(0));
-            require(address(bridge.superchainConfig()) == address(0));
-        } else {
+        if (_isProxy) {
             require(address(bridge.MESSENGER()) == _contracts.L1CrossDomainMessenger);
             require(address(bridge.messenger()) == _contracts.L1CrossDomainMessenger);
             require(address(bridge.superchainConfig()) == _contracts.SuperchainConfig);
+        } else {
+            require(address(bridge.MESSENGER()) == address(0));
+            require(address(bridge.messenger()) == address(0));
+            require(address(bridge.superchainConfig()) == address(0));
         }
     }
 
