@@ -204,7 +204,7 @@ func (ps *ProposerService) initMetricsServer(cfg *CLIConfig) error {
 func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
-		return nil
+		return err
 	}
 	ps.L2OutputOracleAddr = &l2ooAddress
 	return nil
@@ -213,7 +213,7 @@ func (ps *ProposerService) initL2ooAddress(cfg *CLIConfig) error {
 func (ps *ProposerService) initDGF(cfg *CLIConfig) error {
 	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
 	if err != nil {
-		return nil
+		return err
 	}
 	ps.DisputeGameFactoryAddr = &dgfAddress
 	ps.ProposalInterval = cfg.ProposalInterval
