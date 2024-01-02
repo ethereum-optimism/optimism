@@ -775,7 +775,6 @@ contract Deploy is Deployer {
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         address l1StandardBridge = mustGetAddress("L1StandardBridge");
         address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
-        address l2StandardBridge = mustGetAddress("L2StandardBridge");
         address superchainConfigProxy = mustGetAddress("SuperchainConfigProxy");
 
         uint256 proxyType = uint256(proxyAdmin.proxyType(l1StandardBridgeProxy));
@@ -794,7 +793,7 @@ contract Deploy is Deployer {
                 L1StandardBridge.initialize,
                 (
                     L1CrossDomainMessenger(l1CrossDomainMessengerProxy),
-                    StandardBridge(payable(l2StandardBridge)),
+                    StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)),
                     SuperchainConfig(superchainConfigProxy)
                 )
                 )
