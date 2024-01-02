@@ -11,10 +11,28 @@ const deployFn: DeployFunction = async (hre) => {
     .hexZeroPad(ethers.constants.AddressZero, 32)
     .toLowerCase()
 
+  const minimumBaseFee = ethers.utils.parseUnits('1', 'gwei')
+  const maximumBaseFee = ethers.BigNumber.from('2').pow(128).sub(1)
+
   await deploy({
     hre,
     name: 'SystemConfig',
-    args: [],
+    args: [
+      '0x000000000000000000000000000000000000dEaD',
+      0,
+      0,
+      batcherHash,
+      20_000_000 + 1_000_000,
+      ethers.constants.AddressZero,
+      {
+        maxResourceLimit: 20_000_000,
+        elasticityMultiplier: 10,
+        baseFeeMaxChangeDenominator: 8,
+        minimumBaseFee: minimumBaseFee,
+        systemTxMaxGas: 1_000_000,
+        maximumBaseFee: ethers.BigNumber.from('2').pow(128).sub(1),
+      }
+    ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
@@ -31,12 +49,12 @@ const deployFn: DeployFunction = async (hre) => {
       )
 
       const config = await contract.resourceConfig()
-      assert(config.maxResourceLimit === 1)
-      assert(config.elasticityMultiplier === 1)
-      assert(config.baseFeeMaxChangeDenominator === 2)
-      assert(config.systemTxMaxGas === 0)
-      assert(ethers.utils.parseUnits('0', 'gwei').eq(config.minimumBaseFee))
-      assert(config.maximumBaseFee.eq(ethers.BigNumber.from('0')))
+      assert(config.maxResourceLimit === 20_000_000)
+      assert(config.elasticityMultiplier === 10)
+      assert(config.baseFeeMaxChangeDenominator === 8)
+      assert(config.systemTxMaxGas === 1_000_000)
+      assert(config.minimumBaseFee === minimumBaseFee.toNumber())
+      assert(config.maximumBaseFee.eq(maximumBaseFee))
     },
   })
 }

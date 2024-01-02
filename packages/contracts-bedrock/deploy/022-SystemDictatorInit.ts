@@ -61,6 +61,7 @@ const deployFn: DeployFunction = async (hre) => {
       controller: hre.deployConfig.controller,
       finalOwner: hre.deployConfig.finalSystemOwner,
       addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
+      superchainConfig: await getDeploymentAddress(hre, 'SuperchainConfig'),
     },
     proxyAddressConfig: {
       l2OutputOracleProxy: await getDeploymentAddress(
