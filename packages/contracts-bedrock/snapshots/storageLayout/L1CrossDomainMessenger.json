@@ -137,6 +137,6 @@
     "label": "portal",
     "offset": 0,
     "slot": "252",
-    "type": "contract OptimismPortal"
+    "type": "address payable"
   }
 ]
